@@ -6,6 +6,9 @@ import (
 )
 
 func TestTemplatesIndependentCopiesAndWorkers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("fixture snapshot isolation runs in the full merge tier")
+	}
 	suite := NewTemplates()
 	t.Cleanup(suite.Close)
 	builds := 0
@@ -85,6 +88,9 @@ func TestTemplatesIndependentCopiesAndWorkers(t *testing.T) {
 }
 
 func TestTemplatesCloseKeepsConsumerAlive(t *testing.T) {
+	if testing.Short() {
+		t.Skip("fixture snapshot isolation runs in the full merge tier")
+	}
 	suite := NewTemplates()
 	c, n := suite.Open(t, "one", func(t *testing.T) (*Catalog, Names) {
 		c := Open(t)
