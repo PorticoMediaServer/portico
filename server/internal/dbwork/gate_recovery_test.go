@@ -37,6 +37,23 @@ func TestRecoveryHoldPauseAndReservedTurn(t *testing.T) {
 	g := NewGate()
 	ctx := context.Background()
 	results := make(chan admissionResult, 8)
+	queue := func(class Class, owner, label string) {
+		t.Helper()
+		before := 0
+		for _, count := range g.Waiting() {
+			before += count
+		}
+		go func() {
+			release, err := g.Acquire(WithOwner(ctx, owner), class)
+			// Record admission while this ticket still owns the gate. Reporting
+			// after release lets a later writer report first under contention.
+			results <- admissionResult{label: label, err: err}
+			if err == nil {
+				release()
+			}
+		}()
+		waitForWaiters(t, g, before+1)
+	}
 	holder, err := g.Acquire(ctx, ClassBackgroundMedia)
 	if err != nil {
 		t.Fatal(err)
@@ -48,8 +65,8 @@ func TestRecoveryHoldPauseAndReservedTurn(t *testing.T) {
 	if _, err = g.enterPressureHold(); err == nil {
 		t.Fatal("a second recovery attempt started")
 	}
-	queueTicket(t, g, ClassInteractive, "viewer", "interactive", closedChannel(), results)
-	queueTicket(t, g, ClassSecurityFence, "", "fence-1", closedChannel(), results)
+	queue(ClassInteractive, "viewer", "interactive")
+	queue(ClassSecurityFence, "", "fence-1")
 	holder()
 	// The holder finished normally; the fence passes the hold, the user waits.
 	expectResult(t, results, "fence-1")
@@ -60,7 +77,7 @@ func TestRecoveryHoldPauseAndReservedTurn(t *testing.T) {
 	if err = g.enterBeginPause(epoch); err != nil {
 		t.Fatal(err)
 	}
-	queueTicket(t, g, ClassSecurityFence, "", "fence-2", closedChannel(), results)
+	queue(ClassSecurityFence, "", "fence-2")
 	expectNoResult(t, results, 50*time.Millisecond)
 	fence, _ := g.checkpointCopyFence()
 	release, err := g.acquireRecoveryTurn(ctx, epoch)
