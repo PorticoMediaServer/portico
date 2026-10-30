@@ -111,6 +111,11 @@ def ensure_ffmpeg(plan, index=0, component=None):
             needed |= any(re.search(r'ffmpeg|ffprobe',f.read_text(),re.I) for f in (ROOT/p['module']/suffix).glob('*.go'))
     if needed and not (shutil.which('ffmpeg') and shutil.which('ffprobe')):
         execute(['sudo','apt-get','update']); execute(['sudo','apt-get','install','-y','ffmpeg'])
+    if needed:
+        for tool in ['ffmpeg','ffprobe']:
+            path=shutil.which(tool)
+            result=subprocess.run([path,'-version'],capture_output=True,text=True,check=True,timeout=10)
+            print(tool+' '+path+': '+result.stdout.splitlines()[0],flush=True)
 
 def fixture_producers(files, directory):
     producers = [

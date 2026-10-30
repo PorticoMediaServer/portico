@@ -33,6 +33,22 @@
       "reason": "1/2 failures; scaled ingest window and retry coordination need deterministic fixture",
       "expires": "2026-11-05",
       "tier": "nightly"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestRealLocalAudioScanChaptersArtAndBookResume",
+      "owner": "Justin Ehler",
+      "reason": "Observed full bootstrap run 40981745383: whole-book bookmark clause mismatch after scan completion; exact local run passes; diagnostics and controlled reproduction pending. OUTSTANDING: CI-BOOTSTRAP-AUDIO",
+      "expires": "2026-11-02",
+      "tier": "merge-and-nightly"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestManifestPublicationWaitsForTheSessionGeneration",
+      "owner": "Justin Ehler",
+      "reason": "Observed full bootstrap run 40981745383: generation directory disappeared between legacy Ready and marker write; restart/cleanup race not proven; diagnostics and controlled reproduction pending. OUTSTANDING: CI-BOOTSTRAP-MANIFEST",
+      "expires": "2026-11-02",
+      "tier": "merge-and-nightly"
     }
   ]
 }

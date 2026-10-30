@@ -5,10 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/apispec"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
@@ -16,6 +12,10 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/decodertest"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
+	"math"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -289,6 +289,23 @@ func TestManifestPublicationWaitsForTheSessionGeneration(t *testing.T) {
 	}
 	marker := filepath.Join(h.root, session.ID, "generation")
 	if err := os.WriteFile(marker, []byte("0"), 0600); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			list := func(path string) []string {
+				entries, readErr := os.ReadDir(path)
+				if readErr != nil {
+					return []string{fmt.Sprintf("read error: %v", readErr)}
+				}
+				names := make([]string, 0, len(entries))
+				for _, entry := range entries {
+					names = append(names, entry.Name())
+				}
+				return names
+			}
+			var state, artifact string
+			var generation int
+			queryErr := h.db.QueryRow(`SELECT ps.state,COALESCE(a.status,''),ps.generation FROM playback_sessions ps LEFT JOIN playback_artifacts a ON a.session_id=ps.id WHERE ps.id=?`, session.ID).Scan(&state, &artifact, &generation)
+			t.Fatalf("generation marker: %v; root=%v sessionDir=%v state=%q artifact=%q generation=%d queryErr=%v", err, list(h.root), list(filepath.Join(h.root, session.ID)), state, artifact, generation, queryErr)
+		}
 		t.Fatal(err)
 	}
 	if _, err := s.HLSFileContext(ctx, grant, "master.m3u8"); !errors.Is(err, ErrSegmentPreparing) {

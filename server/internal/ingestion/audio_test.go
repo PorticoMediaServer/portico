@@ -285,7 +285,18 @@ func TestRealLocalAudioScanChaptersArtAndBookResume(t *testing.T) {
 			}
 			book, resume := row.Entries[0], row.Resumes[0]
 			if book.Kind != "book" || book.ID != bookRows[0].ID || book.Playback == nil || book.Playback.ItemID != item || book.Playback.StartSeconds == nil || *book.Playback.StartSeconds != partPosition || book.ProgressSeconds == nil || math.Abs(*book.ProgressSeconds-bookPosition) > 0.000001 || book.Duration == nil || math.Abs(*book.Duration-(files[0].Duration+files[1].Duration)) > 0.000001 {
-				t.Fatalf("whole-book bookmark: %+v", book)
+				number := func(value *float64) any {
+					if value == nil {
+						return "nil"
+					}
+					return *value
+				}
+				playbackItem := ""
+				var start *float64
+				if book.Playback != nil {
+					playbackItem, start = book.Playback.ItemID, book.Playback.StartSeconds
+				}
+				t.Fatalf("whole-book bookmark: Kind=%q want=book ID=%q want=%q Playback.ItemID=%q want=%q StartSeconds=%v want=%v ProgressSeconds=%v want=%v Duration=%v want=%v", book.Kind, book.ID, bookRows[0].ID, playbackItem, item, number(start), partPosition, number(book.ProgressSeconds), bookPosition, number(book.Duration), files[0].Duration+files[1].Duration)
 			}
 			if resume.EntryID != book.ID || resume.Target.ID != item || resume.Target.ProgressSeconds == nil || *resume.Target.ProgressSeconds != partPosition {
 				t.Fatalf("real part bookmark: %+v", resume)
