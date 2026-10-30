@@ -56,19 +56,19 @@ func (s *Service) runSeparateFolder(ctx context.Context, library, object, revisi
 	if s == nil || s.db == nil || authorize == nil || library == "" || object == "" || revision == "" {
 		return "", ErrAdminQuery
 	}
-	proof, err := s.separateFolderProof(ctx, library, object, revision, authorize)
-	if err != nil {
-		return "", err
-	}
-	ctx = context.WithValue(ctx, separateFolderProofKey{}, proof)
 	ctx = dbwork.WithPlan(ctx, dbwork.DefaultPlan(dbwork.ClassInteractive))
 	retirement := separateFolderHooksFrom(ctx)
 	if !retirement.complete() {
 		retirement = s.SeparateFolderRetirement
 	}
 	coordinator := SeparateFolderCoordinator{Hooks: SeparateFolderCoordinatorHooks{Authorize: authorize, Retirement: retirement}}
-	var ref compactcatalog.MutationRef
-	for i := 0; i < separateFolderForegroundQuanta; i++ {
+	ref, public, complete, err := s.admitSeparateFolder(ctx, library, object, revision, authorize)
+	if err != nil || complete {
+		return public, err
+	}
+	// Successful admission consumes the first foreground quantum; failed
+	// proof attempts never commit command progress.
+	for i := 1; i < separateFolderForegroundQuanta; i++ {
 		var (
 			step   compactcatalog.MutationStep
 			public string
@@ -77,19 +77,6 @@ func (s *Service) runSeparateFolder(ctx context.Context, library, object, revisi
 		err := dbwork.WithWriteTx(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassInteractive), func(tx *sql.Tx) error {
 			if err := authorize(tx); err != nil {
 				return err
-			}
-			if ref.ID == "" {
-				next, separated, complete, e := separateFolderAdmitTx(ctx, tx, library, object, revision)
-				if e != nil {
-					return e
-				}
-				ref = next
-				if complete {
-					public, done = separated, true
-					return nil
-				}
-				step = compactcatalog.PendingMutationStep()
-				return nil
 			}
 			next, e := coordinator.Step(ctx, tx, ref)
 			if e != nil {
@@ -124,6 +111,38 @@ func (s *Service) runSeparateFolder(ctx context.Context, library, object, revisi
 	return "", ErrSeparateFolderPending
 }
 
+// admitSeparateFolder refreshes a conflicted read proof at most three times.
+// The accepting writer never consumes an old snapshot after an intervening
+// commit. Background playback/scheduler writes may conservatively conflict;
+// a bounded refresh handles those without waiting or renewing owner intent.
+func (s *Service) admitSeparateFolder(ctx context.Context, library, object, revision string, authorize func(*sql.Tx) error) (compactcatalog.MutationRef, string, bool, error) {
+	for attempt := 0; attempt < 3; attempt++ {
+		proof, err := s.separateFolderProof(ctx, library, object, revision, authorize)
+		if err != nil {
+			return compactcatalog.MutationRef{}, "", false, err
+		}
+		proofCtx := context.WithValue(ctx, separateFolderProofKey{}, proof)
+		var ref compactcatalog.MutationRef
+		var public string
+		var complete bool
+		err = dbwork.WithWriteTx(proofCtx, s.db, dbwork.ClassFrom(proofCtx, dbwork.ClassInteractive), func(tx *sql.Tx) error {
+			if err := authorize(tx); err != nil {
+				return err
+			}
+			var err error
+			ref, public, complete, err = separateFolderAdmitTx(proofCtx, tx, library, object, revision)
+			return err
+		})
+		if err == nil {
+			return ref, public, complete, nil
+		}
+		if !errors.Is(err, dbwork.ErrWriterCapacity) {
+			return compactcatalog.MutationRef{}, "", false, err
+		}
+	}
+	return compactcatalog.MutationRef{}, "", false, dbwork.ErrWriterCapacity
+}
+
 // separateFolderAdmitTx creates the container and the actual command, or
 // resumes the one already admitted for this folder. It returns the separated
 // public id only when the command already finished and no original folder file
@@ -132,9 +151,6 @@ func separateFolderAdmitTx(ctx context.Context, tx *sql.Tx, library, object, rev
 	var zero compactcatalog.MutationRef
 	proof, _ := ctx.Value(separateFolderProofKey{}).(*separateFolderProof)
 	if proof == nil {
-		return zero, "", false, dbwork.ErrWriterCapacity
-	}
-	if !proof.reading && proof.publication != dbwork.Publications() {
 		return zero, "", false, dbwork.ErrWriterCapacity
 	}
 	var handle int64
@@ -196,6 +212,12 @@ func separateFolderAdmitTx(ctx context.Context, tx *sql.Tx, library, object, rev
 			}
 			return zero, public, true, nil
 		}
+	}
+	// Only fresh admission consumes the window proof. Active and exact-complete
+	// receipts above do not depend on it, including when their own background
+	// quantum committed between the read and accepting writer.
+	if !proof.reading && (!proof.ready || proof.publication != dbwork.Publications()) {
+		return zero, "", false, dbwork.ErrWriterCapacity
 	}
 	var objectRevision string
 	if err = tx.QueryRowContext(ctx, `SELECT revision FROM inventory_objects WHERE id=? AND retired=0`, object).Scan(&objectRevision); err != nil {

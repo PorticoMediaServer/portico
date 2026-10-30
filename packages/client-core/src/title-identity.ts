@@ -171,7 +171,7 @@ export async function separateLibraryFolder(api:TitleIdentityApi,libraryId:strin
   catch(error){
    if(signal?.aborted)throw folderCancelled();
    // Match the transport's ApiError fields; same_request is not transport auto-retry.
-   if(!obj(error)||error.status!==409||error.code!=='request_in_progress')throw error;
+   if(!obj(error)||!((error.status===409&&error.code==='request_in_progress')||(error.status===503&&error.code==='writer_capacity')))throw error;
    pending=error;
    const seconds=typeof error.retryAfterSeconds==='number'&&error.retryAfterSeconds>0?error.retryAfterSeconds:2;
    const delay=seconds*1000,remaining=120_000-(Date.now()-started);
