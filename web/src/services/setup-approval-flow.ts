@@ -10,8 +10,17 @@ export type SetupApprovalDisplay = Readonly<{
 export type SetupApprovalSnapshot = Readonly<{
   phase: 'loading' | 'review' | 'approved' | 'finishing' | 'denied' | 'returning' | 'error' | 'expired';
   busy: boolean; approved?: true; /** Hosted reports the claim installed: only then is Return offered. */ installed?: true; display?: SetupApprovalDisplay; error?: unknown;
+  /** Still finishing well after Approve: the page says so honestly, with what to check. */ slow?: true;
 }>;
 const changed = () => new ApiError(409, 'claim_stale', 'claim_stale', false);
+/** The server retries finishing quickly for about two minutes, then keeps trying slowly. */
+export const FINISHING_SLOW_MS = 2 * 60_000;
+
+export type SetupApprovalTiming = Readonly<{
+  monotonicNow?: () => number;
+  setTimeout?: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
+  clearTimeout?: (timer: ReturnType<typeof setTimeout>) => void;
+}>;
 
 /** View lifecycle over the one existing protected setup controller. No cookie,
  * credential, journal or claim code is copied into this public snapshot. */
@@ -22,13 +31,72 @@ export class SetupApprovalFlow {
   private disposed = false;
   private review?: HostedSetupClaimReview;
   private identity?: AccountIdentity;
+  private approvedAt?: number;
+  private timer?: ReturnType<typeof setTimeout>;
+  private timerTicket = 0;
+  private stopAccount?: () => void;
+  private clockRetired = false;
+  private readonly monotonicNow: () => number;
+  private readonly schedule: NonNullable<SetupApprovalTiming['setTimeout']>;
+  private readonly cancel: NonNullable<SetupApprovalTiming['clearTimeout']>;
   constructor(private readonly account: ServicesAccount, private readonly controller: Controller,
-    private readonly navigate: (location: string) => void, private readonly now = Date.now) {}
+    private readonly navigate: (location: string) => void, private readonly now = Date.now, timing: SetupApprovalTiming = {}) {
+    this.monotonicNow = timing.monotonicNow ?? (() => performance.now());
+    this.schedule = timing.setTimeout ?? ((callback, delay) => setTimeout(callback, delay));
+    this.cancel = timing.clearTimeout ?? (timer => clearTimeout(timer));
+  }
   readonly getSnapshot = () => this.state;
   readonly subscribe = (listener: () => void) => {this.listeners.add(listener); return () => this.listeners.delete(listener);};
   private publish(state: SetupApprovalSnapshot) {
     if (this.disposed) return;
     this.state = Object.freeze(state); this.listeners.forEach(listener => listener());
+    this.syncClock();
+  }
+  private stopClock() {
+    ++this.timerTicket;
+    if (this.timer !== undefined) this.cancel(this.timer);
+    this.timer = undefined;
+    const stop = this.stopAccount; this.stopAccount = undefined; stop?.();
+  }
+  private clockAuthority() {
+    const session = this.account.service.getSnapshot().session;
+    if (!session?.familyId || !this.identity || !sameAccount(accountIdentity(session), this.identity) ||
+      !this.review || !sameAccount(this.review.identity, this.identity) ||
+      !Number.isFinite(Date.parse(this.review.expiresAt)) || Date.parse(this.review.expiresAt) <= this.now()) {
+      this.clockRetired = true;
+      this.stopClock();
+      return false;
+    }
+    return true;
+  }
+  private clockEligible() {
+    return !this.disposed && !this.clockRetired && this.state.approved && !this.state.slow &&
+      ['approved', 'finishing', 'error'].includes(this.state.phase) &&
+      (!this.state.installed || this.state.phase === 'finishing');
+  }
+  private elapsedSlow() {
+    return this.approvedAt !== undefined && this.monotonicNow() - this.approvedAt >= FINISHING_SLOW_MS;
+  }
+  private syncClock() {
+    if (!this.clockEligible()) {this.stopClock(); return;}
+    if (!this.clockAuthority()) return;
+    this.approvedAt ??= this.monotonicNow();
+    this.stopAccount ??= this.account.service.subscribe(() => {this.clockAuthority();});
+    if (this.timer !== undefined) return;
+    const ticket = ++this.timerTicket;
+    // Expiry uses wall time; the display deadline uses only monotonic elapsed time.
+    const delay = Math.max(0, Math.ceil(Math.min(
+      FINISHING_SLOW_MS - (this.monotonicNow() - this.approvedAt),
+      Date.parse(this.review!.expiresAt) - this.now())));
+    this.timer = this.schedule(() => {
+      if (ticket !== this.timerTicket || !this.clockEligible()) return;
+      this.timer = undefined;
+      if (!this.clockAuthority()) return;
+      if (!this.elapsedSlow()) {this.syncClock(); return;}
+      this.stopClock();
+      // Display only: leave the action epoch and any completion in flight intact.
+      this.publish({...this.state, slow: true});
+    }, delay);
   }
   private current(generation: number, identity: AccountIdentity) {
     if (this.disposed || this.epoch !== generation) throw changed();
@@ -62,7 +130,7 @@ export class SetupApprovalFlow {
       const display = Object.freeze({name: review.name, address: review.address,
         accountName: session.account.displayName || session.account.username,
         requestedAt: review.requestedAt, expiresAt: review.expiresAt});
-      this.publish({phase: review.status === 'approved' ? 'approved' : 'review', busy: false, ...(review.status === 'approved' ? {approved: true as const} : {}), ...(review.status === 'approved' && review.installed ? {installed: true as const} : {}), display});
+      this.publish({...(this.state.slow ? {slow: true as const} : {}), phase: review.status === 'approved' ? 'approved' : 'review', busy: false, ...(review.status === 'approved' ? {approved: true as const} : {}), ...(review.status === 'approved' && review.installed ? {installed: true as const} : {}), display});
     });
   }
   async decide(decision: 'approve' | 'deny') {
@@ -76,7 +144,10 @@ export class SetupApprovalFlow {
         await currentAccountWork(this.account, async () => {this.current(generation, identity);}, identity);
         this.current(generation, identity);
         this.publish({phase: 'denied', busy: false, display: this.state.display});
-      } else this.publish({phase: 'approved', busy: false, approved: true, display: this.state.display});
+      } else {
+        this.approvedAt ??= this.monotonicNow();
+        this.publish({phase: 'approved', busy: false, approved: true, display: this.state.display});
+      }
     });
   }
   /** A denial has no credential exchange to finish. Return only to the original
@@ -108,7 +179,9 @@ export class SetupApprovalFlow {
         this.current(generation, identity);
         this.review = review;
         const installed = review.status === 'approved' && review.installed;
-        this.publish({...this.state, phase: 'finishing', busy: false, ...(installed ? {installed: true as const} : {})});
+        this.approvedAt ??= this.monotonicNow();
+        const slow = this.elapsedSlow();
+        this.publish({...this.state, phase: 'finishing', busy: false, ...(installed ? {installed: true as const} : {}), ...(slow ? {slow: true as const} : {})});
         return;
       }
       // The protected controller already performs the final authenticated check
@@ -120,12 +193,13 @@ export class SetupApprovalFlow {
   }
   expire() {
     if (this.disposed) return;
+    this.clockRetired = true; this.stopClock();
     ++this.epoch; this.review = undefined; this.controller.dispose();
     this.publish({phase: 'expired', busy: false});
   }
   dispose() {
     if (this.disposed) return;
-    this.disposed = true; ++this.epoch; this.review = undefined; this.identity = undefined;
+    this.disposed = true; this.stopClock(); ++this.epoch; this.review = undefined; this.identity = undefined;
     this.controller.dispose(); this.listeners.clear();
   }
 }

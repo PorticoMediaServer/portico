@@ -137,3 +137,44 @@ func TestSetupStartRequiresExactCanonicalEnvelopes(t *testing.T) {
 		t.Fatal("missing original claim accepted")
 	}
 }
+
+// PLEX-SETUP-NOTES S1/S3/S5: first-run setup may start from and return to the local
+// network over plain HTTP, never a public IP over HTTP.
+func TestSetupStartAddressIsLocalOverPlainHTTP(t *testing.T) {
+	for _, ok := range []string{
+		"https://demo.example", "https://203.0.113.9:32400",
+		"http://localhost:32500", "http://127.0.0.1:32500", "http://[::1]:32500",
+		"http://10.0.0.5:32400", "http://172.20.1.2:32400", "http://192.168.1.20:32400",
+		"http://100.101.102.103:32400", "http://169.254.10.1:32400", "http://[fd00::5]:32400", "http://[fe80::1]:32400",
+		"http://tower.local:32400", "http://nas:32400",
+	} {
+		if !SetupStartAddress(ok) {
+			t.Errorf("%s refused", ok)
+		}
+	}
+	for _, bad := range []string{
+		"http://198.51.100.7:32400", "http://8.8.8.8", "http://[2001:db8::1]:32400", "http://[::ffff:192.168.1.2]:32400",
+		"http://[fe80::1%25eth0]:32400", "http://192.168.1.20:32400/", "http://192.168.1.20:32400?x=1", "http://user@192.168.1.20",
+		"http://192.168.1.20:0", "http://192.168.1.20:070", "HTTP://192.168.1.20", "http://Tower.local", "ftp://192.168.1.20", "",
+		"http://0xc6336401", "http://0x7f.1", "http://3325256705", "http://198.51.0x64.1", "http://nas.0x1",
+	} {
+		if SetupStartAddress(bad) {
+			t.Errorf("%s accepted", bad)
+		}
+	}
+}
+
+func TestSetupLifetimeIsThirtyMinutesAndOnlyShortened(t *testing.T) {
+	if SetupLifetime() != 30*time.Minute || RequestLifetime("setup") != 30*time.Minute || RequestLifetime("switch") != 10*time.Minute {
+		t.Fatal("setup window is not thirty minutes, or other purposes changed")
+	}
+	SetDevelopmentSetupLifetime(time.Hour)
+	if SetupLifetime() != 30*time.Minute {
+		t.Fatal("the development knob lengthened the window")
+	}
+	SetDevelopmentSetupLifetime(20 * time.Second)
+	defer setupLifetime.Store(0)
+	if SetupLifetime() != 20*time.Second {
+		t.Fatal("the development knob did not shorten the window")
+	}
+}

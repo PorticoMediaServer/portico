@@ -8,7 +8,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/wirejson"
 )
 
-// SetupExchange is a distinct transport, never a code-less ordinary Exchange.
+// SetupExchange is a distinct transport, never a code-less ordinary Exchange. It names no
+// return registration: setup finishes at claim install, before one exists (O-163).
 // It grants no authority: the handler must capture the installed server token
 // and the store must compare its exact live tuple with the frozen owner row.
 type SetupExchange struct {

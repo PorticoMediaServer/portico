@@ -17,7 +17,7 @@ type Exchange struct {
 }
 
 func (q Exchange) Valid() bool {
-	return secret.MatchString(q.Code) && identifier.MatchString(q.TransactionID) && secret.MatchString(q.Verifier) && identifier.MatchString(q.RegistrationID) && secret.MatchString(q.ServerChallenge) && secret.MatchString(q.InstallationID) && Purpose(q.Purpose)
+	return secret.MatchString(q.Code) && identifier.MatchString(q.TransactionID) && secret.MatchString(q.Verifier) && identifier.MatchString(q.RegistrationID) && secret.MatchString(q.ServerChallenge) && secret.MatchString(q.InstallationID) && RegisteredPurpose(q.Purpose)
 }
 func (Exchange) String() string     { return "[server return redacted]" }
 func (q Exchange) GoString() string { return q.String() }

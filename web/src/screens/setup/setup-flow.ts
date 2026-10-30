@@ -25,6 +25,9 @@ export type SetupPorts = Readonly<{
   acceptLocal: (server: SetupServer, session: LocalSession) => Promise<void>;
   continueHosted: (server: SetupServer, input: Readonly<{name: string}>) => Promise<void>;
   resumeHosted?: (server: SetupServer, pending: PendingAccountSetup) => Promise<void>;
+  /** True after it discarded a saved Portico Account setup whose attempt expired and was never
+   * approved, so the ordinary start form can be shown. A live or approved one stays and resumes. */
+  discardStaleDraft?: (server: SetupServer) => Promise<boolean>;
   /** Bound to the admitted owner, never the pre-admission setup bearer. */
   addLibrary: (input: Readonly<{kind: SetupLibraryKind; name: string; path: string; folders?: readonly string[]}>) => Promise<void>;
   libraryFolders?: LibraryContentApi;
@@ -50,6 +53,8 @@ export type SetupSnapshot = Readonly<{
   busy: boolean;
   error?: string;
   connectError?: unknown;
+  /** The saved attempt expired unapproved and was dropped; the start form says so quietly. */
+  earlierExpired?: boolean;
   /** The exact staged failure, kept for the panel and its own callbacks. */
   failure?: SetupStageFailure;
 }>;
@@ -86,7 +91,7 @@ export class SetupFlow {
   private async connect(): Promise<void> {
     const op = this.operation();
     this.localRecovery = undefined;
-    this.publish({phase: 'loading', busy: true, error: undefined, connectError: undefined, failure: undefined});
+    this.publish({phase: 'loading', busy: true, error: undefined, connectError: undefined, failure: undefined, earlierExpired: undefined});
     try {
       const server = await this.ports.connect(op.signal);
       if (!op.current() || this.disposed) {server.dispose(); return;}
@@ -100,6 +105,12 @@ export class SetupFlow {
         throw Object.assign(new Error('This server is already set up.'), {code: 'not_setup_required'});
       }
       const draft = await server.draft.read();
+      if (!op.current()) return;
+      if (draft && this.ports.discardStaleDraft && await this.ports.discardStaleDraft(server)) {
+        if (!op.current()) return;
+        this.publish({phase: 'form', busy: false, earlierExpired: true});
+        return;
+      }
       if (!op.current()) return;
       if (draft) {
         const resumed = await resumeServerSetup(server.api, server.draft, op.signal);

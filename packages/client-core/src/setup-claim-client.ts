@@ -5,6 +5,7 @@ import type {ClaimExpected} from './claim-onboarding.ts';
 import {installationIdentity, validInstallationId} from './installation.ts';
 import {verifySetupClaimStart, type SetupStartExpectation} from './setup-claim-start.ts';
 import {routeBytes, routeOrigin, sameServerPin, webRouteCrypto, type RouteCrypto} from './route-identity.ts';
+import {setupAddressAllowed} from './setup-address.ts';
 import {CodedError} from './server-messages.ts';
 
 export type SetupSignedProof = Readonly<{payload: string; signature: string}>;
@@ -51,8 +52,7 @@ export async function prepareSetupClaimHandoff(api: Api, expected: ClaimExpected
   if (!identifier(expected.operationId) || !counter(expected.localGeneration) || !counter(expected.revision) || expected.revision === '0' ||
       expected.operationId !== binding.operationId || expected.localGeneration !== binding.localGeneration || !validInstallationId(binding.installationId) || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(binding.setupRequestId) || !counter(binding.setupRevision) || binding.setupRevision === '0' ||
       routeOrigin(binding.origin) !== binding.origin || api.baseUrl !== binding.origin || routeOrigin(binding.hostedOrigin) !== binding.hostedOrigin || !binding.hostedOrigin.startsWith('https://')) throw invalid();
-  const origin = new URL(binding.origin);
-  if (origin.protocol !== 'https:' && !(origin.protocol === 'http:' && origin.hostname === 'localhost')) throw invalid();
+  if (!setupAddressAllowed(binding.origin)) throw invalid();
   routeBytes(binding.state, 32); routeBytes(binding.codeChallenge, 32);
   const current = async () => {
     throwIfAborted(options.signal);

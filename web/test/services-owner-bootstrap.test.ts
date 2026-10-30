@@ -45,13 +45,19 @@ test('malformed new capture clears an older owner attempt before any cookie work
   const f=fixture(),first=f.boot({request});await first.start();first.dispose();f.calls.length=0;
   const boot=f.boot({});await boot.start();assert.equal(boot.getSnapshot().invalidOwner,true);assert.equal(f.saved,undefined);assert.equal(f.calls.includes('cookie'),false);boot.dispose();
 });
+test('an expired saved capture reports honest expiry; a malformed one stays invalid', async () => {
+  const f = fixture(), first = f.boot({request}); await first.start(); first.dispose();
+  const captured = Date.now() - 31 * 60_000; f.saved = {...f.saved!, capturedAt: captured, deadline: captured + 1_800_000};
+  const expired = f.boot(); await expired.start(); assert.equal(expired.getSnapshot().invalidOwner, 'expired'); expired.dispose();
+  const bad = f.boot({}); await bad.start(); assert.equal(bad.getSnapshot().invalidOwner, true); bad.dispose();
+});
 test('unavailable protected storage refuses before reads, cookie work or ordinary storage',async()=>{
   const f=fixture();f.store.assertAvailable=()=>{throw Error('secure context unavailable');};const boot=f.boot({request});await boot.start();
   assert.equal(boot.getSnapshot().invalidOwner,true);assert.deepEqual(f.calls,[]);boot.dispose();
 });
 test('expired stored owner state cannot restore account effects or refresh its local deadline',async()=>{
   const f=fixture(),first=f.boot({request});await first.start();first.dispose();f.saved={...f.saved!,deadline:Date.now()-1};f.calls.length=0;
-  const boot=f.boot();await boot.start();assert.equal(boot.getSnapshot().invalidOwner,true);assert.equal(f.saved,undefined);assert.equal(f.calls.includes('cookie'),false);boot.dispose();
+  const boot=f.boot();await boot.start();assert.equal(boot.getSnapshot().invalidOwner,'expired');assert.equal(f.saved,undefined);assert.equal(f.calls.includes('cookie'),false);boot.dispose();
 });
 test('disposal during protected read prevents cookie work and late publication',async()=>{
   const f=fixture();let resolve!:(value:undefined)=>void;f.store.read=()=>new Promise(done=>{resolve=done;});const boot=f.boot(),flight=boot.start();

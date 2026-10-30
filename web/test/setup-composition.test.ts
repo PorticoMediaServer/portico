@@ -9,6 +9,8 @@ import {routeBase64, routeBytes, webRouteCrypto} from '@core/route-identity.ts';
 import type {SetupDraft} from '@core/setup-onboarding.ts';
 import {BrowserSetupComposition, type SetupTarget} from '../src/platform/setup-composition.ts';
 import {SetupStageFailure} from '../src/platform/setup-failure.ts';
+import {SetupPendingStorage} from '../src/platform/setup-pending.ts';
+import {routePath} from '../../packages/contracts/src/routes.ts';
 
 const vector = JSON.parse(readFileSync(new URL('../../server/internal/claimweb/testdata/owner_start.json', import.meta.url), 'utf8'));
 const original = JSON.parse(vector.claimPayload);
@@ -71,6 +73,37 @@ test('Hosted setup produces only pending state and hands off after the protected
 test('an insecure Hosted context refuses before secret issuance, initialization or navigation',async t=>{
  const f=await fixture(t);f.hosted();await f.connect();f.insecure();await assert.rejects(f.flow.continueHosted(f.target,{name:'Actual server'}),/secure storage/);
  assert.equal(f.initializes,0);assert.equal(f.claimCalls,0);assert.equal(f.calls.length,0);assert.deepEqual(f.navigated,[]);f.flow.dispose();
+});
+test('on an insecure context (no subtle, not secure) the Hosted setup path reaches the setup POST', async t => {
+ const f = await fixture(t); f.hosted();
+ const sub = Object.getOwnPropertyDescriptor(globalThis.crypto, 'subtle'), sec = Object.getOwnPropertyDescriptor(globalThis, 'isSecureContext');
+ Object.defineProperty(globalThis.crypto, 'subtle', {configurable: true, value: undefined}); Object.defineProperty(globalThis, 'isSecureContext', {configurable: true, value: false});
+ try {
+  let value: SetupDraft | undefined, posted = 0, setups = 0;
+  const plain = new SetupPendingStorage<SetupDraft>(() => ({read: async () => value, change: async update => {value = update(value);}}), () => ({indexedDB: true, locks: true}));
+  const ports = {...f.ports, draft: () => plain};
+  const base = f.target.api.request.bind(f.target.api);
+  f.target.api.request = (async (path: string, method: string, body: unknown, signal?: AbortSignal) => {
+   if (path === routePath('start_browser_setup')) {posted++; return {serverId: f.target.pin.serverId, setupToken: 'issued-setup-token'};}
+   if (path === '/v1/setup') {setups++; return {variant: 'claim-required', serverId: f.target.pin.serverId, requestId: (body as {requestId: string}).requestId, authMode: 'hosted', claimRequired: true, revision: '1'};}
+   return base(path, method, body, signal);
+  }) as HttpLocalApi['request'];
+  const flow = new BrowserSetupComposition('https://accounts.example', url => f.navigated.push(url), ports);
+  const target = {...f.target, draft: plain};
+  await flow.connect(async () => target, new AbortController().signal);
+  await flow.continueHosted(target, {name: 'Actual server'});
+  assert.equal(posted, 1); assert.equal(setups, 1); assert.deepEqual(f.navigated, ['https://accounts.example/claim#code=actual']);
+  flow.dispose();
+ } finally {
+  if (sub) Object.defineProperty(globalThis.crypto, 'subtle', sub); else delete (globalThis.crypto as {subtle?: unknown}).subtle;
+  if (sec) Object.defineProperty(globalThis, 'isSecureContext', sec); else delete (globalThis as {isSecureContext?: unknown}).isSecureContext;
+ }
+});
+test('a public http address is refused before any setup request, with the not-local code', async t => {
+ const f = await fixture(t); f.hosted(); await f.connect();
+ Object.defineProperty(f.target.api, 'baseUrl', {configurable: true, value: 'http://8.8.8.8:32400'});
+ await assert.rejects(f.flow.continueHosted(f.target, {name: 'Actual server'}), (e: unknown) => e instanceof SetupStageFailure && e.code === 'setup_source_not_local');
+ assert.equal(f.initializes, 0); assert.equal(f.calls.length, 0); f.flow.dispose();
 });
 test('disposal retires a late local admission rather than retaining an unexposed family',async t=>{
  const f=await fixture(t);

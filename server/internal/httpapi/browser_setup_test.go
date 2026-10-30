@@ -39,17 +39,47 @@ func TestBrowserSetupLocalOriginAndSingleUse(t *testing.T) {
 		h.ServeHTTP(w, r)
 		return w
 	}
-	// Any peer may start setup at a literal/local address or an independently
-	// configured authority; cross-origin API permission never authorizes setup.
+	// Before anyone owns it, setup is open to this machine and the local network
+	// (PLEX-SETUP-NOTES S1), at a literal/local address or an independently configured
+	// authority; cross-origin API permission never authorizes setup.
 	for _, tc := range []struct{ name, address, origin, peer string }{
 		{"LAN peer", "http://127.0.0.1:32500", "http://127.0.0.1:32500", "192.168.1.2:5000"},
-		{"public peer", "https://demo.example", "https://demo.example", "198.51.100.8:5000"},
+		{"Tailscale peer", "https://demo.example", "https://demo.example", "100.101.102.103:5000"},
+		{"IPv6 ULA peer", "http://127.0.0.1:32500", "http://127.0.0.1:32500", "[fd00::5]:5000"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if w := call(tc.address, tc.origin, tc.peer, "/v1/setup/browser", map[string]any{}); w.Code != http.StatusOK {
 				t.Fatalf("got status %d", w.Code)
 			}
 		})
+	}
+	// A public-internet source is refused, honestly and by name, whatever its scheme.
+	for _, peer := range []string{"198.51.100.8:5000", "[2001:db8::8]:5000"} {
+		w := call("https://demo.example", "https://demo.example", peer, "/v1/setup/browser", map[string]any{})
+		if w.Code != http.StatusForbidden || !bytes.Contains(w.Body.Bytes(), []byte(`"setup_source_not_local"`)) {
+			t.Fatalf("a public source %s started setup: %d %s", peer, w.Code, w.Body.String())
+		}
+	}
+	// A forwarded header from an untrusted peer can't make a public source local.
+	spoof := httptest.NewRequest("POST", "https://demo.example/v1/setup/browser", bytes.NewReader([]byte(`{}`)))
+	spoof.RemoteAddr = "198.51.100.8:5000"
+	spoof.Header.Set("Origin", "https://demo.example")
+	spoof.Header.Set("Content-Type", "application/json")
+	spoof.Header.Set("X-Forwarded-For", "192.168.1.2")
+	if w := httptest.NewRecorder(); func() int { h.ServeHTTP(w, spoof); return w.Code }() != http.StatusForbidden {
+		t.Fatal("a spoofed forwarded address made a public source local")
+	}
+	// Behind a reverse proxy nobody could trust yet, every visitor looks like the proxy's LAN
+	// address: forwarding headers from an untrusted local peer mean "not local" (S1).
+	for _, header := range []string{"X-Forwarded-For", "Forwarded", "X-Real-Ip", "Via"} {
+		proxied := httptest.NewRequest("POST", "http://127.0.0.1:32500/v1/setup/browser", bytes.NewReader([]byte(`{}`)))
+		proxied.RemoteAddr = "192.168.1.5:5000"
+		proxied.Header.Set("Origin", "http://127.0.0.1:32500")
+		proxied.Header.Set("Content-Type", "application/json")
+		proxied.Header.Set(header, "198.51.100.8")
+		if w := httptest.NewRecorder(); func() int { h.ServeHTTP(w, proxied); return w.Code }() != http.StatusForbidden {
+			t.Fatalf("a proxied public visitor (%s) started setup", header)
+		}
 	}
 	for _, tc := range []struct{ name, address, origin, peer string }{
 		{"hosted origin", "http://127.0.0.1:32500", "https://web.getportico.tv", "127.0.0.1:5000"},
@@ -139,6 +169,13 @@ func TestAppSetupWithoutOriginAndNeverFromABrowser(t *testing.T) {
 		if w := call("/v1/setup/app", headers, map[string]any{}); w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden && w.Code != http.StatusUnsupportedMediaType {
 			t.Fatalf("%s: got status %d", name, w.Code)
 		}
+	}
+	// An app reaches the server at a local address, never through a name that rebinds to it.
+	rebound := httptest.NewRequest("POST", "http://media.example.com/v1/setup/app", bytes.NewReader([]byte(`{}`)))
+	rebound.RemoteAddr = "192.168.1.30:5000"
+	rebound.Header.Set("Content-Type", "application/json")
+	if w := httptest.NewRecorder(); func() int { h.ServeHTTP(w, rebound); return w.Code }() == http.StatusOK {
+		t.Fatal("an app setup start through an unconfigured name was answered")
 	}
 	w := call("/v1/setup/app", nil, map[string]any{})
 	if w.Code != http.StatusOK {

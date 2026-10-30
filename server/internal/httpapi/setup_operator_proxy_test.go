@@ -58,7 +58,7 @@ func TestOperatorProxySetupUsesPersistentRealTransportConfiguration(t *testing.T
 		r.Header.Set("Content-Type", "application/json")
 		r.Header.Set("X-Forwarded-Host", "demo.getportico.tv:8443")
 		r.Header.Set("X-Forwarded-Proto", "https")
-		r.Header.Set("X-Forwarded-For", "198.51.100.9")
+		r.Header.Set("X-Forwarded-For", "192.168.1.9")
 		return r
 	}
 	assertPolicy := func(live Dependencies) {
@@ -71,11 +71,11 @@ func TestOperatorProxySetupUsesPersistentRealTransportConfiguration(t *testing.T
 			t.Fatal("forwarded remote client inherited the loopback proxy's locality")
 		}
 		actual, ok := networkpolicy.Client(r, live.trustedProxyPrefixes(ctx))
-		if !ok || actual.String() != "198.51.100.9" {
+		if !ok || actual.String() != "192.168.1.9" {
 			t.Fatal("proxy hid the actual client")
 		}
 		direct := request("POST", "/v1/setup/browser", map[string]any{})
-		direct.RemoteAddr = "198.51.100.9:5678"
+		direct.RemoteAddr = "192.168.1.9:5678"
 		direct.Header.Del("X-Forwarded-For")
 		if live.setupPeerSubject(r) != live.setupPeerSubject(direct) {
 			t.Fatal("proxy changed the remote client's rate-limit subject")
@@ -133,6 +133,12 @@ func TestOperatorProxySetupUsesPersistentRealTransportConfiguration(t *testing.T
 	}
 	if err = db.QueryRow(`SELECT count(*) FROM accounts`).Scan(&count); err != nil || count != 0 {
 		t.Fatal("bad proof created an owner", err)
+	}
+	// Before anyone owns the server, a public client behind the proxy can't start setup (S1).
+	public := request("POST", "/v1/setup/browser", map[string]any{})
+	public.Header.Set("X-Forwarded-For", "198.51.100.9")
+	if w := httptest.NewRecorder(); func() int { h.ServeHTTP(w, public); return w.Code }() != http.StatusForbidden {
+		t.Fatal("a public client behind the proxy started setup")
 	}
 	bootstrap := httptest.NewRecorder()
 	h.ServeHTTP(bootstrap, request("POST", "/v1/setup/browser", map[string]any{}))

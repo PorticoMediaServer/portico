@@ -29,21 +29,26 @@ const status = (state: string, revision = '5'): ClaimStatus => ({state, identity
   operation: {operationId: 'op', localGeneration: '3', revision}, installationAcknowledged: true, approvalRequired: false, actions: []});
 const installed = (extra: Record<string, unknown> = {}) => ({setupContinuation: {phase: 'installed', transactionId, expiresAt: handoffExpires, ...extra}});
 
-test('a new attempt carries a 32-byte verifier, its challenge and a five-minute window', async () => {
+test('a new attempt carries a 32-byte verifier, its challenge and a thirty-minute window', async () => {
   const record = await attempt();
   assert.equal(record.verifier, routeBase64(new Uint8Array(32).fill(7)));
   assert.equal(record.codeChallenge, routeBase64(new Uint8Array(32).fill(43)));
-  assert.equal(Date.parse(record.expiresAt) - record.createdAt, 300_000);
+  assert.equal(Date.parse(record.expiresAt) - record.createdAt, 1_800_000);
   assert.equal(setupAttemptLive(record, facts), true);
 });
 
 test('drift in page, installation, selection, draft or time ends the attempt', async () => {
   const record = await attempt();
-  for (const changed of [{origin: 'https://other.example'}, {installationId: 'other'}, {selectionRevision: 5}, {now: now + 300_000}, {now: now - 61_000},
+  for (const changed of [{origin: 'https://other.example'}, {installationId: 'other'}, {selectionRevision: 5}, {now: now + 1_800_000}, {now: now - 61_000},
     {draft: undefined}, {draft: {...draft, setupToken: 'other'}}, {draft: {...draft, requestId: 'other'}}, {draft: {...draft, authMode: 'local' as const}}])
     assert.equal(setupAttemptLive(record, {...facts, ...changed}), false, JSON.stringify(changed));
   assert.equal(setupAttemptLive({...record, version: 2 as 1}, facts), false);
-  assert.equal(setupAttemptLive({...record, expiresAt: new Date(record.createdAt + 300_001).toISOString()}, facts), false, 'no window past five minutes');
+  assert.equal(setupAttemptLive({...record, expiresAt: new Date(record.createdAt + 1_800_001).toISOString()}, facts), false, 'no window past thirty minutes');
+});
+test('a 25-minute-old attempt is still live and a 31-minute-old one is not', async () => {
+  const record = await attempt();
+  assert.equal(setupAttemptLive(record, {...facts, now: record.createdAt + 25 * 60_000}), true);
+  assert.equal(setupAttemptLive(record, {...facts, now: record.createdAt + 31 * 60_000}), false);
   assert.equal(setupAttemptLive({...record, retired: true}, {...facts, draft: undefined}), true, 'only a retired tombstone outlives its draft');
 });
 

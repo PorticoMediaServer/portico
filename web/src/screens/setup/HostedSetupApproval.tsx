@@ -17,6 +17,8 @@ export type HostedSetupApprovalProps = Readonly<{
   approved?: boolean;
   /** Hosted reports the claim installed; Return is offered only then. Defaults true for display-only callers. */
   installed?: boolean;
+  /** Still finishing long after Approve: say so, with what to check. */
+  slow?: boolean;
   busy?: boolean;
   error?: unknown;
   onApprove: () => void;
@@ -27,7 +29,7 @@ export type HostedSetupApprovalProps = Readonly<{
 /** auth2b/2c display-only. The strict Hosted lookup and decision controller are
  * Security's; this draws the review, the connected page and the shared failure
  * shape without switch wording, extra people counts or source authority. */
-export function HostedSetupApproval({phase, serverName, address, accountName, requestedAt, approved = false, installed = true, busy = false, error, onApprove, onDeny, onReturn}: HostedSetupApprovalProps) {
+export function HostedSetupApproval({phase, serverName, address, accountName, requestedAt, approved = false, installed = true, slow = false, busy = false, error, onApprove, onDeny, onReturn}: HostedSetupApprovalProps) {
   const steps = <div className={styles.steps} aria-label={t('web.setup.stepsLabel')}>
     <Step state="done" number={<Icon name="i-check" size={18}/>} title={t('web.setup.stepServer')} body={serverName}/>
     <Step state={approved ? 'done' : 'current'} number={approved ? <Icon name="i-check" size={18}/> : 2} title={t('web.setup.stepAccount')}
@@ -69,6 +71,7 @@ export function HostedSetupApproval({phase, serverName, address, accountName, re
       {installed && phase !== 'finishing'
         ? <div className={styles.btnRow}><Button variant="primary" size="hero" autoFocus loading={busy} disabled={busy} onClick={onReturn}>{t('web.claim.returnTo', {server: serverName})}</Button></div>
         : <><p role="status">{t('web.claim.finishingOnServer')}</p>
+          {slow && <ServicesNotice tone="info">{t('web.claim.finishingSlow')}</ServicesNotice>}
           <div className={styles.btnRow}><Button variant="glass" size="hero" loading={busy} disabled={busy} onClick={onReturn}>{t('web.claim.tryAgain')}</Button></div></>}
       <ServicesQuiet>{t('web.claim.signedInAs', {account: accountName})}</ServicesQuiet>
     </AuthStage>

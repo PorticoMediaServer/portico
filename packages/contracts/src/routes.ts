@@ -41282,6 +41282,8 @@ export const routes = [
       "invalid_request",
       "rate_limited",
       "setup_already_complete",
+      "setup_in_progress",
+      "setup_source_not_local",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -41305,6 +41307,8 @@ export const routes = [
       "invalid_request",
       "rate_limited",
       "setup_already_complete",
+      "setup_in_progress",
+      "setup_source_not_local",
       "internal",
       "database_busy",
       "writer_capacity"

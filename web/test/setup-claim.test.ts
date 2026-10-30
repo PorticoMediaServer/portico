@@ -104,7 +104,7 @@ async function fixture(t: TestContext, origin = original.address) {
   const flow = new BrowserSetupClaim(ports), callback = {href: origin + '/auth/portico-return', fragment: '#transaction=' + transactionId};
   return {flow, api, callback, grant, oldSession, nextSession, sent, retired, sessions, expected, registration, ports,
     prepare: () => flow.prepare(api, hostedOrigin), another: () => new BrowserSetupClaim(ports), pending: () => saved,
-    install: () => {installed = true;}, expire: () => {now += 301000;}, advance: () => {now += 2000;}, insecure: () => {secure = false;}, lose: () => {lost = true;},
+    install: () => {installed = true;}, expire: () => {now += 1_801_000;}, age: (ms: number) => {now += ms;}, advance: () => {now += 2000;}, insecure: () => {secure = false;}, lose: () => {lost = true;},
     draft: () => draft, replaceDraft: () => {draft={...draft!, requestId: '11111111-2222-4333-8444-555555555556'};},
     replaceSelection: () => {record={...record, revision: record.revision+1};},
     mutate: (change: (record: NonNullable<Pending>) => Pending) => {saved = change(saved!);},
@@ -216,6 +216,25 @@ test('an expired attempt whose claim was never approved restarts setup cleanly',
  assert.equal(f.sent.filter(v => v.path === '/v1/networking/claim/prepare').length, 2);
  assert.notEqual(fresh.attemptId, first.attemptId);
  assert.equal(f.draft()?.setupToken, 'actual-protected-setup-secret', 'the setup proof is kept');
+});
+
+test('a 25-minute-old attempt is still live and kept; a 31-minute-old unapproved one is dropped on the server page', async t => {
+ const f = await fixture(t); await f.prepare(); const first = f.pending()!;
+ // The signed fixture start only lives five minutes; a real server now signs 30. Model that window.
+ f.mutate(r => ({...r, expiresAt: new Date(r.createdAt + 1_800_000).toISOString()}));
+ f.age(25 * 60_000);
+ assert.equal(await f.flow.discardStale(f.api), false, 'a live attempt resumes as today');
+ assert.equal(f.pending()?.attemptId, first.attemptId); assert.ok(f.draft());
+ f.age(6 * 60_000);
+ assert.equal(await f.flow.discardStale(f.api), true);
+ assert.equal(f.pending(), undefined); assert.equal(f.draft(), undefined);
+ assert.equal(f.sent.filter(v => v.path === '/v1/networking/claim/cancel').length, 1, 'only its own prepared operation is retired');
+});
+test('an expired attempt whose claim installed is never discarded', async t => {
+ const f = await fixture(t); await f.prepare(); const first = f.pending()!;
+ f.install(); f.expire();
+ assert.equal(await f.flow.discardStale(f.api), false);
+ assert.equal(f.pending()?.attemptId, first.attemptId); assert.ok(f.draft());
 });
 
 // P2-59 on Contabo: back on the original page, Try again on the captured receipt after the

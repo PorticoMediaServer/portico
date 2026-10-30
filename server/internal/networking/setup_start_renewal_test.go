@@ -229,7 +229,7 @@ func TestSetupStartRenewalProducerAgainstStubHosted(t *testing.T) {
 		t.Fatal("a live start was replaced")
 	}
 	// The certificate took longer than the start: it expires unused.
-	if _, err = db.Exec(`UPDATE identity_setup_completions SET created_ms=created_ms-1200000,expires_ms=expires_ms-1200000`); err != nil {
+	if _, err = db.Exec(`UPDATE identity_setup_completions SET created_ms=created_ms-2400000,expires_ms=expires_ms-2400000`); err != nil {
 		t.Fatal(err)
 	}
 	var oldChallenge string
@@ -256,7 +256,7 @@ func TestSetupStartRenewalProducerAgainstStubHosted(t *testing.T) {
 	if err = db.QueryRow(`SELECT phase,transaction_id,attempt_id FROM identity_setup_completions`).Scan(&refusedPhase, &refusedTransaction, &refusedAttempt); err != nil || refusedPhase != "prepared" || refusedTransaction != "" || refusedAttempt != "" {
 		t.Fatal("the refused renewal left its prepared, unbound start", refusedPhase, refusedTransaction, refusedAttempt, err)
 	}
-	if _, err = db.Exec(`UPDATE identity_setup_completions SET created_ms=created_ms-1200000,expires_ms=expires_ms-1200000`); err != nil {
+	if _, err = db.Exec(`UPDATE identity_setup_completions SET created_ms=created_ms-2400000,expires_ms=expires_ms-2400000`); err != nil {
 		t.Fatal(err)
 	}
 	refuse = false
@@ -323,7 +323,7 @@ func TestSetupStartRenewalProducerAgainstStubHosted(t *testing.T) {
 	}
 	// A bad Hosted answer binds nothing.
 	answer = ""
-	if _, err = db.Exec(`UPDATE identity_setup_completions SET created_ms=created_ms-1200000,expires_ms=expires_ms-1200000`); err != nil {
+	if _, err = db.Exec(`UPDATE identity_setup_completions SET created_ms=created_ms-2400000,expires_ms=expires_ms-2400000`); err != nil {
 		t.Fatal(err)
 	}
 	s4, c4, i4 := browser()

@@ -74,7 +74,7 @@ func Verify(s Signed, audience string, now time.Time) (Request, error) {
 	sum := digest.Sum(nil)
 	sig, e := base64.RawURLEncoding.Strict().DecodeString(s.Signature)
 	u, ue := url.Parse(q.Address)
-	if e != nil || !ed25519.Verify(key, raw, sig) || q.Kind != "portico.claim.web.v2" || q.Audience != audience || q.ServerID != "srv_"+base64.RawURLEncoding.EncodeToString(sum) || !id.MatchString(q.OperationID) || (q.AccountID != "" && !id.MatchString(q.AccountID)) || !validPurposeBinding(q.Purpose, q.CurrentOwnerAccountID, q.PreviousOwnerRole, q.ReturnRegistrationID) || q.LocalGeneration < 0 || len(q.Name) < 1 || len(q.Name) > 120 || ue != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || q.IssuedAt.After(now.Add(time.Minute)) || !q.ExpiresAt.After(now) || q.ExpiresAt.Sub(q.IssuedAt) > 10*time.Minute || !q.ExpiresAt.After(q.IssuedAt) {
+	if e != nil || !ed25519.Verify(key, raw, sig) || q.Kind != "portico.claim.web.v2" || q.Audience != audience || q.ServerID != "srv_"+base64.RawURLEncoding.EncodeToString(sum) || !id.MatchString(q.OperationID) || (q.AccountID != "" && !id.MatchString(q.AccountID)) || !validPurposeBinding(q.Purpose, q.CurrentOwnerAccountID, q.PreviousOwnerRole, q.ReturnRegistrationID) || q.LocalGeneration < 0 || len(q.Name) < 1 || len(q.Name) > 120 || ue != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || q.IssuedAt.After(now.Add(time.Minute)) || !q.ExpiresAt.After(now) || q.ExpiresAt.Sub(q.IssuedAt) > RequestLifetime(q.Purpose) || !q.ExpiresAt.After(q.IssuedAt) {
 		return q, ErrInvalid
 	}
 	return q, nil

@@ -21,11 +21,13 @@ export type SetupAttempt = Readonly<{
 export type SetupProof = Awaited<ReturnType<typeof verifySetupClaimStart>>;
 type SignedIn = Extract<DirectSignIn, {kind: 'signed-in'}>;
 
-const LIFETIME_MS = 300_000, CLOCK_SKEW_MS = 60_000;
+/** A setup with a Portico Account has 30 minutes end to end: signing up and verifying an email takes longer than five. */
+export const SETUP_CLAIM_LIFETIME_MS = 1_800_000;
+const LIFETIME_MS = SETUP_CLAIM_LIFETIME_MS, CLOCK_SKEW_MS = 60_000;
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const keys = (value: Record<string, unknown>) => Object.keys(value).sort().join(',');
 
-/** A fresh attempt: 32-byte verifier with its SHA-256 challenge, and a five-minute window. */
+/** A fresh attempt: 32-byte verifier with its SHA-256 challenge, and a thirty-minute window. */
 export async function createSetupAttempt(input: Readonly<{origin: string; hostedOrigin: string; pin: ServerPin; selectionRevision: number;
   draft: Readonly<{requestId: string; setupToken: string}>; setupRevision: string; installationId: string; now: number;
   crypto: Pick<RouteCrypto, 'random' | 'sha256'>}>): Promise<SetupAttempt> {
@@ -39,7 +41,7 @@ export async function createSetupAttempt(input: Readonly<{origin: string; hosted
 
 /** The attempt still belongs to this page/app, installation, selection revision and
  * protected setup draft, and its window is open: created no later than a minute
- * ahead, expiring in the future and at most five minutes after creation. Without a
+ * ahead, expiring in the future and at most thirty minutes after creation. Without a
  * draft only a retired tombstone is still live. */
 export function setupAttemptLive(record: SetupAttempt, facts: Readonly<{draft: SetupDraft | undefined; selectionRevision: number; origin: string; installationId: string; now: number}>): boolean {
   const {draft, now} = facts, expires = Date.parse(record.expiresAt);

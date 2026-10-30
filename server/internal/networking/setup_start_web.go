@@ -78,7 +78,7 @@ func (h *ClaimHandler) beginSetupWebClaim(ctx context.Context, v Intent, address
 			return out, stepFailure("setup start stage", ErrStale)
 		}
 		now := time.Now().UTC()
-		expires := now.Add(claimweb.SetupStartLifetime)
+		expires := now.Add(claimweb.SetupLifetime())
 		if !expires.After(now) {
 			return out, ErrStale
 		}
@@ -87,9 +87,9 @@ func (h *ClaimHandler) beginSetupWebClaim(ctx context.Context, v Intent, address
 			if err = json.Unmarshal(claimPayload, &original); err != nil || original.OperationID != v.OperationID || original.ServerID != v.ServerID || original.Purpose != "setup" || original.Address != address || original.AccountID != "" {
 				return out, stepFailure("setup start renewal claim", ErrStale)
 			}
-			original.IssuedAt, original.ExpiresAt = now, now.Add(webClaimLifetime)
+			original.IssuedAt, original.ExpiresAt = now, now.Add(claimweb.SetupLifetime())
 		} else {
-			original = claimweb.Request{Kind: "portico.claim.web.v2", Audience: transport.origin, OperationID: v.OperationID, ServerID: v.ServerID, PublicKey: base64.RawURLEncoding.EncodeToString(v.PublicKey), LocalGeneration: v.LocalGeneration, Name: h.name(), Address: address, Purpose: "setup", IssuedAt: now, ExpiresAt: now.Add(webClaimLifetime)}
+			original = claimweb.Request{Kind: "portico.claim.web.v2", Audience: transport.origin, OperationID: v.OperationID, ServerID: v.ServerID, PublicKey: base64.RawURLEncoding.EncodeToString(v.PublicKey), LocalGeneration: v.LocalGeneration, Name: h.name(), Address: address, Purpose: "setup", IssuedAt: now, ExpiresAt: now.Add(claimweb.SetupLifetime())}
 		}
 		claimPayload, err = json.Marshal(original)
 		if err != nil {

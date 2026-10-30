@@ -3,10 +3,10 @@ import type {ServicesAccount} from './session';
 import {restoreServicesLink, type LinkCapture, type ServicesLink, type ServicesLinkStore} from './intake';
 import {hostedSignInStore, restoreHostedSignIn, type HostedSignIn, type SignInCapture} from './sign-in';
 import type {HostedOwnerClaimCapture} from './owner-claim';
-import {hostedOwnerPendingStore, restoreHostedOwnerPending, scopedHostedOwnerClaim, hostedApprovalPurpose,
+import {hostedOwnerPendingStore, hostedClaimExpired, restoreHostedOwnerPending, scopedHostedOwnerClaim, hostedApprovalPurpose,
   type HostedOwnerPending, type HostedOwnerPendingStore} from './owner-pending';
 
-export type ServicesBootstrapSnapshot = Readonly<{phase: 'restoring' | 'ready' | 'error'; link?: ServicesLink; signIn?: HostedSignIn; invalidSignIn?: boolean; ownerPending?: boolean; invalidOwner?: boolean; error?: unknown}>;
+export type ServicesBootstrapSnapshot = Readonly<{phase: 'restoring' | 'ready' | 'error'; link?: ServicesLink; signIn?: HostedSignIn; invalidSignIn?: boolean; ownerPending?: boolean; invalidOwner?: boolean | 'expired'; error?: unknown}>;
 /** Account-only startup. The canonical cookie coordinator restores/renews its own family.
  * This root never constructs server bindings, loads a server or requests a library. */
 export class ServicesBootstrap {
@@ -60,8 +60,8 @@ export class ServicesBootstrap {
           this.ownerCaptureConsumed = true;
           if (this.disposed) return;
           if (pending) this.ownerState = {store, pending};
-        } catch {
-          this.publish({phase: 'ready', invalidOwner: true}); return;
+        } catch (error) {
+          this.publish({phase: 'ready', invalidOwner: hostedClaimExpired(error) ? 'expired' : true}); return;
         }
       } else {
         link = await restoreServicesLink(this.store(), this.capture);
