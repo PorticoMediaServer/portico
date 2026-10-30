@@ -114,6 +114,7 @@ def ensure_ffmpeg(plan, index=0, component=None):
 
 def fixture_producers(files, directory):
     producers = [
+        ('home-reading-wire.test.ts', 'PORTICO_READING_HOME_FIXTURE_DIR', 'TestHomeReadingSavedDeferredHTTP'),
         ('concurrency-memory-limit.test.ts', 'PORTICO_CONCURRENCY_DIAGNOSTICS_FIXTURE_DIR', 'TestConcurrencyDiagnosticsMemoryLimitWire'),
         ('console-registry-null-defaults.test.ts', 'PORTICO_CONSOLE_REGISTRY_FIXTURE_DIR', 'TestConsoleRegistryProducerRecordsNullableDefaults'),
     ]
@@ -127,7 +128,7 @@ def fixture_producers(files, directory):
 
 def js(plan,component):
     with tempfile.TemporaryDirectory(prefix='portico-ci-fixtures-') as directory:
-        saved = {k:os.environ.get(k) for k in ['PORTICO_CONCURRENCY_DIAGNOSTICS_FIXTURE_DIR','PORTICO_CONSOLE_REGISTRY_FIXTURE_DIR']}
+        saved = {k:os.environ.get(k) for k in ['PORTICO_READING_HOME_FIXTURE_DIR','PORTICO_CONCURRENCY_DIAGNOSTICS_FIXTURE_DIR','PORTICO_CONSOLE_REGISTRY_FIXTURE_DIR']}
         try:
             fixture_producers(next(x for x in plan['js'] if x['component']==component)['files'],directory)
             js_tests(plan,component)

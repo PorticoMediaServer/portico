@@ -166,6 +166,7 @@ def make_plan(paths, full=False, tier="short"):
         if component!='website' and not files: raise ValueError('empty JS selection: '+component)
         js.append({'component':component,'files':files})
     producer_consumers = {
+        'TestHomeReadingSavedDeferredHTTP':'home-reading-wire.test.ts',
         'TestConcurrencyDiagnosticsMemoryLimitWire':'concurrency-memory-limit.test.ts',
         'TestConsoleRegistryProducerRecordsNullableDefaults':'console-registry-null-defaults.test.ts',
         'TestInvitationAcceptanceProducerContract':'invitation-producer-contract.test.ts',
