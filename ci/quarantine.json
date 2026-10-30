@@ -3,14 +3,6 @@
   "status": "approved",
   "entries": [
     {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
-      "test": "TestReadPathGoldenEquivalence",
-      "owner": "Justin Ehler",
-      "reason": "2/2 sampled failures; handoff stale revision counters and intended Get.sources delta",
-      "expires": "2026-11-02",
-      "tier": "merge-and-nightly"
-    },
-    {
       "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
       "test": "TestAlbumsJoinByReleaseAndOwnerCanSeparateAFolder",
       "owner": "Justin Ehler",

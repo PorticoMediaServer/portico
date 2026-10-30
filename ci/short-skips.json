@@ -259,46 +259,6 @@
       "test": "TestStreamRestoreCursorResumesAfterDurableFileMove"
     },
     {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
-      "test": "TestBulkBuildDerivesWhatIncrementalBuildDoes"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
-      "test": "TestBulkReferenceFactsDeriveIntoPlayableMixedLibraries"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
-      "test": "TestCopyReferenceFactsUsesFreshBaselineWithoutAuthentication"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
-      "test": "TestNarrowReferenceKeepsMixedShapeAndProductionTriggers"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
-      "test": "TestPlaylistPageBudgetIsHonest"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
-      "test": "TestPlaylistPagesSortsFiltersTiesAndReorder"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
-      "test": "TestPlaylistReuseIsIdempotent"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
-      "test": "TestQueryMemoryChurnLeavesNoStoredQueryState"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
-      "test": "TestSeedResumesAtCommittedBatchBoundary"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
-      "test": "TestWriteAmplificationUsesTheWriterConnection"
-    },
-    {
       "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
       "test": "TestA3ForYouActivityChangesProductionTasteOutsideBaseWitness"
     },
@@ -501,6 +461,10 @@
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
       "test": "TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFacetRuntimeSelfWakeDoesNotRescanReadyBases"
     },
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
@@ -1091,6 +1055,46 @@
       "test": "TestVisibilityJournalMatchesARebuild"
     },
     {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestBulkBuildDerivesWhatIncrementalBuildDoes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestBulkReferenceFactsDeriveIntoPlayableMixedLibraries"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestCopyReferenceFactsUsesFreshBaselineWithoutAuthentication"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestNarrowReferenceKeepsMixedShapeAndProductionTriggers"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestPlaylistPageBudgetIsHonest"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestPlaylistPagesSortsFiltersTiesAndReorder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestPlaylistReuseIsIdempotent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestQueryMemoryChurnLeavesNoStoredQueryState"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestSeedResumesAtCommittedBatchBoundary"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestWriteAmplificationUsesTheWriterConnection"
+    },
+    {
       "package": "github.com/PorticoMediaServer/portico/server/internal/catalogtest",
       "test": "TestDrainReusesThePreparedWorkerWhileAQueryCapturePinsBackground"
     },
@@ -1321,10 +1325,6 @@
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/hosted",
       "test": "TestRegisteredReturnLocalOwnerOutcomesPreserveProfilesAndRejectMerge"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi/fixture",
-      "test": "TestCanonicalCreditsAreExplicitAndCacheIsolated"
     },
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
@@ -1795,6 +1795,10 @@
       "test": "TestUserMutationSavedEntriesQuotaAndStorageErrorsRollback"
     },
     {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi/fixture",
+      "test": "TestCanonicalCreditsAreExplicitAndCacheIsolated"
+    },
+    {
       "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
       "test": "TestAPasswordCheckWaitsBrieflyForAHashingSlot"
     },
@@ -2047,6 +2051,34 @@
       "test": "TestSharedHLSSelectsBestVariantAndFetchesSegmentOnce"
     },
     {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestCursorKeyFirstUseIsAdmittedAndPersisted"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestCursorKeyReplacesInvalidStoredValue"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestCursorKeyWaitsForTheWriterGate"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestLargeProgrammeGuideUsesDiskSpoolAndBoundedPreview"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestOnNowCursorExhaustionStableRevision"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestSealedPreviewMigratesToPlain"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestSourceChannelMarksCacheReusesSnapshotAndBoundsRetention"
+    },
+    {
       "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels/dvr",
       "test": "TestChannelChoicesPagePastRestrictedPrefix"
     },
@@ -2077,34 +2109,6 @@
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels/library",
       "test": "TestWeightedDrawsFollowTheWeights"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
-      "test": "TestCursorKeyFirstUseIsAdmittedAndPersisted"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
-      "test": "TestCursorKeyReplacesInvalidStoredValue"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
-      "test": "TestCursorKeyWaitsForTheWriterGate"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
-      "test": "TestLargeProgrammeGuideUsesDiskSpoolAndBoundedPreview"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
-      "test": "TestOnNowCursorExhaustionStableRevision"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
-      "test": "TestSealedPreviewMigratesToPlain"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
-      "test": "TestSourceChannelMarksCacheReusesSnapshotAndBoundsRetention"
     },
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/lyrics",
