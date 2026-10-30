@@ -25,44 +25,54 @@
 
 ---
 
-Portico organizes and streams the media on your own storage. It is free: no app capability is paywalled. It runs fully without Portico Services, using local accounts and direct connections.
+Portico is a media server you run yourself. Point it at your movies, shows, music and books, and it gives you a streaming app on your phone, TV and browser that feels like the services you already pay for, without the subscription or the ads.
 
-This is prerelease software. Read the release notes before installing or replacing a build.
+It's free. No app feature is locked behind a payment. You don't need a Portico Account either: local accounts and direct connections work on their own.
 
-## What's in this repo
+Portico is still prerelease, so expect rough edges and read the release notes before you install or upgrade.
 
-| Folder | Contents |
+## Getting started
+
+- [Install Portico](INSTALLING.md)
+- [Build it from source](BUILDING.md)
+- [Download a release](https://github.com/PorticoMediaServer/portico/releases)
+
+Once it's installed, open `http://127.0.0.1:32500/` on the same machine and finish setup before you make the server reachable from anywhere else. Then add the folders that hold your media. Portico's service account needs permission to read them.
+
+Not every platform has a signed or store build yet, even where the source supports it. The release notes say what's available.
+
+## What's in here
+
+| Folder | What it is |
 | --- | --- |
-| `server/` | Go media server and API |
-| `web/` | Server web app and Portico Services web app |
-| `apps/native/` | Phone, tablet, Apple TV, Android TV and Fire TV clients |
-| `apps/vega/` | Amazon Vega client |
-| `apps/desktop/` | Desktop client |
+| `server/` | The media server and its API, written in Go |
+| `web/` | The web app every server includes |
+| `apps/native/` | Phone, tablet, Apple TV, Android TV and Fire TV apps |
+| `apps/vega/` | The app for Amazon's Vega TVs |
+| `apps/desktop/` | The desktop app |
+| `packages/` | Code the apps share: client logic, API types, design, text and players |
+| `apikit/` | The Go toolkit behind the API |
 | `website/` | getportico.tv |
-| `packages/` | Shared client logic, generated contracts, design, strings and media cores |
-| `apikit/` | Public Go API toolkit |
 
-Portico Services infrastructure stays in a separate private repository. Roku is not included in this snapshot.
+The Portico Services infrastructure lives in a separate private repository. The Roku app isn't in this repository.
 
-## Install and build
+## Building on Portico
 
-See [installation](INSTALLING.md), [building from source](BUILDING.md), [release packaging](RELEASING.md) and the [available releases](https://github.com/PorticoMediaServer/portico/releases). Availability and signing vary by platform; source support does not imply a store release is available.
+Owners can create API keys, and members can create personal tokens where the owner allows it. The local API covers title lookups, changed-path reports, webhooks, an event feed and an MCP endpoint for AI assistants. None of it needs Portico Services.
 
-Open `http://127.0.0.1:32500/` after installation and complete setup before exposing the address. Add media folders its service account can read. A Portico Account is optional.
-
+- [API guide](server/api/guide/README.md)
 - [Libraries, naming and matching](docs/libraries.md)
-- [API developer guide](server/api/guide/README.md)
-- [Security policy](SECURITY.md)
-- [Third-party notices](THIRD-PARTY-NOTICES.md)
 
-## Integrations and contributions
+## Bugs, ideas and contributions
 
-Owners can create API keys; members can create personal tokens where allowed. The local API offers bounded title queries, changed-path reports, webhooks, an event feed and an MCP endpoint. These work without Portico Services.
+Found a bug? [Open an issue](https://github.com/PorticoMediaServer/portico/issues). Ideas and questions go in [Discussions](https://github.com/PorticoMediaServer/portico/discussions). If you'd like to send code, read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLA.md](CLA.md) first. Small, obvious fixes are welcome; anything bigger should start with an issue.
 
-[Report bugs](https://github.com/PorticoMediaServer/portico/issues), or propose ideas in Discussions. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLA.md](CLA.md) before submitting work. Justin Ehler is the sole maintainer and makes the final product and release decisions.
+Portico is built and maintained by [Justin Ehler](https://ehler.ca), who makes the final call on what goes in.
 
-## Support and licence
+## Support, security and licence
 
-Portico is provided **AS IS, without warranty**. Support, responses, fixes and updates are voluntary; see [SUPPORT.md](SUPPORT.md).
+Portico comes **as is, with no warranty**. Help is offered when I can, not guaranteed; see [SUPPORT.md](SUPPORT.md). Report security problems privately, as described in [SECURITY.md](SECURITY.md).
 
-The public code is GPL-3.0-or-later; see [LICENSE](LICENSE). Third-party components keep their licences. [TRADEMARKS.md](TRADEMARKS.md) covers the Portico name and brand. Developed by [Justin Ehler](https://ehler.ca). Copyright © 2026 Justin Ehler.
+The code is licensed under the GPL, version 3 or later ([LICENSE](LICENSE)). Third-party components keep their own licences ([THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)). The Portico name and logo are covered separately in [TRADEMARKS.md](TRADEMARKS.md).
+
+Copyright © 2026 Justin Ehler.

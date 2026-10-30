@@ -1,19 +1,37 @@
-# Build Portico Media Server
+# Building Portico
 
-This guide is for people who want to inspect or run the source. Most users
-should install a package from the [latest release](https://github.com/PorticoMediaServer/portico-server/releases/latest).
+This is for people who want to read the code, run it or work on it. If you just want to use Portico, [install a release](INSTALLING.md) instead.
 
-## Requirements
+## What you need
 
-- Go at the version declared in `server/go.mod`
-- Node.js 24 and npm (CI, releases and the container image use exactly the release in `.node-version`; `scripts/check-node-version.mjs` keeps them together)
+- Go, at the version in `server/go.mod`
+- Node.js 24 and npm. CI, releases and the container image all use the exact version in `.node-version`.
 - Make
-- FFmpeg and FFprobe for playback and transcoding tests
+- FFmpeg and FFprobe, for playback and transcoding
 
-From the repository root:
+## Getting the code
 
 ```sh
+git clone https://github.com/PorticoMediaServer/portico.git
+cd portico
 npm ci
+```
+
+Everything lives in this one repository. The server and `apikit` share the root Go workspace, and `apikit` is also published as its own Go module. The web app and shared packages use the root npm lockfile.
+
+The native, Vega and website apps each have their own lockfile, so install the ones you need separately:
+
+```sh
+npm --prefix apps/native ci --legacy-peer-deps --workspaces=false
+npm --prefix apps/vega ci --legacy-peer-deps --workspaces=false
+npm --prefix website ci
+```
+
+All of them import shared code from the one `packages/` folder. Don't copy or symlink `node_modules` between apps or worktrees; give each its own install.
+
+## Running the server
+
+```sh
 make build-web
 GOFLAGS=-p=2 make build-server
 mkdir -p .scratch/state
@@ -21,85 +39,72 @@ PORTICO_DATA_DIR="$PWD/.scratch/state" PORTICO_WEB_DIR="$PWD/web/dist" \
   PORTICO_BIND=127.0.0.1:32500 ./dist/portico-server
 ```
 
-The binary is written to `dist/portico-server` unless `SERVER_OUTPUT` is set.
-Use disposable development state. A raw development binary otherwise defaults
-to a relative state path; setting the absolute path avoids sharing another run's
-database accidentally. FFmpeg/FFprobe must be available for probing and playback;
-qualified release bundles are validated against `third_party/ffmpeg`.
+Then open `http://127.0.0.1:32500/`.
 
-A development build (`make build-server`, `make dev-api`) carries the same
-reader capability as CI but not the release trust marker: `make` reads
-`scripts/release-build-tags.py --capability` (`portico_rar7z,portico_cb7`). Every
-official build takes its Go tags from that one helper: the sealed release
-builder and the container image use its release set
-(`release,portico_rar7z,portico_cb7`), and CI compiles and tests the capability
-set so tagged-only code cannot rot. Plain `go build ./cmd/server` without the
-tags is still dark. To reproduce the reader capability locally, use the same
-capability set:
+The binary goes to `dist/portico-server`, or wherever `SERVER_OUTPUT` points. Always give it a throwaway state folder like the one above. Without one, a development build uses a relative path, and you can end up sharing a database with another run by accident. Never point tests or development builds at a library or database you care about.
+
+For web development, run `npm run dev:web` in a second terminal. Vite proxies `/v1` to port 32500. `make dev-api` runs the server from source; give it the same state and web settings. Development builds and release builds trust different signing keys.
+
+## Build tags
+
+Some features, like the CBR and CB7 comic readers, only compile with specific Go build tags. The list lives in one place, `scripts/release-build-tags.py`:
+
+- **Capability tags** (`portico_rar7z,portico_cb7`) turn on those readers. `make`, CI and development builds all use them.
+- **Release tags** add `release` on top. Only the sealed release builder and the container image use them.
+
+A plain `go build ./cmd/server` leaves those readers out. To build exactly what CI builds:
 
 ```sh
 (cd server && go build -tags "$(../scripts/release-build-tags.py --capability)" -o ../dist/portico-server ./cmd/server)
 ```
 
-`scripts/test-official-build-tags.py` fails CI when a build, test or vet command
-drops that capability, so a plain `-tags release` is a regression, not a local
-preference.
+CI fails if a build, test or vet command drops the capability tags (`scripts/test-official-build-tags.py`), so a plain `-tags release` is treated as a bug.
 
-For browser development, run `npm run dev:web` in another terminal. Vite proxies
-`/v1` to port 32500. `make dev-api` runs Go source; provide the same explicit
-state and web environment. Development and release trust roots differ.
+## Testing
 
-Run focused checks while editing, for example:
+Run focused checks while you work:
 
 ```sh
 (cd web && npx tsc --noEmit)
 (cd server && GOFLAGS=-p=2 go test ./internal/naming -run Test)
+npm run check:native
+npm run check:vega
 ```
 
-`make test` is the broader Go/client verification entry point and can be costly;
-`scripts/vet-go.sh` handles the maintained SQLite driver's inherited pointer
-warnings. These commands do not establish real-device playback or service
-installation acceptance. Read package-specific test instructions before running
-media/performance tiers. Do not use a database or collection you care about for
-fixtures or tests.
+`make test` runs the wider Go and client suites and can take a while. `scripts/vet-go.sh` handles some known warnings from the bundled SQLite driver. Check a package's own instructions before running its media or performance tests.
 
-## Repository layout
+Passing tests don't prove playback works on real devices, or that an install works as a service.
 
-| Path | Contents |
+CI runs in tiers:
+
+- Every push and pull request gets fast checks on the code that changed.
+- The merge queue runs the full test suite for that code before anything reaches `main`.
+- Nightly runs cover performance, stress and package checks.
+
+Toolchains and signing only run for releases. See [ci/README.md](ci/README.md).
+
+## What's where
+
+| Path | What it is |
 | --- | --- |
-| `server` | The server (Go module `github.com/PorticoMediaServer/portico/server`); API reference in `server/api` |
-| `web` | The web application every server serves |
-| `packages/client-core` | The headless client core shared by the web and native apps |
-| `packages/design`, `packages/i18n` | Design tokens and component specification; strings and formatting |
-| `packages/contracts` | TypeScript contract generated from the server's API registry |
+| `server` | The server (Go module `github.com/PorticoMediaServer/portico/server`), with its API reference in `server/api` |
+| `web` | The web app every server includes |
+| `apps/native`, `apps/vega`, `apps/desktop` | The phone, tablet and TV apps, the Vega TV app, and the desktop app |
+| `packages/client-core` | Client logic shared by the web and native apps |
+| `packages/design`, `packages/i18n` | Design tokens and component specs; text and formatting |
+| `packages/contracts` | TypeScript API types generated from the server |
 | `apikit` | The Go API toolkit (routes, schemas, cursors, idempotency) |
-| `fixtures` | Test fixtures |
-| `third_party` | FFmpeg recipe, patched hls.js, libass WebAssembly and subtitle fonts |
-| `trust` | The Hosted root public key compiled into release builds |
-| `packaging` | Linux, macOS and Windows package definitions used by releases |
+| `fixtures` | Test data |
+| `third_party` | FFmpeg and media engine recipes, patched hls.js, the subtitle renderer and fonts |
+| `trust` | The Portico Services public key built into release builds |
+| `packaging` | Linux, macOS and Windows package definitions |
 | `scripts` | Build, release and test scripts |
+| `website` | getportico.tv |
 
-The shared client packages here are the source of truth. The
-[React Native clients](https://github.com/PorticoMediaServer/portico-react-native)
-copy selected packages through their shared-package sync script. Verify the
-recorded package versions when changing both repositories.
+## Platforms
 
-Release builds cover Linux x64/ARM64, Windows x64/ARM64, and Apple Silicon
-macOS. Installer creation belongs to the release workflow because it requires
-platform-specific tooling and an approved FFmpeg component release.
+Releases cover Linux (x64 and ARM64), Windows (x64 and ARM64) and Apple Silicon Macs. Installers are built by the release workflow, because they need platform tools and an approved FFmpeg build. See [RELEASING.md](RELEASING.md).
 
-## Private services are not required
+## You don't need Portico Services
 
-The repository contains the public Hosted protocol documents needed to compile
-and test clients. Portico's Hosted Services implementation, operator tooling,
-credentials, and internal planning are deliberately not part of this source
-tree and are not required to build Portico Media Server.
-
-
-## Monorepo checkouts
-
-Clone `https://github.com/PorticoMediaServer/portico.git`. The server and apikit use the root Go workspace; apikit is also a separately versioned public module. Web and shared packages use the root npm lockfile. Native, Vega and website retain their own pinned lockfiles and each needs its own installation; their shared source imports resolve into the one root `packages/` tree. Do not copy or symlink node_modules between apps or worktrees.
-
-From the root, use `npm ci`, then `npm --prefix apps/native ci --legacy-peer-deps --workspaces=false`, `npm --prefix apps/vega ci --legacy-peer-deps --workspaces=false`, and `npm --prefix website ci` for the components you need. `npm run check:native`, `check:vega` and `check:website` expose their type/check commands. Go recipes use `scripts/env.sh` to select the compiler pinned in server/go.mod.
-
-Push and pull-request feedback uses affected short tests; the merge queue runs the full affected deterministic suite. Nightly owns pressure, performance, scale and package smoke; release owns source toolchains and signing. See [CI](ci/README.md).
+This repository includes the public Portico Services protocol documents the apps need to build and test. The service itself, its operator tools and credentials live in a separate private repository, and you don't need any of it to build Portico.
