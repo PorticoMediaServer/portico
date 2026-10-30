@@ -505,6 +505,14 @@ func (w *Worker) Rebuild(ctx context.Context, domain int) error {
 		if err := beginGeneration(ctx, tx); err != nil {
 			return err
 		}
+		if domain == DomainFacetCounts {
+			// Explicit Rebuild(33) matches a domain-33 version upgrade. The shared
+			// source epoch invalidates facet and missing-source work; availability
+			// captures the epoch but deliberately does not restart.
+			if _, err := tx.ExecContext(ctx, `UPDATE catalog_facet_source_state SET source_epoch=source_epoch+1 WHERE singleton=1`); err != nil {
+				return err
+			}
+		}
 		_, err := tx.ExecContext(ctx, `UPDATE catalog_derivations SET rebuilding=1,first_build=0,rebuild_cursor=0,cleaning=CASE WHEN domain=17 THEN 1 ELSE 0 END WHERE domain=?`, domain)
 		return err
 	})
@@ -861,7 +869,14 @@ func (w *Worker) drainDomain(ctx context.Context, tx *sql.Tx, domain, rebuilding
 		}
 		// Enumerated ids go through the queue, so an unfinished one keeps its
 		// continuation and a failing one can be isolated like any other.
-		if err = TouchTx(ctx, tx, domain, ids...); err != nil {
+		if domain == DomainFacetCounts {
+			// Enumeration is not a source change. Preserve queued continuations;
+			// producer touches and source-epoch changes still invalidate them.
+			_, err = tx.ExecContext(ctx, `INSERT INTO catalog_dirty(domain,entity_id,revision) SELECT ?,value,1 FROM json_each(?) WHERE 1 ON CONFLICT(domain,entity_id) DO NOTHING`, domain, mustJSON(ids))
+		} else {
+			err = TouchTx(ctx, tx, domain, ids...)
+		}
+		if err != nil {
 			return 0, 0, false, err
 		}
 		if keys, err = readKeys(tx.QueryContext(ctx, `SELECT entity_id,revision FROM catalog_dirty WHERE domain=? AND entity_id IN(SELECT value FROM json_each(?)) ORDER BY entity_id`, domain, mustJSON(ids))); err != nil {
