@@ -1,0 +1,57 @@
+name: Library or matching problem
+description: Something is missing, matched to the wrong title, or has the wrong details or artwork.
+type: Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Most matching problems come down to file and folder names, so please include the real paths. You can swap out anything private, as long as the structure stays the same.
+
+        [How Portico reads libraries and names](https://github.com/PorticoMediaServer/portico/blob/main/docs/libraries.md) covers the naming rules.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of media?
+      options:
+        - Movies
+        - TV shows
+        - Anime
+        - Music
+        - Audiobooks
+        - Books or comics
+        - Live TV or DVR
+        - Other
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes:
+      label: Portico server version
+      description: Check the server's web app if you're not sure.
+    validations: {required: true}
+  - type: textarea
+    id: paths
+    attributes:
+      label: File and folder names
+      description: The full path of the affected files, from the library folder down.
+      render: text
+      placeholder: |
+        Shows/Example Show (2019)/Season 01/Example Show - S01E02 - Title.mkv
+    validations: {required: true}
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong?
+      description: What Portico shows now, and what it should show instead. A link to the correct title on TMDB, TheTVDB or MusicBrainz helps.
+    validations: {required: true}
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Optional. Server logs from the scan, or screenshots of what you see.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched existing issues and this hasn't been reported.
+          required: true

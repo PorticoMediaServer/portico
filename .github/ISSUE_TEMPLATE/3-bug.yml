@@ -1,0 +1,65 @@
+name: Something else is broken
+description: Any other bug in the server, apps, web app or website.
+type: Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Remove passwords, personal details, private addresses and anything else you'd rather not share from logs and screenshots.
+
+        Got an idea rather than a bug? [Post it in Discussions](https://github.com/PorticoMediaServer/portico/discussions/categories/ideas).
+  - type: dropdown
+    id: app
+    attributes:
+      label: Where is the problem?
+      options:
+        - Server
+        - Web app
+        - iPhone or iPad
+        - Apple TV
+        - Android phone or tablet
+        - Android TV, Google TV or Fire TV
+        - Vega (Amazon) TV
+        - Desktop app
+        - Website (getportico.tv)
+        - API or integrations
+        - Installing or updating
+        - Not sure
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes:
+      label: Portico version
+      description: Check the app's settings or the server's web app if you're not sure.
+      placeholder: "For example: 0.2.0"
+    validations: {required: true}
+  - type: input
+    id: platform
+    attributes:
+      label: Device, OS and how you installed it
+      placeholder: "For example: Ubuntu 24.04, Docker"
+    validations: {required: true}
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: What went wrong, and what you expected instead.
+    validations: {required: true}
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The shortest set of steps that shows the problem.
+    validations: {required: true}
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Drag files in here.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched existing issues and this hasn't been reported.
+          required: true

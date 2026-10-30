@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Ideas and feature requests
+  - name: Feature request or idea
     url: https://github.com/PorticoMediaServer/portico/discussions/categories/ideas
-    about: Share ideas in Discussions, not as issues.
+    about: Ideas start in Discussions. Once one is accepted, it becomes an issue.
   - name: Questions and help
     url: https://github.com/PorticoMediaServer/portico/discussions/categories/q-a
     about: Ask how something works or get help setting Portico up.
-  - name: Security report
+  - name: Security problem
     url: https://github.com/PorticoMediaServer/portico/security/advisories/new
-    about: Report security problems privately. Please don't open a public issue.
+    about: Report it privately. Please don't open a public issue.
