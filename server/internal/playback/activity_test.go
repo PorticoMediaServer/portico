@@ -271,8 +271,17 @@ func TestActivityStopOwnedSupervisorCleanup(t *testing.T) {
 	delete(h.active, a.ID)
 	h.mu.Unlock()
 	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if _, e = os.Stat(dir); os.IsNotExist(e) {
+	var page ActivityPage
+	var activityErr error
+	for {
+		_, e = os.Stat(dir)
+		page, activityErr = s.Activity(ctx, p, scope, "recent", 40, "")
+		// The supervisor records completed cleanup only after it removes the
+		// directory, so disappearance alone is not completion: wait for both.
+		if activityErr == nil && os.IsNotExist(e) && len(page.Items) > 0 && page.Items[0].CleanupStatus == "complete" {
+			break
+		}
+		if !time.Now().Before(deadline) {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -280,9 +289,8 @@ func TestActivityStopOwnedSupervisorCleanup(t *testing.T) {
 	if _, e = os.Stat(dir); !os.IsNotExist(e) {
 		t.Fatal("owned artifacts not removed", e)
 	}
-	page, e := s.Activity(ctx, p, scope, "recent", 40, "")
-	if e != nil || page.Items[0].CleanupStatus != "complete" {
-		t.Fatal(page, e)
+	if activityErr != nil || len(page.Items) == 0 || page.Items[0].CleanupStatus != "complete" {
+		t.Fatal(page, activityErr)
 	}
 	cancel()
 	<-done

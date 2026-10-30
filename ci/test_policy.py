@@ -70,8 +70,6 @@ class ActivePolicyTests(unittest.TestCase):
         self.assertEqual(names, {
             'TestDerivedWorkerCompletesWithForegroundPressure',
             'TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest',
-            'TestRealLocalAudioScanChaptersArtAndBookResume',
-            'TestManifestPublicationWaitsForTheSessionGeneration',
         })
         self.assertNotIn('TestMBStagingTenThousandCompleteFinalWriterHold',names)
         self.assertNotIn('TestReadingInitialReadyHasNoPollDelayOrHiddenHandle',names)
