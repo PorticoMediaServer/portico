@@ -194,7 +194,7 @@ func buildGoldenFixture(t *testing.T) (*goldenFixture, func(method, path, body, 
 		t.Fatal(err)
 	}
 	d := Dependencies{DB: db, Identity: ident, Catalog: cat, Hosted: host, Playback: playback.New(db)}
-	startFacets := composeHTTPFacetFixture(t, &d)
+	facets := composeHTTPFacetFixture(t, &d)
 	handler := New(d)
 
 	all := fmt.Sprintf(`["%s","%s","%s","%s"]`, libraries.Movies, libraries.Shows, libraries.Music, libraries.Books)
@@ -254,7 +254,7 @@ func buildGoldenFixture(t *testing.T) (*goldenFixture, func(method, path, body, 
 		}
 	}
 	settleCompactCatalogue(t, db)
-	startFacets()
+	facets.Start()
 	call := func(method, path, body, viewer string) (int, string) {
 		rawRequest := func(ctx context.Context, method, path, body string) *httptest.ResponseRecorder {
 			r := httptest.NewRequest(method, path, bytes.NewBufferString(body)).WithContext(ctx)
@@ -268,7 +268,7 @@ func buildGoldenFixture(t *testing.T) (*goldenFixture, func(method, path, body, 
 		}
 		var w *httptest.ResponseRecorder
 		if isHTTPFixtureFacetPath(method, path) {
-			w = readyHTTPFacetFixture(t, path, rawRequest)
+			w = readyHTTPFacetFixture(t, path, rawRequest, facets.WaitPrepared)
 		} else {
 			w = rawRequest(context.Background(), method, path, body)
 		}

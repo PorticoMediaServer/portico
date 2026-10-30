@@ -52,6 +52,27 @@ type facetRuntimeDemand struct {
 	ingestSteps     uint64
 	ingestStarted   time.Time
 	ingestReported  bool
+	// verify re-arms ONE audit of an already-ready basis at a producer/policy
+	// state it has not been re-verified against. It is set only by a changed
+	// fence and only on a non-terminal demand, never by a bare wake, and cleared
+	// by the audit that proves the witness and authority still match, by the
+	// build that replaces it, or when the demand takes a fixed terminal result.
+	// A terminal demand therefore never carries it: due() refuses a terminal
+	// demand (except for retirement), so nothing can spin on an undischargeable
+	// requirement.
+	verify bool
+}
+
+// facetRuntimeFence is the exact producer/policy identity a ready basis is
+// re-verified against. The producer fence alone is a content barrier: it
+// deliberately excludes per-scope and live AUTHORITY, whose policy/genre
+// generations the base binds through CaptureFacetAuthority. Both are captured
+// from ONE snapshot, so a policy-only change still reopens the sweep instead of
+// inheriting the producer's "nothing changed" answer.
+type facetRuntimeFence struct {
+	producer compactcatalog.FacetProducerFence
+	policy   int64
+	genre    int64
 }
 
 type FacetRuntime struct {
@@ -78,6 +99,17 @@ type FacetRuntime struct {
 	gcPhase                          int
 	gcBase, gcText, gcValue, gcClass int64
 	started                          time.Time
+
+	// fence is the producer/policy state read at the top of the current turn and
+	// swept is the state every retained ready basis was last re-verified against.
+	// known means fence holds a readable state (not pending/failed), sweptSet
+	// means swept has been initialised, and moved records a family change
+	// observed but not yet swept.
+	fence    facetRuntimeFence
+	swept    facetRuntimeFence
+	known    bool
+	sweptSet bool
+	moved    bool
 }
 
 func NewFacetRuntime(db *sql.DB, shared *readprep.Store, check FacetWindowCheck, baseByteLimit int64) (*FacetRuntime, error) {
@@ -600,16 +632,14 @@ func (r *FacetRuntime) Run(ctx context.Context) error {
 	r.mu.Lock()
 	r.started = r.now()
 	r.mu.Unlock()
-	tables := []string{"jobs", "catalog_dirty", "catalog_facet_counts", "catalog_facet_members", "catalog_show_facet_values", "catalog_facet_source_state", "catalog_generations", "catalog_derivations", "catalog_derivation_failures", "catalog_item_attribute_edges", "catalog_attribute_terms", "content_rating_ages", "catalog_upstream_sources"}
-	off := dbwork.WakeOnTables(r.shared, tables...)
-	offDirty := dbwork.WakeOnTables(r.dirty, tables...)
+	off := dbwork.WakeOnTables(r.shared, facetRuntimeWakeTables...)
+	offDirty := dbwork.WakeOnTables(r.dirty, facetRuntimeWakeTables...)
 	defer off()
 	defer offDirty()
 	r.dirty.Wake()
 	runctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var fatal error
-	remaining := 0
 	worker.RunWith(runctx, "facet-runtime", r.wake, r.shared, func(ctx context.Context) time.Duration {
 		started := time.Now()
 		r.cooperateWithColdBuild(ctx)
@@ -630,15 +660,7 @@ func (r *FacetRuntime) Run(ctx context.Context) error {
 			cancel()
 			return 0
 		}
-		if r.dirty.Take() {
-			r.mu.Lock()
-			remaining = len(r.demands)
-			r.mu.Unlock()
-		}
-		d := r.nextDemand(remaining == 0)
-		if remaining > 0 {
-			remaining--
-		}
+		d, busy := r.schedule(r.now())
 		wait := time.Duration(0)
 		if d != nil {
 			if dbwork.CatalogIngestWindowActive(r.db) {
@@ -675,7 +697,7 @@ func (r *FacetRuntime) Run(ctx context.Context) error {
 		if !dbwork.PaceBackground(ctx, started) {
 			return 0
 		}
-		if remaining > 0 {
+		if busy {
 			return time.Millisecond
 		}
 		if r.gcPending && (wait == 0 || wait > 10*time.Millisecond) {
@@ -699,6 +721,80 @@ func (r *FacetRuntime) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
+// facetRuntimeWakeTables is the producer-family table set this worker observes.
+// WakeOnTables matches every table a committed statement NAMED, so this list also
+// names the roots of the runtime's own reads: a committed BASE quantum wakes the
+// very same dirty signal it later consumes. The wake is therefore "look again",
+// never "the source changed" — see schedule.
+var facetRuntimeWakeTables = []string{"jobs", "catalog_dirty", "catalog_facet_counts", "catalog_facet_members", "catalog_show_facet_values", "catalog_facet_source_state", "catalog_generations", "catalog_derivations", "catalog_derivation_failures", "catalog_item_attribute_edges", "catalog_attribute_terms", "content_rating_ages", "catalog_upstream_sources"}
+
+// schedule performs one bounded scheduling step: the readable producer/policy
+// fence is compared with the state the retained ready bases were last verified
+// against, then exactly one due demand is chosen. A wake is only a nudge — it
+// carries no change of its own, because WakeOnTables matches the READ roots of
+// this runtime's own quanta — so an unchanged fence re-arms nothing and a
+// self-woken quantum proceeds straight to its next quantum instead of spending
+// the following len(demands)-1 turns re-auditing ready bases. A changed fence
+// (or a family observed mid-change) re-verifies every ready idle basis once.
+//
+// Invariant: swept advances ONLY here. writerReady may refresh r.fence again
+// later in the same turn (maintain/collect/writeBase each run the guard), but a
+// fence that moved after this comparison still differs from swept at the next
+// turn, so the change is re-armed then. An audit can clear only its own demand's
+// verify — it can never clear the next turn's requirement, because that
+// requirement is derived from the fence and not from a per-demand stamp.
+func (r *FacetRuntime) schedule(now time.Time) (*facetRuntimeDemand, bool) {
+	r.mu.Lock()
+	// Consume the pending wake for its own sake; the comparison below, not the
+	// wake, decides whether anything must be re-verified. A change that landed
+	// between the turn-start read and this take is therefore still queued.
+	r.dirty.Take()
+	if !r.known {
+		// The turn-start guard could not read the producer/policy state. Keep the
+		// requirement so the first readable turn still re-verifies every ready
+		// basis.
+		r.moved = true
+	} else if r.moved || !r.sweptSet || r.fence != r.swept {
+		r.sweptSet, r.swept, r.moved = true, r.fence, false
+		for _, d := range r.demands {
+			// A terminal demand is never re-armed: its fixed error is the whole
+			// answer, no audit can change it, and arming it would keep a 1 ms
+			// queue alive forever. Only retirement still has work to do.
+			if d.err == nil && d.ready != 0 && d.build == 0 && d.retiring == 0 && d.next.IsZero() {
+				d.verify = true
+			}
+		}
+	}
+	busy := false
+	for _, d := range r.demands {
+		if d.due(now) {
+			busy = true
+			break
+		}
+	}
+	r.mu.Unlock()
+	return r.nextDemand(!busy), busy
+}
+
+// due reports whether the next turn can make progress on this demand now. A
+// future quiet gap, retry or fixed terminal result is not progress: it must keep
+// the worker asleep for exactly the wait the turn computes instead of spinning.
+// Retirement is checked FIRST: a terminal demand that is still reclaiming its
+// retired image must keep progressing, but it must never be due for anything
+// else — in particular never for a re-verification it can no longer use.
+func (d *facetRuntimeDemand) due(now time.Time) bool {
+	if d.retiring > 0 {
+		return true
+	}
+	if d.err != nil {
+		return false
+	}
+	if !d.next.IsZero() && now.Before(d.next) {
+		return false
+	}
+	return d.verify || d.build > 0 || d.ready == 0 || !d.next.IsZero()
+}
+
 func (r *FacetRuntime) nextDemand(pendingOnly ...bool) *facetRuntimeDemand {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -717,7 +813,14 @@ func (r *FacetRuntime) nextDemand(pendingOnly ...bool) *facetRuntimeDemand {
 			close(d.changed)
 			continue
 		}
-		if len(pendingOnly) > 0 && pendingOnly[0] && (d.err != nil && d.retiring == 0 || d.ready != 0 && d.build == 0 && d.retiring == 0 && d.next.IsZero()) {
+		if d.ready != 0 && d.build == 0 && d.retiring == 0 && d.next.IsZero() && !d.verify {
+			// A ready, idle basis already verified at the current producer/policy
+			// state has nothing to do. Skipping it here — not only on a quiet turn —
+			// is what stops a build quantum from being followed by len(demands)-1
+			// no-op audits before the next quantum.
+			continue
+		}
+		if len(pendingOnly) > 0 && pendingOnly[0] && d.err != nil && d.retiring == 0 {
 			continue
 		}
 		if selected == nil || d.turn < selected.turn {
@@ -818,6 +921,9 @@ func (r *FacetRuntime) maintain(ctx context.Context, d *facetRuntimeDemand) time
 			d.ready = active.ID
 			d.gap = 0
 			d.next = time.Time{}
+			// The audit proved the retained basis is current at this producer AND
+			// authority state, so it is verified; a later change re-arms it.
+			d.verify = false
 			r.notify(d)
 			r.mu.Unlock()
 			return 0
@@ -860,6 +966,9 @@ func (r *FacetRuntime) maintain(ctx context.Context, d *facetRuntimeDemand) time
 			return r.maintenanceFailure(ctx, d, 0, err)
 		}
 		r.mu.Lock()
+		// A replacement build supersedes any pending re-verification of the basis
+		// it replaces.
+		d.verify = false
 		if accepted {
 			d.ready = id
 			d.gap = 0
@@ -938,6 +1047,9 @@ func (r *FacetRuntime) maintain(ctx context.Context, d *facetRuntimeDemand) time
 		d.build = 0
 		d.gap = 0
 		d.next = time.Time{}
+		// The completed basis was validated against the producer/authority state
+		// inside its own writer transaction.
+		d.verify = false
 		r.notify(d)
 		r.mu.Unlock()
 		return 0
@@ -977,6 +1089,9 @@ func (r *FacetRuntime) maintenanceFailure(ctx context.Context, d *facetRuntimeDe
 		return max(time.Millisecond, d.next.Sub(r.now()))
 	}
 	d.err = runtimeTerminal(err)
+	// A fixed terminal result supersedes any outstanding re-verification; leaving
+	// d.verify set would be a requirement nothing can ever discharge.
+	d.verify = false
 	if errors.Is(err, ErrFacetBaseCapacity) {
 		r.restartGC()
 	}
@@ -989,14 +1104,17 @@ func (r *FacetRuntime) maintenanceFailure(ctx context.Context, d *facetRuntimeDe
 // COMPLETE old bases are retained while a class is demanded unless space is
 // under pressure. Capacity eviction is explicit stale, never a mixed basis.
 func (r *FacetRuntime) collect(ctx context.Context) error {
+	// No GC phase can write unless a phase is pending, so the quiet path keeps
+	// its old cost: no writer guard, no producer fence and no read snapshot on
+	// every idle turn. The turn-start guard still owns admission errors.
+	if !r.gcPending {
+		return nil
+	}
 	if err := r.writerReady(ctx); err != nil {
 		if errors.Is(err, errFacetRuntimeDeferred) {
 			return nil
 		}
 		return err
-	}
-	if !r.gcPending {
-		return nil
 	}
 	phase := r.gcPhase
 	r.gcPhase = (r.gcPhase + 1) % 4
@@ -1090,6 +1208,14 @@ func (r *FacetRuntime) collect(ctx context.Context) error {
 	})
 	if err == nil && done {
 		r.gcBase = id
+		// A wanted basis can be reclaimed under capacity pressure. Re-arm exactly
+		// that demand's audit so the next turn repairs it in the normal
+		// audit → ErrBuilding → rebuild path, instead of leaving a dead id ready.
+		r.mu.Lock()
+		if d := r.demands[scope]; d != nil && d.err == nil && (d.ready == id || d.build == id) {
+			d.verify = true
+		}
+		r.mu.Unlock()
 	}
 	return err
 }
@@ -1204,7 +1330,7 @@ type FacetBaseRetirer interface {
 }
 
 func (r *FacetRuntime) retire(ctx context.Context, tx *sql.Tx, id int64) (bool, error) {
-	if err := facetRuntimeWriterReadyDuring(ctx, tx, dbwork.CatalogIngestWindowActive(r.db)); err != nil {
+	if _, err := facetRuntimeWriterReadyDuring(ctx, tx, dbwork.CatalogIngestWindowActive(r.db)); err != nil {
 		return false, err
 	}
 	r.gcPending = true
@@ -1262,33 +1388,69 @@ func (r *FacetRuntime) finishGC(phase int) {
 var errFacetRuntimeDeferred = errors.New("facet BASE writes deferred for scan/source work")
 
 func facetRuntimeWriterReady(ctx context.Context, q compactcatalog.ReadQuery) error {
-	return facetRuntimeWriterReadyDuring(ctx, q, false)
-}
-func facetRuntimeWriterReadyDuring(ctx context.Context, q compactcatalog.ReadQuery, ingestHeld bool) error {
-	var active bool
-	if err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM jobs INDEXED BY catalog_facet_active_scans WHERE status IN('queued','running'))`).Scan(&active); err != nil {
-		return err
-	}
-	if active && !ingestHeld {
-		return errFacetRuntimeDeferred
-	}
-	_, err := compactcatalog.CaptureFacetProducerFence(ctx, q)
-	if errors.Is(err, compactcatalog.ErrBuilding) || errors.Is(err, compactcatalog.ErrFacetProducerFailed) {
-		return errors.Join(errFacetRuntimeDeferred, err)
-	}
+	_, err := facetRuntimeWriterReadyDuring(ctx, q, false)
 	return err
 }
+
+// facetRuntimeWriterReadyDuring is the ONE writer-activation guard: a scan/ingest
+// state plus the real producer-family fence. It returns the fence it captured so
+// the turn scheduler can key its sweep to the same snapshot instead of repeating
+// the query. The fence alone is a CONTENT barrier; live per-scope authority is
+// bound separately (see writerReady).
+func facetRuntimeWriterReadyDuring(ctx context.Context, q compactcatalog.ReadQuery, ingestHeld bool) (compactcatalog.FacetProducerFence, error) {
+	var active bool
+	if err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM jobs INDEXED BY catalog_facet_active_scans WHERE status IN('queued','running'))`).Scan(&active); err != nil {
+		return compactcatalog.FacetProducerFence{}, err
+	}
+	if active && !ingestHeld {
+		return compactcatalog.FacetProducerFence{}, errFacetRuntimeDeferred
+	}
+	fence, err := compactcatalog.CaptureFacetProducerFence(ctx, q)
+	if errors.Is(err, compactcatalog.ErrBuilding) || errors.Is(err, compactcatalog.ErrFacetProducerFailed) {
+		return fence, errors.Join(errFacetRuntimeDeferred, err)
+	}
+	return fence, err
+}
+
+// writerReady records the exact producer fence AND the authority generations
+// captured in the same turn-start snapshot. CaptureFacetProducerFence excludes
+// per-scope/live authority by design, and CaptureFacetAuthority binds
+// policy_epoch/genre_epoch (plus library kind/retirement, which the source-epoch
+// triggers also move), so a policy-only change must reopen the sweep on its own.
+// A guard that could not be read is never treated as "nothing changed".
 func (r *FacetRuntime) writerReady(ctx context.Context) error {
-	return dbwork.WithReadSnapshot(dbwork.WithClass(ctx, dbwork.ClassBackgroundMedia), r.db, func(ctx context.Context) error {
-		return facetRuntimeWriterReadyDuring(ctx, dbwork.Snapshot(ctx), dbwork.CatalogIngestWindowActive(r.db))
+	var key facetRuntimeFence
+	err := dbwork.WithReadSnapshot(dbwork.WithClass(ctx, dbwork.ClassBackgroundMedia), r.db, func(ctx context.Context) error {
+		q := dbwork.Snapshot(ctx)
+		fence, err := facetRuntimeWriterReadyDuring(ctx, q, dbwork.CatalogIngestWindowActive(r.db))
+		if err != nil {
+			return err
+		}
+		if err = q.QueryRowContext(ctx, `SELECT policy_epoch,genre_epoch FROM catalog_facet_source_state WHERE singleton=1`).Scan(&key.policy, &key.genre); err != nil {
+			return err
+		}
+		key.producer = fence
+		return nil
 	})
+	r.mu.Lock()
+	if err != nil {
+		// A family observed mid-change (pending stage, failure, scan hold or a
+		// transient read error) cannot be compared yet: the next readable turn
+		// re-verifies every ready basis even if the counters come back unchanged.
+		r.known = false
+		r.moved = true
+	} else {
+		r.fence, r.known = key, true
+	}
+	r.mu.Unlock()
+	return err
 }
 func (r *FacetRuntime) writeBase(ctx context.Context, fn func(context.Context, *sql.Tx) error) error {
 	if err := r.writerReady(ctx); err != nil {
 		return err
 	}
 	return dbwork.WithWriteTxContext(ctx, r.db, dbwork.ClassBackgroundMedia, func(ctx context.Context, tx *sql.Tx) error {
-		if err := facetRuntimeWriterReadyDuring(ctx, tx, dbwork.CatalogIngestWindowActive(r.db)); err != nil {
+		if _, err := facetRuntimeWriterReadyDuring(ctx, tx, dbwork.CatalogIngestWindowActive(r.db)); err != nil {
 			return err
 		}
 		return fn(ctx, tx)
@@ -1300,6 +1462,7 @@ func (r *FacetRuntime) failUnpreparedScopes() {
 	for _, d := range r.demands {
 		if d.ready == 0 && d.err == nil {
 			d.err = ErrFacetBaseUnavailable
+			d.verify = false
 			r.notify(d)
 		}
 	}
@@ -1314,6 +1477,7 @@ func (r *FacetRuntime) stop() {
 	r.stopped = true
 	for _, d := range r.demands {
 		d.err = readprep.ErrClosed
+		d.verify = false
 		r.notify(d)
 	}
 }
