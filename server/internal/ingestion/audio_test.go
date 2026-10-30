@@ -3,13 +3,6 @@ package ingestion
 import (
 	"context"
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
-	"math"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
@@ -19,6 +12,13 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/playback"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"image"
+	"image/color"
+	"image/png"
+	"math"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -110,6 +110,9 @@ func TestRealLocalAudioScanChaptersArtAndBookResume(t *testing.T) {
 		}
 		for n := 0; n < 20; n++ {
 			scanner.process(context.Background(), job.ID, lib.ID)
+			// The derived worker runs beside ingestion in production; analysis
+			// waits for its pending catalogue information changes to publish.
+			drainDerivedCatalogue(t, db)
 			state, err := scanner.Get(job.ID)
 			if err != nil {
 				t.Fatal(err)
@@ -171,8 +174,20 @@ func TestRealLocalAudioScanChaptersArtAndBookResume(t *testing.T) {
 	if err != nil || len(songs) != 2 {
 		t.Fatal(songs, err)
 	}
-	if songs[0].Song == nil || *songs[0].Song.TrackNumber != 1 || *songs[0].Song.DiscNumber != 2 || songs[0].Sources[0].VideoCodec != "" || songs[0].Song.Artist != "First Artist" {
+	if songs[0].Song == nil || songs[0].Song.TrackNumber == nil || songs[0].Song.DiscNumber == nil || *songs[0].Song.TrackNumber != 1 || *songs[0].Song.DiscNumber != 2 || songs[0].Song.Artist != "First Artist" || len(songs[0].Sources) != 0 {
 		t.Fatal(songs[0])
+	}
+	// AudioItems publishes a constant-size summary, without source-detail
+	// arrays. Check the actual ingested asset facts: an attached cover must
+	// not turn this song into a video source.
+	var sources, videoSources int
+	if err = db.QueryRow(`SELECT count(*),coalesce(sum(a.video_codec<>''),0)
+ FROM catalog_entities e JOIN catalog_asset_links l ON l.entity_id=e.id
+ JOIN catalog_assets a ON a.id=l.asset_id WHERE e.public_id=pid_blob(?)`, songs[0].ID).Scan(&sources, &videoSources); err != nil {
+		t.Fatal(err)
+	}
+	if sources != 1 || videoSources != 0 {
+		t.Fatal("attached artwork changed the audio asset facts", sources, videoSources)
 	}
 	var key string
 	if err = db.QueryRow(`SELECT d.poster_url FROM catalog_entities e JOIN catalog_item_details d ON d.entity_id=e.id WHERE e.public_id=pid_blob(?)`, songs[0].ID).Scan(&key); err != nil {

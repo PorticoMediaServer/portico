@@ -5,11 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image"
-	"image/png"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
@@ -20,6 +15,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/playback"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"image"
+	"image/png"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -86,6 +86,9 @@ func TestRealMovieScanDiscoveryPaginationAndCollections(t *testing.T) {
 		}
 		for n := 0; n < 20; n++ {
 			scanner.process(context.Background(), job.ID, lib.ID)
+			// The derived worker runs beside ingestion in production; analysis
+			// waits for its pending catalogue information changes to publish.
+			drainDerivedCatalogue(t, db)
 			state, err := scanner.Get(job.ID)
 			if err != nil {
 				t.Fatal(err)

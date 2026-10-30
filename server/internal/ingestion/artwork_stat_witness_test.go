@@ -71,8 +71,8 @@ func countedHelper(t *testing.T) (*storage.Client, func(string) map[string]int) 
 }
 
 // The scan's own analysis context is what a candidate consumes: a real scan of
-// one film with one poster must take two observations around the admitted read,
-// not two explicit stats on each side of it.
+// one film with one poster keeps independent fresh observations around candidate
+// reads, including the warm verification after catalogue publication.
 func TestScanAnalysisConsumesItsOwnArtworkObservation(t *testing.T) {
 	ffmpeg := decodertest.QualifiedFFmpeg(t)
 	root := t.TempDir()
@@ -117,6 +117,9 @@ func TestScanAnalysisConsumesItsOwnArtworkObservation(t *testing.T) {
 	}
 	for n := 0; n < 32; n++ {
 		scanner.process(context.Background(), job.ID, lib.ID)
+		// The derived worker runs beside ingestion in production; analysis
+		// waits for its pending catalogue information changes to publish.
+		drainDerivedCatalogue(t, db)
 		state, err := scanner.Get(job.ID)
 		if err != nil {
 			t.Fatal(err)
@@ -139,11 +142,12 @@ func TestScanAnalysisConsumesItsOwnArtworkObservation(t *testing.T) {
 	if local != 1 {
 		t.Fatal("the scan did not publish the admitted poster")
 	}
-	// Two consumers read this poster: the item's own artwork key takes one
-	// admission stat and one blob, then the candidate enumeration takes two
-	// observations around its admitted blob. No side pays a second explicit stat.
+	// The item's artwork key takes one admission stat and one blob. Cold
+	// candidate enumeration takes three fresh stats (pre-check, byte admission,
+	// post-check) and one blob. Publication then causes a warm candidate check:
+	// two fresh observations, no blob. No observation pays an extra explicit stat.
 	calls := counts("Movie (2020)-poster.png")
-	if calls["inventory-stat"] != 4 || calls["inventory-blob"] != 2 {
+	if calls["inventory-stat"] != 6 || calls["inventory-blob"] != 2 {
 		t.Fatal("the scan did not consume its own observation around the admitted read", calls)
 	}
 }
