@@ -6,15 +6,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
+	"github.com/PorticoMediaServer/portico/server/internal/requestinput"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"io"
 	"log"
 	"net/http"
 	"net/netip"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
-	"github.com/PorticoMediaServer/portico/server/internal/requestinput"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"strconv"
 	"strings"
 	"sync"
@@ -876,6 +876,13 @@ func New(d Dependencies) http.Handler {
 			if err := d.applyLiveSettings(ctx); err != nil {
 				log.Printf("Settings runtime projection could not refresh: %v", err)
 			}
+		}
+	}
+	if d.Catalog != nil && d.Prepared != nil {
+		d.Catalog.SeparateFolderRetirement = catalog.SeparateFolderHooks{
+			CancelJob:     preparedmedia.CancelForRetirementTx,
+			Interrupt:     func(id string) { d.Prepared.Interrupt(context.Background(), id) },
+			RevokeReceipt: downloads.RevokeForRetirement,
 		}
 	}
 	if d.Scheduler != nil && d.Catalog != nil {

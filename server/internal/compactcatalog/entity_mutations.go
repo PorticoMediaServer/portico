@@ -21,8 +21,8 @@ type MutationRef struct {
 	Generation int64
 }
 type MutationStep struct {
-	Complete, More, PinDrained, Progressed bool
-	Outcome                                string
+	Complete, More, PinDrained, Progressed, SourcePaused bool
+	Outcome                                              string
 }
 
 func PendingMutationStep() MutationStep {
@@ -35,6 +35,7 @@ type MutationIntent struct {
 	Entity, Target                                                       int64
 	Mode, Parent, Family                                                 string
 	Provider, ProviderKind, ProviderID, AcceptedRevision, CauseOperation string
+	SplitSourceID, SplitDirectory, SplitObjectID, SplitObjectRevision    string
 }
 type EntityMutation struct {
 	Ref                                                                  MutationRef
@@ -52,12 +53,13 @@ type EntityMutation struct {
 	Child                                                                string
 	CurrentKey                                                           int64
 	Provider, ProviderKind, ProviderID, AcceptedRevision, CauseOperation string
+	SplitSourceID, SplitDirectory, SplitObjectID, SplitObjectRevision    string
 }
 
-const mutationColumns = `mutation_id,generation,family_id,COALESCE(parent_mutation_id,''),owner_kind,owner_id,owner_generation,COALESCE(entity_id,0),subject_id,public_id,entity_kind,library_id,entity_incarnation,publication_incarnation,source_digest,COALESCE(target_id,0),target_subject_id,target_public_id,target_incarnation,target_publication_incarnation,mode,phase,status,outcome,cursor,COALESCE(current_child,''),current_key,provider,provider_kind,provider_id,accepted_revision,cause_operation`
+const mutationColumns = `mutation_id,generation,family_id,COALESCE(parent_mutation_id,''),owner_kind,owner_id,owner_generation,COALESCE(entity_id,0),subject_id,public_id,entity_kind,library_id,entity_incarnation,publication_incarnation,source_digest,COALESCE(target_id,0),target_subject_id,target_public_id,target_incarnation,target_publication_incarnation,mode,phase,status,outcome,cursor,COALESCE(current_child,''),current_key,provider,provider_kind,provider_id,accepted_revision,cause_operation,split_source_id,split_directory,split_object_id,split_object_revision`
 
 func ReadEntityMutationTx(ctx context.Context, tx *sql.Tx, ref MutationRef) (m EntityMutation, err error) {
-	err = tx.QueryRowContext(ctx, `SELECT `+mutationColumns+` FROM catalog_entity_mutations WHERE mutation_id=? AND generation=?`, ref.ID, ref.Generation).Scan(&m.Ref.ID, &m.Ref.Generation, &m.Family, &m.Parent, &m.OwnerKind, &m.OwnerID, &m.OwnerGeneration, &m.Entity, &m.Subject, &m.Public, &m.Kind, &m.Library, &m.Incarnation, &m.PublicationIncarnation, &m.SourceDigest, &m.Target, &m.TargetSubject, &m.TargetPublic, &m.TargetIncarnation, &m.TargetPublicationIncarnation, &m.Mode, &m.Phase, &m.Status, &m.Outcome, &m.Cursor, &m.Child, &m.CurrentKey, &m.Provider, &m.ProviderKind, &m.ProviderID, &m.AcceptedRevision, &m.CauseOperation)
+	err = tx.QueryRowContext(ctx, `SELECT `+mutationColumns+` FROM catalog_entity_mutations WHERE mutation_id=? AND generation=?`, ref.ID, ref.Generation).Scan(&m.Ref.ID, &m.Ref.Generation, &m.Family, &m.Parent, &m.OwnerKind, &m.OwnerID, &m.OwnerGeneration, &m.Entity, &m.Subject, &m.Public, &m.Kind, &m.Library, &m.Incarnation, &m.PublicationIncarnation, &m.SourceDigest, &m.Target, &m.TargetSubject, &m.TargetPublic, &m.TargetIncarnation, &m.TargetPublicationIncarnation, &m.Mode, &m.Phase, &m.Status, &m.Outcome, &m.Cursor, &m.Child, &m.CurrentKey, &m.Provider, &m.ProviderKind, &m.ProviderID, &m.AcceptedRevision, &m.CauseOperation, &m.SplitSourceID, &m.SplitDirectory, &m.SplitObjectID, &m.SplitObjectRevision)
 	return
 }
 func MutationRefTx(ctx context.Context, tx *sql.Tx, id string) (r MutationRef, err error) {
@@ -156,8 +158,24 @@ func BeginEntityMutationTx(ctx context.Context, tx *sql.Tx, in MutationIntent) (
 	if in.OwnerGeneration <= 0 || in.OwnerID == "" {
 		return MutationRef{}, ErrMutationStale
 	}
+	if in.Mode == "separate" {
+		if in.SplitSourceID == "" || in.SplitObjectID == "" || in.SplitObjectRevision == "" {
+			return MutationRef{}, ErrMutationStale
+		}
+	} else if in.SplitSourceID != "" || in.SplitDirectory != "" || in.SplitObjectID != "" || in.SplitObjectRevision != "" {
+		return MutationRef{}, ErrMutationStale
+	}
 	old, err := FindEntityMutationTx(ctx, tx, in.OwnerKind, in.OwnerID, in.OwnerGeneration, in.Entity, in.Mode)
 	if err == nil {
+		if in.Mode == "separate" {
+			held, readErr := ReadEntityMutationTx(ctx, tx, old)
+			if readErr != nil {
+				return old, readErr
+			}
+			if held.SplitSourceID != in.SplitSourceID || held.SplitDirectory != in.SplitDirectory || held.SplitObjectID != in.SplitObjectID || held.SplitObjectRevision != in.SplitObjectRevision {
+				return old, ErrMutationStale
+			}
+		}
 		return old, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -253,7 +271,7 @@ func BeginEntityMutationTx(ctx context.Context, tx *sql.Tx, in MutationIntent) (
 	if err != nil {
 		return ref, err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO catalog_entity_mutations(mutation_id,generation,family_id,parent_mutation_id,owner_kind,owner_id,owner_generation,entity_id,subject_id,public_id,entity_kind,library_id,entity_incarnation,publication_incarnation,source_digest,target_id,target_subject_id,target_public_id,target_incarnation,target_publication_incarnation,mode,phase,provider,provider_kind,provider_id,accepted_revision,cause_operation,subject_ancestor_1,subject_ancestor_2,subject_ancestor_3,subject_ancestor_4,target_ancestor_1,target_ancestor_2,target_ancestor_3,target_ancestor_4) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'admitted',?,?,?,?,?,?,?,?,?,?,?,?,?)`, ref.ID, ref.Generation, family, parent, in.OwnerKind, in.OwnerID, in.OwnerGeneration, in.Entity, in.Entity, public, kind, library, inc, pub, digest, target, in.Target, tp, ti, tpi, in.Mode, in.Provider, in.ProviderKind, in.ProviderID, in.AcceptedRevision, in.CauseOperation, subjectAncestors[0], subjectAncestors[1], subjectAncestors[2], subjectAncestors[3], targetAncestors[0], targetAncestors[1], targetAncestors[2], targetAncestors[3])
+	_, err = tx.ExecContext(ctx, `INSERT INTO catalog_entity_mutations(mutation_id,generation,family_id,parent_mutation_id,owner_kind,owner_id,owner_generation,entity_id,subject_id,public_id,entity_kind,library_id,entity_incarnation,publication_incarnation,source_digest,target_id,target_subject_id,target_public_id,target_incarnation,target_publication_incarnation,mode,phase,provider,provider_kind,provider_id,accepted_revision,cause_operation,subject_ancestor_1,subject_ancestor_2,subject_ancestor_3,subject_ancestor_4,target_ancestor_1,target_ancestor_2,target_ancestor_3,target_ancestor_4,split_source_id,split_directory,split_object_id,split_object_revision) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'admitted',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, ref.ID, ref.Generation, family, parent, in.OwnerKind, in.OwnerID, in.OwnerGeneration, in.Entity, in.Entity, public, kind, library, inc, pub, digest, target, in.Target, tp, ti, tpi, in.Mode, in.Provider, in.ProviderKind, in.ProviderID, in.AcceptedRevision, in.CauseOperation, subjectAncestors[0], subjectAncestors[1], subjectAncestors[2], subjectAncestors[3], targetAncestors[0], targetAncestors[1], targetAncestors[2], targetAncestors[3], in.SplitSourceID, in.SplitDirectory, in.SplitObjectID, in.SplitObjectRevision)
 	if err != nil {
 		return ref, err
 	}

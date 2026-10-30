@@ -21,6 +21,7 @@ var partialFKIndexAllow = map[string]string{
 	`catalog_entities(parent_id)`:               `catalog_entities_parent is parent_id IS NOT NULL; FK checks skip NULL parent_id and the planner uses it`,
 	`catalog_episodes(season_id)`:               `catalog_episodes_season is season_id IS NOT NULL; FK checks skip NULL season_id and the planner uses it`,
 	`catalog_playlist_entries(item_id)`:         `catalog_playlist_entries_item is item_id IS NOT NULL; FK checks skip NULL item_id and the planner uses it`,
+	`retained_title_state(capture_mutation_id)`: `retained_title_state_capture excludes only NULL capture_mutation_id; FK checks skip NULL and the planner uses it`,
 }
 
 // Every foreign key in the baseline must have an indexed child side, or say why

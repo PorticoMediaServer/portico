@@ -157,6 +157,8 @@ func CatalogMutationStepTx(ctx context.Context, tx *sql.Tx, ref compactcatalog.M
 		return MergeTitlesStepTx(ctx, tx, ref)
 	case "adopt":
 		return AdoptProviderIdentityStepTx(ctx, tx, ref)
+	case "separate":
+		return SeparateFolderCommandStepTx(ctx, tx, ref)
 	default:
 		return RemoveTitleStepTx(ctx, tx, ref)
 	}

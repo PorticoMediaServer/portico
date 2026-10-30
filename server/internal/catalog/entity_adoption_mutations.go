@@ -259,6 +259,16 @@ func (s *Service) MutationAdapter() operations.Adapter {
 			return tx.QueryRowContext(ctx, `SELECT 1 FROM catalog_entity_mutations WHERE mutation_id=? AND parent_mutation_id IS NULL`, id).Scan(&one)
 		},
 		Step: func(ctx context.Context, id string) (operations.JobObservation, error) {
+			if id != mutationCleanupResource {
+				var separate bool
+				err := dbwork.ReadHandle(ctx, s.db).QueryRowContext(ctx, `SELECT mode='separate' AND owner_kind='separate' FROM catalog_entity_mutations WHERE mutation_id=? AND parent_mutation_id IS NULL`, id).Scan(&separate)
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
+					return operations.JobObservation{}, err
+				}
+				if separate {
+					return s.separateFolderBackground(ctx, id)
+				}
+			}
 			out := operations.JobObservation{State: "running", Phase: "catalog mutation"}
 			var step compactcatalog.MutationStep
 			err := dbwork.WithWriteTx(MutationWriteContext(ctx), s.db, dbwork.ClassBackgroundMedia, func(tx *sql.Tx) error {
