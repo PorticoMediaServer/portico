@@ -81,7 +81,7 @@ func focusedReads(db *sql.DB, s *catalog.Service) ([]routeResult, error) {
 				}
 			}
 			for _, state := range []string{"available", "partial", "unavailable"} {
-				raw, _ := json.Marshal(map[string]any{"field": "availability", "operator": "equals", "value": state})
+				raw, _ := json.Marshal(map[string]any{"variant": "predicate", "field": "availability", "operator": "equals", "value": state})
 				node, err := catalog.ParseBrowseQuery(raw, "query")
 				if err != nil {
 					return results, err

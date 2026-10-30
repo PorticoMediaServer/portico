@@ -255,7 +255,7 @@ test('a channel retry-only 202 prepares the original start before any channel st
   const http: V1Http = {send: async request => {
     if (request.method === 'POST' && request.path === '/v1/playback/sessions') {
       posts.push({key: request.headers?.['Idempotency-Key'], body: request.body});
-      if (posts.length <= 2) return {status: 202, headers: {}, body: {retryAfterMs: 500}};
+      if (posts.length <= 2) return {status: 202, headers: {}, body: {variant: 'wait', retryAfterMs: 500}};
     }
     return server.send(request);
   }};
@@ -294,7 +294,7 @@ test('a channel retry-only 202 keeps one original start and publishes the actual
     if (request.method === 'GET') return {status: 200, headers: {}, body: activeChannelBody('ps_1')};
     if (request.method !== 'POST' || request.path !== '/v1/playback/sessions') return {status: 204, headers: {}};
     sent.push(request); posts++;
-    if (posts === 1) return {status: 202, headers: {}, body: {retryAfterMs: 500}};
+    if (posts === 1) return {status: 202, headers: {}, body: {variant: 'wait', retryAfterMs: 500}};
     return {status: 201, headers: {}, body: coldChannelBody('ps_1')};
   }};
   const control = new V1ChannelControl({http, key: () => 'channel-key-0000002', pollMs: 10_000, timers: clock.timers});
@@ -330,7 +330,7 @@ test('caller retirement during a channel retry-only 202 wait clears its timer an
   const clock = preparationQueue(), life = new AbortController();
   let posts = 0;
   const http: V1Http = {send: async request => {
-    if (request.method === 'POST' && request.path === '/v1/playback/sessions') {posts++; return {status: 202, headers: {}, body: {retryAfterMs: 500}};}
+    if (request.method === 'POST' && request.path === '/v1/playback/sessions') {posts++; return {status: 202, headers: {}, body: {variant: 'wait', retryAfterMs: 500}};}
     return {status: 204, headers: {}};
   }};
   const control = new V1ChannelControl({http, key: () => 'channel-key-0000005', pollMs: 10_000, timers: clock.timers});
@@ -354,7 +354,7 @@ test('an impossible channel session 202 is refused by the strict start decoder w
   let posts = 0;
   const http: V1Http = {send: async request => {
     if (request.method === 'POST' && request.path === '/v1/playback/sessions') {posts++; return {status: 202, headers: {},
-      body: {...coldChannelBody('ps_impossible'), retryAfterMs: 500}};}
+      body: {...coldChannelBody('ps_impossible'), variant: 'session', retryAfterMs: 500}};}
     return {status: 204, headers: {}};
   }};
   const control = new V1ChannelControl({http, key: () => 'channel-key-0000006', pollMs: 10_000, timers: clock.timers});
@@ -362,7 +362,7 @@ test('an impossible channel session 202 is refused by the strict start decoder w
   const opening = control.open(channel, {state: value => states.push(value),
     error: (message, terminal) => errors.push({message, terminal}), preparation: value => preparation.push(value)});
   try {
-    assert.throws(() => parseStartPreparation({...coldChannelBody('ps_impossible'), retryAfterMs: 500}), {name: 'ContractError'},
+    assert.throws(() => parseStartPreparation({...coldChannelBody('ps_impossible'), variant: 'session', retryAfterMs: 500}), {name: 'ContractError'},
       'only vod/audio may carry a session in a 202');
     await opening; await settle();
     assert.equal(posts, 1); assert.equal(clock.pending(), 0); assert.deepEqual(states, []);
@@ -375,7 +375,7 @@ test('closing a channel during a valid preparation wait clears its timer and sen
   const server = new ChannelServer(), clock = preparationQueue();
   let posts = 0;
   const http: V1Http = {send: async request => {
-    if (request.method === 'POST' && request.path === '/v1/playback/sessions') {posts++; return {status: 202, headers: {}, body: {retryAfterMs: 500}};}
+    if (request.method === 'POST' && request.path === '/v1/playback/sessions') {posts++; return {status: 202, headers: {}, body: {variant: 'wait', retryAfterMs: 500}};}
     return server.send(request);
   }};
   const control = new V1ChannelControl({http, key: () => 'channel-key-0000003', pollMs: 10_000, timers: clock.timers});
@@ -397,7 +397,7 @@ test('a channel notice callback can retire its own opening before a wait is inst
   const server = new ChannelServer(), clock = preparationQueue();
   let posts = 0, notices = 0, clears = 0;
   const http: V1Http = {send: async request => {
-    if (request.method === 'POST' && request.path === '/v1/playback/sessions') {posts++; return {status: 202, headers: {}, body: {retryAfterMs: 500}};}
+    if (request.method === 'POST' && request.path === '/v1/playback/sessions') {posts++; return {status: 202, headers: {}, body: {variant: 'wait', retryAfterMs: 500}};}
     return server.send(request);
   }};
   const control = new V1ChannelControl({http, key: () => 'channel-key-0000004', pollMs: 10_000, timers: clock.timers});
@@ -463,7 +463,7 @@ test('the channel receipt issuer captures the actual original key and body befor
       if (request.method !== 'POST' || request.path !== '/v1/playback/sessions') return {status: 204, headers: {}};
       assert.equal(originals.length, 1, 'host custody exists before the first POST');
       sent.push(request);
-      return sent.length === 1 ? {status: 202, headers: {}, body: {retryAfterMs: 500}}
+      return sent.length === 1 ? {status: 202, headers: {}, body: {variant: 'wait', retryAfterMs: 500}}
         : {status: 201, headers: {}, body: accepted};
     }}});
   let opening: Promise<void> | undefined;

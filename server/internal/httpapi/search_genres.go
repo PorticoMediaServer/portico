@@ -53,15 +53,21 @@ func genreFallbackSchema() map[string]any {
 	}
 	return s
 }
+func genreVariants() (ready, fallback, preparing map[string]any) {
+	return withVariantTag(genreReadySchema(), "ready"), withVariantTag(genreFallbackSchema(), "fallback"), withVariantTag(genrePreparingSchema(), "preparing")
+}
 func (genreReadResponse) JSONSchema() map[string]any {
-	return map[string]any{"anyOf": []any{genreReadySchema(), genreFallbackSchema(), genrePreparingSchema()}}
+	ready, fallback, preparing := genreVariants()
+	return map[string]any{"anyOf": []any{ready, fallback, preparing}}
 }
 func (genreReadResponse) JSONSchemaForStatus(status int) map[string]any {
 	if status == 200 {
-		return map[string]any{"anyOf": []any{genreReadySchema(), genreFallbackSchema()}}
+		ready, fallback, _ := genreVariants()
+		return map[string]any{"anyOf": []any{ready, fallback}}
 	}
 	if status == 202 {
-		return genrePreparingSchema()
+		_, _, preparing := genreVariants()
+		return preparing
 	}
 	return nil
 }
@@ -76,20 +82,20 @@ func writeGenreRead(w http.ResponseWriter, out catalog.SearchGenreResult) {
 		pending := out.Fallback.Preparation
 		w.Header().Set("Location", "/v1/genre-queries/"+pending.QueryID)
 		w.Header().Set("Retry-After", strconv.Itoa(max(1, (pending.RetryAfterMs+999)/1000)))
-		write(w, http.StatusOK, out.Fallback)
+		write(w, http.StatusOK, variantBody{"fallback", out.Fallback})
 		return
 	}
 	if out.Preparing != nil && out.Page == nil && out.Fallback == nil {
 		w.Header().Set("Location", "/v1/genre-queries/"+out.Preparing.QueryID)
 		w.Header().Set("Retry-After", strconv.Itoa(max(1, (out.Preparing.RetryAfterMs+999)/1000)))
-		write(w, http.StatusAccepted, out.Preparing)
+		write(w, http.StatusAccepted, variantBody{"preparing", out.Preparing})
 		return
 	}
 	if out.Page == nil || out.Preparing != nil || out.Fallback != nil {
 		failure(w, errors.New("invalid genre preparation result"))
 		return
 	}
-	write(w, http.StatusOK, out.Page)
+	write(w, http.StatusOK, variantBody{"ready", out.Page})
 }
 
 // Mounted with its shared descriptor once generated; every surface uses this

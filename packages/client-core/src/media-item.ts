@@ -7,7 +7,7 @@ import type {GetItemsIdResponse} from '../../contracts/src/types.ts';
 /** The item body of `GET /v1/items/{id}`. The generated response also names the FileInfo opening
  * preparation (202), which only a FileInfo opening read can receive; a plain item read never does,
  * and `parseMediaItem` refuses anything that is not an item. */
-export type ItemResponse = Exclude<GetItemsIdResponse, {state: string}>;
+export type ItemResponse = Extract<GetItemsIdResponse, {variant: 'item'}>;
 const object=(v:unknown):v is Record<string,unknown>=>typeof v==='object'&&v!==null&&!Array.isArray(v);
 export function parseMediaItem(raw:unknown):MediaItem {
  // P2-29: an item whose length the server cannot represent omits durationMs and says so; that

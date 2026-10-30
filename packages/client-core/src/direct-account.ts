@@ -7,6 +7,7 @@ import {routeBody} from '../../contracts/src/routes.ts';
 import {routePath, type RouteRequest, type RouteResponse} from '../../contracts/src/route-paths.ts';
 import type {ProfileAPI} from './profile-management.ts';
 import {CodedError} from './server-messages.ts';
+import {requireTag} from './needs-newer-app.ts';
 import {identityCode} from './route-identity.ts';
 import {formatShortInvitationCode,parseShortInvitationCode} from './short-invitation-code.ts';
 
@@ -94,6 +95,7 @@ export class PeopleInvitationsClient{
  }
  async acceptLocal(input:Extract<RouteRequest<'post_access_invitations_accept'>,{username:string}>,signal?:AbortSignal):Promise<Readonly<{accountId:string;username:string;profileId:string;role:string;allowedLibraries:string[]}>>{
   const raw=await this.api.request<unknown>(routePath('post_access_invitations_accept'),'POST',routeBody('post_access_invitations_accept',input),signal);
+  if(object(raw)&&requireTag(raw,'variant',['accepted','signed-in','challenge'],invalidPeople)!=='accepted')invalidPeople();
   if(!object(raw)||!bounded(raw.accountId,128)||!bounded(raw.username,64)||!bounded(raw.profileId,128)||!['admin','member'].includes(String(raw.role))||!Array.isArray(raw.allowedLibraries)||raw.allowedLibraries.some(v=>!bounded(v,128))||Object.hasOwn(raw,'notes'))invalidPeople();
   return Object.freeze({accountId:raw.accountId,username:raw.username,profileId:raw.profileId,role:raw.role as string,allowedLibraries:[...raw.allowedLibraries]});
  }

@@ -76,7 +76,7 @@ export class NativeHomeRowController {
   };
   private query(selected = true, filters = this.state.filters): BrowseNode {
     const kind = selected ? this.kinds.find(value => value.id === this.state.selectedKind) : undefined;
-    return {all: [acrossCondition('homeRow', this.rowId), ...filters, ...(kind ? [{field: 'library' as const, operator: 'in' as const, value: kind.libraryIds}] : [])]};
+    return {variant: 'group', all: [acrossCondition('homeRow', this.rowId), ...filters, ...(kind ? [{variant: 'predicate' as const, field: 'library' as const, operator: 'in' as const, value: kind.libraryIds}] : [])]};
   }
   private builder(query = this.query()): BrowseQueryBuilder {
     if (!this.state.capabilities || !this.state.sort) throw cancelled();
@@ -114,7 +114,7 @@ export class NativeHomeRowController {
     if (!this.valid() || this.state.phase !== 'ready') throw cancelled();
     this.builder(this.query(true, filters)).build();
     const base = this.query(false, filters), generation = this.generation, stamp = JSON.stringify(this.query());
-    const queries = [{id: 'all', query: base}, ...this.kinds.map(kind => ({id: kind.id, query: {all: [base, {field: 'library' as const, operator: 'in' as const, value: kind.libraryIds}]}}))];
+    const queries = [{id: 'all', query: base}, ...this.kinds.map(kind => ({id: kind.id, query: {variant: 'group' as const, all: [base, {variant: 'predicate' as const, field: 'library' as const, operator: 'in' as const, value: kind.libraryIds}]}}))];
     const counts: BrowseCount[] = [];
     for (let start = 0; start < queries.length; start += 8) {
       const batch = queries.slice(start, start + 8);
@@ -141,7 +141,7 @@ export class NativeHomeRowController {
   private countTicket = 0;
   private async readCounts(generation: number): Promise<void> {
     const ticket = ++this.countTicket, base = this.query(false);
-    const queries = [{id: 'all', query: base}, ...this.kinds.map(kind => ({id: kind.id, query: {all: [base, {field: 'library' as const, operator: 'in' as const, value: kind.libraryIds}]}}))];
+    const queries = [{id: 'all', query: base}, ...this.kinds.map(kind => ({id: kind.id, query: {variant: 'group' as const, all: [base, {variant: 'predicate' as const, field: 'library' as const, operator: 'in' as const, value: kind.libraryIds}]}}))];
     try {
       const counts: BrowseCount[] = [];
       for (let start = 0; start < queries.length; start += 8) {

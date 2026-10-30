@@ -1,6 +1,6 @@
 import {routeBody} from '../../contracts/src/routes.ts';
 import {routePath} from '../../contracts/src/route-paths.ts';
-import {parseDirectSignIn,type DirectSignIn,type ProfileAPI} from './profile-management.ts';
+import {parseTaggedSignIn,parseDirectSignIn,type DirectSignIn,type ProfileAPI} from './profile-management.ts';
 import {identityCode} from './route-identity.ts';
 import {parseTwoFactorState} from './identity-restrictions.ts';
 
@@ -27,7 +27,7 @@ export async function requestOwnerResetFile(api:ProfileAPI,username?:string,sign
  return parseResetFileLocation(await api.request(routePath('post_auth_owner_reset_request'),'POST',routeBody('post_auth_owner_reset_request',username===undefined?{}:{username}),signal));
 }
 export async function verifyOwnerResetFile(api:ProfileAPI,code:string,turnOffTwoStep=false,signal?:AbortSignal):Promise<DirectSignIn>{
- const out=parseDirectSignIn(await api.request(routePath('post_auth_owner_reset_verify'),'POST',routeBody('post_auth_owner_reset_verify',{code:code.trim(),turnOffTwoStep}),signal));
+ const out=parseTaggedSignIn(await api.request(routePath('post_auth_owner_reset_verify'),'POST',routeBody('post_auth_owner_reset_verify',{code:code.trim(),turnOffTwoStep}),signal),['password-change','owner-session'],(tag,signedIn)=>signedIn.kind==='signed-in'&&(tag==='owner-session'?signedIn.resetFileOwnerSession===true:signedIn.passwordChangeRequired));
  if(out.kind!=='signed-in'||(!out.passwordChangeRequired&&!out.resetFileOwnerSession)||out.session.refreshToken)throw new Error('The reset file did not return the expected session.');
  return out;
 }

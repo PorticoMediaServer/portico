@@ -53,7 +53,7 @@ test('personal dispatch retains the exact query witness without resolving a sing
 test('query metadata preview and save carry the same full witness into the final job', async () => {
   const held = selected(), bodies: any[] = [], fence = 'd'.repeat(64);
   const spec = {field: 'contentRating', label: 'Content rating', type: 'text', bulk: true, group: 'general', maxLength: 300};
-  const preview = {serverId: 'server', viewerFence: fence, contentKind: 'movie', kind: 'item', total: 2, selectionRevision: revision,
+  const preview = {variant: 'ready', serverId: 'server', viewerFence: fence, contentKind: 'movie', kind: 'item', total: 2, selectionRevision: revision,
     schema: [spec], singleItemFields: [spec], excludedFields: [], targets: [],
     fields: {contentRating: {state: 'shared', distinctCount: 1, value: 'G', values: [{value: 'G', count: 2}], entries: [], locked: 0, truncated: false}}};
   const editor = createQuerySelectionEditor({api: {request: async <T>(path: string, _method?: string, body?: unknown) => {

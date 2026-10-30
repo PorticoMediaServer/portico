@@ -8,7 +8,7 @@ import {PlaybackScopeHttp} from '../src-next/platform/playback/scope-http';
 
 // Actual declared real-session202 shape. It is decoded by the canonical strict
 // parser, never cast into a playable Session or installed in a player.
-const real = (extra = {}) => ({id: 'original_session', revision: '1', kind: 'vod', role: 'local', state: 'paused', itemId: 'movie',
+const real = (extra = {}) => ({variant: 'session', id: 'original_session', revision: '1', kind: 'vod', role: 'local', state: 'paused', itemId: 'movie',
   lease: {expiresAt: '2099-01-01T00:00:00Z', reportEveryMs: 10_000}, retryAfterMs: 500,
   presentation: {generation: 1, mode: 'stream', engine: 'native', url: '/v1/media/grant-original_session/1/master.m3u8', startPositionMs: 0,
     quality: {mode: 'original'}, subtitles: [], decision: {video: {action: 'copy', reasons: []}, audio: {action: 'copy', reasons: []}}}, ...extra});
@@ -57,7 +57,7 @@ test('late ScopeHTTP202 is available only through the original observed dispatch
 });
 
 test('retry-only or malformed late202 creates no cleanup resource', async () => {
-  for (const body of [{retryAfterMs: 500}, {retryAfterMs: 500, id: null}, {retryAfterMs: 0}, {retryAfterMs: 10_001}]) {
+  for (const body of [{variant: 'wait', retryAfterMs: 500}, {variant: 'session', retryAfterMs: 500, id: null}, {variant: 'wait', retryAfterMs: 0}, {variant: 'wait', retryAfterMs: 10_001}]) {
     const f = fixture(), start = f.begin(), request = wire(start.body);
     f.registration.observe(request); f.retire(); f.registration.retired(request, {status: 202, headers: {}, body});
     start.finish(); await settle(); assert.equal(f.stopped(), 0);

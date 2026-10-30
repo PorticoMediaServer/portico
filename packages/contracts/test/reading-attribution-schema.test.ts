@@ -24,14 +24,17 @@ test('present attribution objects require known provenance and keep private evid
   for (const invalid of [
     {}, {...author, value: ''}, {...author, value: 'x'.repeat(4097)},
     {...author, source: undefined}, {...author, source: null}, {...author, source: 'provider'},
-    {...author, value: ['A', 'B']}, {...author, path: '/private/source'},
+    {...author, value: ['A', 'B']},
   ]) assert.throws(() => read({author: invalid}));
   for (const invalid of [
     {}, {...series, id: ''}, {...series, name: ''}, {...series, source: 'unknown'},
     {...series, number: -1}, {...series, number: '2.5'}, {...series, number: null},
     {...series, number: NaN}, {...series, number: Infinity},
-    {...series, numberSource: 'file-name'}, {...series, sourceRevision: 'private'},
   ]) assert.throws(() => read({series: invalid}));
+  // Responses are open: private evidence a server adds is dropped, never surfaced and never fatal.
+  const decoded = read({author: {...author, path: '/private/source'}, series: {...series, numberSource: 'file-name', sourceRevision: 'private'}}) as {items: Array<{author: object; series: object}>};
+  assert.deepEqual({...decoded.items[0].author}, author);
+  assert.deepEqual({...decoded.items[0].series}, series);
 });
 
 test('Continue reuses the same item facts while session package metadata keeps its existing scalar contract', () => {

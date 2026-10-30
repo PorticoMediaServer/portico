@@ -54,7 +54,7 @@ test('omitted lists read as empty; filter expressions are validated', () => {
   assert.deepEqual(q.genres, []);
   assert.equal(q.yearFrom, 0);
   // A valid browse filter passes; a malformed one refuses the rule.
-  const withFilter = parseLibraryChannelConfig(config({rules: [rule({query: query({filter: {field: 'title', operator: 'contains', value: 'x'}})})]}));
+  const withFilter = parseLibraryChannelConfig(config({rules: [rule({query: query({filter: {variant:'predicate',field: 'title', operator: 'contains', value: 'x'}})})]}));
   assert.ok(withFilter.rules[0]!.query.filter);
   assert.throws(() => parseLibraryChannelConfig(config({rules: [rule({query: query({filter: {bogus: true}})})]})));
   // Oversize free text is refused.

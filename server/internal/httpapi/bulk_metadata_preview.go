@@ -19,6 +19,7 @@ import (
 )
 
 type bulkMetadataPreviewPreparing struct {
+	Variant      string `json:"variant"`
 	Kind         string `json:"kind"`
 	State        string `json:"state"`
 	QueryID      string `json:"queryId"`
@@ -26,7 +27,8 @@ type bulkMetadataPreviewPreparing struct {
 }
 
 func (bulkMetadataPreviewPreparing) JSONSchema() map[string]any {
-	return map[string]any{"type": "object", "additionalProperties": false, "required": []string{"kind", "state", "queryId", "retryAfterMs"}, "properties": map[string]any{
+	return map[string]any{"type": "object", "additionalProperties": false, "required": []string{"variant", "kind", "state", "queryId", "retryAfterMs"}, "properties": map[string]any{
+		"variant":      map[string]any{"type": "string", "const": "preparing"},
 		"kind":         map[string]any{"type": "string", "enum": []string{"metadata-preview-preparing"}},
 		"state":        map[string]any{"type": "string", "enum": []string{"preparing"}},
 		"queryId":      map[string]any{"type": "string", "minLength": 1, "maxLength": 128},
@@ -44,7 +46,7 @@ func (v bulkMetadataPreviewResponse) MarshalJSON() ([]byte, error) {
 		return nil, readprep.ErrInvalid
 	}
 	if v.Ready != nil {
-		return json.Marshal(v.Ready)
+		return json.Marshal(variantBody{"ready", v.Ready})
 	}
 	return json.Marshal(v.Preparing)
 }
@@ -65,7 +67,7 @@ func bulkMetadataPreviewReadySchema() map[string]any {
 	if err != nil {
 		panic(err)
 	}
-	return shape
+	return withVariantTag(shape, "ready")
 }
 
 const bulkMetadataPreviewQueryPath = "/v1/metadata/bulk/preview-queries/{queryId}"
@@ -253,7 +255,7 @@ func (d Dependencies) bulkMetadataPreviewDeliver(ctx context.Context, r *http.Re
 		return out, err
 	}
 	if result.State == readprep.Preparing {
-		out.Preparing = &bulkMetadataPreviewPreparing{Kind: "metadata-preview-preparing", State: "preparing", QueryID: queryID, RetryAfterMs: 1000}
+		out.Preparing = &bulkMetadataPreviewPreparing{Variant: "preparing", Kind: "metadata-preview-preparing", State: "preparing", QueryID: queryID, RetryAfterMs: 1000}
 	} else {
 		var value metadata.BulkMetadataPreview
 		if err = json.Unmarshal(result.Payload, &value); err != nil {

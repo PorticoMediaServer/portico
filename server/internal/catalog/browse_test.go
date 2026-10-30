@@ -96,39 +96,39 @@ func TestBrowseCompilesEveryOperator(t *testing.T) {
 		name, query string
 		want        []string
 	}{
-		{"equals", `{"field":"title","operator":"equals","value":"Alpha"}`, []string{"m1"}},
-		{"not-equals", `{"field":"title","operator":"not-equals","value":"Alpha"}`, []string{"m2", "m3", "m4", "m5"}},
-		{"contains", `{"field":"title","operator":"contains","value":"amm"}`, []string{"m3"}},
-		{"starts-with", `{"field":"title","operator":"starts-with","value":"D"}`, []string{"m4"}},
-		{"in", `{"field":"year","operator":"in","value":[1995,2005]}`, []string{"m1", "m2"}},
-		{"not-in", `{"field":"year","operator":"not-in","value":[1995,2005]}`, []string{"m3", "m4", "m5"}},
-		{"less-than", `{"field":"year","operator":"less-than","value":2000}`, []string{"m1", "m5"}},
-		{"at-most", `{"field":"year","operator":"at-most","value":1995}`, []string{"m1", "m5"}},
-		{"greater-than", `{"field":"year","operator":"greater-than","value":2005}`, []string{"m3", "m4"}},
-		{"at-least", `{"field":"year","operator":"at-least","value":2005}`, []string{"m2", "m3", "m4"}},
-		{"between", `{"field":"year","operator":"between","value":[1995,2005]}`, []string{"m1", "m2"}},
-		{"is-present", `{"field":"contentRating","operator":"is-present","value":null}`, []string{"m1", "m2"}},
-		{"is-missing", `{"field":"contentRating","operator":"is-missing","value":null}`, []string{"m3", "m4", "m5"}},
-		{"contains-any", `{"field":"genre","operator":"contains-any","value":["Action","Comedy"]}`, []string{"m1", "m2", "m3"}},
-		{"contains-all", `{"field":"genre","operator":"contains-all","value":["Action","Drama"]}`, []string{"m1"}},
-		{"set contains", `{"field":"genre","operator":"contains","value":"Drama"}`, []string{"m1", "m5"}},
-		{"decade", `{"field":"decade","operator":"equals","value":2010}`, []string{"m3", "m4"}},
-		{"availability", `{"field":"availability","operator":"equals","value":"available"}`, []string{"m1", "m2", "m5"}},
-		{"unavailable", `{"field":"availability","operator":"equals","value":"unavailable"}`, []string{"m3", "m4"}},
-		{"resolution", `{"field":"resolution","operator":"equals","value":"4k"}`, []string{"m2"}},
-		{"duration", `{"field":"durationMs","operator":"at-least","value":200000}`, []string{"m2", "m3"}},
-		{"favorite", `{"field":"favorite","operator":"equals","value":true}`, []string{"m1"}},
-		{"not favorite", `{"field":"favorite","operator":"equals","value":false}`, []string{"m2", "m3", "m4", "m5"}},
-		{"played", `{"field":"playState","operator":"equals","value":"played"}`, []string{"m2"}},
-		{"in-progress", `{"field":"playState","operator":"equals","value":"in-progress"}`, []string{"m3"}},
-		{"unplayed", `{"field":"playState","operator":"equals","value":"unplayed"}`, []string{"m1", "m4", "m5"}},
-		{"personalRating", `{"field":"personalRating","operator":"at-least","value":4}`, []string{"m1"}},
-		{"lastPlayedAt present", `{"field":"lastPlayedAt","operator":"is-present","value":null}`, []string{"m2"}},
-		{"studio", `{"field":"studio","operator":"contains","value":"Example"}`, []string{"m1"}},
-		{"tag", `{"field":"tag","operator":"contains","value":"rewatch"}`, []string{"m2"}},
-		{"all group", `{"all":[{"field":"genre","operator":"contains","value":"Action"},{"field":"year","operator":"at-least","value":2000}]}`, []string{"m2"}},
-		{"any group", `{"any":[{"field":"title","operator":"equals","value":"Alpha"},{"field":"title","operator":"equals","value":"Delta"}]}`, []string{"m1", "m4"}},
-		{"not group", `{"not":{"field":"genre","operator":"contains","value":"Action"}}`, []string{"m3", "m4", "m5"}},
+		{"equals", `{"variant":"predicate","field":"title","operator":"equals","value":"Alpha"}`, []string{"m1"}},
+		{"not-equals", `{"variant":"predicate","field":"title","operator":"not-equals","value":"Alpha"}`, []string{"m2", "m3", "m4", "m5"}},
+		{"contains", `{"variant":"predicate","field":"title","operator":"contains","value":"amm"}`, []string{"m3"}},
+		{"starts-with", `{"variant":"predicate","field":"title","operator":"starts-with","value":"D"}`, []string{"m4"}},
+		{"in", `{"variant":"predicate","field":"year","operator":"in","value":[1995,2005]}`, []string{"m1", "m2"}},
+		{"not-in", `{"variant":"predicate","field":"year","operator":"not-in","value":[1995,2005]}`, []string{"m3", "m4", "m5"}},
+		{"less-than", `{"variant":"predicate","field":"year","operator":"less-than","value":2000}`, []string{"m1", "m5"}},
+		{"at-most", `{"variant":"predicate","field":"year","operator":"at-most","value":1995}`, []string{"m1", "m5"}},
+		{"greater-than", `{"variant":"predicate","field":"year","operator":"greater-than","value":2005}`, []string{"m3", "m4"}},
+		{"at-least", `{"variant":"predicate","field":"year","operator":"at-least","value":2005}`, []string{"m2", "m3", "m4"}},
+		{"between", `{"variant":"predicate","field":"year","operator":"between","value":[1995,2005]}`, []string{"m1", "m2"}},
+		{"is-present", `{"variant":"predicate","field":"contentRating","operator":"is-present","value":null}`, []string{"m1", "m2"}},
+		{"is-missing", `{"variant":"predicate","field":"contentRating","operator":"is-missing","value":null}`, []string{"m3", "m4", "m5"}},
+		{"contains-any", `{"variant":"predicate","field":"genre","operator":"contains-any","value":["Action","Comedy"]}`, []string{"m1", "m2", "m3"}},
+		{"contains-all", `{"variant":"predicate","field":"genre","operator":"contains-all","value":["Action","Drama"]}`, []string{"m1"}},
+		{"set contains", `{"variant":"predicate","field":"genre","operator":"contains","value":"Drama"}`, []string{"m1", "m5"}},
+		{"decade", `{"variant":"predicate","field":"decade","operator":"equals","value":2010}`, []string{"m3", "m4"}},
+		{"availability", `{"variant":"predicate","field":"availability","operator":"equals","value":"available"}`, []string{"m1", "m2", "m5"}},
+		{"unavailable", `{"variant":"predicate","field":"availability","operator":"equals","value":"unavailable"}`, []string{"m3", "m4"}},
+		{"resolution", `{"variant":"predicate","field":"resolution","operator":"equals","value":"4k"}`, []string{"m2"}},
+		{"duration", `{"variant":"predicate","field":"durationMs","operator":"at-least","value":200000}`, []string{"m2", "m3"}},
+		{"favorite", `{"variant":"predicate","field":"favorite","operator":"equals","value":true}`, []string{"m1"}},
+		{"not favorite", `{"variant":"predicate","field":"favorite","operator":"equals","value":false}`, []string{"m2", "m3", "m4", "m5"}},
+		{"played", `{"variant":"predicate","field":"playState","operator":"equals","value":"played"}`, []string{"m2"}},
+		{"in-progress", `{"variant":"predicate","field":"playState","operator":"equals","value":"in-progress"}`, []string{"m3"}},
+		{"unplayed", `{"variant":"predicate","field":"playState","operator":"equals","value":"unplayed"}`, []string{"m1", "m4", "m5"}},
+		{"personalRating", `{"variant":"predicate","field":"personalRating","operator":"at-least","value":4}`, []string{"m1"}},
+		{"lastPlayedAt present", `{"variant":"predicate","field":"lastPlayedAt","operator":"is-present","value":null}`, []string{"m2"}},
+		{"studio", `{"variant":"predicate","field":"studio","operator":"contains","value":"Example"}`, []string{"m1"}},
+		{"tag", `{"variant":"predicate","field":"tag","operator":"contains","value":"rewatch"}`, []string{"m2"}},
+		{"all group", `{"variant":"group","all":[{"variant":"predicate","field":"genre","operator":"contains","value":"Action"},{"variant":"predicate","field":"year","operator":"at-least","value":2000}]}`, []string{"m2"}},
+		{"any group", `{"variant":"group","any":[{"variant":"predicate","field":"title","operator":"equals","value":"Alpha"},{"variant":"predicate","field":"title","operator":"equals","value":"Delta"}]}`, []string{"m1", "m4"}},
+		{"not group", `{"variant":"group","not":{"variant":"predicate","field":"genre","operator":"contains","value":"Action"}}`, []string{"m3", "m4", "m5"}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -141,9 +141,9 @@ func TestBrowseCompilesEveryOperator(t *testing.T) {
 }
 
 func TestBrowseRejectsQueriesOverTheLimits(t *testing.T) {
-	deep := `{"field":"title","operator":"equals","value":"Alpha"}`
+	deep := `{"variant":"predicate","field":"title","operator":"equals","value":"Alpha"}`
 	for i := 0; i < 6; i++ {
-		deep = `{"not":` + deep + `}`
+		deep = `{"variant":"group","not":` + deep + `}`
 	}
 	if _, e := ParseBrowseQuery(json.RawMessage(deep), "query"); e == nil {
 		t.Fatal("depth accepted")
@@ -155,18 +155,18 @@ func TestBrowseRejectsQueriesOverTheLimits(t *testing.T) {
 	}
 	clauses := []string{}
 	for i := 0; i < BrowseMaximumClauses+1; i++ {
-		clauses = append(clauses, `{"field":"year","operator":"equals","value":`+fmt.Sprint(1900+i)+`}`)
+		clauses = append(clauses, `{"variant":"predicate","field":"year","operator":"equals","value":`+fmt.Sprint(1900+i)+`}`)
 	}
-	if _, e := ParseBrowseQuery(json.RawMessage(`{"any":[`+strings.Join(clauses, ",")+`]}`), "query"); e == nil {
+	if _, e := ParseBrowseQuery(json.RawMessage(`{"variant":"group","any":[`+strings.Join(clauses, ",")+`]}`), "query"); e == nil {
 		t.Fatal("clause count accepted")
 	}
 	for _, bad := range []struct{ query, path string }{
-		{`{"field":"nonsense","operator":"equals","value":"x"}`, "query.field"},
-		{`{"field":"title","operator":"at-least","value":"x"}`, "query.operator"},
-		{`{"field":"year","operator":"equals","value":"x"}`, "query.value"},
-		{`{"field":"playState","operator":"equals","value":"halfway"}`, "query.value"},
-		{`{"all":[{"field":"year","operator":"between","value":[1]}]}`, "query.all[0].value"},
-		{`{"all":[],"any":[]}`, "query"},
+		{`{"variant":"predicate","field":"nonsense","operator":"equals","value":"x"}`, "query.field"},
+		{`{"variant":"predicate","field":"title","operator":"at-least","value":"x"}`, "query.operator"},
+		{`{"variant":"predicate","field":"year","operator":"equals","value":"x"}`, "query.value"},
+		{`{"variant":"predicate","field":"playState","operator":"equals","value":"halfway"}`, "query.value"},
+		{`{"variant":"group","all":[{"variant":"predicate","field":"year","operator":"between","value":[1]}]}`, "query.all[0].value"},
+		{`{"variant":"group","all":[],"any":[]}`, "query"},
 	} {
 		_, e := ParseBrowseQuery(json.RawMessage(bad.query), "query")
 		var issue *BrowseValidationError

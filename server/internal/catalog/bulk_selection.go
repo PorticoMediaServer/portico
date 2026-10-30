@@ -1,10 +1,8 @@
 package catalog
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"strconv"
 
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
@@ -97,9 +95,8 @@ func (s *Service) bulkSelection(p identity.Principal, v Viewer, in JobRequest) (
 		}
 		var node *BrowseNode
 		if len(q.Filter) > 0 {
-			decoder := json.NewDecoder(bytes.NewReader(q.Filter))
-			decoder.DisallowUnknownFields()
-			if e := decoder.Decode(&node); e != nil {
+			var e error
+			if node, e = ParseBrowseQuery(q.Filter, "filter"); e != nil {
 				return "", nil, jobInvalid("invalid query filter")
 			}
 		}

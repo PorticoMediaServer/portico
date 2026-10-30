@@ -26,12 +26,12 @@ func TestBrowseWithinLastDaysWindowBoundaries(t *testing.T) {
 	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
 	s.Clock = func() time.Time { return now }
 
-	got := browseIDs(t, s, names, `{"field":"dateAdded","operator":"within-last-days","value":7}`)
+	got := browseIDs(t, s, names, `{"variant":"relative","field":"dateAdded","operator":"within-last-days","value":7}`)
 	if strings.Join(got, ",") != "m1,m3" {
 		t.Fatalf("seven-day window: want m1,m3 got %v", got)
 	}
 	// The same titles at a wider window: the 1 October title is within 30 days.
-	got = browseIDs(t, s, names, `{"field":"dateAdded","operator":"within-last-days","value":30}`)
+	got = browseIDs(t, s, names, `{"variant":"relative","field":"dateAdded","operator":"within-last-days","value":30}`)
 	if strings.Join(got, ",") != "m1,m2,m3,m5" {
 		t.Fatalf("thirty-day window: want m1,m2,m3,m5 got %v", got)
 	}
@@ -55,7 +55,7 @@ func TestBrowseWithinLastDaysEveryDateField(t *testing.T) {
 		{"lastPlayedAt", "m3"},
 	} {
 		t.Run(test.field, func(t *testing.T) {
-			got := browseIDs(t, s, names, fmt.Sprintf(`{"field":%q,"operator":"within-last-days","value":7}`, test.field))
+			got := browseIDs(t, s, names, fmt.Sprintf(`{"variant":"relative","field":%q,"operator":"within-last-days","value":7}`, test.field))
 			if strings.Join(got, ",") != test.want {
 				t.Fatalf("want %s got %v", test.want, got)
 			}

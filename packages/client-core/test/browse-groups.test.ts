@@ -13,15 +13,15 @@ test('a group keeps its own order under a filter when the server offers it', () 
 });
 
 test('groups across libraries name their condition, pivot and own order', () => {
-  assert.deepEqual(acrossCondition('watchlist'), {field: 'watchlisted', operator: 'equals', value: true});
-  assert.deepEqual(acrossCondition('history'), {field: 'lastPlayedAt', operator: 'is-present', value: null});
-  assert.deepEqual(acrossCondition('cast', 'p1'), {field: 'cast', operator: 'equals', value: 'p1'});
+  assert.deepEqual(acrossCondition('watchlist'), {variant:'predicate',field: 'watchlisted', operator: 'equals', value: true});
+  assert.deepEqual(acrossCondition('history'), {variant:'predicate',field: 'lastPlayedAt', operator: 'is-present', value: null});
+  assert.deepEqual(acrossCondition('cast', 'p1'), {variant:'predicate',field: 'cast', operator: 'equals', value: 'p1'});
   assert.equal(acrossPivot('list'), 'items');
   assert.equal(acrossPivot('person'), 'titles');
   assert.equal(acrossOwnOrder('homeRow'), true);
   assert.equal(acrossOwnOrder('savedCollection'), true, 'a personal collection has its own order');
   assert.equal(acrossOwnOrder('watchlist'), false);
-  assert.deepEqual(episodeGroupCondition('s1', 'range:100'), {field: 'episodeGroup', operator: 'equals', value: 's1/range:100'});
+  assert.deepEqual(episodeGroupCondition('s1', 'range:100'), {variant:'predicate',field: 'episodeGroup', operator: 'equals', value: 's1/range:100'});
 });
 
 test('lists across libraries read from their own routes', () => {
@@ -59,17 +59,17 @@ test('B-07.10: the server letter of an entry finds its rail anchor, articles and
 });
 
 test('a group is remembered under a short stable name, apart from libraries', () => {
-  const a = groupMemoryId('lib', 'movies', [{field: 'collection', operator: 'equals', value: 'c1'}]);
-  assert.equal(a, groupMemoryId('lib', 'movies', [{field: 'collection', operator: 'equals', value: 'c1'}]));
-  assert.notEqual(a, groupMemoryId('lib', 'movies', [{field: 'collection', operator: 'equals', value: 'c2'}]));
+  const a = groupMemoryId('lib', 'movies', [{variant:'predicate',field: 'collection', operator: 'equals', value: 'c1'}]);
+  assert.equal(a, groupMemoryId('lib', 'movies', [{variant:'predicate',field: 'collection', operator: 'equals', value: 'c1'}]));
+  assert.notEqual(a, groupMemoryId('lib', 'movies', [{variant:'predicate',field: 'collection', operator: 'equals', value: 'c2'}]));
   assert.ok(a.length < 40);
   assert.deepEqual(groupMemoryScope({serverId: 's', viewerId: 'v'}), {serverId: 's', viewerId: 'v#groups'});
 });
 
 test('an episode group and a Home row play whole through the server, in their own order', () => {
-  assert.deepEqual(episodeGroupQuery('tv', 'show1', 'range:100'), {libraryId: 'tv', pivot: 'episodes', query: {all: [{field: 'episodeGroup', operator: 'equals', value: 'show1/range:100'}]}, sort: [{field: 'groupOrder', direction: 'asc'}]});
+  assert.deepEqual(episodeGroupQuery('tv', 'show1', 'range:100'), {libraryId: 'tv', pivot: 'episodes', query: {variant:'group',all: [{variant:'predicate',field: 'episodeGroup', operator: 'equals', value: 'show1/range:100'}]}, sort: [{field: 'groupOrder', direction: 'asc'}]});
   assert.equal(homeRowQuery('recent_songs', ['song', 'album']).pivot, 'items');
-  assert.deepEqual(homeRowQuery('trending_now', ['movie', 'show']), {libraryId: '*', pivot: 'titles', query: {all: [{field: 'homeRow', operator: 'equals', value: 'trending_now'}]}, sort: [{field: 'groupOrder', direction: 'asc'}]});
+  assert.deepEqual(homeRowQuery('trending_now', ['movie', 'show']), {libraryId: '*', pivot: 'titles', query: {variant:'group',all: [{variant:'predicate',field: 'homeRow', operator: 'equals', value: 'trending_now'}]}, sort: [{field: 'groupOrder', direction: 'asc'}]});
 });
 
 test('Home display mode is explicit and bound to a positive row with at most 60 entries',async()=>{
@@ -79,5 +79,5 @@ test('Home display mode is explicit and bound to a positive row with at most 60 
  const display=new BrowseQueryBuilder(caps,'titles').where('homeRow','equals','new_on_server').limit(37).displayHomeRow('new_on_server').build();assert.equal(display.homeRowDisplay,'new_on_server');
  assert.throws(()=>new BrowseQueryBuilder(caps,'titles').where('homeRow','equals','different').displayHomeRow('new_on_server').build());
  assert.throws(()=>new BrowseQueryBuilder(caps,'titles').where('homeRow','equals','new_on_server').limit(61).displayHomeRow('new_on_server').build());
- assert.throws(()=>new BrowseQueryBuilder(caps,'titles').add({not:{field:'homeRow',operator:'equals',value:'new_on_server'}}).displayHomeRow('new_on_server').build());
+ assert.throws(()=>new BrowseQueryBuilder(caps,'titles').add({variant:'group',not:{variant:'predicate',field:'homeRow',operator:'equals',value:'new_on_server'}}).displayHomeRow('new_on_server').build());
 });

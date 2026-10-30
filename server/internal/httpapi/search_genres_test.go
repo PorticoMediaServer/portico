@@ -118,7 +118,7 @@ func TestSearchGenresHandlerUsesCurrentLibraryAuthority(t *testing.T) {
 		t.Fatal("genre authority diverged from browse", page)
 	}
 	openGenre := func(value string) catalog.BrowseResult {
-		body, _ := json.Marshal(map[string]any{"pivot": "video-titles", "query": map[string]any{"field": "genre", "operator": "equals", "value": value}, "limit": 1})
+		body, _ := json.Marshal(map[string]any{"pivot": "video-titles", "query": map[string]any{"variant": "predicate", "field": "genre", "operator": "equals", "value": value}, "limit": 1})
 		r := httptest.NewRequest("POST", "/v1/browse", strings.NewReader(string(body)))
 		r.Header.Set("Authorization", "Bearer "+session.AccessToken)
 		w := httptest.NewRecorder()

@@ -4,6 +4,9 @@ import {
   type PreparationRequestPort, type PreparationResponse, type PreparationRuntime,
 } from './read-preparation.ts';
 import {unreadableServerResponse} from './server-messages.ts';
+import {refuseUnknownVariant} from './tolerant.ts';
+
+const facetVariants = ['page', 'window', 'fallback', 'preparing', 'reading-preparing'] as const;
 
 export type SimpleFacetField = 'genre' | 'year' | 'decade' | 'studio' | 'collection'
   | 'contentRating' | 'audioLanguage' | 'network' | 'tag' | 'label' | 'series' | 'resolution';
@@ -15,12 +18,13 @@ export type SimpleFacetWindow = Readonly<{
   next?: string; previous?: string; reload?: string;
 }>;
 export type SimpleFacetPage = Readonly<{
-  kind: 'simple-keyset'; field: SimpleFacetField; revision: string;
+  variant: 'window'; kind: 'simple-keyset'; field: SimpleFacetField; revision: string;
   total: number; totalIsLowerBound: false;
   values: readonly SimpleFacetValue[]; window: SimpleFacetWindow;
 }>;
 export type SimpleFacetPreparing = Readonly<{
-  kind: 'facet-preparing'; state: 'preparing'; queryId: string; retryAfterMs: number;
+  /** Absent only where the preparation is a nested part of a fallback page. */
+  variant?: 'preparing'; kind: 'facet-preparing'; state: 'preparing'; queryId: string; retryAfterMs: number;
 }>;
 export type SimpleFacetFallbackValue = Readonly<{
   value: string; label: string; count: number; countIsLowerBound: true; seriesId?: string;
@@ -28,7 +32,7 @@ export type SimpleFacetFallbackValue = Readonly<{
 /** A bounded, explicitly lower-bound panel while the SAME preparation is still running.
  * It has no continuation anchors and is never an exact SimpleFacetPage. */
 export type SimpleFacetFallbackPage = Readonly<{
-  kind: 'facet-fallback'; field: SimpleFacetField; revision?: string;
+  variant: 'fallback'; kind: 'facet-fallback'; field: SimpleFacetField; revision?: string;
   total: number; totalIsLowerBound: true; values: readonly SimpleFacetFallbackValue[];
   preparation: SimpleFacetPreparing;
 }>;
@@ -57,15 +61,14 @@ export class FacetWindowError extends Error {
   }
 }
 function invalid(response?: PreparationResponse): never { throw new FacetWindowError('invalid_facet_window', response); }
-
 /** Exact SIMPLE parser, separate from tolerant contextual/Reading FacetPage parsing.
  * No label fallback, trimming, row dropping, deduplication or scalar-length cap. */
 export function parseSimpleFacetPage(
   input: unknown, expected: Readonly<{field?: SimpleFacetField; limit?: number}> = {},
   response?: PreparationResponse,
 ): SimpleFacetPage {
-  if (!object(input) || !only(input, ['kind', 'field', 'revision', 'total', 'totalIsLowerBound', 'values', 'window'])
-      || input.kind !== 'simple-keyset' || !field(input.field) || expected.field !== undefined && input.field !== expected.field
+  if (!object(input) || !only(input, ['variant', 'kind', 'field', 'revision', 'total', 'totalIsLowerBound', 'values', 'window'])
+      || input.variant !== 'window' || input.kind !== 'simple-keyset' || !field(input.field) || expected.field !== undefined && input.field !== expected.field
       || !opaque(input.revision) || !safeCount(input.total) || input.totalIsLowerBound !== false
       || !Array.isArray(input.values) || input.values.length > 200 || !object(input.window)) invalid(response);
   const w = input.window;
@@ -89,7 +92,7 @@ export function parseSimpleFacetPage(
     return Object.freeze({value: value.value, label: value.label, count: value.count, countIsLowerBound: false as const,
       ...(value.seriesId !== undefined ? {seriesId: value.seriesId as string} : {})});
   });
-  return Object.freeze({kind: 'simple-keyset', field: input.field, revision: input.revision,
+  return Object.freeze({variant: 'window' as const, kind: 'simple-keyset', field: input.field, revision: input.revision,
     total: input.total, totalIsLowerBound: false, values: Object.freeze(values),
     window: Object.freeze({queryId: w.queryId, basis: w.basis, limit: w.limit, returned: w.returned,
       ...(w.next !== undefined ? {next: w.next as string} : {}),
@@ -98,11 +101,11 @@ export function parseSimpleFacetPage(
 }
 
 /** Preparing is a distinct domain envelope and never an empty ready page. */
-export function parseSimpleFacetPreparing(input: unknown, response?: PreparationResponse): SimpleFacetPreparing {
-  if (!object(input) || !only(input, ['kind', 'state', 'queryId', 'retryAfterMs'])
-      || input.kind !== 'facet-preparing' || input.state !== 'preparing'
+export function parseSimpleFacetPreparing(input: unknown, response?: PreparationResponse, tagged = true): SimpleFacetPreparing {
+  if (!object(input) || !only(input, ['variant', 'kind', 'state', 'queryId', 'retryAfterMs'])
+      || tagged && input.variant !== 'preparing' || !tagged && input.variant !== undefined || input.kind !== 'facet-preparing' || input.state !== 'preparing'
       || !opaque(input.queryId) || !safeCount(input.retryAfterMs) || input.retryAfterMs < 1) invalid(response);
-  return Object.freeze({kind: 'facet-preparing', state: 'preparing', queryId: input.queryId, retryAfterMs: input.retryAfterMs});
+  return Object.freeze({...(tagged ? {variant: 'preparing' as const} : {}), kind: 'facet-preparing', state: 'preparing', queryId: input.queryId, retryAfterMs: input.retryAfterMs});
 }
 
 /** Flattened Go FacetPage + preparation envelope. Every row is validated/preserved;
@@ -111,13 +114,13 @@ export function parseSimpleFacetFallbackPage(
   input: unknown, expected: Readonly<{field?: SimpleFacetField; limit?: number}> = {},
   response?: PreparationResponse,
 ): SimpleFacetFallbackPage {
-  if (!object(input) || !only(input, ['kind', 'field', 'revision', 'total', 'totalIsLowerBound', 'values', 'preparation'])
-      || input.kind !== 'facet-fallback' || !field(input.field) || expected.field !== undefined && input.field !== expected.field
+  if (!object(input) || !only(input, ['variant', 'kind', 'field', 'revision', 'total', 'totalIsLowerBound', 'values', 'preparation'])
+      || input.variant !== 'fallback' || input.kind !== 'facet-fallback' || !field(input.field) || expected.field !== undefined && input.field !== expected.field
       || input.revision !== undefined && !opaque(input.revision)
       || !safeCount(input.total) || input.totalIsLowerBound !== true || !Array.isArray(input.values)
       || input.values.length > 200 || expected.limit !== undefined && input.values.length > expected.limit
       || input.total < input.values.length) invalid(response);
-  const preparation = parseSimpleFacetPreparing(input.preparation, response);
+  const preparation = parseSimpleFacetPreparing(input.preparation, response, false);
   const seen = new Set<string>();
   const values = input.values.map(value => {
     if (!object(value) || !only(value, ['value', 'label', 'count', 'countIsLowerBound', 'seriesId'])
@@ -128,7 +131,7 @@ export function parseSimpleFacetFallbackPage(
     return Object.freeze({value: value.value, label: value.label, count: value.count, countIsLowerBound: true as const,
       ...(value.seriesId !== undefined ? {seriesId: value.seriesId as string} : {})});
   });
-  return Object.freeze({kind: 'facet-fallback', field: input.field,
+  return Object.freeze({variant: 'fallback' as const, kind: 'facet-fallback', field: input.field,
     ...(input.revision !== undefined ? {revision: input.revision as string} : {}),
     total: input.total, totalIsLowerBound: true, values: Object.freeze(values), preparation});
 }
@@ -307,6 +310,7 @@ export class FacetReadSession {
           poll: id => this.domainPath('poll', id), cancel: id => this.domainPath('cancel', id),
         },
         parseReady: (body, response) => {
+          refuseUnknownVariant(body, facetVariants);
           const page = parseSimpleFacetPage(body, {field: descriptor.field, limit: descriptor.limit}, response);
           if (!reanchored && (basis !== undefined && page.window.basis !== basis || total !== undefined && page.total !== total)) {
             throw new FacetWindowError('stale_continuation', response);
@@ -314,7 +318,8 @@ export class FacetReadSession {
           return page;
         },
         parseIntermediateReady: (body, response) => {
-          if (!object(body) || body.kind !== 'facet-fallback') return undefined;
+          refuseUnknownVariant(body, facetVariants);
+          if (!object(body) || body.variant !== 'fallback') return undefined;
           const fallback = parseSimpleFacetFallbackPage(body, {field: descriptor.field, limit: descriptor.limit}, response);
           this.releasePredecessor(operation);
           return {pending: fallback.preparation, value: fallback};
@@ -325,17 +330,19 @@ export class FacetReadSession {
         },
         readyQueryId: (body, response) => {
           // Minimal ready-handle validation also permits safe late-200 cleanup, without rows.
+          refuseUnknownVariant(body, facetVariants);
           if (!object(body) || body.field !== descriptor.field) invalid(response);
-          if (body.kind === 'facet-fallback') {
-            const preparation = parseSimpleFacetPreparing(body.preparation, response);
+          if (body.variant === 'fallback') {
+            const preparation = parseSimpleFacetPreparing(body.preparation, response, false);
             this.releasePredecessor(operation);
             return preparation.queryId;
           }
-          if (body.kind !== 'simple-keyset' || !object(body.window) || !opaque(body.window.queryId)) invalid(response);
+          if (body.variant !== 'window' || !object(body.window) || !opaque(body.window.queryId)) invalid(response);
           this.releasePredecessor(operation);
           return body.window.queryId;
         },
         parsePreparing: (body, response) => {
+          refuseUnknownVariant(body, facetVariants);
           const pending = parseSimpleFacetPreparing(body, response);
           this.releasePredecessor(operation);
           return pending;
@@ -344,7 +351,7 @@ export class FacetReadSession {
         errorFromResponse: this.options.errorFromResponse,
         signal: controller.signal, isCurrent: current, runtime: this.options.runtime,
         onPreparing: (pending, response) => {
-          this.options.onPreparing?.(Object.freeze({kind: 'facet-preparing', state: 'preparing', ...pending}), response);
+          this.options.onPreparing?.(Object.freeze({variant: 'preparing' as const, kind: 'facet-preparing', state: 'preparing', ...pending}), response);
         },
       });
       if (!current()) { result.release(); throw cancelled(); }

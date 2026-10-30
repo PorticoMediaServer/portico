@@ -812,12 +812,12 @@ func restrictionReadPOSTs(m *restrictionEnv) map[string][]postProbe {
 	across := []postProbe{}
 	if m != nil {
 		for _, pivot := range []string{"titles", "items"} {
-			for _, group := range []string{`{"field":"watchlisted","operator":"equals","value":true}`, `{"field":"favorite","operator":"equals","value":true}`, `{"field":"lastPlayedAt","operator":"is-present","value":null}`} {
+			for _, group := range []string{`{"variant":"predicate","field":"watchlisted","operator":"equals","value":true}`, `{"variant":"predicate","field":"favorite","operator":"equals","value":true}`, `{"variant":"predicate","field":"lastPlayedAt","operator":"is-present","value":null}`} {
 				across = append(across, postProbe{"/v1/browse", fmt.Sprintf(`{"pivot":%q,"query":%s,"limit":100}`, pivot, group)})
 			}
 			for _, person := range m.people {
 				for _, field := range []string{"person", "cast", "crew"} {
-					across = append(across, postProbe{"/v1/browse", fmt.Sprintf(`{"pivot":%q,"query":{"field":%q,"operator":"equals","value":%q},"limit":100}`, pivot, field, person)})
+					across = append(across, postProbe{"/v1/browse", fmt.Sprintf(`{"pivot":%q,"query":{"variant":"predicate","field":%q,"operator":"equals","value":%q},"limit":100}`, pivot, field, person)})
 				}
 			}
 		}
@@ -831,9 +831,9 @@ func restrictionReadPOSTs(m *restrictionEnv) map[string][]postProbe {
 	counts, acrossCounts := []postProbe{}, []postProbe{}
 	if m != nil {
 		for _, library := range m.libraries {
-			counts = append(counts, postProbe{"/v1/libraries/" + library + "/browse/counts", `{"queries":[{"id":"clear","query":null},{"id":"rating","query":{"field":"year","operator":"at-least","value":1900}}]}`})
+			counts = append(counts, postProbe{"/v1/libraries/" + library + "/browse/counts", `{"queries":[{"id":"clear","query":null},{"id":"rating","query":{"variant":"predicate","field":"year","operator":"at-least","value":1900}}]}`})
 		}
-		acrossCounts = append(acrossCounts, postProbe{"/v1/browse/counts", `{"pivot":"titles","queries":[{"id":"my-list","query":{"field":"watchlisted","operator":"equals","value":true}},{"id":"favorites","query":{"field":"favorite","operator":"equals","value":true}}]}`})
+		acrossCounts = append(acrossCounts, postProbe{"/v1/browse/counts", `{"pivot":"titles","queries":[{"id":"my-list","query":{"variant":"predicate","field":"watchlisted","operator":"equals","value":true}},{"id":"favorites","query":{"variant":"predicate","field":"favorite","operator":"equals","value":true}}]}`})
 	}
 	return map[string][]postProbe{"POST /v1/libraries/{id}/browse/counts": counts, "POST /v1/browse/counts": acrossCounts, "POST /v1/libraries/{id}/browse": browse, "POST /v1/browse": across, "POST /v1/jobs": jobs, "POST /v1/home/destination-picker": pickers}
 }

@@ -125,11 +125,11 @@ export class BlockPresetsSource {
         const values=clause.values.map(value=>field.type==='number'?Number(value):field.type==='boolean'?value==='true'?true:value==='false'?false:value:value);
         const operator=field.operators.includes('contains-any')?'contains-any':field.operators.includes('in')?'in':field.operators.includes('equals')?'equals':undefined;
         if(!operator)throw new Error('unsupported_block_preset_operator');
-        const node:BrowseNode=operator==='equals'&&values.length>1?{any:values.map(value=>({field:field.id,operator:'equals',value}))}:{field:field.id,operator,value:operator==='equals'?values[0]!:values};
+        const node:BrowseNode=operator==='equals'&&values.length>1?{variant:'group' as const,any:values.map(value=>({variant:'predicate' as const,field:field.id,operator:'equals',value}))}:{variant:'predicate' as const,field:field.id,operator,value:operator==='equals'?values[0]!:values};
         validateBrowseQuery(capabilities,node);
-        clauses.push(clause.operator==='excludes'?{not:node}:node);
+        clauses.push(clause.operator==='excludes'?{variant:'group' as const,not:node}:node);
       }
-      const filter:BrowseNode|undefined=clauses.length?{all:clauses}:undefined;
+      const filter:BrowseNode|undefined=clauses.length?{variant:'group' as const,all:clauses}:undefined;
       if(filter){validateBrowseQuery(capabilities,filter);const leaves=(node:BrowseNode):number=>'field'in node?1:'not'in node?leaves(node.not):('all'in node?node.all:node.any).reduce((sum,child)=>sum+leaves(child),0);if(leaves(filter)>capabilities.queryLimits.maximumClauses||new TextEncoder().encode(JSON.stringify(filter)).length>capabilities.queryLimits.maximumBytes)throw new Error('unsupported_block_preset_size');}
       const base=baseline.rules.find(rule=>rule.id===baseline.defaultRuleId);if(!base)throw new Error('invalid_block_preset_channel');
       const rule={...base,id:ruleId,name:record.name,mode:definition.order==='shuffle'?'shuffle-bag' as const:'sequential' as const,weights:[],query:{...base.query,libraryIds:[definition.libraryId],kinds:capabilities.library.kind==='movie'?['movie' as const]:['episode' as const],showIds:[],genres:[],yearFrom:0,yearThrough:0,recentDays:0,text:'',includeItemIds:[],excludeItemIds:[],filter,order:definition.order==='least-played'?'least-played' as const:definition.order==='recent'?'recent' as const:'title' as const,limit:0}};

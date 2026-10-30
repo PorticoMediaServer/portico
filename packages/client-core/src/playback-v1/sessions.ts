@@ -85,7 +85,7 @@ export type Timers = Readonly<{now?: () => number; setTimer?: (fn: () => void, m
 export type StartPreparation = Readonly<{messageId: 'player.preparing.slowStart'; retryAfterMs: number}>;
 
 /** An actual declared session-backed 202, never a fabricated playable Session. */
-export type PreparingSessionView = Extract<StartPlaybackSessionResponse, {id: string}>;
+export type PreparingSessionView = Extract<StartPlaybackSessionResponse, {variant: 'session'}>;
 export type StartContext = Readonly<{
   signal?: AbortSignal;
   isCurrent?: () => boolean;
@@ -118,10 +118,15 @@ export function parseStartPreparation(value: unknown): Readonly<{retryAfterMs: n
   let decoded: StartPlaybackSessionResponse;
   // O-159 open tier (R-09): an optional member or list entry with a newer server's enum value is left out.
   try {decoded = decodeOpen('StartPlaybackSessionResponse', value) as StartPlaybackSessionResponse;} catch {throw new ContractError('preparation response');}
+  // R-09b: the server's tag says which shape this is. A tag this app does not know is a start it
+  // cannot follow: the start watch shows "Couldn't start playback" instead of guessing.
+  if ('unknownVariant' in decoded) throw new ContractError('preparation variant');
   const retryAfterMs: unknown = Reflect.get(decoded, 'retryAfterMs');
   if (typeof retryAfterMs !== 'number' || !Number.isSafeInteger(retryAfterMs) || retryAfterMs < 1 || retryAfterMs > 10_000)
     throw new ContractError('preparation retry');
-  return Object.freeze({retryAfterMs, ...('id' in decoded ? {session: freezeWire(decoded)} : {})});
+  // Only a native vod/audio start is ever prepared; a channel session never carries a wait.
+  if (decoded.variant === 'session' && decoded.kind !== 'vod' && decoded.kind !== 'audio') throw new ContractError('preparation kind');
+  return Object.freeze({retryAfterMs, ...(decoded.variant === 'session' ? {session: freezeWire(decoded as PreparingSessionView)} : {})});
 }
 
 export class SessionsClient {

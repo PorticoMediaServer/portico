@@ -3,16 +3,18 @@ import {routePath} from "../../contracts/src/route-paths.ts";
 import {randomId} from './random-id.ts';
 import {ApiError,HttpLocalApi,type LocalSession} from './index.ts';
 import {parseLocalSession} from './local-session.ts';
+import {setupResultBody} from './setup-result.ts';
 export type SetupDraft={version:1;serverId:string;requestId:string;setupToken:string;name:string;username?:string;authMode:'hosted'|'local';interactive?:boolean};
 export type PendingAccountSetup=Readonly<{serverId:string;requestId:string;authMode:'hosted';claimRequired:true;revision:string}>;
 export type SetupSession=LocalSession|PendingAccountSetup;
 export function parseSetupSession(raw:unknown,id:string):SetupSession {
- const v=raw as Record<string,unknown>;
- if(v&&v.claimRequired===true){
+ const {tag,body:v}=setupResultBody(raw);
+ if(tag==='claim-required'){
+  if(v.claimRequired!==true)throw new Error('The pending setup did not match this server.');
   if(v.serverId!==id||v.authMode!=='hosted'||typeof v.requestId!=='string'||!/^[a-f0-9-]{36}$/.test(v.requestId)||typeof v.revision!=='string'||!/^[1-9][0-9]{0,18}$/.test(v.revision)||BigInt(v.revision)>9223372036854775807n||'accessToken' in v||'refreshToken' in v||'viewer' in v)throw new Error('The pending setup did not match this server.');
   return Object.freeze({serverId:id,requestId:v.requestId,authMode:'hosted',claimRequired:true,revision:v.revision});
  }
- return parseLocalSession(raw,{serverId:id,authority:'local'});
+ return parseLocalSession(v,{serverId:id,authority:'local'});
 }
 export interface SetupDraftStore {read():Promise<SetupDraft|undefined>;change(update:(old:SetupDraft|undefined)=>SetupDraft|undefined):Promise<void>}
 export type SetupInput=Omit<SetupDraft,'version'|'serverId'|'requestId'>&{password?:string};

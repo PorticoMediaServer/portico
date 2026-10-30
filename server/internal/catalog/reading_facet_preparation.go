@@ -283,7 +283,12 @@ func (w *readingFacetComputation) Step(ctx context.Context, b *readprep.Budget) 
 	if !ok {
 		return readprep.StepResult{}, readprep.ErrInvalid
 	}
-	w.payload, err = json.Marshal(page)
+	// The page variant discriminates this ready page from the preparing
+	// answer of the same route.
+	w.payload, err = json.Marshal(struct {
+		Variant string `json:"variant"`
+		FacetPage
+	}{"page", page})
 	if err != nil {
 		return readprep.StepResult{}, err
 	}

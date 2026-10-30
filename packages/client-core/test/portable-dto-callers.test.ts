@@ -70,7 +70,7 @@ test('actual channel editor clones the offered config, change and save with no g
 }));
 
 test('actual block preset save captures the original nested draft and publishes the receipt without global structuredClone', () => withoutStructuredClone(async () => {
-  const draft: BlockPresetBody = {libraryId: 'library', description: 'Original', order: 'sequential', durationMinutes: 60, startMinute: -1, days: ['monday'], criteria: [{field: 'genre', operator: 'includes', values: ['Drama']}]};
+  const draft: BlockPresetBody = {libraryId: 'library', description: 'Original', order: 'sequential', durationMinutes: 60, startMinute: -1, days: ['monday'], criteria: [{variant:'predicate',field: 'genre', operator: 'includes', values: ['Drama']}]};
   let stored: BlockPreset | undefined, captured: BlockPresetBody | undefined, release!: () => void;
   const held = new Promise<void>(resolve => {release = resolve;}); let posts = 0;
   const source = new BlockPresetsSource({request: async <T>(path: string, method?: string, raw?: unknown): Promise<T> => {
@@ -96,7 +96,7 @@ test('actual block preset save captures the original nested draft and publishes 
     const caller=new AbortController(),applied=await source.apply(record,config,config.blocks[0],caller.signal,()=>true);
     assert(applied);assert.notEqual(applied,config);assert.equal(applied.rules.length,2);assert.equal(config.rules.length,1);
     assert.notEqual(applied.blocks[0].ruleId,'r1');assert.equal(config.blocks[0].ruleId,'r1');
-    assert.deepEqual(applied.rules[1].query.filter,{all:[{field:'genre',operator:'contains-any',value:['Drama']}]});
+    assert.deepEqual(applied.rules[1].query.filter,{variant:'group',all:[{variant:'predicate',field:'genre',operator:'contains-any',value:['Drama']}]});
     caller.abort();assert.equal(await source.apply(record,config,config.blocks[0],caller.signal,()=>true),undefined);
     assert.equal(await source.save(record,'Edited preset',draft),true);assert.equal(posts,2);
     assert.equal(source.getSnapshot().items[0].revision,2);assert.equal(source.getSnapshot().items[0].name,'Edited preset');

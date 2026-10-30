@@ -69,11 +69,11 @@ test('Discover headings carry params', () => {
     scope: {serverId: 's', viewerFence: 'f', libraryId: 'l', libraryKind: 'movie', view: 'discover', entityId: ''},
     navigation: [], query: {sort: 'server', direction: 'asc', category: '', q: '', limit: 8, searchMode: 'none'}, revision: {catalog: 1, viewer: 1}, sorts: [], filters: [],
     sections: [{id: 'for_you:genre:drama', type: 'rail', heading: {key: 'home.row.genreForYou', fallback: 'Drama for you', params: {genre: 'Drama'}}, entries: [entry('m1')], totalCount: 1, nextCursor: '',
-      seeAll: {pivot: 'movies', query: {field: 'genre', operator: 'contains', value: 'Drama'}, sort: [{field: 'forYou', direction: 'desc'}]}},
+      seeAll: {pivot: 'movies', query: {variant:'predicate',field: 'genre', operator: 'contains', value: 'Drama'}, sort: [{field: 'forYou', direction: 'desc'}]}},
       ...['recommended', 'for_you:new', 'for_you:gems', 'for_you:top', 'trending_now', 'recently_added'].map(id => ({id, type: 'rail', heading: {key: 'section.' + id, fallback: id}, entries: [entry(id)], totalCount: 1, nextCursor: ''}))],
   } as never, {libraryId: 'l', view: 'discover'}, {viewerId: 'v', serverId: 's'}, 60);
   assert.deepEqual(projection.sections[0]!.heading, {key: 'home.row.genreForYou', fallback: 'Drama for you', params: {genre: 'Drama'}});
-  assert.deepEqual(projection.sections[0]!.seeAll, {pivot: 'movies', query: {field: 'genre', operator: 'contains', value: 'Drama'}, sort: [{field: 'forYou', direction: 'desc'}]});
+  assert.deepEqual(projection.sections[0]!.seeAll, {pivot: 'movies', query: {variant:'predicate',field: 'genre', operator: 'contains', value: 'Drama'}, sort: [{field: 'forYou', direction: 'desc'}]});
   assert.equal(projection.sections.length, 7, 'Discover carries more than four rows now');
   assert.equal(projection.sections[1]!.seeAll, undefined);
 });

@@ -17,7 +17,7 @@ const caps: BrowseCapabilities = {library: {...library, defaultView: 'browse', p
 const counts = {play: 2, queue: 2, playlist: 2, myList: 2, watched: 2, collection: 2, favorite: 2, download: 0, edit: 2, refresh: 2, delete: 2};
 const whole = {selector: {query: {libraryId: 'lib', pivot: 'movies', filter: null, sort: pivot.defaultSort, selectionBasis: 'a'.repeat(64)}}, catalogRevision: 'r1', total: 2,
   types: [{kind: 'movie', count: 2, capabilityCounts: counts, libraries: [{libraryId: 'lib', count: 2}]}]};
-const pending = (domain: string, queryId: string) => ({kind: `${domain}-preparing`, state: 'preparing', queryId, retryAfterMs: 0});
+const pending = (domain: string, queryId: string) => ({variant: domain === 'reading-facet' ? 'reading-preparing' : 'preparing', kind: `${domain}-preparing`, state: 'preparing', queryId, retryAfterMs: 0});
 const ready = (body: unknown): PreparationResponse => ({status: 200, headers: {}, body});
 function page(body: BrowseRequestBody, extra: Record<string, unknown> = {}) {const start = body.range?.start ?? 0; return {pivot: 'movies', applied: {query: body.query ?? null, sort: body.sort ?? [], seek: null},
   entries: [{id: `movie-${start}`, kind: 'movie', title: 'Movie', libraryId: 'lib', navigation: {view: 'item'}}],
@@ -61,7 +61,7 @@ const readingPivot = {...pivot, id: 'books', entityKinds: ['book'], filters: ['a
 const reading: BrowseCapabilities = {...caps, library: {...caps.library, kind: 'book'}, pivots: [readingPivot], resolvedPivot: readingPivot,
   fields: [{id: 'author', labelKey: 'filter.author', type: 'string', operators: ['equals', 'contains-any'], controlHint: 'facet-multi-select', complexity: 'quick', cost: 'indexed', applicableKinds: ['book']}],
   sorts: [{...caps.sorts[0]!, applicableKinds: ['book']}]};
-const facet = {field: 'author', total: 1, values: [{value: 'Author', label: 'Author', count: 2}]};
+const facet = {variant: 'page', field: 'author', total: 1, values: [{value: 'Author', label: 'Author', count: 2}]};
 test('native Reading facet preparation retains prior values, then reports revocation without an empty success', async t => {
   t.mock.timers.enable({apis: ['setTimeout', 'Date']}); let reads = 0; const calls: string[] = [];
   const api: LibraryContentApi = {request: async () => {throw new Error('Reading raw transport was dropped');}, requestRaw: async (path, method) => {

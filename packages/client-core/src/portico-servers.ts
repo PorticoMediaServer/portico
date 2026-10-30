@@ -19,7 +19,7 @@ import {routePath} from "../../contracts/src/route-paths.ts";
  *   keeps working while Hosted is down; nothing here signs anyone out. */
 import {ApiError,retryAfterSecondsFrom} from './index.ts';
 import {hostedGate} from './hosted-gate.ts';
-import {parseDirectSignIn,type DirectSignIn,type ProfileAPI} from './profile-management.ts';
+import {parseTaggedSignIn,parseDirectSignIn,type DirectSignIn,type ProfileAPI} from './profile-management.ts';
 import {routeBase64,routeBytes,serverPin,webRouteCrypto,type RouteCrypto} from './route-identity.ts';
 import {CodedError,unreadableServerResponse} from './server-messages.ts';
 import {parseShortInvitationCode} from './short-invitation-code.ts';
@@ -100,7 +100,7 @@ export async function porticoSignIn(hosted:HostedRequestApi,hostedOrigin:string,
 export async function acceptPorticoInvitation(hosted:HostedRequestApi,hostedOrigin:string,server:ProfileAPI,serverId:string,code:string,signal?:AbortSignal,crypto?:RouteCrypto):Promise<DirectSignIn>{
  const trimmed=code.trim();if(trimmed.length<32||trimmed.length>128)throw new CodedError('invitation_incomplete','This invitation code is not complete.');
  const porticoIdentity=await assertionFor(hosted,hostedOrigin,server,serverId,'interactive',signal,undefined,crypto);
- return sameServer(parseDirectSignIn(await server.request<RouteResponse<"post_access_invitations_accept">>(routePath("post_access_invitations_accept"),'POST',{code:trimmed,porticoIdentity},signal)),serverId);
+ return sameServer(parseTaggedSignIn(await server.request<RouteResponse<"post_access_invitations_accept">>(routePath("post_access_invitations_accept"),'POST',{code:trimmed,porticoIdentity},signal),['signed-in','challenge'],(tag,out)=>(tag==='challenge')===(out.kind==='challenge')),serverId);
 }
 
 /** Accepts only the distinct human-entry capability, on an already verified
@@ -109,7 +109,7 @@ export async function acceptShortPorticoInvitation(hosted:HostedRequestApi,hoste
  const shortCode=parseShortInvitationCode(raw);
  if(!shortCode)throw new CodedError('invitation_incomplete','This invitation code is not complete.');
  const porticoIdentity=await assertionFor(hosted,hostedOrigin,server,serverId,'interactive',signal,undefined,crypto);
- return sameServer(parseDirectSignIn(await server.request<RouteResponse<"post_access_invitations_accept">>(routePath("post_access_invitations_accept"),'POST',{shortCode,porticoIdentity},signal)),serverId);
+ return sameServer(parseTaggedSignIn(await server.request<RouteResponse<"post_access_invitations_accept">>(routePath("post_access_invitations_accept"),'POST',{shortCode,porticoIdentity},signal),['signed-in','challenge'],(tag,out)=>(tag==='challenge')===(out.kind==='challenge')),serverId);
 }
 
 /** A Portico Account owner (it has no password on the server) transfers ownership:

@@ -9,21 +9,27 @@
   },
   "status": 201,
   "response": {
-    "id": "ps_1R6a7AS0bgZgt0w-cMFM",
+    "variant": "session",
+    "control": {
+      "revision": "1",
+      "state": "playing"
+    },
+    "id": "ps_blXOqcsPwKwRyd13p7tX",
     "revision": "1",
     "kind": "vod",
     "role": "local",
     "state": "playing",
-    "itemId": "5Sqw8-jfkN_7zwkkd4X54Q",
-    "versionId": "9kWnBwLaqUJQTopURBGupz7qLAJa_KckV-qaz3dbLac",
+    "itemId": "dR81XCmDsM3JqQrBjQAjqg",
+    "versionId": "H20s6HCuWM1SZxsSp6l1j12XFaUgv60MN_eOENUIaa4",
     "lease": {
-      "expiresAt": "2026-10-22T22:51:36.433Z",
+      "expiresAt": "2026-10-29T20:47:08.087Z",
       "reportEveryMs": 10000
     },
     "presentation": {
+      "choiceRevision": 1,
       "generation": 1,
       "mode": "direct",
-      "url": "/v1/media/8a8ctP1xXtOFtkIehg2kA_YUlR-F-V3QsQOiw0ON8Ck",
+      "url": "/v1/media/Z_h04L8QD0YObM30oIZqg1PHiUQSKjCV4q4j4cHlDLI",
       "engine": "native",
       "startPositionMs": 0,
       "subtitles": [],

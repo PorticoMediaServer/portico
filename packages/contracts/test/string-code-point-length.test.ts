@@ -160,11 +160,11 @@ test('the generated DTOs still sanitise, keep null prototypes, drop optional nul
   assert.equal(result.state, 'pending');
   assert.notEqual(result.allowedLibraries, source.allowedLibraries, 'arrays are rebuilt, not returned from the parsed input');
   assert.throws(() => decodeGetAdminAccessInvitationResponse({...invitation(), id: undefined}), {message: 'Invalid contract value at $.id'});
-  assert.throws(() => decodeDeleteReadingSavedGroupReferenceResponse({...savedGroupReference('srv_1'), extra: 1}), {message: 'Invalid contract value at $'});
+  assert.equal('extra' in (decodeDeleteReadingSavedGroupReferenceResponse({...savedGroupReference('srv_1'), extra: 1}) as object), false, 'a closed response object drops unknown members');
   assert.throws(() => decodeDeleteReadingSavedGroupReferenceResponse({...savedGroupReference('srv_1'), removed: false}), {message: 'Invalid contract value at $.removed'});
-  const control = {id: 'job_1', status: 'running', processed: 1, analyzed: 2, warnings: 0};
+  const control = {variant: 'job', id: 'job_1', status: 'running', processed: 1, analyzed: 2, warnings: 0};
   const anyOf = measure(() => decodePostItemsIdAnalysisJobsJobControlResponse(control));
   assert.equal(anyOf.error, undefined);
   assert.deepEqual(anyOf.counts, {arrays: 0, codeUnits: 0, patterns: 0});
-  assert.throws(() => decodePostItemsIdAnalysisJobsJobControlResponse({id: 'job_1'}), {message: 'Invalid contract value at $'});
+  assert.throws(() => decodePostItemsIdAnalysisJobsJobControlResponse({variant: 'job', id: 'job_1'}), {message: 'Invalid contract value at $.analyzed'});
 });

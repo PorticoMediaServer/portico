@@ -40,7 +40,7 @@ test('Home reads one actual library/pivot vocabulary and renders the shared UI-l
   assert.equal(source.line(resources[1], defaultI18n), expected);
   assert.notEqual(expected, resources[0].summary);
   await source.load(resources); assert.equal(requests.length, 1);
-  const unsupported = {...resources[0], definition: {...resources[0].definition!, query: {not: {field: 'unknown', operator: 'equals' as const, value: true}}}};
+  const unsupported = {...resources[0], definition: {...resources[0].definition!, query: {variant: 'group' as const, not: {variant: 'predicate' as const, field: 'unknown', operator: 'equals' as const, value: true}}}};
   await source.load([unsupported]); assert.equal(source.line(unsupported, defaultI18n), undefined, 'withheld grammar does not fall back to wire summary');
   assert.equal(JSON.stringify(resources), original, 'the actual saved definitions and summary fields are unchanged');
   source.dispose();

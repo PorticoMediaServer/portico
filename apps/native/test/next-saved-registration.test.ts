@@ -79,7 +79,7 @@ test('Saved facts keep the server counts, published visibility and exact totals'
 });
 
 test('a saved view reports the conditions it actually applies, never a guessed badge', () => {
-  const query = {all: [{field: 'genre', operator: 'in', value: ['Action']}, {any: [{field: 'year', operator: 'between', value: [1990, 1999]}, {not: {field: 'watched', operator: 'equals', value: true}}]}]};
+  const query = {variant: 'group', all: [{variant: 'predicate', field: 'genre', operator: 'in', value: ['Action']}, {variant: 'group', any: [{variant: 'predicate', field: 'year', operator: 'between', value: [1990, 1999]}, {variant: 'group', not: {variant: 'predicate', field: 'watched', operator: 'equals', value: true}}]}]};
   assert.equal(savedViewConditionCount({definition: {query}} as never), 3);
   assert.equal(savedViewConditionCount({definition: {query: null}} as never), 0);
   assert.equal(savedViewConditionCount({} as never), 0);

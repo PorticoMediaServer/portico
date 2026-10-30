@@ -362,13 +362,13 @@ func goldenMatrix(libraries fixture.Libraries, item string) []goldenCase {
 	// answering identically: an entity-scoped field, an item-scoped join, a
 	// personal-state join and the availability rollup.
 	for _, query := range []struct{ name, expression string }{
-		{"genre", `{"field":"genre","operator":"contains","value":"Drama"}`},
-		{"year", `{"field":"year","operator":"at-least","value":2000}`},
-		{"playState", `{"field":"playState","operator":"equals","value":"unplayed"}`},
-		{"availability", `{"field":"availability","operator":"equals","value":"available"}`},
-		{"contentRating", `{"field":"contentRating","operator":"in","value":["G","PG"]}`},
-		{"label", `{"field":"label","operator":"contains-any","value":["violence"]}`},
-		{"title", `{"field":"title","operator":"starts-with","value":"W"}`},
+		{"genre", `{"variant":"predicate","field":"genre","operator":"contains","value":"Drama"}`},
+		{"year", `{"variant":"predicate","field":"year","operator":"at-least","value":2000}`},
+		{"playState", `{"variant":"predicate","field":"playState","operator":"equals","value":"unplayed"}`},
+		{"availability", `{"variant":"predicate","field":"availability","operator":"equals","value":"available"}`},
+		{"contentRating", `{"variant":"predicate","field":"contentRating","operator":"in","value":["G","PG"]}`},
+		{"label", `{"variant":"predicate","field":"label","operator":"contains-any","value":["violence"]}`},
+		{"title", `{"variant":"predicate","field":"title","operator":"starts-with","value":"W"}`},
 	} {
 		add("browse:query:"+query.name, "POST", "/v1/libraries/"+libraries.Movies+"/browse",
 			fmt.Sprintf(`{"pivot":"movies","query":%s,"limit":8}`, query.expression))

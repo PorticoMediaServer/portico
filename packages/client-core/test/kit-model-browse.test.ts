@@ -34,13 +34,13 @@ function caps(kind = 'movie'): BrowseCapabilities {
   const pivot = {id: kind === 'music' ? 'songs' : 'movies', labelKey: kind === 'music' ? 'library.songs' : 'library.movies', entityKinds: [kind === 'music' ? 'song' : 'movie'], defaultSort: [titleSort], supportedViews: kind === 'music' ? ['list'] : ['grid', 'list'], browsable: true, sorts: sorts.map(s => s.id), filters: fields.map(f => f.id)};
   return parseBrowseCapabilities({library: {id: 'library', name: kind === 'music' ? 'Music' : 'Movies', kind, defaultView: 'browse', pinned: false}, pivots: [pivot], resolvedPivot: pivot, fields, sorts,
     quickFilters: [
-      {id: 'in-progress', labelKey: 'filter.inProgress', query: {field: 'playState', operator: 'equals', value: 'in-progress'}},
-      {id: 'unwatched', labelKey: 'filter.unwatched', query: {field: 'playState', operator: 'equals', value: 'unplayed'}},
-      {id: 'watched', labelKey: 'filter.watched', query: {field: 'playState', operator: 'equals', value: 'played'}},
-      {id: 'favorites', labelKey: 'filter.favorites', query: {field: 'favorite', operator: 'equals', value: true}},
-      {id: 'watchlist', labelKey: 'filter.watchlist', query: {field: 'watchlisted', operator: 'equals', value: true}},
-      {id: 'available', labelKey: 'filter.available', query: {field: 'availability', operator: 'equals', value: 'available'}},
-      {id: 'missing', labelKey: 'filter.missing', query: {field: 'availability', operator: 'equals', value: 'unavailable'}},
+      {id: 'in-progress', labelKey: 'filter.inProgress', query: {variant:'predicate',field: 'playState', operator: 'equals', value: 'in-progress'}},
+      {id: 'unwatched', labelKey: 'filter.unwatched', query: {variant:'predicate',field: 'playState', operator: 'equals', value: 'unplayed'}},
+      {id: 'watched', labelKey: 'filter.watched', query: {variant:'predicate',field: 'playState', operator: 'equals', value: 'played'}},
+      {id: 'favorites', labelKey: 'filter.favorites', query: {variant:'predicate',field: 'favorite', operator: 'equals', value: true}},
+      {id: 'watchlist', labelKey: 'filter.watchlist', query: {variant:'predicate',field: 'watchlisted', operator: 'equals', value: true}},
+      {id: 'available', labelKey: 'filter.available', query: {variant:'predicate',field: 'availability', operator: 'equals', value: 'available'}},
+      {id: 'missing', labelKey: 'filter.missing', query: {variant:'predicate',field: 'availability', operator: 'equals', value: 'unavailable'}},
     ], queryLimits: {maximumDepth: 5, maximumClauses: 40, maximumBytes: 65536, maximumSorts: 1, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 1800000}});
 }
 const ids = (rows: readonly Readonly<{id: string}>[]) => rows.map(x => x.id);
@@ -70,8 +70,8 @@ test('Songs offers distinct Unplayed and Played quick toggles and keeps other re
   const model = browseToolbarModel(capabilities, 'music', [played, watchlist], titleSort, env);
   assert.deepEqual(ids(model.quick), ['unwatched', 'watched', 'favorites']);
   assert.deepEqual(model.quick.map(q => [q.label?.text, q.active]), [['Unplayed', false], ['Played', true], ['Favorites', false]]);
-  assert.deepEqual(model.quick[0]!.query, {field: 'playState', operator: 'equals', value: 'unplayed'});
-  assert.deepEqual(model.quick[1]!.query, {field: 'playState', operator: 'equals', value: 'played'});
+  assert.deepEqual(model.quick[0]!.query, {variant:'predicate',field: 'playState', operator: 'equals', value: 'unplayed'});
+  assert.deepEqual(model.quick[1]!.query, {variant:'predicate',field: 'playState', operator: 'equals', value: 'played'});
   assert.deepEqual(ids(model.filterQuick), ['in-progress', 'watchlist', 'available', 'missing']);
   assert.deepEqual(model.filterQuick.find(q => q.id === 'watchlist')?.label, {id: 'label', text: 'My List', role: 'context'});
   assert.deepEqual(model.applied, [watchlist]);
@@ -174,12 +174,12 @@ test('missing quick capabilities, operators and allowed values never produce inv
 test('exact positive quick predicates alone leave the applied line; Any/All/Not and raw values survive', () => {
   const capabilities = caps();
   const unplayed = capabilities.quickFilters.find(q => q.id === 'unwatched')!.query;
-  const all: BrowseNode = {field: 'genre', operator: 'contains-all', value: ['R&B · Soul', 'Drama']};
-  const any: BrowseNode = {field: 'genre', operator: 'contains-any', value: ['R&B · Soul', 'Drama']};
-  const none: BrowseNode = {not: unplayed};
-  const either: BrowseNode = {any: [unplayed, all]};
-  const both: BrowseNode = {all: [unplayed, all]};
-  const inverse: BrowseNode = {field: 'watchlisted', operator: 'equals', value: false};
+  const all: BrowseNode = {variant:'predicate',field: 'genre', operator: 'contains-all', value: ['R&B · Soul', 'Drama']};
+  const any: BrowseNode = {variant:'predicate',field: 'genre', operator: 'contains-any', value: ['R&B · Soul', 'Drama']};
+  const none: BrowseNode = {variant:'group',not: unplayed};
+  const either: BrowseNode = {variant:'group',any: [unplayed, all]};
+  const both: BrowseNode = {variant:'group',all: [unplayed, all]};
+  const inverse: BrowseNode = {variant:'predicate',field: 'watchlisted', operator: 'equals', value: false};
   const predicates = [unplayed, all, any, none, either, both, inverse];
   const model = browseToolbarModel(capabilities, 'movie', predicates, titleSort, env);
   assert.equal(model.quick[0]!.active, true);
@@ -196,8 +196,8 @@ test('exact positive quick predicates alone leave the applied line; Any/All/Not 
 
 test('unknown and compound quick presets retain query identity, exact matching and published capabilities', () => {
   const capabilities = caps();
-  const quick = {id: 'provider-preset', labelKey: 'provider.preset', query: {all: [{field: 'genre', operator: 'contains-all', value: ['Drama', 'Mystery']}, {not: {field: 'watchlisted', operator: 'equals', value: false}}]}} as const;
-  const publicMatch = {id: 'unmatched', labelKey: 'filter.unmatched', query: {field: 'match', operator: 'equals', value: 'unmatched'}} as const;
+  const quick = {id: 'provider-preset', labelKey: 'provider.preset', query: {variant:'group',all: [{variant:'predicate',field: 'genre', operator: 'contains-all', value: ['Drama', 'Mystery']}, {variant:'group',not: {variant:'predicate',field: 'watchlisted', operator: 'equals', value: false}}]}} as const;
+  const publicMatch = {id: 'unmatched', labelKey: 'filter.unmatched', query: {variant:'predicate',field: 'match', operator: 'equals', value: 'unmatched'}} as const;
   const prototypeId = {...quick, id: '__proto__'};
   const source = {...capabilities, quickFilters: [...capabilities.quickFilters, quick, publicMatch, prototypeId]};
   const model = browseToolbarModel(source, 'movie', [quick.query], titleSort, env);
@@ -213,7 +213,7 @@ test('unknown and compound quick presets retain query identity, exact matching a
 
 test('presentation never mutates frozen capability registries, predicates or current sort', () => {
   const capabilities = caps();
-  const predicates = Object.freeze([{field: 'genre', operator: 'contains', value: 'R&B · Soul'}] as const);
+  const predicates = Object.freeze([{variant:'predicate',field: 'genre', operator: 'contains', value: 'R&B · Soul'}] as const);
   const sort = Object.freeze({field: 'random', direction: 'desc', seed: 0} as const);
   const before = JSON.stringify({capabilities, predicates, sort});
   const model = browseToolbarModel(capabilities, 'movie', predicates, sort, {...env, owner: true});

@@ -20,10 +20,10 @@ export type BrowseDirection='asc'|'desc';
 export type BrowseOperator='equals'|'not-equals'|'contains'|'starts-with'|'in'|'not-in'|'less-than'|'at-most'|'greater-than'|'at-least'|'within-last-days'|'between'|'is-present'|'is-missing'|'contains-any'|'contains-all';
 export type BrowseScalar=string|number|boolean;
 export type BrowseNode=
- |Readonly<{all:readonly BrowseNode[]}>
- |Readonly<{any:readonly BrowseNode[]}>
- |Readonly<{not:BrowseNode}>
- |Readonly<{field:string;operator:BrowseOperator;value:BrowseScalar|readonly BrowseScalar[]|null}>;
+ |Readonly<{variant:'group';all:readonly BrowseNode[]}>
+ |Readonly<{variant:'group';any:readonly BrowseNode[]}>
+ |Readonly<{variant:'group';not:BrowseNode}>
+ |Readonly<{variant:'predicate'|'relative';field:string;operator:BrowseOperator;value:BrowseScalar|readonly BrowseScalar[]|null}>;
 export type BrowseSortSelection=Readonly<{field:string;direction:BrowseDirection;seed?:number}>;
 /** Every field a query's conditions name, however deep. */
 export function browseFields(nodes:readonly BrowseNode[]):string[]{
@@ -119,37 +119,59 @@ function sortSelection(v:unknown):BrowseSortSelection{
  return {field:v.field,direction:v.direction,...(v.seed===undefined?{}:{seed:v.seed as number})};
 }
 
+/** The wire form of a node built from the loose `{field, operator, value}` and `{all|any|not}` shapes the
+ * toolbar and tabs work in: each node gains the `variant` its keys name. Nothing else changes, and
+ * `parseBrowseNode` still decides whether the result is valid. */
+export function completeBrowseNode(v:unknown):unknown{
+ if(!obj(v)||v.variant!==undefined)return v;
+ if('field' in v)return {variant:v.operator==='within-last-days'?'relative':'predicate',...v};
+ const key=['all','any','not'].find(name=>name in v);
+ if(!key)return v;
+ const child=v[key];
+ return {variant:'group',...v,[key]:key==='not'?completeBrowseNode(child):Array.isArray(child)?child.map(completeBrowseNode):child};
+}
 /** Nodes are re-validated on the way in: a malformed tree is never handed to a
  * caller as if the server had blessed it. A node is a query this app may send back,
  * so it stays exact: one with an operator or a key this app does not know is refused,
  * and whatever carries it (a quick filter, a See all destination) is left out. */
 export function parseBrowseNode(v:unknown,depth=0,path='query'):BrowseNode{
  if(!obj(v)||depth>16)bad();
- if('field' in v){
-  if(Object.keys(v).length!==3||!id(v.field)||!str(v.operator,64)||!operators.includes(v.operator))bad();
-  const operator=v.operator as BrowseOperator;
-  const value=v.value;
+ const {variant,...body}=v;
+
+ if(variant==='predicate'||variant==='relative'){
+  if(!('field' in body)||Object.keys(body).length!==3||!id(body.field)||!str(body.operator,64)||!operators.includes(body.operator))bad();
+  const operator=body.operator as BrowseOperator;
+  // The relative-date predicate has a variant of its own; no other operator may use it.
+  if((operator==='within-last-days')!==(variant==='relative'))bad();
+  const field=body.field;
+  const value=body.value;
   if(operator==='within-last-days'){
    if(!Number.isInteger(value)||typeof value!=='number'||value<1||value>36500)bad();
-   return {field:v.field,operator,value};
+   return {variant:'relative',field,operator,value};
   }
-  if(presenceOperators.includes(operator)){if(value!==null&&value!==undefined)bad();return {field:v.field,operator,value:null};}
+  if(presenceOperators.includes(operator)){if(value!==null&&value!==undefined)bad();return {variant:'predicate',field,operator,value:null};}
   if(Array.isArray(value)){
    if(!listOperators.includes(operator)||value.length<1||value.length>100||(operator==='between'&&value.length!==2))bad();
-   return {field:v.field,operator,value:value.map(entry=>{if(!str(entry,500)&&!finite(entry)&&typeof entry!=='boolean')bad();return entry as BrowseScalar;})};
+   return {variant:'predicate',field,operator,value:value.map(entry=>{if(!str(entry,500)&&!finite(entry)&&typeof entry!=='boolean')bad();return entry as BrowseScalar;})};
   }
   if(listOperators.includes(operator))bad();
   if(!str(value,500)&&!finite(value)&&typeof value!=='boolean')bad();
-  return {field:v.field,operator,value:value as BrowseScalar};
+  return {variant:'predicate',field,operator,value:value as BrowseScalar};
  }
- const keys=Object.keys(v);
- if(keys.length!==1)bad();
- if(keys[0]==='not')return {not:parseBrowseNode(v.not,depth+1,path+'.not')};
- if(keys[0]==='all'||keys[0]==='any'){
-  const children=rows(v[keys[0]],100).map((child,index)=>parseBrowseNode(child,depth+1,`${path}.${keys[0]}[${index}]`));
-  if(children.length===0)bad();
-  return keys[0]==='all'?{all:children}:{any:children};
+ if(variant==='group'){
+  const keys=Object.keys(body);
+  if(keys.length!==1||keys[0]==='field')bad();
+  if(keys[0]==='not')return {variant:'group',not:parseBrowseNode(body.not,depth+1,path+'.not')};
+  if(keys[0]==='all'||keys[0]==='any'){
+   const children=rows(body[keys[0]],100).map((child,index)=>parseBrowseNode(child,depth+1,`${path}.${keys[0]}[${index}]`));
+   if(children.length===0)bad();
+   return keys[0]==='all'?{variant:'group',all:children}:{variant:'group',any:children};
+  }
+  return bad();
  }
+ // A node this app has no name for comes from a newer server. It is not guessed at:
+ // a carrier read item by item leaves it out, and a page that depends on it says the app needs updating.
+ if(typeof variant==='string'&&/^[a-z][a-z0-9-]{0,63}$/.test(variant))throw Object.assign(new Error(unreadableServerResponse),{code:'unsupported_version'});
  return bad();
 }
 
@@ -381,8 +403,8 @@ export function formatBrowseAnchor(key:string,sortField:string,noValue=''):strin
 }
 
 /** The values of one facet. The field asked for and the bound of 200 are exact; a value that cannot be read is left out alone, a repeated one keeps its first appearance, a value without a label is labelled by itself, and a missing count is 0. */
-export function parseBrowseFacets(raw:unknown,expected?:string):BrowseFacetPage{
- if(!obj(raw)||!count(raw.total)||!id(raw.field)||(expected!==undefined&&raw.field!==expected))bad();
+export function parseBrowseFacets(raw:unknown,expected?:string,variant?:'page'):BrowseFacetPage{
+ if(!obj(raw)||(variant!==undefined&&raw.variant!==variant)||!count(raw.total)||!id(raw.field)||(expected!==undefined&&raw.field!==expected))bad();
  const values=firstOfEach('browse','facets',keepReadable('browse','facets',rows(raw.values,200),v=>{
   const attribution=raw.field==='author'||raw.field==='series';
   if(!obj(v)||!(attribution?str(v.value,4096)&&v.value.length>0&&!/[\r\n]/.test(v.value):id(v.value))||!str(v.label??'',attribution?4096:512))bad();
@@ -464,7 +486,7 @@ export class BrowseQueryBuilder{
  }
  /** Adds one condition to the implicit conjunction. */
  where(field:string,operator:BrowseOperator,value:BrowseScalar|readonly BrowseScalar[]|null=null):this{
-  const node:BrowseNode={field,operator,value};
+  const node:BrowseNode={variant:operator==='within-last-days'?'relative':'predicate',field,operator,value};
   validateBrowseQuery(this.capabilities,node,`query.all[${this.predicates.length}]`);
   this.predicates.push(node);
   return this;
@@ -525,7 +547,7 @@ export class BrowseQueryBuilder{
  }
  build():BrowseRequestBody{
   const limits=this.capabilities.queryLimits;
-  const query=this.predicates.length===0?undefined:this.predicates.length===1?this.predicates[0]:{all:[...this.predicates]};
+  const query=this.predicates.length===0?undefined:this.predicates.length===1?this.predicates[0]:{variant:'group' as const,all:[...this.predicates]};
   if(query&&countClauses(query)>limits.maximumClauses)throw new BrowseQueryError('query',`Use at most ${limits.maximumClauses} conditions.`);
   if(this.displayRow){
    if(!positiveHomeRow(query,this.displayRow))throw new BrowseQueryError('homeRowDisplay','Use the same positive Home row condition.');

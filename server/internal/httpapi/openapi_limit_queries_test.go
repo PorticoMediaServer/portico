@@ -97,7 +97,7 @@ func TestGeneratedLimitQueryContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	generated, err := apikit.GenerateWith(r.Definitions(), apikit.Options{Errors: r.ErrorDefinitions(), Components: components, WireSchemas: wire})
+	generated, err := apikit.GenerateWith(r.Definitions(), apikit.Options{Errors: r.ErrorDefinitions(), Components: components, WireSchemas: wire, GrandfatheredUnionTags: GrandfatheredUnionTags})
 	if err != nil {
 		t.Fatal(err)
 	}

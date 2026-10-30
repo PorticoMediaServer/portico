@@ -81,7 +81,7 @@ func TestLibraryGuideCopiedBlockRecipeSurvivesPresetChanges(t *testing.T) {
 	}
 	s.now = func() time.Time { return f.now }
 	c := channel("copied-recipe", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title"}, "sequential", "none")
-	c.Rules = append(c.Rules, Rule{ID: "recipe-copy", Name: "1985 films", Query: Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"field":"year","operator":"equals","value":1985}`)}, Mode: "sequential", EpisodeMode: "none", Exhaustion: "loop", MaxConsecutive: 100})
+	c.Rules = append(c.Rules, Rule{ID: "recipe-copy", Name: "1985 films", Query: Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"variant":"predicate","field":"year","operator":"equals","value":1985}`)}, Mode: "sequential", EpisodeMode: "none", Exhaustion: "loop", MaxConsecutive: 100})
 	c.Blocks = []Block{{ID: "afternoon", Weekdays: []int{0, 1, 2, 3, 4, 5, 6}, StartMinute: 15 * 60, EndMinute: 18 * 60, Priority: 1, RuleID: "recipe-copy", FallbackRuleID: "main", Anchor: "block-start", Overrun: "finish"}}
 	f.exec(t, `INSERT INTO admin_channel_presets VALUES('recipe','1985 films','1985 films',1,'{"year":1985}',1,1)`)
 	saved, e := s.Save(context.Background(), ownerAuthority(nil), SaveInput{RequestID: "copy-recipe", Config: c})

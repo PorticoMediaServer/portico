@@ -143,7 +143,7 @@ func TestBrowseSelectionAggregateOmitsViewsTheJobCannotReplay(t *testing.T) {
 func TestBrowseSelectionAggregateEchoesTheCompiledFilterAndEmptyView(t *testing.T) {
 	_, s, _ := browseFixture(t)
 	viewer := Viewer{Profile: "p", Fence: "f", Libraries: []string{"a"}}
-	query, err := ParseBrowseQuery(json.RawMessage(`{"field":"year","operator":"at-least","value":2000}`), "query")
+	query, err := ParseBrowseQuery(json.RawMessage(`{"variant":"predicate","field":"year","operator":"at-least","value":2000}`), "query")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestBrowseSelectionAggregateEchoesTheCompiledFilterAndEmptyView(t *testing.
 	}
 	// An empty leaf view still publishes the descriptor, so the client can see
 	// that the whole view is empty rather than guess.
-	none, err := ParseBrowseQuery(json.RawMessage(`{"field":"year","operator":"at-least","value":3000}`), "query")
+	none, err := ParseBrowseQuery(json.RawMessage(`{"variant":"predicate","field":"year","operator":"at-least","value":3000}`), "query")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -70,7 +70,7 @@ test('real screen raw wrapper permits late metadata handle cleanup after retirem
   const life = screenLifetime({api, isCurrent: () => true} as unknown as ScreenContext);
   const work = readMetadataPreview(life.api, {targets: [{kind: 'item', contentKind: 'movie', id: 'one', libraryId: 'lib'}]}, () => {throw Error('late publish');}, {signal: life.signal(), isCurrent: life.current});
   await tick(); life.dispose(); await assert.rejects(work, {name: 'AbortError'});
-  finish({status: 202, headers: {Location: poll}, body: {kind: 'metadata-preview-preparing', state: 'preparing', queryId: 'private-1', retryAfterMs: 1000}}); await tick();
+  finish({status: 202, headers: {Location: poll}, body: {variant: 'preparing', kind: 'metadata-preview-preparing', state: 'preparing', queryId: 'private-1', retryAfterMs: 1000}}); await tick();
   assert.deepEqual(calls, [`POST ${path}`, `DELETE ${poll}`]);
   await assert.rejects(life.api.requestRaw('/v1/unrelated', 'GET'), {name: 'AbortError'});
 });

@@ -48,9 +48,12 @@ test('read-profile GET requires captured settings without inventing saved values
   assert.equal(decoded.settings.revision, 0);
   assert.equal(decoded.settings.values.wholeFileReads, false);
   assert.equal(decoded.settings.values.bytesPerSecond, 0);
-  for (const patch of [{sourceId: ''}, {generation: ''}, {revision: -1}, {saved: null}, {values: null}, {path: '/not-a-wire-field'}]) {
+  for (const patch of [{sourceId: ''}, {generation: ''}, {revision: -1}, {saved: null}, {values: null}]) {
     assert.throws(() => decode('GetStorageSourceReadProfileResponse', {scope, settings: {...settings, ...patch}}));
   }
+  // Responses are open: a member that is not a wire field is dropped.
+  const extended = decode('GetStorageSourceReadProfileResponse', {scope, settings: {...settings, path: '/not-a-wire-field'}}) as {settings: Record<string, unknown>};
+  assert.equal(Object.hasOwn(extended.settings, 'path'), false);
 });
 
 test('receipts preserve additive response projection and validate present read-profile facts', () => {

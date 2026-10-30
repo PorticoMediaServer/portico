@@ -57,7 +57,7 @@ func TestPlaybackV1QueueQueryUsesBrowseRestrictionsAndFilters(t *testing.T) {
 	if !reflect.DeepEqual(got, []string{ids["film"]}) {
 		t.Fatalf("restricted membership: %v", got)
 	}
-	source["query"].(map[string]any)["query"] = map[string]any{"field": "title", "operator": "equals", "value": "Grown-up film"}
+	source["query"].(map[string]any)["query"] = map[string]any{"variant": "predicate", "field": "title", "operator": "equals", "value": "Grown-up film"}
 	f.callAs(member, "POST", "/v1/queues", map[string]string{"Idempotency-Key": "query-restricted-0002"}, map[string]any{"selector": source}, 404, nil)
 	source["query"].(map[string]any)["libraryId"] = f.library
 	f.callAs(member, "POST", "/v1/queues", map[string]string{"Idempotency-Key": "query-restricted-0003"}, map[string]any{"selector": source}, 404, nil)

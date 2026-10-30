@@ -31,7 +31,7 @@ function fixture(destination: 'adopt' | 'server-origin' = 'adopt') {
     calls.push({path, body});
     if (path === '/v1/system') return system;
     if (path === '/v1/access/invitations/preview') return previewAnswer;
-    if (path === '/v1/access/invitations/accept') return {accountId: 'created-account', profileId: 'main', username: 'new_user', role: 'member', allowedLibraries: []};
+    if (path === '/v1/access/invitations/accept') return {variant: 'accepted', accountId: 'created-account', profileId: 'main', username: 'new_user', role: 'member', allowedLibraries: []};
     if (path === '/v1/direct/sign-in') {if (signInGate) await signInGate; if (failSignIn) throw new Error('offline after membership creation'); const result = response();result.session.sessionFamilyId = family;result.session.accessToken = token;return result;}
     throw new Error('Unexpected endpoint: ' + path);
   }) as HttpLocalApi['request'];

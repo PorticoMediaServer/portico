@@ -13,10 +13,20 @@ import (
 // The minimal branch belongs only to a still-current original preparation;
 // ordinary starts construct the existing session-backed branch.
 // Embedding preserves the real SessionView's JSON and nullable-field handling.
+//
+// The two shapes are tagged (O-159 R-09b): variant "session" carries the real
+// session; variant "wait" is the retry-only preparation. A client dispatches on
+// the tag, never on which fields happen to be present.
 type playbackStartResponse struct {
+	Variant string `json:"variant"`
 	*playbackv1.SessionView
 	RetryAfterMs int `json:"retryAfterMs,omitempty"`
 }
+
+const (
+	startVariantSession = "session"
+	startVariantWait    = "wait"
+)
 
 func startPreparedResponse(v playbackv1.PreparedStart) (playbackStartResponse, error) {
 	if v.Session != nil {
@@ -28,7 +38,7 @@ func startPreparedResponse(v playbackv1.PreparedStart) (playbackStartResponse, e
 	if !v.Preparing || v.RetryAfterMs < 1 || v.RetryAfterMs > 10000 {
 		return playbackStartResponse{}, errors.New("start did not return a current preparation or a real session")
 	}
-	return playbackStartResponse{RetryAfterMs: v.RetryAfterMs}, nil
+	return playbackStartResponse{Variant: startVariantWait, RetryAfterMs: v.RetryAfterMs}, nil
 }
 
 func startSessionResponse(v playbackv1.SessionView, preparing bool) (playbackStartResponse, error) {
@@ -41,45 +51,9 @@ func startSessionResponse(v playbackv1.SessionView, preparing bool) (playbackSta
 	if v.ID == "" || v.Revision == "" || v.Presentation.Generation < 1 && !coldChannel && !endedChannel || preparing && (v.RetryAfterMs < 1 || v.RetryAfterMs > 10000) || !preparing && v.RetryAfterMs != 0 {
 		return playbackStartResponse{}, errors.New("start did not return its real session response")
 	}
-	return playbackStartResponse{SessionView: &v, RetryAfterMs: v.RetryAfterMs}, nil
+	return playbackStartResponse{Variant: startVariantSession, SessionView: &v, RetryAfterMs: v.RetryAfterMs}, nil
 }
 
-// closeStartObjects closes reflected struct shapes while retaining actual map
-// schemas, optional/nullable branches and arbitrary JSON leaves. This is local
-// to the start resource; the generator and decoder remain canonical/unmodified.
-func closeStartObjects(shape map[string]any) {
-	if shape["type"] == "object" {
-		if _, structShape := shape["properties"]; structShape {
-			if _, declared := shape["additionalProperties"]; !declared {
-				shape["additionalProperties"] = false
-			}
-		}
-	}
-	for key, value := range shape {
-		switch key {
-		case "properties":
-			if properties, ok := value.(map[string]any); ok {
-				for _, property := range properties {
-					if child, ok := property.(map[string]any); ok {
-						closeStartObjects(child)
-					}
-				}
-			}
-		case "items", "additionalProperties":
-			if child, ok := value.(map[string]any); ok {
-				closeStartObjects(child)
-			}
-		case "anyOf", "oneOf", "allOf":
-			if alternatives, ok := value.([]any); ok {
-				for _, alternative := range alternatives {
-					if child, ok := alternative.(map[string]any); ok {
-						closeStartObjects(child)
-					}
-				}
-			}
-		}
-	}
-}
 func startProperties(shape map[string]any) map[string]any {
 	return shape["properties"].(map[string]any)
 }
@@ -94,38 +68,52 @@ func startEnum(shape map[string]any, values ...string) {
 	shape["enum"] = out
 }
 
-func startSessionSchema(variant string) map[string]any {
+// startSessionSchema is the one session shape every start returns, native or
+// channel, playing, preparing or ended. Responses read open (R-09b), so it is
+// not closed; the server's own invariants (a cold channel's generation 0, an
+// ended channel's empty engine) stay server-side and in its tests.
+func startSessionSchema(preparing bool) map[string]any {
 	shape, err := apikit.Schema(reflect.TypeFor[playbackv1.SessionView]())
 	if err != nil {
 		panic(err)
 	}
-	closeStartObjects(shape)
 	properties := startProperties(shape)
+	properties["variant"] = map[string]any{"type": "string", "const": startVariantSession}
+	shape["required"] = append([]string{"variant"}, shape["required"].([]string)...)
 	properties["retryAfterMs"] = startRetrySchema()
+	if preparing {
+		shape["required"] = append(shape["required"].([]string), "retryAfterMs")
+	}
 	for _, key := range []string{"id", "revision"} {
 		startField(properties, key)["minLength"] = 1
 	}
-	// These are the resource layer's actual projections, not planner-internal
-	// preparing state or a receiver-specific subset of the response.
 	startEnum(startField(properties, "role"), "local")
-	startEnum(startField(properties, "state"), "playing", "paused", "ended")
+	if preparing {
+		// Only a native vod/audio start is ever prepared.
+		startEnum(startField(properties, "kind"), "vod", "audio")
+	} else {
+		startEnum(startField(properties, "kind"), "vod", "audio", "live", "channel")
+	}
+	if preparing {
+		startEnum(startField(properties, "state"), "playing", "paused")
+	} else {
+		startEnum(startField(properties, "state"), "playing", "paused", "ended")
+	}
 	lease := startProperties(startField(properties, "lease"))
 	startField(lease, "reportEveryMs")["minimum"] = 1
 	// The shared runtime ignores format. Bound the actual UTC RFC3339Nano wire
 	// spelling with its supported pattern; calendar validity/future expiry still
 	// belong to the server's clock/lease authority, not this structural decoder.
 	startField(lease, "expiresAt")["pattern"] = `^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z$`
-	view := startField(properties, "presentation")
-	presentation := startProperties(view)
+	presentation := startProperties(startField(properties, "presentation"))
 	startEnum(startField(presentation, "mode"), "direct", "stream")
-	startEnum(startField(presentation, "engine"), playback.EngineNative, playback.EngineMPV)
-	startField(presentation, "generation")["minimum"] = 1
+	// An ended channel returns before an engine is chosen: its engine is empty.
+	startEnum(startField(presentation, "engine"), playback.EngineNative, playback.EngineMPV, "")
+	startField(presentation, "generation")["minimum"] = 0
 	startField(presentation, "startPositionMs")["minimum"] = 0
-	decision := startField(presentation, "decision")
-	for _, value := range startProperties(decision) {
+	for _, value := range startProperties(startField(presentation, "decision")) {
 		if stream, ok := value.(map[string]any); ok {
-			fields := startProperties(stream)
-			startEnum(startField(fields, "action"), "direct", "copy", "transcode", "burn")
+			startEnum(startField(startProperties(stream), "action"), "direct", "copy", "transcode", "burn")
 		}
 	}
 	if quality, ok := presentation["quality"].(map[string]any); ok {
@@ -133,53 +121,6 @@ func startSessionSchema(variant string) map[string]any {
 	}
 	files := startField(presentation, "subtitles")["items"].(map[string]any)
 	startEnum(startField(startProperties(files), "timeDomain"), "source-relative")
-	switch variant {
-	case "native", "native-ended":
-		startEnum(startField(properties, "kind"), "vod", "audio")
-		if variant == "native-ended" {
-			startField(properties, "state")["const"] = "ended"
-			shape["required"] = append(shape["required"].([]string), "end")
-		} else {
-			startEnum(startField(properties, "state"), "playing", "paused")
-			delete(properties, "end")
-		}
-
-		// The native presentation's real delivery plan describes at least one
-		// source stream. Channel early-return projections legitimately have none.
-		presentation["decision"] = map[string]any{"anyOf": []any{
-			map[string]any{"type": "object", "properties": decision["properties"], "required": []string{"video"}, "additionalProperties": false},
-			map[string]any{"type": "object", "properties": decision["properties"], "required": []string{"audio"}, "additionalProperties": false},
-		}}
-	case "channel":
-		startEnum(startField(properties, "state"), "playing", "paused")
-		delete(properties, "end")
-		startEnum(startField(properties, "kind"), "live", "channel")
-		startField(presentation, "mode")["const"] = "stream"
-		view["required"] = append(view["required"].([]string), "linear")
-	case "cold-channel":
-		delete(properties, "end")
-		startEnum(startField(properties, "kind"), "live", "channel")
-		startEnum(startField(properties, "state"), "playing", "paused")
-		delete(startField(presentation, "generation"), "minimum")
-		startField(presentation, "generation")["const"] = 0
-		startField(presentation, "mode")["const"] = "stream"
-		startField(presentation, "url")["const"] = ""
-		view["required"] = append(view["required"].([]string), "linear")
-		startField(startProperties(startField(presentation, "linear")), "state")["const"] = "preparing"
-	case "ended-channel":
-		// channelPresentation returns before reading an engine/linear buffer when
-		// the exact session ended. Do not fabricate native or widen native engines.
-		startEnum(startField(properties, "kind"), "live", "channel")
-		startField(properties, "state")["const"] = "ended"
-		shape["required"] = append(shape["required"].([]string), "end")
-		delete(startField(presentation, "generation"), "minimum")
-		startField(presentation, "generation")["const"] = 0
-		startField(presentation, "mode")["const"] = "stream"
-		startField(presentation, "url")["const"] = ""
-		startEnum(startField(presentation, "engine"), "")
-	default:
-		panic("unknown start resource variant")
-	}
 	return shape
 }
 
@@ -189,44 +130,22 @@ func startRetrySchema() map[string]any {
 
 func startWaitSchema() map[string]any {
 	return map[string]any{
-		"type": "object", "additionalProperties": false,
-		"properties": map[string]any{"retryAfterMs": startRetrySchema()},
-		"required":   []string{"retryAfterMs"},
+		"type":       "object",
+		"properties": map[string]any{"variant": map[string]any{"type": "string", "const": startVariantWait}, "retryAfterMs": startRetrySchema()},
+		"required":   []string{"variant", "retryAfterMs"},
 	}
-}
-
-// Both alternatives retain the actual SessionView. Only their real media
-// generation/linear state differs; neither is the private retry-only branch.
-func startSessionSchemas(status int) []any {
-	variants := []string{"native", "native-ended", "channel", "cold-channel", "ended-channel"}
-	if status == 202 {
-		variants = []string{"native"}
-	}
-	var out []any
-	for _, variant := range variants {
-		shape := startSessionSchema(variant)
-		properties := startProperties(shape)
-		if status == 201 {
-			delete(properties, "retryAfterMs")
-		} else if status == 202 {
-			shape["required"] = append(shape["required"].([]string), "retryAfterMs")
-			startEnum(startField(properties, "state"), "playing", "paused")
-		}
-		out = append(out, shape)
-	}
-	return out
 }
 
 func (playbackStartResponse) JSONSchema() map[string]any {
-	return map[string]any{"anyOf": append(append(startSessionSchemas(201), startSessionSchemas(202)...), startWaitSchema())}
+	return map[string]any{"anyOf": []any{startSessionSchema(false), startWaitSchema()}}
 }
 
 func (playbackStartResponse) JSONSchemaForStatus(status int) map[string]any {
 	switch status {
 	case 201:
-		return map[string]any{"oneOf": startSessionSchemas(201)}
+		return startSessionSchema(false)
 	case 202:
-		return map[string]any{"oneOf": append(startSessionSchemas(202), startWaitSchema())}
+		return map[string]any{"oneOf": []any{startSessionSchema(true), startWaitSchema()}}
 	default:
 		return nil
 	}

@@ -14,7 +14,7 @@ import {createWebPreparingStarts} from '../src/platform/playback/start-owner.ts'
 // The accepted channel 201 shape: an active linear session observed after the
 // producer's buffer exists, with its own canonical linear media URL
 // (`/v1/media/linear/<id>/<generation>/<token>/index.m3u8`).
-const real = (id = 'original_channel') => ({id, revision: '1', kind: 'live', role: 'local', state: 'playing', channelId: 'live:source:station',
+const real = (id = 'original_channel') => ({variant: 'session', id, revision: '1', kind: 'live', role: 'local', state: 'playing', channelId: 'live:source:station',
   lease: {expiresAt: '2099-01-01T00:00:00Z', reportEveryMs: 10_000},
   presentation: {generation: 1, mode: 'stream', engine: 'native', url: `/v1/media/linear/${id}/1/original-grant/index.m3u8`, startPositionMs: 0,
     quality: {mode: 'original'}, subtitles: [], decision: {},
@@ -115,7 +115,7 @@ function controlFixture() {
   const control = new V1ChannelControl({key: () => 'actual-channel-key', timers, http: {send: async request => {
     calls.push(request);
     if (request.method === 'DELETE') return {status: 204, headers: {}};
-    return await (replies.shift() ?? Promise.resolve(response({retryAfterMs: 500})));
+    return await (replies.shift() ?? Promise.resolve(response({variant: 'wait', retryAfterMs: 500})));
   }}});
   const installed: string[] = [];
   const bound = ownedWebChannels(control, f.reg, () => f.current);

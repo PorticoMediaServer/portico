@@ -10,10 +10,10 @@ const path = '/v1/metadata/bulk/preview', poll = `${path}-queries/private-1`;
 const entries = Array.from({length: 70}, (_, index) => ({id: String(index), libraryId: 'library', kind: 'movie' as const, title: `Title ${index}`}));
 const many = {state: 'many' as const, atLeast: 65, values: [], entries: [{value: 'Preserved', count: 17}], locked: 23, truncated: true};
 const field = {field: 'studio', label: 'Studio', group: 'general', type: 'text', bulk: true};
-const ready = {serverId: 'server', viewerFence: 'a'.repeat(64), kind: 'item', contentKind: 'movie', total: 70,
+const ready = {variant: 'ready', serverId: 'server', viewerFence: 'a'.repeat(64), kind: 'item', contentKind: 'movie', total: 70,
   schema: [field], singleItemFields: [field], excludedFields: [], fields: {studio: many},
   targets: entries.map(entry => ({kind: 'item', id: entry.id, libraryId: entry.libraryId, expectedRevision: 'b'.repeat(64)}))};
-const preparing = {kind: 'metadata-preview-preparing', state: 'preparing', queryId: 'private-1', retryAfterMs: 1000};
+const preparing = {variant: 'preparing', kind: 'metadata-preview-preparing', state: 'preparing', queryId: 'private-1', retryAfterMs: 1000};
 function fixture(raw: (path: string, method: string, options?: any) => Promise<PreparationResponse>) {
   let current = true; const life = new AbortController();
   const api = {request: async () => {throw Error('body-only transport used');}, requestRaw: raw};

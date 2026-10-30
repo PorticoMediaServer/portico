@@ -11,11 +11,13 @@ import {routePaths} from '../../contracts/src/route-paths.ts';
 
 const row = (value = 'Drama', label = value) => ({value, label, count: 5, countIsLowerBound: false});
 function page(queryId = 'query_1', over: Record<string, unknown> = {}) {
-  return {kind: 'simple-keyset', field: 'genre', revision: 'basis_1', total: 3, totalIsLowerBound: false,
+  return {variant: 'window', kind: 'simple-keyset', field: 'genre', revision: 'basis_1', total: 3, totalIsLowerBound: false,
     values: [row()], window: {queryId, basis: 'basis_1', limit: 2, returned: 1, next: 'next_1', reload: 'reload_1'}, ...over};
 }
 const response = (status: number, body?: unknown, headers: Record<string, string> = {}): PreparationResponse => ({status, body, headers});
-const preparing = (queryId = 'query_1', retryAfterMs = 1000) => ({kind: 'facet-preparing', state: 'preparing', queryId, retryAfterMs});
+const preparing = (queryId = 'query_1', retryAfterMs = 1000) => ({variant: 'preparing', kind: 'facet-preparing', state: 'preparing', queryId, retryAfterMs});
+// Inside a fallback the preparation is a nested part, not a union member, so it carries no variant.
+const nestedPreparing = (queryId = 'query_1') => { const {variant: _variant, ...rest} = preparing(queryId); return rest; };
 const read: SimpleFacetRead = {libraryId: 'movies', field: 'genre', q: 'D', limit: 2};
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -412,8 +414,8 @@ test('an unavailable edge performs no GET and keeps current interest until expli
 });
 
 function fallback(queryId = 'query_1', over: Record<string, unknown> = {}) {
-  return {kind: 'facet-fallback', field: 'genre', total: 1, totalIsLowerBound: true,
-    values: [{...row(), countIsLowerBound: true}], preparation: preparing(queryId), ...over};
+  return {variant: 'fallback', kind: 'facet-fallback', field: 'genre', total: 1, totalIsLowerBound: true,
+    values: [{...row(), countIsLowerBound: true}], preparation: nestedPreparing(queryId), ...over};
 }
 
 test('strict fallback parser preserves explicit lower bounds, optional revision and legal long scalars', () => {

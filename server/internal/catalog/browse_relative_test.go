@@ -17,19 +17,19 @@ func relativeNode(field string, days int) *BrowseNode {
 
 func TestBrowseRelativeValidationAndCapabilities(t *testing.T) {
 	for _, value := range []string{`null`, `0`, `-1`, `36501`, `1.5`, `"30"`, `true`, `[]`, `{}`, `1e999`} {
-		_, err := ParseBrowseQuery(json.RawMessage(`{"field":"dateAdded","operator":"within-last-days","value":`+value+`}`), "query")
+		_, err := ParseBrowseQuery(json.RawMessage(`{"variant":"relative","field":"dateAdded","operator":"within-last-days","value":`+value+`}`), "query")
 		var issue *BrowseValidationError
 		if !errors.As(err, &issue) || issue.Path != "query.value" {
 			t.Fatalf("%s: %v", value, err)
 		}
 	}
-	for _, raw := range []string{`{"field":"dateAdded","operator":"within-last-days"}`, `{"field":"year","operator":"within-last-days","value":30}`} {
+	for _, raw := range []string{`{"variant":"relative","field":"dateAdded","operator":"within-last-days"}`, `{"variant":"relative","field":"year","operator":"within-last-days","value":30}`} {
 		if _, err := ParseBrowseQuery(json.RawMessage(raw), "query"); err == nil {
 			t.Fatalf("accepted %s", raw)
 		}
 	}
 	for _, value := range []string{`1`, `36500`, `30.0`, `3e1`} {
-		if _, err := ParseBrowseQuery(json.RawMessage(`{"field":"releaseDate","operator":"within-last-days","value":`+value+`}`), "query"); err != nil {
+		if _, err := ParseBrowseQuery(json.RawMessage(`{"variant":"relative","field":"releaseDate","operator":"within-last-days","value":`+value+`}`), "query"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -64,7 +64,7 @@ func TestBrowseRelativeDateFieldsAndExactBoundaries(t *testing.T) {
 	c.Drain()
 	for _, field := range []string{"dateAdded", "releaseDate", "lastPlayedAt"} {
 		t.Run(field, func(t *testing.T) {
-			got := browseIDs(t, s, names, fmt.Sprintf(`{"field":%q,"operator":"within-last-days","value":1}`, field))
+			got := browseIDs(t, s, names, fmt.Sprintf(`{"variant":"relative","field":%q,"operator":"within-last-days","value":1}`, field))
 			if !reflect.DeepEqual(got, []string{"m1", "m2", "m3"}) {
 				t.Fatalf("boundary/future: %v", got)
 			}
@@ -74,7 +74,7 @@ func TestBrowseRelativeDateFieldsAndExactBoundaries(t *testing.T) {
 	c.Attributes(names["m2"].ID, "releaseDate", "2026-10-23")
 	c.Attributes(names["m3"].ID, "releaseDate", "2026-10-24")
 	c.Drain()
-	if got := browseIDs(t, s, names, `{"field":"releaseDate","operator":"within-last-days","value":1}`); !reflect.DeepEqual(got, []string{"m2"}) {
+	if got := browseIDs(t, s, names, `{"variant":"relative","field":"releaseDate","operator":"within-last-days","value":1}`); !reflect.DeepEqual(got, []string{"m2"}) {
 		t.Fatalf("calendar dates: %v", got)
 	}
 }

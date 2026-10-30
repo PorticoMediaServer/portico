@@ -15,7 +15,7 @@ import (
 
 func TestBrowseContextFacetsAndCountBatchHTTP(t *testing.T) {
 	handler, owner, _ := homeAPIFixture(t)
-	query := `{"all":[{"field":"year","operator":"at-least","value":2002},{"field":"genre","operator":"contains","value":"Drama"}]}`
+	query := `{"variant":"group","all":[{"variant":"predicate","field":"year","operator":"at-least","value":2002},{"variant":"predicate","field":"genre","operator":"contains","value":"Drama"}]}`
 	path := "/v1/libraries/movies/facets?field=genre&pivot=movies&query=" + url.QueryEscape(query)
 	w := homeAPIRequest(t, handler, owner.AccessToken, "GET", path, "")
 	if w.Code != 200 {
@@ -28,7 +28,7 @@ func TestBrowseContextFacetsAndCountBatchHTTP(t *testing.T) {
 	if len(facet.Values) != 0 {
 		t.Fatalf("facet ignored other filter: %+v", facet)
 	}
-	w = homeAPIRequest(t, handler, owner.AccessToken, "POST", "/v1/libraries/movies/browse/counts", `{"pivot":"movies","queries":[{"id":"clear-genre","query":{"field":"year","operator":"at-least","value":2002}},{"id":"clear-all","query":null}]}`)
+	w = homeAPIRequest(t, handler, owner.AccessToken, "POST", "/v1/libraries/movies/browse/counts", `{"pivot":"movies","queries":[{"id":"clear-genre","query":{"variant":"predicate","field":"year","operator":"at-least","value":2002}},{"id":"clear-all","query":null}]}`)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -40,7 +40,7 @@ func TestBrowseContextFacetsAndCountBatchHTTP(t *testing.T) {
 	if len(batch.Counts) != 2 || batch.Counts[0].Total != 2 || batch.Counts[1].Total != 3 {
 		t.Fatalf("relax counts %+v", batch)
 	}
-	w = homeAPIRequest(t, handler, owner.AccessToken, "POST", "/v1/browse/counts", `{"pivot":"titles","queries":[{"id":"my-list","query":{"field":"watchlisted","operator":"equals","value":true}}]}`)
+	w = homeAPIRequest(t, handler, owner.AccessToken, "POST", "/v1/browse/counts", `{"pivot":"titles","queries":[{"id":"my-list","query":{"variant":"predicate","field":"watchlisted","operator":"equals","value":true}}]}`)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -51,7 +51,7 @@ func TestBrowseContextFacetsAndCountBatchHTTP(t *testing.T) {
 	if len(batch.Counts) != 1 || batch.Counts[0].Total != 3 {
 		t.Fatalf("group count %+v", batch)
 	}
-	for _, body := range []string{`{"queries":[]}`, `{"queries":[{"id":"x","query":{"field":"unpublished","operator":"equals","value":1}}]}`, `{"queries":[{"id":"x","query":null},{"id":"x","query":null}]}`} {
+	for _, body := range []string{`{"queries":[]}`, `{"queries":[{"id":"x","query":{"variant":"predicate","field":"unpublished","operator":"equals","value":1}}]}`, `{"queries":[{"id":"x","query":null},{"id":"x","query":null}]}`} {
 		w = homeAPIRequest(t, handler, owner.AccessToken, "POST", "/v1/libraries/movies/browse/counts", body)
 		if w.Code != 400 {
 			t.Fatalf("bad count query accepted: %d %s", w.Code, w.Body.String())
@@ -89,7 +89,7 @@ func TestBrowseHomeDisplayKeepsCanonicalMembershipAndActualActions(t *testing.T)
 	f.c.Exec(`INSERT INTO personal_items(profile_id,item_id,watchlisted,favorite,revision)VALUES(?,?,1,0,1),(?,?,0,1,1)`, profile, weekly.ID, profile, newest.ID)
 	f.c.Exec(`UPDATE direct_profiles SET allowed_libraries='["movies","tv"]',revision=revision+1 WHERE id=?`, f.kids.Viewer.ProfileID)
 	f.c.Drain()
-	query := `{"all":[{"field":"homeRow","operator":"equals","value":"new_on_server"},{"field":"library","operator":"equals","value":"tv"},{"field":"year","operator":"at-least","value":2020}]}`
+	query := `{"variant":"group","all":[{"variant":"predicate","field":"homeRow","operator":"equals","value":"new_on_server"},{"variant":"predicate","field":"library","operator":"equals","value":"tv"},{"variant":"predicate","field":"year","operator":"at-least","value":2020}]}`
 	read := func(token string, display bool, cursor string, rangeBody string) (catalog.BrowseResult, int, string) {
 		t.Helper()
 		body := map[string]any{"pivot": "titles", "query": json.RawMessage(query), "sort": []map[string]string{{"field": "title", "direction": "asc"}}, "limit": 1}
@@ -149,7 +149,7 @@ func TestBrowseHomeDisplayKeepsCanonicalMembershipAndActualActions(t *testing.T)
 		t.Fatalf("canonical cursor crossed modes: %s", raw)
 	}
 	// A client-supplied ID or negative/alternative source cannot confer authority.
-	for _, bad := range []string{`{"pivot":"titles","homeRowDisplay":"new_on_server","query":{"not":{"field":"homeRow","operator":"equals","value":"new_on_server"}}}`, `{"pivot":"titles","homeRowDisplay":"new_on_server","query":{"field":"favorite","operator":"equals","value":true}}`, `{"pivot":"titles","homeRowDisplay":"new_on_server","limit":61,"query":{"field":"homeRow","operator":"equals","value":"new_on_server"}}`} {
+	for _, bad := range []string{`{"pivot":"titles","homeRowDisplay":"new_on_server","query":{"variant":"group","not":{"variant":"predicate","field":"homeRow","operator":"equals","value":"new_on_server"}}}`, `{"pivot":"titles","homeRowDisplay":"new_on_server","query":{"variant":"predicate","field":"favorite","operator":"equals","value":true}}`, `{"pivot":"titles","homeRowDisplay":"new_on_server","limit":61,"query":{"variant":"predicate","field":"homeRow","operator":"equals","value":"new_on_server"}}`} {
 		w := homeAPIRequest(t, f.h, f.token, "POST", "/v1/browse", bad)
 		if w.Code != 400 {
 			t.Fatalf("unbound display %d %s", w.Code, w.Body.String())
@@ -173,7 +173,7 @@ func TestBrowseHomeDisplayKeepsCanonicalMembershipAndActualActions(t *testing.T)
 func TestBrowseCountsAndFacetsDoNotDiscloseRestrictedTotals(t *testing.T) {
 	f := newSearchPrivacyFixture(t)
 	f.restrictLiveTV(false)
-	w := homeAPIRequest(t, f.h, f.kids.AccessToken, "POST", "/v1/libraries/movies/browse/counts", `{"pivot":"movies","queries":[{"id":"all","query":null},{"id":"adult","query":{"field":"title","operator":"contains","value":"Adult"}}]}`)
+	w := homeAPIRequest(t, f.h, f.kids.AccessToken, "POST", "/v1/libraries/movies/browse/counts", `{"pivot":"movies","queries":[{"id":"all","query":null},{"id":"adult","query":{"variant":"predicate","field":"title","operator":"contains","value":"Adult"}}]}`)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -188,7 +188,7 @@ func TestBrowseCountsAndFacetsDoNotDiscloseRestrictedTotals(t *testing.T) {
 	if w.Code != 403 && w.Code != 404 {
 		t.Fatalf("private library count %d %s", w.Code, w.Body.String())
 	}
-	q := url.QueryEscape(`{"field":"homeRow","operator":"equals","value":"new_on_server"}`)
+	q := url.QueryEscape(`{"variant":"predicate","field":"homeRow","operator":"equals","value":"new_on_server"}`)
 	w = homeAPIRequest(t, f.h, f.kids.AccessToken, "GET", "/v1/browse/facets?field=library&pivot=titles&query="+q, "")
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
@@ -240,7 +240,7 @@ func TestBrowseMusicUnmatchedUsesPublicMemberRouteAndCurrentSource(t *testing.T)
 		if !fileSize {
 			t.Fatal("file size offer missing")
 		}
-		w = homeAPIRequest(t, f.h, token, "POST", "/v1/libraries/music/browse", `{"pivot":"albums","query":{"field":"match","operator":"equals","value":"unmatched"}}`)
+		w = homeAPIRequest(t, f.h, token, "POST", "/v1/libraries/music/browse", `{"pivot":"albums","query":{"variant":"predicate","field":"match","operator":"equals","value":"unmatched"}}`)
 		if w.Code != 200 {
 			t.Fatal(w.Code, w.Body.String())
 		}

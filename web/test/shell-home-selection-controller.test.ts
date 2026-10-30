@@ -14,7 +14,7 @@ type EditBody = {operationId: string; targets: Target[]; fields: unknown};
 function preview(targets: readonly Target[]) {
   const year = {field: 'year', label: 'Year', group: 'numbers', type: 'integer', min: 0, max: 9999, bulk: true};
   const title = {field: 'title', label: 'Title', group: 'general', type: 'text', bulk: false};
-  return {serverId: 'server', viewerFence: fence, contentKind: 'movie', kind: 'item', total: targets.length,
+  return {variant: 'ready', serverId: 'server', viewerFence: fence, contentKind: 'movie', kind: 'item', total: targets.length,
     schema: [year], singleItemFields: [year, title], excludedFields: [title],
     fields: {year: {state: 'shared', value: '2020', distinctCount: 1, values: [{value: '2020', count: targets.length}], entries: [], locked: 0, truncated: false}},
     targets: targets.map(target => ({kind: target.kind, id: target.id, libraryId: target.libraryId, expectedRevision: revision}))};

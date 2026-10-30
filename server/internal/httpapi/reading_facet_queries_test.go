@@ -359,7 +359,7 @@ func TestReadingFacetQueriesStatusContracts(t *testing.T) {
 	if err := registerReadingFacetQueryRoutes(registry, Dependencies{}); err != nil {
 		t.Fatal(err)
 	}
-	generated, err := apikit.Generate(registry.Definitions())
+	generated, err := apikit.GenerateWith(registry.Definitions(), apikit.Options{GrandfatheredUnionTags: GrandfatheredUnionTags})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -236,7 +236,7 @@ func TestJustinOnlyMoviesFrom1985(t *testing.T) {
 	}
 
 	f := justinsLibrary(t)
-	c := channel("eighty-five", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"field":"year","operator":"equals","value":1985}`)}, "shuffle-bag", "none")
+	c := channel("eighty-five", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"variant":"predicate","field":"year","operator":"equals","value":1985}`)}, "shuffle-bag", "none")
 	p := previewOf(t, f, c)
 	if got := sampleIDs(p); !slices.Equal(got, f.sortedIDsFor("m05", "y85-0", "y85-1", "y85-2", "y85-3")) {
 		t.Fatalf("1985 movies: %v", got)
@@ -269,7 +269,7 @@ func TestJustinNothingButMalcolmInTheMiddle(t *testing.T) {
 		t.Fatalf("first day is not Malcolm in order, looping: %v", got)
 	}
 	// The same channel by title filter.
-	byTitle := channel("malcolm2", Query{LibraryIDs: []string{"tv"}, Kinds: []string{"episode"}, Order: "episode", Filter: raw(`{"field":"title","operator":"equals","value":"Malcolm in the Middle"}`)}, "sequential", "in-order")
+	byTitle := channel("malcolm2", Query{LibraryIDs: []string{"tv"}, Kinds: []string{"episode"}, Order: "episode", Filter: raw(`{"variant":"predicate","field":"title","operator":"equals","value":"Malcolm in the Middle"}`)}, "sequential", "in-order")
 	if got := dayItems(previewOf(t, f, byTitle)); !slices.Equal(got[:6], want) {
 		t.Fatalf("by title: %v", got)
 	}
@@ -277,7 +277,7 @@ func TestJustinNothingButMalcolmInTheMiddle(t *testing.T) {
 
 func TestJustinBadMoviesThatMentionSharks(t *testing.T) {
 	f := justinsLibrary(t)
-	c := channel("bad-sharks", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "rating", Text: "sharks", Filter: raw(`{"field":"communityRating","operator":"less-than","value":3}`)}, "sequential", "none")
+	c := channel("bad-sharks", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "rating", Text: "sharks", Filter: raw(`{"variant":"predicate","field":"communityRating","operator":"less-than","value":3}`)}, "sequential", "none")
 	p := previewOf(t, f, c)
 	if got := sampleIDs(p); !slices.Equal(got, f.sortedIDsFor("mega", "sand-sharks", "sharktopus")) {
 		t.Fatalf("bad shark movies: %v (Jaws 8.1, Shark Night 4.0 and the unrated doc must not match)", got)
@@ -292,7 +292,7 @@ func TestSelectionGroupsExclusionsAndPins(t *testing.T) {
 	f := justinsLibrary(t)
 	// any(year 1985, title starts with "Shark") AND NOT rating < 3, minus a pinned-out title, plus a pinned-in one.
 	q := Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title",
-		Filter:         raw(`{"all":[{"any":[{"field":"year","operator":"equals","value":1985},{"field":"title","operator":"starts-with","value":"Shark"}]},{"not":{"field":"communityRating","operator":"less-than","value":3}}]}`),
+		Filter:         raw(`{"variant":"group","all":[{"variant":"group","any":[{"variant":"predicate","field":"year","operator":"equals","value":1985},{"variant":"predicate","field":"title","operator":"starts-with","value":"Shark"}]},{"variant":"group","not":{"variant":"predicate","field":"communityRating","operator":"less-than","value":3}}]}`),
 		ExcludeItemIDs: []string{f.id("y85-3")}, IncludeItemIDs: []string{f.id("jaws")}}
 	p := previewOf(t, f, channel("mix", q, "sequential", "none"))
 	got := []string{}
@@ -309,13 +309,13 @@ func TestSelectionGroupsExclusionsAndPins(t *testing.T) {
 }
 
 func TestPersonalFieldsAreRefusedWithAClearMessage(t *testing.T) {
-	c := channel("mine", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"field":"playState","operator":"equals","value":"unplayed"}`)}, "shuffle-bag", "none")
+	c := channel("mine", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"variant":"predicate","field":"playState","operator":"equals","value":"unplayed"}`)}, "shuffle-bag", "none")
 	err := Validate(c)
 	var issue *ValidationError
 	if !errors.As(err, &issue) || issue.Message != PersonalHint || !errors.Is(err, ErrInvalid) {
 		t.Fatalf("personal field: %v", err)
 	}
-	bad := channel("bad", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"field":"year","operator":"equals","value":"soon"}`)}, "shuffle-bag", "none")
+	bad := channel("bad", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"variant":"predicate","field":"year","operator":"equals","value":"soon"}`)}, "shuffle-bag", "none")
 	if err = Validate(bad); !errors.As(err, &issue) || !strings.Contains(issue.Path, "filter") {
 		t.Fatalf("invalid value names its path: %v", err)
 	}
@@ -329,7 +329,7 @@ func TestRotateAndSequentialThenShuffle(t *testing.T) {
 	if len(got) < len(want) || !slices.Equal(got[:len(want)], want) {
 		t.Fatalf("rotation: %v", got)
 	}
-	then := channel("then", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"field":"year","operator":"equals","value":1985}`)}, "sequential-then-shuffle", "none")
+	then := channel("then", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"variant":"predicate","field":"year","operator":"equals","value":1985}`)}, "sequential-then-shuffle", "none")
 	day := dayItems(previewOf(t, f, then))
 	ordered := f.idsFor("y85-0", "y85-1", "y85-2", "y85-3", "m05")
 	reversed := f.idsFor("m05", "y85-0", "y85-1", "y85-2", "y85-3")
@@ -434,7 +434,7 @@ func TestPreviewIsBoundedOnALargeLibrary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := channel("big", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"field":"decade","operator":"equals","value":1980}`)}, "shuffle-bag", "none")
+	c := channel("big", Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title", Filter: raw(`{"variant":"predicate","field":"decade","operator":"equals","value":1980}`)}, "shuffle-bag", "none")
 	started := time.Now()
 	p := previewOf(t, f, c)
 	elapsed := time.Since(started)

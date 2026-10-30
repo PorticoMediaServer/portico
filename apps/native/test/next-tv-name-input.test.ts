@@ -7,7 +7,7 @@ import {createFocusRegistry} from '../src-next/kit/focus/registry';
 import {createNativeTVNameInput} from '../src-next/tv/library/keyboard-state';
 
 const scope = {serverId: 'server', viewerId: JSON.stringify(['local', 'account', 'profile'])};
-const definition = {libraryId: 'movies', pivot: 'movies', query: {field: 'favorite', operator: 'equals', value: true},
+const definition = {libraryId: 'movies', pivot: 'movies', query: {variant: 'predicate', field: 'favorite', operator: 'equals', value: true},
   sort: [{field: 'title', direction: 'asc'}], presentation: 'grid'} as const;
 const operationId = '12345678-1234-4123-8123-123456789abc';
 const directory = {serverId: 'server', viewerFence: 'actual-viewer', revision: 1, resources: [], nextCursor: ''};

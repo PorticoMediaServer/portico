@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {parseLibraryScreenSearch} from '../src/screens/browse/route-search.ts';
 
 test('Library links retain actual category and compound server predicates without forwarding raw keys', () => {
-  const query = {all: [{field: 'genre', operator: 'contains-any', value: ['actual genre']}]};
+  const query = {variant:'group',all: [{variant:'predicate',field: 'genre', operator: 'contains-any', value: ['actual genre']}]};
   const sort = [{field: 'added', direction: 'desc'}, {field: 'title', direction: 'asc'}];
   assert.deepEqual(parseLibraryScreenSearch({view: 'browse', entityId: 'opaque/ID', category: 'genre:actual', pivot: 'movies', query, sort, unowned: true}),
     {view: 'browse', entityId: 'opaque/ID', category: 'genre:actual', pivot: 'movies', query, sort});

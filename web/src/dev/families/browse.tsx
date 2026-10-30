@@ -32,7 +32,7 @@ const genreCounts = [6, 8, 6, 6, 4, 2, 2, 1, 1, 6, 2, 1, 2];
 const genres = genreKeys.map((value, index) => ({value, label: fixture(`next.browse.example.${value}`), count: genreCounts[index]}));
 const valueNames = {'unplayed': 'next.kit.browse.unwatched', 'played': 'next.kit.browse.watched', 'in-progress': 'next.kit.browse.inProgress', 'available': 'next.kit.browse.available', 'unavailable': 'next.kit.browse.unavailable'} as const;
 const valueName = (value: string) => Object.hasOwn(valueNames, value) ? t(valueNames[value as keyof typeof valueNames]) : value;
-const initialPredicates: readonly BrowseNode[] = [{field: 'genre', operator: 'contains-any', value: [genres[0]!.label]}, {field: 'decade', operator: 'in', value: [2010]}];
+const initialPredicates: readonly BrowseNode[] = [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: [genres[0]!.label]}, {variant: 'predicate', field: 'decade', operator: 'in', value: [2010]}];
 function Stage({children, outcome}: Readonly<{children: ReactNode; outcome?: ReactNode}>) {
   return <div className={styles.stage}>{children}<output className={styles.outcome} aria-live="polite">{outcome}</output></div>;
 }

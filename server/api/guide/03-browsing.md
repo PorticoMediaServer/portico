@@ -21,8 +21,13 @@ sorts and filters; do not build a second client-side visibility rule.
 For structured browse, read capabilities first. An example request:
 
 ```json
-{"limit":40,"query":{"field":"title","operator":"contains","value":"harbor"}}
+{"limit":40,"query":{"variant":"predicate","field":"title","operator":"contains","value":"harbor"}}
 ```
+
+Every node of a query carries a `variant`: `predicate` (field, operator, value),
+`relative` (the `within-last-days` operator on a date field) or `group` (exactly
+one of `all`, `any` or `not`). The server sends the same tags back in the applied
+query, and a request without them is refused.
 
 The response has `entries`, the applied query, `pageInfo` and optional letter
 anchors in `positionIndex`. Use `pageInfo.nextCursor` for the next page or the

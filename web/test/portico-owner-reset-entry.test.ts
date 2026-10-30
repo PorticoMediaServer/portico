@@ -13,7 +13,7 @@ function fixture(signIn: 'local' | 'portico' = 'portico') {
   const route = {pin, logicalOrigin: origin, getSnapshot: () => ({phase: 'ready'}), dispose: () => {}};
   const system = {id: serverId, name: 'Original server', version: '1', signIn, move: null, setupRequired: false, hostedConfigured: signIn === 'portico', hostedAttached: signIn === 'portico', apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
   const response = {
-    authority: 'local', serverId, canManage: true, resetFileOwnerSession: true,
+    variant: 'owner-session', authority: 'local', serverId, canManage: true, resetFileOwnerSession: true,
     capabilities: {manageAccount: true, managePeople: true, manageServer: true, manageSignIn: true},
     account: {id: 'owner', username: 'actual_owner', role: 'owner', hostedAccountId: 'actual-hosted-link', primaryProfileId: 'main', revision: 1, disabled: false, allowedLibraries: []},
     profiles: [{id: 'main', name: 'Actual owner', primary: true, position: 0, art: 'blue', revision: 1, pinRevision: 1, pinRequired: true}],

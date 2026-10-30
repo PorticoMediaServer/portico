@@ -33,7 +33,7 @@ test('real App Search keeps separate eligible previews and an artless All genres
       genreReads++;
       const preview = url.searchParams.get('preview');
       const rows = preview === 'covers' ? genres.slice(1) : preview === 'backdrop' ? [{value: 'backdrop-only', label: 'Backdrop prefix first', count: 8, covers: [], backdrop: art('other', 'backdrop')}, genres[1]] : genres;
-      return {status: 200, body: {queryId:'genre_query',revision: 'actual-genre-read', hasGenres: true, genres: rows}};
+      return {status: 200, body: {variant: 'ready', queryId:'genre_query',revision: 'actual-genre-read', hasGenres: true, genres: rows}};
     }
     if (url.pathname === '/v1/browse-capabilities') {assert.equal(url.searchParams.get('pivot'), 'video-titles'); return {status: 200, body: capabilities};}
     if (url.pathname === '/v1/browse' && request.method === 'POST') {
@@ -78,7 +78,7 @@ test('real App Search keeps separate eligible previews and an artless All genres
     const genre = context.navigation.getSnapshot().route;
     assert.deepEqual(genre, {kind: 'search-genre', value: 'actual-value', label: 'Stored Genre'});
     assert.ok(browse.length); assert.equal(browse[0]!.pivot, 'video-titles');
-    assert.deepEqual(browse[0]!.query, {field: 'genre', operator: 'equals', value: 'actual-value'});
+    assert.deepEqual(browse[0]!.query, {variant: 'predicate', field: 'genre', operator: 'equals', value: 'actual-value'});
     assert.deepEqual(browse[0]!.sort, [{field: 'title', direction: 'asc'}]);
     assert.equal(browse[0]!.range?.start, 0);
     const card = app.hosts().find((host: any) => host.name === 'Pressable' && host.props.accessibilityLabel === 'Genuine display title');

@@ -66,6 +66,15 @@ func TestResetFileHTTPProducerContractsAndAuthority(t *testing.T) {
 			if e := json.Unmarshal(verified.Body.Bytes(), &out); e != nil {
 				t.Fatal(e)
 			}
+			var tag struct {
+				Variant string `json:"variant"`
+			}
+			if e := json.Unmarshal(verified.Body.Bytes(), &tag); e != nil {
+				t.Fatal(e)
+			}
+			if want := map[string]string{"portico": "owner-session", "local": "password-change"}[mode]; tag.Variant != want {
+				t.Fatalf("owner reset verify variant %q, want %q", tag.Variant, want)
+			}
 			if out.Session == nil || out.Session.RefreshToken != "" || out.ResetFileOwnerSession != (mode == "portico") || out.PasswordChangeRequired != (mode == "local") {
 				t.Fatal("incorrect reset authority")
 			}

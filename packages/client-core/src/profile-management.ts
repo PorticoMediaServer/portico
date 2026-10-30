@@ -6,6 +6,7 @@ import {CodedError,unreadableServerResponse} from './server-messages.ts';
 import {parseLocalSession,currentUTCTimestamp} from './local-session.ts';
 import type {LocalSession} from './index.ts';
 import {keepReadable,oneOfOr} from './tolerant.ts';
+import {requireTag} from './needs-newer-app.ts';
 
 /** Account credentials administer profiles; a selected profile is only a viewer. */
 export interface ProfileAPI {request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}
@@ -146,6 +147,14 @@ export function parseDirectSignIn(raw:unknown):DirectSignIn{
  // A viewer session straight from sign-in only for one unprotected profile and no forced password change.
  if(!accountScoped&&!resetFileOwnerSession&&(passwordChangeRequired||snapshot.profiles.length!==1||snapshot.profiles[0]!.pinRequired))invalid();
  return Object.freeze({kind:'signed-in',snapshot,session,accountScoped,passwordChangeRequired,...(resetFileOwnerSession?{resetFileOwnerSession:true as const}:{})});
+}
+/** A sign-in answered by a route whose response union is tagged (R-09b): the server always sends `variant`, one of
+ * `known`. A tag outside it is a newer server (`NeedsNewerAppError`); a known tag the sign-in does not match is unreadable. */
+export function parseTaggedSignIn(raw:unknown,known:readonly string[],matches:(tag:string,out:DirectSignIn)=>boolean):DirectSignIn{
+ const tag=requireTag(raw,'variant',known,invalid);
+ const out=parseDirectSignIn(raw);
+ if(!matches(tag,out))invalid();
+ return out;
 }
 /** `POST /v1/direct/sign-in`. */
 export async function directSignIn(api:ProfileAPI,username:string,password:string,signal?:AbortSignal):Promise<DirectSignIn>{

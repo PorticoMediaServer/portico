@@ -240,9 +240,12 @@ func (d Dependencies) analysisRoutes(mux *http.ServeMux) {
 							switch m.Action {
 							case "pause", "resume", "cancel":
 								e = d.Ingestion.Control(ctx, r.PathValue("job"), m.Action, authorize)
-								out = map[string]string{"status": m.Action}
+								out = map[string]string{"variant": "acknowledgement", "status": m.Action}
 							case "retry":
 								out, e = d.Ingestion.QueueItemAnalysis(ctx, a.LibraryID, v.ID, v.Revision, authorize)
+								if e == nil {
+									out = variantBody{"job", out}
+								}
 								status = 202
 							default:
 								e = mediaanalysis.ErrInput

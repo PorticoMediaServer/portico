@@ -101,7 +101,7 @@ function PredicateControl({source, entry, condition, locked, onChange}: Readonly
     return () => {abort.abort();clearTimeout(timer);};
   }, [source, entry, facet, query]);
   if (condition.predicates.length > 1) return <><p className={styles.help}>{t('builder.opaqueConditions')}</p><Button size="small" variant="text" disabled={locked} onClick={() => onChange([])}>{t('builder.remove')}</Button></>;
-  const put = (value: BrowseScalar | readonly BrowseScalar[] | null, next = operator) => {if (next && entry.field.operators.includes(next)) onChange([{field:entry.field.id,operator:next,value}]);};
+  const put = (value: BrowseScalar | readonly BrowseScalar[] | null, next = operator) => {if (next && entry.field.operators.includes(next)) onChange([{variant:'predicate',field:entry.field.id,operator:next,value}]);};
   const scalar = (text: string) => entry.field.type === 'number' || operator === 'within-last-days' ? text.trim() ? Number(text) : NaN : text;
   const selected = Array.isArray(first?.value) ? first.value : first?.value === undefined || first.value === null ? [] : [first.value];
   return <div className={styles.predicate}>

@@ -5,13 +5,13 @@ import {createSelectionEditor, editorPreviewRequest, editorTargetLawful, Selecti
 const capabilities = {play: true, queue: true, playlist: true, myList: true, watched: true, collection: true, favorite: true, download: false, edit: true, refresh: true, delete: true};
 const item = {kind: 'movie', id: 'm1', libraryId: 'a', capabilities};
 const explicit = {mode: 'explicit' as const, context: {}, items: [{key: 'k', item}], displayItems: [{key: 'k', item}]};
-const query = {mode: 'query' as const, context: {}, queryId: 'q', selector: {query: {libraryId: 'a', pivot: 'movies', filter: {field: 'year', operator: 'at-least', value: 2000}, sort: [{field: 'title', direction: 'asc'}]}},
+const query = {mode: 'query' as const, context: {}, queryId: 'q', selector: {query: {libraryId: 'a', pivot: 'movies', filter: {variant:'predicate',field: 'year', operator: 'at-least', value: 2000}, sort: [{field: 'title', direction: 'asc'}]}},
   total: 48000, sourceTotal: 48000, refinement: {kind: null, excludedItems: []}, summary: {}, expected: {catalogRevision: 'revision-1'}};
 const spec = {field: 'contentRating', label: 'Content rating', type: 'text', bulk: true, group: 'general', maxLength: 300};
-const preview = {serverId: 'server', viewerFence: 'a'.repeat(64), contentKind: 'movie', kind: 'item', total: 1, schema: [spec], singleItemFields: [spec], excludedFields: [],
+const preview = {variant: 'ready', serverId: 'server', viewerFence: 'a'.repeat(64), contentKind: 'movie', kind: 'item', total: 1, schema: [spec], singleItemFields: [spec], excludedFields: [],
   fields: {contentRating: {state: 'shared', distinctCount: 1, value: 'G', values: [{value: 'G', count: 1}], entries: [], locked: 0, truncated: false}},
   targets: [{kind: 'item', id: 'm1', libraryId: 'a', expectedRevision: 'b'.repeat(64)}]};
-const queryPreview = {serverId: 'server', viewerFence: 'a'.repeat(64), contentKind: 'movie', kind: 'item', total: 48000, selectionRevision: 'revision-1', schema: [], singleItemFields: [], excludedFields: [], fields: {}, targets: []};
+const queryPreview = {variant: 'ready', serverId: 'server', viewerFence: 'a'.repeat(64), contentKind: 'movie', kind: 'item', total: 48000, selectionRevision: 'revision-1', schema: [], singleItemFields: [], excludedFields: [], fields: {}, targets: []};
 
 test('explicit picks preview their exact identities and a whole view is refused', () => {
   assert.deepEqual(editorPreviewRequest(explicit as never), {targets: [{kind: 'item', contentKind: 'movie', id: 'm1', libraryId: 'a'}]});

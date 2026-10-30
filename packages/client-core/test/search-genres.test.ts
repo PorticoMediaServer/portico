@@ -9,7 +9,7 @@ import type {PreparationResponse, PreparationRuntime} from '../src/read-preparat
 import {getEventListeners} from 'node:events';
 
 const artwork = (id: string, role: 'poster' | 'backdrop', kind = 'item') => ({kind, id, path: `/v1/metadata/${kind}/${id}/art/${role}?v=${'a'.repeat(64)}&w=${role === 'backdrop' ? 1920 : 400}`});
-const answer = () => ({queryId: 'genre_1', revision: 'opaque-authorized-revision', genres: [
+const answer = () => ({variant: 'ready', queryId: 'genre_1', revision: 'opaque-authorized-revision', genres: [
   {value: 'Sci-Fi & Fantasy', label: 'Sci-Fi & Fantasy', count: 17, backdrop: artwork('film-a', 'backdrop'), covers: [artwork('film-b', 'poster'), artwork('show-c', 'poster', 'show')]},
   {value: 'Crime', label: 'Crime', count: 9, covers: []},
 ], nextCursor: 'opaque_cursor'});
@@ -88,7 +88,7 @@ test('a cancelled caller neither starts another read nor installs a late respons
 test('a genre opens the canonical video-only across browse with its exact value', () => {
   const request = searchGenreBrowseRequest('Sci-Fi & Fantasy');
   assert.equal(searchGenreBrowsePivot, 'video-titles');
-  assert.deepEqual(request, {pivot: 'video-titles', query: {field: 'genre', operator: 'equals', value: 'Sci-Fi & Fantasy'}, sort: [{field: 'title', direction: 'asc'}]});
+  assert.deepEqual(request, {pivot: 'video-titles', query: {variant:'predicate',field: 'genre', operator: 'equals', value: 'Sci-Fi & Fantasy'}, sort: [{field: 'title', direction: 'asc'}]});
   assert.ok(Object.isFrozen(request) && Object.isFrozen(request.query) && Object.isFrozen(request.sort));
   assert.throws(() => searchGenreBrowseRequest(''));
   for (const value of ['x'.repeat(10000), 'Crime\u0000metadata']) assert.equal((searchGenreBrowseRequest(value).query as {value: string}).value, value);
@@ -98,25 +98,26 @@ test('slot previews are independent bounded reads and retain artless-directory p
   assert.equal(searchGenresPath({limit: 6, preview: 'covers'}), '/v1/search/genres?limit=6&preview=covers');
   assert.throws(() => searchGenresPath({preview: 'covers', cursor: 'list-only'}));
   for (const raw of [
-    {queryId: 'preview_1', revision: 'basis', genres: [], hasGenres: true},
-    {queryId: 'preview_1', revision: 'basis', genres: [], hasGenres: false},
+    {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: [], hasGenres: true},
+    {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: [], hasGenres: false},
   ]) {
     const page = await readSearchGenres({request: async <T>() => raw as T}, {limit: 4, preview: 'backdrop'});
     assert.equal(page.hasGenres, raw.hasGenres);
     assert.deepEqual(page.genres, []);
   }
   for (const raw of [
-    {queryId: 'preview_1', revision: 'basis', genres: []},
-    {queryId: 'preview_1', revision: 'basis', genres: [], hasGenres: true, nextCursor: 'do-not-drain'},
-    {queryId: 'preview_1', revision: 'basis', genres: [answer().genres[1]], hasGenres: true},
-    {queryId: 'preview_1', revision: 'basis', genres: answer().genres, hasGenres: true},
+    {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: []},
+    {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: [], hasGenres: true, nextCursor: 'do-not-drain'},
+    {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: [answer().genres[1]], hasGenres: true},
+    {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: answer().genres, hasGenres: true},
   ]) {
     await assert.rejects(readSearchGenres({request: async <T>() => raw as T}, {limit: 1, preview: 'backdrop'}));
   }
 });
 
 const response = (status: number, body?: unknown, headers: Record<string, string> = {}): PreparationResponse => ({status, body, headers});
-const pending = (queryId = 'genre_1', retryAfterMs = 1000) => ({kind: 'genre-preparing', state: 'preparing', queryId, retryAfterMs});
+const pending = (queryId = 'genre_1', retryAfterMs = 1000) => ({variant: 'preparing', kind: 'genre-preparing', state: 'preparing', queryId, retryAfterMs});
+const nestedPending = (queryId = 'genre_1') => { const {variant: _variant, ...rest} = pending(queryId); return rest; };
 const ready = (queryId = 'genre_1', over: Record<string, unknown> = {}) => ({...answer(), queryId, ...over});
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -225,27 +226,27 @@ test('later scope abort releases a ready directory lease; un-signalled caller ca
 
 test('previews and anchorless empty directory pages release immediately, including empty/artless hasGenres', async t => {
   for (const hasGenres of [true, false]) await t.test(String(hasGenres), async () => {
-    const f = rawFixture([response(200, {queryId: 'preview_1', revision: 'basis', genres: [], hasGenres})]);
+    const f = rawFixture([response(200, {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: [], hasGenres})]);
     const page = await readSearchGenres(f.api, {preview: 'backdrop', limit: 4}, f.scope.signal, f.options);
     assert.equal(page.queryId, 'preview_1'); assert.equal(page.hasGenres, hasGenres); assert.deepEqual(page.genres, []);
     assert.equal(f.gets().length, 1); assert.equal(f.deletes().length, 1);
     assert.equal(getEventListeners(f.scope.signal, 'abort').length, 0);
     releaseSearchGenres(page); f.scope.abort(); assert.equal(f.deletes().length, 1);
   });
-  const f = rawFixture([response(200, {queryId: 'empty_1', revision: 'basis', genres: []})]);
+  const f = rawFixture([response(200, {variant: 'ready', queryId: 'empty_1', revision: 'basis', genres: []})]);
   const page = await readSearchGenres(f.api, {}, f.scope.signal, f.options);
   assert.equal(f.deletes().length, 1); releaseSearchGenres(page); assert.equal(f.deletes().length, 1); f.scope.abort();
 });
 
 test('preview requires exact slot art/nonnullable hasGenres and forbids every continuation anchor', async t => {
   for (const key of ['nextCursor', 'previousCursor', 'reloadCursor']) await t.test(key, async () => {
-    const f = rawFixture([response(200, {queryId: 'preview_1', revision: 'basis', genres: [], hasGenres: true, [key]: 'opaque'})]);
+    const f = rawFixture([response(200, {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: [], hasGenres: true, [key]: 'opaque'})]);
     await assert.rejects(readSearchGenres(f.api, {preview: 'covers'}, f.scope.signal, f.options));
     assert.equal(f.deletes().length, 1); assert.equal(f.gets().length, 1); f.scope.abort();
   });
-  for (const body of [{queryId: 'p', revision: 'basis', genres: []},
-    {queryId: 'p', revision: 'basis', genres: [], hasGenres: null},
-    {queryId: 'p', revision: 'basis', genres: answer().genres, hasGenres: true},
+  for (const body of [{variant: 'ready', queryId: 'p', revision: 'basis', genres: []},
+    {variant: 'ready', queryId: 'p', revision: 'basis', genres: [], hasGenres: null},
+    {variant: 'ready', queryId: 'p', revision: 'basis', genres: answer().genres, hasGenres: true},
   ]) {
     const f = rawFixture([response(200, body)]);
     await assert.rejects(readSearchGenres(f.api, {preview: 'covers'}, f.scope.signal, f.options));
@@ -425,7 +426,7 @@ test('many explicit continuations keep exactly one live lease/scope listener and
 });
 
 test('retirement during anchorless ready cleanup cannot publish a late empty success', async () => {
-  const f = rawFixture([response(200, {queryId: 'empty_1', revision: 'basis', genres: []})]);
+  const f = rawFixture([response(200, {variant: 'ready', queryId: 'empty_1', revision: 'basis', genres: []})]);
   const send = f.api.requestRaw!.bind(f.api);
   f.api.requestRaw = (path, method, options) => {
     const reply = send(path, method, options);
@@ -437,8 +438,8 @@ test('retirement during anchorless ready cleanup cannot publish a late empty suc
   assert.equal(getEventListeners(f.scope.signal, 'abort').length, 0);
 });
 
-const fallback = (queryId = 'genre_1', over: Record<string, unknown> = {}) => ({kind: 'genre-fallback', queryId,
-  revision: 'preparing', genres: [], hasGenresKnown: false, totalIsLowerBound: true, preparation: pending(queryId), ...over});
+const fallback = (queryId = 'genre_1', over: Record<string, unknown> = {}) => ({variant: 'fallback', kind: 'genre-fallback', queryId,
+  revision: 'preparing', genres: [], hasGenresKnown: false, totalIsLowerBound: true, preparation: nestedPending(queryId), ...over});
 
 test('cold fallback explicitly means unknown and cannot parse as an exact ready page', () => {
   const raw = fallback(), value = parseSearchGenreFallback(raw);
@@ -466,7 +467,7 @@ test('fallback strictly requires lower-bound/unknown flags, stable ID, empty row
 
 test('cold fallback publishes transient unknown panel and continues to exact preview with HasGenres', async () => {
   const interim = response(200, fallback(), {'Retry-After': '120', Location: '/v1/genre-queries/genre_1'});
-  const exact = {queryId: 'genre_1', revision: 'accepted_basis', genres: [], hasGenres: false};
+  const exact = {variant: 'ready', queryId: 'genre_1', revision: 'accepted_basis', genres: [], hasGenres: false};
   const f = rawFixture([response(202, pending()), interim, response(200, exact)]);
   let callbacks = 0, finished = false;
   const done = readSearchGenres(f.api, {preview: 'backdrop', limit: 4}, f.scope.signal, {...f.options, onFallback(panel, raw) {

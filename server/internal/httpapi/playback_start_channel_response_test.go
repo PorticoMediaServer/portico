@@ -69,10 +69,11 @@ func TestColdChannelStartKeepsRealSessionAndProducerGeneration(t *testing.T) {
 	for _, kind := range []string{"channel", "live"} {
 		v := cold
 		v.Kind = kind
-		if _, err := startSessionResponse(v, false); err != nil {
+		out, err := startSessionResponse(v, false)
+		if err != nil {
 			t.Fatal(kind, err)
 		}
-		raw, err := json.Marshal(v)
+		raw, err := json.Marshal(out)
 		if err != nil {
 			t.Fatal(err)
 		}

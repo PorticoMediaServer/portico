@@ -2352,7 +2352,7 @@ test('late version cleanup survives ordinary disposal but never uses a replaceme
 });
 
 test('whole-group Play and Shuffle send the actual selector, never a loaded preview list', async () => {
-  const query = {libraryId: '*', pivot: 'titles', query: {field: 'homeRow', operator: 'equals' as const, value: 'actual-row'}, sort: [{field: 'groupOrder', direction: 'asc' as const}]};
+  const query = {libraryId: '*', pivot: 'titles', query: {variant: 'predicate' as const, field: 'homeRow', operator: 'equals' as const, value: 'actual-row'}, sort: [{field: 'groupOrder', direction: 'asc' as const}]};
   for (const shuffle of [false, true]) {
     const d = fixture();
     try {
@@ -2368,7 +2368,7 @@ test('whole-group Play and Shuffle send the actual selector, never a loaded prev
 });
 
 test('whole-group caller retirement during capabilities prevents a late queue creation', async () => {
-  const query = {libraryId: '*', pivot: 'titles', query: {field: 'homeRow', operator: 'equals' as const, value: 'actual-row'}, sort: [{field: 'groupOrder', direction: 'asc' as const}]};
+  const query = {libraryId: '*', pivot: 'titles', query: {variant: 'predicate' as const, field: 'homeRow', operator: 'equals' as const, value: 'actual-row'}, sort: [{field: 'groupOrder', direction: 'asc' as const}]};
   for (const retirement of ['signal', 'member'] as const) {
     const d = fixture(), controller = new AbortController(); let current = true;
     try {
@@ -3252,7 +3252,7 @@ test('O-159 untitled starts: a catalogue or group Play draws a generic "Starting
     const held = new Promise<void>(resolve => {release = resolve;});
     d.intercept(async request => {if (request.method === 'POST' && request.path === routePath('create_queue')) await held;});
     try {
-      const query = {libraryId: '*', pivot: 'titles', query: {field: 'homeRow', operator: 'equals' as const, value: 'actual-row'}, sort: [{field: 'groupOrder', direction: 'asc' as const}]};
+      const query = {libraryId: '*', pivot: 'titles', query: {variant: 'predicate' as const, field: 'homeRow', operator: 'equals' as const, value: 'actual-row'}, sort: [{field: 'groupOrder', direction: 'asc' as const}]};
       const started = which === 'catalogue'
         ? d.runtime.cataloguePlayback().playSegments([{source: {items: {ids: ['movie-1', 'movie-2']}}}], {signal: new AbortController().signal, isCurrent: () => true})
         : d.runtime.startGroup({query, shuffle: false, signal: new AbortController().signal, isCurrent: () => true});

@@ -66,7 +66,7 @@ function Predicate({source,entry,condition,locked,isCurrent,t,onChange}:{source:
   useEffect(()=>{if(!scope?.active)return;const abort=new AbortController();scope.read?.abort();scope.read=abort;scope.values=undefined;setValues([]);if(!facet)return()=>abort.abort();const timer=setTimeout(()=>{if(!scope.active||scope.read!==abort||abort.signal.aborted||!isCurrent())return;void source.values(entry,query,abort.signal).then(result=>{if(scope.active&&scope.read===abort&&!abort.signal.aborted&&isCurrent()){scope.values=result;setValues(result);}},()=>{});},200);return()=>{abort.abort();clearTimeout(timer);};},[source,entry,facet,query,scope,isCurrent]);
   const value=first?.value;
   const selected:readonly BrowseScalar[]=value===undefined||value===null?[]:typeof value==='string'||typeof value==='number'||typeof value==='boolean'?[value]:value;
-  const put=(value:BrowseScalar|readonly BrowseScalar[]|null,next=operator)=>{if(current()&&next&&entry.field.operators.includes(next))onChange([{field:entry.field.id,operator:next,value}]);};
+  const put=(value:BrowseScalar|readonly BrowseScalar[]|null,next=operator)=>{if(current()&&next&&entry.field.operators.includes(next))onChange([{variant:next==='within-last-days'?'relative':'predicate',field:entry.field.id,operator:next,value}]);};
   const scalar=(value:string)=>entry.field.type==='number'||operator==='within-last-days'?value.trim()?Number(value):NaN:value;
   const label=channelFieldLabel(entry.field,t)??t('builder.opaqueConditions');
   if(condition.predicates.length>1)return <Text style={[shellType(14,400),{color:theme.colors.textSecondary}]}>{t('builder.opaqueConditions')}</Text>;

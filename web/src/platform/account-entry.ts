@@ -1,5 +1,6 @@
 import {HttpLocalApi, type HostedServer, type LocalSession} from '@core/index.ts';
 import {ServerSignInProbe, negotiateServer, parseServerSignIn, type ServerSignIn} from '@core/sign-in.ts';
+import {NeedsNewerAppError} from '@core/needs-newer-app.ts';
 import {directSignIn, directSignInContinuation, shouldRetireAccountSession, completeDirectSignInChallenge, changeRequiredPassword, parseDirectSnapshot, type DirectSignIn, type DirectSnapshot} from '@core/profile-management.ts';
 import {inspectDirectServer, connectPairedServer, connectPairedPorticoServer, connectHostedServer, rememberNativeSession, type ConnectionEnvironment, type RememberedServer} from '@core/server-connections.ts';
 import {assertFirstContactIdentity, RouteError, sameServerPin, type ServerPin} from '@core/route-identity.ts';
@@ -325,6 +326,7 @@ export class BrowserAccountEntry {
    if(this.joinedUsername===undefined){
     const member=decodePostAccessInvitationsAcceptResponse(await api.request(routePath('post_access_invitations_accept'),'POST',{...capability,username:trimmed,password,...(name.trim()?{name:name.trim()}:{})},op.signal));
     if(!op.current())return;
+    if('unknownVariant' in member)throw new NeedsNewerAppError(String(member.variant));
     if(!('accountId' in member)||!member.accountId||member.username!==trimmed)throw new CodedError('invalid_response','The invitation account could not be read.');
     this.joinedAccountId=member.accountId;this.joinedUsername=trimmed;
    }

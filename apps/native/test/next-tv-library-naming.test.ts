@@ -25,8 +25,8 @@ async function fixture(value = 'Action') {
   navigation.open({kind: 'shell', destination: {kind: 'library', libraryId: library.id}}, authority);
   let active = true, captured = 0;
   const posts: any[] = [], saved: string[] = [];
-  const draft = {predicates: [{field: 'genre', operator: 'contains-any', value: [value]}], sort: {field: 'title', direction: 'asc'}};
-  const definition = {libraryId: library.id, pivot: 'movies', query: {all: draft.predicates}, sort: [draft.sort], presentation: 'grid'};
+  const draft = {predicates: [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: [value]}], sort: {field: 'title', direction: 'asc'}};
+  const definition = {libraryId: library.id, pivot: 'movies', query: {variant: 'group', all: draft.predicates}, sort: [draft.sort], presentation: 'grid'};
   const source = {library, phase: 'ready', tab: {id: 'browse', pivot: 'movies'}, capabilities, defaultSort: draft.sort};
   const destination = {getSnapshot: () => source, captureSavedView: (actual: unknown) => {assert.equal(actual, draft); captured++; return definition;}};
   const context = {current: () => active, authority: () => authority, session: () => ({viewer: {...authority, authority: 'local'}}), libraries: () => [library], navigation,
@@ -59,7 +59,7 @@ test('TV naming uses the canonical conditions only, then saves the one real capt
     await pending;
     assert.equal(f.posts.length, 1); assert.equal(f.posts[0].name, 'Genre Actiona');
     assert.notEqual(f.posts[0].summary, 'Genre Action. Title A to Z.');
-    assert.deepEqual(f.posts[0].definition.query, {all: [{field: 'genre', operator: 'contains-any', value: ['Action']}]});
+    assert.deepEqual(f.posts[0].definition.query, {variant: 'group', all: [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Action']}]});
     assert.deepEqual(f.saved, ['new-view']); assert.equal(naming.controller.getSnapshot().open, false);
   } finally {naming.dispose(); f.navigation.dispose();}
 });

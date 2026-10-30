@@ -50,7 +50,7 @@ func TestInvitationAcceptanceProducerContract(t *testing.T) {
 					t.Fatal("signed-in producer state not reached")
 				}
 				w = httptest.NewRecorder()
-				writeAuth(w, httptest.NewRequest("POST", "/v1/access/invitations/accept", nil), 201, result)
+				writeAuth(w, httptest.NewRequest("POST", "/v1/access/invitations/accept", nil), 201, porticoAcceptanceBody(result))
 				if w.Header().Get("Cache-Control") != "no-store" {
 					t.Fatal("acceptance credentials can be cached")
 				}
@@ -65,6 +65,9 @@ func TestInvitationAcceptanceProducerContract(t *testing.T) {
 			var wire map[string]any
 			if err := json.Unmarshal(w.Body.Bytes(), &wire); err != nil {
 				t.Fatal(err)
+			}
+			if want := map[string]string{"local": "accepted", "signed-in": "signed-in", "challenge": "challenge"}[state]; wire["variant"] != want {
+				t.Fatalf("acceptance variant %v, want %q", wire["variant"], want)
 			}
 			if state == "challenge" {
 				if wire["profiles"] != nil || wire["account"].(map[string]any)["allowedLibraries"] != nil {

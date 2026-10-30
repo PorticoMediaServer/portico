@@ -10,7 +10,8 @@ import type {MessageId} from '../../../i18n/src/index.ts';
 export type LibraryTabId = 'discover' | 'browse' | 'aired' | 'collections' | 'releases' | 'songs' | 'genres' | 'playlists' | 'authors' | 'series' | 'unmatched';
 
 export type LibraryTabSort = Readonly<{field: string; direction: 'asc' | 'desc'}>;
-export type LibraryTabPredicate = Readonly<{field: string; operator: string; value?: unknown}>;
+/** A plain browse predicate, tagged as the server requires (R-09b). */
+export type LibraryTabPredicate = Readonly<{variant: 'predicate'; field: string; operator: string; value?: unknown}>;
 
 export type LibraryTab = Readonly<{
   id: LibraryTabId;
@@ -61,7 +62,7 @@ const TABS: Readonly<Record<string, readonly LibraryTab[]>> = {
 
 /** The public albums browse with its current attention-backed match filter.
  * It never opens the owner's metadata attention or library management APIs. */
-const unmatched: LibraryTab = {id: 'unmatched', label: 'library.tab.unmatched', pivot: 'albums', shows: 'titles', fixedFilter: [{field: 'match', operator: 'equals', value: 'unmatched'}]};
+const unmatched: LibraryTab = {id: 'unmatched', label: 'library.tab.unmatched', pivot: 'albums', shows: 'titles', fixedFilter: [{variant: 'predicate', field: 'match', operator: 'equals', value: 'unmatched'}]};
 
 /** The tabs of a library of this kind, in order. Anime has television's. */
 /** The owner's last pivot is named like the screen it is the other door to, so it is not
@@ -137,7 +138,7 @@ export function categoryDestination(kind: string, category: string): Readonly<{t
   const group = libraryTabs(kind).find(tab => tab.opens?.field === field);
   // The same condition the filter's own control writes, so the control shows it ticked.
   const operator = field === 'genre' || field === 'series' ? 'contains-any' : 'in';
-  return {tab: group?.opens?.tab ?? 'browse', predicate: {field, operator, value: [field === 'decade' ? Number(value) : value]}};
+  return {tab: group?.opens?.tab ?? 'browse', predicate: {variant: 'predicate', field, operator, value: [field === 'decade' ? Number(value) : value]}};
 }
 
 /** An artist's releases by type, in the order the page shows them. A type with nothing is left out. */

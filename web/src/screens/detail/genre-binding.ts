@@ -9,7 +9,7 @@ export async function openGenre(context: ScreenContext, api: DetailApi, libraryI
   const capabilities = parseBrowseCapabilities(await api.request(browseCapabilitiesPath(libraryId, ''), 'GET', undefined, signal));
   current(); signal.throwIfAborted();
   if (capabilities.library.id !== libraryId) throw new DOMException('Browse vocabulary changed', 'AbortError');
-  const query: BrowseNode = {field: 'genre', operator: 'equals', value: genre};
+  const query: BrowseNode = {variant: 'predicate', field: 'genre', operator: 'equals', value: genre};
   validateBrowseQuery(capabilities, query);
   // The parent resolves this library's genuine default view/pivot and route.
   context.effects.openBrowse({libraryId, query});

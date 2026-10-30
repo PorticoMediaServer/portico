@@ -44,11 +44,13 @@ test('unique wire arrays reject duplicate compatibility IDs and equal objects wi
 test('analysis control decoder preserves acknowledgements and queued jobs',async()=>{
  const api=await import('../src/runtime.ts');
  const name='PostItemsIdAnalysisJobsJobControlResponse';
- for(const status of ['pause','resume','cancel']) assert.equal((api.decode(name,{status}) as {status:string}).status,status);
- const job={id:'job',status:'queued',processed:0,analyzed:0,warnings:0};
+ for(const status of ['pause','resume','cancel']) assert.equal((api.decode(name,{variant:'acknowledgement',status}) as {status:string}).status,status);
+ const job={variant:'job',id:'job',status:'queued',processed:0,analyzed:0,warnings:0};
  const decoded=api.decode(name,job) as typeof job;
  assert.equal(decoded.id,job.id);assert.equal(decoded.warnings,0);
- for(const invalid of [null,[],1,{}, {status:1}]) assert.throws(()=>api.decode(name,invalid));
+ for(const invalid of [null,[],1,{},{status:1},{variant:'acknowledgement'},{variant:'acknowledgement',status:1},{variant:'job',id:'job'},{status:'pause'}]) assert.throws(()=>api.decode(name,invalid));
+ assert.deepEqual({...(api.decode(name,{variant:'acknowledgement',status:'pause',future:1}) as object)},{variant:'acknowledgement',status:'pause'});
+ assert.deepEqual({...(api.decode(name,{variant:'newer-kind',status:'x'}) as object)},{variant:'newer-kind',unknownVariant:true});
 });
 
 test('oneOf decoding refuses overlapping and absent response branches',async()=>{
@@ -71,7 +73,7 @@ test('invitation acceptance contracts describe local and Portico methods without
   assert.doesNotThrow(()=>decode('PostAccessInvitationsAcceptRequest',{...capability,...localMethod}));
   assert.doesNotThrow(()=>decode('PostAccessInvitationsAcceptRequest',{...capability,...porticoMethod}));
  }
- const local={accountId:'fixture_account',username:'fixture_user',profileId:'fixture_profile',role:'member',allowedLibraries:[]};
+ const local={variant:'accepted',accountId:'fixture_account',username:'fixture_user',profileId:'fixture_profile',role:'member',allowedLibraries:[]};
  assert.doesNotThrow(()=>decode('PostAccessInvitationsAcceptResponse',local));
  const {schemas}=await import('../src/schemas.ts');
  const localBranch=(schemas.PostAccessInvitationsAcceptResponse as any).anyOf[0];

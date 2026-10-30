@@ -84,7 +84,11 @@ func (d Dependencies) ownerResetFileRoutes(mux *http.ServeMux) {
 			setupFailure(w, e)
 			return
 		}
-		writeAuth(w, r, 200, out)
+		kind := "password-change"
+		if out.ResetFileOwnerSession {
+			kind = "owner-session"
+		}
+		writeAuth(w, r, 200, taggedBody{"variant", kind, out})
 	})
 	d.httpHandle(mux, "POST /v1/direct/members/{id}/reset-code", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
@@ -181,6 +185,6 @@ func resetSignInSchema(owner bool) map[string]any {
 	return shape
 }
 func (ownerResetResponse) JSONSchema() map[string]any {
-	return map[string]any{"oneOf": []any{resetSignInSchema(false), resetSignInSchema(true)}}
+	return map[string]any{"oneOf": []any{withTag(resetSignInSchema(false), "variant", "password-change"), withTag(resetSignInSchema(true), "variant", "owner-session")}}
 }
 func (passwordResetResponse) JSONSchema() map[string]any { return resetSignInSchema(false) }

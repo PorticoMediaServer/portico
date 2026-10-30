@@ -38,27 +38,46 @@ func facetSchema[T any]() map[string]any {
 	}
 	return s
 }
+
+// facetPageSchema is the ready page of a library whose facets are not windowed;
+// `facet-page` tells it apart from the windowed and preparing answers.
+func facetPageSchema() map[string]any {
+	return withVariantTag(facetSchema[catalog.FacetPage](), "page")
+}
+
+func windowSchema() map[string]any {
+	return withVariantTag(facetSchema[catalog.SimpleFacetPage](), "window")
+}
+func fallbackSchema() map[string]any {
+	return withVariantTag(facetSchema[catalog.SimpleFacetFallbackPage](), "fallback")
+}
+func preparingSchema() map[string]any {
+	return withVariantTag(facetSchema[catalog.SimpleFacetPreparing](), "preparing")
+}
+func readingPreparingSchema() map[string]any {
+	return withVariantTag((ReadingFacetPreparing{}).JSONSchema(), "reading-preparing")
+}
 func (facetReadResponse) JSONSchema() map[string]any {
-	return map[string]any{"anyOf": []any{facetSchema[catalog.FacetPage](), facetSchema[catalog.SimpleFacetPage](), facetSchema[catalog.SimpleFacetFallbackPage](), facetSchema[catalog.SimpleFacetPreparing](), (ReadingFacetPreparing{}).JSONSchema()}}
+	return map[string]any{"anyOf": []any{facetPageSchema(), windowSchema(), fallbackSchema(), preparingSchema(), readingPreparingSchema()}}
 }
 func (facetReadResponse) JSONSchemaForStatus(status int) map[string]any {
 	if status == 200 {
-		return map[string]any{"anyOf": []any{facetSchema[catalog.FacetPage](), facetSchema[catalog.SimpleFacetPage](), facetSchema[catalog.SimpleFacetFallbackPage]()}}
+		return map[string]any{"anyOf": []any{facetPageSchema(), windowSchema(), fallbackSchema()}}
 	}
 	if status == 202 {
-		return map[string]any{"anyOf": []any{facetSchema[catalog.SimpleFacetPreparing](), (ReadingFacetPreparing{}).JSONSchema()}}
+		return map[string]any{"anyOf": []any{preparingSchema(), readingPreparingSchema()}}
 	}
 	return nil
 }
 func (facetQueryResponse) JSONSchema() map[string]any {
-	return map[string]any{"anyOf": []any{facetSchema[catalog.SimpleFacetPage](), facetSchema[catalog.SimpleFacetFallbackPage](), facetSchema[catalog.SimpleFacetPreparing]()}}
+	return map[string]any{"anyOf": []any{windowSchema(), fallbackSchema(), preparingSchema()}}
 }
 func (facetQueryResponse) JSONSchemaForStatus(status int) map[string]any {
 	if status == 200 {
-		return map[string]any{"anyOf": []any{facetSchema[catalog.SimpleFacetPage](), facetSchema[catalog.SimpleFacetFallbackPage]()}}
+		return map[string]any{"anyOf": []any{windowSchema(), fallbackSchema()}}
 	}
 	if status == 202 {
-		return facetSchema[catalog.SimpleFacetPreparing]()
+		return preparingSchema()
 	}
 	return nil
 }
@@ -172,20 +191,20 @@ func writeFacetRead(w http.ResponseWriter, result catalog.SimpleFacetResult) {
 		pending := result.Fallback.Preparation
 		w.Header().Set("Location", "/v1/facet-queries/"+pending.QueryID)
 		w.Header().Set("Retry-After", strconv.Itoa(max(1, (pending.RetryAfterMs+999)/1000)))
-		write(w, http.StatusOK, result.Fallback)
+		write(w, http.StatusOK, variantBody{"fallback", result.Fallback})
 		return
 	}
 	if result.Preparing != nil && result.Page == nil && result.Fallback == nil {
 		w.Header().Set("Location", "/v1/facet-queries/"+result.Preparing.QueryID)
 		w.Header().Set("Retry-After", strconv.Itoa(max(1, (result.Preparing.RetryAfterMs+999)/1000)))
-		write(w, http.StatusAccepted, result.Preparing)
+		write(w, http.StatusAccepted, variantBody{"preparing", result.Preparing})
 		return
 	}
 	if result.Page == nil || result.Preparing != nil || result.Fallback != nil {
 		failure(w, errors.New("invalid facet preparation result"))
 		return
 	}
-	write(w, http.StatusOK, result.Page)
+	write(w, http.StatusOK, variantBody{"window", result.Page})
 }
 
 func (d Dependencies) simpleFacetsHandler(w http.ResponseWriter, r *http.Request, p identity.Principal, viewer catalog.Viewer, request catalog.FacetRequest) {

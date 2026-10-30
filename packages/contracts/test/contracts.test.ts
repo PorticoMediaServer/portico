@@ -10,12 +10,8 @@ for (const file of files) test(file, () => {
   const fixture = JSON.parse(readFileSync(new URL(file, directory), 'utf8'));
   assert.ok(fixture.schema in schemas);
   assert.doesNotThrow(() => decode(fixture.schema, fixture.response));
-  // The accepted start resource is deliberately closed by closeStartObjects;
-  // other recorded response contracts retain their open forward-compatible shape.
-  if (fixture.schema === 'StartPlaybackSessionResponse') {
-    assert.throws(() => decode(fixture.schema, {...fixture.response, futureField: true}));
-  } else {
-    assert.doesNotThrow(() => decode(fixture.schema, {...fixture.response, futureField: true}));
-  }
+  // Responses decode open at every depth: an unknown member is dropped, never rejected.
+  const extended = decode(fixture.schema, {...fixture.response, futureField: true}) as Record<string, unknown>;
+  assert.equal('futureField' in extended, false);
   assert.throws(() => decode(fixture.schema, null));
 });

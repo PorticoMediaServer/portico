@@ -17,7 +17,7 @@ const capabilities: BrowseCapabilities = {
   library: {...library, defaultView: 'browse', pinned: false}, pivots: [pivot], resolvedPivot: pivot,
   fields: [{id: 'favorite', labelKey: 'filter.favorite', type: 'boolean', operators: ['equals'], controlHint: 'toggle', complexity: 'quick', cost: 'indexed', applicableKinds: ['movie']}],
   sorts: [{id: 'title', labelKey: 'sort.title', directions: ['asc', 'desc'], defaultDirection: 'asc', expensive: false, applicableKinds: ['movie']}],
-  quickFilters: [{id: 'favorites', labelKey: 'saved.tab.favorites', query: {field: 'favorite', operator: 'equals', value: true}}],
+  quickFilters: [{id: 'favorites', labelKey: 'saved.tab.favorites', query: {variant: 'predicate', field: 'favorite', operator: 'equals', value: true}}],
   surfaces: [{id: 'library', endpoint: '/v1/libraries/{id}/browse', paging: 'keyset', sorts: ['title'], filters: ['favorite']}],
   queryLimits: {maximumDepth: 6, maximumClauses: 50, maximumBytes: 8192, maximumSorts: 1, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 600000},
 };
@@ -48,11 +48,12 @@ test('native staged Save view preserves canonical relative dates and leaves abso
     assert.deepEqual(recent.predicates, [{field: 'dateAdded', operator: 'within-last-days', value: 30}]);
     const selected = libraryFilterChange(dated, date, [], {kind: 'range', value: recent.id}, [], new Date('2026-10-24T12:00:00Z'));
     const captured = destination.captureSavedView({predicates: selected, sort: {field: 'title', direction: 'asc'}});
-    assert.deepEqual(captured.query, recent.predicates[0]);
+    // R-09b: the saved query is the tagged node the server accepts.
+    assert.deepEqual(captured.query, {variant: 'relative', ...recent.predicates[0]});
     assert.equal(Object.isFrozen(captured.query), true);
     const reopened = JSON.parse(JSON.stringify(captured));
     assert.equal(activeRangePreset(rangePresets(date, new Date('2027-01-01T12:00:00Z')), [reopened.query]), 'last-30');
-    const absolute = {field: 'dateAdded', operator: 'between', value: ['2026-09-24T12:00:00Z', '2026-10-24T12:00:00Z']} as const;
+    const absolute = {variant: 'predicate', field: 'dateAdded', operator: 'between', value: ['2026-09-24T12:00:00Z', '2026-10-24T12:00:00Z']} as const;
     const old = destination.captureSavedView({predicates: [absolute], sort: {field: 'title', direction: 'asc'}});
     assert.deepEqual(old.query, absolute);
     assert.equal(activeRangePreset(presets, [absolute]), undefined, 'existing absolute dates are never migrated into a relative preset');
@@ -63,7 +64,7 @@ test('Save view captures the real staged query and sort independently of later L
   const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, body?: unknown) =>
     (path.includes('capabilities') ? capabilities : page(body as BrowseRequestBody, 3)) as T};
   const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  const staged = {field: 'favorite', operator: 'equals', value: true} as const;
+  const staged = {variant: 'predicate', field: 'favorite', operator: 'equals', value: true} as const;
   assert.throws(() => destination.captureSavedView({predicates: [staged], sort: {field: 'title', direction: 'desc'}}));
   await destination.load();
   assert.equal(nativeLibraryCanSave(destination.getSnapshot(), {predicates: [], sort: {field: 'title', direction: 'asc'}}), false);
@@ -149,7 +150,7 @@ test('an applied query change retires old row actions before the replacement vis
   const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
   try {
     await destination.load(); await tick(); const collection = destination.getSnapshot().collection!, old = collection.itemAt(0)!;
-    hold = true; destination.setQuery([{field: 'favorite', operator: 'equals', value: true}]); await tick();
+    hold = true; destination.setQuery([{variant: 'predicate', field: 'favorite', operator: 'equals', value: true}]); await tick();
     assert.equal(collection.itemAt(0), old, 'the real visible collection retains its old picture until the new generation arrives');
     assert.equal(destination.getSnapshot().revision, undefined); assert.equal(destination.contains(old), false);
     hold = false; pending.forEach(request => request.finish(page(request.body))); await tick();
@@ -198,7 +199,7 @@ test('removing the actual library or retiring the viewer aborts its pages and cl
 
 test('Library filter draft stages edits, reads exact counts and sends the full contextual query for bounded facets', async () => {
   const calls: {path: string; body?: any}[] = [], applied: unknown[] = [];
-  const initial: BrowseNode = {field: 'favorite', operator: 'equals', value: true};
+  const initial: BrowseNode = {variant: 'predicate', field: 'favorite', operator: 'equals', value: true};
   const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, body?: unknown) => {
     calls.push({path, body});
     return (path.includes('/counts') ? {counts: [{id: 'draft', total: 10, totalIsLowerBound: false, revision: 'revision1'}]}
@@ -213,14 +214,14 @@ test('Library filter draft stages edits, reads exact counts and sends the full c
     const firstFacet = new URL(calls.find(value => value.path.includes('facets'))!.path, 'https://example.invalid');
     assert.equal(firstFacet.searchParams.get('limit'), '200');
     assert.deepEqual(JSON.parse(firstFacet.searchParams.get('query')!), initial);
-    const genre: BrowseNode = {field: 'genre', operator: 'contains-any', value: ['Drama']};
+    const genre: BrowseNode = {variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Drama']};
     draft.setPredicates([initial, genre]);
     assert.equal(draft.apply(), false, 'a stale count does not enable Apply');
     draft.refresh(); await tick();
     const counted = calls.filter(value => value.path.includes('/counts')).at(-1)!;
-    assert.deepEqual(counted.body.queries[0].query, {all: [initial, genre]});
+    assert.deepEqual(counted.body.queries[0].query, {variant: 'group', all: [initial, genre]});
     const facet = new URL(calls.filter(value => value.path.includes('facets')).at(-1)!.path, 'https://example.invalid');
-    assert.deepEqual(JSON.parse(facet.searchParams.get('query')!), {all: [initial, genre]}, 'the server, not the caller, removes the counted facet condition');
+    assert.deepEqual(JSON.parse(facet.searchParams.get('query')!), {variant: 'group', all: [initial, genre]}, 'the server, not the caller, removes the counted facet condition');
     assert.equal(draft.apply(), true); assert.deepEqual(applied, [[initial, genre]]);
     assert.equal(draft.getSnapshot().open, false);
     assert.equal(calls.some(value => /\/browse$/.test(value.path)), false, 'counts do not load full result pages');
@@ -246,15 +247,15 @@ test('Library filter draft aborts superseded searches and hides late retired vie
 
 test('Library filter controls preserve negative-only values, typed decades, fixed predicates and cross-field alternatives', () => {
   const genre = filterCapabilities.fields.find(field => field.id === 'genre')!, year = filterCapabilities.fields.find(field => field.id === 'year')!;
-  const negative: BrowseNode = {not: {field: 'genre', operator: 'contains-any', value: ['Drama']}};
+  const negative: BrowseNode = {variant: 'group', not: {variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Drama']}};
   const state = libraryFilterField(genre, [negative], undefined, new Date('2026-10-23T00:00:00Z'));
   assert.equal(state.kind, 'values'); if (state.kind !== 'values') assert.fail();
   assert.deepEqual(state.excluded, ['Drama']); assert.deepEqual(state.included, []);
   assert.deepEqual(libraryFilterChange(filterCapabilities, genre, [negative], state, [], new Date()), [negative]);
-  const fixed: BrowseNode = {field: 'favorite', operator: 'equals', value: true};
-  const alternative: BrowseNode = {any: [{field: 'genre', operator: 'contains-any', value: ['Comedy']}, fixed]};
+  const fixed: BrowseNode = {variant: 'predicate', field: 'favorite', operator: 'equals', value: true};
+  const alternative: BrowseNode = {variant: 'group', any: [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Comedy']}, fixed]};
   const changed = libraryFilterChange(filterCapabilities, year, [alternative, fixed], {kind: 'values', included: ['1980'], excluded: [], mode: 'any'}, [fixed], new Date());
-  assert.deepEqual(changed, [alternative, fixed, {field: 'decade', operator: 'in', value: [1980]}]);
+  assert.deepEqual(changed, [alternative, fixed, {variant: 'predicate', field: 'decade', operator: 'in', value: [1980]}]);
   assert.equal(libraryFilterField(year, changed, undefined, new Date()).summary, '1980s');
 });
 
@@ -290,9 +291,9 @@ test('Library remembers the actual unfiltered total without another count read w
 });
 
 test('Applied Library chips retain semantic predicate IDs and never flatten a cross-field OR', () => {
-  const decade: BrowseNode = {field: 'decade', operator: 'in', value: [1980]};
-  const negative: BrowseNode = {not: {field: 'genre', operator: 'contains-any', value: ['Horror']}};
-  const alternative: BrowseNode = {any: [decade, negative]};
+  const decade: BrowseNode = {variant: 'predicate', field: 'decade', operator: 'in', value: [1980]};
+  const negative: BrowseNode = {variant: 'group', not: {variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Horror']}};
+  const alternative: BrowseNode = {variant: 'group', any: [decade, negative]};
   const before = JSON.stringify(alternative);
   const labels = {field: (field: {id: string}) => field.id === 'year' ? 'Year' : 'Genre', sort: () => '', quick: () => ''};
   const chips = libraryAppliedFilters([decade, negative, decade, alternative], filterCapabilities, labels);

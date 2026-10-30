@@ -45,11 +45,11 @@ func TestSelectionBatchReplayableLeafCohort(t *testing.T) {
 	authority := HomeActionAuthority{Personal: true, Organize: true, Bulk: true, Playback: true, Queue: true, Metadata: true, Refresh: true, Downloads: true, DeleteLibrary: func(string) (bool, error) { return true, nil }}
 	for _, view := range []struct{ library, pivot, query string }{
 		{"m", "movies", `null`}, {"tv", "episodes", `null`}, {"an", "episodes", `null`}, {"mu", "songs", `null`}, {"ab", "parts", `null`},
-		{"tv", "episodes", `{"field":"genre","operator":"equals","value":"Drama"}`},
-		{"ab", "parts", `{"field":"author","operator":"equals","value":"Author"}`},
-		{"mu", "songs", `{"field":"album","operator":"equals","value":"Album"}`},
-		{"tv", "episodes", fmt.Sprintf(`{"field":"episodeGroup","operator":"equals","value":%q}`, show.Public+"/range:0")},
-		{"tv", "episodes", fmt.Sprintf(`{"field":"episodeGroup","operator":"equals","value":%q}`, show.Public+"/specials")},
+		{"tv", "episodes", `{"variant":"predicate","field":"genre","operator":"equals","value":"Drama"}`},
+		{"ab", "parts", `{"variant":"predicate","field":"author","operator":"equals","value":"Author"}`},
+		{"mu", "songs", `{"variant":"predicate","field":"album","operator":"equals","value":"Album"}`},
+		{"tv", "episodes", fmt.Sprintf(`{"variant":"predicate","field":"episodeGroup","operator":"equals","value":%q}`, show.Public+"/range:0")},
+		{"tv", "episodes", fmt.Sprintf(`{"variant":"predicate","field":"episodeGroup","operator":"equals","value":%q}`, show.Public+"/specials")},
 	} {
 		t.Run(view.library+view.query, func(t *testing.T) {
 			query, err := ParseBrowseQuery(json.RawMessage(view.query), "query")
@@ -107,7 +107,7 @@ func TestSelectionBatchSavedCollectionAndPlaylistSources(t *testing.T) {
 	c.Drain()
 	s := New(c.DB)
 	v := Viewer{Profile: profile, Fence: "f", Libraries: []string{"m"}}
-	for _, query := range []string{`{"field":"list","operator":"equals","value":"playlist"}`, `{"field":"savedCollection","operator":"equals","value":"saved"}`, `{"field":"savedCollection","operator":"not-in","value":["saved"]}`} {
+	for _, query := range []string{`{"variant":"predicate","field":"list","operator":"equals","value":"playlist"}`, `{"variant":"predicate","field":"savedCollection","operator":"equals","value":"saved"}`, `{"variant":"predicate","field":"savedCollection","operator":"not-in","value":["saved"]}`} {
 		node, err := ParseBrowseQuery(json.RawMessage(query), "query")
 		if err != nil {
 			t.Fatal(err)
@@ -133,7 +133,7 @@ func TestSelectionBatchLargeScalarIsTransient(t *testing.T) {
 	c.Drain()
 	s := New(c.DB)
 	v := Viewer{Profile: "p", Fence: "f", Libraries: []string{"m"}}
-	node, err := ParseBrowseQuery(json.RawMessage(`{"field":"tag","operator":"starts-with","value":"x"}`), "query")
+	node, err := ParseBrowseQuery(json.RawMessage(`{"variant":"predicate","field":"tag","operator":"starts-with","value":"x"}`), "query")
 	if err != nil {
 		t.Fatal(err)
 	}

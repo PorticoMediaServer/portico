@@ -95,8 +95,9 @@ test('bounds the opaque cursor and preserves a valid continuation', () => {
 
 test('the public parser decodes unknown input itself', () => {
   assert.throws(() => parseReadingSearchPage(null, witness, 20), /invalid_document/);
-  assert.throws(() => parseReadingSearchPage({...page(), extra: 1}, witness, 20), /invalid_document/);
-  assert.throws(() => parseReadingSearchPage({...page(), hits: [{...hit, extra: 1}]}, witness, 20), /invalid_document/);
+  // R-09b: responses read open. A newer server's added members are ignored, never refused.
+  assert.doesNotThrow(() => parseReadingSearchPage({...page(), extra: 1}, witness, 20));
+  assert.doesNotThrow(() => parseReadingSearchPage({...page(), hits: [{...hit, extra: 1}]}, witness, 20));
   assert.throws(() => parseReadingSearchPage('not an object', witness, 20), /invalid_document/);
 });
 

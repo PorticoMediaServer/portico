@@ -46,11 +46,10 @@ type ReadingFacetQueryResponse struct{}
 
 func (ReadingFacetQueryResponse) JSONSchemaForStatus(status int) map[string]any {
 	if status == 200 {
-		s, _ := apikit.Schema(reflect.TypeFor[catalog.FacetPage]())
-		return s
+		return facetPageSchema()
 	}
 	if status == 202 {
-		return (ReadingFacetPreparing{}).JSONSchema()
+		return withVariantTag((ReadingFacetPreparing{}).JSONSchema(), "reading-preparing")
 	}
 	return nil
 }
@@ -224,7 +223,7 @@ func writeReadingFacetQuery(w http.ResponseWriter, library string, handle readpr
 		retrySeconds = "0" // HTTP delta-seconds; the body carries the 250ms floor.
 	}
 	w.Header().Set("Retry-After", retrySeconds)
-	write(w, 202, ReadingFacetPreparing{"reading-facet-preparing", "preparing", string(handle), retryMs})
+	write(w, 202, variantBody{"reading-preparing", ReadingFacetPreparing{"reading-facet-preparing", "preparing", string(handle), retryMs}})
 	return nil
 }
 

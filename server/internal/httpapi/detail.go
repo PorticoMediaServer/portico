@@ -282,5 +282,5 @@ func (d Dependencies) detailReadHandler(w http.ResponseWriter, r *http.Request) 
 	if conditional(w, r, responseTag("detail", r.PathValue("id"), fence, number(out.Revision.Catalog), number(out.Revision.Viewer), markerRevision, r.URL.Query().Get("related"), out.FileInfoOpening)) {
 		return
 	}
-	write(w, 200, out)
+	write(w, 200, polledFileInfoDocument(r, "detail", out))
 }

@@ -1,4 +1,4 @@
-import {browseCapabilitiesPath, browseMembershipId, parseBrowseCapabilities, browseContextFacetsPath, parseBrowseFacets, browseCountsPath, browseCountsRequest, parseBrowseCounts, parseBrowseNode,
+import {browseCapabilitiesPath, browseMembershipId, parseBrowseCapabilities, browseContextFacetsPath, parseBrowseFacets, browseCountsPath, browseCountsRequest, parseBrowseCounts, parseBrowseNode, completeBrowseNode,
   type BrowseCapabilities, type BrowseNode, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from '@core/browse.ts';
 import {BrowseSession, browseSessionBuilder, browseSessionClosed, type BrowseSessionQuery} from '@core/browse-session.ts';
 import {createWindowedCollection, type WindowedCollection} from '@core/collections/windowed.ts';
@@ -16,11 +16,11 @@ export type BrowseState = Readonly<{phase: 'loading' | 'ready' | 'error'; capabi
 function captureNode(input: BrowseNode): BrowseNode {
   const freeze = (node: BrowseNode): BrowseNode => {
     if ('field' in node) return Object.freeze({...node, value: Array.isArray(node.value) ? Object.freeze([...node.value]) : node.value});
-    if ('all' in node) return Object.freeze({all: Object.freeze(node.all.map(freeze))});
-    if ('any' in node) return Object.freeze({any: Object.freeze(node.any.map(freeze))});
-    return Object.freeze({not: freeze(node.not)});
+    if ('all' in node) return Object.freeze({variant: 'group' as const, all: Object.freeze(node.all.map(freeze))});
+    if ('any' in node) return Object.freeze({variant: 'group' as const, any: Object.freeze(node.any.map(freeze))});
+    return Object.freeze({variant: 'group' as const, not: freeze(node.not)});
   };
-  return freeze(parseBrowseNode(input));
+  return freeze(parseBrowseNode(completeBrowseNode(input)));
 }
 
 /** Private screen controller. The parent owns the authenticated API and exact viewer lifetime. */
@@ -203,7 +203,7 @@ export class BrowseController {
     });
   }
   /** UI controls preserve compound predicates and validate every generated node. */
-  parseNode = (value: unknown) => parseBrowseNode(value);
+  parseNode = (value: unknown) => parseBrowseNode(completeBrowseNode(value));
   retry = () => {
     this.session?.forgetWholeSelection();
     if (this.state.phase === 'error') void this.load();

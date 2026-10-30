@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {captureQueueSource, type WebPlaybackQueueSource} from '../src/platform/playback/queue-source.ts';
 
 test('browse capture preserves the exact Home query and sort without retaining mutable caller objects', () => {
-  const input = {query: {libraryId: '*', pivot: 'titles', query: {all: [
-    {field: 'homeRow', operator: 'equals' as const, value: 'row_current'},
-    {field: 'year', operator: 'at-least' as const, value: 2020},
+  const input = {query: {libraryId: '*', pivot: 'titles', query: {variant:'group',all: [
+    {variant:'predicate',field: 'homeRow', operator: 'equals' as const, value: 'row_current'},
+    {variant:'predicate',field: 'year', operator: 'at-least' as const, value: 2020},
   ]}, sort: [{field: 'random', direction: 'asc' as const, seed: 912}, {field: 'title', direction: 'desc' as const}]}};
   const expected = structuredClone(input), captured = captureQueueSource(input);
   input.query.query.all.reverse();input.query.sort[0]!.seed = 1;
@@ -21,7 +21,7 @@ test('queue capture refuses visible item aliases, mixed sources, unknown query f
     {container: {kind: 'person', id: 'person'}}, {saved: {id: ''}},
     {query: {libraryId: 'library', limit: 80}},
     {query: {libraryId: 'library', sort: [{field: 'title', direction: 'desc', seed: 1}]}},
-    {query: {libraryId: 'library', query: {field: 'title', operator: 'invented', value: 'x'}}},
+    {query: {libraryId: 'library', query: {variant:'predicate',field: 'title', operator: 'invented', value: 'x'}}},
   ]) assert.throws(() => captureQueueSource(source as WebPlaybackQueueSource));
 });
 

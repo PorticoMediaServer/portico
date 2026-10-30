@@ -7,7 +7,7 @@ type Read = Readonly<{itemId: string}>;
 type Page = Readonly<{rows: readonly string[]; window: FileInfoWindowFacts}>;
 const response = (status: number, body?: unknown, headers: Record<string, string> = {}): PreparationResponse => ({status, body, headers});
 const page = (rows: string[], window: Partial<FileInfoWindowFacts> = {}) => ({rows, window: {queryId: 'q1', basis: 'b1', limit: 2, returned: rows.length, ...window}});
-const preparing = (queryId = 'q1') => ({kind: 'file-preparing', state: 'preparing', queryId, retryAfterMs: 1000});
+const preparing = (queryId = 'q1') => ({variant: 'preparing', kind: 'file-preparing', state: 'preparing', queryId, retryAfterMs: 1000});
 async function flush() { for (let i = 0; i < 40; i++) await Promise.resolve(); }
 
 function fixture(replies: PreparationResponse[]) {
@@ -80,7 +80,7 @@ import type {FileInfoOpening} from '../src/file-info-pages.ts';
 const opening: FileInfoOpening = {token: 'o1', scope: {serverId: 's1', viewerId: 'v1'}, target: {libraryId: 'l1', itemId: 'm1'}, revision: {catalog: 4, viewer: 2}};
 const envelope = (kind: string, queryId: string, over: Record<string, unknown> = {}, window: Record<string, unknown> = {}) => ({
   scope: {serverId: 's1', libraryId: 'l1', itemId: 'm1', viewerFence: 'f1'}, detail: {scope: {serverId: 's1', libraryId: 'l1', itemId: 'm1', viewerFence: 'f1'}, revision: {catalog: 4, viewer: 2}},
-  basis: 'b1', kind, window: {queryId, limit: 40, returned: 1, ...window}, ...over});
+  basis: 'b1', kind, variant: kind.replace(/^file-info-/, ''), window: {queryId, limit: 40, returned: 1, ...window}, ...over});
 const surface = {fileCount: 2, eligibleFileCount: 2, groupCount: 2, canSplit: false, hasDiscColumns: false};
 const groupRow = (ordinal: number) => ({id: `g${ordinal}`, headOccurrence: `m1.a${ordinal}`, ordinal, memberCount: 1, container: 'mkv', sizeBytes: 10, durationMs: 1000, audioCount: 1, subtitleCount: 0});
 
@@ -190,7 +190,7 @@ test('an album or a book reads its flat files: each listed with its raw tracks, 
 });
 
 test('P2-29 amendment: only the opening preparation may omit its Detail; once a window is read, every preparation names it', async () => {
-  const bare = {kind: 'file-info-preparing', state: 'preparing', queryId: 'p1', retryAfterMs: 10};
+  const bare = {variant: 'preparing', kind: 'file-info-preparing', state: 'preparing', queryId: 'p1', retryAfterMs: 10};
   const replies = [
     response(202, bare, {Location: '/v1/file-info-queries/p1', 'Retry-After': '1'}),
     response(200, envelope('file-info-groups', 'p1', {surface, groups: [groupRow(1)]}, {nextCursor: 'n1'})),

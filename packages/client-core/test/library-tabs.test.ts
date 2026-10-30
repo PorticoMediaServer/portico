@@ -31,12 +31,12 @@ test('a row that names a pivot opens the plain tab for it, not Recently aired', 
 });
 
 test('a category link is the tab that lists its titles with one ordinary filter', () => {
-  assert.deepEqual(categoryDestination('movie', 'genre:Drama'), {tab: 'browse', predicate: {field: 'genre', operator: 'contains-any', value: ['Drama']}});
-  assert.deepEqual(categoryDestination('tv', 'decade:1990'), {tab: 'browse', predicate: {field: 'decade', operator: 'in', value: [1990]}});
-  assert.deepEqual(categoryDestination('movie', 'studio:A24: Films'), {tab: 'browse', predicate: {field: 'studio', operator: 'in', value: ['A24: Films']}});
+  assert.deepEqual(categoryDestination('movie', 'genre:Drama'), {tab: 'browse', predicate: {variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Drama']}});
+  assert.deepEqual(categoryDestination('tv', 'decade:1990'), {tab: 'browse', predicate: {variant: 'predicate', field: 'decade', operator: 'in', value: [1990]}});
+  assert.deepEqual(categoryDestination('movie', 'studio:A24: Films'), {tab: 'browse', predicate: {variant: 'predicate', field: 'studio', operator: 'in', value: ['A24: Films']}});
   // Music genres open albums, as the Genres tab does; an audiobook series opens books.
-  assert.deepEqual(categoryDestination('music', 'genre:Jazz'), {tab: 'releases', predicate: {field: 'genre', operator: 'contains-any', value: ['Jazz']}});
-  assert.deepEqual(categoryDestination('audiobook', 'series:Dune'), {tab: 'browse', predicate: {field: 'series', operator: 'contains-any', value: ['Dune']}});
+  assert.deepEqual(categoryDestination('music', 'genre:Jazz'), {tab: 'releases', predicate: {variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Jazz']}});
+  assert.deepEqual(categoryDestination('audiobook', 'series:Dune'), {tab: 'browse', predicate: {variant: 'predicate', field: 'series', operator: 'contains-any', value: ['Dune']}});
 });
 
 test('a category this app does not know is left to the server', () => {

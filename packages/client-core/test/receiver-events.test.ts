@@ -19,7 +19,7 @@ function fakeStream(){
   random:()=>0.5,backoffMs:[5000],
   openStream:async(_after,onEvent,signal)=>{
    opens++;send=onEvent;
-   onEvent({data:JSON.stringify({id:String(++id),type:'stream.opened'})});
+   onEvent({data:JSON.stringify({variant:'change',id:String(++id),type:'stream.opened'})});
    await new Promise<void>(resolve=>{close=resolve;signal.addEventListener('abort',()=>resolve(),{once:true});});
    send=undefined;
   },
@@ -29,8 +29,8 @@ function fakeStream(){
   client,
   opens:()=>opens,
   send:(event:string,data:string)=>send?.({event,data}),
-  hint:(kind:string,receiverId?:string)=>send?.({data:JSON.stringify({id:String(++id),type:'receiver.inbox_changed',data:receiverId===undefined?{kind}:{kind,receiverId}})}),
-  resync:()=>send?.({data:JSON.stringify({id:String(++id),type:'stream.resync'})}),
+  hint:(kind:string,receiverId?:string)=>send?.({data:JSON.stringify({variant:'change',id:String(++id),type:'receiver.inbox_changed',data:receiverId===undefined?{kind}:{kind,receiverId}})}),
+  resync:()=>send?.({data:JSON.stringify({variant:'change',id:String(++id),type:'stream.resync'})}),
   drop:()=>close?.(),
  };
 }

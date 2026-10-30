@@ -11,7 +11,7 @@ import {WebPlayback} from '../src/platform/playback/web-playback.ts';
 
 // Authored UNRUN against the real Web binding and canonical public SDK. No
 // network, session storage, browser, device, engine or actual timer is used.
-const real = () => ({id: 'original_session', revision: '1', kind: 'vod', role: 'local', state: 'paused', itemId: 'movie',
+const real = () => ({variant: 'session', id: 'original_session', revision: '1', kind: 'vod', role: 'local', state: 'paused', itemId: 'movie',
   lease: {expiresAt: '2099-01-01T00:00:00Z', reportEveryMs: 10_000},
   presentation: {generation: 1, mode: 'stream', engine: 'native', url: '/v1/media/grant-original_session/1/master.m3u8', startPositionMs: 0,
     quality: {mode: 'original'}, subtitles: [], decision: {video: {action: 'copy', reasons: []}, audio: {action: 'copy', reasons: []}}}});
@@ -71,7 +71,7 @@ test('retiring original principal while a real reply is held authorizes no clean
 });
 
 test('retry-only abort carries no resource and does not manufacture cleanup', async () => {
-  const f = fixture(), caller = new AbortController();f.replies.push(Promise.resolve(response({retryAfterMs: 500})));
+  const f = fixture(), caller = new AbortController();f.replies.push(Promise.resolve(response({variant: 'wait', retryAfterMs: 500})));
   try {
     const pending = f.web.transport.start({itemId: 'movie'}, {}, 'original-key', 60, caller.signal);
     const rejected = assert.rejects(pending, {name: 'AbortError'});await settle();caller.abort();await rejected;await settle();
@@ -93,7 +93,7 @@ test('the queue sixth context receives only the canonical preparation notice and
 
 test('the Web wrapper keeps the same request past 120 seconds of genuine server preparation', async () => {
   const f = fixture();let notices = 0;
-  for (let index = 0; index < 13; index++) f.replies.push(Promise.resolve(response({retryAfterMs: 10_000})));
+  for (let index = 0; index < 13; index++) f.replies.push(Promise.resolve(response({variant: 'wait', retryAfterMs: 10_000})));
   f.replies.push(Promise.resolve(response(real(), 201)));
   try {
     const pending = f.web.transport.start({itemId: 'movie'}, {}, 'original-key', 60, undefined,

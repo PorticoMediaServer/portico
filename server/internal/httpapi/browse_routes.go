@@ -353,7 +353,7 @@ func (d Dependencies) browseHandler(w http.ResponseWriter, r *http.Request) {
 		failure(w, e)
 		return
 	}
-	write(w, 200, out)
+	write(w, 200, variantBody{"ready", out})
 }
 
 func (d Dependencies) facetsHandler(w http.ResponseWriter, r *http.Request) {
@@ -466,7 +466,7 @@ func (d Dependencies) facetsHandler(w http.ResponseWriter, r *http.Request) {
 		browseFailure(w, e)
 		return
 	}
-	write(w, 200, out)
+	write(w, 200, variantBody{"page", out})
 }
 
 // projectBrowseDisplay keeps canonical membership for every browse operation,

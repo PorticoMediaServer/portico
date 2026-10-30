@@ -13,7 +13,7 @@ const pivot = {id: 'movies', labelKey: 'library.movies', entityKinds: ['movie'],
 const caps = {library: {id: 'lib', name: 'Movies', kind: 'movie', defaultView: 'discover'}, pivots: [pivot], resolvedPivot: pivot, fields: [],
   sorts: [{id: 'title', labelKey: 'sort.title', directions: ['asc', 'desc'], defaultDirection: 'asc', applicableKinds: ['movie']}], quickFilters: [],
   queryLimits: {maximumDepth: 5, maximumClauses: 40, maximumBytes: 65536, maximumSorts: 3, defaultLimit: 60, maximumLimit: 100, cursorTtlMs: 1800000}};
-const pending = {kind: 'browse-selection-preparing', state: 'preparing', queryId: 'selection', retryAfterMs: 0};
+const pending = {variant: 'preparing', kind: 'browse-selection-preparing', state: 'preparing', queryId: 'selection', retryAfterMs: 0};
 const capabilityCounts = {play: 1, queue: 1, playlist: 1, myList: 1, watched: 1, collection: 1, favorite: 1, download: 0, edit: 1, refresh: 1, delete: 1};
 const whole = {selector: {query: {libraryId: 'lib', pivot: 'movies', filter: null, sort: pivot.defaultSort, selectionBasis: 'a'.repeat(64)}}, catalogRevision: 'r1', total: 1,
   types: [{kind: 'movie', count: 1, capabilityCounts, libraries: [{libraryId: 'lib', count: 1}]}]};

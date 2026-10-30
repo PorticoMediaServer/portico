@@ -30,7 +30,7 @@ func (v browseSelectionQueryResponse) MarshalJSON() ([]byte, error) {
 		return nil, readprep.ErrInvalid
 	}
 	if v.Ready != nil {
-		return json.Marshal(v.Ready)
+		return json.Marshal(variantBody{"ready", v.Ready})
 	}
 	return json.Marshal(v.Preparing)
 }
@@ -57,7 +57,7 @@ func browseSelectionReadySchema() map[string]any {
 	query := selector["properties"].(map[string]any)["query"].(map[string]any)
 	required, _ := query["required"].([]string)
 	query["required"] = append(required, "selectionBasis")
-	return shape
+	return withVariantTag(shape, "ready")
 }
 
 func registerBrowseSelectionQueryRoutes(registry *apikit.Registry, d Dependencies) error {

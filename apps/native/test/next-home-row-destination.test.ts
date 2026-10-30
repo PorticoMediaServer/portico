@@ -40,7 +40,7 @@ test('real row outlet retains its exact controller through a title and cancels o
     const initial = rows.render({})[0], source = initial.props.source;
     assert.ok(source.controller instanceof NativeHomeRowController);
     assert.equal(source.controller.rowId, 'continue');
-    const query = {libraryId: '*', pivot: 'items', query: {field: 'homeRow', operator: 'equals', value: 'continue'}, sort: [{field: 'groupOrder', direction: 'asc'}]};
+    const query = {libraryId: '*', pivot: 'items', query: {variant: 'predicate', field: 'homeRow', operator: 'equals', value: 'continue'}, sort: [{field: 'groupOrder', direction: 'asc'}]};
     source.controller.wholeGroup = () => query;
     initial.props.onPlay(true);
     assert.equal(starts.length, 1); assert.strictEqual(starts[0].query, query); assert.equal(starts[0].shuffle, true);

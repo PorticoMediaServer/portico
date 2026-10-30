@@ -109,11 +109,11 @@ test('a Home row reads neutrally where it is only drawn, and ignores fields this
 });
 
 test('a Home row may name where its See all leads; a destination that cannot be read is left out alone', () => {
-  const seeAll = {type: 'library', libraryId: 'movies', pivot: 'movies', query: {field: 'genre', operator: 'equals', value: 'Drama'}, sort: [{field: 'added', direction: 'desc'}]};
+  const seeAll = {type: 'library', libraryId: 'movies', pivot: 'movies', query: {variant:'predicate',field: 'genre', operator: 'equals', value: 'Drama'}, sort: [{field: 'added', direction: 'desc'}]};
   assert.deepEqual(validateHomeRow(row({seeAll})).seeAll, seeAll);
   assert.deepEqual(validateHomeRow(row({seeAll: {type: 'library', libraryId: 'movies', pivot: 'movies', sort: [{field: 'title', direction: 'asc'}]}})).seeAll, {type: 'library', libraryId: 'movies', pivot: 'movies', sort: [{field: 'title', direction: 'asc'}]});
   assert.equal(validateHomeRow(row()).seeAll, undefined);
-  for (const broken of [{pivot: '', sort: seeAll.sort}, {pivot: 'movies', sort: []}, {pivot: 'movies', sort: [{field: 'title', direction: 'sideways'}]}, {...seeAll, query: {field: 'genre', operator: 'resembles', value: 'Drama'}}, 'movies']) {
+  for (const broken of [{pivot: '', sort: seeAll.sort}, {pivot: 'movies', sort: []}, {pivot: 'movies', sort: [{field: 'title', direction: 'sideways'}]}, {...seeAll, query: {variant:'predicate',field: 'genre', operator: 'resembles', value: 'Drama'}}, 'movies']) {
     const parsed = validateHomeRow(row({seeAll: broken}));
     assert.equal(parsed.seeAll, undefined);
     assert.equal(parsed.entries.length, 2);

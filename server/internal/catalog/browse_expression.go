@@ -30,26 +30,62 @@ type BrowseNode struct {
 	Value    any          `json:"value,omitempty"`
 }
 
-// MarshalJSON writes a predicate as exactly {field, operator, value}, with
-// `"value": null` for the presence operators, and a group as exactly its one
-// key (CD-29). The published schema says value is null for is-present and
+// The three variants of expression node. Every node on the wire carries its variant,
+// in requests and responses alike, so a reader never guesses a node's shape from
+// which keys happen to be present.
+const (
+	BrowseVariantPredicate = "predicate"
+	BrowseVariantRelative  = "relative"
+	BrowseVariantGroup     = "group"
+)
+
+// browseLeafVariant is the variant a predicate carries: the relative-date
+// predicate has its own typed shape on the wire, every other one the general.
+func browseLeafVariant(operator string) string {
+	if operator == "within-last-days" {
+		return BrowseVariantRelative
+	}
+	return BrowseVariantPredicate
+}
+
+// MarshalJSON writes a predicate as exactly {variant, field, operator, value}, with
+// `"value": null` for the presence operators, and a group as exactly its variant and
+// its one key (CD-29). The published schema says value is null for is-present and
 // is-missing, and clients read a predicate as those three keys; the default
 // encoding dropped a null value, so a saved view or deep link echoed back with
 // a presence filter was refused by the client that made it.
 func (n BrowseNode) MarshalJSON() ([]byte, error) {
 	if n.Field != "" || n.Operator != "" {
 		return json.Marshal(struct {
+			Variant  string `json:"variant"`
 			Field    string `json:"field"`
 			Operator string `json:"operator"`
 			Value    any    `json:"value"`
-		}{n.Field, n.Operator, n.Value})
+		}{browseLeafVariant(n.Operator), n.Field, n.Operator, n.Value})
 	}
 	type group struct {
-		All []BrowseNode `json:"all,omitempty"`
-		Any []BrowseNode `json:"any,omitempty"`
-		Not *BrowseNode  `json:"not,omitempty"`
+		Variant string       `json:"variant"`
+		All     []BrowseNode `json:"all,omitempty"`
+		Any     []BrowseNode `json:"any,omitempty"`
+		Not     *BrowseNode  `json:"not,omitempty"`
 	}
-	return json.Marshal(group{n.All, n.Any, n.Not})
+	return json.Marshal(group{BrowseVariantGroup, n.All, n.Any, n.Not})
+}
+
+// UnmarshalJSON reads a node through the same parser as every other entry, so a
+// request body that carries a query is held to the variant tags and published
+// bounds, wherever the struct holding it is decoded.
+func (n *BrowseNode) UnmarshalJSON(raw []byte) error {
+	parsed, err := ParseBrowseQuery(raw, "query")
+	if err != nil {
+		return err
+	}
+	if parsed == nil {
+		*n = BrowseNode{}
+		return nil
+	}
+	*n = *parsed
+	return nil
 }
 
 // BrowseValidationError names the offending path so a client can attach the
@@ -106,8 +142,26 @@ func parseBrowseNode(value any, depth int, path string, clauses *int) (*BrowseNo
 		}
 		return nil, browseIssue(path, "must not be empty")
 	}
-	if _, leaf := object["field"]; leaf {
-		return parseBrowsePredicate(object, path, clauses)
+	variant, variantOK := object["variant"].(string)
+	if !variantOK {
+		return nil, browseIssue(path+".variant", "must be predicate or group")
+	}
+	if variant != BrowseVariantPredicate && variant != BrowseVariantRelative && variant != BrowseVariantGroup {
+		return nil, browseIssue(path+".variant", fmt.Sprintf("unknown query node variant %q", variant))
+	}
+	rest := make(map[string]any, len(object)-1)
+	for key, child := range object {
+		if key != "variant" {
+			rest[key] = child
+		}
+	}
+	object = rest
+	_, leaf := object["field"]
+	if leaf != (variant != BrowseVariantGroup) {
+		return nil, browseIssue(path+".variant", "must match the node: predicate or relative for field/operator/value, group for all, any or not")
+	}
+	if leaf {
+		return parseBrowsePredicate(object, variant, path, clauses)
 	}
 	if len(object) != 1 {
 		return nil, browseIssue(path, "group nodes must contain exactly one of all, any or not")
@@ -150,7 +204,7 @@ func parseBrowseNode(value any, depth int, path string, clauses *int) (*BrowseNo
 	return nil, browseIssue(path, "must be a query object")
 }
 
-func parseBrowsePredicate(object map[string]any, path string, clauses *int) (*BrowseNode, error) {
+func parseBrowsePredicate(object map[string]any, variant, path string, clauses *int) (*BrowseNode, error) {
 	if len(object) != 3 {
 		return nil, browseIssue(path, "predicate nodes must contain exactly field, operator and value")
 	}
@@ -158,6 +212,9 @@ func parseBrowsePredicate(object map[string]any, path string, clauses *int) (*Br
 	operator, operatorOK := object["operator"].(string)
 	if !idOK || !operatorOK {
 		return nil, browseIssue(path, "field and operator must be strings")
+	}
+	if variant != browseLeafVariant(operator) {
+		return nil, browseIssue(path+".variant", "within-last-days is the relative variant; every other operator is the predicate variant")
 	}
 	field, exists := browseFieldByID(id)
 	if !exists {
@@ -1022,27 +1079,36 @@ func (BrowseNode) JSONSchema() map[string]any {
 	child := map[string]any{"type": "object", "required": []string{}, "properties": map[string]any{}, "additionalProperties": map[string]any{}}
 	group := map[string]any{"type": "array", "minItems": 1, "maxItems": BrowseMaximumClauses, "items": child}
 	operators := []string{}
-	dates := []string{}
 	for _, field := range browseFields {
-		if field.Type == valueDate {
-			dates = append(dates, field.ID)
-		}
 		for _, op := range field.Operators {
 			if op != "within-last-days" && !containsString(operators, op) {
 				operators = append(operators, op)
 			}
 		}
 	}
-	relative := map[string]any{"type": "object", "required": []string{"field", "operator", "value"}, "additionalProperties": false, "properties": map[string]any{
+	dates := []string{}
+	for _, field := range browseFields {
+		if field.Type == valueDate {
+			dates = append(dates, field.ID)
+		}
+	}
+	relative := map[string]any{"type": "object", "required": []string{"variant", "field", "operator", "value"}, "additionalProperties": false, "properties": map[string]any{
+		"variant":  map[string]any{"type": "string", "const": BrowseVariantRelative},
 		"field":    map[string]any{"type": "string", "enum": dates},
 		"operator": map[string]any{"type": "string", "enum": []string{"within-last-days"}},
 		"value":    map[string]any{"type": "integer", "minimum": 1, "maximum": 36500},
 	}, "description": "Matches dates from the evaluation instant minus N times 24 hours through that instant, inclusive. Future dates do not match. Signed continuations retain the first page's instant."}
-	other := map[string]any{"type": "object", "required": []string{}, "additionalProperties": false, "properties": map[string]any{
-		"field": map[string]any{"type": "string"}, "operator": map[string]any{"type": "string", "enum": operators}, "value": map[string]any{},
-		"all": group, "any": group, "not": child,
+	predicate := map[string]any{"type": "object", "required": []string{"variant", "field", "operator", "value"}, "additionalProperties": false, "properties": map[string]any{
+		"variant":  map[string]any{"type": "string", "const": BrowseVariantPredicate},
+		"field":    map[string]any{"type": "string"},
+		"operator": map[string]any{"type": "string", "enum": operators},
+		"value":    map[string]any{},
 	}}
-	return map[string]any{"oneOf": []any{relative, other}, "description": "A predicate or all/any/not group. The parser enforces recursive vocabulary and published depth/clause bounds."}
+	other := map[string]any{"type": "object", "required": []string{"variant"}, "additionalProperties": false, "properties": map[string]any{
+		"variant": map[string]any{"type": "string", "const": BrowseVariantGroup},
+		"all":     group, "any": group, "not": child,
+	}}
+	return map[string]any{"oneOf": []any{relative, predicate, other}, "description": "A predicate, a relative-date predicate or an all/any/not group, each tagged with its variant. The parser enforces recursive vocabulary and published depth/clause bounds."}
 }
 
 // Subtitle languages come from current file evidence and the viewer's own or

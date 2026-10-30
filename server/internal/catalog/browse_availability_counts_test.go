@@ -19,7 +19,7 @@ func TestAvailabilityCountersMatchRestrictedPages(t *testing.T) {
 	}
 	for _, viewer := range viewers {
 		for _, state := range []string{"available", "partial", "unavailable"} {
-			node, err := ParseBrowseQuery(json.RawMessage(`{"field":"availability","operator":"equals","value":"`+state+`"}`), "query")
+			node, err := ParseBrowseQuery(json.RawMessage(`{"variant":"predicate","field":"availability","operator":"equals","value":"`+state+`"}`), "query")
 			if err != nil {
 				t.Fatal(err)
 			}

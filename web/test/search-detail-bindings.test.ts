@@ -522,7 +522,7 @@ test('genre navigation validates the library vocabulary and leaves its default v
   await binding.select({libraryId: 'library', itemId: 'one'});
   const page = binding.service.getSnapshot().data!;
   await binding.browseGenre(page, 'Action');
-  assert.deepEqual(destinations, [{libraryId: 'library', query: {field: 'genre', operator: 'equals', value: 'Action'}}]);
+  assert.deepEqual(destinations, [{libraryId: 'library', query: {variant:'predicate',field: 'genre', operator: 'equals', value: 'Action'}}]);
   const requests = owner.requests();
   assert.throws(() => binding.browseGenre(page, 'Unknown'), {name: 'AbortError'});
   assert.equal(owner.requests(), requests);

@@ -22,13 +22,13 @@ func TestBrowseTextPredicatesFoldUnicodeAndAccents(t *testing.T) {
 		query string
 		want  []string
 	}{
-		{`{"field":"title","operator":"contains","value":"amelie"}`, []string{"m1"}},
-		{`{"field":"title","operator":"starts-with","value":"AMÉLIE"}`, []string{"m1"}},
-		{`{"field":"title","operator":"equals","value":"AMELIE 100%_"}`, []string{"m1"}},
-		{`{"field":"genre","operator":"contains-any","value":["COMÉDIE"]}`, []string{"m1"}},
-		{`{"field":"genre","operator":"contains-all","value":["comedie"]}`, []string{"m1"}},
-		{`{"field":"title","operator":"contains","value":"%_"}`, []string{"m1"}},
-		{`{"field":"title","operator":"contains","value":"_100"}`, []string{}},
+		{`{"variant":"predicate","field":"title","operator":"contains","value":"amelie"}`, []string{"m1"}},
+		{`{"variant":"predicate","field":"title","operator":"starts-with","value":"AMÉLIE"}`, []string{"m1"}},
+		{`{"variant":"predicate","field":"title","operator":"equals","value":"AMELIE 100%_"}`, []string{"m1"}},
+		{`{"variant":"predicate","field":"genre","operator":"contains-any","value":["COMÉDIE"]}`, []string{"m1"}},
+		{`{"variant":"predicate","field":"genre","operator":"contains-all","value":["comedie"]}`, []string{"m1"}},
+		{`{"variant":"predicate","field":"title","operator":"contains","value":"%_"}`, []string{"m1"}},
+		{`{"variant":"predicate","field":"title","operator":"contains","value":"_100"}`, []string{}},
 	} {
 		t.Run(tc.query, func(t *testing.T) {
 			got := browseIDs(t, s, names, tc.query)

@@ -242,12 +242,15 @@ func annotationObject(required []string, properties map[string]any) map[string]a
 }
 func annotationLocationSchema() map[string]any {
 	progression := map[string]any{"type": "number", "minimum": 0, "maximum": 1}
-	return map[string]any{"oneOf": []any{
-		annotationObject([]string{"format", "cfi", "progression"}, map[string]any{
-			"format": map[string]any{"type": "string", "enum": []string{"epub"}}, "cfi": annotationString(10, 4096), "section": annotationString(0, 1024), "progression": progression}),
-		annotationObject([]string{"format", "pageIndex", "progression"}, map[string]any{
-			"format": map[string]any{"type": "string", "enum": []string{"pdf", "cbz", "cb7", "cbr"}}, "pageIndex": annotationInteger(1000000), "progression": progression}),
-	}}
+	// One alternative per format, so a reading location is tagged by its format
+	// (R-09b; the same domain tag as every other reading location).
+	alternatives := []any{annotationObject([]string{"format", "cfi", "progression"}, map[string]any{
+		"format": map[string]any{"type": "string", "enum": []string{"epub"}}, "cfi": annotationString(10, 4096), "section": annotationString(0, 1024), "progression": progression})}
+	for _, format := range []string{"pdf", "cbz", "cb7", "cbr"} {
+		alternatives = append(alternatives, annotationObject([]string{"format", "pageIndex", "progression"}, map[string]any{
+			"format": map[string]any{"type": "string", "enum": []string{format}}, "pageIndex": annotationInteger(1000000), "progression": progression}))
+	}
+	return map[string]any{"oneOf": alternatives}
 }
 func annotationRectsSchema() map[string]any {
 	unit := map[string]any{"type": "number", "minimum": 0, "maximum": 1}

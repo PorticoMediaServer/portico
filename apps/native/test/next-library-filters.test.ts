@@ -15,8 +15,8 @@ async function fixture(isTV: boolean, width = isTV ? 1920 : 390) {
   const host = hooks(), calls: any[] = [], theme = createTheme({width, isTV});
   const field = {id: 'genre', labelKey: 'filter.field.genre', type: 'identity-set', operators: ['contains-any'], controlHint: 'facet-multi-select', complexity: 'quick', cost: 'indexed', applicableKinds: ['movie']};
   const capability = {library: {id: 'actual-library', kind: 'movie'}, fields: [field], sorts: [], quickFilters: [], resolvedPivot: null};
-  const original = {field: 'genre', operator: 'contains-any', value: ['Drama']};
-  const staged = {field: 'genre', operator: 'contains-any', value: ['Comedy']};
+  const original = {variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Drama']};
+  const staged = {variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Comedy']};
   const state = {open: true, predicates: [staged], count: {phase: 'ready', value: {total: 19, totalIsLowerBound: false}}, facets: {}};
   const source = {phase: 'ready', library: capability.library, capabilities: capability, predicates: [original], sort: {field: 'title', direction: 'asc'},
     defaultSort: {field: 'title', direction: 'asc'}, tab: {id: 'browse', pivot: 'movies'}};
@@ -59,7 +59,7 @@ test('TV Library filters enter the actual first field and Apply returns through 
   const apply = nodes(tree.props.footer).find(node => node.props.focusId === 'apply');
   assert.equal(apply.props.children[0], 'Show 19 movies'); apply.props.onPress(); assert.deepEqual(calls.slice(1), ['apply', 'close']);
   builder.props.onFieldChange('genre', {kind: 'values', included: ['Drama'], excluded: [], mode: 'any'});
-  assert.deepEqual(calls.at(-1), ['predicates', [{field: 'genre', operator: 'contains-any', value: ['Drama']}]]);
+  assert.deepEqual(calls.at(-1), ['predicates', [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Drama']}]]);
   state.count.phase = 'loading';
 });
 

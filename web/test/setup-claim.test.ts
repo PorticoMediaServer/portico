@@ -50,7 +50,7 @@ async function fixture(t: TestContext, origin = original.address) {
     const path = new URL(String(input)).pathname, body = init?.body ? JSON.parse(String(init.body)) : undefined;
     sent.push({path, method: init?.method ?? 'GET', body, authorization: new Headers(init?.headers).get('Authorization')});
     let response: unknown;
-    if (path === '/v1/setup/resume') {assert.equal(body.requestId, draft!.requestId); response={serverId: pin.serverId, requestId: draft!.requestId, authMode: 'hosted', claimRequired: true, revision: '2'};}
+    if (path === '/v1/setup/resume') {assert.equal(body.requestId, draft!.requestId); response={variant: 'claim-required', serverId: pin.serverId, requestId: draft!.requestId, authMode: 'hosted', claimRequired: true, revision: '2'};}
     else if (path === '/v1/networking/claim/prepare') {assert.equal(body.purpose, 'setup'); prepared = true; response = status();}
     else if (path === '/v1/networking/claim') response = status();
     else if (path === '/v1/networking/claim/cancel') {

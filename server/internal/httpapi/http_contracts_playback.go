@@ -21,10 +21,12 @@ type AnalysisControlResponse struct{}
 func (AnalysisControlResponse) JSONSchema() map[string]any {
 	job, _ := apikit.Schema(reflect.TypeFor[ingestion.Job]())
 	acknowledgement, _ := apikit.Schema(reflect.TypeFor[struct {
-		Status string `json:"status"`
+		Variant string `json:"variant"`
+		Status  string `json:"status"`
 	}]())
-	// The fuller shape comes first so tolerant decoding preserves job fields.
-	return map[string]any{"anyOf": []any{job, acknowledgement}}
+	acknowledgement["properties"].(map[string]any)["variant"] = map[string]any{"type": "string", "const": "acknowledgement"}
+	acknowledgement["required"] = []string{"variant", "status"}
+	return map[string]any{"anyOf": []any{withVariantTag(job, "job"), acknowledgement}}
 }
 
 func registerPlaybackHTTPContracts(registry *apikit.Registry) error {

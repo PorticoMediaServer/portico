@@ -47,7 +47,7 @@ export function createShowBindings(context: ScreenContext) {
       const active = life.signal(), capabilities = parseBrowseCapabilities(await life.api.request(browseCapabilitiesPath(data.scope.libraryId, ''), 'GET', undefined, active));
       current(data); active.throwIfAborted();
       if (capabilities.library.id !== data.scope.libraryId) throw new DOMException('Browse vocabulary changed', 'AbortError');
-      const query: BrowseNode = {field, operator: 'equals', value};
+      const query: BrowseNode = {variant: 'predicate', field, operator: 'equals', value};
       validateBrowseQuery(capabilities, query);
       context.effects.openBrowse({libraryId: data.scope.libraryId, query});
     },

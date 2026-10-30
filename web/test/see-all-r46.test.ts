@@ -49,7 +49,7 @@ test('the public specimen is the drawn recommendation row over the across-librar
 test('the drawn page is the row own order, 72 titles in 49 films, 16 shows and 7 anime', async () => {
   const specimen = createSeeAllSpecimen();
   const page = parseBrowseResult(await specimen.request('/v1/browse', 'POST', {pivot: 'titles',
-    query: {field: 'homeRow', operator: 'equals', value: 'recommended'}, sort: [{field: 'groupOrder', direction: 'asc'}],
+    query: {variant:'predicate',field: 'homeRow', operator: 'equals', value: 'recommended'}, sort: [{field: 'groupOrder', direction: 'asc'}],
     displayHomeRow: 'recommended', limit: 60, range: {start: 0}}));
   assert.equal(page.pivot, 'titles');
   assert.equal(page.pageInfo.total, 72);
@@ -65,9 +65,9 @@ test('the drawn page is the row own order, 72 titles in 49 films, 16 shows and 7
 
   const counts = parseBrowseCounts(await specimen.request('/v1/browse/counts', 'POST', {pivot: 'titles', queries: [
     {id: 'all', query: null},
-    {id: 'movie', query: {field: 'library', operator: 'in', value: ['movies']}},
-    {id: 'tv', query: {field: 'library', operator: 'in', value: ['tv']}},
-    {id: 'anime', query: {field: 'library', operator: 'in', value: ['anime']}},
+    {id: 'movie', query: {variant:'predicate',field: 'library', operator: 'in', value: ['movies']}},
+    {id: 'tv', query: {variant:'predicate',field: 'library', operator: 'in', value: ['tv']}},
+    {id: 'anime', query: {variant:'predicate',field: 'library', operator: 'in', value: ['anime']}},
   ]}), ['all', 'movie', 'tv', 'anime']);
   assert.deepEqual(counts.map(count => count.total), [72, 49, 16, 7]);
 });
@@ -75,7 +75,7 @@ test('the drawn page is the row own order, 72 titles in 49 films, 16 shows and 7
 test('the page answers the screen own filters and sorts through the same canonical documents', async () => {
   const specimen = createSeeAllSpecimen();
   const filtered = parseBrowseResult(await specimen.request('/v1/browse', 'POST', {
-    query: {all: [{field: 'homeRow', operator: 'equals', value: 'recommended'}, {field: 'playState', operator: 'equals', value: 'unplayed'}]},
+    query: {variant:'group',all: [{variant:'predicate',field: 'homeRow', operator: 'equals', value: 'recommended'}, {variant:'predicate',field: 'playState', operator: 'equals', value: 'unplayed'}]},
     sort: [{field: 'title', direction: 'asc'}], limit: 60, range: {start: 0}}));
   assert.equal(filtered.pageInfo.total, 72);
   assert.deepEqual(filtered.entries.slice(0, 3).map(entry => entry.title), ['12 Angry Men', 'Alien', 'Aliens']);
@@ -83,7 +83,7 @@ test('the page answers the screen own filters and sorts through the same canonic
   assert.deepEqual(filtered.positionIndex, []);
 
   const watched = parseBrowseResult(await specimen.request('/v1/browse', 'POST', {
-    query: {field: 'playState', operator: 'equals', value: 'played'}, sort: [{field: 'groupOrder', direction: 'asc'}], limit: 60, range: {start: 0}}));
+    query: {variant:'predicate',field: 'playState', operator: 'equals', value: 'played'}, sort: [{field: 'groupOrder', direction: 'asc'}], limit: 60, range: {start: 0}}));
   assert.equal(watched.pageInfo.total, 0);
   assert.equal(watched.entries.length, 0);
 

@@ -3,7 +3,7 @@ package catalog
 // MusicFormatBadge is a notable, measured format, never a source locator or a
 // playback capability. Album headers receive at most two distinct descriptors.
 type MusicFormatBadge struct {
-	Kind       string `json:"kind"`
+	Variant    string `json:"variant"`
 	Codec      string `json:"codec,omitempty"`
 	BitDepth   int    `json:"bitDepth,omitempty"`
 	SampleRate int    `json:"sampleRate,omitempty"`
@@ -15,9 +15,10 @@ type MusicFormatBadges []MusicFormatBadge
 func (MusicFormatBadges) JSONSchema() map[string]any {
 	return map[string]any{"type": "array", "maxItems": 2, "items": map[string]any{
 		"oneOf": []any{
-			map[string]any{"type": "object", "additionalProperties": false, "required": []string{"kind", "codec", "bitDepth", "sampleRate"}, "properties": map[string]any{"kind": map[string]any{"const": "lossless"}, "codec": map[string]any{"type": "string", "pattern": "^[A-Za-z0-9_.+-]{1,64}$"}, "bitDepth": map[string]any{"type": "integer", "minimum": 17}, "sampleRate": map[string]any{"type": "integer", "minimum": 1}}},
-			map[string]any{"type": "object", "additionalProperties": false, "required": []string{"kind"}, "properties": map[string]any{"kind": map[string]any{"enum": []string{"atmos", "dsd"}}}},
-			map[string]any{"type": "object", "additionalProperties": false, "required": []string{"kind", "layout"}, "properties": map[string]any{"kind": map[string]any{"const": "surround"}, "layout": map[string]any{"enum": []string{"5.1", "7.1"}}}},
+			map[string]any{"type": "object", "additionalProperties": false, "required": []string{"variant", "codec", "bitDepth", "sampleRate"}, "properties": map[string]any{"variant": map[string]any{"const": "lossless"}, "codec": map[string]any{"type": "string", "pattern": "^[A-Za-z0-9_.+-]{1,64}$"}, "bitDepth": map[string]any{"type": "integer", "minimum": 17}, "sampleRate": map[string]any{"type": "integer", "minimum": 1}}},
+			map[string]any{"type": "object", "additionalProperties": false, "required": []string{"variant"}, "properties": map[string]any{"variant": map[string]any{"const": "atmos"}}},
+			map[string]any{"type": "object", "additionalProperties": false, "required": []string{"variant"}, "properties": map[string]any{"variant": map[string]any{"const": "dsd"}}},
+			map[string]any{"type": "object", "additionalProperties": false, "required": []string{"variant", "layout"}, "properties": map[string]any{"variant": map[string]any{"const": "surround"}, "layout": map[string]any{"enum": []string{"5.1", "7.1"}}}},
 		},
 	}}
 }
@@ -53,7 +54,7 @@ func (s *Service) albumMusicBadges(r ContentRequest, album string) (MusicFormatB
 	badges := MusicFormatBadges{}
 	for rows.Next() {
 		var badge MusicFormatBadge
-		if err := rows.Scan(&badge.Kind, &badge.Codec, &badge.BitDepth, &badge.SampleRate, &badge.Layout); err != nil {
+		if err := rows.Scan(&badge.Variant, &badge.Codec, &badge.BitDepth, &badge.SampleRate, &badge.Layout); err != nil {
 			return nil, err
 		}
 		badges = append(badges, badge)

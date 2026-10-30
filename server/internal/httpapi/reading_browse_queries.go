@@ -31,7 +31,7 @@ type readingBrowseQueryResponse struct{}
 func (readingBrowseQueryResponse) JSONSchemaForStatus(status int) map[string]any {
 	if status == 200 {
 		shape, _ := apikit.Schema(reflect.TypeFor[catalog.BrowseResult]())
-		return shape
+		return withVariantTag(shape, "ready")
 	}
 	if status == 202 {
 		shape, _ := apikit.Schema(reflect.TypeFor[ReadingBrowsePreparing]())
@@ -43,7 +43,7 @@ func (readingBrowseQueryResponse) JSONSchemaForStatus(status int) map[string]any
 		props["queryId"].(map[string]any)["maxLength"] = 256
 		props["queryId"].(map[string]any)["pattern"] = "^[A-Za-z0-9_-]+$"
 		props["retryAfterMs"].(map[string]any)["minimum"] = 1
-		return shape
+		return withVariantTag(shape, "preparing")
 	}
 	return nil
 }
@@ -162,7 +162,7 @@ func (d Dependencies) readingBrowsePreparedHandler(w http.ResponseWriter, r *htt
 				browseFailure(w, err)
 				return
 			}
-			write(w, 200, page)
+			write(w, 200, variantBody{"ready", page})
 			return
 		}
 	}
@@ -279,7 +279,7 @@ func (d Dependencies) readingBrowseQueryWithGrace(w http.ResponseWriter, r *http
 		}
 		w.Header().Set("Retry-After", retrySeconds)
 		w.Header().Set("Location", "/v1/libraries/"+url.PathEscape(library)+"/reading-browse-queries/"+url.PathEscape(id))
-		write(w, 202, ReadingBrowsePreparing{Kind: "reading-browse-preparing", State: "preparing", QueryID: id, RetryAfterMs: retryMs})
+		write(w, 202, variantBody{"preparing", ReadingBrowsePreparing{Kind: "reading-browse-preparing", State: "preparing", QueryID: id, RetryAfterMs: retryMs}})
 		return
 	}
 	// Charge typed seed decoding and its backing strings before hydration.
@@ -319,5 +319,5 @@ func (d Dependencies) readingBrowseQueryWithGrace(w http.ResponseWriter, r *http
 	}
 	// Source-length reservations include JSON escaping and remain live through
 	// serialization; even Preparing/error paths own and release the Poll lease.
-	write(w, 200, page)
+	write(w, 200, variantBody{"ready", page})
 }
