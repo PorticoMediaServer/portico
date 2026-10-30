@@ -1,62 +1,47 @@
-# Public release process
+# How Portico is released
 
-This is a public description of how official Portico builds are produced. It
-is not an invitation to publish unofficial builds under Portico's name; see
-`TRADEMARKS.md`.
+This explains how official Portico builds are made, so you can see what you're installing. It isn't permission to publish your own builds under the Portico name; see [TRADEMARKS.md](TRADEMARKS.md).
 
-## Two separate release decisions
+The release workflows are still being moved into this repository, so there are no releases here yet. This page describes how they work.
 
-FFmpeg and Portico are deliberately released independently. A normal Portico
-release reuses the currently approved FFmpeg toolchain. FFmpeg changes only
-after Justin selects and tests a stable upstream version and manually starts
-the **Qualified FFmpeg toolchain** workflow, which builds, verifies and
-publishes the toolchain as its own GitHub Release, named by the `releaseTag`
-in `third_party/ffmpeg/sources.lock.json`, together with its corresponding
-source.
+Only the maintainer publishes official releases. The step-by-step checklist, approvals, rollback steps and credentials are kept in a private repository.
 
-An application release starts from a reviewed `vMAJOR.MINOR.PATCH` Git tag.
-The release workflow reruns server and web tests, downloads the exact pinned
-FFmpeg component release, and builds:
+## FFmpeg is released separately
 
-- Windows x64 and ARM64 installers plus portable ZIPs;
-- an Apple Silicon macOS PKG and a DMG carrying it;
-- distribution-neutral Linux x64 and ARM64 `.tar.gz` bundles, DEB files, and RPM files; and
-- a Linux amd64/arm64 image in GitHub Container Registry.
+Portico and its FFmpeg build are released on their own schedules.
 
-Each server binary is built from an isolated source snapshot and sealed with a
-signed manifest (`scripts/build-server-release.py`; see
-`server/api/release-signing.md`). Every shipped build takes its Go build tags
-from `scripts/release-build-tags.py` (`release` plus the `portico_rar7z` and
-`portico_cb7` reader capabilities); the same list is used to build and test the
-release revision, the verifier refuses a manifest whose binary carries a
-different set, and the container image uses the same list. The release workflow then writes SHA-256
-checksums, an SBOM, build provenance, and a small update manifest before
-publishing the GitHub Release. A final signed artifact inventory authenticates
-the complete archives/installers after packaging, including web assets. The release body describes a development preview. The workflow sets
-`prerelease: false` and `make_latest: true` so GitHub’s latest-release link works;
-this does not mean the software has reached stable quality.
+- **A normal Portico release** reuses the currently approved FFmpeg build.
+- **FFmpeg only changes** when I pick and test a new stable upstream version and start the **Qualified FFmpeg toolchain** workflow by hand. That workflow builds and checks FFmpeg, then publishes it as its own GitHub release, along with its source. The release is named after the `releaseTag` in `third_party/ffmpeg/sources.lock.json`.
 
-GitHub's `/releases/latest` URL is the permanent human-facing download link.
-The versionless asset names and `portico-update-manifest.json` are the stable
-machine-facing locations. Automatic installation remains disabled until
-packages are signed and the update client has passed rollback testing.
+## What a release builds
 
-Only a maintainer may create official releases. The operational checklist,
-approval records, rollback steps, and service credentials are maintained in
-Portico's private internal repository.
+A Portico release starts from a reviewed `vMAJOR.MINOR.PATCH` Git tag. The release workflow runs the server and web tests again, downloads the exact pinned FFmpeg build, and produces:
 
-## What the signatures verify
+- Windows x64 and ARM64 installers, plus portable ZIPs
+- An Apple Silicon macOS PKG, and a DMG that contains it
+- Linux x64 and ARM64 `.tar.gz` bundles, DEB files and RPM files
+- A Linux amd64/arm64 container image on GitHub Container Registry
 
-`build-server-release.py` requires an injected Ed25519 private key and a matching
-independently pinned public key; it refuses missing or unsafe key files and does
-not invent a signing identity. macOS sealing records final binary digests after
-code signing. `seal-release-artifacts.py` signs the finished artifact inventory.
-These are distinct from Windows Authenticode, Apple notarization and installer
-verification. The workflow does not establish that production signer custody or
-an owner's independently trusted installer key has been provisioned.
+Each server binary is built from an isolated copy of the source and sealed with a signed manifest (`scripts/build-server-release.py`; see [release signing](server/api/release-signing.md)). Every shipped build uses the same Go build tags from `scripts/release-build-tags.py`: `release`, plus the `portico_rar7z` and `portico_cb7` reader tags. The release is built and tested with those tags, and the verifier rejects any binary built with a different set.
 
-The Docker build consumes the same pinned FFmpeg bundles through its named
-`ffmpeg` build context. Its build steps fetch npm/Go dependencies, copy the
-vendored browser subtitle assets, and install the runtime packages listed in
-`Dockerfile`. See [third-party notices](THIRD-PARTY-NOTICES.md) for the inventory.
-The build's test gates do not establish physical Apple/Android/GPU acceptance.
+The workflow then writes SHA-256 checksums, an SBOM, build provenance and a small update manifest, and publishes the GitHub release. A final signed inventory covers every finished archive and installer, including the web files.
+
+## Download links
+
+GitHub's `/releases/latest` link is the permanent download link for people. The release asset names don't include a version, and `portico-update-manifest.json` is the stable location for software that checks for updates.
+
+Releases are marked as GitHub's "latest" so that link works. The release notes still describe each build as a preview. Being "latest" doesn't mean Portico has reached a stable release. Automatic updates stay off until packages are signed and update rollback has been tested.
+
+## What the signatures prove
+
+- `build-server-release.py` needs an Ed25519 private key plus a separately pinned public key that matches it. It refuses missing or unsafe key files, and never makes up a signing identity.
+- On macOS, the sealed manifest records the final binary hashes after code signing.
+- `seal-release-artifacts.py` signs the finished artifact inventory.
+
+These signatures are separate from Windows Authenticode, Apple notarization and installer verification. They don't by themselves show that the production signing keys are held securely, or that you've set up a trusted installer key of your own.
+
+## Container image
+
+The Docker build uses the same pinned FFmpeg build. It fetches npm and Go dependencies, copies in the bundled subtitle files and installs the runtime packages listed in the `Dockerfile`. The full inventory is in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Passing the release tests doesn't prove a build works on physical Apple or Android devices, or with a particular GPU.

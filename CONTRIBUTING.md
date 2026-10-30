@@ -1,34 +1,53 @@
 # Contributing
 
-Portico does fewer things and does them really well. It is not a collection of options and plugins. Justin Ehler is the sole maintainer and decides design, architecture, scope, releases and brand. A technically sound change can still be wrong for Portico.
+Thanks for wanting to help. Before you put time into something, here's how this works.
 
-## Before starting
+Portico tries to do fewer things and do them really well. It isn't meant to be a pile of options and plugins. I'm the only maintainer, and I make the calls on design, scope, architecture, releases and branding. That means a change can be well built and still not be right for Portico, and I may say no to it.
 
-Features and behavior changes need a maintainer-approved issue. Approval covers only the agreed scope. Obvious fixes may be opened directly. A contribution creates no entitlement to a response, review or merge; it may be declined, deferred, closed or reimplemented.
+## What's welcome
 
-We welcome focused bug fixes, reliability and performance improvements, device/format/platform compatibility, and approved documentation work.
+- Bug fixes
+- Reliability and performance improvements
+- Better support for devices, formats and platforms
+- Documentation fixes
 
-We do not accept unsolicited features, additional settings, plugins, themes, custom CSS, unapproved dependencies, translations, drive-by cleanup or refactors, or changes to branding or the Portico Services integration. UI changes must match the approved design. Keep each pull request about one underlying problem.
+Small, obvious fixes can go straight to a pull request. For anything else, including new features and changes to how something behaves, open an issue or start a discussion first, and wait until I've said yes. A yes covers only what we agreed on.
 
-## Pull request requirements
+## What I'm not looking for
 
-- A linked approved issue, or an explanation of the obvious fix.
-- Reproduction steps, observed results, focused tests and checks you could not complete.
-- Before/after screenshots for UI changes, recordings for motion or timing, and focus evidence for TV interactions.
-- Disclosure of who wrote the change: a person, or the model(s) and harness used. AI-written code is welcome; you remain responsible for it.
-- Disclosure of third-party code and its licence.
-- Agreement to the current [CLA](CLA.md) before review. Employer-owned work needs a corporate agreement from an authorized representative.
+- New features nobody asked for
+- More settings, plugins, themes or custom CSS
+- New dependencies I haven't agreed to
+- Translations
+- Cleanups or refactors on their own
+- Changes to the branding or to how Portico Services works
 
-Passing tests alone does not prove a bug is fixed. Follow the build instructions and keep unrelated changes out.
+UI changes need to match the approved design. Keep each pull request to one problem.
 
-## Review and acceptance
+## What to include in a pull request
 
-The contribution gate checks the CLA, approval, completed template and CI. An agent may prepare a triage/review report; Justin decides acceptance. Agents do not merge outside contributions. Policy failures may be closed automatically, including drafts. There is no promised review time.
+- The issue it fixes, or a line on why the fix is obvious
+- How to reproduce the problem, and what you saw before and after
+- Tests for the change, and anything you couldn't test
+- Before and after screenshots for UI changes. Use a recording for anything to do with motion or timing, and show where focus goes for TV changes.
+- Who wrote it: you, or which AI model and tool. AI-written code is fine and welcome, but you're still responsible for it.
+- Any third-party code you copied in, and its licence
+- Your agreement to the [CLA](CLA.md). If your employer owns your work, they'll need to sign a company agreement too.
 
-Fork pull requests run on GitHub-hosted runners without secrets. They must never execute contributed code on a self-hosted runner or through a privileged pull_request_target checkout.
+Passing tests don't prove a bug is fixed, so show me that it is.
 
-Bugs belong in Issues; ideas belong in Discussions → Ideas. Security reports follow [SECURITY.md](SECURITY.md).
+## What happens next
 
-## Why the CLA exists
+I'll get to pull requests when I can, but there's no promised timeline and no guarantee of a review or a merge. I might decline something, park it, or fix the same problem a different way. Pull requests that skip the steps above may be closed. AI agents may help me triage, but I decide what gets merged, and no agent merges outside contributions.
 
-App stores and Portico Services may require different terms from the GPL. The CLA permits those uses while contributors keep copyright. Code already released under the GPL remains available under the GPL, and app capabilities will not be paywalled.
+Pull requests from forks run CI on GitHub's own runners, without access to any secrets.
+
+## Where things go
+
+- Bugs: [Issues](https://github.com/PorticoMediaServer/portico/issues)
+- Ideas and questions: [Discussions](https://github.com/PorticoMediaServer/portico/discussions)
+- Security problems: privately, as described in [SECURITY.md](SECURITY.md)
+
+## Why there's a CLA
+
+Portico's apps go into app stores, and Portico Services runs as a hosted service. Both can need terms other than the GPL. The CLA lets me use contributions there while you keep your copyright. Anything already released under the GPL stays available under the GPL, and no app feature will ever be put behind a paywall.

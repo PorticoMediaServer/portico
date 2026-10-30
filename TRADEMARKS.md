@@ -1,13 +1,22 @@
-# Portico trademarks
+# Portico name and logo
 
-The Portico name, Portico Media Server name, logos, wordmarks, icons, and other distinctive brand elements identify software and services originating from Justin Ehler and the official Portico project.
+The names Portico and Portico Media Server, and Portico's logos, wordmarks, icons and other brand elements, identify software and services from Justin Ehler and the official Portico project.
 
-The software license and the brand are separate. The GNU General Public License gives you broad rights to use, study, modify, and redistribute the covered source code. It does not give you permission to imply that a modified build, fork, service, website, package, or organization is produced, approved, endorsed, or supported by the official Portico project.
+## The code and the brand are separate
 
-You may make truthful, descriptive statements such as “compatible with Portico Media Server,” “based on Portico Media Server,” or “a fork of Portico Media Server.” Please make the unofficial nature of your work clear and do not use Portico logos or presentation in a way that is likely to confuse users about its source.
+The GPL gives you broad rights to use, study, change and share Portico's source code. It doesn't let you suggest that your version, fork, service, website, package or organisation is made, approved, endorsed or supported by the official Portico project.
 
-Unmodified redistribution may retain the original notices required by the GPL. Modified versions should use a distinct product name and visual identity, while preserving legally required copyright, license, and attribution notices.
+## What's fine
 
-This policy does not prevent nominative fair use or other uses permitted by applicable law. No registration symbol is claimed by this document.
+- Saying something true and descriptive, like "compatible with Portico Media Server", "based on Portico Media Server" or "a fork of Portico Media Server".
+- Redistributing Portico unchanged, with the original notices the GPL requires.
+- Any use the law allows anyway, such as nominative fair use.
 
-Questions about brand use may be opened as a non-security issue in the primary [`portico-server` repository](https://github.com/PorticoMediaServer/portico-server/issues).
+## What to avoid
+
+- Using Portico's logos or look in a way that could confuse people about who made your work.
+- Shipping a modified version under the Portico name. Give it its own name and look, and keep the copyright, licence and attribution notices the law requires.
+
+Make it clear when your work is unofficial.
+
+This document doesn't claim any registered trademark. If you have a question about using the name or logo, [open an issue](https://github.com/PorticoMediaServer/portico/issues).

@@ -1,15 +1,12 @@
 # Third-party notices
 
-Portico Media Server is GPL-3.0-or-later. Components below retain their own
-copyrights and licences. Licence names here are an inventory, not replacement
-licence texts. Preserve the upstream notices and corresponding source/build
-materials when distributing a binary. Versioned source files and lockfiles,
-not a moving upstream default branch, identify an update.
+Portico is licensed under the GPL, version 3 or later. It's built on a lot of other people's work, and those parts keep their own copyrights and licences. This file lists them.
+
+The licence names below are an inventory, not a substitute for the licence texts themselves. If you distribute a Portico binary, keep the upstream notices and the matching source and build materials with it. Updates are identified by the versioned source files and lockfiles in this repository, never by an upstream project's moving default branch.
 
 ## Go server
 
-`server/go.mod` and `server/go.sum` pin the modules. `apikit` is Portico's own
-module. Go itself and copied Go image-scaling code use BSD-3-Clause terms.
+`server/go.mod` and `server/go.sum` pin the Go modules. `apikit` is Portico's own module. Go itself, and the Go image-scaling code copied into Portico, use BSD-3-Clause terms.
 
 | Module | Version | Licence |
 | --- | --- | --- |
@@ -31,40 +28,19 @@ module. Go itself and copied Go image-scaling code use BSD-3-Clause terms.
 | github.com/bodgit/sevenzip | v1.6.5 | BSD-3-Clause |
 | github.com/nwaples/rardecode/v2 | v2.4.5 | BSD-2-Clause |
 
-The two archive readers are the bounded comic readers: `rardecode` for CBR and
-`sevenzip` for the CB7 worker. Both are pinned in `server/go.mod` as direct
-requirements and are linked into official builds, which set `portico_rar7z` and
-`portico_cb7` from `scripts/release-build-tags.py`. CB7 still requires a
-supported platform and the bounded `archive7z` worker; the tag alone never opens
-an in-process reader. Their licence texts are the packages' own unchanged
-`LICENSE` files, not rewritten here.
+The two archive readers power the comic reader: `rardecode` for CBR files and `sevenzip` for CB7 files. Both are direct requirements in `server/go.mod`, and official builds link them in using the `portico_rar7z` and `portico_cb7` tags from `scripts/release-build-tags.py`. CB7 also needs a supported platform and the bounded `archive7z` worker; the tag on its own never opens an archive inside the server process. Their licence texts are the packages' own unchanged `LICENSE` files.
 
-The maintained SQLite driver's copied files retain upstream notices in
-[server/internal/thirdparty/sqlite/LICENSE](server/internal/thirdparty/sqlite/LICENSE)
-and provenance in [PORTICO.md](server/internal/thirdparty/sqlite/PORTICO.md).
-The image scaler's BSD notice is
-[server/internal/imagework/SCALE_LICENSE](server/internal/imagework/SCALE_LICENSE).
+The SQLite driver files copied into Portico keep their upstream notices in [server/internal/thirdparty/sqlite/LICENSE](server/internal/thirdparty/sqlite/LICENSE), with their history in [PORTICO.md](server/internal/thirdparty/sqlite/PORTICO.md). The image scaler's BSD notice is in [server/internal/imagework/SCALE_LICENSE](server/internal/imagework/SCALE_LICENSE).
 
-## Browser and build packages
+## Web and build packages
 
-The [npm dependency inventory](docs/dependency-licenses.md) lists every package
-version and declared licence in the root and standalone web lockfiles, including
-transitive, development and platform-optional packages. React/React DOM,
-TanStack Router, Radix UI, QRCode and Noble cryptography are MIT; hls.js is
-Apache-2.0. Build dependencies include TypeScript (Apache-2.0), Vite (MIT), and
-platform-dependent bundler binaries under their recorded licences.
+The [npm dependency inventory](docs/dependency-licenses.md) lists every package and its declared licence from the root lockfile, including indirect, development and platform-specific packages. The main ones: React and React DOM, TanStack Router, Radix UI, QRCode and the Noble cryptography libraries are MIT, and hls.js is Apache-2.0. The build uses TypeScript (Apache-2.0), Vite (MIT) and platform-specific bundler binaries under their recorded licences.
 
-The patched hls.js build is `1.7.2-portico.1`, based on upstream `1.7.2` at
-`dd669ec53b601aa9fab7a2a78c913e25018cdf18`. Its archive, patch, build recipe,
-[licence](third_party/hls.js/LICENSE) and
-[provenance](third_party/hls.js/provenance.json) are retained in `third_party/hls.js`.
+Portico uses a patched hls.js, version `1.7.2-portico.1`, based on upstream `1.7.2` at `dd669ec53b601aa9fab7a2a78c913e25018cdf18`. The original archive, the patch, the build recipe, the [licence](third_party/hls.js/LICENSE) and the [provenance record](third_party/hls.js/provenance.json) are all in `third_party/hls.js`.
 
 ## Reader libraries
 
-The Reader dependencies are pinned in `packages/reader-core/package.json` and the
-root lockfile. Full upstream licence texts and their hashes are retained in
-[third_party/reader](third_party/reader/provenance.json) and copied into release
-payloads under `licenses/reader`.
+The book and comic reader's dependencies are pinned in `packages/reader-core/package.json` and the root lockfile. Their full licence texts and hashes are in [third_party/reader](third_party/reader/provenance.json), and release builds copy them into `licenses/reader`.
 
 | Component | Pinned source | Licence |
 | --- | --- | --- |
@@ -73,24 +49,13 @@ payloads under `licenses/reader`.
 | Gildas Lormeau zip.js | 2.24.0 | [BSD-3-Clause](third_party/reader/zipjs-LICENSE) |
 | Cure53 DOMPurify | 3.4.17 | [Apache-2.0](third_party/reader/dompurify-LICENSE), selected from the upstream Apache-2.0 OR MPL-2.0 choice |
 
-The official Literata variable font is pinned to
-[google/fonts 4e5f06dbb274a27ebe71ed54ea706b3ee40eabd9](https://github.com/google/fonts/tree/4e5f06dbb274a27ebe71ed54ea706b3ee40eabd9/ofl/literata).
-Its unchanged [SIL Open Font License 1.1](packages/reader-core/assets/OFL.txt),
-metadata and source receipt are in `packages/reader-core/assets`; the full licence
-also travels in `licenses/reader/literata-OFL.txt`. The font SHA-256 is
-`b41138c9373112f32abb589cc22e8674b06ed4048b0c513be922bdd26f274440`.
+The Literata variable font is pinned to [google/fonts 4e5f06dbb274a27ebe71ed54ea706b3ee40eabd9](https://github.com/google/fonts/tree/4e5f06dbb274a27ebe71ed54ea706b3ee40eabd9/ofl/literata). Its unchanged [SIL Open Font License 1.1](packages/reader-core/assets/OFL.txt), metadata and source receipt are in `packages/reader-core/assets`, and the licence also ships as `licenses/reader/literata-OFL.txt`. The font's SHA-256 is `b41138c9373112f32abb589cc22e8674b06ed4048b0c513be922bdd26f274440`.
 
-The necessary text-layer CSS subset in `packages/reader-core/src/pdf/adapter.ts`
-is adapted from Mozilla PDF.js 6.4.299 under Apache-2.0 and retains its source
-attribution. Portico supplies its own viewer chrome.
+The small piece of text-layer CSS in `packages/reader-core/src/pdf/adapter.ts` is adapted from Mozilla PDF.js 6.4.299 under Apache-2.0 and keeps its attribution. The rest of the viewer is Portico's own.
 
-## Browser subtitle renderer and fonts
+## Subtitles in the browser, and fonts
 
-The unmodified `@jellyfin/libass-wasm` 4.2.4 archive and served files are in
-`third_party/libass-wasm`. Source is
-[JavascriptSubtitlesOctopus at the pinned revision](https://github.com/jellyfin/JavascriptSubtitlesOctopus/tree/2d4ec9b16a639f23733cd32982e09e0eb757f092).
-The worker is WebAssembly; the JavaScript wrapper and worker glue are MIT.
-The worker contains:
+The browser subtitle renderer is the unmodified `@jellyfin/libass-wasm` 4.2.4, kept in `third_party/libass-wasm`. Its source is [JavascriptSubtitlesOctopus at the pinned revision](https://github.com/jellyfin/JavascriptSubtitlesOctopus/tree/2d4ec9b16a639f23733cd32982e09e0eb757f092). The renderer itself is WebAssembly, and its JavaScript wrapper and worker code are MIT. Inside it:
 
 | Component | Licence |
 | --- | --- |
@@ -103,14 +68,9 @@ The worker contains:
 | zlib | Zlib |
 | Small parts listed in COPYRIGHT | BSD-2-Clause, BSL-1.0, NTP and public domain |
 
-Full per-file copyrights and licence texts are in
-[COPYRIGHT](third_party/libass-wasm/COPYRIGHT), with wrapper
-[LICENSE](third_party/libass-wasm/LICENSE) and font
-[OFL-1.1.txt](third_party/libass-wasm/OFL-1.1.txt). The web build copies these
-beside the served renderer. `python3 -I third_party/libass-wasm/verify.py` checks
-its bytes against the stored archive. The corresponding source must include
-its pinned library submodules and build recipe; an upstream top-level archive
-alone is not a complete source bundle.
+The full per-file copyrights and licence texts are in [COPYRIGHT](third_party/libass-wasm/COPYRIGHT), along with the wrapper's [LICENSE](third_party/libass-wasm/LICENSE) and the font's [OFL-1.1.txt](third_party/libass-wasm/OFL-1.1.txt). The web build copies these next to the renderer it serves. `python3 -I third_party/libass-wasm/verify.py` checks the files against the stored archive. A complete source bundle needs the pinned library submodules and the build recipe; the upstream top-level archive alone isn't enough.
+
+Fonts and icons Portico ships:
 
 | Distributed font/art | Licence and local notice |
 | --- | --- |
@@ -121,64 +81,33 @@ alone is not a complete source bundle.
 | Decoder DejaVu fonts | Bitstream Vera/Arev font terms, DejaVu changes public domain; `server/internal/mediaexec/fonts/LICENSE` |
 | Lucide icons | ISC, `packages/design/LICENSE-LUCIDE` |
 
-Font file origins and digests are in each folder's provenance file. The
-browser fallback set is not a claim of coverage for every script.
+Each folder's provenance file records where its fonts came from and their hashes. The browser's fallback fonts don't cover every script.
 
-## Server rclone
+## rclone, for remote storage
 
-Portico ships rclone **1.75.2** (MIT), upstream source revision
-`be8d6044eacb843b74d335db0c5fbe09222031fe`, as a separate executable.
-[The lock](third_party/rclone/bundle.lock.json) pins all six Linux, macOS and
-Windows amd64/arm64 archives, their signed checksums, source and vendor archives.
-The build authenticates the release with upstream key
-`FBF737ECE9F8AB18604BD2AC93935E02FF3B54FA` and verifies every extracted byte.
-[The MIT licence](third_party/rclone/LICENSE) and
-[dependency notices](third_party/rclone/DEPENDENCY-NOTICES.txt) travel with every
-payload, installer and image. The latter preserves the vendor module inventory
-and all 341 upstream licence/copyright/notice files (a platform-inclusive superset);
-the upstream binary archives carry README/manual and git history, not a separate
-complete module notices file. All of those archive files are retained too.
-The lock records the corresponding source and vendor URLs and SHA-256 digests.
+Portico ships rclone **1.75.2** (MIT), upstream source revision `be8d6044eacb843b74d335db0c5fbe09222031fe`, as a separate program.
 
-The custom-program minimum is **1.70.0**: `--max-connections` first appears there;
-`--vfs-read-chunk-streams` requires 1.68.0 and `--vfs-cache-min-free-space` 1.64.0.
-The pinned help/flag audit and release changelog establish that the remaining
-read-only serve, range, cache, retry, logging, pacing and environment-credential
-options predate 1.70.0. See [the bundle contract](third_party/rclone/README.md).
-Build provenance hashes authenticate distributed artifacts; custom programs are
-checked only by running `version` for at most five seconds, without file approval.
+- [The lock file](third_party/rclone/bundle.lock.json) pins all six Linux, macOS and Windows amd64/arm64 archives, their signed checksums, and the source and vendor archives.
+- The build checks the release against upstream key `FBF737ECE9F8AB18604BD2AC93935E02FF3B54FA` and verifies every extracted byte.
+- [The MIT licence](third_party/rclone/LICENSE) and [dependency notices](third_party/rclone/DEPENDENCY-NOTICES.txt) ship with every payload, installer and image. The dependency notices keep the vendored module list and all 341 upstream licence, copyright and notice files, covering every platform. The upstream binary archives include a README, manual and Git history but no complete module notices file of their own, so all of those archive files are kept too.
+- The lock file records the source and vendor URLs and their SHA-256 hashes.
 
-## Server FFmpeg and FFprobe
+If you point Portico at your own rclone, it needs at least **1.70.0**, the first version with `--max-connections`. (`--vfs-read-chunk-streams` needs 1.68.0, and `--vfs-cache-min-free-space` needs 1.64.0.) The pinned flag audit and the release changelog show that the other read-only serve, range, cache, retry, logging, pacing and credential options Portico uses are all older than 1.70.0. See [the bundle contract](third_party/rclone/README.md). Portico verifies the rclone it ships through build provenance hashes. A custom rclone is only checked by running `version`, with a five-second limit, and isn't approved file by file.
 
-The server invokes these as separate processes. The qualified server build is
-FFmpeg **8.1.2**, component release `ffmpeg-8.1.2-portico.1`, pinned in
-[third_party/ffmpeg/sources.lock.json](third_party/ffmpeg/sources.lock.json).
-The Linux/Windows recipe is BtbN revision
-`48576f197ad1c2afb2e0b8efe204919a1afbff54`; macOS is the Homebridge recipe at
-`4920fab9d6ac56999ce7e961b240659b4da078a5`, with the recorded Portico patches.
-Configuration requires `--enable-gpl --enable-version3` and forbids `nonfree`
-and libfdk-aac. The resulting FFmpeg build is GPL-3.0-or-later. Its compiled
-codec/filter dependencies retain their individual notices.
+## FFmpeg and FFprobe on the server
 
-The qualified bundle's `licenses` directory and corresponding source archive
-are the inventory for the actual platform build, including external libraries
-chosen by that recipe. Package creation carries this bundle intact. Consult
-[third_party/ffmpeg/NOTICE.md](third_party/ffmpeg/NOTICE.md). This checkout has
-recipes rather than the completed platform bundles; it cannot establish the
-complete dependency list of a release artifact that has not been inspected.
-Do not substitute a PATH binary and describe it as the qualified build.
+The server runs these as separate programs. The qualified server build is FFmpeg **8.1.2**, component release `ffmpeg-8.1.2-portico.1`, pinned in [third_party/ffmpeg/sources.lock.json](third_party/ffmpeg/sources.lock.json).
 
-## Native media engine (separate client repository)
+- Linux and Windows builds use the BtbN recipe at revision `48576f197ad1c2afb2e0b8efe204919a1afbff54`. macOS uses the Homebridge recipe at `4920fab9d6ac56999ce7e961b240659b4da078a5`. Both apply the recorded Portico patches.
+- The build must use `--enable-gpl --enable-version3`, and can't use `nonfree` or libfdk-aac. The result is GPL-3.0-or-later. The codecs and filters compiled into it keep their own notices.
 
-The phone, tablet and television apps carry a second player engine, mpv, built
-by Portico itself from pinned source in the client repository
-(`third_party/media-engine/`, every source URL and SHA-256 in its
-`sources.lock.json`). It is not embedded in the Go server. The same recipe
-builds Android (Android, Android TV, Fire TV) and Apple (iPhone, iPad, Apple
-TV), each library as its own replaceable dynamic library (`.so` on Android, a
-framework on Apple). The whole engine is LGPL-2.1-or-later: FFmpeg is
-configured without `--enable-gpl`, `--enable-version3` or `--enable-nonfree`,
-and mpv is built with `-Dgpl=false`. FFmpeg is the same version the server pins.
+Each qualified bundle's `licenses` folder and source archive are the real inventory for that platform's build, including the external libraries its recipe pulls in. Packaging carries the bundle over unchanged. See [third_party/ffmpeg/NOTICE.md](third_party/ffmpeg/NOTICE.md). This repository holds the recipes, not the finished bundles, so it can't list every dependency of a release that hasn't been inspected. Don't swap in an FFmpeg from your PATH and call it the qualified build.
+
+## The media engine in the apps
+
+The phone, tablet and TV apps use a second player engine, mpv, which Portico builds from pinned source in `third_party/media-engine/`. Every source URL and SHA-256 is in its `sources.lock.json`. It isn't part of the Go server.
+
+The same recipe builds for Android (phones, Android TV and Fire TV) and Apple (iPhone, iPad and Apple TV). Each library is its own replaceable dynamic library: a `.so` on Android, a framework on Apple. The whole engine is LGPL-2.1-or-later. FFmpeg is configured without `--enable-gpl`, `--enable-version3` or `--enable-nonfree`, and mpv is built with `-Dgpl=false`. It uses the same FFmpeg version as the server.
 
 | Component | Version | Licence |
 | --- | --- | --- |
@@ -199,57 +128,43 @@ and mpv is built with `-Dgpl=false`. FFmpeg is the same version the server pins.
 | MoltenVK (Apple only; Khronos release build) | 1.4.2 | Apache-2.0 |
 | glslang (Apple only; linked into libplacebo) | 16.6.0 | BSD-3-Clause and others |
 
-zlib and, on Android, the C++ runtime are the platform's own. The engines the
-apps used before (MPVKit on Apple, media-kit's libmpv on Android) are no longer
-used, and nothing from them ships: no GnuTLS, Nettle, GMP, mbedTLS, libbluray,
-libsmbclient or uavs3d (`verify.py` fails a build that contains any of them).
+zlib, and the C++ runtime on Android, come from the platform. The engines the apps used before (MPVKit on Apple, media-kit's libmpv on Android) are gone, and nothing from them ships. That means no GnuTLS, Nettle, GMP, mbedTLS, libbluray, libsmbclient or uavs3d, and `verify.py` fails any build that contains them.
 
-The client repository's `collect-notices.sh` produces the full licence texts
-and the corresponding source bundle a release must carry, and each app shows
-the engine's components in Settings › About › Open-source licenses. This server
-notice summarises; it does not prove that a particular native release carries
-its notices and source.
+`third_party/media-engine/collect-notices.sh` produces the full licence texts and the matching source bundle each app release has to carry. Each app also lists the engine's components under Settings › About › Open-source licenses. This section is a summary. It doesn't prove that any particular app release carries its notices and source.
 
-## Container and release tools
+## Container image and release tools
 
-The Dockerfile fetches Debian packages for bubblewrap (LGPL-2.0-or-later), tini
-(MIT), tzdata (public-domain/BSD notices), CA certificates (Mozilla certificates
-plus Debian packaging notices), libva (MIT), Mesa VA drivers (MIT and per-file
-permissive notices), and on amd64 Intel media/i965 drivers (MIT and their
-bundled notices). Runtime Debian libraries and their transitive dependencies
-retain notices under `/usr/share/doc/<package>/copyright`; the image SBOM is the
-artifact inventory. Node build images include Node.js (MIT plus bundled notices)
-and npm (Artistic-2.0 plus dependencies); Go build images carry Go (BSD-3-Clause).
-They are build stages, not copied wholesale into the runtime image.
+The Dockerfile installs these Debian packages:
 
-Release tools include Python cryptography 49.0.0 (Apache-2.0 or BSD-3-Clause,
-with bundled dependencies), nFPM 2.43.4 (MIT), NSIS (zlib/libpng licence for core,
-with component notices), Meson 1.7.0 (Apache-2.0), Ninja (Apache-2.0), and
-setuptools (MIT). Compiler, OS packaging tools and GitHub workflow actions are
-build infrastructure; their upstream distributions retain their notices.
-Their use is not a claim that their code is bundled into the Portico server.
+- bubblewrap (LGPL-2.0-or-later)
+- tini (MIT)
+- tzdata (public domain and BSD notices)
+- CA certificates (Mozilla's certificates plus Debian packaging notices)
+- libva (MIT)
+- Mesa VA drivers (MIT and per-file permissive notices)
+- on amd64, the Intel media and i965 drivers (MIT and their bundled notices)
+
+Debian runtime libraries and their dependencies keep their notices in `/usr/share/doc/<package>/copyright`, and the image's SBOM is the full inventory. The Node build stages include Node.js (MIT, plus bundled notices) and npm (Artistic-2.0, plus its dependencies), and the Go build stages include Go (BSD-3-Clause). Those build stages aren't copied wholesale into the runtime image.
+
+Release tooling includes:
+
+- Python cryptography 49.0.0 (Apache-2.0 or BSD-3-Clause, with bundled dependencies)
+- nFPM 2.43.4 (MIT)
+- NSIS (zlib/libpng licence for the core, with component notices)
+- Meson 1.7.0 (Apache-2.0)
+- Ninja (Apache-2.0)
+- setuptools (MIT)
+
+Compilers, OS packaging tools and GitHub Actions are build infrastructure. Their own distributions carry their notices, and using them doesn't mean their code is bundled into Portico.
 
 ## Sonic music analysis
 
-The bundled musicnn MTT model is by Jordi Pons and Xavier Serra and is
-redistributed under the author's ISC licence, included unchanged with the
-model. It was trained on MagnaTagATune (Law et al., 2009). The model is converted
-from the pinned original weights; no Essentia models are included.
+The bundled musicnn MTT model is by Jordi Pons and Xavier Serra, redistributed under the author's ISC licence, which is included unchanged with the model. It was trained on MagnaTagATune (Law et al., 2009). The model is converted from the pinned original weights, and no Essentia models are included.
 
-ONNX Runtime 1.20.1 is distributed under MIT. Its original LICENSE and
-ThirdPartyNotices.txt accompany every Sonic bundle. The portico-sonic helper
-remains GPLv3; its corresponding source and build instructions are included.
-The platform C and C++ runtime remains a system dependency, as for FFmpeg.
+ONNX Runtime 1.20.1 is MIT licensed, and its original LICENSE and ThirdPartyNotices.txt ship with every Sonic bundle. The portico-sonic helper is GPLv3, and its source and build instructions are included. Like FFmpeg, it relies on the platform's C and C++ runtime.
 
-## External services
+## Online services
 
-TMDB and TheTVDB application credentials identify Portico and are intentionally
-distributed, not server-owner secrets. The UI carries provider attribution;
-these services' data/API terms are separate from software licences. Owners can
-supply their own server-wide credentials. MusicBrainz, AniList and configured
-subtitle services have their own service/data terms.
+Portico ships with its own TMDB and TheTVDB application credentials. They identify Portico and are meant to be public; they aren't secrets belonging to server owners. The app shows each provider's attribution, and their data and API terms are separate from any software licence. Owners can supply their own credentials for the whole server. MusicBrainz, AniList and any subtitle services you configure have their own terms.
 
-The Cast receiver loads Google's hosted Cast Application Framework script at
-runtime under Google's SDK terms. It is not copied into this repository and is
-not GPL licensed by Portico. Service access and Apple store/distribution rights
-must be checked separately from this software inventory.
+The Cast receiver loads Google's hosted Cast Application Framework script when it runs, under Google's SDK terms. It isn't copied into this repository, and Portico doesn't license it under the GPL. Access to these services, and Apple's store and distribution rights, are separate from this software inventory.
