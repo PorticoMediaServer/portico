@@ -6,15 +6,7 @@
       "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
       "test": "TestDerivedWorkerCompletesWithForegroundPressure",
       "owner": "Portico reset lead",
-      "reason": "1/2 failures; 15s deadline versus observed 16.18s; coalescing branch not CI qualified",
-      "expires": "2026-11-05",
-      "tier": "nightly"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
-      "test": "TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest",
-      "owner": "Portico reset lead",
-      "reason": "1/2 failures; scaled ingest window and retry coordination need deterministic fixture",
+      "reason": "Nightly 41126130274: 130/130 movie rows derived but 49 dirty units remain at 15s; 11.642s post-quantum pacing. Coalescing landed; cause remains unresolved.",
       "expires": "2026-11-05",
       "tier": "nightly"
     }

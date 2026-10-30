@@ -69,7 +69,6 @@ class ActivePolicyTests(unittest.TestCase):
         names={test for pkg,test in q}
         self.assertEqual(names, {
             'TestDerivedWorkerCompletesWithForegroundPressure',
-            'TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest',
         })
         self.assertNotIn('TestMBStagingTenThousandCompleteFinalWriterHold',names)
         self.assertNotIn('TestReadingInitialReadyHasNoPollDelayOrHiddenHandle',names)
