@@ -1,0 +1,18 @@
+changelog:
+  exclude:
+    labels: ['skip changelog']
+  categories:
+    - title: Server
+      labels: ['area: server', 'area: api']
+    - title: Web app
+      labels: ['area: web']
+    - title: Apple apps
+      labels: ['area: apple']
+    - title: Android apps
+      labels: ['area: android']
+    - title: Vega and desktop apps
+      labels: ['area: vega', 'area: desktop']
+    - title: Documentation
+      labels: ['area: docs']
+    - title: Other changes
+      labels: ['*']

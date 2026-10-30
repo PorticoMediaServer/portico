@@ -1,0 +1,74 @@
+name: Playback problem
+description: Something won't play, stutters, looks or sounds wrong, or subtitles misbehave.
+type: Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Playback problems usually depend on the exact file and device, so the more detail you can give, the faster this gets fixed.
+
+        Remove passwords, personal details, private addresses and anything else you'd rather not share from logs and screenshots. Security problems go [here instead](https://github.com/PorticoMediaServer/portico/security/advisories/new).
+  - type: dropdown
+    id: app
+    attributes:
+      label: Which app were you playing on?
+      options:
+        - Web browser
+        - iPhone or iPad
+        - Apple TV
+        - Android phone or tablet
+        - Android TV or Google TV
+        - Fire TV
+        - Vega (Amazon) TV
+        - Desktop app
+        - Cast or AirPlay
+        - Other
+    validations: {required: true}
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS version
+      placeholder: "For example: Apple TV 4K (3rd gen), tvOS 26.1"
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes:
+      label: Portico server and app versions
+      description: Check the app's settings and the server's web app if you're not sure.
+      placeholder: "For example: server 0.2.0, app 0.2.0"
+    validations: {required: true}
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: What did you see or hear, and what did you expect? Say how often it happens (for example "every time" or "2 of 5 tries") and whether other files play fine.
+    validations: {required: true}
+  - type: textarea
+    id: media
+    attributes:
+      label: About the file
+      description: Container, video and audio codecs, resolution, HDR or Dolby Vision, and subtitle format if relevant. If you're not sure, run `ffprobe` on the file or include what your media tool shows.
+      placeholder: "For example: MKV, HEVC 10-bit 4K HDR10, TrueHD Atmos 7.1, PGS subtitles"
+    validations: {required: true}
+  - type: dropdown
+    id: mode
+    attributes:
+      label: How was it playing?
+      description: Choose Not sure if you can't tell.
+      options:
+        - Direct play
+        - Direct stream (remux)
+        - Converting (transcode)
+        - Not sure
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Server logs from around the time it happened, a screenshot of what you saw, or a short recording. Drag files in here.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched existing issues and this hasn't been reported.
+          required: true

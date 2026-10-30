@@ -1,0 +1,34 @@
+# Applies area labels to pull requests from the files they change.
+'area: server':
+  - changed-files:
+      - any-glob-to-any-file: ['server/**', 'apikit/**', 'go.work', 'go.work.sum', 'Dockerfile', 'packaging/**', 'trust/**']
+'area: api':
+  - changed-files:
+      - any-glob-to-any-file: ['server/api/**', 'apikit/**', 'packages/contracts/**']
+'area: web':
+  - changed-files:
+      - any-glob-to-any-file: ['web/**']
+'area: apple':
+  - changed-files:
+      - any-glob-to-any-file: ['apps/native/ios/**', 'apps/native/tvos/**', 'apps/native/Native/**', 'apps/native/src-next/**', 'apps/native/platform/**']
+'area: android':
+  - changed-files:
+      - any-glob-to-any-file: ['apps/native/android/**', 'apps/native/src-next/**', 'apps/native/platform/**']
+'area: vega':
+  - changed-files:
+      - any-glob-to-any-file: ['apps/vega/**']
+'area: desktop':
+  - changed-files:
+      - any-glob-to-any-file: ['apps/desktop/**']
+'area: shared':
+  - changed-files:
+      - any-glob-to-any-file: ['packages/**']
+'area: website':
+  - changed-files:
+      - any-glob-to-any-file: ['website/**']
+'area: docs':
+  - changed-files:
+      - any-glob-to-any-file: ['docs/**', '*.md', 'server/api/guide/**']
+'area: ci':
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**', 'ci/**']
