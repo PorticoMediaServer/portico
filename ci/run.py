@@ -127,6 +127,10 @@ def fixture_producers(files, directory):
             if not list(target.glob('*.json')): raise ValueError('producer did not record fixtures: '+test)
 
 def js(plan,component):
+    files=next(x for x in plan['js'] if x['component']==component)['files']
+    # Licence regeneration lists Go dependencies for every release architecture
+    # with GOPROXY=off. A host-only cache is insufficient for those imports.
+    if 'web/test/licences.test.ts' in files: download()
     with tempfile.TemporaryDirectory(prefix='portico-ci-fixtures-') as directory:
         saved = {k:os.environ.get(k) for k in ['PORTICO_READING_HOME_FIXTURE_DIR','PORTICO_CONCURRENCY_DIAGNOSTICS_FIXTURE_DIR','PORTICO_CONSOLE_REGISTRY_FIXTURE_DIR']}
         try:
