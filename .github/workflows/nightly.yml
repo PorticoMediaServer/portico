@@ -1,6 +1,9 @@
 name: Full deterministic inventory
-# Schedule held until bootstrap is green; exact diagnostic ownership below.
-on: workflow_dispatch
+# Bootstrap is green; nightly owns the pressure/scale diagnostics below.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 * * *'
 permissions:
   contents: read
 concurrency:
