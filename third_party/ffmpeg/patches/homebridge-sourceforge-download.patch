@@ -1,0 +1,13 @@
+diff --git a/build-ffmpeg b/build-ffmpeg
+index 586ef02..97df95f 100755
+--- a/build-ffmpeg
++++ b/build-ffmpeg
+@@ -523,7 +523,7 @@ if ! isLinux; then
+ 
+   if build "giflib" "5.2.1"; then
+ 
+-    download "https://downloads.sourceforge.net/project/giflib/giflib-${CURRENT_PACKAGE_VERSION}.tar.gz"
++    download "https://sourceforge.net/projects/giflib/files/giflib-${CURRENT_PACKAGE_VERSION}.tar.gz/download" "giflib-${CURRENT_PACKAGE_VERSION}.tar.gz"
+ 
+     if [[ "${TARGET_OS}" == "darwin" ]]; then
+ 

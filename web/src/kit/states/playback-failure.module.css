@@ -1,0 +1,4 @@
+.failure {position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: clamp(24px, 7vw, 100px); background: linear-gradient(90deg, var(--color-scrim), transparent); color: var(--color-text); pointer-events: none; z-index: 1;}
+.failure h2 {font-size: var(--type-display-size); line-height: var(--type-display-line); margin: 0 0 16px;}
+.failure p {max-width: 540px; font-size: var(--type-body-size); line-height: var(--type-body-line); margin: 0 0 24px;}
+.failure > div {pointer-events: auto; display: flex; flex-wrap: wrap; gap: 12px;}

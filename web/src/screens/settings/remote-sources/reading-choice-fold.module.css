@@ -1,0 +1,75 @@
+/* The same choice line the frame folds the four cards into while Advanced is
+   open (remote-sources.html frames 4b/4c, phone 11c/14b). */
+.fold {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 22px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-ink) 40%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+.icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  color: var(--color-accent-strong);
+}
+.text { min-width: 0; }
+.text b {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: var(--type-fixed-size-16px);
+  font-weight: var(--type-fixed-weight-700);
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: var(--type-fixed-size-11point-5px);
+  font-weight: var(--type-fixed-weight-700);
+  letter-spacing: var(--type-fixed-tracking-0);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent-strong);
+}
+.hint {
+  display: block;
+  margin-top: 4px;
+  max-width: 560px;
+  font-size: var(--type-fixed-size-14px);
+  line-height: var(--type-fixed-line-1point-5);
+  color: var(--color-text-tertiary);
+}
+
+.fold[data-phone] {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-height: 66px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--color-raised);
+  box-shadow: none;
+}
+.fold[data-phone] .icon { display: none; }
+.fold[data-phone] .text { flex: 1; }
+.fold[data-phone] .text b { gap: 4px 8px; font-size: var(--type-fixed-size-15px); }
+.fold[data-phone] .hint { margin-top: 3px; font-size: var(--type-fixed-size-13px); line-height: var(--type-fixed-line-1point-45); }
+.fold[data-phone] .change {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--color-accent-strong);
+  font-size: var(--type-fixed-size-14point-5px);
+  font-weight: var(--type-fixed-weight-600);
+}

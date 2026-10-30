@@ -1,0 +1,10 @@
+/* desktop-read 1b/2/2c draw the library's wash as three covers, blurred and faded out. */
+.wash {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, var(--color-shadow) 0, color-mix(in srgb, var(--color-shadow) 60%, transparent) 45%, transparent 100%);
+  mask-image: linear-gradient(180deg, var(--color-shadow) 0, color-mix(in srgb, var(--color-shadow) 60%, transparent) 45%, transparent 100%);
+}
+.frame { position: absolute; top: -40%; width: 48%; height: 150%; filter: blur(110px) saturate(1.6); opacity: .42; }
+.frame:nth-child(1) { left: -10%; }
+.frame:nth-child(2) { left: 28%; opacity: .32; }
+.frame:nth-child(3) { left: 62%; }

@@ -1,0 +1,279 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/home"
+  },
+  "status": 200,
+  "body": {
+    "serverId": "srv_7sWWdcN9umujBzM2AlDkD--4cuPxXxauxkI6fcBZgm8",
+    "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+    "rows": [
+      {
+        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "deferred": true,
+        "seeAll": {
+          "type": "row",
+          "rowId": "continue"
+        },
+        "id": "continue",
+        "title": "Continue Watching",
+        "titleText": {
+          "code": "next.home.continueWatching",
+          "fallback": "Continue Watching"
+        },
+        "kind": "continue",
+        "artworkShape": "landscape",
+        "endpoint": "/v1/media/…",
+        "privacySensitivity": "personal",
+        "policyState": "available",
+        "priority": 10,
+        "cacheTtlMs": 45000,
+        "required": true,
+        "hideable": false,
+        "reorderable": true,
+        "critical": true,
+        "cursorCapable": true,
+        "entries": [],
+        "total": 0,
+        "start": 0,
+        "limit": 12,
+        "hasMore": false,
+        "nextCursor": "",
+        "revision": {
+          "catalog": 125,
+          "viewer": 0
+        }
+      },
+      {
+        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "deferred": true,
+        "seeAll": {
+          "type": "row",
+          "rowId": "new_on_server"
+        },
+        "id": "new_on_server",
+        "title": "New on your server",
+        "titleText": {
+          "code": "next.home.newOnServer",
+          "fallback": "New on your server"
+        },
+        "kind": "recent",
+        "artworkShape": "poster",
+        "endpoint": "/v1/media/…",
+        "privacySensitivity": "catalog",
+        "policyState": "available",
+        "priority": 20,
+        "cacheTtlMs": 120000,
+        "required": false,
+        "hideable": true,
+        "reorderable": true,
+        "critical": false,
+        "cursorCapable": true,
+        "entries": [],
+        "total": 0,
+        "start": 0,
+        "limit": 12,
+        "hasMore": false,
+        "nextCursor": "",
+        "revision": {
+          "catalog": 125,
+          "viewer": 0
+        }
+      },
+      {
+        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "deferred": true,
+        "seeAll": {
+          "type": "row",
+          "rowId": "because_you_watched"
+        },
+        "id": "because_you_watched",
+        "title": "Because you watched",
+        "titleText": {
+          "code": "next.home.becauseHeading",
+          "fallback": "Because you watched"
+        },
+        "kind": "recommendation",
+        "artworkShape": "poster",
+        "endpoint": "/v1/media/…",
+        "privacySensitivity": "personal",
+        "policyState": "available",
+        "priority": 30,
+        "cacheTtlMs": 60000,
+        "required": false,
+        "hideable": true,
+        "reorderable": true,
+        "critical": false,
+        "cursorCapable": true,
+        "entries": [],
+        "total": 0,
+        "start": 0,
+        "limit": 12,
+        "hasMore": false,
+        "nextCursor": "",
+        "revision": {
+          "catalog": 125,
+          "viewer": 0
+        }
+      },
+      {
+        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "deferred": true,
+        "seeAll": {
+          "type": "row",
+          "rowId": "featured_collection"
+        },
+        "id": "featured_collection",
+        "title": "Collection",
+        "titleText": {
+          "code": "next.home.collection",
+          "fallback": "Collection"
+        },
+        "kind": "collection_banner",
+        "artworkShape": "poster",
+        "endpoint": "/v1/media/…",
+        "privacySensitivity": "catalog",
+        "policyState": "available",
+        "priority": 40,
+        "cacheTtlMs": 120000,
+        "required": false,
+        "hideable": true,
+        "reorderable": true,
+        "critical": false,
+        "cursorCapable": false,
+        "entries": [],
+        "total": 0,
+        "start": 0,
+        "limit": 12,
+        "hasMore": false,
+        "nextCursor": "",
+        "revision": {
+          "catalog": 125,
+          "viewer": 0
+        }
+      },
+      {
+        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "deferred": true,
+        "seeAll": {
+          "type": "guide"
+        },
+        "id": "on_now",
+        "title": "On now",
+        "titleText": {
+          "code": "next.home.onNow",
+          "fallback": "On now"
+        },
+        "kind": "live",
+        "artworkShape": "landscape",
+        "endpoint": "/v1/media/…",
+        "privacySensitivity": "personal",
+        "policyState": "available",
+        "priority": 50,
+        "cacheTtlMs": 0,
+        "required": false,
+        "hideable": true,
+        "reorderable": true,
+        "critical": false,
+        "cursorCapable": true,
+        "entries": [],
+        "total": 0,
+        "start": 0,
+        "limit": 12,
+        "hasMore": false,
+        "nextCursor": "",
+        "revision": {
+          "catalog": 125,
+          "viewer": 0
+        }
+      },
+      {
+        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "deferred": true,
+        "seeAll": {
+          "type": "row",
+          "rowId": "listen_next"
+        },
+        "id": "listen_next",
+        "title": "Listen next",
+        "titleText": {
+          "code": "next.home.listenNext",
+          "fallback": "Listen next"
+        },
+        "kind": "listening",
+        "artworkShape": "square",
+        "endpoint": "/v1/media/…",
+        "privacySensitivity": "personal",
+        "policyState": "available",
+        "priority": 70,
+        "cacheTtlMs": 45000,
+        "required": false,
+        "hideable": true,
+        "reorderable": true,
+        "critical": false,
+        "cursorCapable": true,
+        "entries": [],
+        "total": 0,
+        "start": 0,
+        "limit": 12,
+        "hasMore": false,
+        "nextCursor": "",
+        "revision": {
+          "catalog": 125,
+          "viewer": 0
+        }
+      },
+      {
+        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "deferred": true,
+        "platforms": [
+          "web",
+          "phone"
+        ],
+        "seeAll": {
+          "type": "row",
+          "rowId": "continue_books"
+        },
+        "id": "continue_books",
+        "title": "Continue your books",
+        "titleText": {
+          "code": "next.home.continueBooks",
+          "fallback": "Continue your books"
+        },
+        "kind": "continue_books",
+        "artworkShape": "square",
+        "endpoint": "/v1/media/…",
+        "privacySensitivity": "personal",
+        "policyState": "available",
+        "priority": 80,
+        "cacheTtlMs": 45000,
+        "required": false,
+        "hideable": true,
+        "reorderable": true,
+        "critical": false,
+        "cursorCapable": true,
+        "entries": [],
+        "total": 0,
+        "start": 0,
+        "limit": 12,
+        "hasMore": false,
+        "nextCursor": "",
+        "revision": {
+          "catalog": 125,
+          "viewer": 0
+        }
+      }
+    ],
+    "spotlight": [],
+    "layout": {
+      "revision": 1,
+      "rowOrder": [],
+      "hiddenRowIds": []
+    },
+    "revision": {
+      "catalog": 125,
+      "viewer": 0
+    },
+    "generatedAt": "2026-10-29T09:33:18.400Z"
+  }
+}

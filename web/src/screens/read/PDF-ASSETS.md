@@ -1,0 +1,15 @@
+# PDF decoder assets and M0-003 source diagnosis
+
+The retained public-domain first-edition Pride and Prejudice volume 1 fixture is 10,967,764 bytes, SHA256 `d695c64ad814a22f421c105bbd8bab3c015160041bdd80c01c96d0df5754818c`. This is the retained fixture mapping, not a fresh physical-source attestation of the demo session.
+
+Read-only object/stream inspection, without image decoding or rendering, identifies page-tree object 3's first child as page 4. Its content object 3898 paints only Im0. Image object 3899 is a 2286×3876 JBIG2 image whose complete 30-byte stream contains only one 19-byte page-information segment (type 48). There are no image-region segments. Page flags are 0x40, leaving the default-pixel bit zero (white). A white initial page is genuine fixture content and must not be silently skipped or replaced by a guessed first content page.
+
+Separately, the pinned PDF.js6.4.299 requires `jbig2.wasm` or its `jbig2_nowasm_fallback.js` module for JBIG2 images. The guest previously supplied only workerUrl, leaving wasmUrl absent and neither decoder asset staged. The SDK's main-thread binary factory refuses an absent wasmUrl; its image evaluator can catch an image decode failure, warn and publish a null image without rejecting the page render. Thus successful transport and lack of an uncaught-error marker cannot prove image decoding succeeded.
+
+Sources: [JBIG2 decoder](https://github.com/mozilla/pdf.js/blob/v6.4.299/src/core/jbig2_ccittFax.js), [WASM/fallback loading](https://github.com/mozilla/pdf.js/blob/v6.4.299/src/core/wasm_image.js), [binary asset factory](https://github.com/mozilla/pdf.js/blob/v6.4.299/src/display/binary_data_factory.js), [image evaluator failure handling](https://github.com/mozilla/pdf.js/blob/v6.4.299/src/core/evaluator.js).
+
+The source correction stages the matching pinned SDK's bounded regular wasm/JS decoder assets under a version-specific local directory with stable SDK filenames and passes that local base alongside the matching bundled worker. Native and web assemblies share it. The existing CSP is unchanged; the SDK's same-version JavaScript fallback remains available when WASM compilation is refused. No selected-server URL, publication bytes, credential, source grant, page identity, initial location, progress or queue semantics is added or changed. Build tooling waits for explicit Release source approval.
+
+This closes a concrete missing-codec-asset path. It does not establish the installed iPhone's render state or fix the genuine blank first page. The five-minute-later Home retirement remains a separate event. No per-item build, renderer run, device run, test, collector or capture was performed.
+
+A separate startup presentation defect allowed the chrome hide timer to expire while the current publication was still opening. ReadReader now holds controls open until the exact source/revision is ready, including loading/failure/retired-source states; the existing idle timer applies after readiness. This does not change rendering, initial page, source authority or progress, and is not proof of the installed blank-page cause.

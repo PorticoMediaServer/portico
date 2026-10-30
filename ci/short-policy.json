@@ -1,0 +1,16 @@
+{
+  "status": "source-skips-parent-owned",
+  "mode": "go test -short",
+  "skip_in_short": [
+    "measured parent duration >= 2 seconds",
+    "five nightly_only parents",
+    "direct-Sleep parents measured >= 0.5 seconds or unmeasured"
+  ],
+  "measured_parents": 7000,
+  "parents_at_least_two_seconds": 877,
+  "measured_serial_seconds": 6655,
+  "slow_parent_serial_seconds": 4590,
+  "merge_queue": "all affected deterministic parents excluding the five nightly_only parents",
+  "bootstrap_full": "merge",
+  "source_skip_qualification_required": true
+}

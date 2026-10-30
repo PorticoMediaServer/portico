@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {"lib": ["es2023", "dom", "dom.iterable"], "types": ["react", "node"], "allowImportingTsExtensions": true, "noEmit": true},
+  "include": ["**/*.ts", "**/*.mjs", "../scripts/**/*.ts", "../scripts/**/*.mts", "../src-next/types/**/*.d.ts"],
+  "exclude": []
+}

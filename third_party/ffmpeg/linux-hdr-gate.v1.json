@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "sourceCommit": "737e666e0c00cc454883283b730296e69bcd9c81",
+  "mainLanding": "a9e0338eda031c0e4e02fb7e1b12f7eb2cabc083",
+  "inputs": {
+    "roundtrip": {
+      "path": "third_party/ffmpeg/tests/dovi-video-roundtrip.c",
+      "sha256": "e75a23f8b56886f826f6cee40a4b7bfab57f0eadf034ccc127ce86e5b52ab160"
+    },
+    "qualifier": {
+      "path": "scripts/qualify-hdr-video.py",
+      "sha256": "fd08e59206e27bec290a3abca3dafb964dc1b32ea815148b80fb3521a77dd088"
+    },
+    "fixtureManifest": {
+      "path": "fixtures/video/hdr-generated/manifest.json",
+      "sha256": "3a750950d94101e0b8460314da28f3b5babb372b55a3ecbe33ab02304aaeb6ee"
+    },
+    "joinContract": {
+      "path": "third_party/ffmpeg/portico-dovi-join.v1.json",
+      "sha256": "7426bae151a4095f5fa6db4b73996d53c3fbbc54a5b4005a6eb06e841ab9a97d"
+    },
+    "joinTest": {
+      "path": "third_party/ffmpeg/tests/dovi-join-packets.c",
+      "sha256": "2133fa64f6a5e0a8bfc1f81e6db4a27a985cf4eed72354799ecf6a328493acb5"
+    },
+    "joinQualifier": {
+      "path": "scripts/qualify-dovi-join.py",
+      "sha256": "a68fa981e15d16f5d64a8351a8d30445ac8a32131279077a3ad7e747a5309e8c"
+    },
+    "joinManifest": {
+      "path": "fixtures/video/dovi-dual-pid/manifest.json",
+      "sha256": "b4487880ab55c4c8f663445b56d66061166ee05e9f360b4e26055784942f94ae"
+    }
+  },
+  "scope": "Canonical same-prefix profile7-to8.1 encoded repackage, HDR10+ CPU metadata carry and default-off dual-PID join with20actual transport cases. No physical HDR, mastered FEL reconstruction, disc runtime activation or other target claim.",
+  "joinSourceCommit": "7937417b2fc397d16476c93164de459464ca1589"
+}

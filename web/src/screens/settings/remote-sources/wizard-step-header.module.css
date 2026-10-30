@@ -1,0 +1,41 @@
+/* remote-sources.html phone wizard head (.wzm-top): four-pixel segments and the
+   two-ended step line. Desktop uses the page's 252px completed-choice rail. */
+.header { display: grid; gap: 10px; }
+.steps { display: flex; gap: 4px; }
+.steps i { flex: 1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.steps i[data-on] { background: var(--color-accent-strong); }
+.label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--type-fixed-size-13px);
+  font-weight: var(--type-fixed-weight-700);
+  color: var(--color-text-tertiary);
+}
+.label b { color: var(--color-text-secondary); font-weight: var(--type-fixed-weight-700); }
+
+.page { min-width: 0; }
+.pageHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.pageHeader h2 { margin: 0; font-size: var(--type-heading-size); font-weight: var(--type-title-weight); }
+.wizard { display: grid; grid-template-columns: 252px minmax(0, 1fr); margin-top: 26px; border-radius: 18px; overflow: hidden; background: linear-gradient(180deg, var(--color-raised), var(--color-raised-soft)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 7%, transparent); }
+.rail { margin: 0; padding: 28px 18px 20px 24px; list-style: none; background: color-mix(in srgb, var(--color-ink) 34%, transparent); border-right: 1px solid var(--color-line-soft); }
+.rail li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 13px; padding-bottom: 22px; position: relative; }
+.rail li::before { content: ''; position: absolute; left: 13px; top: 32px; bottom: 4px; width: 2px; border-radius: 1px; background: var(--color-line); }
+.rail li:last-child { padding-bottom: 0; }
+.rail li:last-child::before { display: none; }
+.number { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: var(--type-fixed-size-13px); font-weight: var(--type-fixed-weight-800); color: var(--color-text-tertiary); box-shadow: inset 0 0 0 2px var(--color-line-strong); }
+.rail li[aria-current='step'] .number { background: var(--color-text); color: var(--color-ink); box-shadow: none; }
+.rail li[data-complete] .number { background: color-mix(in srgb, var(--color-healthy) 16%, transparent); color: var(--color-healthy); box-shadow: none; }
+.rail li[data-complete]::before { background: color-mix(in srgb, var(--color-healthy) 38%, transparent); }
+.stepText b { display: block; font-size: var(--type-fixed-size-14point-5px); font-weight: var(--type-fixed-weight-700); line-height: calc(var(--type-fixed-size-14px) * 2); color: var(--color-text-tertiary); }
+.rail li[aria-current='step'] b { color: var(--color-text); }
+.rail li[data-complete] b { color: var(--color-text-secondary); }
+.stepText small { display: block; margin-top: -2px; font-size: var(--type-fixed-size-12point-5px); line-height: var(--type-fixed-line-1point-4); font-weight: var(--type-fixed-weight-500); color: var(--color-text-tertiary); overflow-wrap: anywhere; }
+.main { display: flex; flex-direction: column; min-width: 0; }
+.body { display: flex; flex-direction: column; gap: 18px; flex: 1; padding: 30px 34px; min-width: 0; }
+.body > h3 { margin: 0; font-size: var(--type-fixed-size-27px); line-height: var(--type-fixed-line-1point-15); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-03em); }
+.footer { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding: 16px 34px 20px; border-top: 1px solid var(--color-line-soft); background: color-mix(in srgb, var(--color-ink) 30%, transparent); }
+.tabletPage.tabletPage { inset: 0; translate: none; width: 100%; height: 100dvh; max-height: none; border-radius: 0; padding: 20px 24px; display: flex; flex-direction: column; background: var(--color-ink); }
+.tabletBody { flex: 1; min-height: 0; overflow: auto; }
+@media (min-width: 600px) and (max-width: 899px) { .body { padding: 24px 20px; } .footer { padding-inline: 20px; } }

@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Portico</string>
+    <string name="downloads_channel">Downloads</string>
+    <string name="downloads_running">Downloading for offline viewing</string>
+</resources>

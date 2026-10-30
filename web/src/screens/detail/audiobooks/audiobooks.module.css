@@ -1,0 +1,65 @@
+.page { position:relative; isolation:isolate; min-height:100%; padding-bottom:110px; overflow:hidden; color:var(--color-text); }
+.ambient { position:absolute; z-index:-1; inset:0 0 auto; height:600px; pointer-events:none; }
+.nav { position:absolute; top:0; left:0; right:0; height:58px; padding:10px 12px 0; display:flex; align-items:center; justify-content:space-between; z-index:var(--layer-content); }
+.hero { position:relative; padding:62px 20px 0; text-align:center; }
+.cover { width:232px; height:232px; margin:0 auto; border-radius:12px; overflow:hidden; box-shadow:0 30px 60px -20px color-mix(in srgb,var(--color-shadow) 90%,transparent); }
+.cover > *, .disc > * { width:100%; height:100%; object-fit:cover; }
+.disc { position:relative; width:150px; height:150px; margin:0 auto; border-radius:50%; overflow:hidden; display:grid; place-items:center; box-shadow:0 30px 60px -20px color-mix(in srgb,var(--color-shadow) 90%,transparent); }
+.disc > :first-child { position:absolute; inset:0; filter:blur(18px) saturate(1.5) brightness(.6); }
+.disc b { position:relative; font-size:var(--type-audiobook-disc-glyph-size); font-weight:var(--type-audiobook-disc-glyph-weight); letter-spacing:var(--type-audiobook-disc-glyph-tracking); width:auto; height:auto; }
+.eyebrow { display:block; margin:18px auto 4px; padding:0; border:0; background:none; color:var(--color-accent-strong); font:var(--type-audiobook-detail-eyebrow-weight) var(--type-audiobook-detail-eyebrow-size)/var(--type-audiobook-detail-eyebrow-line) var(--font); }
+.hero h1 { margin:0 0 4px; font-size:var(--type-audiobook-detail-title-size); line-height:var(--type-audiobook-detail-title-line); font-weight:var(--type-audiobook-detail-title-weight); letter-spacing:var(--type-audiobook-detail-title-tracking); }
+.author { padding:0; border:0; background:none; font:var(--type-audiobook-detail-author-weight) var(--type-audiobook-detail-author-size)/var(--type-audiobook-detail-author-line) var(--font); color:var(--color-accent-strong); }
+.meta { display:flex; flex-wrap:wrap; justify-content:center; margin-top:8px; font-size:var(--type-audiobook-detail-meta-size); gap:6px 12px; color:var(--color-text-secondary); }
+.actions { display:flex; gap:10px; margin:20px 20px 0; }
+.primary { flex:1; }
+.round { border-radius:50%; }
+.progress { margin:14px 20px 0; display:flex; align-items:center; gap:12px; font-size:var(--type-audiobook-detail-progress-size); font-weight:var(--type-audiobook-detail-progress-weight); color:var(--color-text-tertiary); }
+.progress > span { flex:1; height:4px; border-radius:4px; overflow:hidden; background:color-mix(in srgb,var(--color-text) 18%,transparent); }
+.progress i, .chapterProgress i { display:block; height:100%; background:var(--color-accent-strong); }
+.about { margin:16px 20px 0; font-size:var(--type-audiobook-detail-synopsis-size); line-height:var(--type-audiobook-detail-synopsis-line); color:var(--color-text-secondary); display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
+.about[data-expanded] { display:block; }
+.readMore { display:block; margin:4px 20px 0; padding:0; border:0; background:none; font:var(--type-audiobook-detail-read-more-weight) var(--type-audiobook-detail-read-more-size)/var(--type-audiobook-detail-read-more-line) var(--font); color:var(--color-text); }
+.sectionHead { display:flex; align-items:baseline; justify-content:space-between; margin:22px 20px 6px; }
+.sectionHead h2 { margin:0; font-size:var(--type-audiobook-detail-section-size); font-weight:var(--type-audiobook-detail-section-weight); letter-spacing:var(--type-audiobook-detail-section-tracking); }
+.sectionHead > span { font-size:var(--type-audiobook-detail-meta-size); color:var(--color-text-tertiary); font-weight:var(--type-audiobook-detail-progress-weight); }
+.chapter { position:relative; display:flex; align-items:center; gap:12px; width:100%; height:50px; padding:0 16px 0 20px; border:0; color:inherit; background:transparent; font:var(--type-audiobook-chapter-weight) var(--type-audiobook-chapter-size)/var(--type-audiobook-chapter-line) var(--font); text-align:left; }
+.chapterRow { display:flex; align-items:center; }
+.chapterRow > .chapter { flex:1; min-width:0; }
+.chapterRow + .chapterRow .chapter::before { content:''; position:absolute; top:0; left:56px; right:0; height:1px; background:color-mix(in srgb,var(--color-line-strong) 30%,transparent); }
+.chapter[data-current] { color:var(--color-accent-strong); background:color-mix(in srgb,var(--color-text) 5%,transparent); height:58px; }
+.number { width:22px; text-align:center; color:var(--color-text-tertiary); font-size:var(--type-audiobook-chapter-number-size); font-variant-numeric:tabular-nums; flex:none; }
+.chapterTitle { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.duration { margin-left:auto; font-size:var(--type-audiobook-detail-meta-size); color:var(--color-text-tertiary); font-variant-numeric:tabular-nums; flex:none; }
+.chapterProgress { position:absolute; left:56px; right:70px; bottom:8px; height:3px; border-radius:3px; background:color-mix(in srgb,var(--color-text) 18%,transparent); overflow:hidden; }
+.bookRow { display:flex; align-items:center; gap:14px; padding:10px 14px 10px 20px; }
+.bookRow > button:first-child { display:flex; align-items:center; gap:14px; flex:1; min-width:0; padding:0; border:0; background:none; color:inherit; text-align:left; }
+.thumb { flex:none; width:66px; height:66px; border-radius:7px; overflow:hidden; }
+.thumb > * { width:100%; height:100%; }
+.bookRow b { display:block; font-size:var(--type-audiobook-related-title-size); font-weight:var(--type-audiobook-related-title-weight); letter-spacing:var(--type-audiobook-related-title-tracking); }
+.bookRow small { display:block; margin-top:3px; font-size:var(--type-audiobook-detail-progress-size); color:var(--color-text-tertiary); }
+.details { margin:2px 16px 0; padding:12px 14px; border-radius:12px; background:var(--color-raised); font-size:var(--type-audiobook-detail-fact-size); }
+.details dt { margin-top:8px; }
+.details dd { margin:4px 0 12px; color:var(--color-text-tertiary); font-size:var(--type-audiobook-detail-meta-size); }
+
+/* desktop-listen's book page: the album-style hero, chapters beside About this book. */
+.page[data-layout='desktop'] { display: grid; grid-template-columns: minmax(0,1fr) 360px; column-gap: 48px; align-items: start; padding: 0 56px 90px; }
+.page[data-layout='desktop'] .nav { grid-column: 1 / -1; padding: 12px 0 0; }
+.page[data-layout='desktop'] .hero { grid-column: 1 / -1; display: grid; grid-template-columns: 300px minmax(0,1fr); gap: 32px; text-align: left; padding: 20px 0 0; align-items: end; }
+.page[data-layout='desktop'] .cover { width: 300px; height: 300px; margin: 0; }
+.page[data-layout='desktop'] .actions { grid-column: 1 / -1; margin: 20px 0 0; }
+.page[data-layout='desktop'] .progress { grid-column: 1 / -1; margin: 12px 0 0; }
+.page[data-layout='desktop'] .aside { grid-column: 2; grid-row: 2; display: grid; gap: 8px; align-content: start; }
+.page[data-layout='desktop'][data-audiobook-view='book'] > section { grid-column: 1; grid-row: 2; }
+.page[data-layout='desktop'] .about { -webkit-line-clamp: unset; }
+.page[data-layout='desktop'][data-audiobook-view='author'] > section,
+.page[data-layout='desktop'][data-audiobook-view='book_series'] > section { grid-column: 1 / -1; }
+/* desktop-listen's book page: the real total names the next chapters page. */
+.showAll { margin-top: 14px; }
+/* desktop-listen's book page: the narrator opens Books filtered by that narrator. */
+.narratorLink { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
+/* desktop-listen's About this book facts: labels above their values, links underlined. */
+.bookFacts { display: grid; gap: 10px; margin: 16px 0 0; }
+.bookFacts dt { font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-tertiary); }
+.bookFacts dd { margin: 2px 0 0; font-size: var(--type-body-size); line-height: var(--type-body-line); color: var(--color-text); }
+.link { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }

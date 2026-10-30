@@ -1,0 +1,13 @@
+/* Root §2/§3: a facet surface lists counted accepted values, never entity headers. */
+.facet { display: flex; flex-direction: column; margin: 0 var(--shell-gutter, var(--gutter-desktop)); }
+@media (max-width: 1023px) { .facet { margin-inline: 20px; } }
+.value {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  min-height: 52px; padding: 12px 4px; border: 0; border-bottom: 1px solid var(--color-line);
+  background: none; color: var(--color-text); font: inherit; text-align: left; cursor: pointer;
+}
+button.value:hover, button.value:focus-visible { color: var(--color-text); }
+.static { cursor: default; }
+.label { min-width: 0; overflow-wrap: anywhere; }
+.count { flex: none; color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.more { display: flex; justify-content: center; padding: 20px 0; }

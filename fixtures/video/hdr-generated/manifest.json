@@ -1,0 +1,668 @@
+{
+  "schema": 1,
+  "license": "GPL-3.0-only",
+  "frames": 24,
+  "source": "mathematical testsrc2 / constant gray; no supplied licensed media",
+  "scope": "structural BL/EL join oracle and base decode; no mastered FEL residual reconstruction",
+  "unknown": [
+    "physical display output",
+    "container timeline",
+    "profile 5 image encoding"
+  ],
+  "metadata": "synthetically declared; not measured mastering or luminance statistics",
+  "tools": {
+    "encoder": {
+      "version": "ffmpeg version 8.0.1-3ubuntu2 Copyright (c) 2000-2025 the FFmpeg developers",
+      "sha256": "bdf6aabffdba7411edff8d36c389d695257fcdf823d196020176e117612862f6"
+    },
+    "ffmpeg": {
+      "version": "ffmpeg version 8.1.3 Copyright (c) 2000-2026 the FFmpeg developers",
+      "sha256": "e305ef64d06dcd6503e47af7608fa40d7e863c1f9dabd558a0ad9b2a37493878"
+    },
+    "ffprobe": {
+      "version": "ffprobe version 8.1.3 Copyright (c) 2007-2026 the FFmpeg developers",
+      "sha256": "55c1e297a966ff51fa6a6e9d8205486759c0eb25e182a7d5f7485174d6ea47da"
+    },
+    "doviTool": {
+      "version": "dovi_tool 2.3.4",
+      "sha256": "26e6942d1da72d6be545b430d823b8cff48472cc3b299817811ad68a281a2dab"
+    },
+    "hdr10plusTool": {
+      "version": "hdr10plus_tool 1.7.2",
+      "sha256": "eb50cf9da43d3f46c6c187130594db61123f068891714b60a0ef6e13448a050e"
+    }
+  },
+  "dependencies": {
+    "doviToolCommit": "26ed61ff36f946313889a09c0d2da202e9ceb97a",
+    "hdr10plusToolCommit": "faa437e52b317d08f5d0df43278640623d318479"
+  },
+  "files": [
+    {
+      "path": "base-hlg.hevc",
+      "bytes": 28090,
+      "sha256": "da8973b2c4358be1003712a6bde87e4fd8096a55cf53a3c4798cf12dd3478d40"
+    },
+    {
+      "path": "base-pq.hevc",
+      "bytes": 28352,
+      "sha256": "c97042304063aeae2866955f6776568d7b7e20723ffc7df24f47b8f29164b203"
+    },
+    {
+      "path": "dv-7-FEL.rpu",
+      "bytes": 4608,
+      "sha256": "7385413813de8ff468535fe376298a654f7072acd3b7ed791265384d401c44f4"
+    },
+    {
+      "path": "dv-7-MEL.rpu",
+      "bytes": 4562,
+      "sha256": "b94ac7ca956ea029ddb5a245c02a2d25db368d6a5e951c0fae50b93b6d1cf686"
+    },
+    {
+      "path": "dv-8.1.hevc",
+      "bytes": 32101,
+      "sha256": "3af41cf5967b7ad88f7ac430bb32a42252204ca44379e0af7696e6246a33bddb"
+    },
+    {
+      "path": "dv-8.1.json",
+      "bytes": 149,
+      "sha256": "00f180ecab92dbf97edd5c5542d668b71097a3cc7722bb4a06aaee6f32826d1c"
+    },
+    {
+      "path": "dv-8.1.rpu",
+      "bytes": 3671,
+      "sha256": "5bbd913a00c8c1f30414b173fe723ef783ec88ad29371eec0b824c1eefaa7f53"
+    },
+    {
+      "path": "dv-8.4.hevc",
+      "bytes": 37428,
+      "sha256": "e4dfa3406244e66f4479376d8c6c318807f307e2a049a19380fb4a59bb78a69b"
+    },
+    {
+      "path": "dv-8.4.json",
+      "bytes": 149,
+      "sha256": "2f93c93f80c4b0b9aa8ac498528b99033011371fd50ecbfbade03b440d252ed5"
+    },
+    {
+      "path": "dv-8.4.rpu",
+      "bytes": 9264,
+      "sha256": "6bb48c4da8f85af2a3ef0237974dc562f0b0270a4f5f7037ad1b4e40f22ac4aa"
+    },
+    {
+      "path": "enhancement-FEL.hevc",
+      "bytes": 10326,
+      "sha256": "b16e36493bb630c9dcfc8606e3b841994acbfecf9cbaf35a85335c4582b3ad7d"
+    },
+    {
+      "path": "enhancement-MEL.hevc",
+      "bytes": 10280,
+      "sha256": "4e3892ce7bd3adde45ba63f417c602670bdae0e21d7e7d161d78825f3439dad3"
+    },
+    {
+      "path": "enhancement.hevc",
+      "bytes": 5640,
+      "sha256": "2ef8819f0189addf7fafaeaba781d135270d4e0930575e7b86929180fc8e78b3"
+    },
+    {
+      "path": "hdr10plus-extracted.json",
+      "bytes": 23915,
+      "sha256": "e30c51972c97801f890543b9d097d3d6558af017607026d0dc0e5d04a68baa5f"
+    },
+    {
+      "path": "hdr10plus.hevc",
+      "bytes": 30062,
+      "sha256": "a74f1c6b8b6314bc4e251293ecdf4e1cf925faae7a456c9eb0bf12aa7e70edde"
+    },
+    {
+      "path": "hdr10plus.json",
+      "bytes": 23923,
+      "sha256": "b6c454614becd69453e6d5274a77309103835ca3b721f9eddabe68bca24f8fe8"
+    },
+    {
+      "path": "joined-FEL.hevc",
+      "bytes": 38828,
+      "sha256": "524a2c42e888555e85e3862658aa956a7d04b5321c20e6abfae670253255091f"
+    },
+    {
+      "path": "joined-MEL.hevc",
+      "bytes": 38782,
+      "sha256": "37cb3ab4b7669621899d273be443b81dd8941f327f394d05cd11cc4c16b51fa7"
+    }
+  ],
+  "decodedFrameHashes": {
+    "base-hlg.hevc": "c92ccc97aeac8e03c52d0330dd220afcff8c4591be0a593ed89c4900e92a622d",
+    "base-pq.hevc": "c92ccc97aeac8e03c52d0330dd220afcff8c4591be0a593ed89c4900e92a622d",
+    "dv-8.1.hevc": "c92ccc97aeac8e03c52d0330dd220afcff8c4591be0a593ed89c4900e92a622d",
+    "dv-8.4.hevc": "c92ccc97aeac8e03c52d0330dd220afcff8c4591be0a593ed89c4900e92a622d",
+    "enhancement-FEL.hevc": "f3ba862861a020b6a76057f31bf7941e516c69ac1fa5d4ed462b810b160e2703",
+    "enhancement-MEL.hevc": "f3ba862861a020b6a76057f31bf7941e516c69ac1fa5d4ed462b810b160e2703",
+    "enhancement.hevc": "f3ba862861a020b6a76057f31bf7941e516c69ac1fa5d4ed462b810b160e2703",
+    "hdr10plus.hevc": "c92ccc97aeac8e03c52d0330dd220afcff8c4591be0a593ed89c4900e92a622d",
+    "joined-FEL.hevc": "c92ccc97aeac8e03c52d0330dd220afcff8c4591be0a593ed89c4900e92a622d",
+    "joined-MEL.hevc": "c92ccc97aeac8e03c52d0330dd220afcff8c4591be0a593ed89c4900e92a622d"
+  },
+  "encodedFacts": {
+    "base-hlg.hevc": {
+      "codec_name": "hevc",
+      "width": 320,
+      "height": 180,
+      "pix_fmt": "yuv420p10le",
+      "color_transfer": "arib-std-b67",
+      "has_b_frames": 2
+    },
+    "base-pq.hevc": {
+      "codec_name": "hevc",
+      "width": 320,
+      "height": 180,
+      "pix_fmt": "yuv420p10le",
+      "color_transfer": "smpte2084",
+      "has_b_frames": 2
+    },
+    "dv-8.1.hevc": {
+      "codec_name": "hevc",
+      "width": 320,
+      "height": 180,
+      "pix_fmt": "yuv420p10le",
+      "color_transfer": "smpte2084",
+      "has_b_frames": 2
+    },
+    "dv-8.4.hevc": {
+      "codec_name": "hevc",
+      "width": 320,
+      "height": 180,
+      "pix_fmt": "yuv420p10le",
+      "color_transfer": "arib-std-b67",
+      "has_b_frames": 2
+    },
+    "enhancement-FEL.hevc": {
+      "codec_name": "hevc",
+      "width": 160,
+      "height": 90,
+      "pix_fmt": "yuv420p10le",
+      "color_transfer": "smpte2084",
+      "has_b_frames": 2
+    },
+    "enhancement-MEL.hevc": {
+      "codec_name": "hevc",
+      "width": 160,
+      "height": 90,
+      "pix_fmt": "yuv420p10le",
+      "color_transfer": "smpte2084",
+      "has_b_frames": 2
+    },
+    "enhancement.hevc": {
+      "codec_name": "hevc",
+      "width": 160,
+      "height": 90,
+      "pix_fmt": "yuv420p10le",
+      "color_transfer": "smpte2084",
+      "has_b_frames": 2
+    },
+    "hdr10plus.hevc": {
+      "codec_name": "hevc",
+      "width": 320,
+      "height": 180,
+      "pix_fmt": "yuv420p10le",
+      "color_transfer": "smpte2084",
+      "has_b_frames": 2
+    },
+    "joined-FEL.hevc": {
+      "codec_name": "hevc",
+      "width": 320,
+      "height": 180,
+      "pix_fmt": "yuv420p10le",
+      "color_transfer": "smpte2084",
+      "has_b_frames": 2
+    },
+    "joined-MEL.hevc": {
+      "codec_name": "hevc",
+      "width": 320,
+      "height": 180,
+      "pix_fmt": "yuv420p10le",
+      "color_transfer": "smpte2084",
+      "has_b_frames": 2
+    }
+  },
+  "commands": [
+    [
+      "${ENCODER}",
+      "-v",
+      "error",
+      "-nostdin",
+      "-filter_threads",
+      "1",
+      "-threads",
+      "1",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc2=s=320x180:r=24",
+      "-frames:v",
+      "24",
+      "-an",
+      "-c:v",
+      "libx265",
+      "-pix_fmt",
+      "yuv420p10le",
+      "-x265-params",
+      "pools=none:frame-threads=1:wpp=0:bframes=2:b-adapt=0:keyint=12:min-keyint=12:scenecut=0:repeat-headers=1:aud=1:colorprim=9:transfer=16:colormatrix=9:hdr10=1:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1):max-cll=1000,400",
+      "-f",
+      "hevc",
+      "${OUTPUT}/base-pq.hevc"
+    ],
+    [
+      "${ENCODER}",
+      "-v",
+      "error",
+      "-nostdin",
+      "-filter_threads",
+      "1",
+      "-threads",
+      "1",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc2=s=320x180:r=24",
+      "-frames:v",
+      "24",
+      "-an",
+      "-c:v",
+      "libx265",
+      "-pix_fmt",
+      "yuv420p10le",
+      "-x265-params",
+      "pools=none:frame-threads=1:wpp=0:bframes=2:b-adapt=0:keyint=12:min-keyint=12:scenecut=0:repeat-headers=1:aud=1:colorprim=9:transfer=18:colormatrix=9",
+      "-f",
+      "hevc",
+      "${OUTPUT}/base-hlg.hevc"
+    ],
+    [
+      "${ENCODER}",
+      "-v",
+      "error",
+      "-nostdin",
+      "-filter_threads",
+      "1",
+      "-threads",
+      "1",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=gray:s=160x90:r=24",
+      "-frames:v",
+      "24",
+      "-an",
+      "-c:v",
+      "libx265",
+      "-pix_fmt",
+      "yuv420p10le",
+      "-x265-params",
+      "pools=none:frame-threads=1:wpp=0:bframes=2:b-adapt=0:keyint=12:min-keyint=12:scenecut=0:repeat-headers=1:aud=1:colorprim=9:transfer=16:colormatrix=9:hdr10=1:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1):max-cll=1000,400",
+      "-f",
+      "hevc",
+      "${OUTPUT}/enhancement.hevc"
+    ],
+    [
+      "${DOVI_TOOL}",
+      "generate",
+      "-j",
+      "${OUTPUT}/dv-8.1.json",
+      "-o",
+      "${OUTPUT}/dv-8.1.rpu"
+    ],
+    [
+      "${DOVI_TOOL}",
+      "inject-rpu",
+      "-i",
+      "${OUTPUT}/base-pq.hevc",
+      "-r",
+      "${OUTPUT}/dv-8.1.rpu",
+      "-o",
+      "${OUTPUT}/dv-8.1.hevc"
+    ],
+    [
+      "${DOVI_TOOL}",
+      "generate",
+      "-j",
+      "${OUTPUT}/dv-8.4.json",
+      "-o",
+      "${OUTPUT}/dv-8.4.rpu"
+    ],
+    [
+      "${DOVI_TOOL}",
+      "inject-rpu",
+      "-i",
+      "${OUTPUT}/base-hlg.hevc",
+      "-r",
+      "${OUTPUT}/dv-8.4.rpu",
+      "-o",
+      "${OUTPUT}/dv-8.4.hevc"
+    ],
+    [
+      "${DOVI_TOOL}",
+      "inject-rpu",
+      "-i",
+      "${OUTPUT}/enhancement.hevc",
+      "-r",
+      "${OUTPUT}/dv-7-MEL.rpu",
+      "-o",
+      "${OUTPUT}/enhancement-MEL.hevc"
+    ],
+    [
+      "${DOVI_TOOL}",
+      "mux",
+      "--bl",
+      "${OUTPUT}/base-pq.hevc",
+      "--el",
+      "${OUTPUT}/enhancement-MEL.hevc",
+      "-o",
+      "${OUTPUT}/joined-MEL.hevc"
+    ],
+    [
+      "${DOVI_TOOL}",
+      "inject-rpu",
+      "-i",
+      "${OUTPUT}/enhancement.hevc",
+      "-r",
+      "${OUTPUT}/dv-7-FEL.rpu",
+      "-o",
+      "${OUTPUT}/enhancement-FEL.hevc"
+    ],
+    [
+      "${DOVI_TOOL}",
+      "mux",
+      "--bl",
+      "${OUTPUT}/base-pq.hevc",
+      "--el",
+      "${OUTPUT}/enhancement-FEL.hevc",
+      "-o",
+      "${OUTPUT}/joined-FEL.hevc"
+    ],
+    [
+      "${HDR10PLUS_TOOL}",
+      "inject",
+      "-i",
+      "${OUTPUT}/base-pq.hevc",
+      "-j",
+      "${OUTPUT}/hdr10plus.json",
+      "-o",
+      "${OUTPUT}/hdr10plus.hevc"
+    ],
+    [
+      "${HDR10PLUS_TOOL}",
+      "extract",
+      "-i",
+      "${OUTPUT}/hdr10plus.hevc",
+      "-o",
+      "${OUTPUT}/hdr10plus-extracted.json"
+    ],
+    [
+      "${FFPROBE}",
+      "-v",
+      "error",
+      "-count_frames",
+      "-show_streams",
+      "-of",
+      "json",
+      "${OUTPUT}/base-hlg.hevc"
+    ],
+    [
+      "${FFMPEG}",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "${OUTPUT}/base-hlg.hevc",
+      "-map",
+      "0:v:0",
+      "-c:v",
+      "rawvideo",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    [
+      "${FFPROBE}",
+      "-v",
+      "error",
+      "-count_frames",
+      "-show_streams",
+      "-of",
+      "json",
+      "${OUTPUT}/base-pq.hevc"
+    ],
+    [
+      "${FFMPEG}",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "${OUTPUT}/base-pq.hevc",
+      "-map",
+      "0:v:0",
+      "-c:v",
+      "rawvideo",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    [
+      "${FFPROBE}",
+      "-v",
+      "error",
+      "-count_frames",
+      "-show_streams",
+      "-of",
+      "json",
+      "${OUTPUT}/dv-8.1.hevc"
+    ],
+    [
+      "${FFMPEG}",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "${OUTPUT}/dv-8.1.hevc",
+      "-map",
+      "0:v:0",
+      "-c:v",
+      "rawvideo",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    [
+      "${FFPROBE}",
+      "-v",
+      "error",
+      "-count_frames",
+      "-show_streams",
+      "-of",
+      "json",
+      "${OUTPUT}/dv-8.4.hevc"
+    ],
+    [
+      "${FFMPEG}",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "${OUTPUT}/dv-8.4.hevc",
+      "-map",
+      "0:v:0",
+      "-c:v",
+      "rawvideo",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    [
+      "${FFPROBE}",
+      "-v",
+      "error",
+      "-count_frames",
+      "-show_streams",
+      "-of",
+      "json",
+      "${OUTPUT}/enhancement-FEL.hevc"
+    ],
+    [
+      "${FFMPEG}",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "${OUTPUT}/enhancement-FEL.hevc",
+      "-map",
+      "0:v:0",
+      "-c:v",
+      "rawvideo",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    [
+      "${FFPROBE}",
+      "-v",
+      "error",
+      "-count_frames",
+      "-show_streams",
+      "-of",
+      "json",
+      "${OUTPUT}/enhancement-MEL.hevc"
+    ],
+    [
+      "${FFMPEG}",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "${OUTPUT}/enhancement-MEL.hevc",
+      "-map",
+      "0:v:0",
+      "-c:v",
+      "rawvideo",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    [
+      "${FFPROBE}",
+      "-v",
+      "error",
+      "-count_frames",
+      "-show_streams",
+      "-of",
+      "json",
+      "${OUTPUT}/enhancement.hevc"
+    ],
+    [
+      "${FFMPEG}",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "${OUTPUT}/enhancement.hevc",
+      "-map",
+      "0:v:0",
+      "-c:v",
+      "rawvideo",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    [
+      "${FFPROBE}",
+      "-v",
+      "error",
+      "-count_frames",
+      "-show_streams",
+      "-of",
+      "json",
+      "${OUTPUT}/hdr10plus.hevc"
+    ],
+    [
+      "${FFMPEG}",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "${OUTPUT}/hdr10plus.hevc",
+      "-map",
+      "0:v:0",
+      "-c:v",
+      "rawvideo",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    [
+      "${FFPROBE}",
+      "-v",
+      "error",
+      "-count_frames",
+      "-show_streams",
+      "-of",
+      "json",
+      "${OUTPUT}/joined-FEL.hevc"
+    ],
+    [
+      "${FFMPEG}",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "${OUTPUT}/joined-FEL.hevc",
+      "-map",
+      "0:v:0",
+      "-c:v",
+      "rawvideo",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    [
+      "${FFPROBE}",
+      "-v",
+      "error",
+      "-count_frames",
+      "-show_streams",
+      "-of",
+      "json",
+      "${OUTPUT}/joined-MEL.hevc"
+    ],
+    [
+      "${FFMPEG}",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "${OUTPUT}/joined-MEL.hevc",
+      "-map",
+      "0:v:0",
+      "-c:v",
+      "rawvideo",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    [
+      "${FFPROBE}",
+      "-v",
+      "error",
+      "-show_frames",
+      "-of",
+      "json",
+      "${OUTPUT}/hdr10plus.hevc"
+    ]
+  ]
+}

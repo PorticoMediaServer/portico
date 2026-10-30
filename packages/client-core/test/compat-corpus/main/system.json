@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/system"
+  },
+  "status": 200,
+  "body": {
+    "id": "srv_7sWWdcN9umujBzM2AlDkD--4cuPxXxauxkI6fcBZgm8",
+    "name": "Smoke",
+    "signIn": "local",
+    "move": null,
+    "moveEndsAt": null,
+    "setupRequired": false,
+    "hostedConfigured": false,
+    "hostedAttached": false,
+    "version": "0.1.0-dev",
+    "apiLevel": 1,
+    "apiVersion": "1.0",
+    "apiMajors": [
+      1
+    ],
+    "capabilities": []
+  }
+}

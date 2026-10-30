@@ -1,0 +1,24 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Developers" description="Portico architecture, API contracts, client integration, and contribution documentation.">
+  <header class="page-intro dark-intro">
+    <div>
+      <h1>Build with Portico.</h1>
+      <p>Portico publishes separate contracts for the local server and hosted control plane, with a shared product contract for client behaviour.</p>
+    </div>
+  </header>
+  <section class="developer-page section-light">
+    <div class="developer-intro">
+      <h2>Start with the authority you need.</h2>
+      <p>Portico Server owns media, libraries, playback, local permissions, and administration. Portico Cloud owns Portico Accounts, server membership, signed route discovery, and hosted account security.</p>
+    </div>
+    <div class="developer-links">
+      <a href="/docs/developers/api-overview/"><strong>API overview</strong><span>Choose the server or cloud contract and understand the authentication boundary.</span></a>
+      <a href="/docs/developers/client-architecture/"><strong>Client architecture</strong><span>Use the product contract and platform-appropriate playback integration.</span></a>
+      <a href="/docs/developers/security-requirements/"><strong>Security requirements</strong><span>Preserve direct-route verification, server authorization, and secret handling.</span></a>
+      <a href="/docs/developers/reporting-issues/"><strong>Report an issue</strong><span>Collect useful evidence without exposing media, credentials, or private routes.</span></a>
+    </div>
+  </section>
+</BaseLayout>

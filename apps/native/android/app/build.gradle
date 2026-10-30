@@ -1,0 +1,280 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+// Debug variants normally read their JavaScript from Metro; release variants carry it. A build for a
+// machine that has no Metro passes -PporticoEmbeddedJs=true: the debug variants then leave
+// debuggableVariants, so React Native's own bundle task (createBundle<Variant>JsAndAssets) runs and
+// the APK holds assets/index.android.bundle. The APK is the same file for phones and televisions.
+def embeddedJavaScript = project.findProperty("porticoEmbeddedJs")?.toString() == "true"
+def metroVariants = embeddedJavaScript ? [] : ["googleDebug", "firetvDebug"]
+
+react {
+    debuggableVariants = metroVariants
+    autolinkLibrariesWithApp()
+}
+
+def enableProguardInReleaseBuilds = true
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+// A store upload names its own signing key and version code when it is built; neither is in this
+// repository. The properties porticoUploadStoreFile, porticoUploadStorePassword, porticoUploadKeyAlias,
+// porticoUploadKeyPassword, porticoVersionCode and porticoVersionName (or the matching
+// ORG_GRADLE_PROJECT_* environment variables) are read here; README's Android builds section says
+// how a store build supplies them without putting a password in the command line. Absent, every
+// build keeps the debug keystore and version 1 / "1.0" below, so local, emulator and sideload
+// packaging is unchanged.
+def uploadStoreFile = project.findProperty("porticoUploadStoreFile")?.toString()
+def uploadStorePassword = project.findProperty("porticoUploadStorePassword")?.toString()
+def uploadKeyAlias = project.findProperty("porticoUploadKeyAlias")?.toString()
+def uploadKeyPassword = project.findProperty("porticoUploadKeyPassword")?.toString()
+def uploadSigning = [uploadStoreFile, uploadStorePassword, uploadKeyAlias, uploadKeyPassword].every { it }
+if (!uploadSigning && [uploadStoreFile, uploadStorePassword, uploadKeyAlias, uploadKeyPassword].any { it }) {
+    throw new GradleException("Portico upload signing needs all four of porticoUploadStoreFile, porticoUploadStorePassword, porticoUploadKeyAlias and porticoUploadKeyPassword.")
+}
+def storeVersionCode = project.findProperty("porticoVersionCode")?.toString()?.toInteger()
+def storeVersionName = project.findProperty("porticoVersionName")?.toString()
+if (storeVersionCode != null && storeVersionCode < 1) {
+    throw new GradleException("porticoVersionCode must be 1 or more.")
+}
+
+// The app's own C++ (React Native's app modules and the libraries' generated code) names source
+// files in its asserts. Those names are mapped to neutral ones, so a release library carries no
+// folder of the machine that built it: the checkout, node_modules (also through a link) and
+// Gradle's cache, where React Native's headers are unpacked. A folder with a space cannot be
+// passed this way (CMake splits the flags at spaces) and is left as it is.
+def neutralPathFlags = { Map<File, String> folders ->
+    folders.collectMany { folder, neutral ->
+        [folder.absolutePath, folder.canonicalPath].unique().findAll { !(it =~ /\s/) }.collect { "-ffile-prefix-map=${it}=${neutral}".toString() }
+    }
+}
+def appPathFlags = neutralPathFlags([
+    (rootProject.file("../../..")): "/portico",
+    (rootProject.file("../node_modules")): "/portico/apps/native/node_modules",
+    (gradle.gradleUserHomeDir): "/gradle",
+])
+
+android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace "tv.getportico.portico"
+    defaultConfig {
+        // One application for phones and televisions; `Platform.isTV` chooses the layout.
+        applicationId "tv.getportico.portico"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode storeVersionCode ?: 1
+        versionName storeVersionName ?: "1.0"
+        manifestPlaceholders += [
+            porticoHostedUrl        : (project.findProperty("porticoHostedUrl") ?: ""),
+            porticoCastApplicationId: (project.findProperty("porticoCastApplicationId") ?: ""),
+        ]
+        externalNativeBuild {
+            cmake {
+                cFlags(*appPathFlags)
+                cppFlags(*appPathFlags)
+            }
+        }
+    }
+    buildFeatures { buildConfig true }
+
+    // `google` is Android and Android TV; `firetv` is Fire OS, which has no Google Play services.
+    flavorDimensions "store"
+    productFlavors {
+        google { dimension "store" }
+        firetv {
+            dimension "store"
+            minSdkVersion 25
+        }
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        // The store upload key is the machine's, not the repository's: when all four properties
+        // are supplied, release variants are signed with it (see the properties above). Without
+        // them this configuration does not exist, and release builds keep the debug keystore.
+        if (uploadSigning) {
+            release {
+                storeFile file(uploadStoreFile)
+                storePassword uploadStorePassword
+                keyAlias uploadKeyAlias
+                keyPassword uploadKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+            // Mirrors debuggableVariants above. `BuildConfig.DEBUG` is true for every debug build
+            // type, including one that carries its bundle, so the app needs this answer separately:
+            // without it, an embedded APK would ask Metro for its JavaScript and show a red screen.
+            buildConfigField "boolean", "PORTICO_EMBEDDED_JAVASCRIPT", embeddedJavaScript.toString()
+        }
+        release {
+            // A store upload key when one was supplied; otherwise the debug keystore, which is
+            // not a store signing identity.
+            signingConfig uploadSigning ? signingConfigs.release : signingConfigs.debug
+            minifyEnabled enableProguardInReleaseBuilds
+            shrinkResources enableProguardInReleaseBuilds
+            // No R8 optimisation pass until a shrunk release has been verified on devices.
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            buildConfigField "boolean", "PORTICO_EMBEDDED_JAVASCRIPT", "true"
+        }
+    }
+
+    sourceSets {
+        main.assets.srcDirs += layout.buildDirectory.dir("generated/portico/assets")
+    }
+
+    // One APK carries every architecture in `reactNativeArchitectures`, as before. The mpv engine
+    // adds roughly 8 MB of download per architecture, so a build for sideloading or a store that
+    // takes APKs can be split: -PporticoAbiSplits=true also writes one APK per architecture
+    // beside the universal one. (An app bundle is split by the store without this.)
+    splits {
+        abi {
+            enable project.findProperty("porticoAbiSplits")?.toString() == "true"
+            reset()
+            include(*((project.findProperty("reactNativeArchitectures") ?: "armeabi-v7a,arm64-v8a,x86,x86_64").toString().split(",").collect { it.trim() }))
+            universalApk true
+        }
+    }
+}
+
+// The typefaces live once, in ../assets. React Native looks a `fontFamily` up as
+// assets/fonts/<name>.ttf, so they are copied under the names the theme uses.
+def porticoFonts = tasks.register("porticoFonts", Copy) {
+    def names = [
+        "manrope-400.ttf": "Manrope-Regular.ttf",
+        "manrope-500.ttf": "Manrope-Medium.ttf",
+        "manrope-600.ttf": "Manrope-SemiBold.ttf",
+        "manrope-700.ttf": "Manrope-Bold.ttf",
+        "manrope-800.ttf": "Manrope-ExtraBold.ttf",
+    ]
+    from("../../assets") { include names.keySet() }
+    into(layout.buildDirectory.dir("generated/portico/assets/fonts"))
+    rename { names[it] }
+}
+preBuild.dependsOn(porticoFonts)
+
+// The already-built immutable web graph is optional; absent input removes stale
+// output and leaves the actual native Reader unavailable, never a fake entry.
+def porticoReaderAssets = tasks.register("porticoReaderAssets", Exec) {
+    workingDir rootProject.file("..")
+    commandLine(System.getenv("NODE_BINARY") ?: "node", "scripts/stage-apple-reader.mjs",
+        layout.buildDirectory.dir("generated/portico/assets/PorticoReader.bundle").get().asFile.absolutePath)
+    outputs.upToDateWhen { false }
+}
+preBuild.dependsOn(porticoReaderAssets)
+
+
+dependencies {
+    // QR-only on-device camera decoding; no external scanner app or model download.
+    implementation("com.google.zxing:core:3.5.3")
+    // The version of react-native is set by the React Native Gradle Plugin
+    implementation("com.facebook.react:react-android")
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+
+    // The bounded control transport (PorticoRuntime).
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // The player (PorticoPlaybackModule, PorticoPlayer) and the system media session.
+    def media3 = "1.10.1"
+    implementation("androidx.media3:media3-exoplayer:$media3")
+    implementation("androidx.media3:media3-exoplayer-hls:$media3")
+    implementation("androidx.media3:media3-datasource-okhttp:$media3")
+    implementation("androidx.media3:media3-session:$media3")
+    // The second player engine: libmpv (LGPL build) and its JNI bridge. See portico-mpv/build.gradle.
+    implementation project(":portico-mpv")
+    // Google Cast: only in the build for devices with Google Play services (never Fire OS).
+    googleImplementation "com.google.android.gms:play-services-cast-framework:22.1.0"
+    // The provider sign-in browser (PorticoAccountAuth).
+    implementation("androidx.browser:browser:1.8.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
+    // Read-only window/fold facts; no presentation or playback ownership in this module.
+    implementation("androidx.window:window:1.5.1")
+    implementation("androidx.window:window-java:1.5.1")
+    // Curve25519 and byte-oriented PBKDF2/HKDF, used through the lightweight API only (no JCA
+    // provider is registered): the platform has neither on the Android versions Portico supports.
+    implementation("org.bouncycastle:bcprov-jdk18on:1.86")
+
+    // JVM unit tests of the logic that needs no device (app/src/test): never in the app.
+    //   ./gradlew :app:testGoogleDebugUnitTest
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
+    // Real Android URI/JSON behavior for the subtitle owner's deterministic HTTP/clock tests.
+    testImplementation("org.robolectric:robolectric:4.14.1")
+}
+
+// Open-source licences (Settings › About). apps/native/licences/android-<flavour>.txt pin each
+// flavour's release runtime classpath; apps/native/scripts/licences.mts turns them into the list
+// the app shows. A release build stops when its classpath no longer matches the pinned list, so
+// the list cannot fall behind a dependency change. To update after a change:
+//   ./gradlew :app:recordReleaseDependencies
+//   node --experimental-strip-types apps/native/scripts/licences.mts   (from the repository root)
+def licenceLists = rootProject.file("../licences")
+def runtimeModules = { Configuration configuration ->
+    def found = new TreeSet<String>()
+    def seen = new HashSet<String>()
+    def walk
+    walk = { org.gradle.api.artifacts.result.ResolvedComponentResult component ->
+        if (!seen.add(component.id.displayName)) return
+        // A platform (a BOM) only aligns versions; it ships nothing.
+        def platform = component.variants.any { v -> v.attributes.keySet().any { k -> k.name == "org.gradle.category" && (v.attributes.getAttribute(k)?.toString() in ["platform", "enforced-platform"]) } }
+        if (component.id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier && !platform) {
+            found << "${component.id.group}:${component.id.module}:${component.id.version}".toString()
+        }
+        component.dependencies.each { d -> if (d instanceof org.gradle.api.artifacts.result.ResolvedDependencyResult) walk(d.selected) }
+    }
+    walk(configuration.incoming.resolutionResult.root)
+    found
+}
+def licenceListHeader = { String flavour -> """# The ${flavour} flavour's release runtime classpath (Maven artifacts; project modules left out).
+# Written by ./gradlew :app:recordReleaseDependencies and checked before every release build
+# (app/build.gradle). After a change: record, then node --experimental-strip-types apps/native/scripts/licences.mts.
+""" }
+def recordTasks = []
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        def flavour = variant.flavorName
+        def configuration = variant.runtimeConfiguration
+        def list = new File(licenceLists, "android-${flavour}.txt")
+        def suffix = variant.name.capitalize()
+        def check = tasks.register("check${suffix}OpenSourceLicences") {
+            group = "verification"
+            description = "Fails when the ${flavour} release dependencies differ from apps/native/licences/android-${flavour}.txt."
+            inputs.file(list)
+            doLast {
+                def pinned = (list.readLines()*.trim().findAll { it && !it.startsWith("#") }) as Set
+                def resolved = runtimeModules(configuration)
+                def added = resolved - pinned
+                def removed = pinned - resolved
+                if (added || removed) {
+                    throw new GradleException("The ${flavour} release build's libraries changed, so the open-source licence list is out of date." +
+                        (added ? "\n  New: ${added.join(', ')}" : "") + (removed ? "\n  Gone: ${removed.join(', ')}" : "") +
+                        "\nRun ./gradlew :app:recordReleaseDependencies, then node --experimental-strip-types apps/native/scripts/licences.mts from the repository root, and commit both.")
+                }
+            }
+        }
+        recordTasks << tasks.register("record${suffix}Dependencies") {
+            description = "Writes apps/native/licences/android-${flavour}.txt from the ${flavour} release runtime classpath."
+            doLast { list.text = licenceListHeader(flavour) + runtimeModules(configuration).join("\n") + "\n" }
+        }
+        tasks.matching { it.name == "pre${suffix}Build" }.configureEach { dependsOn(check) }
+    }
+}
+tasks.register("recordReleaseDependencies") {
+    description = "Writes apps/native/licences/android-<flavour>.txt for every flavour's release build."
+    dependsOn(recordTasks)
+}

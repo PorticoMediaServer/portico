@@ -1,0 +1,30 @@
+{
+  "sourceLanguage" : "en",
+  "version" : "1.0",
+  "strings" : {
+    "NSLocalNetworkUsageDescription" : {
+      "comment" : "system.apple.localNetwork.ios. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portico looks for servers, TVs and Google Cast devices on your network. Without it, addresses and TV codes still work."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portico looks for servers, TVs and Google Cast devices on your network. Without it, addresses and TV codes still work."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portico looks for servers, TVs and Google Cast devices on your network. Without it, addresses and TV codes still work."
+          }
+        }
+      }
+    }
+  }
+}

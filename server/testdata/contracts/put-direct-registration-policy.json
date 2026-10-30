@@ -1,0 +1,15 @@
+{
+  "schema": "PutDirectRegistrationPolicyResponse",
+  "method": "PUT",
+  "path": "/v1/direct/registration-policy",
+  "auth": "owner",
+  "request": {
+    "selfRegistration": "open",
+    "deviceApproval": "owner-approves-new-devices"
+  },
+  "status": 200,
+  "response": {
+    "selfRegistration": "open",
+    "deviceApproval": "owner-approves-new-devices"
+  }
+}

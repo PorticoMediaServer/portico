@@ -1,0 +1,35 @@
+@import "./kit/backdrop.css";
+html { color-scheme: dark; background: var(--color-ink); color: var(--color-text); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-size: var(--type-body-size); line-height: var(--type-body-line); }
+button, input, select, textarea { font: inherit; }
+:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 3px; }
+/* After a page change the route's <main> takes focus so the next Tab starts in the page; it is a
+   programmatic landing point, not a control, so it draws no ring around the whole page. */
+main[tabindex="-1"]:focus { outline: none; }
+::view-transition-old(root) { animation: route-out var(--motion-quick) var(--ease-in) both; }
+::view-transition-new(root) { animation: route-in var(--motion-standard) var(--ease-out) 60ms both; }
+::view-transition-group(nav), ::view-transition-group(nav-tabs) { animation: none; }
+@keyframes route-out { to { opacity: 0; } }
+@keyframes route-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes route-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: route-fade var(--motion-reduced) linear both; }
+  ::view-transition-old(root) { animation-direction: reverse; }
+}
+[data-reduce-motion="true"]::view-transition-old(root), [data-reduce-motion="true"]::view-transition-new(root) { animation: route-fade var(--motion-reduced) linear both; }
+[data-reduce-motion="true"]::view-transition-old(root) { animation-direction: reverse; }
+/* H14: a page change fades only the route's content; the window backdrop and the bars hold still,
+   so the page never dims to flat ink between two pages. <main> is named only while a page
+   transition runs, so at rest it is never a stacking context that would trap its overlays. */
+html:active-view-transition-type(page) main[data-route-content] { view-transition-name: page; }
+html:active-view-transition-type(page)::view-transition-old(root), html:active-view-transition-type(page)::view-transition-new(root) { animation: none; }
+::view-transition-group(page) { animation: none; }
+::view-transition-old(page) { animation: route-out var(--motion-quick) var(--ease-in) both; }
+::view-transition-new(page) { animation: route-in var(--motion-standard) var(--ease-out) 60ms both; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(page), ::view-transition-new(page) { animation: route-fade var(--motion-reduced) linear both; }
+  ::view-transition-old(page) { animation-direction: reverse; }
+}
+[data-reduce-motion="true"]::view-transition-old(page), [data-reduce-motion="true"]::view-transition-new(page) { animation: route-fade var(--motion-reduced) linear both; }
+[data-reduce-motion="true"]::view-transition-old(page) { animation-direction: reverse; }

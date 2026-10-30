@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "component": "dovi_profile metadata conversion",
+  "source": {
+    "repository": "https://github.com/quietvoid/dovi_tool",
+    "gitCommit": "26ed61ff36f946313889a09c0d2da202e9ceb97a",
+    "archiveUrl": "https://codeload.github.com/quietvoid/dovi_tool/tar.gz/26ed61ff36f946313889a09c0d2da202e9ceb97a",
+    "sha256": "1438f8aaede8c3ccecfdc873f659cac320bb4ff483b906109b177f21c86a19b0",
+    "scope": "Pinned public source; C ABI and minimal host FFmpeg metadata-packet proof in portico-dovi-profile.v1.json. No canonical target/bundle or decoded BL/EL video acceptance.",
+    "crate": "dolby_vision",
+    "crateVersion": "3.4.0",
+    "license": "MIT",
+    "licensePath": "dolby_vision/LICENSE",
+    "licenseSha256": "e9d76c149b1176de4aa0202cfb6a4a266a0c4cb71959f429d670c3a857f95e52",
+    "cAbi": {
+      "generator": "cargo-c",
+      "version": "0.10.20+cargo-0.94.0",
+      "header": "libdovi/rpu_parser.h",
+      "pkgConfig": "dovi",
+      "features": [
+        "capi"
+      ],
+      "libraryType": "staticlib"
+    }
+  },
+  "ffmpeg": {
+    "commit": "253db2a7b0a8045c54ce68ce33d7f601229b1822",
+    "upstreamPatchCount": 100,
+    "postSeriesPatch": "portico-dovi-profile.patch",
+    "patchSha256": "4f7907150fcbd6eb21e1847c0bf2f90d0cddc4999c92f9a0102c5d00aca6b180",
+    "configure": [
+      "--enable-libdovi"
+    ],
+    "filter": "dovi_profile=mode=2"
+  },
+  "cAbi": {
+    "cargoCVersion": "0.10.20+cargo-0.94.0",
+    "command": "cargo cinstall --locked --offline --manifest-path dolby_vision/Cargo.toml --features capi --release --library-type staticlib --prefix PREFIX --libdir lib -j1",
+    "headerSha256": "fddc9645b817e4ececc497b65d445f2d74cee42d906b593c69d96a626db21842",
+    "pkgConfig": "dovi = 3.4.0"
+  },
+  "hostProof": {
+    "target": "x86_64-linux-gnu",
+    "compiler": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+    "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "packetTestSourceSha256": "109ab0284889bbe3051c05b3917b36174e357d108d5bc1f427449416adbb162d",
+    "packetTests": {
+      "passed": true,
+      "convertedPackets": 96,
+      "wrongRpuProfilesRejected": 3,
+      "invalidConfigurationsRejected": 4,
+      "corruptRpuRejected": 1,
+      "noRpuRejected": true,
+      "modeIntrospection": true,
+      "scope": "synthetic metadata packets; no decoded BL/EL video proof"
+    },
+    "fixtureManifestSha256": "cd4e1f6b34b06aa965a3d43fbb87b091201fc654d3067546faaee6fb0139dde5",
+    "sourceArchiveAndExtractedCrateVerified": true,
+    "lockedFixtureByteRepeat": true,
+    "actualCliModeRange": [
+      2,
+      2
+    ],
+    "actualStockDoviRpuOptions": [
+      "strip",
+      "compression"
+    ]
+  },
+  "runtime": {
+    "defaultEnabled": false,
+    "activation": "Hardware-owned exact-bundle producer after target fixture qualification; field DolbyVisionProfile7To81",
+    "loss": "Enhancement layer discarded; no FEL residual reconstruction",
+    "gaps": [
+      "No decoded BL/EL video join proof in this component",
+      "No canonical HW1 or other target acceptance",
+      "No server planner/download route activation in this component"
+    ]
+  }
+}

@@ -1,0 +1,59 @@
+/* desktop-player f6: the Episodes drawer over the paused picture. Every value is the frame's. */
+.drawer { position: absolute; z-index: var(--layer-hero-navigation); left: 0; right: 0; bottom: 0; height: 480px; padding: 74px 0 0; pointer-events: auto;
+  background: linear-gradient(180deg, transparent 0, color-mix(in srgb, var(--color-ink) 84%, transparent) 90px, color-mix(in srgb, var(--color-ink) 97%, transparent) 230px); }
+.head { display: flex; align-items: center; gap: 16px; padding: 0 40px; margin-bottom: 12px; }
+.head h3 { margin: 0; font-size: var(--type-fixed-size-26px); line-height: var(--type-fixed-line-1point-2); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-025em); }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 0; border-radius: 17px; font: inherit; font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-700);
+  color: var(--color-text); background: color-mix(in srgb, var(--color-text) 10%, transparent); cursor: pointer; }
+.chip:hover { background: color-mix(in srgb, var(--color-text) 18%, transparent); }
+.season { font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-700); color: var(--color-text-secondary); }
+.count { font-size: var(--type-fixed-size-14px); color: var(--color-text-tertiary); }
+.close { margin-left: auto; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; color: var(--color-text); background: none; cursor: pointer; }
+.close:hover { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.track { display: flex; gap: 16px; padding: 12px 40px 14px; overflow-x: auto; scroll-padding: 0 40px; scrollbar-width: none; }
+.track::-webkit-scrollbar { display: none; }
+.ep { width: 316px; flex: none; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.still { position: relative; display: block; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: var(--color-raised);
+  transition: transform var(--motion-standard) var(--ease-out); }
+.ep:hover .still, .ep:focus-visible .still { transform: scale(1.03); box-shadow: 0 22px 40px -16px color-mix(in srgb, var(--color-shadow) 85%, transparent); }
+.ep:focus-visible { outline: none; }
+.ep:focus-visible .still { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+.blank { position: absolute; inset: 0; background: radial-gradient(70% 120% at 85% 10%, color-mix(in srgb, var(--color-accent) 55%, transparent) 0, transparent 60%), var(--color-raised); }
+.playing { position: absolute; z-index: var(--layer-content); left: 12px; top: 12px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px 4px 8px; border-radius: 7px;
+  font-size: var(--type-fixed-size-12px); font-weight: var(--type-fixed-weight-800); color: var(--color-ink); background: var(--color-text); }
+.watched { position: absolute; z-index: var(--layer-content); left: 12px; top: 12px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px 4px 8px; border-radius: 7px;
+  font-size: var(--type-fixed-size-12px); font-weight: var(--type-fixed-weight-800); color: var(--color-text); background: color-mix(in srgb, var(--color-ink) 70%, transparent); }
+.eq { display: inline-flex; align-items: flex-end; gap: 3px; height: 12px; }
+.eq i { width: 3px; border-radius: 1.5px; background: var(--color-ink); }
+.eq i:nth-child(1) { height: 55%; } .eq i:nth-child(2) { height: 100%; } .eq i:nth-child(3) { height: 38%; }
+.duration { position: absolute; z-index: var(--layer-content); right: 12px; top: 12px; padding: 3px 8px; border-radius: 6px; font-size: var(--type-fixed-size-12px); font-weight: var(--type-fixed-weight-700);
+  color: var(--color-text); background: color-mix(in srgb, var(--color-ink) 65%, transparent); }
+.partBackground, .part { position: absolute; z-index: var(--layer-content); left: 0; bottom: 0; height: 4px; }
+.partBackground { right: 0; background: color-mix(in srgb, var(--color-text) 20%, transparent); }
+.part { background: var(--color-accent-strong); }
+.title { display: block; margin: 14px 0 0; font-size: var(--type-fixed-size-16px); font-weight: var(--type-fixed-weight-700); letter-spacing: var(--type-fixed-tracking-minus-point-01em); color: var(--color-text); }
+.when { display: block; margin-top: 3px; font-size: var(--type-fixed-size-13px); color: var(--color-text-tertiary); }
+.when b { color: var(--color-accent-strong); font-weight: var(--type-fixed-weight-700); }
+.when .gap { display: inline-block; width: 8px; }
+.left { color: var(--color-text-secondary); font-weight: var(--type-fixed-weight-700); }
+.overview { display: -webkit-box; margin: 8px 0 0; font-size: var(--type-fixed-size-14px); line-height: var(--type-fixed-line-1point-5); color: var(--color-text-secondary); -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+@media (max-width: 1023px) {
+  .drawer { height: auto; max-height: 72vh; padding: 56px 0 max(12px, env(safe-area-inset-bottom)); overflow-y: auto; }
+  .head { padding: 0 20px; }
+  .track { padding: 10px 20px 6px; }
+  .ep { width: 232px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .still { transition: none; }
+  .ep:hover .still, .ep:focus-visible .still { transform: none; }
+}
+:global([data-reduce-motion='true']) .still { transition: none; }
+:global([data-reduce-motion='true']) .ep:hover .still, :global([data-reduce-motion='true']) .ep:focus-visible .still { transform: none; }
+
+/* motion.html 3.7-3.9: the panel arrives with a fade and a 24px rise over standard 180 (out);
+   reduced motion keeps the fade. Its exit is the owner's PanelPresence (kit/overlays): leave in 120, `in`. */
+.drawer { animation: drawer-arrive var(--motion-standard) var(--ease-out) both; }
+@keyframes drawer-arrive { from { opacity: 0; transform: translateY(24px); } }
+@media (prefers-reduced-motion: reduce) { .drawer { animation: drawer-arrive-fade var(--motion-reduced) linear both; } }
+:global([data-reduce-motion='true']) .drawer { animation: drawer-arrive-fade var(--motion-reduced) linear both; }
+@keyframes drawer-arrive-fade { from { opacity: 0; } }

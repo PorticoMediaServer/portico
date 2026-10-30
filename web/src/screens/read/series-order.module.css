@@ -1,0 +1,11 @@
+.order { grid-column: 1 / -1; min-width: 0; color: var(--color-text); }
+.order h4 { margin: 0 0 8px; font-size: var(--type-label-size); line-height: var(--type-label-line); font-weight: var(--type-label-weight); letter-spacing: var(--type-label-tracking); }
+.order ol { list-style: none; padding: 0; margin: 0; }
+.order li { display: grid; grid-template-columns: 28px 32px minmax(0, 1fr) 32px; align-items: center; gap: 12px; min-height: 58px; border-bottom: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent); }
+.order li > button { display: grid; place-items: center; padding: 0; width: 28px; height: 40px; border: 0; background: transparent; color: var(--color-text-secondary); cursor: grab; }
+.order li > button:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 2px; }
+.order li > button:disabled { cursor: default; opacity: var(--spec-button-disabled-opacity); }
+.order li > b, .number { font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-body-strong-weight); letter-spacing: var(--type-body-tracking); }
+.number { text-align: end; }
+.cover { display: block; width: 32px; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 3px; }
+.order p { margin: 10px 0 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line); font-weight: var(--type-caption-weight); letter-spacing: var(--type-caption-tracking); color: var(--color-text-secondary); }

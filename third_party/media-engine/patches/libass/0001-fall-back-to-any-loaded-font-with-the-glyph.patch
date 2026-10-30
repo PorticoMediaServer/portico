@@ -1,0 +1,77 @@
+--- a/libass/ass_fontselect.c
++++ b/libass/ass_fontselect.c
+@@ -809,6 +809,55 @@
+     return result;
+ }
+ 
++/**
++ * \brief Find any loaded font that has a glyph for the character, whatever
++ * its family: the fallback when no system font provider can be asked for one
++ * (Android, which has none in libass). Of the fonts that have the glyph, the
++ * one whose weight and slant are closest to the request wins; on a tie, the
++ * one loaded first.
++ */
++static char *
++find_font_with_glyph(ASS_FontSelector *priv, unsigned bold, unsigned italic,
++                     int *index, char **postscript_name, int *uid,
++                     ASS_FontStream *stream, uint32_t code)
++{
++    ASS_FontInfo req = {0};
++    ASS_FontInfo *selected = NULL;
++    unsigned score_min = UINT_MAX;
++
++    req.style_flags = (italic ? FT_STYLE_FLAG_ITALIC : 0);
++    req.weight      = bold;
++
++    for (int x = 0; x < priv->n_font; x++) {
++        ASS_FontInfo *font = &priv->font_infos[x];
++        unsigned score = font_attributes_similarity(font, &req);
++        if (score < score_min && check_glyph(font, code)) {
++            score_min = score;
++            selected = font;
++            if (score == 0)
++                break;
++        }
++    }
++
++    if (!selected)
++        return NULL;
++
++    ASS_FontProvider *provider = selected->provider;
++    *postscript_name = selected->postscript_name;
++    *uid = selected->uid;
++    if (provider->funcs.get_font_index)
++        *index = provider->funcs.get_font_index(selected->priv);
++    else
++        *index = selected->index;
++
++    if (selected->path)
++        return selected->path;
++    stream->func = provider->funcs.get_data;
++    stream->priv = selected->priv;
++    return selected->postscript_name ? selected->postscript_name
++                                     : selected->families[0];
++}
++
+ static char *select_font(ASS_FontSelector *priv,
+                          const char *family, bool match_extended_family,
+                          unsigned bold, unsigned italic,
+@@ -919,6 +968,18 @@
+         }
+     }
+ 
++    // No provider could name a fallback: any loaded font (the fonts folder,
++    // fonts attached to the file) that draws the character, before the
++    // default font file, which is used without checking it has the glyph.
++    if (!res && code) {
++        res = find_font_with_glyph(priv, bold, italic, index,
++                postscript_name, uid, data, code);
++        if (res)
++            ass_msg(priv->library, MSGL_INFO, "fontselect: Using a loaded "
++                    "font with glyph 0x%X: (%s, %d, %d) -> %s, %d", code,
++                    family, bold, italic, res, *index);
++    }
++
+     if (!res && priv->path_default) {
+         res = priv->path_default;
+         *index = priv->index_default;

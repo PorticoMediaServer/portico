@@ -1,0 +1,42 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/libraries"
+  },
+  "status": 200,
+  "body": {
+    "items": [
+      {
+        "summary": {
+          "counts": [
+            {
+              "kind": "artist",
+              "count": 2,
+              "atLeast": false
+            },
+            {
+              "kind": "album",
+              "count": 5,
+              "atLeast": false
+            },
+            {
+              "kind": "song",
+              "count": 8,
+              "atLeast": false
+            }
+          ],
+          "coverUrls": [],
+          "latestArtwork": "",
+          "firstScan": true,
+          "emptyKnown": true,
+          "empty": false
+        },
+        "defaultView": "browse",
+        "id": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+        "name": "Music",
+        "kind": "music",
+        "pinned": false
+      }
+    ]
+  }
+}

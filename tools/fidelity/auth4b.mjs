@@ -1,0 +1,25 @@
+/** Complete web application viewport within the frame's illustrated browser.
+ * The separate 86px browser toolbar is environment context, not app markup. */
+export const auth4b = {
+  id: 'auth4b', state: 'server-own-origin-portico-handoff-primary-keyboard-focus',
+  viewport: {width: 1440, height: 900, deviceScaleFactor: 1},
+  referenceWindowViewport: {width: 1440, height: 986, deviceScaleFactor: 1},
+  referenceSelector: '.frame[data-f="4b"] > .screen > .pg',
+  entry: '/src/dev/entries/accounts.html?frame=4b', actualSelector: '[data-account-specimen] > section',
+  stateSteps: [{action: 'tab', selector: '[data-auth-content] > button'}],
+  expectations: [{frame: 'continue', focused: true}], focus: {frame: 'continue'},
+  reference: {screen: '$root', backdrop: '.gen', brand: '.mark-tl', content: '.au', eyebrow: '.why',
+    title: 'h1', lede: '.lede', continue: '.au > button', links: '.links', recovery: '.links > a',
+    legal: '.legal', terms: '.legal > span:first-child', privacy: '.legal > span:last-child'},
+  actual: {screen: '$root', backdrop: 'section > div[aria-hidden=true]', brand: 'header img', content: '[data-auth-content]',
+    eyebrow: '[data-auth-content] > p:first-of-type', title: 'h1', lede: '[data-auth-content] > p:nth-of-type(2)',
+    continue: '[data-auth-content] > button', 'continue-label': '[data-auth-content] > button > span',
+    links: '[data-auth-content] > div:last-of-type', recovery: '[data-auth-content] > div:last-of-type > button',
+    legal: 'footer', terms: 'footer > a:first-child', privacy: 'footer > a:last-child'},
+  keys: {brand: 'accounts.brand', eyebrow: 'accounts.signIn.to', lede: 'accounts.signIn.handoffBody',
+    continue: 'accounts.signIn.handoff', 'continue-label': 'accounts.signIn.handoff', recovery: 'accounts.signIn.cannotUsePortico',
+    terms: 'auth.terms', privacy: 'accounts.legal.privacy'},
+  data: {title: {name: 'serverName', value: 'Portico demo'}},
+  actualContentOnly: ['continue-label'], textHandledBySlots: ['continue'],
+  contentSlots: [{reference: 'continue', actual: 'continue-label'}],
+};

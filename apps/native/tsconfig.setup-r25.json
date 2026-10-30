@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["setup-sign-in-r25.tsx", "setup/**/*.ts", "setup/**/*.tsx"],
+  "exclude": ["node_modules", "test"]
+}

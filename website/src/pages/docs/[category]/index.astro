@@ -1,0 +1,25 @@
+---
+import { getCollection } from 'astro:content';
+import DocsLayout from '@/layouts/DocsLayout.astro';
+import { docCategories } from '@/data/docs';
+
+export function getStaticPaths() {
+  return docCategories.map((category) => ({ params: { category: category.id }, props: { category } }));
+}
+
+const { category } = Astro.props;
+const entries = (await getCollection('docs'))
+  .filter((entry) => entry.data.category === category.id)
+  .sort((a, b) => a.data.order - b.data.order);
+---
+
+<DocsLayout title={category.title} description={category.description} category={category.id} categoryTitle={category.title}>
+  <div class="category-article-list">
+    {entries.map((entry) => (
+      <a href={`/docs/${entry.id}/`}>
+        <strong>{entry.data.title}</strong>
+        <span>{entry.data.description}</span>
+      </a>
+    ))}
+  </div>
+</DocsLayout>

@@ -1,0 +1,33 @@
+/** tv-more: the TV Saved landing, album page and artist page. */
+export const tvMoreMessages = {
+  'tv.server.handoffTitle': 'Change settings on your phone or computer',
+  'tv.server.handoffBody': 'Scan the code, or go to {url} on a computer.',
+  'saved.browseHome': 'Browse Home',
+  'saved.postersHeading': 'Movies and shows',
+  'saved.squaresHeading': 'Music and audiobooks',
+  'saved.holdHint': 'Hold OK on any poster to add it without opening it.',
+  'music.topSongs': 'Top songs',
+  'music.albums': 'Albums',
+  'music.similarArtists': 'Similar artists',
+  'music.allSongs': 'All songs',
+  'music.moreLikeThis': 'More like this',
+  'music.moreLikeThisHint': 'Same genres first, then what people here play alongside it',
+  // music-plus f7 (MC-9): the same row's line once the album is analyzed and ranked by sound.
+  'music.moreLikeThisBySound': 'Closest in sound',
+  'music.onServer': '{albums, plural, one {# album} other {# albums}} and {songs, plural, one {# song} other {# songs}} on your server',
+  'music.songCountAndDuration': '{songs, plural, one {# song} other {# songs}}, {minutes} min',
+  'music.shuffleArtist': 'Shuffle {artist}',
+  'music.playArtist': 'Play {artist}',
+  'music.playAlbum': 'Play {album}',
+  // music-plus (MC-9): the first music action in a song, album or artist menu.
+  'music.startRadio': 'Start radio',
+  'music.radioNamed': '{name} radio',
+  'music.radio': 'Radio',
+  'music.mixesForYou': 'Mixes for you',
+  'music.noSongs': 'No songs here',
+  'music.noSongsBody': 'This release has no playable songs on the server.',
+  'music.noAlbums': 'No albums here',
+  'music.noAlbumsBody': 'This artist has no albums on the server yet.',
+  'music.favorite': 'Favorite',
+  'music.loading': 'Loading music',
+};

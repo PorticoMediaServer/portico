@@ -1,0 +1,124 @@
+// libmpv for the mpv player engine, and the small JNI bridge to it.
+//
+// The engine is Portico's own build, from pinned sources, made by
+// third_party/media-engine/build-android.sh (at the repository root): FFmpeg (the server's
+// version, LGPL 2.1), OpenSSL, mpv (LGPL), libass, FreeType, HarfBuzz, FriBidi, libunibreak,
+// dav1d, libplacebo, Little CMS, libdovi, uchardet and libiconv. Each is its own shared library
+// (libavcodec.so, libssl.so, libmpv.so, ...), so the LGPL ones can be replaced in an installed
+// app. Nothing is downloaded here; the build script checks every source against its SHA-256.
+//
+// By default the libraries are taken from third_party/media-engine/out/android. To use a build
+// elsewhere, pass -PporticoLibmpvDir=/path/to/out/android (the folder holding lib/<abi>/*.so,
+// include/mpv/ and notices/). The build stops with instructions when they are missing.
+apply plugin: "com.android.library"
+
+// Every library one architecture of the engine consists of (see third_party/media-engine/verify.py).
+def engineLibraries = [
+    "libavcodec.so", "libavformat.so", "libavutil.so", "libavfilter.so", "libswresample.so", "libswscale.so",
+    "libssl.so", "libcrypto.so", "libmpv.so", "libass.so", "libfreetype.so", "libharfbuzz.so", "libfribidi.so",
+    "libunibreak.so", "libdav1d.so", "libplacebo.so", "liblcms2.so", "libdovi.so", "libuchardet.so", "libiconv.so",
+]
+def engineArchitectures = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+
+// The same list the app is built for (gradle.properties, or -PreactNativeArchitectures=...).
+def mpvAbis = (project.findProperty("reactNativeArchitectures") ?: "armeabi-v7a,arm64-v8a,x86,x86_64")
+    .toString().split(",").collect { it.trim() }.unique()
+if (mpvAbis.isEmpty() || mpvAbis.any { !engineArchitectures.contains(it) }) {
+    throw new GradleException("reactNativeArchitectures must name only architectures the media engine is built for: ${engineArchitectures.join(', ')}")
+}
+def engineDir = file(project.findProperty("porticoLibmpvDir")?.toString() ?: "${rootDir}/../../../third_party/media-engine/out/android")
+def engineStage = layout.buildDirectory.dir("media-engine").get().asFile
+
+def missingEngineFiles = {
+    def missing = []
+    mpvAbis.each { abi -> engineLibraries.each { lib -> if (!new File(engineDir, "lib/${abi}/${lib}").isFile()) missing << "lib/${abi}/${lib}" } }
+    ["include/mpv/client.h", "notices/THIRD-PARTY-NOTICES.txt"].each { if (!new File(engineDir, it).isFile()) missing << it }
+    missing
+}
+
+def checkMediaEngine = tasks.register("checkMediaEngine") {
+    description = "Checks that the media engine is built for every architecture of this build."
+    inputs.property("abis", mpvAbis.join(","))
+    inputs.property("dir", engineDir.absolutePath)
+    outputs.upToDateWhen { false }
+    doLast {
+        def missing = missingEngineFiles()
+        if (!missing.isEmpty()) {
+            throw new GradleException(
+                "The media engine (libmpv and its libraries) is not built in ${engineDir}.\n" +
+                "Missing: ${missing.take(6).join(', ')}${missing.size() > 6 ? ', ...' : ''}\n" +
+                "Build it once from the repository root (about half an hour; Linux or macOS):\n" +
+                "    third_party/media-engine/build-android.sh\n" +
+                "or for one emulator architecture only:\n" +
+                "    third_party/media-engine/build-android.sh --abis x86_64   (and build with -PreactNativeArchitectures=x86_64)\n" +
+                "To use a build elsewhere, pass -PporticoLibmpvDir=/path/to/out/android.")
+        }
+    }
+}
+
+// Every library except libmpv.so, which CMake links the bridge against and packages itself.
+def stageMediaEngine = tasks.register("stageMediaEngine", Sync) {
+    description = "Copies the media engine's libraries and notices into this module's build."
+    dependsOn(checkMediaEngine)
+    into(engineStage)
+    mpvAbis.each { abi ->
+        from(new File(engineDir, "lib/${abi}")) {
+            include(engineLibraries.findAll { it != "libmpv.so" })
+            into("jniLibs/${abi}")
+        }
+    }
+    // The licence notices travel inside the app (assets/media-engine/THIRD-PARTY-NOTICES.txt).
+    from(new File(engineDir, "notices")) {
+        include("THIRD-PARTY-NOTICES.txt")
+        into("assets/media-engine")
+    }
+}
+
+// No folder of the build machine in the bridge library (see app/build.gradle): the checkout and
+// the engine's folder get neutral names. A folder with a space is left as it is.
+def mpvPathFlags = [(rootProject.file("../../..")): "/portico", (engineDir): "/portico-media-engine"].collectMany { folder, neutral ->
+    [folder.absolutePath, folder.canonicalPath].unique().findAll { !(it =~ /\s/) }.collect { "-ffile-prefix-map=${it}=${neutral}".toString() }
+}
+
+android {
+    namespace "tv.getportico.portico.mpv"
+    compileSdk rootProject.ext.compileSdkVersion
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdkVersion
+        consumerProguardFiles "consumer-rules.pro"
+        ndk { abiFilters(*mpvAbis) }
+        externalNativeBuild {
+            cmake {
+                arguments "-DPORTICO_LIBMPV_DIR=${engineDir.absolutePath}",
+                          "-DANDROID_STL=none",
+                          "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                cFlags("-Wall", "-Wextra", "-Werror", *mpvPathFlags)
+            }
+        }
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs += new File(engineStage, "jniLibs")
+            assets.srcDirs += new File(engineStage, "assets")
+        }
+    }
+
+    externalNativeBuild {
+        cmake { path file("src/main/cpp/CMakeLists.txt") }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+// The engine must be in place before CMake links the bridge and before libraries are merged.
+preBuild.dependsOn(stageMediaEngine)
+tasks.configureEach { task ->
+    if (task.name.contains("CMake") || task.name.contains("ExternalNative")) task.dependsOn(stageMediaEngine)
+}

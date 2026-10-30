@@ -1,0 +1,93 @@
+.options { position: absolute; z-index: var(--layer-hero-navigation); right: 40px; bottom: 156px; width: min(1000px, calc(100% - 80px)); padding: 24px 24px 18px; border-radius: 20px; background: color-mix(in srgb, var(--color-player-notice) 88%, transparent); backdrop-filter: blur(30px) saturate(1.3); box-shadow: 0 40px 80px -24px color-mix(in srgb, var(--color-shadow) 85%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent); }
+.columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 26px; }
+.columns > div + div { position: relative; }
+.columns > div + div::before { content: ''; position: absolute; left: -13px; top: 4px; bottom: 4px; width: 1px; background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.column h3 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 6px; padding: 0 12px; font-size: var(--type-wide-title-size); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-episode-title-tracking); }
+.columns [data-section='quality'] { margin-top: 20px; }
+.column h3 > span { margin-left: auto; font-size: var(--type-caption-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-tertiary); }
+.speeds.speeds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0 12px; padding: 0; border-radius: 11px; background: none; box-shadow: none; }
+.speeds.speeds > button { height: 36px; padding: 0 8px; border-radius: 8px; font-size: var(--type-chip-size); font-weight: var(--type-chip-weight); color: var(--color-text-secondary); background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.speeds.speeds > button:hover { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.speeds.speeds > button[data-state='checked'] { background: var(--color-text); color: var(--color-ink); }
+@media (prefers-reduced-motion: reduce) { .speeds.speeds > button { transition: none; } }
+:global([data-reduce-motion='true']) .speeds.speeds > button { transition: none; }
+.row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 6px 12px; border: 0; border-radius: 10px; text-align: left; font: inherit; font-size: var(--type-body-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-secondary); background: transparent; cursor: pointer; }
+.row > span { flex: 1; min-width: 0; }
+.row small { display: block; margin-top: 1px; font-size: calc(var(--type-caption-size) * 25 / 26); font-weight: var(--type-micro-weight); color: var(--color-text-tertiary); }
+.row > svg { opacity: 0; flex: none; color: var(--color-accent-strong); }
+.row[data-selected] { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.row[data-selected] > svg { opacity: 1; }
+.row[aria-disabled='true'] { color: var(--color-text-tertiary); cursor: default; }
+.row[data-selected] small { color: var(--color-text-secondary); }
+.row:not([aria-disabled='true']):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.people { display: grid; gap: 14px; }
+.person { display: flex; align-items: center; gap: 12px; }
+.person > span { flex: 1; min-width: 0; }
+.person small { display: block; color: var(--color-text-secondary); }
+@media (max-width: 1023px) { .columns { grid-template-columns: 1fr; gap: 24px; } .columns > div + div::before { display: none; } }
+
+.note { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 14px 12px 0; border-top: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); font-size: var(--type-synopsis-size); color: var(--color-text-tertiary); }
+.note > svg { flex: none; color: var(--color-accent-strong); }
+.note b { color: var(--color-text); font-weight: var(--type-row-heading-weight); }
+
+.note a { margin-left: auto; color: var(--color-text-secondary); font-weight: var(--type-row-heading-weight); text-decoration: none; display: inline-flex; align-items: center; gap: 2px; }
+.note a:hover { color: var(--color-text); }
+
+/* Phone options: one drawn row per control; each row opens its own panel. */
+.phoneRows { padding: 2px 0 8px; }
+.phoneNote { display: flex; align-items: flex-start; gap: 10px; margin: 2px 20px 12px; color: var(--color-text-tertiary); font-size: var(--type-chip-size); line-height: calc(var(--type-chip-size) * 1.45); }
+.phoneNote svg { flex: none; margin-top: 1px; color: var(--color-accent-strong); }
+.phoneRow { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 8px 20px; border: 0; background: none; color: var(--color-text-secondary); font: inherit; font-size: var(--type-tab-size); font-weight: var(--type-body-strong-weight); text-align: left; cursor: pointer; }
+.phoneRow + .phoneRow::before { content: ''; position: absolute; top: 0; left: 62px; right: 20px; height: 1px; background: color-mix(in srgb, var(--color-text) 9%, transparent); }
+.phoneIcon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: color-mix(in srgb, var(--color-text) 8%, transparent); color: var(--color-text-secondary); flex: none; }
+.phoneLabel { flex: 1; min-width: 0; color: var(--color-text); }
+.phoneValue { display: flex; align-items: baseline; gap: 6px; color: var(--color-text-tertiary); font-size: calc(var(--type-body-size) * 29 / 30); font-weight: var(--type-body-strong-weight); }
+.phoneValue small { font-size: calc(var(--type-caption-size) * 25 / 26); }
+.phoneRow > svg:last-child { flex: none; color: var(--color-text-tertiary); }
+.phoneRow:hover { background: color-mix(in srgb, var(--color-text) 5%, transparent); }
+.subHeader { display: inline-flex; align-items: center; gap: 8px; }
+.back { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--color-text); font: inherit; cursor: pointer; }
+.done { padding: 0; border: 0; background: none; color: var(--color-text-secondary); font: inherit; font-size: var(--type-body-size); font-weight: var(--type-row-heading-weight); cursor: pointer; }
+.subBody { padding: 2px 16px 10px; }
+.optionFoot { display: grid; gap: 2px; margin: 14px 12px 2px; color: var(--color-text-tertiary); font-size: var(--type-chip-size); line-height: calc(var(--type-chip-size) * 1.45); }
+.timing { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 12px 2px; color: var(--color-text-secondary); font-size: var(--type-body-size); font-weight: var(--type-body-strong-weight); }
+.timingStep { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.timingStep button { display: grid; place-items: center; width: 34px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--color-text) 8%, transparent); color: var(--color-text-secondary); font: inherit; font-size: var(--type-caption-size); font-weight: var(--type-lockup-weight); line-height: var(--type-fixed-line-1); cursor: pointer; }
+.timingStep button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+.timingStep b { min-width: 46px; text-align: center; font-size: calc(var(--type-body-size) * .9); color: var(--color-text); font-variant-numeric: tabular-nums; font-weight: var(--type-body-strong-weight); }
+.additions { margin-top: 6px; }
+.forcedRow { display: flex; align-items: flex-start; gap: 12px; margin: 10px 12px 2px; color: var(--color-text); font-size: var(--type-body-size); font-weight: var(--type-body-strong-weight); }
+.forcedRow small { display: block; margin-top: 1px; font-size: var(--type-caption-size); font-weight: var(--type-micro-weight); color: var(--color-text-tertiary); }
+.styleLabel { margin: 10px 12px 4px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.sleepRow { margin-top: 14px; }
+.sleepButton { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 42px; padding: 6px 12px; border: 0; border-radius: 10px; background: none; color: var(--color-text); font: inherit; font-size: var(--type-body-size); font-weight: var(--type-body-strong-weight); cursor: pointer; }
+.sleepButton:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.sleepValue { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-secondary); }
+.searchRow { margin: 10px 12px 2px; color: var(--color-text-tertiary); }
+.searchLabel { display: flex; align-items: center; gap: 10px; font-size: var(--type-body-size); font-weight: var(--type-body-strong-weight); }
+.searchWhy { margin: 4px 0 0 28px; font-size: var(--type-chip-size); line-height: calc(var(--type-chip-size) * 1.45); }
+
+.phoneGroup { margin:20px 20px 6px; color:var(--color-text-tertiary); font-size:var(--type-caption-size); font-weight:var(--type-body-strong-weight); }
+
+/* f3b: a switch that failed keeps the playing track and says so, with Try again. */
+.audioRetry { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--color-danger) 14%, transparent); color: var(--color-text); font-size: var(--type-caption-size); line-height: var(--type-caption-line); }
+.audioRetry span { flex: 1; min-width: 0; }
+.audioRetry button { flex: none; padding: 0; border: 0; background: none; font: inherit; font-weight: var(--type-caption-strong-weight); color: var(--color-text); text-decoration: underline; cursor: pointer; }
+
+.styleSegments.styleSegments { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; margin: 0 12px; padding: 3px; border-radius: 11px; background: color-mix(in srgb, var(--color-text) 7%, transparent); box-shadow: none; }
+.styleSegments.styleSegments > button { height: 34px; padding: 0 8px; border-radius: 8px; font-size: calc(var(--type-body-size) * .9); font-weight: var(--type-row-heading-weight); color: var(--color-text-secondary); white-space: nowrap; }
+.styleSegments.styleSegments > button[data-state='checked'] { color: var(--color-ink); background: var(--color-text); }
+.forcedRow > span { flex: 1; min-width: 0; }
+.forcedRow > button { flex: none; align-self: center; }
+.landscapeOptions.landscapeOptions[data-placement='right'] { inset: 12px max(52px, env(safe-area-inset-right, 0px)) 12px auto; width: min(356px, calc(100vw - 64px)); height: auto; max-height: calc(100dvh - 24px); border-radius: 20px; background: color-mix(in srgb, var(--color-raised) 95%, transparent); backdrop-filter: blur(30px); box-shadow: 0 30px 60px -16px var(--color-shadow), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent); }
+.landscapeHeader { padding: 14px 48px 8px 18px; }
+@media (pointer: coarse) { .timingStep button { min-width: 44px; min-height: 44px; } }
+@media (prefers-reduced-transparency: reduce) { .landscapeOptions.landscapeOptions[data-placement='right'] { background: var(--color-raised); backdrop-filter: none; } }
+
+/* motion.html 3.7-3.9: the panel arrives with a fade and a 8px rise over standard 180 (out);
+   reduced motion keeps the fade. Its exit is the owner's PanelPresence (kit/overlays): leave in 120, `in`. */
+.options { animation: options-arrive var(--motion-standard) var(--ease-out) both; }
+@keyframes options-arrive { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .options { animation: options-arrive-fade var(--motion-reduced) linear both; } }
+:global([data-reduce-motion='true']) .options { animation: options-arrive-fade var(--motion-reduced) linear both; }
+@keyframes options-arrive-fade { from { opacity: 0; } }

@@ -1,0 +1,12 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/events?waitMs=0"
+  },
+  "status": 200,
+  "body": {
+    "events": [],
+    "nextAfter": "e1.rS80CI2CZZCVZpQWTYNQOkTxWUkSgjjrCHy5_QhnPpKejtzgpg6wVwMZzFfEe6LyU0BW7vi2ryZJ4jKW",
+    "more": false
+  }
+}

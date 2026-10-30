@@ -1,0 +1,8 @@
+/* account25/29: the healthy dot carries presence; its text stays secondary. */
+.online { display: inline-flex; align-items: center; gap: var(--space-xs); font-size: var(--type-row-subtitle-size); font-weight: var(--type-display-weight); color: var(--color-text-secondary); }
+.online::before { content: ''; width: var(--space-px-8); height: var(--space-px-8); border-radius: 50%; background: var(--color-healthy); box-shadow: 0 0 0 var(--space-px-4) color-mix(in srgb, var(--color-healthy) 14%, transparent); }
+
+.recheck { margin: 0 0 10px; color: var(--color-text-tertiary); font-size: var(--type-caption-size); }
+
+/* connect28: the calm owner hint under the recheck line, never a warning. */
+.offlineHint { margin: 0 0 12px; color: var(--color-text-tertiary); font-size: var(--type-caption-size); }

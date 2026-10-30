@@ -1,0 +1,60 @@
+[package]
+name = "portico-desktop"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "GPL-3.0-only"
+publish = false
+
+[lib]
+name = "portico_desktop"
+
+[[bin]]
+name = "portico-desktop"
+path = "src/main.rs"
+required-features = ["shell"]
+
+[[bin]]
+name = "portico-engine-proof"
+path = "src/bin/engine-proof.rs"
+
+[features]
+default = []
+shell = ["dep:tauri", "dep:tauri-build", "dep:gtk", "dep:webkit2gtk", "dep:portico-desktop-discovery"]
+custom-protocol = ["shell", "tauri/custom-protocol"]
+updater = ["shell", "dep:tauri-plugin-updater"]
+
+[dependencies]
+portico-desktop-discovery = { path = "discovery", optional = true }
+libloading = "=0.9.0"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+url = "=2.5.7"
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled"] }
+base64 = { version = "=0.22.1", default-features = false, features = ["std"] }
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+ring = { version = "=0.17.14", default-features = false, features = ["std"] }
+tauri = { version = "=2.12.5", optional = true, features = ["macos-private-api"] }
+tauri-plugin-updater = { version = "=2.10.1", optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = { version = "=0.18.2", optional = true }
+webkit2gtk = { version = "=2.0.2", features = ["v2_40"], optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "=0.2.191"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Networking_NetworkListManager", "Win32_Networking_WinSock", "Win32_System_Com"] }
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", optional = true }
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

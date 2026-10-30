@@ -1,0 +1,53 @@
+{
+  "package": "@react-native-community/blur",
+  "version": "4.4.1",
+  "license": "react-native-blur-4.4.1-LICENSE",
+  "files": [
+    {
+      "path": "ios/BlurEffectWithAmount.h",
+      "beforeSHA256": "fbab528d7b1af76159aa7067a2fda1ea91d5bf3aee7b405da4a17d63fe44650a",
+      "content": "// Portico: the private amount subclass was removed.\n// This placeholder preserves upstream project file references.\n",
+      "afterSHA256": "7cd25499a6f98a0afb62a202f0d33873bbd5e1a90de1210b30898e0fff0de1a7"
+    },
+    {
+      "path": "ios/BlurEffectWithAmount.m",
+      "beforeSHA256": "a4ceef190647ab9652d2afeddfa1dc9aba10e18ca6bc1eea65070d373eb89d1b",
+      "content": "#import \"BlurEffectWithAmount.h\"\n\n// Portico uses a normal UIBlurEffect in BlurView; no custom radius implementation.\n",
+      "afterSHA256": "14368d1739d286a6fe8342405ef4e7469b349267785f9781f399e890ada39589"
+    },
+    {
+      "path": "ios/BlurView.h",
+      "beforeSHA256": "525d417a000234c7e82ea37317ec604302e29d3c7f3ac53c9b9d5b0bc9f4d16f",
+      "replacements": [
+        {
+          "before": "#import \"BlurEffectWithAmount.h\"\n",
+          "after": ""
+        },
+        {
+          "before": "BlurEffectWithAmount *blurEffect",
+          "after": "UIBlurEffect *blurEffect"
+        }
+      ],
+      "afterSHA256": "6c119177ab7bea7cda8915f682e6766c330d0acf7b62f1a9dfe368aa0d05454c"
+    },
+    {
+      "path": "ios/BlurView.mm",
+      "beforeSHA256": "14fbafc01fe91eeec688aa4ef0af70032410952b8aa1a7ef7efd10045994d3a6",
+      "replacements": [
+        {
+          "before": "#import \"BlurEffectWithAmount.h\"\n",
+          "after": ""
+        },
+        {
+          "before": "  // Without resetting the effect, changing blurAmount doesn't seem to work in Fabric...\n  // Setting it to nil should also enable blur animations (see PR #392)\n",
+          "after": "  // Keep effect replacement and ownership unchanged for Fabric/style updates.\n  // Portico: blurAmount remains bridge-compatible; UIKit controls material intensity.\n"
+        },
+        {
+          "before": "[BlurEffectWithAmount effectWithStyle:style andBlurAmount:self.blurAmount]",
+          "after": "[UIBlurEffect effectWithStyle:style]"
+        }
+      ],
+      "afterSHA256": "fb6a0e57cec1915659d37bb6875d52df2606efa72528369dab57d051738c384d"
+    }
+  ]
+}

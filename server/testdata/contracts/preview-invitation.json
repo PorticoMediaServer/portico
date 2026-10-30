@@ -1,0 +1,23 @@
+{
+  "schema": "PreviewInvitationResponse",
+  "method": "POST",
+  "path": "/v1/access/invitations/preview",
+  "request": {
+    "code": "example-invitation-code"
+  },
+  "status": 200,
+  "response": {
+    "serverName": "Portico",
+    "expiresAt": "2026-10-23T21:16:19Z",
+    "role": "member",
+    "libraryCount": 1,
+    "libraries": [
+      {
+        "name": "Films"
+      }
+    ],
+    "allLibraries": false,
+    "signInMethod": "local",
+    "inviterUsername": "owner"
+  }
+}

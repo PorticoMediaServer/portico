@@ -1,0 +1,29 @@
+{
+  "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": ["react"],
+    "strict": true,
+    "baseUrl": ".",
+    // The shared sources have no node_modules of their own here: every package they import is
+    // named, and resolves to what Metro gives them (metro.config.js).
+    "paths": {
+      "@react-native-masked-view/masked-view": ["./src/shims/masked-view.tsx"],
+      "@react-native-community/blur": ["./src/shims/blur.tsx"],
+      "@portico/design": ["../../packages/design/src/index.ts"],
+      "react-native-gesture-handler": ["./node_modules/@amazon-devices/react-native-gesture-handler"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "react-native": ["./src/shims/react-native.ts"],
+      "@react-navigation/native": ["./node_modules/@amazon-devices/react-navigation__native"],
+      "@react-navigation/native-stack": ["./node_modules/@amazon-devices/react-navigation__native-stack"],
+      "react-native-safe-area-context": ["./node_modules/@amazon-devices/react-native-safe-area-context"],
+      "react-native-screens": ["./node_modules/@amazon-devices/react-native-screens"],
+      "react-native-reanimated": ["./node_modules/@amazon-devices/react-native-reanimated"],
+      "react-native-svg": ["./node_modules/@amazon-devices/react-native-svg"],
+      "react-native-qrcode-svg": ["./node_modules/react-native-qrcode-svg"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "types/**/*.d.ts", "../native/App.tsx", "../native/src-next/platform/error-capture.ts"],
+  "exclude": ["node_modules", "build"]
+}

@@ -1,0 +1,14 @@
+/* The drawn Clear data result sits in the control column before the button
+   (settings.html: green check, 14px/700). Errors use the kit's row-error red. */
+.result {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--type-synopsis-size);
+  font-weight: var(--type-row-heading-weight);
+  color: var(--color-healthy);
+}
+.failure {
+  font-size: var(--type-caption-size);
+  color: var(--color-record);
+}

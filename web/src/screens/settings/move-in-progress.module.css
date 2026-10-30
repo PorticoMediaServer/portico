@@ -1,0 +1,8 @@
+/* auth24c: the moving panel sits above the Sign-in rows; calm, never a warning. */
+.panel { margin: 0 0 18px; padding: 18px 20px; border-radius: 14px; background: var(--color-raised); }
+.panel h3 { margin: 0 0 6px; font-size: var(--type-row-heading-size); font-weight: var(--type-display-weight); }
+.count { margin: 0 0 10px; color: var(--color-text-secondary); font-size: var(--type-row-subtitle-size); }
+.bar { height: 6px; border-radius: 3px; background: var(--color-line); overflow: hidden; }
+.bar span { display: block; height: 100%; border-radius: inherit; background: var(--color-accent); }
+.help { margin: 12px 0 0; color: var(--color-text-tertiary); font-size: var(--type-caption-size); line-height: var(--type-fixed-line-1point-45); }
+.actions { display: flex; gap: 10px; margin-top: 14px; }

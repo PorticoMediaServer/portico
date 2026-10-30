@@ -1,0 +1,18 @@
+/* f1q's queue list, lifted onto the current kit: compact scrolling rows, the playing row marked,
+   and its actions beside each row. No frame draws a panel, so every value is a kit token. */
+.list { display: flex; flex-direction: column; gap: 2px; max-height: min(52vh, 480px); overflow-y: auto; scrollbar-width: thin; }
+.row { display: flex; align-items: center; gap: 4px; }
+.name { flex: 1; min-width: 0; min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 10px; border: 0; border-radius: 10px; background: none; color: var(--color-text); font: inherit; font-size: var(--type-body-size); line-height: var(--type-body-line); text-align: left; cursor: pointer; }
+.name > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.name:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.name:disabled { cursor: default; }
+.name small { flex: none; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-tertiary); }
+.row[aria-current='true'] .name { color: var(--color-accent-strong); }
+.actions { display: inline-flex; flex: none; gap: 2px; }
+.action { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--color-text-secondary); cursor: pointer; }
+.action:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text); }
+.action:disabled { opacity: 0.35; cursor: default; }
+.name:focus-visible, .action:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.more { margin: 8px 0 0; padding: 0 10px; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-tertiary); }
+.empty { margin: 0; padding: 0 10px 8px; font-size: var(--type-body-size); line-height: var(--type-body-line); color: var(--color-text-tertiary); }
+.failed { margin: 12px 0 0; padding: 0 10px; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-danger-text); }

@@ -1,0 +1,10 @@
+{
+  "schema": "GetDirectProfileAvatarsResponse",
+  "method": "GET",
+  "path": "/v1/direct/profiles/avatars",
+  "auth": "viewer",
+  "status": 200,
+  "response": {
+    "items": []
+  }
+}

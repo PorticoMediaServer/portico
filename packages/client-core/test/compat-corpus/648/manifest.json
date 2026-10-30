@@ -1,0 +1,14 @@
+{
+  "recordedFrom": {
+    "version": "0.1.0-dev",
+    "apiLevel": 1
+  },
+  "library": {
+    "id": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+    "kind": "music"
+  },
+  "itemId": "FZH_ujVknbAIgHBifTyT1w",
+  "notes": [
+    "the item has no file-info group, so the tracks and members routes were not recorded"
+  ]
+}

@@ -1,0 +1,16 @@
+/* Account Audio & subtitles: the drawn ordered-list picker and the subtitle preview. */
+.addLanguage.addLanguage[data-variant='glass'] { height: auto; min-height: 40px; padding: 0 14px 0 10px; border-radius: 10px; gap: 6px; background: transparent; box-shadow: inset 0 0 0 1px var(--color-line-strong); color: var(--color-text-secondary); font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-700); white-space: normal; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.addLanguage.addLanguage[data-variant='glass']:hover:not(:disabled) { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 5%, transparent); }
+.addLanguage > span { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.pickerList { max-height: 312px; margin-top: 16px; overflow: auto; border-top: 1px solid var(--color-line-soft); }
+.pickerRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; height: 48px; padding: 0 4px; border: 0; background: none; color: var(--color-text); text-align: left; font-size: var(--type-body-strong-size); font-weight: var(--type-body-strong-weight); line-height: var(--type-body-strong-line); cursor: pointer; }
+.pickerRow:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.pickerRow:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.pickerCode { font-size: var(--type-caption-size); font-weight: var(--type-button-weight); letter-spacing: var(--type-fixed-tracking-point-04em); text-transform: uppercase; color: var(--color-text-tertiary); }
+.pickerEmpty { padding: 24px 4px; margin: 0; font-size: var(--type-body-size); line-height: var(--type-body-line); color: var(--color-text-tertiary); }
+.preview { position: relative; width: 480px; max-width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: var(--color-ink); container-type: size; }
+.preview::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--color-line-strong); pointer-events: none; }
+.previewCaption { position: absolute; left: 5%; right: 5%; bottom: 6.5%; text-align: center; }
+.previewCaption[data-position='raised'] { bottom: 17%; }
+.previewCaption[data-position='top'] { bottom: auto; top: 8%; }
+.previewText { display: inline; font-size: var(--preview-size); color: var(--preview-color); background-color: var(--preview-background); text-shadow: var(--preview-shadow); font-weight: var(--type-body-strong-weight); line-height: normal; padding: .08em .38em; border-radius: .22em; white-space: pre-line; -webkit-box-decoration-break: clone; box-decoration-break: clone; }

@@ -1,0 +1,16 @@
+{
+  "licence": "GPL-3.0-or-later; same as repository",
+  "content": "Generated mathematical pictures and a generated sine tone only; authored navigation. No licensed sample bytes.",
+  "ffmpegVersion": "ffmpeg version 8.0.1-3ubuntu2 Copyright (c) 2000-2025 the FFmpeg developers",
+  "ffmpegSha256": "bdf6aabffdba7411edff8d36c389d695257fcdf823d196020176e117612862f6",
+  "tsmuxerTag": "2.7.0",
+  "tsmuxerSourceCommit": "f06ac394c55ccee1cb76ae54f4636532a2d10253",
+  "tsmuxerReleaseZipSha256": "ceaaa181ab70e201685b1e45260d337d1cbdb0aba1408d4fbc47e232a7e4c987",
+  "dvdauthorVersion": "0.7.2 Ubuntu0.7.2-3build2",
+  "purpose": "Qualified host helper fixtures, not a claim that system FFmpeg is HW1 or production disc playback is integrated",
+  "actualSemantics": {
+    "dvd": "Two titles72000/66000ms, second chapter33120ms after navigation quantization",
+    "bluray": "Two ordered clips with boundary37000ms, title72041ms; requested seek37500ms lands37000ms",
+    "iso": "Read actual LVD domain *OSTA UDF Compliant revision0x0250 at descriptor block35; opened by pinned libudfread without mounting"
+  }
+}

@@ -1,0 +1,2 @@
+/* connect27: the pasted link is shown once, read-only, and never rewritten. */
+.link { margin: 0 0 18px; padding: 12px 14px; border-radius: 12px; background: var(--color-raised); color: var(--color-text-secondary); font-size: var(--type-fixed-size-14px); line-height: var(--type-fixed-line-1point-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

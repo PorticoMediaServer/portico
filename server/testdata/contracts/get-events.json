@@ -1,0 +1,12 @@
+{
+  "schema": "GetEventsResponse",
+  "method": "GET",
+  "path": "/v1/events?waitMs=0",
+  "auth": "viewer",
+  "status": 200,
+  "response": {
+    "events": [],
+    "nextAfter": "0",
+    "more": false
+  }
+}

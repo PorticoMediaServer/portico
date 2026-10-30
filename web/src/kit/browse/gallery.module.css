@@ -1,0 +1,29 @@
+.stage { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--color-ink); }
+.headerTabs { margin-top: 22px; padding-inline: var(--page-gutter, 64px); }
+.phoneTabs { padding-inline: 20px; }
+.toolbarCrop { padding-top: 0; }
+.tableCrop { padding: 0; }
+.filterCrop { height: 100%; overflow: auto; background: var(--color-raised); }
+.phoneFilter { background: var(--color-raised); }
+.switcherStage { padding: 16px 20px; display: flex; justify-content: center; }
+.menuStage { padding: 16px 20px; display: flex; justify-content: flex-end; }
+.outcome { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.trackArt { width: 100%; height: 100%; }
+.phoneToolbar { padding-top: 0; }
+.phoneToolbar > div { padding-top: 0; }
+.filterActions { display: flex; gap: 12px; }
+.filterActions > button:last-child { flex: 1; }
+.sheetBody { padding: 0; }
+.sheetBody > div { padding: 0; }
+.emptyStage { min-height: 650px; }
+.trackMenu { display: flex; gap: 12px; padding: 12px; }
+.controlStage { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+.tvStage { padding: 0; }
+
+.readFields { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; padding: 24px 32px; background: var(--color-raised); }
+.scrollStage { height: 100%; overflow: auto; }
+.scrollLead { height: 180px; }
+.scrollRows { padding: 12px 0; }
+
+.musicHeaderTabs { margin-top: 26px; }
+.headerAction[data-size=small] { height: 44px; font-size: 15px; border-radius: 10px; }

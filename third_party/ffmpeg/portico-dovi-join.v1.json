@@ -1,0 +1,56 @@
+{
+  "patchSha256": "b15d70a2872174a6c10373c1bff26131513e8995b4b946b20896aec49607c569",
+  "cSha256": "ef8c77136faa566b0fc4b2896c525e6e8d679c16f48cd9bf2b235b95c14546d8",
+  "hSha256": "e334781d9d89e238a03c721e08a587d10ce79535df551b415950c98554345b3f",
+  "fixtureManifestSha256": "b4487880ab55c4c8f663445b56d66061166ee05e9f360b4e26055784942f94ae",
+  "fixtures": 20,
+  "bytes": 946108,
+  "repeatMembersIdentical": 20,
+  "schema": 1,
+  "source": {
+    "ffmpegCommit": "253db2a7b0a8045c54ce68ce33d7f601229b1822",
+    "upstreamPatches": 100,
+    "firstPostPatch": "portico-dovi-profile.patch",
+    "firstPostPatchSha256": "4f7907150fcbd6eb21e1847c0bf2f90d0cddc4999c92f9a0102c5d00aca6b180",
+    "joinPatch": "portico-dovi-join.patch"
+  },
+  "license": {
+    "newFFmpegCode": "LGPL-2.1-or-later",
+    "libdovi": "MIT; same portico-libdovi-source.json C ABI"
+  },
+  "feature": {
+    "ffmpegOption": "merge_dovi",
+    "type": "boolean",
+    "default": false,
+    "conditional": "CONFIG_LIBDOVI",
+    "privateToolchainFact": "DolbyVisionDualLayerJoin",
+    "factDefault": false,
+    "owner": "Hardware",
+    "raiseOnly": "exact canonical bundle option plus real dual-PID fixture gate",
+    "genericPrivatePES": "EL stream_type0x06 requires DOVI registration+HEVC descriptor before HEVC parser; explicit DOVI P7/compat6 dependency still mandatory"
+  },
+  "gate": {
+    "testSource": "tests/dovi-join-packets.c",
+    "fixtures": "fixtures/video/dovi-dual-pid",
+    "script": "scripts/qualify-dovi-join.py",
+    "positive": 7,
+    "refused": 12,
+    "unjoined": 1,
+    "packetsPerPositive": 24,
+    "asanUbsan": "owned join C object only; all20 cases passed"
+  },
+  "limits": {
+    "accessUnitBytes": 8388608,
+    "pendingParserInputBytesEach": 8388608,
+    "queuedAccessUnitsEach": 32,
+    "queuedPacketBytesTotal": 33554432
+  },
+  "gaps": [
+    "canonical target bundle and physical playback",
+    "disc helper PMT/PID publication and runtime source composition",
+    "remote root/read-session composition",
+    "material PMT reconfiguration beyond identical-content version updates",
+    "mastered FEL residual imagery and reconstruction"
+  ],
+  "mpegtsSha256": "b33daa36579e5398d6138d833809e59cf745b78e03e1c62c9ebd903bfdd8e82e"
+}

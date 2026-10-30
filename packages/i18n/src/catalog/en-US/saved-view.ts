@@ -1,0 +1,18 @@
+export const savedViewSummaryMessages = {
+  'savedView.summary.line': '{conditions}. {sort}.',
+  'savedView.summary.sortOnly': '{sort}.',
+  'savedView.summary.fieldValues': '{field} {values}',
+  'savedView.summary.decade': 'Year {values}',
+  'savedView.summary.decadeValue': '{decade}s',
+  'savedView.summary.lengthUnder': 'Length under {minutes} minutes',
+  'savedView.summary.lengthBetween': 'Length {from}–{to} minutes',
+  'savedView.summary.lengthOver': 'Length over {minutes} minutes',
+  'savedView.summary.atLeast': '{field} {value} and up',
+  'savedView.summary.rating': 'Rating {value} and up',
+  'savedView.summary.fieldLastDays': '{field} in the last {count} days',
+  'savedView.summary.addedLastDays': 'Added in the last {count} days',
+  'savedView.summary.alphaAscending': '{field} A to Z',
+  'savedView.summary.alphaDescending': '{field} Z to A',
+  'savedView.summary.lastPlayed': 'Last played first',
+  'savedView.summary.otherSort': '{field}, {direction}',
+} as const;

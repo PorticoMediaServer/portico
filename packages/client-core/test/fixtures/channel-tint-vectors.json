@@ -1,0 +1,86 @@
+[
+  {
+    "seed": "source:channel-0",
+    "hash": 588329287,
+    "index": 7,
+    "tint": "#685294"
+  },
+  {
+    "seed": "source:channel-1",
+    "hash": 588329288,
+    "index": 0,
+    "tint": "#28587a"
+  },
+  {
+    "seed": "source:channel-2",
+    "hash": 588329289,
+    "index": 1,
+    "tint": "#985243"
+  },
+  {
+    "seed": "source:channel-3",
+    "hash": 588329290,
+    "index": 2,
+    "tint": "#796120"
+  },
+  {
+    "seed": "source:channel-4",
+    "hash": 588329291,
+    "index": 3,
+    "tint": "#28665d"
+  },
+  {
+    "seed": "source:channel-5",
+    "hash": 588329292,
+    "index": 4,
+    "tint": "#854d73"
+  },
+  {
+    "seed": "source:channel-6",
+    "hash": 588329293,
+    "index": 5,
+    "tint": "#376f8c"
+  },
+  {
+    "seed": "source:channel-7",
+    "hash": 588329294,
+    "index": 6,
+    "tint": "#4a596a"
+  },
+  {
+    "seed": "source:northwind-news-24",
+    "hash": -1455376739,
+    "index": 3,
+    "tint": "#28665d"
+  },
+  {
+    "seed": "source:😀",
+    "hash": -1696676574,
+    "index": 6,
+    "tint": "#4a596a"
+  },
+  {
+    "seed": "polygenelubricants",
+    "hash": -2147483648,
+    "index": 0,
+    "tint": "#28587a"
+  },
+  {
+    "seed": " source:channel ",
+    "hash": -800814116,
+    "index": 4,
+    "tint": "#854d73"
+  },
+  {
+    "seed": "source:é",
+    "hash": 1746326858,
+    "index": 2,
+    "tint": "#796120"
+  },
+  {
+    "seed": "source:é",
+    "hash": -1698445573,
+    "index": 5,
+    "tint": "#376f8c"
+  }
+]

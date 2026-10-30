@@ -1,0 +1,5 @@
+/* live-owner.html frame 9: the rule's existing generated-title artwork. */
+.label { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.label > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.art { display: block; position: relative; width: 74px; aspect-ratio: 16 / 9; flex: none; border-radius: 6px; overflow: hidden; }
+.art > span > span { right: 5px; bottom: -14px; font-size: calc(var(--type-display-size) * 2); }

@@ -1,0 +1,9 @@
+{
+  "name": "tv.getportico.portico.vega.main",
+  "displayName": "Portico",
+  "portico": {
+    "hostedUrl": "",
+    "debugConsole": false,
+    "animations": true
+  }
+}

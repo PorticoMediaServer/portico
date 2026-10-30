@@ -1,0 +1,31 @@
+# TrueNAS SCALE 24.10+ custom app (Install via YAML). Replace host paths with
+# datasets on a local pool; import this compose document through Apps.
+services:
+  portico:
+    image: ghcr.io/porticomediaserver/portico-server:latest
+    restart: unless-stopped
+    environment:
+      PORTICO_PLATFORM: truenas
+      PUID: "568"
+      PGID: "568"
+      UMASK: "0002"
+      TZ: "Etc/UTC"
+      NVIDIA_VISIBLE_DEVICES: "${PORTICO_NVIDIA_GPU}"
+      NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
+    ports:
+      - "32500:32500"
+    # Keep /transcode on disk for fallback and spill. See INSTALLING.md for sizing.
+    tmpfs:
+      - /memory-transcode:rw,noexec,nosuid,nodev,size=512m,nr_inodes=8192,mode=1777
+    volumes:
+      - /mnt/pool/apps/portico:/config
+      - /mnt/pool/transcode/portico:/transcode
+      - /mnt/pool/media:/media:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${PORTICO_NVIDIA_GPU:?Choose the GPU UUID in Apps settings}"]
+              capabilities: [gpu]
+    # Device supplementary groups are detected automatically by the entrypoint.

@@ -1,0 +1,186 @@
+.artwork { position: relative; display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; border-radius: inherit; line-height: normal; }
+.artworkFallback { position: absolute; inset: 0; display: block; border-radius: inherit; }
+.image { position: absolute; inset: 0; display: block; width: 100%; height: 100%; opacity: 0; transition: opacity var(--art-arrival-duration, var(--motion-standard)) var(--ease-out); }
+.image[data-artwork-admitted] { opacity: 1; }
+
+/* The standard backdrop's window layer; its paint is bootstrap.css's .portico-backdrop. */
+.colour { position: fixed; inset: 0; pointer-events: none; }
+
+.ambient { --art-first: #2f86bb; --art-second: #1e5b52; position: absolute; inset: 0; pointer-events: none; }
+.washLayer { position: absolute; inset: 0; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent 100%); mask-image: linear-gradient(180deg, #000 30%, transparent 100%); }
+.ambientImage { position: absolute; inset: -12%; width: 124%; height: 124%; filter: blur(90px) saturate(1.4); opacity: .32; }
+.palette { position: absolute; inset: 0; background: radial-gradient(90% 120% at 15% 0%, var(--art-first), transparent 70%), radial-gradient(80% 100% at 90% 110%, var(--art-second), transparent 70%); }
+.foreground { position: absolute; top: 0; right: 0; width: 76%; height: 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 38%), linear-gradient(0deg, transparent 0, #000 42%); -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, transparent 0, #000 38%), linear-gradient(0deg, transparent 0, #000 42%); mask-composite: intersect; }
+.foregroundArt { border-radius: inherit; position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.foreground .image { object-position: center 30%; }
+.title .foreground { width: 72%; }
+.title .foreground .image { object-position: 30% 25%; }
+.phone .foreground { inset: 0; width: 100%; -webkit-mask-image: linear-gradient(0deg, transparent 0, #000 48%); mask-image: linear-gradient(0deg, transparent 0, #000 48%); }
+.phone .foreground .image { object-position: 38% 30%; }
+.phone::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 38%, rgba(7,16,24,.7) 62%, rgba(7,16,24,.96) 100%); }
+.wash { bottom: auto; height: 900px; }
+.wash .ambientImage { left: -15%; top: -50%; width: 130%; height: 160%; filter: blur(120px) saturate(1.8); opacity: .62; }
+.wash .washLayer::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(7,16,24,.15), rgba(7,16,24,.5)); }
+.library { bottom: auto; height: 620px; }
+.library .washLayer { -webkit-mask-image: linear-gradient(180deg, #000 0, rgba(0,0,0,.6) 45%, transparent 100%); mask-image: linear-gradient(180deg, #000 0, rgba(0,0,0,.6) 45%, transparent 100%); }
+.library .ambientImage { inset: auto; top: -40%; left: calc(-10% + var(--art-order, 0) * 38%); width: 48%; height: 150%; filter: blur(110px) saturate(1.6); opacity: .42; }
+.library .ambientImage:nth-child(2 of .ambientImage) { opacity: .32; }
+.library .ambientImage:nth-child(3 of .ambientImage) { left: 62%; }
+/* Mobile-web See all (collections.html#47): one full-bleed image, 760px, softer mask. */
+.library-phone { bottom: auto; height: 760px; }
+.library-phone .washLayer { -webkit-mask-image: linear-gradient(180deg, #000 25%, transparent 100%); mask-image: linear-gradient(180deg, #000 25%, transparent 100%); }
+.library-phone .ambientImage { inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(60px) saturate(1.5); opacity: .42; transform: scale(1.3); }
+.artist { bottom: auto; height: 640px; }
+.artist .ambientImage { inset: -30%; width: 160%; height: 160%; filter: blur(100px) saturate(2); opacity: .85; }
+/* The wash fades out over the standard backdrop rather than into flat ink, so its foot has no edge. */
+.artist .washLayer { -webkit-mask-image: linear-gradient(180deg, #000 45%, transparent 100%); mask-image: linear-gradient(180deg, #000 45%, transparent 100%); }
+.artist .washLayer::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(7,16,24,.62), rgba(7,16,24,.1) 62%), linear-gradient(180deg, rgba(7,16,24,.15), rgba(7,16,24,0) 45%); }
+.cover .washLayer { overflow: visible; -webkit-mask-image: none; mask-image: none; }
+.cover .ambientImage { inset: auto; left: 6%; top: 12%; width: 88%; height: 88%; filter: blur(44px) saturate(1.8); opacity: .85; }
+.cover .palette { left: 6%; top: 12%; width: 88%; height: 88%; filter: blur(44px); opacity: .85; }
+.cover .foreground { inset: 0; width: 100%; border-radius: 12px; -webkit-mask-image: none; mask-image: none; box-shadow: 0 40px 70px -30px rgba(0,0,0,.9), 0 0 0 1px rgba(237,245,250,.08); }
+.resume .washLayer, .resume-phone .washLayer, .library-row .washLayer, .collection-tile .washLayer, .session-audio .washLayer { -webkit-mask-image: none; mask-image: none; }
+.resume .ambientImage, .resume-phone .ambientImage { inset: -40%; width: 180%; height: 180%; filter: blur(50px) saturate(1.6); opacity: .5; }
+.resume .palette, .resume-phone .palette { opacity: .6; }
+.resume-phone .ambientImage { filter: blur(40px) saturate(1.6); }
+.library-row .ambientImage { inset: auto; right: -40px; top: -60%; width: 80%; height: 220%; filter: blur(34px) saturate(1.5); opacity: .5;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 60%); mask-image: linear-gradient(90deg, transparent 0%, #000 60%); }
+.collection-tile .ambientImage { inset: -20%; width: 140%; height: 140%; filter: blur(60px) saturate(1.5); opacity: .5; }
+.session-audio .ambientImage { inset: -30%; width: 160%; height: 160%; filter: blur(22px) saturate(1.4); opacity: .8; }
+.poster .ambientImage { inset: -20%; width: 140%; height: 140%; filter: blur(70px) saturate(1.5); opacity: .55; }
+.poster .washLayer { -webkit-mask-image: none; mask-image: none; }
+.poster .foreground { inset: 26px 44px auto auto; width: auto; height: 184px; aspect-ratio: 2/3; border-radius: 10px; -webkit-mask-image: none; mask-image: none; box-shadow: 0 24px 40px -14px #000; }
+
+.generatedArt { --art-first: #2f86bb; --art-second: #1e5b52; position: relative; display: block; width: 100%; height: 100%; overflow: hidden; border-radius: inherit;
+  background: radial-gradient(70% 120% at 85% 10%, var(--art-first), transparent 60%), radial-gradient(60% 90% at 60% 110%, var(--art-second), transparent 65%), var(--color-raised-soft); }
+.generatedGlyph { position: absolute; right: 56px; bottom: -58px; font-size: var(--type-generated-glyph-size); line-height: 1; font-weight: 800; letter-spacing: -.06em; color: rgba(237,245,250,.09); }
+.generatedCover { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; container-type: inline-size; text-align: left; color: var(--color-text); border-radius: inherit;
+  background: radial-gradient(110% 74% at 100% 0%, var(--art-first) 0%, transparent 68%), radial-gradient(96% 64% at 14% 118%, var(--art-second) 0%, transparent 74%), color-mix(in srgb, var(--art-second) 24%, #0a1620);
+  box-shadow: inset 0 0 0 1px rgba(237,245,250,.07); }
+.generatedCover::after { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(90deg, rgba(7,16,24,.34) 0, rgba(237,245,250,.16) 1.6%, rgba(7,16,24,.1) 3.6%, transparent 8%); }
+.coverGlyph { position: absolute; right: -6cqw; bottom: -27cqw; font-size: 104cqw; font-weight: 800; letter-spacing: -.06em; line-height: 1; color: rgba(237,245,250,.085); pointer-events: none; }
+.coverCopy { position: absolute; inset: 0; padding: 12cqw 11cqw 11cqw 13cqw; display: flex; flex-direction: column; }
+.coverCopy::before { content: ''; flex: none; width: 9cqw; height: 1.2cqw; border-radius: 1cqw; background: rgba(237,245,250,.55); margin-bottom: 6.5cqw; }
+.coverCopy b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; font-size: var(--cover-font, 12.6cqw); line-height: 1.03; font-weight: 800; letter-spacing: -.04em; text-wrap: balance; text-shadow: 0 1px 14px rgba(7,16,24,.4); }
+.coverCopy small { margin-top: auto; font-size: clamp(8px, 6.8cqw, 22px); line-height: 1.25; font-weight: 700; color: var(--color-text-secondary); letter-spacing: 0; }
+/* Phone G1 occupies y7..31; reserve that measured edge only for visible selection. */
+@media (width < 600px) { .selectionClearance .coverCopy { padding-top: max(12cqw, 31px); } }
+@container (max-width: 80px) { .coverCopy small, .coverCopy::before { display: none; } .coverCopy { padding-top: 11cqw; } }
+
+.circle { position: relative; display: grid; width: 100%; height: 100%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: var(--color-raised); line-height: normal; }
+.circle::after { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(237,245,250,.12); }
+.circleCell { min-width: 0; min-height: 0; overflow: hidden; }
+.circle1 .image { transform: scale(var(--circle-cover-zoom, 1.22)); transform-origin: var(--circle-cover-origin, 50% 50%); }
+.searchCircle.circle1 .image { transform: scale(var(--circle-cover-zoom, 1.75)); }
+.circle2 { grid-template-columns: 1fr 1fr; gap: 2px; background: var(--color-ink); }
+.circle2 .circleCell:first-child { grid-column: 2; grid-row: 1; }
+.circle2 .circleCell:last-child { grid-column: 1; grid-row: 1; }
+.circle2 .image { transform: scale(1.5); }
+.circle2 .circleCell:first-child .image { object-position: 30% 50%; }
+.circle2 .circleCell:last-child .image { object-position: 60% 50%; }
+.circle3, .circle4 { grid-template: 1fr 1fr / 1fr 1fr; gap: 2px; background: var(--color-ink); }
+.circle3 .circleCell:first-child { grid-row: span 2; }
+.tvCircle { box-shadow: 0 30px 60px -24px rgba(0,0,0,.85), 0 0 0 1.5px rgba(237,245,250,.1); }
+.tvCircle::after { box-shadow: none; }
+.tvCircle.circle2, .tvCircle.circle3, .tvCircle.circle4 { gap: 3px; }
+.tvCircle.circle1 .image, .tvCircle.circle2 .image { transform: none; object-position: center; }
+.tvCircle.circle2 .circleCell .image { object-position: center; }
+.initials { position: relative; align-self: center; justify-self: center; z-index: 1; font-size: var(--circle-initials-size, 50px); font-weight: 800; letter-spacing: -.05em; color: rgba(237,245,250,.94); text-shadow: 0 4px 24px rgba(7,16,24,.45); }
+.personCircle { background: radial-gradient(circle at 30% 25%, var(--color-raised-bright), var(--color-raised)); }
+.personCircle .initials { font-size: var(--circle-initials-size, var(--type-initials-size)); letter-spacing: 0; color: var(--color-text-secondary); }
+.personCircle:not(.personCovers)::after { box-shadow: none; }
+.personCircle:not(.personCovers) .initials { text-shadow: none; }
+.personBlend { position: absolute; inset: -25%; display: flex; filter: blur(20px) saturate(1.5) brightness(.56); }
+.personBlend .artwork { flex: 1 1 0; min-width: 0; width: auto; }
+.personCovers::after { background: radial-gradient(circle at 50% 50%, rgba(7,16,24,.34), rgba(7,16,24,.12) 70%); }
+.personCovers .initials { font-size: var(--circle-initials-size, 50px); letter-spacing: -.05em; color: rgba(237,245,250,.94); }
+.mosaic { position: relative; display: grid; width: 100%; height: 100%; overflow: hidden; border-radius: inherit; grid-template: 1fr 1fr / 1fr 1fr; background: var(--color-raised); }
+.mosaic > .artwork { border-radius: 0; }
+.mosaic0, .mosaic1 { grid-template: 1fr / 1fr; }
+.mosaic2 { grid-template: 1fr / 1fr 1fr; }
+.mosaic3 > :first-child { grid-row: span 2; }
+
+.channelMark { position: relative; display: grid; place-items: center; flex: none; border-radius: 8px; background: var(--channel-tint); color: #fff; overflow: hidden; line-height: normal; }
+.monogram { font-size: var(--type-live-monogram-size); font-weight: var(--type-live-monogram-weight); line-height: normal; }
+.channelLogo { position: absolute; inset: 0; }
+.channelLogo:has(.decoded) { background: var(--channel-tint); }
+
+.profileFace { --profile-colour: var(--profile-art-blue); position: relative; display: grid; place-items: center; flex: none; width: var(--profile-size, 34px); height: var(--profile-size, 34px); border-radius: 50%; font-size: calc(var(--profile-size, 34px) * .39); font-weight: 800; letter-spacing: -.03em; line-height: normal; color: #fff;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--profile-colour) 100%, #fff 18%), var(--profile-colour) 55%, color-mix(in srgb, var(--profile-colour) 60%, #071018)); }
+.profilePalette { background: linear-gradient(135deg, var(--profile-first), var(--profile-second)); }
+.lockBadge { position: absolute; z-index: 1; right: 4%; bottom: 4%; width: 24%; height: 24%; border-radius: 50%; display: grid; place-items: center; background: var(--color-raised-bright); color: var(--color-text); box-shadow: 0 0 0 4px var(--color-ink); }
+.lockBadge svg { width: 55%; height: 55%; }
+.currentFace { box-shadow: 0 0 0 3px var(--color-ink), 0 0 0 5px var(--color-accent-strong); }
+.picker { position: relative; display: flex; flex-direction: column; align-items: center; line-height: normal; }
+.profileRow { display: flex; gap: 32px; align-items: flex-start; }
+.profileTile { border: 0; padding: 0; font: inherit; color: inherit; background: none; cursor: pointer; width: 168px; text-align: center; border-radius: 20px; }
+.profileTile > .profileFace { width: 160px; height: 160px; margin: 0 auto 18px; font-size: 62px; transition: transform var(--motion-hover) var(--ease-out), opacity var(--motion-quick) var(--ease-out); }
+.profileFace::after { content: ''; position: absolute; inset: 0; border-radius: 50%; opacity: 0; box-shadow: 0 0 0 4px var(--color-ink), 0 0 0 7px var(--color-focus), 0 0 40px 6px rgba(213,239,255,.22), 0 30px 50px -22px rgba(0,0,0,.9); transition: opacity var(--motion-quick) var(--ease-out); }
+.profileTile:hover > .profileFace, .profileTile:focus-visible > .profileFace, .profileTile[data-selected] > .profileFace { transform: scale(1.06); }
+.profileTile:focus-visible { outline: none; }
+.profileTile:focus-visible > .profileFace::after { opacity: 1; }
+.profileTile:active > .profileFace { transform: scale(.98); }
+.profileName { position: relative; display: block; font-size: 21px; font-weight: 700; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profileBadge { position: relative; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--color-text-tertiary); margin-top: 6px; min-height: 20px; }
+.profileTile:disabled { opacity: .42; cursor: default; }
+.profileTile:disabled > .profileFace { filter: saturate(.3); transform: none; }
+.addProfile > .profileFace { background: none; box-shadow: inset 0 0 0 2px var(--color-line-strong); color: var(--color-text-tertiary); }
+.manageProfiles { display: inline-flex; align-items: center; gap: 10px; margin-top: 56px; height: 56px; padding: 0 28px; border: 0; border-radius: 20px; background: rgba(237,245,250,.14); box-shadow: inset 0 0 0 1px rgba(237,245,250,.1), 0 40px 80px -28px rgba(0,0,0,.9); backdrop-filter: blur(20px); color: var(--color-text); font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
+.manageProfiles { transition: transform var(--motion-quick) var(--ease-out), background var(--motion-quick) var(--ease-out); }
+.manageProfiles:active { transform: scale(.97); }
+.manageProfiles:hover { background: rgba(237,245,250,.22); }
+.shortPin { display: none; }
+.pickerphone { align-items: stretch; }
+.pickerphone .profileRow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px 8px; }
+.pickerphone .profileTile { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.pickerphone .profileTile > .profileFace { width: 90px; height: 90px; font-size: 36px; margin: 0; }
+.pickerphone .profileName { font-size: 15px; margin-top: 10px; max-width: 100%; }
+.pickerphone .profileBadge { gap: 4px; font-size: 12px; margin-top: 3px; min-height: 16px; font-weight: 600; }
+.pickerphone .manageProfiles { align-self: center; margin-top: 34px; height: 38px; border-radius: 9px; font-size: 14px; padding: 0 14px; gap: 8px; }
+.pickerphone .manageProfiles svg { width: 18px; height: 18px; }
+.pickerphone .addProfile .profileFace svg { width: 34px; height: 34px; }
+.pickerphone .fullPin { display: none; }
+.pickerphone .shortPin { display: inline; }
+.pickertv .profileRow { gap: 60px; }
+.pickertv .profileTile { width: 236px; }
+.pickertv .profileTile:disabled { opacity: .4; }
+.pickertv .profileTile > .profileFace { width: 216px; height: 216px; font-size: 84px; margin-bottom: 26px; }
+.pickertv .profileName { font-size: 30px; color: var(--color-text-secondary); }
+.pickertv .profileBadge { gap: 8px; font-size: 22px; margin-top: 6px; min-height: 28px; font-weight: 600; }
+.pickertv .profileTile { transition: transform var(--motion-quick) var(--ease-out); }
+.pickertv .profileTile:focus-visible { transform: scale(1.08); }
+.pickertv .profileTile:focus-visible .profileName { color: var(--color-text); }
+.pickertv .profileTile:focus-visible > .profileFace, .pickertv .profileTile[data-selected] > .profileFace { transform: none; }
+.pickertv .profileFace::after { box-shadow: 0 0 0 5px var(--color-ink), 0 0 0 10px var(--color-focus), 0 30px 70px -10px rgba(213,239,255,.22); }
+@media (min-width: 600px) and (max-width: 1023px) {
+  .pickerauto .profileRow { gap: 26px; }
+  .pickerauto .profileTile { width: 150px; }
+  .pickerauto .profileTile > .profileFace { width: 142px; height: 142px; font-size: 56px; margin-bottom: 16px; }
+  .pickerauto .profileName { font-size: 20px; }
+  .pickerauto .profileBadge { margin-top: 5px; }
+}
+@media (width < 600px) {
+  .pickerauto { align-items: stretch; }
+  .pickerauto .profileRow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px 8px; }
+  .pickerauto .profileTile { width: 100%; display: flex; flex-direction: column; align-items: center; }
+  .pickerauto .profileTile > .profileFace { width: 90px; height: 90px; font-size: 36px; margin: 0; }
+  .pickerauto .profileName { font-size: 15px; margin-top: 10px; max-width: 100%; }
+  .pickerauto .profileBadge { gap: 4px; font-size: 12px; margin-top: 3px; min-height: 16px; font-weight: 600; }
+  .pickerauto .manageProfiles { align-self: center; margin-top: 34px; height: 38px; border-radius: 9px; font-size: 14px; padding: 0 14px; gap: 8px; }
+  .pickerauto .manageProfiles svg { width: 18px; height: 18px; }
+  .pickerauto .addProfile .profileFace svg { width: 34px; height: 34px; }
+  .pickerauto .fullPin { display: none; }
+  .pickerauto .shortPin { display: inline; }
+}
+@media (prefers-reduced-motion: reduce) { .image { transition-duration: var(--motion-reduced); transition-timing-function: linear; } .profileTile, .profileTile > .profileFace, .profileFace::after { transition: opacity var(--motion-reduced) linear; } .profileTile:hover > .profileFace, .profileTile:focus-visible > .profileFace, .profileTile[data-selected] > .profileFace, .profileTile:active > .profileFace, .pickertv .profileTile:focus-visible { transform: none; } }
+:global([data-reduce-motion="true"]) .image { transition-duration: var(--motion-reduced); transition-timing-function: linear; }
+.artwork[data-artwork-cached="true"] .image { transition-duration: 0ms; }
+:global([data-reduce-motion="true"]) .profileTile > .profileFace, :global([data-reduce-motion="true"]) .profileFace::after { transition: opacity var(--motion-reduced) linear; }
+:global([data-reduce-motion="true"]) .profileTile > .profileFace { transform: none; }
+:global([data-reduce-motion="true"]) .pickertv .profileTile { transform: none; transition: opacity var(--motion-reduced) linear; }
+
+@media (prefers-reduced-motion: reduce) { .manageProfiles { transition: background var(--motion-reduced) linear; } .manageProfiles:active { transform: none; } }
+:global([data-reduce-motion="true"]) .manageProfiles { transition: background var(--motion-reduced) linear; transform: none; }

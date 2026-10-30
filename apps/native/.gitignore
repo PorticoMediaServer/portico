@@ -1,0 +1,16 @@
+# Local Android build state and machine configuration.
+android/.gradle/
+android/**/.cxx/
+android/local.properties
+android/**/*.keystore
+android/**/*.jks
+# React Native ships this public debug-only signing fixture.
+!android/app/debug.keystore
+
+# CocoaPods and local Xcode state.
+ios/Pods/
+tvos/Pods/
+**/xcuserdata/
+**/*.xcuserstate
+ios/.xcode.env.local
+tvos/.xcode.env.local

@@ -1,0 +1,25 @@
+.stateStage, .detailStage, .compactStage, .headerStage { position: relative; width: 100%; height: 100%; background: var(--color-ink); color: var(--color-text); }
+.stateIdentity { position: relative; padding-top: 44px; display: flex; justify-content: center; }
+.detailStage { background: color-mix(in srgb, var(--color-accent) 9%, var(--color-ink)); padding: 14px 0 0; }
+.detailHeading { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 800; line-height: normal; margin-bottom: 8px; }
+.detailHeading > :last-child, .compactHeading > :last-child { margin-left: auto; }
+.compactStage { background: color-mix(in srgb, var(--color-accent) 9%, var(--color-ink)); padding: 10px 12px 12px; }
+.compactHeading { display: flex; align-items: center; gap: 10px; padding: 12px 8px 4px 18px; font-size: 13px; font-weight: 800; line-height: normal; margin-bottom: 6px; }
+.headerPosition { position: relative; padding: 112px 64px 0 424px; }
+.componentStage { position: relative; width: 100%; height: 100%; color: var(--color-text); background: var(--color-ink); line-height: normal; }
+.overlayStage { position: relative; width: 100%; height: 100%; background: var(--color-ink); }
+.accountTrigger { position: absolute; top: 21px; right: 64px; }
+.accountTrigger[data-phone] { right: 20px; }
+.phoneStage { width: 390px; height: 844px; position: relative; background: #02070b; }
+.box { background: var(--color-raised); color: var(--color-text); border-radius: 14px; overflow: hidden; line-height: normal; }
+.actionOutput { position: absolute; left: 8px; bottom: 8px; font-size: 12px; line-height: normal; color: var(--color-text-secondary); background: var(--color-raised); padding: 4px 8px; border-radius: 6px; }
+.actionOutput[hidden] { display: none; }
+
+.activityTrigger { position: absolute; top: 18px; right: 112px; }
+.avatarStage { display: grid; place-items: center; width: 100%; height: 100%; }
+
+.componentStage[data-raised] { background: var(--color-raised); }
+.componentStage[data-padded] { padding: 16px; }
+.editorThumbs { display: flex; margin-top: 14px; }
+.editorThumbs > [data-artwork-status] { flex: none; border-radius: 6px; margin-right: -8px; box-shadow: 0 0 0 2px var(--color-raised), 0 8px 16px -6px var(--color-shadow); }
+.editorThumbs > span:last-child:not([data-artwork-status]) { align-self: center; margin-left: 18px; font-size: 13px; font-weight: 700; color: var(--color-text-tertiary); }

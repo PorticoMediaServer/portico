@@ -1,0 +1,86 @@
+import {createServer as createHttpServer} from 'node:http';
+import {spawn} from 'node:child_process';
+import {join, resolve, extname} from 'node:path';
+import {readFile, writeFile, mkdir, rm} from 'node:fs/promises';
+import {createServer as createViteServer} from 'vite';
+
+const output = process.env.PORTICO_RUNNER_OUTPUT;
+const design = process.env.PORTICO_RUNNER_SECONDARY_SOURCE;
+if (!output || !design) throw new Error('Run on the runner with --browser and the design secondary source.');
+await writeFile(join(output, 'capture.log'), '{"kind":"capture started"}\n', {mode: 0o600});
+const chrome = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || process.env.PORTICO_CHROMIUM || '/usr/bin/chromium';
+const height = 1037;
+const mime = {'.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.woff2': 'font/woff2'};
+const vite = await createViteServer({root: resolve('.'), configFile: resolve('vite.config.ts'), cacheDir: join(process.env.TMPDIR, 'search-vite'),
+  server: {host: '127.0.0.1', port: 0, strictPort: false}});
+let reference;
+try {
+  await vite.listen();
+  const viteOrigin = `http://127.0.0.1:${vite.httpServer.address().port}`;
+  const source = await readFile(join(design, 'design/ui-v1/desktop-search.html'), 'utf8');
+  const kit = await readFile(join(design, 'design/ui-v1/kit.css'), 'utf8');
+  const css = source.match(/<style>([\s\S]*?)<\/style>/)[1];
+  const start = source.indexOf('<div class="frame"><div class="screen" id="s-empty">');
+  const end = source.indexOf('<p class="cap"><b>Results, two letters in.</b>');
+  const frame = source.slice(start, end);
+  const sprite = source.match(/<svg width="0" height="0" style="position:absolute">[\s\S]*?<\/svg>/)[0];
+  const referenceHtml = `<!doctype html><html><head><meta charset="utf-8"><base href="/design/"><link rel="stylesheet" href="${viteOrigin}/src/kit/fonts.css"><style>${kit}\n${css}\nhtml,body{margin:0;padding:0;background:#071018}</style></head><body class="p">${sprite}${frame}</body></html>`;
+  const designRoot = join(design, 'design/ui-v1');
+  reference = createHttpServer(async (request, response) => {
+    try {
+      const pathname = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
+      if (pathname === '/reference') {response.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});response.end(referenceHtml);return;}
+      if (pathname === '/frame.png' || pathname === '/build.png') {
+        response.writeHead(200, {'Content-Type': 'image/png'});response.end(await readFile(join(output, pathname.slice(1))));return;
+      }
+      if (pathname === '/pair') {
+        const body = `<!doctype html><html><body style="margin:0;display:flex;background:#000">` +
+          `<div style="width:1440px;height:${height - 100}px;overflow:hidden"><img width="1440" height="${height}" style="margin-top:-100px" src="/frame.png"></div>` +
+          `<div style="width:1440px;height:${height - 100}px;overflow:hidden"><img width="1440" height="${height}" style="margin-top:-100px" src="/build.png"></div>` +
+          `</body></html>`;
+        response.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});response.end(body);return;
+      }
+      if (!pathname.startsWith('/design/')) {response.writeHead(404);response.end();return;}
+      const relative = pathname.slice('/design/'.length), file = resolve(designRoot, relative);
+      if (!file.startsWith(designRoot + '/')) {response.writeHead(403);response.end();return;}
+      response.writeHead(200, {'Content-Type': mime[extname(file)] ?? 'application/octet-stream'});response.end(await readFile(file));
+    } catch {response.writeHead(404);response.end();}
+  });
+  await new Promise(done => reference.listen(0, '127.0.0.1', done));
+  const referenceOrigin = `http://127.0.0.1:${reference.address().port}`;
+
+  async function chromium(args, label, width = 1440, windowHeight = height) {
+    const profile = join(process.env.TMPDIR, 'chromium-' + label);
+    await mkdir(profile, {recursive: true});
+    const child = spawn(chrome, ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--hide-scrollbars',
+      '--force-device-scale-factor=1', `--window-size=${width},${windowHeight}`, '--virtual-time-budget=20000', `--user-data-dir=${profile}`, ...args],
+      {stdio: ['ignore', 'pipe', 'pipe'], env: {...process.env, TZ: 'America/Halifax'}});
+    let stdout = '', stderr = '';
+    child.stdout.on('data', data => {stdout += data;});child.stderr.on('data', data => {stderr += data;});
+    const code = await new Promise(done => child.on('close', done));
+    await rm(profile, {recursive: true, force: true});
+    return {code, stdout, stderr: stderr.split('\n').filter(line => !/Fontconfig|dbus|GPU|DevTools|sandbox/i.test(line)).slice(-8).join('\n')};
+  }
+
+  const frameShot = await chromium([`--screenshot=${join(output, 'frame.png')}`, `${referenceOrigin}/reference`], 'frame');
+  const buildShot = await chromium([`--screenshot=${join(output, 'build.png')}`, `${viteOrigin}/src/screens/search/ds-web-search-r46-empty.html?clock=fixed&capture=1`], 'build');
+  const frameDom = await chromium(['--dump-dom', `${referenceOrigin}/reference`], 'frame-dom');
+  const buildDom = await chromium(['--dump-dom', `${viteOrigin}/src/screens/search/ds-web-search-r46-empty.html?clock=fixed&capture=1`], 'build-dom');
+  await writeFile(join(output, 'frame-dom.log'), frameDom.stdout, {mode: 0o600});
+  await writeFile(join(output, 'build-dom.log'), buildDom.stdout, {mode: 0o600});
+
+  const headings = html => [...html.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/g)].map(match => match[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+  const images = html => [...html.matchAll(/<img\b[^>]*>/g)].length;
+  const pairShot = await chromium([`--screenshot=${join(output, 'pair.png')}`, `${referenceOrigin}/pair`], 'pair', 2880, height - 100);
+  const summary = {kind: 'SEARCH EMPTY FRAME/BUILD CAPTURE, not acceptance', viewport: {width: 1440, height, deviceScaleFactor: 1},
+    state: 'empty, recent searches, permitted video genres, permitted Live TV, field focused, fixed clock 2026-10-24T19:05:00Z, America/Halifax',
+    frame: {screenshot: frameShot, headings: headings(frameDom.stdout), images: images(frameDom.stdout)},
+    build: {screenshot: buildShot, headings: headings(buildDom.stdout), images: images(buildDom.stdout), note: 'artwork uses neutral image slots; the frame uses private demo artwork'},
+    pair: {screenshot: pairShot, note: 'left is the frame, right is the build, both cropped below y=100; the shell navigation is not in the specimen'},
+    limits: ['The specimen mounts the screen without the shell navigation; compare from the field down.', 'Image content is not scored; frame artwork is illustrative.']};
+  await writeFile(join(output, 'capture.log'), JSON.stringify(summary, null, 2) + '\n', {mode: 0o600});
+  console.log(JSON.stringify({frame: frameShot.code, build: buildShot.code, pair: pairShot.code, headings: summary.build.headings}));
+} finally {
+  await vite.close();
+  if (reference) await new Promise(done => reference.close(done));
+}

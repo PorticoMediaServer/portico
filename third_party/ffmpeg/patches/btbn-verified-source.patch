@@ -1,0 +1,22 @@
+diff --git a/build.sh b/build.sh
+index 7101690..33e14e8 100755
+--- a/build.sh
++++ b/build.sh
+@@ -18,6 +18,7 @@ fi
+ 
+ rm -rf ffbuild
+ mkdir ffbuild
++cp portico-ffmpeg-source.tar.xz ffbuild/source.tar.xz
+ 
+ FFMPEG_REPO="${FFMPEG_REPO:-https://github.com/FFmpeg/FFmpeg.git}"
+ FFMPEG_REPO="${FFMPEG_REPO_OVERRIDE:-$FFMPEG_REPO}"
+@@ -32,7 +33,8 @@ cat <<EOF >"$BUILD_SCRIPT"
+     cd /ffbuild
+     rm -rf ffmpeg prefix
+ 
+-    git clone --filter=blob:none --branch='$GIT_BRANCH' '$FFMPEG_REPO' ffmpeg
++    mkdir ffmpeg
++    tar -xf source.tar.xz -C ffmpeg --strip-components=1
+     cd ffmpeg
+ 
+     ./configure --prefix=/ffbuild/prefix --pkg-config-flags="--static" \$FFBUILD_TARGET_FLAGS \$FF_CONFIGURE \

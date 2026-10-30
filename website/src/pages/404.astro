@@ -1,0 +1,17 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+Astro.response.status = 404;
+---
+<BaseLayout title="Page not found" description="The requested Portico page could not be found.">
+  <section class="not-found section-light">
+    <div>
+      <span>404</span>
+      <h1>That page is not here.</h1>
+      <p>Check the address, return to the website, or search the documentation.</p>
+      <div>
+        <a class="button button-primary" href="/">Portico home</a>
+        <a class="button button-dark" href="/docs/">Documentation</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

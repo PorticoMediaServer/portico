@@ -1,0 +1,50 @@
+.storagePath { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: var(--type-synopsis-size); color: var(--color-text-secondary); }
+.storage { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.storageFailure { display: flex; align-items: center; gap: 14px; margin: 0; font-size: var(--type-synopsis-size); color: var(--color-text-secondary); }
+.storageFailure button { border: 0; background: none; padding: 0; font: inherit; font-weight: var(--type-row-heading-weight); color: var(--color-accent-strong); cursor: pointer; }
+.storageFailure button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; border-radius: 4px; }
+.storageTotal { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 6px; font-size: var(--type-synopsis-size); color: var(--color-text-secondary); }
+.storageTotal b { color: var(--color-text); font-weight: var(--type-row-heading-weight); }
+.storageList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.storageList li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 20px; padding: 12px 0; border-top: 1px solid var(--color-line-soft, color-mix(in srgb, var(--color-text) 8%, transparent)); }
+.storageText { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.storageText b { font-size: var(--type-synopsis-size); font-weight: var(--type-row-heading-weight); color: var(--color-text); }
+.storageText small { font-size: var(--type-caption-size); font-weight: var(--type-micro-weight); color: var(--color-text-tertiary); }
+.storageSize { font-size: var(--type-synopsis-size); font-weight: var(--type-row-heading-weight); color: var(--color-text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.storageBar { grid-column: 1 / -1; height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--color-text) 10%, transparent); overflow: hidden; }
+.storageBar i { display: block; height: 100%; border-radius: inherit; background: var(--color-accent-strong); }
+.storageNote { margin: 0; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.sectionLink { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; font: inherit; font-size: var(--type-body-size); font-weight: var(--type-body-strong-weight); color: var(--color-accent-strong); cursor: pointer; }
+.sectionLink:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; border-radius: 4px; }
+.backupNow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.backupProgress { display: block; flex: 1; min-width: 120px; max-width: 320px; height: 4px; border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--color-text) 10%, transparent); }
+.backupProgress i { display: block; height: 100%; border-radius: inherit; background: var(--color-accent-strong); }
+.backupFailure { margin: 0; flex-basis: 100%; font-size: var(--type-synopsis-size); color: var(--color-danger); }
+.backupEmpty { margin: 0; font-size: var(--type-synopsis-size); color: var(--color-text-tertiary); }
+.backupFolder { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.backupFolder .storagePath { flex: 1; min-width: 0; }
+
+.storageCleanup { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+.cleanupFields { display: flex; flex-direction: column; gap: 16px; }
+.cleanupDanger { color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 12%, transparent); }
+
+.storageWarning { color: var(--color-amber); }
+
+.restoreStatus { display: grid; gap: 12px; margin-bottom: 16px; }
+
+@media (max-width:600px) {
+  .backupFolder .storagePath { flex-basis: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .backupNow .backupProgress { flex-basis: 100%; max-width: none; }
+}
+
+/* General › Updates: the build this server runs and the pressed check. */
+.updatesValue { font-size: var(--type-row-subtitle-size); color: var(--color-text-secondary); }
+.updatesAction { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* General › Tools: the two owner actions and the message composer. */
+.generalTool { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.composerFields { display: flex; flex-direction: column; gap: 14px; }
+.composerLabel { color: var(--color-text-secondary); font-size: var(--type-fixed-size-13point-5px); font-weight: var(--type-fixed-weight-700); line-height: normal; }
+.composerBody { display: block; width: 100%; resize: vertical; border: 0; border-radius: 12px; padding: 14px 16px; background: color-mix(in srgb, var(--color-ink) 70%, transparent); box-shadow: inset 0 0 0 1px var(--color-line-strong); color: var(--color-text); font-family: var(--font); font-size: var(--type-fixed-size-16px); font-weight: var(--type-fixed-weight-600); line-height: var(--type-fixed-line-1point-5); }
+.composerBody:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--color-line-strong), 0 0 0 3px var(--color-focus); }
+.composerProblem { margin: 0; color: var(--color-danger); font-size: var(--type-caption-size); }

@@ -1,0 +1,37 @@
+.prose { margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: var(--color-text-secondary); }
+.prose[data-variant=hero] { font-size: 17px; line-height: 1.55; margin: 18px 0; }
+.facts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: var(--type-meta-size); color: var(--color-text-secondary); margin: 0 0 16px; }
+.facts [data-fact=year] { color: var(--color-text); font-weight: 700; }
+.facts [data-fact=kind],.facts [data-fact=content-rating] { padding: 3px 9px; border-radius: 6px; border: 1px solid color-mix(in srgb,var(--color-text) 28%,transparent); font-size: var(--type-tag-size); line-height: normal; font-weight: var(--type-tag-weight); color: var(--color-text); }
+.searchHero { width: 100%; position: relative; height: 380px; border-radius: 18px; overflow: hidden; background: var(--color-raised); display: flex; align-items: center; }
+.searchHero > :first-child { position: absolute; inset: 0; }
+.searchCopy { position: relative; padding-left: 56px; width: 640px; max-width: 100%; }
+.searchKind { font-size: 15px; font-weight: 600; color: var(--color-accent-strong); margin: 0 0 12px; }
+.searchCopy h3 { font-size: 68px; line-height: 1; font-weight: 800; letter-spacing: -.04em; margin: 0 0 16px; }
+.searchSynopsis { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 24px; }
+.searchHero [data-foreground-art] { transition: transform 600ms var(--ease-out); }
+.searchHero:hover [data-foreground-art] { transform: scale(1.02); }
+.episode { position: relative; margin-top: 34px; padding-top: 36px; border-top: 1px solid var(--color-line); display: grid; grid-template-columns: 440px 1fr 316px; gap: 40px; }
+.caret { position: absolute; top: -9px; left: 150px; width: 16px; height: 16px; background: var(--color-ink); border-left: 1px solid var(--color-line); border-top: 1px solid var(--color-line); transform: rotate(45deg); }
+.close { position: absolute; right: -10px; top: 18px; }
+.still { position: relative; aspect-ratio: 16/9; border-radius: 14px; overflow: hidden; background: var(--color-raised); box-shadow: 0 30px 60px -30px color-mix(in srgb,var(--color-shadow) 90%,transparent); }
+.still > * { width: 100%; height: 100%; }
+.still[data-backdrop] > * { transform: scale(2.6); filter: saturate(.55) brightness(.42); }
+.context { display: flex; gap: 12px; font-size: 14px; font-weight: 600; color: var(--color-text-tertiary); }
+.main h3 { margin: 8px 0 14px; font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: -.04em; }
+.credits { padding-top: 8px; min-width: 0; }
+@media(max-width:1023px) {
+  .searchHero { height: 360px; }
+  .searchCopy { padding: 24px; }
+  .searchCopy h3 { font-size: 36px; }
+  .prose[data-variant=hero] { font-size: 14px; line-height: 1.5; }
+  .episode { display: block; margin-top: 24px; padding-top: 24px; }
+  .side { max-width: 440px; }
+  .main { margin-top: 24px; }
+  .main h3 { font-size: 30px; }
+  .credits { margin-top: 28px; }
+  .caret { left: 80px; }
+}
+@media(prefers-reduced-motion:reduce) { .searchHero [data-foreground-art] { transition: none; transform: none; } }
+
+:global([data-reduce-motion="true"]) .searchHero [data-foreground-art] { transition: none; transform: none; }

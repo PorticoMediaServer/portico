@@ -1,0 +1,61 @@
+.review { margin-top: 30px; }
+.reviewHead { display: flex; align-items: center; gap: 18px; }
+.reviewHead h3 { margin: 0; }
+.legend { margin-left: auto; display: flex; flex-wrap: wrap; gap: 18px; font-size: var(--type-caption-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-secondary); }
+.legend span::before { content: ''; display: inline-block; width: 18px; height: 10px; border-radius: 3px; margin-right: 7px; vertical-align: -1px; background: var(--color-accent-strong); }
+.legend [data-kind='recap']::before { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-accent-strong) 85%, transparent) 0 3px, color-mix(in srgb, var(--color-accent-strong) 30%, transparent) 3px 6px); }
+.legend [data-kind='credits']::before { background: var(--color-text-secondary); }
+.legend [data-kind='waiting']::before { opacity: .6; outline: 1.5px dashed var(--color-white); outline-offset: 1px; }
+.columns { display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 0; margin-top: 12px; background: var(--color-raised); border-radius: 14px; overflow: hidden; }
+.shows { background: color-mix(in srgb, var(--color-ink) 35%, transparent); padding: 14px 10px; border-right: 1px solid var(--color-line-soft); min-width: 0; }
+.libraryTabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 4px 8px; }
+.libraryTab { border: 0; border-radius: 8px; background: transparent; padding: 7px; color: var(--color-text-secondary); text-align: left; cursor: pointer; }
+.libraryTab[aria-pressed='true'] { background: color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text); }
+.libraryTab small { display: block; margin-top: 2px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.show { display: block; padding: 8px; border: 0; border-radius: 10px; background: transparent; color: var(--color-text); width: 100%; text-align: left; cursor: pointer; }
+.show b { display: block; font-size: var(--type-synopsis-size); font-weight: var(--type-row-heading-weight); overflow-wrap: anywhere; }
+.show small { display: block; font-size: var(--type-caption-size); color: var(--color-text-tertiary); margin-top: 2px; }
+.todo { display: block; font-size: var(--type-caption-size); color: var(--color-accent-strong); font-weight: var(--type-row-heading-weight); }
+.show:hover { background: color-mix(in srgb, var(--color-text) 5%, transparent); }
+.show[aria-current='true'] { background: color-mix(in srgb, var(--color-text) 10%, transparent); }
+.pane { padding: 18px 22px 8px; min-width: 0; }
+.reviewTitle { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--color-line-soft); flex-wrap: wrap; }
+.reviewTitle > div:first-child { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.reviewTitle b { font-size: var(--type-heading-size); font-weight: var(--type-row-heading-weight); letter-spacing: var(--type-row-heading-tracking); }
+.season { display: flex; align-items: center; position: relative; height: 36px; padding: 0 10px; gap: 8px; border-radius: 8px; background: var(--color-raised-high); font-size: var(--type-synopsis-size); }
+.season select { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+.episode { padding: 16px 0 14px; border-bottom: 1px solid var(--color-line-soft); }
+.episode:last-child { border-bottom: 0; }
+.episodeHead { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; }
+.episodeHead b { font-size: var(--type-body-size); font-weight: var(--type-row-heading-weight); }
+.number { font-size: var(--type-body-size); font-weight: var(--type-row-heading-weight); color: var(--color-text-tertiary); width: 16px; }
+.duration { font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.state { margin-left: auto; font-size: var(--type-caption-size); font-weight: var(--type-row-heading-weight); color: var(--color-text-tertiary); }
+.state[data-todo] { color: var(--color-accent-strong); }
+.loading, .empty, .note { color: var(--color-text-tertiary); font-size: var(--type-synopsis-size); }
+.notice { display: flex; gap: 8px; align-items: center; padding: 12px; color: var(--color-record); }
+.notice button { color: inherit; background: transparent; border: 0; cursor: pointer; }
+@media (max-width: 899px) { .columns { grid-template-columns: minmax(0, 1fr); } .shows { border-right: 0; border-bottom: 1px solid var(--color-line-soft); } .reviewHead { flex-wrap: wrap; } .legend { margin-left: 0; } }
+
+/* The phone-web review (owner-libraries#22b/#22c in the Safari form): the same
+   facts as one column, with the library choice as cards, the title's own actions
+   full width under the season picker, and each episode as its own card. Kit
+   tokens only; no native frame value is copied across. */
+@media (max-width: 599px) {
+  .review { margin-top: 20px; }
+  .reviewHead { gap: 10px; }
+  .legend { margin-left: 0; gap: 10px; }
+  .columns { margin-top: 8px; }
+  .shows { padding: 10px 8px; }
+  .libraryTabs { margin: 0 2px 6px; }
+  .show { padding: 10px; border-radius: 12px; }
+  .pane { padding: 12px 10px 4px; }
+  .reviewTitle { gap: 10px; padding-bottom: 12px; }
+  .reviewTitle b { font-size: var(--type-body-size); }
+  .actions { margin-left: 0; width: 100%; }
+  .actions > * { flex: 1 1 0; }
+  .episode { margin-top: 10px; padding: 12px; border-bottom: 0; border-radius: 12px; background: var(--color-raised); }
+  .episodeHead { gap: 8px; align-items: center; }
+  .state { margin-left: 0; }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "portico-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5174",
+    "dev:tailscale": "vite --host 100.120.50.24 --port 5174",
+    "build": "tsc --noEmit && vite build",
+    "tokens": "node ../packages/design/scripts/tokens.mjs --check && node ../packages/design/scripts/next-icons.mjs --check",
+    "licences": "node --experimental-strip-types scripts/licences.ts",
+    "lint:design": "node scripts/lint-design.mjs --strict",
+    "lint:boundary": "node scripts/lint-boundary.mjs",
+    "lint:hooks": "oxlint -c .oxlintrc.json --deny-warnings src",
+    "lint:strings": "node ../packages/i18n/scripts/lint-strings.mjs src scripts/next-strings-baseline.json --all --strict && node ../packages/i18n/scripts/lint-raw-errors.mjs src --strict && node ../packages/i18n/scripts/lint-glossary.mjs && node scripts/lint-next-glossary.mjs",
+    "check": "npm run tokens && npm run lint:design && npm run lint:hooks && npm run lint:strings && npm run lint:boundary && tsc --noEmit && npm test",
+    "test": "node scripts/run-tests.mjs"
+  },
+  "dependencies": {
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@tanstack/react-router": "1.170.36",
+    "hls.js": "file:../third_party/hls.js/hls.js-1.7.2-portico.1.tgz",
+    "qrcode": "1.5.4",
+    "radix-ui": "1.6.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/qrcode": "1.5.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "oxlint": "1.86.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "rolldown": "1.2.9"
+  }
+}

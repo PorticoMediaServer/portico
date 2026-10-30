@@ -1,0 +1,9 @@
+# Build products and caches: never committed (sources come from sources.lock.json).
+/work/
+/out/
+/apple/Frameworks/
+/apple/.build/
+/apple/.swiftpm/
+*.tar
+*.tar.gz
+*.tar.xz

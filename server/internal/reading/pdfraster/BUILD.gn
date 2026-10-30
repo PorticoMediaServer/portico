@@ -1,0 +1,23 @@
+# Copyright 2026 The Portico Authors
+# Build target for the bounded PDF page raster worker.
+#
+# Drop this directory into a pinned PDFium checkout at samples/pdfraster/ and
+# build the label //samples/pdfraster:pdf_raster_worker. Release owns the
+# checkout, container and artifact publication; see BUILD.md.
+
+import("//build_overrides/build.gni")
+
+executable("pdf_raster_worker") {
+  sources = [ "worker.c" ]
+  deps = [ "//:pdfium" ]
+  configs += [ "//:pdfium_common_config" ]
+  cflags = [
+    "-O2",
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+  ]
+  # The bundle runs inside bwrap without a loader or dependency closure: the
+  # worker must be a static ELF with no PT_INTERP and no DT_NEEDED.
+  ldflags = [ "-static" ]
+}

@@ -1,0 +1,19 @@
+{
+  "schema": "GetAuthCapabilitiesResponse",
+  "method": "GET",
+  "path": "/v1/auth/capabilities",
+  "status": 200,
+  "response": {
+    "serverId": "JbRYJAtcoMWqZLxoWk8Lmxf6icHUJ0hhEQn62KHzw-Q",
+    "serverName": "Portico",
+    "setupRequired": false,
+    "methods": [
+      "password",
+      "quick-connect"
+    ],
+    "selfRegistration": "off",
+    "quickConnect": true,
+    "twoFactor": true,
+    "hostedAttach": false
+  }
+}

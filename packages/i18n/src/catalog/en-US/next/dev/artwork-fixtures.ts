@@ -1,0 +1,22 @@
+/** Private reference-domain words. Imported only by the serve-only artwork family. */
+export const artworkFixtures = {
+  'next.artwork.fixture.server': 'On Portico demo',
+  'next.artwork.fixture.showArtwork': 'Show artwork',
+  'next.artwork.fixture.timeMachine': 'The Time Machine',
+  'next.artwork.fixture.wells': 'H. G. Wells',
+  'next.artwork.fixture.war': 'The War of the Worlds',
+  'next.artwork.fixture.dracula': 'Dracula',
+  'next.artwork.fixture.stoker': 'Bram Stoker',
+  'next.artwork.fixture.allSystems': 'All Systems Red',
+  'next.artwork.fixture.martha': 'Martha Wells',
+  'next.artwork.fixture.duneMessiah': 'Dune Messiah',
+  'next.artwork.fixture.herbert': 'Frank Herbert',
+  'next.artwork.fixture.jane': 'Jane Eyre',
+  'next.artwork.fixture.metamorphosis': 'The Metamorphosis',
+  'next.artwork.fixture.kafka': 'Franz Kafka',
+  'next.artwork.fixture.demo': 'Demo',
+  'next.artwork.fixture.alex': 'Alex',
+  'next.artwork.fixture.kids': 'Kids',
+  'next.artwork.fixture.sam': 'Sam',
+  'next.artwork.fixture.jules': 'Jules',
+} as const satisfies Record<`next.artwork.fixture.${string}`, string>;

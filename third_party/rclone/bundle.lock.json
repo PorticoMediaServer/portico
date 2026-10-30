@@ -1,0 +1,124 @@
+{
+  "schema": 1,
+  "version": "1.75.2",
+  "minimumVersion": "1.71.1",
+  "revision": "be8d6044eacb843b74d335db0c5fbe09222031fe",
+  "license": "MIT",
+  "signingFingerprint": "FBF737ECE9F8AB18604BD2AC93935E02FF3B54FA",
+  "checksumsUrl": "https://downloads.rclone.org/v1.75.2/SHA256SUMS",
+  "checksumsSha256": "73ede5aab2b8f2dd4b1315f7f063cdd5df10de6338749bba49cbc0c240bda976",
+  "source": {
+    "url": "https://downloads.rclone.org/v1.75.2/rclone-v1.75.2.tar.gz",
+    "sha256": "fa64537e7276196310dbb0bcea6330f03b40e5790197b88f14cce6a19f40eb67"
+  },
+  "vendor": {
+    "url": "https://downloads.rclone.org/v1.75.2/rclone-v1.75.2-vendor.tar.gz",
+    "sha256": "69b356c0b1800052c33ce0e0e11f18df8717a721aab346b553dc1ab44c8caae8"
+  },
+  "targets": {
+    "linux-amd64": {
+      "url": "https://downloads.rclone.org/v1.75.2/rclone-v1.75.2-linux-amd64.zip",
+      "sha256": "349ac8fba6ff65d6247043f1750cdcb518ec5d500ef91463a10d37c0ccdf3702",
+      "archiveRoot": "rclone-v1.75.2-linux-amd64",
+      "binary": "rclone",
+      "files": {
+        "README.html": "8ee92ab975a1cc231546a576753437f759d5df4063cff27e944ae3dcf8f0bd9d",
+        "rclone": "ed7ab1f17876bb006c3df3949a3044959671afd9112362dacaa5dd1647735bc1",
+        "rclone.1": "0fde12c90b9636962135a03bbd6405c70d9b161fb944f0bd0f8ef483ca80e2e4",
+        "git-log.txt": "7df24b64ace29ece1ac3311adc3284b56b9b2c187813d5a21356de4d8c568bb7",
+        "README.txt": "e96d4d47227520cbde3e1d799ce562ba88a78866aa201ab37e0cf44a317cd4c9"
+      }
+    },
+    "linux-arm64": {
+      "url": "https://downloads.rclone.org/v1.75.2/rclone-v1.75.2-linux-arm64.zip",
+      "sha256": "7e1e8d69654941b7b7df84ee74c5f7fb09cce7d5496947fb7bf16b55ff427d10",
+      "archiveRoot": "rclone-v1.75.2-linux-arm64",
+      "binary": "rclone",
+      "files": {
+        "README.html": "8ee92ab975a1cc231546a576753437f759d5df4063cff27e944ae3dcf8f0bd9d",
+        "rclone": "5aa85195f836e62f76e9dbb94dada612bd08be892f8f4196ec54ed7fee01a3c0",
+        "rclone.1": "0fde12c90b9636962135a03bbd6405c70d9b161fb944f0bd0f8ef483ca80e2e4",
+        "git-log.txt": "7df24b64ace29ece1ac3311adc3284b56b9b2c187813d5a21356de4d8c568bb7",
+        "README.txt": "e96d4d47227520cbde3e1d799ce562ba88a78866aa201ab37e0cf44a317cd4c9"
+      }
+    },
+    "darwin-amd64": {
+      "url": "https://downloads.rclone.org/v1.75.2/rclone-v1.75.2-osx-amd64.zip",
+      "sha256": "574e1f31cf1c464e5fb0325cb66fcbdeaf1efa1802bd9b17f13c256fd74b6561",
+      "archiveRoot": "rclone-v1.75.2-osx-amd64",
+      "binary": "rclone",
+      "files": {
+        "git-log.txt": "7df24b64ace29ece1ac3311adc3284b56b9b2c187813d5a21356de4d8c568bb7",
+        "rclone": "b365cc20e94296c51bed5b2fe2db8f5b975a7484dccb92438a93c2c080528752",
+        "rclone.1": "0fde12c90b9636962135a03bbd6405c70d9b161fb944f0bd0f8ef483ca80e2e4",
+        "README.html": "8ee92ab975a1cc231546a576753437f759d5df4063cff27e944ae3dcf8f0bd9d",
+        "README.txt": "e96d4d47227520cbde3e1d799ce562ba88a78866aa201ab37e0cf44a317cd4c9"
+      }
+    },
+    "darwin-arm64": {
+      "url": "https://downloads.rclone.org/v1.75.2/rclone-v1.75.2-osx-arm64.zip",
+      "sha256": "610ab7d48615135dfc60b763858b11a426a0d3d1160c1bb76fb0ae6011b02edd",
+      "archiveRoot": "rclone-v1.75.2-osx-arm64",
+      "binary": "rclone",
+      "files": {
+        "git-log.txt": "7df24b64ace29ece1ac3311adc3284b56b9b2c187813d5a21356de4d8c568bb7",
+        "rclone": "af0257730173748dc9706ad3c83288bf3a0c5d5e9768fef20235e375e9d835e1",
+        "rclone.1": "0fde12c90b9636962135a03bbd6405c70d9b161fb944f0bd0f8ef483ca80e2e4",
+        "README.html": "8ee92ab975a1cc231546a576753437f759d5df4063cff27e944ae3dcf8f0bd9d",
+        "README.txt": "e96d4d47227520cbde3e1d799ce562ba88a78866aa201ab37e0cf44a317cd4c9"
+      }
+    },
+    "windows-amd64": {
+      "url": "https://downloads.rclone.org/v1.75.2/rclone-v1.75.2-windows-amd64.zip",
+      "sha256": "8a9db2bad1dc79a65b3348fd857069598e2aab7cf4d118b77b1df23055aff818",
+      "archiveRoot": "rclone-v1.75.2-windows-amd64",
+      "binary": "rclone.exe",
+      "files": {
+        "git-log.txt": "7df24b64ace29ece1ac3311adc3284b56b9b2c187813d5a21356de4d8c568bb7",
+        "rclone.1": "4a8e751772f3e674a138cac41744f2002c2129869bc536d1c730627435fddf7b",
+        "rclone.exe": "41eab3e118d264920b62c3327966c5ece0dc4dd715ee617d9e30450d8ead95a4",
+        "README.html": "6e28b099b5c9e2f64cf3792a6f0be9ea2bfc4ed11b9f8c4a2f773abba0de5f8a",
+        "README.txt": "78499a1515c8693cfc731c8128cb208d52f847442cb0e66583804269b598c01a"
+      }
+    },
+    "windows-arm64": {
+      "url": "https://downloads.rclone.org/v1.75.2/rclone-v1.75.2-windows-arm64.zip",
+      "sha256": "7eb9844c9e5b723b9ef28821891caa17f6d9d1a375c49365cbe04114cec8dcd9",
+      "archiveRoot": "rclone-v1.75.2-windows-arm64",
+      "binary": "rclone.exe",
+      "files": {
+        "git-log.txt": "7df24b64ace29ece1ac3311adc3284b56b9b2c187813d5a21356de4d8c568bb7",
+        "rclone.1": "4a8e751772f3e674a138cac41744f2002c2129869bc536d1c730627435fddf7b",
+        "rclone.exe": "d662fe54738b8ebcb204006964f023bf1b3afdf2c8ad9421fd78ea9066065cb1",
+        "README.html": "6e28b099b5c9e2f64cf3792a6f0be9ea2bfc4ed11b9f8c4a2f773abba0de5f8a",
+        "README.txt": "78499a1515c8693cfc731c8128cb208d52f847442cb0e66583804269b598c01a"
+      }
+    }
+  },
+  "requiredFlags": [
+    "--addr",
+    "--read-only",
+    "--vfs-cache-mode",
+    "--vfs-cache-max-size",
+    "--vfs-cache-min-free-space",
+    "--vfs-cache-poll-interval",
+    "--cache-dir",
+    "--buffer-size",
+    "--vfs-read-chunk-size",
+    "--vfs-read-chunk-size-limit",
+    "--vfs-read-chunk-streams",
+    "--dir-cache-time",
+    "--retries",
+    "--low-level-retries",
+    "--contimeout",
+    "--timeout",
+    "--use-json-log",
+    "--log-level",
+    "--etag-hash",
+    "--tpslimit",
+    "--tpslimit-burst",
+    "--bwlimit",
+    "--max-connections"
+  ],
+  "tagObject": "b0dd53938615bb610c64f610eb2b17be16752f77"
+}

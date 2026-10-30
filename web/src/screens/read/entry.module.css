@@ -1,0 +1,34 @@
+.seriesSelect { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding: 6px 10px; border: 0; border-radius: 8px;
+  background: color-mix(in srgb, var(--color-text) 8%, transparent); color: var(--color-text-secondary); font: inherit; font-size: var(--type-fixed-size-13px); cursor: pointer; }
+.seriesSelect[aria-pressed='true'] { background: color-mix(in srgb, var(--color-accent-strong) 18%, transparent); color: var(--color-text); }
+.loading { position: relative; min-height: 100dvh; }
+/* An opening book shows the standard backdrop, then after 300 ms the kit's quiet ring (DESIGN.md
+   "Boot and loading": 30 px, 3 px, one turn a second; under reduced motion it breathes instead). */
+.loadingRing { position: absolute; top: calc(50% - 15px); left: calc(50% - 15px); width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--color-text) 16%, transparent); border-top-color: var(--color-accent-strong);
+  animation: ring-in var(--motion-quick) linear 300ms both, ring-turn 1s linear 300ms infinite; }
+@keyframes ring-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ring-turn { to { transform: rotate(1turn); } }
+@keyframes ring-breathe { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .loadingRing { animation: ring-breathe 1.6s linear 300ms infinite both; } }
+:global([data-reduce-motion='true']) .loadingRing { animation: ring-breathe 1.6s linear 300ms infinite both; }
+/* A reader that is still opening, or that could not open, keeps the drawn way back. */
+.escape { position: absolute; top: 16px; left: 16px; z-index: var(--layer-content); }
+.host { position: fixed; inset: 0; z-index: var(--layer-menu); background: var(--color-ink); }
+.host[hidden] { display: none; }
+
+/* desktop-read 1/1b: the library's own rows and its bounded content share the
+   drawn row rhythm (the kit owns .rows/.row; only the grid's gutter is ours). */
+.library { position: relative; min-height: 100%; }
+.books { position: relative; margin: 0 var(--shell-gutter, var(--gutter-desktop)); }
+@media (max-width: 1023px) { .books { margin-inline: 20px; } }
+
+/* phone-read 4/4c: the series' own name and count head its volume grid. */
+.seriesHeading { display: flex; align-items: baseline; gap: 10px; margin: 24px var(--shell-gutter, var(--gutter-desktop)) 8px; }
+.seriesHeading h2 { margin: 0; font-size: var(--type-fixed-size-20px); font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
+.seriesHeading span { font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); }
+@media (max-width: 1023px) { .seriesHeading { margin-inline: 20px; } }
+
+.dateFilter { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px var(--shell-gutter, var(--gutter-desktop)); }
+
+.dateFilter > div { flex: 1 1 180px; min-width: 0; max-width: 320px; }

@@ -1,0 +1,457 @@
+{
+  "schemaVersion": 1,
+  "policy": "Pinned source builds only. All Jellyfin patches are applied in recorded order. GPLv3, no nonfree or libfdk-aac. Target qualification is mandatory before release.",
+  "ffmpeg": {
+    "version": "8.1.3",
+    "upstreamVersion": "8.1.3",
+    "distributionVersion": "8.1.3-1",
+    "tag": "v8.1.3-1",
+    "repository": "https://github.com/jellyfin/jellyfin-ffmpeg.git",
+    "commit": "253db2a7b0a8045c54ce68ce33d7f601229b1822",
+    "source": "https://codeload.github.com/jellyfin/jellyfin-ffmpeg/tar.gz/refs/tags/v8.1.3-1",
+    "sha256": "87bedcefc860cd234cdeddbebdcd3ce45aeedc81d0fbb258ed839ff778be3140",
+    "license": "GPL-3.0-or-later",
+    "patchSeries": "debian/patches/series",
+    "patchSeriesSha256": "66a6451dee4a020daed5fd8f6a016e66a7e68482773bef7e0bd34066a45b484c",
+    "patches": [
+      {
+        "path": "debian/patches/0001-add-fixes-for-segment-muxer.patch",
+        "sha256": "11ac23c3cd238c73fcbe28412e22c4de52640389bc98dc3d76ddec527fd50c77"
+      },
+      {
+        "path": "debian/patches/0002-update-cuda-func-header.patch",
+        "sha256": "ac3ddd017c92a4e08942a488b5f06ce8370debe7da64df2d549ae8fbf508a820"
+      },
+      {
+        "path": "debian/patches/0003-add-enhanced-cuda-pixfmt-converter-impl.patch",
+        "sha256": "aa88e47e0d0b6ff8de788dc0e84aee85fcd8022d7a2a158783fe22d572ccfb16"
+      },
+      {
+        "path": "debian/patches/0004-add-cuda-tonemap-impl.patch",
+        "sha256": "867aed327e23e7c3e3ae954f995a16db3587e78f1f4ead3411d6f3ae676c414f"
+      },
+      {
+        "path": "debian/patches/0005-add-amf-fixes-from-upstream-and-custom-tunings.patch",
+        "sha256": "747d28e03c72d339062af85079e547786e60508eebc3f59e43534bd7a000c95b"
+      },
+      {
+        "path": "debian/patches/0006-add-opencl-scaler-and-pixfmt-converter-impl.patch",
+        "sha256": "451f92b70df9bd985f347de1cbcd9b85bf5745c46f1c492bb1a766bf5e5f1eca"
+      },
+      {
+        "path": "debian/patches/0007-add-bt2390-eetf-and-code-refactor-to-opencl-tonemap.patch",
+        "sha256": "c5b2b2987374cee659b56d8489d2c0fa65b208e62d5106b70918b77e43c1f079"
+      },
+      {
+        "path": "debian/patches/0008-add-pgs-support-to-opencl-overlay.patch",
+        "sha256": "f9469193520af2e96932950727d2b64919745781b80cf095cd8604507c9b50af"
+      },
+      {
+        "path": "debian/patches/0009-add-d3d11-opencl-interop-for-amd.patch",
+        "sha256": "a7c5e7161ae472557e69cd185c37c9871dadcf54d1c83e9d657450620dd04698"
+      },
+      {
+        "path": "debian/patches/0010-add-a-hack-for-opencl-reverse-mapping.patch",
+        "sha256": "23332d3fc29f6199ec0b3f045433df9ba098dbd54a885b4a2bd43fc31f206de5"
+      },
+      {
+        "path": "debian/patches/0011-add-fixes-for-mapping-from-qsv-source-device.patch",
+        "sha256": "536568dfe842be3c6cad3d73435e9070d8bbae1113782446ba4ead678a7d80a3"
+      },
+      {
+        "path": "debian/patches/0012-add-d3d11-opencl-interop-for-qsv.patch",
+        "sha256": "52b7dfce5e8ad4e041eae0b2599cc4c4fc1d037f413798bb098e7f3e55cf8a8b"
+      },
+      {
+        "path": "debian/patches/0013-add-vendor-id-option-for-d3d11.patch",
+        "sha256": "6fad453057263864d604b622ab7d2ed0f312f7f41624c29d1b8ba2f8f11d2e53"
+      },
+      {
+        "path": "debian/patches/0014-add-vaapi-hwupload-filter.patch",
+        "sha256": "4d4a009d006ac89a95ee61838b414833d29375bacfb5affbe302bec202f8dff0"
+      },
+      {
+        "path": "debian/patches/0015-check-alpha-mode-for-vaapi-overlay-filter.patch",
+        "sha256": "7a3c7fae6a0a6261bd1c5ff9d0d048b2be907a6a623d1284aa7e365e1bbdfbd4"
+      },
+      {
+        "path": "debian/patches/0016-add-fixes-for-nvdec-exceed-32-surfaces-error.patch",
+        "sha256": "409c83b96b4cfcbb52743a5a5b88a192d116882ebf78e90b9fb843a186cd077d"
+      },
+      {
+        "path": "debian/patches/0017-backport-fixes-for-qsv-from-upstream.patch",
+        "sha256": "b6aba317c5bbd4252141c21000f899dd8c534ccc8aab03547f0fdfef0abc74cd"
+      },
+      {
+        "path": "debian/patches/0018-backport-fixes-for-qsv-from-cartwheel.patch",
+        "sha256": "98dfb0f64883590493a1a564a20771bc583151a561409c12355ca3a9127b07a9"
+      },
+      {
+        "path": "debian/patches/0019-add-fixes-for-qsv-vpp-filters.patch",
+        "sha256": "c128edc4e757472ad4e993677cd272206a6de1c6f8e4146bebd7b55c12778186"
+      },
+      {
+        "path": "debian/patches/0020-add-external-frame-support-for-qsv-enc.patch",
+        "sha256": "5eaf375889687c73db84a97cfcecb3804febc20d57837e5805aba424051bd2fc"
+      },
+      {
+        "path": "debian/patches/0021-suppress-overlay-warning-logs.patch",
+        "sha256": "09d2bd7d40d278a82a2fa6c568a5cd64d20acc2b8f54eb0f917e65c7ec3f8443"
+      },
+      {
+        "path": "debian/patches/0022-add-sub2video-option-to-subtitles-filter.patch",
+        "sha256": "3b679f65c3b9b4d65123626cce76049ac49f1785578253b1a6397cf6072b9e13"
+      },
+      {
+        "path": "debian/patches/0023-add-alphasrc-source-video-filter.patch",
+        "sha256": "56b77d92a6a37279c96835b2d42a0e39cf0142383639741517eb600572df4be7"
+      },
+      {
+        "path": "debian/patches/0024-increase-the-default-async-depth-for-vaapi-encode.patch",
+        "sha256": "f0bb7f40a9ffc54bfb58d5a2bebcfe37e2b26cb437cba03daa700df55a952dc5"
+      },
+      {
+        "path": "debian/patches/0025-add-multiple-values-tags-and-webp-support-for-id3v2.patch",
+        "sha256": "c22681edbe63ccf20d4278cdb501bf8e656a9abc3ffbb533c673894869eb6847"
+      },
+      {
+        "path": "debian/patches/0026-remove-fdk-aac-from-nonfree.patch",
+        "sha256": "6b8fc5a433342fe2e9aaf48e5f57f9ed6ea82ff9b4deff5634a1cb458f4cce16"
+      },
+      {
+        "path": "debian/patches/0027-pass-dovi-sidedata-to-hlsenc-and-mpegtsenc.patch",
+        "sha256": "d640f39fcbb5017456be62a6f58481f0b8da89ab58902dfa42e231e79d476cf1"
+      },
+      {
+        "path": "debian/patches/0028-add-pause-support-for-ffmpeg-cli.patch",
+        "sha256": "99375dc75b2fb2fc4136a532656dbe873264c0326f0e60c51fefad7a3ef0fc87"
+      },
+      {
+        "path": "debian/patches/0029-enable-gcc-vectorization-and-fix-cpuflags.patch",
+        "sha256": "f8c20a270b202fcb58fb1c0a34cef193d4088bc55e98793ca073a1b1748b401f"
+      },
+      {
+        "path": "debian/patches/0030-tune-dxva-align-for-intel-to-avoid-copy-on-qsv.patch",
+        "sha256": "31cc012487f9230c69b964239fe9207e5e771409e2c4d6ad3acaebd960664c18"
+      },
+      {
+        "path": "debian/patches/0031-add-10bit-support-for-cuda-overlay.patch",
+        "sha256": "c7342e24faa718ef8af7089a5f14c15a881f584d96bf71728cbf219218816df9"
+      },
+      {
+        "path": "debian/patches/0032-add-hdr-metadata-for-nvenc-hevc-encoder.patch",
+        "sha256": "2a4e84c1fbda3b9143571df7593540ab7fe3bf71550f836d418e2f940d216d16"
+      },
+      {
+        "path": "debian/patches/0033-add-d3d11va-dxva2-hevc-422-444-decoding-on-intel.patch",
+        "sha256": "58c05ea91712eff71589c4dfd88b41b34ae0d875785a2842ffe753d0d90425cd"
+      },
+      {
+        "path": "debian/patches/0034-default-vaapi-scaler-algorithm-to-fast.patch",
+        "sha256": "02e7f340b48b11726a5161e204363ca5d2f2c847522926011081951fedc64e56"
+      },
+      {
+        "path": "debian/patches/0035-dont-fail-on-vaapi-to-drm-export-vasync.patch",
+        "sha256": "3043d1d7240106d3bb302fc0c8fcd962b3cb09f3982ed3622442bc9fab2a1b7a"
+      },
+      {
+        "path": "debian/patches/0036-skip-loading-plugins-on-vpl-runtime.patch",
+        "sha256": "fd0f3f724de85d57a89754b131fd00de882acc5ec42807ae7560ee58868a49d8"
+      },
+      {
+        "path": "debian/patches/0037-tune-the-default-bf-for-qsv-enc.patch",
+        "sha256": "ff76ee60825d40e6fdea26dbf384560bd8fd037810b746281030766d182bde3c"
+      },
+      {
+        "path": "debian/patches/0038-allow-vaapi-import-drm-prime2-planar-formats.patch",
+        "sha256": "9d8df3c79dfc3c8f5b925c45a1d67d09baac8b7edd9e9311db96f51daf2eb695"
+      },
+      {
+        "path": "debian/patches/0039-add-vui-info-to-the-seq-header-of-hevc-vaapi-encoder.patch",
+        "sha256": "4d1bb7c829ebb0ed5df59783ffe016382eb67eec9b44bd9915186626990e0e10"
+      },
+      {
+        "path": "debian/patches/0040-sync-intel-d3d11va-textures-before-mapping-to-opencl.patch",
+        "sha256": "0f76f7f979d54a3c8414b156a6441ba48fda481d7bf99c918e06a41583904e63"
+      },
+      {
+        "path": "debian/patches/0041-add-icon-for-windows-version-ffmpeg.patch",
+        "sha256": "1140a8d4afa981344d55cc9180dec7dc4697ee66fc9b0b17833e6d6708718db0"
+      },
+      {
+        "path": "debian/patches/0042-add-full-hwa-pipeline-for-rockchip-rk3588-platform.patch",
+        "sha256": "e725326760c57103489eb49f941846e42c36d551d519b0f901d56f4a0e9e82e4"
+      },
+      {
+        "path": "debian/patches/0043-add-format-option-to-vt-scale-filter.patch",
+        "sha256": "588aa7916496c8aee6fcc53088a271cc655f997d850ec25e81d14f34fe05370e"
+      },
+      {
+        "path": "debian/patches/0044-add-vf-overlay-videotoolbox-filter.patch",
+        "sha256": "e7ea39cfc440a2173c6c5935c90ad6497038b4735273687cc8e9aade6d349991"
+      },
+      {
+        "path": "debian/patches/0045-add-coreimage-based-vf-transpose-vt-filter.patch",
+        "sha256": "1a59052c2fa26d4255cfd2f1275d793c2e3df62465e3883f8bbeeff3f24997fb"
+      },
+      {
+        "path": "debian/patches/0046-add-vf-tonemap-videotoolbox-filter.patch",
+        "sha256": "fe73cb851c0f13bc1437f8327cd7497556f12fccec3fbb6a1b9dda47bb4ecb88"
+      },
+      {
+        "path": "debian/patches/0047-add-mjpeg-videotoolbox-encoder.patch",
+        "sha256": "7ed6ded5abf500cd23035a6205e40e704a9234a86403f59d34fad7667ba8d8cf"
+      },
+      {
+        "path": "debian/patches/0048-add-vt-low-priority-keyframe-decoding.patch",
+        "sha256": "e28b82e7b2a71c4cffe95a332b9eba7d45b592ec40ab02952bbebb475eb11b1d"
+      },
+      {
+        "path": "debian/patches/0049-add-dummy-device-derive-to-videotoolbox-hwcontext.patch",
+        "sha256": "f5e97f43636376e2283ee5ed35d1db42856321f7c2711a66871d0a155da3ac4a"
+      },
+      {
+        "path": "debian/patches/0050-add-cuda-transpose-filter-impl.patch",
+        "sha256": "9c1de89c7b3aa370a73365d3c4927a3d411ee80a45660564195f0a2759e6459f"
+      },
+      {
+        "path": "debian/patches/0051-add-flip-feat-to-opencl-transpose-filter.patch",
+        "sha256": "c339a2df65e54c16c4a594643be7b092990ba8d2c8ab180774f1456725e7c865"
+      },
+      {
+        "path": "debian/patches/0052-opus-allow-5point1-side-inputs.patch",
+        "sha256": "f0030c33bd0c3fb8a5cc6816efd7e9f285464bac1f6c675cd6cd1568bc3b9a35"
+      },
+      {
+        "path": "debian/patches/0053-add-simd-optimized-tonemapx-filter.patch",
+        "sha256": "f137ab8e19a2c5b79c4509af657fc7b89b03d69b0c35b34068279d6d10d1bdbb"
+      },
+      {
+        "path": "debian/patches/0054-add-ac4-decoder-for-atsc-3-0.patch",
+        "sha256": "74271235181840c1ccc64ad1ba6c9c1d3ed60d397deeb6a61cc409cc0f45fb1e"
+      },
+      {
+        "path": "debian/patches/0055-allow-vt-sw-decoder-for-every-codec.patch",
+        "sha256": "e4150602bd89f124727254fc4bd6d7488e50dc70589c0d408d9541f2d1e979a4"
+      },
+      {
+        "path": "debian/patches/0056-add-bwdif-videotoolbox-filter.patch",
+        "sha256": "926cf7d758c7e618f3935217c902476cfceeb566c00d55ada0c5bedad1983fdd"
+      },
+      {
+        "path": "debian/patches/0057-add-12bit-decoding-on-videotoolbox.patch",
+        "sha256": "c3f52829e784d4b005b2dc07c7603f2a2ab6cb3901df08bb4cbfa8988a2ad322"
+      },
+      {
+        "path": "debian/patches/0058-fix-the-sub2video-perf-regressions.patch",
+        "sha256": "ee71ad4e5afe2a6f8afad199f978b4345815b832b10c3f04e3fe8c9aa886e5f5"
+      },
+      {
+        "path": "debian/patches/0059-allow-vpl-qsv-to-init-with-the-legacy-msdk-path.patch",
+        "sha256": "8e66cee16ead77fc3501f8227af9915d1b2fe2e751e8b413efeb72f0fd3624ef"
+      },
+      {
+        "path": "debian/patches/0060-alway-set-videotoolboxenc-pixel-buffer-info.patch",
+        "sha256": "2ca89ef786a1481874a0113ec2350bef4519526262194a7eaf7a615ae2248f83"
+      },
+      {
+        "path": "debian/patches/0061-add-remove-dovi-hdr10plus-bsf.patch",
+        "sha256": "17e6a570cbad79e1072ac53ccf19c3a3447ca9cfd005ef4932605dbd0fbd891e"
+      },
+      {
+        "path": "debian/patches/0062-fix-atenc-layout-samplerate.patch",
+        "sha256": "edcebc31fee60f3aaf5a70a20283f291814d3e342fd1d8f1d0e27a5890f89e8b"
+      },
+      {
+        "path": "debian/patches/0063-videotoolbox-remove-opengl-compatability.patch",
+        "sha256": "7b17085d1549b0e6a473bc5fbe144404f2a7610a8fc42982150be4abd73a7310"
+      },
+      {
+        "path": "debian/patches/0064-use-dynamic-pool-for-vpl-qsv-hwupload.patch",
+        "sha256": "bc4ae000701b006fa1ca23900bb8e00f10f44758af896dac0444532c0c48a41c"
+      },
+      {
+        "path": "debian/patches/0065-fix-ass-incorrect-null-copy.patch",
+        "sha256": "11c10c3b1477a19aecf2dbed30bb3dafa285e06642166b981816976dde302cfa"
+      },
+      {
+        "path": "debian/patches/0066-add-first-vframe-only-to-ffprobe.patch",
+        "sha256": "53f4ad12cead3e9e3064ff4227c44737278a0dd39fbea22d2d7c310c4f9c6849"
+      },
+      {
+        "path": "debian/patches/0067-fix-auto-inserting-sw-color-conv-filters-between-hw-fmts.patch",
+        "sha256": "82641b9537b6e66f0994d796dbd2516b6c9f68cf5e68add65ced9d18b02bc53b"
+      },
+      {
+        "path": "debian/patches/0068-fix-dummy-hw-frame-missing-hw-frames-ctx.patch",
+        "sha256": "0c8fae469899f386ca3892543d9b3885b174f640ffe336402f2ef929d972903d"
+      },
+      {
+        "path": "debian/patches/0069-add-yadif-and-bwdif-opencl-filter-impl.patch",
+        "sha256": "ce738a8f557613eff89883f16c5966b8fd6360c88d2364ebfb93ce7050897c46"
+      },
+      {
+        "path": "debian/patches/0070-allow-vpp-tonemap-without-hdr10-metadata.patch",
+        "sha256": "6950c1ec75a3945b5077d9413d09f786f0f74fed13a00d1565a2748ed7488efd"
+      },
+      {
+        "path": "debian/patches/0071-allow-qsvenc-to-bail-out-from-unsupported-low-power-mode.patch",
+        "sha256": "e776ac1321c306a318c5d4926913ae97da71f6e9479a182dbb2991cc519dbc58"
+      },
+      {
+        "path": "debian/patches/0072-add-array-of-textures-support-for-d3d11va-hwaccel.patch",
+        "sha256": "d36ee26170f476e1766a4a70cfec658173dd9cfa60c7b7356f9faf4b7a829629"
+      },
+      {
+        "path": "debian/patches/0073-dont-return-ext-error-for-invalid-vt-frame.patch",
+        "sha256": "a5dedbc1950d822c7365c9df294b27341e9e0802fb8d6b75c29e9fb4be370b2f"
+      },
+      {
+        "path": "debian/patches/0074-fix-mapped-hwframe-to-swframe-swscale-conversion.patch",
+        "sha256": "d352897deae9a8249d683917bb8a1b187940327d1c3447dd3205d82e1d3e135d"
+      },
+      {
+        "path": "debian/patches/0075-fix-hwupload-filter-cannot-use-devices-created-by-hwaccel.patch",
+        "sha256": "d92bcf93ea8d22f66bd828e5259f896cae19663a92bfc322b315d78a3f76c9f3"
+      },
+      {
+        "path": "debian/patches/0076-fix-seeking-h264-open-gop-videos-with-d3d11va-on-amd.patch",
+        "sha256": "5e6a311120ad7ebe1eff2f29b48193997fccf2820b09a15db3f91c4f49c30258"
+      },
+      {
+        "path": "debian/patches/0077-suppress-the-resumed-reading-at-pts-with-rate-warning.patch",
+        "sha256": "a5962b1ff673e98716cb95f87cedbf373782c49fc458dc02e96cebd501ea88a7"
+      },
+      {
+        "path": "debian/patches/0078-backport-fixes-for-vulkan-from-upstream.patch",
+        "sha256": "3726305fbfbc3c3abeda19d3b7170aa3f51211430c5209a22a10be0f6848e7df"
+      },
+      {
+        "path": "debian/patches/0079-add-fixes-for-vaapi-drm-prime-vulkan-interop.patch",
+        "sha256": "352222708bfc21c7a9ae16e1327c522c9386cc52db2e60929730df5fa7188460"
+      },
+      {
+        "path": "debian/patches/0080-prefer-vulkan-device-with-higher-api-version.patch",
+        "sha256": "de147ff92c3f809979cd1fe79798d88e1a788758a657950d2b934bdac11802eb"
+      },
+      {
+        "path": "debian/patches/0081-signal-vulkan-semaphores-in-drm-prime-reverse-mapping.patch",
+        "sha256": "38fdc6a347b8be547db197f2447025fbd51eeecd07c0598b4f48f0fda8349d6f"
+      },
+      {
+        "path": "debian/patches/0082-add-fixes-and-enhancements-for-vulkan-filters.patch",
+        "sha256": "b454b2b36d603a8285644c59534929417b61c7fbac55af466cdc1725653415da"
+      },
+      {
+        "path": "debian/patches/0083-backport-fixes-for-cuda-from-upstream.patch",
+        "sha256": "981cf7ca1e84cd02a31dfa706a015baf252787329062ab381a48a162f446c23a"
+      },
+      {
+        "path": "debian/patches/0084-backport-fixes-for-detecting-ac4-streams-in-mpegts.patch",
+        "sha256": "5abaf8bc385ef423c5a6872b5862c966fd6d89386598ecde353ed718851124e7"
+      },
+      {
+        "path": "debian/patches/0085-fix-hdr10-sidedata-not-removed-in-libplacebo-outlink.patch",
+        "sha256": "2c84b33032b0f85f25457719a4500675f4aa489c288b832e6e77eb7cf97acd44"
+      },
+      {
+        "path": "debian/patches/0086-fix-amd-hevc-vaapi-encoder-extradata-with-overrides.patch",
+        "sha256": "6def2cd304a199cb2b64bfe65eb3b5a866d6055c840379e25fe8926d79832a94"
+      },
+      {
+        "path": "debian/patches/0087-add-dtsx-detect-for-dts-hd-hra.patch",
+        "sha256": "e2b6ae62d0c50df0d54e64b3e7ce3571af31f82722e507ea2921436d20fddae0"
+      },
+      {
+        "path": "debian/patches/0088-add-webp-to-matroskadec-image-mime-types.patch",
+        "sha256": "60106667215a659e468ac4f7e799583e6873bdc407285928ddfcabe1ecf2bc5e"
+      },
+      {
+        "path": "debian/patches/0089-relax-to-allow-safe-filenames-in-mkv-attachments.patch",
+        "sha256": "7dfb52498b2074c2636d7475b660889cef0eff8d04a885b9b464f9d0ae12f4e5"
+      },
+      {
+        "path": "debian/patches/0090-backport-a-fix-to-use-sw-pix-fmt-in-codec-par-if-set.patch",
+        "sha256": "72f8d6182eaf8a0922cd2dbb1842ecd0e33342dc860e974ca2dbe2bcbfe19ff0"
+      },
+      {
+        "path": "debian/patches/0091-add-d3d11-deinterlace-filter.patch",
+        "sha256": "7f20384bb2e8b2a72e748faa87c387640708fe9fdf89f29939979e1db5c27511"
+      },
+      {
+        "path": "debian/patches/0092-add-d3d11-video-processor-overlay-transpose-filters.patch",
+        "sha256": "9468b54d0e7bb9a512d3710822eb5de978825f1a4e1611d730189efb852bc5ff"
+      },
+      {
+        "path": "debian/patches/0093-fix-d3d11-scale-visible-source-rect.patch",
+        "sha256": "e1a5e5625f2f7737cfee565c0301251404915e6e3e5b262e69327327f57bc6a8"
+      },
+      {
+        "path": "debian/patches/0094-add-d3d11-tonemap-filter.patch",
+        "sha256": "1146c2196912dc076760f58081945c4113018efb68ab6528f62771cc741f4324"
+      },
+      {
+        "path": "debian/patches/0095-add-scale-d3d11-p010-shader-fallback.patch",
+        "sha256": "959438f7b256fc53762eca474a831935db100a38a36193102db806217847935d"
+      },
+      {
+        "path": "debian/patches/0096-fix-full-range-input-for-mjpeg-vaapi-encoder.patch",
+        "sha256": "6ba8246232d1a1909a9a39c8bd52b5f70f7139ff278fb0405641285f82b7b7ec"
+      },
+      {
+        "path": "debian/patches/0097-add-misc-enhancements-to-mfenc-hw-encoder.patch",
+        "sha256": "0e19f539b84d63cf8cdb7ec8966aa511eb52c5cc0fc7dbddca30af95841323d1"
+      },
+      {
+        "path": "debian/patches/0098-backport-a-fix-to-not-stall-sub2video-on-stream-eof.patch",
+        "sha256": "90f06a2349c3bff4c4056289358f87a9b31ff1fc7e1c86d40fac2812c163293d"
+      },
+      {
+        "path": "debian/patches/0099-fix-qsv-av1-decoder-exporting-hdr-side-data.patch",
+        "sha256": "ffa276620ee5bdad2fc2d82e25c66b503a71fe2585cd228ce8d50577c9da5cf8"
+      },
+      {
+        "path": "debian/patches/0100-backport-trim-bitstream-filter.patch",
+        "sha256": "257a2be286b134a668700f8dc07f10e6aeb5f003682629d6be2e11dece773e59"
+      }
+    ]
+  },
+  "toolchainRevision": 2,
+  "dependencyCacheRevision": 2,
+  "releaseTag": "ffmpeg-8.1.3-jellyfin-portico.2",
+  "btbn": {
+    "repository": "https://github.com/BtbN/FFmpeg-Builds.git",
+    "commit": "48576f197ad1c2afb2e0b8efe204919a1afbff54",
+    "patches": [
+      "third_party/ffmpeg/patches/btbn-gnu-ncurses-mirror.patch",
+      "third_party/ffmpeg/patches/btbn-verified-source.patch",
+      "scripts/patch-btbn-winarm64-system-error.sh"
+    ]
+  },
+  "macosRecipe": {
+    "repository": "https://github.com/homebridge/ffmpeg-for-homebridge.git",
+    "commit": "4920fab9d6ac56999ce7e961b240659b4da078a5",
+    "patches": [
+      "third_party/ffmpeg/patches/homebridge-arm64-vpx.patch",
+      "third_party/ffmpeg/patches/homebridge-gpl-only.patch",
+      "third_party/ffmpeg/patches/homebridge-private-pkgconfig.patch",
+      "third_party/ffmpeg/patches/homebridge-private-python.patch",
+      "third_party/ffmpeg/patches/homebridge-sourceforge-download.patch",
+      "third_party/ffmpeg/patches/homebridge-zix-build.patch"
+    ],
+    "pythonBuildTools": {
+      "meson": "1.7.0",
+      "ninja": "1.11.1.4",
+      "setuptools": "75.8.0"
+    }
+  },
+  "requiredConfigure": [
+    "--enable-gpl",
+    "--enable-version3"
+  ],
+  "prohibitedConfigure": [
+    "--enable-nonfree",
+    "--enable-libfdk-aac"
+  ],
+  "sourceDateEpoch": 1790508678
+}

@@ -1,0 +1,50 @@
+# Home and personal continuation
+
+`GET /v1/home` returns a server-composed `spotlight` list, the saved layout and deferred row descriptors. Spotlight is ready in the manifest; each descriptor's generated `get_home_row` route hydrates one independent shelf. No response publishes a single `hero` selector. Clients render server membership, order, reasons and destinations, and do not merge library pages to construct Home.
+
+Spotlight contains up to five different visible video works. Its deterministic policy takes the newest recent video, the first related pick from a real completed history event, the newest continuation, then ranked recommendations and recent works until five are selected. Sparse catalogues return only the real works available. Each slide has an `entry`, structured `reason` (`kind`, localized `text`, and actual source/library identity where relevant), and a show's real `resumeTarget` when available. Year, genres, runtime, backdrop and a synopsis of at most 300 characters are hydrated only for these bounded candidates. Ordinary poster rows retain PERF-12 synopsis omission. UI timers choose the displayed slide; they never choose membership. TV focus enrichment can use the existing one-episode/one-season show workspace.
+
+Default row placement is:
+
+1. `continue`: Continue Watching, landscape cards, unchanged continuation membership.
+2. `new_on_server`: New on your server, Movies, shows and anime, one newest-work poster row across visible video libraries.
+3. `because_you_watched`: a bounded related ranking anchored on the newest completed and still-accessible video among the profile's last 64 history events. `reason.source` names the actual source. Without qualifying history or related works this row is empty.
+4. `featured_collection`: one collection banner selected in library order, then collection name order from each library's first four permitted collection heads. The first nonempty playable preview wins. The payload includes the exact existing visible member count, up to four members, and the first available member backdrop. A complete preview supplies the earliest known year and latest known title; partial/sparse previews omit facts they cannot establish.
+5. `on_now`: current authorized channels, favorites first, then global numeric channel number and stable names/identities, ordered before the page limit. See the live section below.
+6. `community_watching`: Most watched on this server, Last 30 days. The period carries actual start/end, `days:30` and `metric:distinct_eligible_viewers`. Server rank is returned order; renderer numerals use `start + index + 1`.
+7. `listen_next`: Listen next, Audiobooks and music. Real continuation files are grouped into their album/book containers first, followed by bounded newest audio works, with stable deduplication. `resumes` pairs each resumable container with its actual target file and progress.
+8. `continue_books`: Continue your books, conditional on actual unfinished book progress, with `platforms:["web","phone"]`. Music is excluded. The current contribution is audiobooks; Read ingestion/positions/readers and mixed Read/audiobook geometry remain outside this contract group. An audiobook-only instance is valid.
+
+Recommended, the personal recommendation family and Trending remain explicitly arrangeable optional rows. Their membership/ranking policy is unchanged. Saved views still appear only when the profile places them. The superseded per-library Home recent rows and `continue_listening` endpoint are absent; their bounded algorithms still serve the distinct library Discover surface. There are no compatibility row aliases. The profile's explicit order and hidden set apply before default priorities. Continue Watching remains required and cannot be hidden; empty noncritical hydrated rows disappear. Layout reads list all arrangeable rows without shelf membership.
+
+Every row declares `seeAll` rather than asking clients to infer a destination:
+
+- `{type:"row",rowId}` pages that exact bounded row through the generated Home route.
+- `{type:"library",libraryId,pivot,query?,sort}` opens the named library browse selection.
+- `{type:"collection",resourceId,libraryId}` opens the selected collection.
+- `{type:"saved_view",resourceId}` opens the saved view.
+- `{type:"guide",group?,sourceId?}` opens the authorized guide selection.
+
+The merged video row reuses the maintained recent-work index: at most 100 distinct works and 4,096 examined candidates per library, restricted visibility classes where published, then an exact newest 100-work union. Its totals describe that bounded Home membership, not the full library. Shows retain the existing newest-delivery projection: one episode, one season, or the show when several seasons arrived together. `addedAt` records the newest selected delivery. `new:true` means added within the last 14 days, not in the future, and unwatched for the current viewer. Counts, cursor membership and hydration use the same snapshot. The new merged, causal, audio and community rows reject cursors whose selected membership changes; anchored ranges can resolve against current membership. Existing continuation and optional recommendation rows retain their established re-anchoring behavior. Signed cursors bind the viewer, row, page size and ranking fingerprint and expire after 30 minutes.
+
+## On now
+
+Home, Search's empty state and Live TV consume the same `on_now` row. `group` and `sourceId` are accepted only on that row; its accepted sort is always `favorites`, also supported by the existing channel directory. Pages are at most 50 channels. Each `live.channels` card embeds its real source and channel identity, availability/preferences, an authoritative `channel.mark:{text,seed}`, and zero or one programme containing the observation time. A missing guide stays empty; being on now never manufactures a Live flag. Programme restrictions use the same guide masking rule as Live TV.
+
+Marks are resolved on the server against each source's complete authorized, nonhidden collision domain, independent of group/search/favorites/page selection. Normal two initials are used until a collision requires a distinctive numeric token or additional initial; remaining collisions use actual channel number/id. The stable tint seed is the source id and channel id. Clients never fetch a full lineup to name four cards.
+
+The existing directory supplies selection and the guide reads only the selected named channels for a one-second observation window. Group chips and source labels are authorized server metadata. The signed horizontal cursor binds directory revision, source/guide generations, favorites, source scope, group, viewer fence, page size and observation time. It expires at the earlier of the next minute or a current programme ending. A second directory/authority check fences changes during composition. Current Live TV permission is required for every read: denied all/mixed Home omits the row entirely, and direct/stale denied row reads disclose no source/channel names or counts. The accepted Search privacy fix remains unchanged.
+
+## Continuation, listening and privacy
+
+Continue Watching merges unfinished films with one continuation per started show. Films remain until finished or dismissed. Show continuation respects the owner's age window, with recently added season premieres exempted. Specials do not interrupt an ordinary season. Missing titles never enter the row. A show's detail Next Up ignores Home age limits and dismissals. Home entries preserve episode/show identity, real duration/progress and the actual playback target.
+
+The personal-state mutation accepts `continueDismissed:true` with its normal operation id and expected revision. It affects only this profile's row membership. `false` restores it. A new intentional playback identity makes it eligible again; reports from the dismissed playback do not. Episode artwork inherits from season/show.
+
+Audio continuation examines at most the last 1,000 unfinished activity rows and takes 40 qualifying files before grouping. Listen next then adds bounded recent album/book works, up to 100 total. Audiobook playback retains the actual part id and position. Whole-book progress and duration are supplied only when all of the selected book's at most 512 visible parts have known lengths; otherwise those aggregate facts are omitted. A separate resume target retains the actual file facts. No duration or remaining time is guessed.
+
+Container watched/unwatched marks supersede older member intent, clear progress and fence previous playback. The response includes a thirty-second Undo token. The existing container undo route restores the prior mix unless members or state changed. Marks are bounded to 5,000 members; use individual seasons for larger shows. Undo preserves history, favorites, ratings and saved lists.
+
+Known durations honor the profile's started percentage. Unknown durations become resumable at thirty seconds and can finish on valid terminal evidence. Audiobook parts resume after one second and finish near the end. Video completion uses the library percentage unless overridden; Credits mode uses an approved marker and otherwise the percentage. Early terminal evidence below completion policy preserves a known longer title's position.
+
+Unchanged paused reports preserve continuation recency and personal revisions. While history is paused the viewer's history, personal count and watched/progress writes stop. Shared popularity retains opted-in, unpaused, active profiles with current library/content access and at least three distinct eligible viewers per work. Changing the window to thirty days does not change that metric or threshold. Recommendation days follow the server's local date consistently across devices.

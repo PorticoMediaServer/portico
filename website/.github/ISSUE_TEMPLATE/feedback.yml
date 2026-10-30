@@ -1,0 +1,19 @@
+name: Feature or product feedback
+description: Suggest an improvement or share product feedback.
+title: "[Feedback]: "
+labels: [feedback]
+body:
+  - type: textarea
+    id: need
+    attributes: {label: What would you like Portico to improve?, description: Explain the user need or problem before proposing a solution.}
+    validations: {required: true}
+  - type: textarea
+    id: idea
+    attributes: {label: What would a good outcome look like?}
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution policy
+      options:
+        - label: I understand Portico welcomes feedback but is not accepting external code contributions or pull requests.
+          required: true

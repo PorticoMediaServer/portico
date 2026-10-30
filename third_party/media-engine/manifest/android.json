@@ -1,0 +1,413 @@
+{
+  "libraries": {
+    "arm64-v8a": {
+      "libass.so": {
+        "needs": [
+          "libfreetype.so",
+          "libfribidi.so",
+          "libharfbuzz.so",
+          "libiconv.so",
+          "libunibreak.so"
+        ]
+      },
+      "libavcodec.so": {
+        "needs": [
+          "libavutil.so",
+          "libdav1d.so",
+          "libswresample.so"
+        ]
+      },
+      "libavfilter.so": {
+        "needs": [
+          "libavutil.so",
+          "libswresample.so",
+          "libswscale.so"
+        ]
+      },
+      "libavformat.so": {
+        "needs": [
+          "libavcodec.so",
+          "libavutil.so",
+          "libcrypto.so",
+          "libssl.so"
+        ]
+      },
+      "libavutil.so": {
+        "needs": []
+      },
+      "libcrypto.so": {
+        "needs": []
+      },
+      "libdav1d.so": {
+        "needs": []
+      },
+      "libdovi.so": {
+        "needs": []
+      },
+      "libfreetype.so": {
+        "needs": []
+      },
+      "libfribidi.so": {
+        "needs": []
+      },
+      "libharfbuzz.so": {
+        "needs": []
+      },
+      "libiconv.so": {
+        "needs": []
+      },
+      "liblcms2.so": {
+        "needs": []
+      },
+      "libmpv.so": {
+        "needs": [
+          "libass.so",
+          "libavcodec.so",
+          "libavfilter.so",
+          "libavformat.so",
+          "libavutil.so",
+          "libiconv.so",
+          "liblcms2.so",
+          "libplacebo.so",
+          "libswresample.so",
+          "libswscale.so",
+          "libuchardet.so"
+        ]
+      },
+      "libplacebo.so": {
+        "needs": [
+          "libdovi.so",
+          "liblcms2.so"
+        ]
+      },
+      "libssl.so": {
+        "needs": [
+          "libcrypto.so"
+        ]
+      },
+      "libswresample.so": {
+        "needs": [
+          "libavutil.so"
+        ]
+      },
+      "libswscale.so": {
+        "needs": [
+          "libavutil.so"
+        ]
+      },
+      "libuchardet.so": {
+        "needs": []
+      },
+      "libunibreak.so": {
+        "needs": []
+      }
+    },
+    "armeabi-v7a": {
+      "libass.so": {
+        "needs": [
+          "libfreetype.so",
+          "libfribidi.so",
+          "libharfbuzz.so",
+          "libiconv.so",
+          "libunibreak.so"
+        ]
+      },
+      "libavcodec.so": {
+        "needs": [
+          "libavutil.so",
+          "libdav1d.so",
+          "libswresample.so"
+        ]
+      },
+      "libavfilter.so": {
+        "needs": [
+          "libavutil.so",
+          "libswresample.so",
+          "libswscale.so"
+        ]
+      },
+      "libavformat.so": {
+        "needs": [
+          "libavcodec.so",
+          "libavutil.so",
+          "libcrypto.so",
+          "libssl.so"
+        ]
+      },
+      "libavutil.so": {
+        "needs": []
+      },
+      "libcrypto.so": {
+        "needs": []
+      },
+      "libdav1d.so": {
+        "needs": []
+      },
+      "libdovi.so": {
+        "needs": []
+      },
+      "libfreetype.so": {
+        "needs": []
+      },
+      "libfribidi.so": {
+        "needs": []
+      },
+      "libharfbuzz.so": {
+        "needs": []
+      },
+      "libiconv.so": {
+        "needs": []
+      },
+      "liblcms2.so": {
+        "needs": []
+      },
+      "libmpv.so": {
+        "needs": [
+          "libass.so",
+          "libavcodec.so",
+          "libavfilter.so",
+          "libavformat.so",
+          "libavutil.so",
+          "libiconv.so",
+          "liblcms2.so",
+          "libplacebo.so",
+          "libswresample.so",
+          "libswscale.so",
+          "libuchardet.so"
+        ]
+      },
+      "libplacebo.so": {
+        "needs": [
+          "libdovi.so",
+          "liblcms2.so"
+        ]
+      },
+      "libssl.so": {
+        "needs": [
+          "libcrypto.so"
+        ]
+      },
+      "libswresample.so": {
+        "needs": [
+          "libavutil.so"
+        ]
+      },
+      "libswscale.so": {
+        "needs": [
+          "libavutil.so"
+        ]
+      },
+      "libuchardet.so": {
+        "needs": []
+      },
+      "libunibreak.so": {
+        "needs": []
+      }
+    },
+    "x86": {
+      "libass.so": {
+        "needs": [
+          "libfreetype.so",
+          "libfribidi.so",
+          "libharfbuzz.so",
+          "libiconv.so",
+          "libunibreak.so"
+        ]
+      },
+      "libavcodec.so": {
+        "needs": [
+          "libavutil.so",
+          "libdav1d.so",
+          "libswresample.so"
+        ]
+      },
+      "libavfilter.so": {
+        "needs": [
+          "libavutil.so",
+          "libswresample.so",
+          "libswscale.so"
+        ]
+      },
+      "libavformat.so": {
+        "needs": [
+          "libavcodec.so",
+          "libavutil.so",
+          "libcrypto.so",
+          "libssl.so"
+        ]
+      },
+      "libavutil.so": {
+        "needs": []
+      },
+      "libcrypto.so": {
+        "needs": []
+      },
+      "libdav1d.so": {
+        "needs": []
+      },
+      "libdovi.so": {
+        "needs": []
+      },
+      "libfreetype.so": {
+        "needs": []
+      },
+      "libfribidi.so": {
+        "needs": []
+      },
+      "libharfbuzz.so": {
+        "needs": []
+      },
+      "libiconv.so": {
+        "needs": []
+      },
+      "liblcms2.so": {
+        "needs": []
+      },
+      "libmpv.so": {
+        "needs": [
+          "libass.so",
+          "libavcodec.so",
+          "libavfilter.so",
+          "libavformat.so",
+          "libavutil.so",
+          "libiconv.so",
+          "liblcms2.so",
+          "libplacebo.so",
+          "libswresample.so",
+          "libswscale.so",
+          "libuchardet.so"
+        ]
+      },
+      "libplacebo.so": {
+        "needs": [
+          "libdovi.so",
+          "liblcms2.so"
+        ]
+      },
+      "libssl.so": {
+        "needs": [
+          "libcrypto.so"
+        ]
+      },
+      "libswresample.so": {
+        "needs": [
+          "libavutil.so"
+        ]
+      },
+      "libswscale.so": {
+        "needs": [
+          "libavutil.so"
+        ]
+      },
+      "libuchardet.so": {
+        "needs": []
+      },
+      "libunibreak.so": {
+        "needs": []
+      }
+    },
+    "x86_64": {
+      "libass.so": {
+        "needs": [
+          "libfreetype.so",
+          "libfribidi.so",
+          "libharfbuzz.so",
+          "libiconv.so",
+          "libunibreak.so"
+        ]
+      },
+      "libavcodec.so": {
+        "needs": [
+          "libavutil.so",
+          "libdav1d.so",
+          "libswresample.so"
+        ]
+      },
+      "libavfilter.so": {
+        "needs": [
+          "libavutil.so",
+          "libswresample.so",
+          "libswscale.so"
+        ]
+      },
+      "libavformat.so": {
+        "needs": [
+          "libavcodec.so",
+          "libavutil.so",
+          "libcrypto.so",
+          "libssl.so"
+        ]
+      },
+      "libavutil.so": {
+        "needs": []
+      },
+      "libcrypto.so": {
+        "needs": []
+      },
+      "libdav1d.so": {
+        "needs": []
+      },
+      "libdovi.so": {
+        "needs": []
+      },
+      "libfreetype.so": {
+        "needs": []
+      },
+      "libfribidi.so": {
+        "needs": []
+      },
+      "libharfbuzz.so": {
+        "needs": []
+      },
+      "libiconv.so": {
+        "needs": []
+      },
+      "liblcms2.so": {
+        "needs": []
+      },
+      "libmpv.so": {
+        "needs": [
+          "libass.so",
+          "libavcodec.so",
+          "libavfilter.so",
+          "libavformat.so",
+          "libavutil.so",
+          "libiconv.so",
+          "liblcms2.so",
+          "libplacebo.so",
+          "libswresample.so",
+          "libswscale.so",
+          "libuchardet.so"
+        ]
+      },
+      "libplacebo.so": {
+        "needs": [
+          "libdovi.so",
+          "liblcms2.so"
+        ]
+      },
+      "libssl.so": {
+        "needs": [
+          "libcrypto.so"
+        ]
+      },
+      "libswresample.so": {
+        "needs": [
+          "libavutil.so"
+        ]
+      },
+      "libswscale.so": {
+        "needs": [
+          "libavutil.so"
+        ]
+      },
+      "libuchardet.so": {
+        "needs": []
+      },
+      "libunibreak.so": {
+        "needs": []
+      }
+    }
+  },
+  "platform": "android"
+}

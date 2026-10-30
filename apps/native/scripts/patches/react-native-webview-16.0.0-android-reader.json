@@ -1,0 +1,7 @@
+{
+  "path": "android/src/main/java/com/reactnativecommunity/webview/RNCWebViewClient.java",
+  "beforeSHA256": "b5bc7df57d0de88ebe991b7d69027b47f6c64bb511ebab7a7273d88db34b8f07",
+  "afterSHA256": "c0edd34eeefc25a2e53b48665ecb2d112229531389e9724239be9291aaad8248",
+  "before": "    private static String TAG = \"RNCWebViewClient\";",
+  "after": "    private static String TAG = \"RNCWebViewClient\";\n    private volatile boolean porticoReaderSurface = false;\n\n    @Override\n    public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {\n        String url = request.getUrl().toString();\n        if (PorticoReaderAndroidAssets.isEntry(url)) porticoReaderSurface = true;\n        if (porticoReaderSurface || PorticoReaderAndroidAssets.isOrigin(url))\n            return PorticoReaderAndroidAssets.response(view.getContext(), request);\n        return super.shouldInterceptRequest(view, request);\n    }\n"
+}

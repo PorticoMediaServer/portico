@@ -1,0 +1,62 @@
+.page { position: relative; isolation: isolate; width: 100%; height: 100%; color: var(--color-text); overflow: hidden; font-family: var(--font); line-height: normal; }
+.block { position: relative; overflow: hidden; border-radius: 10px; background: var(--color-raised); flex: none; animation: skeleton-in var(--motion-quick) linear both; }
+.deferred { animation-delay: 300ms; }
+.line { height: 14px; border-radius: 7px; }
+.small { height: 11px; border-radius: 6px; }
+.sheen { background: linear-gradient(100deg,var(--color-raised) 35%,#183142 50%,var(--color-raised) 65%); background-size: 300% 100%; background-position: 50% 0; }
+.grid { position: relative; width: 100%; }
+.cell { position: absolute; }
+.caption { margin-top: 12px; }
+.grid[data-phone=true] .caption { margin-top: 9px; }
+.homeArt { position: absolute; inset: 0 0 auto; height: 620px; pointer-events: none; }
+.heroWords { position: absolute; left: 64px; top: 200px; width: 600px; }
+.heroWords > .block { margin-bottom: 14px; }
+.accentLine { background: rgba(64,159,212,.18); }
+.heroTitle { margin-top: 22px; }
+.heroMeta { margin-top: 22px; }
+.synopsis { margin-top: 22px; }
+.synopsis .block { margin-bottom: 14px; }
+.heroActions { display: flex; gap: 12px; margin-top: 28px; }
+.thumbnails { position: absolute; right: 64px; top: 520px; display: flex; gap: 12px; }
+.row { position: absolute; left: 0; right: 0; }
+.rowHeading { margin-bottom: 12px; min-height: 20px; }
+.rowHeading h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.015em; }
+.track { display: flex; overflow: hidden; padding-top: 12px; padding-bottom: 14px; }
+.rowCell { flex: none; }
+.arrived { animation: arrived var(--motion-standard) linear both; }
+/* The shapes themselves appear after the existing quiet gate with the authored 120ms
+   opacity entrance; the still backgrounds and the separate 180ms arrived crossfade stay. */
+@keyframes skeleton-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes arrived { from { opacity: 0; } to { opacity: 1; } }
+.titleArt { position: absolute; inset: 0 0 auto; height: 660px; }
+.titleWords { position: absolute; left: 64px; top: 250px; width: 620px; }
+.titleWords h1 { font-size: 84px; line-height: .94; font-weight: 800; letter-spacing: -.045em; margin: 0 0 20px; text-wrap: balance; text-shadow: 0 2px 30px rgba(7,16,24,.5); }
+.titleSynopsis { margin-top: 26px; }
+.titleSynopsis .block + .block { margin-top: 12px; }
+.titleActions { display: flex; gap: 12px; margin-top: 34px; }
+.titleTabs { position: absolute; left: 0; right: 0; top: 672px; }
+.titleEpisodes { position: absolute; left: 64px; right: 0; top: 760px; display: flex; gap: 16px; }
+.phoneDetails { position: absolute; left: 20px; right: 20px; top: 398px; }
+.phoneSynopsis { margin-top: 20px; }
+.phoneSynopsis .block + .block { margin-top: 9px; }
+.grow { flex: 1; min-width: 0; }
+.phoneTabs { margin-top: 22px; }
+.episodeList { display: flex; gap: 14px; margin-top: 18px; align-items: center; }
+.episodeList .small { margin-top: 9px; }
+.phone .homeArt { height: 560px; }
+.phone .heroWords { left: 0; right: 0; top: 330px; width: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.phone .heroWords > .block { margin-bottom: 0; }
+.phone .heroTitle, .phone .heroMeta { margin-top: 4px; }
+.phone .heroActions { gap: 10px; margin-top: 10px; }
+.phone .rowHeading { min-height: 18px; margin-bottom: 4px; }
+.phone .track { padding-top: 8px; padding-bottom: 10px; }
+.phone .titleArt { height: 396px; }
+.phone .pressedArtwork::after { inset: 0 0 -140px; background: linear-gradient(180deg,rgba(7,16,24,.5) 0,transparent 16%,transparent 36%,rgba(7,16,24,.8) 68%,rgba(7,16,24,.55) 84%,rgba(7,16,24,0) 100%); }
+.phone .titleWords { left: 20px; right: 20px; top: 300px; width: auto; text-align: center; }
+.phone .titleWords h1 { font-size: 46px; line-height: .94; margin: 0 0 12px; }
+.phone .titleWords > .block { margin: 0 auto; }
+.phone .titleActions { gap: 10px; margin-top: 0; }
+@media (min-width: 1024px) and (max-width: 1439px) { .heroWords, .titleWords { left: clamp(32px,calc(32px + (100vw - 1024px) / 13),64px); } }
+@media (prefers-reduced-motion: reduce) { .arrived, .block { animation-duration: var(--motion-reduced); } .sheen { background: var(--color-raised); } }
+:global([data-reduce-motion=true]) .arrived, :global([data-reduce-motion=true]) .block { animation-duration: var(--motion-reduced); }
+:global([data-reduce-motion=true]) .sheen { background: var(--color-raised); }

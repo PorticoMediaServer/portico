@@ -1,0 +1,184 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/items/FZH_ujVknbAIgHBifTyT1w/playback-offers"
+  },
+  "status": 200,
+  "body": {
+    "preparedVersions": [],
+    "preparedOffersRevision": "c5a9d866f2fab511356813d53400fe847f1d2adcc8975f91e7531057d2a52c82",
+    "deliveryPlan": null,
+    "subtitlePlan": null,
+    "subtitlePlanUnavailableReason": null,
+    "scope": {
+      "serverId": "srv_-J4TM5L_dh6V3_4YFZxJza7pNo9Y9rLHE8XSPfKTmjk",
+      "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+      "itemId": "FZH_ujVknbAIgHBifTyT1w",
+      "viewerFence": "e2bd6c6f20b194d47f38f176b4abe0e6a364190a27a80109fcb189961921777d"
+    },
+    "revision": "0fe01ef2e04dd85886c10bd67496168871db081e401f1b57dd600053af1c2788",
+    "sources": [
+      {
+        "audioCodec": "",
+        "available": true,
+        "boundary": "whole_source",
+        "container": "mp3",
+        "durationMs": 0,
+        "enabled": false,
+        "factsRevision": 0,
+        "factsStatus": "unavailable",
+        "height": 0,
+        "id": "3N8vG-JmkYwebaQTEhDFUqQ8Nobh-H4JvvSCQV_C9wY",
+        "qualities": [
+          {
+            "id": "original",
+            "kind": "original",
+            "label": "Original",
+            "enabled": false,
+            "reason": "source_unavailable",
+            "sameAsOriginal": false
+          },
+          {
+            "id": "automatic",
+            "kind": "automatic",
+            "label": "Automatic",
+            "enabled": false,
+            "reason": "source_unavailable",
+            "sameAsOriginal": false
+          },
+          {
+            "id": "2160p",
+            "kind": "fixed",
+            "label": "4K",
+            "maxVideoBitrateBps": 40000000,
+            "maxAudioBitrateBps": 192000,
+            "targetDisplayHeight": 2160,
+            "enabled": false,
+            "reason": "source_unavailable",
+            "sameAsOriginal": false,
+            "dataGBPerHour": 18
+          },
+          {
+            "id": "1080p-high",
+            "kind": "fixed",
+            "label": "1080p High",
+            "maxVideoBitrateBps": 20000000,
+            "maxAudioBitrateBps": 192000,
+            "targetDisplayHeight": 1080,
+            "enabled": false,
+            "reason": "source_unavailable",
+            "sameAsOriginal": false,
+            "dataGBPerHour": 9
+          },
+          {
+            "id": "1080p-low",
+            "kind": "fixed",
+            "label": "1080p Low",
+            "maxVideoBitrateBps": 8000000,
+            "maxAudioBitrateBps": 192000,
+            "targetDisplayHeight": 1080,
+            "enabled": false,
+            "reason": "source_unavailable",
+            "sameAsOriginal": false,
+            "dataGBPerHour": 3.6
+          },
+          {
+            "id": "720p-high",
+            "kind": "fixed",
+            "label": "720p High",
+            "maxVideoBitrateBps": 4000000,
+            "maxAudioBitrateBps": 128000,
+            "targetDisplayHeight": 720,
+            "enabled": false,
+            "reason": "source_unavailable",
+            "sameAsOriginal": false,
+            "dataGBPerHour": 1.8
+          },
+          {
+            "id": "720p-low",
+            "kind": "fixed",
+            "label": "720p Low",
+            "maxVideoBitrateBps": 2000000,
+            "maxAudioBitrateBps": 128000,
+            "targetDisplayHeight": 720,
+            "enabled": false,
+            "reason": "source_unavailable",
+            "sameAsOriginal": false,
+            "dataGBPerHour": 0.9
+          },
+          {
+            "id": "480p",
+            "kind": "fixed",
+            "label": "480p",
+            "maxVideoBitrateBps": 1500000,
+            "maxAudioBitrateBps": 96000,
+            "targetDisplayHeight": 480,
+            "enabled": false,
+            "reason": "source_unavailable",
+            "sameAsOriginal": false,
+            "dataGBPerHour": 0.675
+          },
+          {
+            "id": "240p",
+            "kind": "fixed",
+            "label": "240p",
+            "maxVideoBitrateBps": 500000,
+            "maxAudioBitrateBps": 96000,
+            "targetDisplayHeight": 240,
+            "enabled": false,
+            "reason": "source_unavailable",
+            "sameAsOriginal": false,
+            "dataGBPerHour": 0.225
+          }
+        ],
+        "reason": "source_selection_unavailable",
+        "relation": "unknown",
+        "streams": [],
+        "videoCodec": "",
+        "width": 0
+      }
+    ],
+    "current": null,
+    "controls": [
+      {
+        "id": "source",
+        "enabled": false,
+        "reason": "source_selection_unavailable"
+      },
+      {
+        "id": "audio",
+        "enabled": false,
+        "reason": "track_selection_unavailable"
+      },
+      {
+        "id": "subtitles",
+        "enabled": false,
+        "reason": "subtitle_delivery_unavailable"
+      },
+      {
+        "id": "quality",
+        "enabled": false,
+        "reason": "quality_selection_unavailable"
+      }
+    ],
+    "deliveryPolicy": {
+      "networkClass": "local",
+      "serverLocality": "local",
+      "transportClass": "unknown",
+      "preferenceLane": "home",
+      "directPlay": "prefer",
+      "directStream": "allow",
+      "transcode": "allow",
+      "qualityMode": "original",
+      "maxVideoBitrateBps": 0,
+      "maxAudioBitrateBps": 0,
+      "maxVideoHeight": 0,
+      "allowHDR": true,
+      "planningPolicy": "maximum_fidelity",
+      "clamps": []
+    },
+    "offersRevision": "e13ec58a9392759f25faa10032cfcbe6868b2e52b4eb36e920d3209ff02dd0dd",
+    "transcodingEnabled": true,
+    "markers": null
+  }
+}

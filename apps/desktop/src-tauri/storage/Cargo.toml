@@ -1,0 +1,23 @@
+[package]
+name = "portico-desktop-storage"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "GPL-3.0-only"
+publish = false
+
+[dependencies]
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+url = "=2.5.7"
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled"] }
+base64 = { version = "=0.22.1", default-features = false, features = ["std"] }
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+ring = { version = "=0.17.14", default-features = false, features = ["std"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "=0.2.191"
+
+[profile.dev]
+debug = 0
+incremental = false

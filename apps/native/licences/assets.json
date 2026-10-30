@@ -1,0 +1,21 @@
+{
+  "about": "Fonts and other third-party assets the apps carry, with their licence files. apps/native/scripts/licences.mts lists them; apps/native/test/licences.test.ts fails when a font in apps/native/assets is not listed here.",
+  "assets": [
+    {
+      "id": "font:manrope",
+      "name": "Manrope",
+      "licence": "OFL-1.1",
+      "licenceFile": "apps/native/assets/OFL-Manrope.txt",
+      "files": ["apps/native/assets/manrope-400.ttf", "apps/native/assets/manrope-500.ttf", "apps/native/assets/manrope-600.ttf", "apps/native/assets/manrope-700.ttf", "apps/native/assets/manrope-800.ttf"],
+      "url": "https://github.com/googlefonts/manrope"
+    },
+    {
+      "id": "icons:lucide",
+      "name": "Lucide icons",
+      "licence": "ISC",
+      "licenceFile": "packages/design/LICENSE-LUCIDE",
+      "files": ["packages/design/src/icons.ts"],
+      "url": "https://lucide.dev"
+    }
+  ]
+}

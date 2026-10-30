@@ -1,0 +1,42 @@
+{
+  "source": "Exact pinned Reader dependency archive licences and separately pinned official Literata font source; all texts unmodified",
+  "lockfileSHA256": "10c8d823aebc1d339528dff66a7da585f9dafe8b1693dc186425c94a6a6ef464",
+  "licences": [
+    {
+      "package": "pdfjs-dist",
+      "versionOrCommit": "6.4.299",
+      "license": "Apache-2.0",
+      "file": "pdfjs-LICENSE",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+    },
+    {
+      "package": "foliate-js",
+      "versionOrCommit": "78914aef4466eb960965702401634c2cb348e9b1",
+      "license": "MIT",
+      "file": "foliate-LICENSE",
+      "sha256": "b621ffc351fe263bc9b09dd0bc1c9332fda9c462a3904c1e4f0b4d3236b9c28c"
+    },
+    {
+      "package": "@zip.js/zip.js",
+      "versionOrCommit": "2.24.0",
+      "license": "BSD-3-Clause",
+      "file": "zipjs-LICENSE",
+      "sha256": "1b7ebc8d7889ed25491484ab2b102370742ca6c0b26650a0c62cc2269b579b84"
+    },
+    {
+      "package": "dompurify",
+      "versionOrCommit": "3.4.17",
+      "license": "Apache-2.0 (selected dual-licence option)",
+      "file": "dompurify-LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "package": "Literata",
+      "versionOrCommit": "google/fonts@4e5f06dbb274a27ebe71ed54ea706b3ee40eabd9",
+      "license": "OFL-1.1",
+      "file": "../../packages/reader-core/assets/OFL.txt",
+      "sha256": "8742963604cd89dc81437811a850018fc03b2bfad686d7422c8235967c87614e",
+      "fontSHA256": "b41138c9373112f32abb589cc22e8674b06ed4048b0c513be922bdd26f274440"
+    }
+  ]
+}

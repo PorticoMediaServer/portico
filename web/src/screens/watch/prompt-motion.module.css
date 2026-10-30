@@ -1,0 +1,7 @@
+/* Shared prompt-only presence and snap reposition. The caller owns its offer.
+   The rise/fade itself is retargeted imperatively from the painted pose, so an
+   interrupted entrance leaves or returns without snapping back to a keyframe. */
+.prompt { transition: transform var(--prompt-snap-ms, 0ms) var(--prompt-spring, var(--ease-out)); }
+.prompt[data-prompt-phase='out'] { pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .prompt { transition: none; } }
+:global([data-reduce-motion='true']) .prompt { transition: none; }

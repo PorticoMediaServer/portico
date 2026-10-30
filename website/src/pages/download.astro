@@ -1,0 +1,41 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import PlatformIcon from '@/components/PlatformIcon.astro';
+import { downloadGroups } from '@/data/downloads';
+---
+
+<BaseLayout title="Downloads" description="Download Portico Server and find Portico apps for phones, tablets, televisions, and streaming devices.">
+  <header class="page-intro download-intro section-light">
+    <div>
+      <h1>Download Portico.</h1>
+      <p>Start with Portico Server, then add the apps used around the house.</p>
+    </div>
+  </header>
+
+  <div class="download-page section-light">
+    {downloadGroups.map((group) => (
+      <section class="download-group" aria-labelledby={`download-${group.title.toLowerCase().replaceAll(' ', '-')}`}>
+        <div class="download-group-heading">
+          <h2 id={`download-${group.title.toLowerCase().replaceAll(' ', '-')}`}>{group.title}</h2>
+          <p>{group.description}</p>
+        </div>
+        <div class="download-list">
+          {group.items.map((item) => (
+            <article class="download-row">
+              <div class="download-icon"><PlatformIcon name={item.icon} /></div>
+              <div class="download-copy">
+                <h3>{item.name}</h3>
+                <p>{item.detail}</p>
+              </div>
+              {item.href ? (
+                <a class="download-action" href={item.href}>Download</a>
+              ) : (
+                <button class="download-status" type="button" disabled>Coming soon</button>
+              )}
+            </article>
+          ))}
+        </div>
+      </section>
+    ))}
+  </div>
+</BaseLayout>

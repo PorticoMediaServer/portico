@@ -1,0 +1,27 @@
+/** Redacted drawn sample text, confined to the development Troubleshooting specimen. */
+export const troubleshootingFixtureMessages = {
+  "next.troubleshooting.fixture.message1": "Backup finished. 18 MB written, 7 backups kept.",
+  "next.troubleshooting.fixture.message2": "Scan of Movies started.",
+  "next.troubleshooting.fixture.message3": "Scan of Movies finished: 80 titles checked, 0 added, 0 changed.",
+  "next.troubleshooting.fixture.message4": "Started The Last of Us on Living room TV as the original file.",
+  "next.troubleshooting.fixture.message5": "The router didn’t answer the port mapping request. Trying again in 5 minutes.",
+  "next.troubleshooting.fixture.message6": "Started converting Spirited Away to 1080p for an iPhone away from home.",
+  "next.troubleshooting.fixture.message7": "The video encoder stopped while converting Spirited Away. Playback went on with the processor.",
+  "next.troubleshooting.fixture.message8": "Converting Spirited Away again, this time with the processor.",
+  "next.troubleshooting.fixture.message9": "A report came in from an iPhone running 1.4.2.",
+  "next.troubleshooting.fixture.message10": "Free space on the disk that holds backups is below 15 percent.",
+  "next.troubleshooting.fixture.message11": "Playback of The Last of Us ended after 41 minutes.",
+  "next.troubleshooting.fixture.message12": "Certificate check passed. The certificate is valid until Jan 19, 2027.",
+  "next.troubleshooting.fixture.message13": "Watching TV Shows: 1 new file found.",
+  "next.troubleshooting.fixture.message14": "Scan of TV Shows started.",
+  "next.troubleshooting.fixture.message15": "Playback stopped twice during the second episode.",
+  "next.troubleshooting.fixture.message16": "The subtitles are about a second ahead of the picture.",
+  "next.troubleshooting.fixture.message17": "The poster for this film is wrong.",
+  "next.troubleshooting.fixture.message18": "Thanks for the update.",
+  "next.troubleshooting.fixture.title1": "Severance, season 1",
+  "next.troubleshooting.fixture.reason1": "The provider answered too slowly to finish the match.",
+  "next.troubleshooting.fixture.title2": "Neagley",
+  "next.troubleshooting.fixture.reason2": "The artwork could not be read as an image.",
+  "next.troubleshooting.fixture.detail1": "Intel Quick Sync was requested but this processor has no usable encoder.",
+  "next.troubleshooting.fixture.body1": "The app closed while opening a title."
+} as const;

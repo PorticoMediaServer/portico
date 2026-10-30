@@ -1,0 +1,20 @@
+{
+  "policy": "Exact frozen assets only; changed bytes lose the exception.",
+  "files": {
+    "apps/native/tvos/Portico/Images.xcassets/App Icon & Top Shelf Image.brandassets/Top Shelf Image Wide.imageset/shelf.png": {
+      "bytes": 1232294,
+      "sha256": "624750010705b8ccdb38bf0a70a0bdbee04f888bf6b23f46da3017148200aa98",
+      "source": "portico-react-native frozen 885df14073dc"
+    },
+    "apps/native/tvos/Portico/Images.xcassets/App Icon & Top Shelf Image.brandassets/Top Shelf Image Wide.imageset/shelf@2x.png": {
+      "bytes": 4920336,
+      "sha256": "1b03b98790213977795d2869c910c958a7533a2cc020de324a4d7535e1d3b59c",
+      "source": "portico-react-native frozen 885df14073dc"
+    },
+    "apps/native/tvos/Portico/Images.xcassets/App Icon & Top Shelf Image.brandassets/Top Shelf Image.imageset/shelf@2x.png": {
+      "bytes": 4086272,
+      "sha256": "18a67a0ca2ef61dfd44a29de4ff6474cce474a63afeb9c21d90748e37005ff70",
+      "source": "portico-react-native frozen 885df14073dc"
+    }
+  }
+}

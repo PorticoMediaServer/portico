@@ -1,0 +1,67 @@
+{
+  "name": "portico-vega",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/vega.mjs start",
+    "build": "node scripts/vega.mjs build --release",
+    "build:debug": "node scripts/vega.mjs build --debug",
+    "device": "node scripts/vega.mjs device",
+    "install:device": "node scripts/vega.mjs install",
+    "launch": "node scripts/vega.mjs launch",
+    "typecheck": "tsc --noEmit",
+    "typecheck:test": "tsc -p test/tsconfig.json --noEmit",
+    "test": "node --experimental-transform-types --import ./test/register.mjs --test test/*.test.ts",
+    "lint:strings": "node ../../packages/i18n/scripts/lint-strings.mjs src ./strings-baseline.json --all --strict && node ../../packages/i18n/scripts/lint-raw-errors.mjs src",
+    "clean": "node scripts/vega.mjs clean"
+  },
+  "dependencies": {
+    "@amazon-devices/kepler-file-system": "~0.0.7",
+    "@amazon-devices/kepler-media-controls": "~1.0.25",
+    "@amazon-devices/kepler-system-info": "~1.0.5",
+    "@amazon-devices/keplercrypto": "~2.1",
+    "@amazon-devices/keplerscript-netmgr-lib": "~2.0.20",
+    "@amazon-devices/react-native-device-info": "~2.1.9000000000+10.11.0",
+    "@amazon-devices/react-native-gesture-handler": "~4.0.0",
+    "@amazon-devices/react-native-kepler": "~4.0.0",
+    "@amazon-devices/react-native-masked-view__masked-view": "~2.0.9000000002",
+    "@amazon-devices/react-native-reanimated": "~4.0.0",
+    "@amazon-devices/react-native-safe-area-context": "~8.0.9000000000+5.2.0",
+    "@amazon-devices/react-native-screens": "3.0.9000000001",
+    "@amazon-devices/react-native-svg": "~3.0.9000000000+15.11.1",
+    "@amazon-devices/react-native-w3cmedia": "~2.3.2",
+    "@amazon-devices/react-native-worklets": "~1.0.0",
+    "@amazon-devices/react-navigation__native": "~8.0.9000000000+7.1.22",
+    "@amazon-devices/react-navigation__native-stack": "~8.0.9000000000+7.8.1",
+    "@amazon-devices/security-manager-lib": "~1.0.1767254405",
+    "@bacons/text-decoder": "0.0.0",
+    "@noble/ciphers": "1.3.0",
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0",
+    "qrcode": "1.5.4",
+    "react": "19.2.0",
+    "react-native": "0.83.0",
+    "react-native-qrcode-svg": "6.3.22",
+    "react-native-url-polyfill": "4.0.0"
+  },
+  "devDependencies": {
+    "@amazon-devices/kepler-cli-platform": "^0",
+    "@react-native-community/cli": "20.0.0",
+    "@react-native/babel-preset": "0.83.0",
+    "@react-native/metro-config": "0.83.0",
+    "@react-native/typescript-config": "0.83.0",
+    "@types/react": "^19.2.0",
+    "rolldown": "1.2.11",
+    "typescript": "5.8.3"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "kepler": {
+    "projectType": "application",
+    "appName": "Portico",
+    "targets": [
+      "tv"
+    ]
+  }
+}

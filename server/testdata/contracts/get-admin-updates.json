@@ -1,0 +1,24 @@
+{
+  "schema": "GetAdminUpdatesResponse",
+  "method": "GET",
+  "path": "/v1/admin/updates",
+  "auth": "owner",
+  "status": 200,
+  "response": {
+    "current": {
+      "version": "0.1.0-dev",
+      "buildId": "development",
+      "sourceDigest": "unsealed",
+      "builtAt": "",
+      "channel": "stable"
+    },
+    "channel": "stable",
+    "feedConfigured": true,
+    "state": "unavailable",
+    "updateAvailable": false,
+    "checkedAt": "",
+    "status": "unavailable",
+    "message": "This server is not configured to contact a release feed.",
+    "autoInstall": false
+  }
+}

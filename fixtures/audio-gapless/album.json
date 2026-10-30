@@ -1,0 +1,47 @@
+{
+ "tracks": {
+  "flac": [
+   "album-flac-01",
+   "album-flac-02",
+   "album-flac-03",
+   "album-flac-04",
+   "album-flac-05",
+   "album-flac-06",
+   "album-flac-07",
+   "album-flac-08",
+   "album-flac-09",
+   "album-flac-10",
+   "album-flac-11",
+   "album-flac-12"
+  ],
+  "mp3": [
+   "album-mp3-01",
+   "album-mp3-02",
+   "album-mp3-03",
+   "album-mp3-04",
+   "album-mp3-05",
+   "album-mp3-06",
+   "album-mp3-07",
+   "album-mp3-08",
+   "album-mp3-09",
+   "album-mp3-10",
+   "album-mp3-11",
+   "album-mp3-12"
+  ],
+  "aac": [
+   "album-aac-01",
+   "album-aac-02",
+   "album-aac-03",
+   "album-aac-04",
+   "album-aac-05",
+   "album-aac-06",
+   "album-aac-07",
+   "album-aac-08",
+   "album-aac-09",
+   "album-aac-10",
+   "album-aac-11",
+   "album-aac-12"
+  ]
+ },
+ "note": "Each codec's tracks, in order, are one continuous signal: track k starts at offset sum(lengths[:k])."
+}

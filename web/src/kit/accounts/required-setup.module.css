@@ -1,0 +1,4 @@
+/* account22 panels 1, 4 and 5 use the existing dialog, QR and recovery grid. */
+.dialog { max-width: calc(100vw - 32px); }
+.form { display: flex; flex-direction: column; gap: 16px; }
+.code { display: flex; justify-content: flex-start; margin-bottom: 4px; }

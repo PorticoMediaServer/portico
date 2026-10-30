@@ -1,0 +1,6 @@
+.stage .form .code[data-variant="auth"] > div { height: 60px; }
+.stage .form .code[data-variant="auth"] input { font-size: var(--type-fixed-size-27px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-point-08em); font-variant-numeric: tabular-nums; }
+@media (max-width: 599px) {
+  .stage .form .code[data-variant="auth"] > div { height: 56px; }
+  .stage .form .code[data-variant="auth"] input { font-size: var(--type-fixed-size-25px); }
+}

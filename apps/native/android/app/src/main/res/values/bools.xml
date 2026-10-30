@@ -1,0 +1,4 @@
+<resources>
+    <!-- Whether the system splash drew the wordmark (values-television: it does not). -->
+    <bool name="portico_splash_wordmark">true</bool>
+</resources>

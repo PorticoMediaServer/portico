@@ -1,0 +1,2 @@
+# Scoped helper build tooling only; never installed by the running server.
+cmake==3.31.6

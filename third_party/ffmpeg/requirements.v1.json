@@ -1,0 +1,770 @@
+{
+  "schemaVersion": 1,
+  "contractId": "portico-jellyfin-media-toolchain-v3",
+  "executables": [
+    "ffmpeg",
+    "ffprobe",
+    "portico-disc"
+  ],
+  "features": [
+    {
+      "id": "video.h264",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "h264"
+      ]
+    },
+    {
+      "id": "video.hevc-main10",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "hevc"
+      ]
+    },
+    {
+      "id": "video.av1",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "av1"
+      ]
+    },
+    {
+      "id": "video.vp9",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "vp9"
+      ]
+    },
+    {
+      "id": "video.mpeg2",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "mpeg2video"
+      ]
+    },
+    {
+      "id": "video.vc1",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "vc1"
+      ]
+    },
+    {
+      "id": "video.flv",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "flv"
+      ]
+    },
+    {
+      "id": "encode.h264",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "libx264"
+      ]
+    },
+    {
+      "id": "encode.hevc",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "libx265"
+      ]
+    },
+    {
+      "id": "encode.av1",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "libsvtav1"
+      ]
+    },
+    {
+      "id": "audio.core",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "aac",
+        "ac3",
+        "eac3",
+        "truehd",
+        "dca",
+        "flac",
+        "opus",
+        "pcm_s16le",
+        "alac",
+        "vorbis"
+      ]
+    },
+    {
+      "id": "subtitle.text",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "subrip",
+        "webvtt",
+        "ass"
+      ]
+    },
+    {
+      "id": "subtitle.bitmap",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "pgssub",
+        "dvdsub",
+        "dvbsub"
+      ]
+    },
+    {
+      "id": "container.core",
+      "kind": "demuxer",
+      "required": true,
+      "acceptable": [
+        "mov",
+        "matroska",
+        "mpegts",
+        "hls",
+        "flv",
+        "vobsub"
+      ]
+    },
+    {
+      "id": "delivery.hls",
+      "kind": "muxer",
+      "required": true,
+      "acceptable": [
+        "hls",
+        "mp4",
+        "mpegts"
+      ]
+    },
+    {
+      "id": "protocol.core",
+      "kind": "protocol",
+      "required": true,
+      "acceptable": [
+        "file",
+        "http",
+        "https",
+        "tcp",
+        "udp"
+      ]
+    },
+    {
+      "id": "filter.scale",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "scale",
+        "format"
+      ]
+    },
+    {
+      "id": "filter.hdr",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "zscale",
+        "tonemap"
+      ]
+    },
+    {
+      "id": "filter.libplacebo",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "libplacebo"
+      ]
+    },
+    {
+      "id": "filter.deinterlace",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "bwdif",
+        "yadif"
+      ]
+    },
+    {
+      "id": "filter.subtitle",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "subtitles",
+        "overlay"
+      ]
+    },
+    {
+      "id": "filter.hardware-transfer",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "hwupload",
+        "hwdownload"
+      ]
+    },
+    {
+      "id": "filter.audio",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "aresample",
+        "pan",
+        "loudnorm"
+      ]
+    },
+    {
+      "id": "library.libass",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "libass"
+      ]
+    },
+    {
+      "id": "disc.bluray",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "libbluray"
+      ]
+    },
+    {
+      "id": "disc.dvd",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "libdvdnav",
+        "libdvdread"
+      ]
+    },
+    {
+      "id": "disc.protocol",
+      "kind": "protocol",
+      "required": true,
+      "acceptable": [
+        "bluray"
+      ]
+    },
+    {
+      "id": "disc.demuxer",
+      "kind": "demuxer",
+      "required": true,
+      "acceptable": [
+        "mpegts",
+        "dvdvideo",
+        "ffmetadata"
+      ]
+    },
+    {
+      "id": "video.breadth",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "mpeg4",
+        "vp8",
+        "vvc",
+        "prores",
+        "dnxhd",
+        "mjpeg",
+        "theora",
+        "wmv1",
+        "wmv2",
+        "wmv3"
+      ]
+    },
+    {
+      "id": "audio.lossless",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "ape",
+        "wavpack",
+        "tta",
+        "mpc7",
+        "mpc8",
+        "pcm_s24le",
+        "pcm_s32le",
+        "pcm_f32le"
+      ]
+    },
+    {
+      "id": "audio.dsd",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "dsd_lsbf",
+        "dsd_msbf",
+        "dsd_lsbf_planar",
+        "dsd_msbf_planar"
+      ]
+    },
+    {
+      "id": "audio.encode",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "aac",
+        "ac3",
+        "eac3",
+        "flac",
+        "libopus"
+      ]
+    },
+    {
+      "id": "subtitle.captions",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "cc_dec",
+        "libzvbi_teletextdec"
+      ]
+    },
+    {
+      "id": "container.breadth",
+      "kind": "demuxer",
+      "required": true,
+      "acceptable": [
+        "asf",
+        "avi",
+        "dv",
+        "mxf",
+        "rm",
+        "ogg",
+        "aiff",
+        "wv",
+        "ape",
+        "tta",
+        "mpc",
+        "mpc8",
+        "dsf",
+        "iff",
+        "dvdvideo"
+      ]
+    },
+    {
+      "id": "bitstream.metadata",
+      "kind": "bsf",
+      "required": true,
+      "acceptable": [
+        "dovi_rpu",
+        "dca_core",
+        "filter_units",
+        "extract_extradata"
+      ]
+    },
+    {
+      "id": "filter.music",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "ebur128",
+        "ametadata",
+        "aformat",
+        "atrim",
+        "asetpts",
+        "alimiter"
+      ]
+    },
+    {
+      "id": "library.music",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "libsoxr"
+      ]
+    },
+    {
+      "id": "library.video",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "libdav1d",
+        "libsvtav1",
+        "libx264",
+        "libx265",
+        "libzimg",
+        "fontconfig",
+        "libfreetype",
+        "libfribidi",
+        "libharfbuzz",
+        "libplacebo",
+        "libzvbi"
+      ]
+    },
+    {
+      "id": "hw.vaapi",
+      "kind": "hwaccel",
+      "required": true,
+      "acceptable": [
+        "vaapi"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64"
+      ]
+    },
+    {
+      "id": "hw.vaapi.encoders",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "h264_vaapi",
+        "hevc_vaapi",
+        "av1_vaapi"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64"
+      ]
+    },
+    {
+      "id": "hw.vaapi.filters",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "scale_vaapi",
+        "deinterlace_vaapi",
+        "overlay_vaapi",
+        "tonemap_vaapi"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64"
+      ]
+    },
+    {
+      "id": "hw.qsv",
+      "kind": "hwaccel",
+      "required": true,
+      "acceptable": [
+        "qsv"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "windows-amd64",
+        "windows-arm64"
+      ]
+    },
+    {
+      "id": "hw.qsv.encoders",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "h264_qsv",
+        "hevc_qsv",
+        "av1_qsv"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "windows-amd64",
+        "windows-arm64"
+      ]
+    },
+    {
+      "id": "hw.qsv.filters",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "vpp_qsv",
+        "overlay_qsv",
+        "scale_qsv"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "windows-amd64",
+        "windows-arm64"
+      ]
+    },
+    {
+      "id": "hw.nvidia",
+      "kind": "hwaccel",
+      "required": true,
+      "acceptable": [
+        "cuda"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "windows-amd64",
+        "windows-arm64"
+      ]
+    },
+    {
+      "id": "hw.nvidia.encoders",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "h264_nvenc",
+        "hevc_nvenc",
+        "av1_nvenc"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "windows-amd64",
+        "windows-arm64"
+      ]
+    },
+    {
+      "id": "hw.nvidia.filters",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "scale_cuda",
+        "tonemap_cuda",
+        "overlay_cuda",
+        "bwdif_cuda"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "windows-amd64",
+        "windows-arm64"
+      ]
+    },
+    {
+      "id": "hw.amf.encoders",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "h264_amf",
+        "hevc_amf",
+        "av1_amf"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "windows-amd64",
+        "windows-arm64"
+      ]
+    },
+    {
+      "id": "hw.windows",
+      "kind": "hwaccel",
+      "required": true,
+      "acceptable": [
+        "d3d11va",
+        "d3d12va"
+      ],
+      "platforms": [
+        "windows-amd64",
+        "windows-arm64"
+      ]
+    },
+    {
+      "id": "hw.windows.filters",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "scale_d3d11",
+        "overlay_d3d11",
+        "bwdif_d3d11",
+        "tonemap_d3d11"
+      ],
+      "platforms": [
+        "windows-amd64",
+        "windows-arm64"
+      ]
+    },
+    {
+      "id": "hw.opencl",
+      "kind": "hwaccel",
+      "required": true,
+      "acceptable": [
+        "opencl"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ]
+    },
+    {
+      "id": "hw.opencl.filters",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "tonemap_opencl",
+        "overlay_opencl",
+        "scale_opencl",
+        "bwdif_opencl"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ]
+    },
+    {
+      "id": "hw.vulkan",
+      "kind": "hwaccel",
+      "required": true,
+      "acceptable": [
+        "vulkan"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "hw.vulkan.filters",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "libplacebo",
+        "scale_vulkan",
+        "overlay_vulkan",
+        "bwdif_vulkan"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "hw.videotoolbox",
+      "kind": "hwaccel",
+      "required": true,
+      "acceptable": [
+        "videotoolbox"
+      ],
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "hw.videotoolbox.encoders",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "h264_videotoolbox",
+        "hevc_videotoolbox"
+      ],
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "hw.videotoolbox.filters",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "scale_vt",
+        "tonemap_videotoolbox",
+        "overlay_videotoolbox",
+        "bwdif_videotoolbox"
+      ],
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "hw.rockchip.encoders",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "h264_rkmpp",
+        "hevc_rkmpp"
+      ],
+      "platforms": [
+        "linux-arm64"
+      ]
+    },
+    {
+      "id": "hw.rockchip.decoders",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "h264_rkmpp",
+        "hevc_rkmpp",
+        "av1_rkmpp",
+        "vp9_rkmpp"
+      ],
+      "platforms": [
+        "linux-arm64"
+      ]
+    },
+    {
+      "id": "hw.rockchip.filters",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "scale_rkrga",
+        "overlay_rkrga",
+        "vpp_rkrga"
+      ],
+      "platforms": [
+        "linux-arm64"
+      ]
+    },
+    {
+      "id": "hw.v4l2",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "h264_v4l2m2m",
+        "hevc_v4l2m2m"
+      ],
+      "platforms": [
+        "linux-arm64"
+      ]
+    },
+    {
+      "id": "audio.wma",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "wmav1",
+        "wmav2",
+        "wmapro",
+        "wmalossless",
+        "wmavoice"
+      ]
+    },
+    {
+      "id": "audio.dsd-compressed",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "dst"
+      ]
+    },
+    {
+      "id": "metadata.dovi-profile",
+      "kind": "bsf",
+      "required": true,
+      "acceptable": [
+        "dovi_profile"
+      ]
+    },
+    {
+      "id": "library.libdovi",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "libdovi"
+      ]
+    }
+  ],
+  "matching": "All acceptable entries are required unless match is any; platforms use Go OS-architecture names."
+}

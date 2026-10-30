@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/items/MKTg1OVAPuefVNdiOObFwQ/file-info/groups?opening=<scrubbed>&limit=50"
+  },
+  "status": 202,
+  "body": {
+    "kind": "file-info-preparing",
+    "state": "preparing",
+    "queryId": "AgAAAAAAAAAFAAAAAAAAAAFN-25Jx2J5YEiDCFILH_0BAAAAAAAAAAoAAAAAAAABvAAAAAAAAAAAGOL3vq8TQAAwpODU5UA-559U12I45sXB-DLXhmDTl_3awMcrjyy2m-3nIk4R-pb-at87OtY9QPQAAAAAAAAAAqVfyWs7L8BltPU6Qn5dNJk.AQYBGOL3vq8TQABV64uJ4-pM7H6C4Skzo_rRzyuMm3FTPvCXFPJXrFK4D6Uh7A-uinqF62x8l-kCTaol83n5ELqVTm6hulPffkT1AAAAAAAAAAUAAAAAAAAAAAAAAAAAAAAApbNViH5c402jn5vTD4waKQ",
+    "retryAfterMs": 1000,
+    "detail": {
+      "scope": {
+        "serverId": "srv_7sWWdcN9umujBzM2AlDkD--4cuPxXxauxkI6fcBZgm8",
+        "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
+        "itemId": "MKTg1OVAPuefVNdiOObFwQ",
+        "viewerFence": "8831511cf2cef880db84da4b677c9ae41c91147d35d6d4222c39799ecf56e9aa"
+      },
+      "revision": {
+        "catalog": 444,
+        "viewer": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,594 @@
+--- a/configure
++++ b/configure
+@@ -4347,7 +4347,7 @@
+ avfilter_deps="avutil"
+ avfilter_suggest="libm stdatomic zlib spirv_library"
+ avformat_deps="avcodec avutil"
+-avformat_suggest="libm network zlib stdatomic"
++avformat_suggest="libm network zlib stdatomic libdovi"
+ avutil_suggest="clock_gettime ffnvcodec gcrypt libm zlib libdrm libmfx opencl openssl rkmpp user32 vaapi vulkan videotoolbox corefoundation corevideo coremedia bcrypt stdatomic"
+ swresample_deps="avutil"
+ swresample_suggest="libm libsoxr stdatomic"
+--- a/libavformat/Makefile
++++ b/libavformat/Makefile
+@@ -404,6 +404,7 @@
+ OBJS-$(CONFIG_MPEG2VOB_MUXER)            += mpegenc.o
+ OBJS-$(CONFIG_MPEGPS_DEMUXER)            += mpeg.o
+ OBJS-$(CONFIG_MPEGTS_DEMUXER)            += mpegts.o
++OBJS-$(CONFIG_LIBDOVI)                   += dovi_join.o
+ OBJS-$(CONFIG_MPEGTS_MUXER)              += mpegtsenc.o
+ OBJS-$(CONFIG_MPEGVIDEO_DEMUXER)         += mpegvideodec.o rawdec.o
+ OBJS-$(CONFIG_MPJPEG_DEMUXER)            += mpjpegdec.o
+--- a/libavformat/mpegts.c
++++ b/libavformat/mpegts.c
+@@ -43,6 +43,9 @@
+ #include "demux.h"
+ #include "mpeg.h"
+ #include "isom.h"
++#if CONFIG_LIBDOVI
++#include "dovi_join.h"
++#endif
+ #if CONFIG_ICONV
+ #include <iconv.h>
+ #endif
+@@ -168,6 +171,14 @@
+     int resync_size;
+     int merge_pmt_versions;
+     int max_packet_size;
++#if CONFIG_LIBDOVI
++    int merge_dovi;
++    int dovi_base_pid, dovi_el_pid, dovi_program, dovi_error;
++    AVDOVIDecoderConfigurationRecord dovi_config;
++    FFDoviJoin *dovi_join;
++    uint8_t dovi_pmt[4096];
++    int dovi_pmt_size;
++#endif
+ 
+     int id;
+ 
+@@ -215,6 +226,10 @@
+      {.i64 = 0}, 0, 1, 0 },
+     {"max_packet_size", "maximum size of emitted packet", offsetof(MpegTSContext, max_packet_size), AV_OPT_TYPE_INT,
+      {.i64 = 204800}, TS_PAYLOAD_SIZE, INT_MAX/2, AV_OPT_FLAG_DECODING_PARAM },
++#if CONFIG_LIBDOVI
++    {"merge_dovi", "join qualified profile 7 BL/EL PIDs using source timestamps", offsetof(MpegTSContext, merge_dovi), AV_OPT_TYPE_BOOL,
++     {.i64 = 0}, 0, 1, AV_OPT_FLAG_DECODING_PARAM },
++#endif
+     { NULL },
+ };
+ 
+@@ -2429,6 +2444,28 @@
+                 dovi->dv_md_compression = AV_DOVI_COMPRESSION_NONE;
+             }
+ 
++#if CONFIG_LIBDOVI
++            if (ts && dovi->dv_profile == 7 && !dovi->bl_present_flag &&
++                dovi->el_present_flag && dovi->rpu_present_flag &&
++                dovi->dv_bl_signal_compatibility_id == 6 &&
++                dependency_pid > 31 && dependency_pid < 8191 && dependency_pid != pid) {
++                av_dict_set_int(&st->metadata, "dovi_base_pid", dependency_pid, 0);
++                st->disposition |= AV_DISPOSITION_DEPENDENT;
++                if (ts->merge_dovi) {
++                    if (ts->dovi_base_pid && (ts->dovi_base_pid != dependency_pid ||
++                        ts->dovi_el_pid != pid || ts->dovi_program != prg_id ||
++                        memcmp(&ts->dovi_config, dovi, sizeof(*dovi)))) {
++                        ts->dovi_error = AVERROR_INVALIDDATA;
++                    } else {
++                        ts->dovi_base_pid = dependency_pid;
++                        ts->dovi_el_pid = pid;
++                        ts->dovi_program = prg_id;
++                        ts->dovi_config = *dovi;
++                    }
++                }
++            }
++#endif
++
+             if (!av_packet_side_data_add(&st->codecpar->coded_side_data,
+                                          &st->codecpar->nb_coded_side_data,
+                                          AV_PKT_DATA_DOVI_CONF,
+@@ -2575,6 +2612,16 @@
+         return;
+     if (skip_identical(h, tssf))
+         return;
++
++#if CONFIG_LIBDOVI
++    if (ts->merge_dovi && ts->dovi_pmt_size && h->id == ts->dovi_program &&
++        (section_len - 4 != ts->dovi_pmt_size || memcmp(section, ts->dovi_pmt, 5) ||
++         memcmp(section + 6, ts->dovi_pmt + 6, section_len - 10) ||
++         ((section[5] ^ ts->dovi_pmt[5]) & 0xc1))) {
++        ts->dovi_error = AVERROR_INVALIDDATA;
++        return;
++    }
++#endif
+ 
+     av_log(ts->stream, AV_LOG_TRACE, "sid=0x%x sec_num=%d/%d version=%d tid=%d\n",
+             h->id, h->sec_num, h->last_sec_num, h->version, h->tid);
+@@ -2740,6 +2787,37 @@
+         desc_list_end  = p + desc_list_len;
+         if (desc_list_end > p_end)
+             goto out;
++#if CONFIG_LIBDOVI
++        /* Generic Dolby dual-PID transport carries EL/RPU as private PES.
++         * Both declarations are required before using the HEVC parser. The
++         * DOVI descriptor below still supplies profile/flags/dependency, and
++         * the join separately validates every RPU, picture and source clock. */
++        if (ts->merge_dovi && stream_type == STREAM_TYPE_PRIVATE_DATA) {
++            const uint8_t *desc = p;
++            int dovi_registered = 0, hevc_declared = 0, valid = 1;
++            while (desc_list_end - desc >= 2) {
++                int tag = desc[0], length = desc[1];
++                desc += 2;
++                if (length > desc_list_end - desc) {
++                    valid = 0;
++                    break;
++                }
++                if (tag == REGISTRATION_DESCRIPTOR && length >= 4 &&
++                    !memcmp(desc, "DOVI", 4))
++                    dovi_registered = 1;
++                if (tag == 0x38 && length >= 13) // HEVC video descriptor
++                    hevc_declared = 1;
++                desc += length;
++            }
++            if (valid && desc == desc_list_end && dovi_registered && hevc_declared) {
++                st->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
++                st->codecpar->codec_id = AV_CODEC_ID_HEVC;
++                ffstream(st)->need_parsing = AVSTREAM_PARSE_FULL;
++                ffstream(st)->request_probe = 0;
++                ffstream(st)->need_context_update = 1;
++            }
++        }
++#endif
+         for (;;) {
+             if (ff_parse_mpeg2_descriptor(ts->stream, st, stream_type, h->id, &p,
+                                           desc_list_end, mp4_descr,
+@@ -2760,6 +2836,16 @@
+         mpegts_open_pcr_filter(ts, pcr_pid);
+ 
+ out:
++#if CONFIG_LIBDOVI
++    if (ts->merge_dovi && ts->dovi_base_pid && h->id == ts->dovi_program) {
++        if (p != p_end || section_len < 12 || (size_t)(section_len - 4) > sizeof(ts->dovi_pmt)) {
++            ts->dovi_error = AVERROR_INVALIDDATA;
++        } else if (!ts->dovi_pmt_size) {
++            memcpy(ts->dovi_pmt, section, section_len - 4);
++            ts->dovi_pmt_size = section_len - 4;
++        }
++    }
++#endif
+     for (i = 0; i < mp4_descr_count; i++)
+         av_free(mp4_descr[i].dec_config_descr);
+ }
+@@ -3223,6 +3309,13 @@
+     if (avio_tell(s->pb) != ts->last_pos) {
+         int i;
+         av_log(ts->stream, AV_LOG_TRACE, "Skipping after seek\n");
++#if CONFIG_LIBDOVI
++        if (ts->dovi_join) {
++            int error = ff_dovi_join_flush(ts->dovi_join);
++            if (error < 0)
++                return error;
++        }
++#endif
+         /* seek detected, flush pes buffer */
+         for (i = 0; i < NB_PID_MAX; i++) {
+             if (ts->pids[i]) {
+@@ -3491,7 +3584,7 @@
+     return 0;
+ }
+ 
+-static int mpegts_read_packet(AVFormatContext *s, AVPacket *pkt)
++static int mpegts_read_packet_unmerged(AVFormatContext *s, AVPacket *pkt)
+ {
+     MpegTSContext *ts = s->priv_data;
+     int ret, i;
+@@ -3521,10 +3614,104 @@
+     return ret;
+ }
+ 
++static int mpegts_read_packet(AVFormatContext *s, AVPacket *pkt)
++{
++#if CONFIG_LIBDOVI
++    MpegTSContext *ts = s->priv_data;
++    int ret;
++    if (!ts->merge_dovi)
++        return mpegts_read_packet_unmerged(s, pkt);
++    if (ts->dovi_join && avio_tell(s->pb) != ts->last_pos) {
++        ret = ff_dovi_join_flush(ts->dovi_join);
++        if (ret < 0)
++            return ts->dovi_error = ret;
++    }
++    for (;;) {
++        if (ts->dovi_error)
++            return ts->dovi_error;
++        if (ts->dovi_join) {
++            ret = ff_dovi_join_receive(ts->dovi_join, pkt);
++            if (ret != AVERROR(EAGAIN))
++                return ret;
++        }
++        /* FFmpeg drops unmapped PES streams. The dependent EL is an input
++         * to the selected BL even though it never emits a separate packet. */
++        if (ts->dovi_base_pid)
++            for (unsigned i = 0; i < s->nb_streams; i++)
++                if (s->streams[i]->id == ts->dovi_base_pid || s->streams[i]->id == ts->dovi_el_pid)
++                    s->streams[i]->discard = AVDISCARD_NONE;
++        ret = mpegts_read_packet_unmerged(s, pkt);
++        if (ts->dovi_error) {
++            av_packet_unref(pkt);
++            return ts->dovi_error;
++        }
++        if (ret < 0) {
++            if (ret == AVERROR_EOF && ts->dovi_join) {
++                ret = ff_dovi_join_finish(ts->dovi_join);
++                return ret < 0 ? ret : ff_dovi_join_receive(ts->dovi_join, pkt);
++            }
++            return ret;
++        }
++        if (!ts->dovi_base_pid)
++            return 0;
++        AVStream *bl = NULL, *el = NULL;
++        for (unsigned i = 0; i < s->nb_streams; i++) {
++            if (s->streams[i]->id == ts->dovi_base_pid)
++                bl = s->streams[i];
++            if (s->streams[i]->id == ts->dovi_el_pid)
++                el = s->streams[i];
++        }
++        if (!bl || !el) {
++            av_packet_unref(pkt);
++            return ts->dovi_error = AVERROR_INVALIDDATA;
++        }
++        if (!ts->dovi_join) {
++            AVProgram *program = av_find_program_from_stream(s, NULL, bl->index);
++            int found = 0;
++            if (program && program->id == ts->dovi_program)
++                for (unsigned i = 0; i < program->nb_stream_indexes; i++)
++                    found |= program->stream_index[i] == el->index;
++            if (!found || (ret = ff_dovi_join_alloc(&ts->dovi_join, s, bl, el)) < 0) {
++                av_packet_unref(pkt);
++                return ts->dovi_error = found ? ret : AVERROR_INVALIDDATA;
++            }
++            size_t size;
++            AVDOVIDecoderConfigurationRecord *config = av_dovi_alloc(&size);
++            if (!config) {
++                av_packet_unref(pkt);
++                return ts->dovi_error = AVERROR(ENOMEM);
++            }
++            *config = ts->dovi_config;
++            config->bl_present_flag = 1;
++            if (!av_packet_side_data_add(&bl->codecpar->coded_side_data,
++                    &bl->codecpar->nb_coded_side_data, AV_PKT_DATA_DOVI_CONF,
++                    (uint8_t *)config, size, 0)) {
++                av_free(config);
++                av_packet_unref(pkt);
++                return ts->dovi_error = AVERROR(ENOMEM);
++            }
++            ffstream(bl)->need_parsing = AVSTREAM_PARSE_HEADERS;
++            ffstream(bl)->need_context_update = 1;
++        }
++        if (pkt->stream_index != bl->index && pkt->stream_index != el->index)
++            return 0;
++        ret = ff_dovi_join_push(ts->dovi_join, pkt->stream_index == el->index, pkt);
++        av_packet_unref(pkt);
++        if (ret < 0)
++            return ts->dovi_error = ret;
++    }
++#else
++    return mpegts_read_packet_unmerged(s, pkt);
++#endif
++}
++
+ static void mpegts_free(MpegTSContext *ts)
+ {
+     int i;
+ 
++#if CONFIG_LIBDOVI
++    ff_dovi_join_free(&ts->dovi_join);
++#endif
+     clear_programs(ts);
+ 
+     for (i = 0; i < FF_ARRAY_ELEMS(ts->pools); i++)
+--- /dev/null
++++ b/libavformat/dovi_join.c
+@@ -0,0 +1,288 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later
++ * Bounded opt-in dual-PID Dolby Vision join. No residual reconstruction.
++ * Source PMT authority and stream identity are supplied by the MPEGTS reader.
++ */
++#include <libdovi/rpu_parser.h>
++#include "libavcodec/avcodec.h"
++#include "libavutil/mem.h"
++#include "dovi_join.h"
++
++#define AU_MAX (8 * 1024 * 1024)
++#define QUEUE_MAX 32
++#define BYTES_MAX (32 * 1024 * 1024)
++
++typedef struct JoinLayer {
++    AVCodecParserContext *parser;
++    AVCodecContext *codec;
++    AVPacket *queue[QUEUE_MAX];
++    int poc[QUEUE_MAX];
++    unsigned count;
++    size_t pending;
++} JoinLayer;
++
++struct FFDoviJoin {
++    AVFormatContext *format;
++    JoinLayer layers[2];
++    size_t queued;
++    int stream_index;
++    int error;
++    int finished;
++};
++
++static int fail(FFDoviJoin *join, int error)
++{
++    join->error = error;
++    av_log(join->format, AV_LOG_ERROR, "Dolby Vision dual-PID join failed; refusing unmatched or unqualified output.\n");
++    return error;
++}
++
++static size_t start(const uint8_t *data, size_t size, size_t from, size_t *prefix)
++{
++    for (size_t i = from; i + 2 < size; i++) {
++        if (data[i] || data[i+1])
++            continue;
++        if (data[i+2] == 1) {
++            *prefix = 3;
++            return i;
++        }
++        if (!data[i+2] && i + 3 < size && data[i+3] == 1) {
++            *prefix = 4;
++            return i;
++        }
++    }
++    *prefix = 0;
++    return size;
++}
++
++static int inspect(const AVPacket *packet, int el, size_t *extra)
++{
++    size_t prefix, at = start(packet->data, packet->size, 0, &prefix);
++    int rpus = 0, pictures = 0;
++    if (at || !prefix)
++        return AVERROR_INVALIDDATA;
++    *extra = 0;
++    while (at < (size_t)packet->size) {
++        size_t next_prefix, next = start(packet->data, packet->size, at + prefix, &next_prefix);
++        const uint8_t *nal = packet->data + at + prefix;
++        size_t size = next - at - prefix;
++        if (size < 2 || !(nal[1] & 7) || (nal[0] & 0x80))
++            return AVERROR_INVALIDDATA;
++        int type = (nal[0] >> 1) & 63;
++        pictures += type <= 31;
++        if (type == 63 || (!el && type == 62))
++            return AVERROR_INVALIDDATA;
++        if (type == 62) {
++            DoviRpuOpaque *rpu = dovi_parse_unspec62_nalu(nal, size);
++            const DoviRpuDataHeader *header = rpu && !dovi_rpu_get_error(rpu) ? dovi_rpu_get_header(rpu) : NULL;
++            int valid = header && header->guessed_profile == 7;
++            dovi_rpu_free_header(header);
++            dovi_rpu_free(rpu);
++            if (!valid)
++                return AVERROR_INVALIDDATA;
++            rpus++;
++        }
++        if (el)
++            *extra += 4 + size + (type != 62 ? 2 : 0);
++        at = next;
++        prefix = next_prefix;
++    }
++    return pictures && rpus == el ? 0 : AVERROR_INVALIDDATA;
++}
++
++static int queue_au(FFDoviJoin *join, JoinLayer *layer, uint8_t *data, int size)
++{
++    if (size <= 0 || size > AU_MAX || layer->count >= QUEUE_MAX || join->queued + size > BYTES_MAX ||
++        layer->parser->pts == AV_NOPTS_VALUE || layer->parser->dts == AV_NOPTS_VALUE)
++        return fail(join, AVERROR_INVALIDDATA);
++    AVPacket *packet = av_packet_alloc();
++    if (!packet)
++        return fail(join, AVERROR(ENOMEM));
++    int ret = av_new_packet(packet, size);
++    if (ret < 0) {
++        av_packet_free(&packet);
++        return fail(join, ret);
++    }
++    memcpy(packet->data, data, size);
++    packet->pts = layer->parser->pts;
++    packet->dts = layer->parser->dts;
++    packet->pos = layer->parser->pos;
++    if (layer->parser->key_frame == 1)
++        packet->flags |= AV_PKT_FLAG_KEY;
++    layer->poc[layer->count] = layer->parser->output_picture_number;
++    layer->queue[layer->count++] = packet;
++    join->queued += size;
++    layer->pending -= FFMIN(layer->pending, (size_t)size);
++    return 0;
++}
++
++static int parse(FFDoviJoin *join, int which, const AVPacket *packet)
++{
++    JoinLayer *layer = &join->layers[which];
++    const uint8_t *data = packet ? packet->data : NULL;
++    int size = packet ? packet->size : 0;
++    int64_t pts = packet ? packet->pts : AV_NOPTS_VALUE;
++    int64_t dts = packet ? packet->dts : AV_NOPTS_VALUE;
++    int64_t pos = packet ? packet->pos : -1;
++    int got = 1;
++    if (size < 0 || size > AU_MAX || layer->pending + size > AU_MAX ||
++        (packet && packet->flags & AV_PKT_FLAG_CORRUPT))
++        return fail(join, AVERROR_INVALIDDATA);
++    layer->pending += size;
++    while (size > 0 || (!packet && got)) {
++        uint8_t *out;
++        int out_size;
++        int consumed = av_parser_parse2(layer->parser, layer->codec, &out, &out_size,
++                                        data, size, pts, dts, pos);
++        if (consumed < 0 || consumed > size || (!consumed && !out_size && size))
++            return fail(join, AVERROR_INVALIDDATA);
++        pts = dts = AV_NOPTS_VALUE;
++        pos = -1;
++        data = consumed ? data + consumed : data;
++        size -= consumed;
++        got = !!out_size;
++        if (out_size) {
++            int ret = queue_au(join, layer, out, out_size);
++            if (ret < 0)
++                return ret;
++        }
++    }
++    return 0;
++}
++
++int ff_dovi_join_alloc(FFDoviJoin **out, AVFormatContext *format, AVStream *bl, AVStream *el)
++{
++    if (*out || bl == el || bl->codecpar->codec_id != AV_CODEC_ID_HEVC || el->codecpar->codec_id != AV_CODEC_ID_HEVC ||
++        av_cmp_q(bl->time_base, el->time_base))
++        return AVERROR_INVALIDDATA;
++    FFDoviJoin *join = av_mallocz(sizeof(*join));
++    if (!join)
++        return AVERROR(ENOMEM);
++    join->format = format;
++    join->stream_index = bl->index;
++    for (int i = 0; i < 2; i++) {
++        JoinLayer *layer = &join->layers[i];
++        layer->codec = avcodec_alloc_context3(NULL);
++        layer->parser = av_parser_init(AV_CODEC_ID_HEVC);
++        if (!layer->codec || !layer->parser) {
++            ff_dovi_join_free(&join);
++            return AVERROR(ENOMEM);
++        }
++        int ret = avcodec_parameters_to_context(layer->codec, (i ? el : bl)->codecpar);
++        if (ret < 0) {
++            ff_dovi_join_free(&join);
++            return ret;
++        }
++    }
++    *out = join;
++    return 0;
++}
++
++int ff_dovi_join_push(FFDoviJoin *join, int which, const AVPacket *packet)
++{
++    if (join->error)
++        return join->error;
++    if (which < 0 || which > 1 || !packet || join->finished)
++        return fail(join, AVERROR(EINVAL));
++    return parse(join, which, packet);
++}
++
++int ff_dovi_join_receive(FFDoviJoin *join, AVPacket *packet)
++{
++    if (join->error)
++        return join->error;
++    JoinLayer *bl = &join->layers[0], *el = &join->layers[1];
++    if (!bl->count || !el->count) {
++        if (join->finished)
++            return bl->count || el->count ? fail(join, AVERROR_INVALIDDATA) : AVERROR_EOF;
++        return AVERROR(EAGAIN);
++    }
++    AVPacket *base = bl->queue[0], *enhancement = el->queue[0];
++    if (base->pts != enhancement->pts || base->dts != enhancement->dts || bl->poc[0] != el->poc[0])
++        return fail(join, AVERROR_INVALIDDATA);
++    size_t extra;
++    if (inspect(base, 0, &extra) < 0 || inspect(enhancement, 1, &extra) < 0 || extra + base->size > AU_MAX)
++        return fail(join, AVERROR_INVALIDDATA);
++    int ret = av_new_packet(packet, base->size + extra);
++    if (ret < 0)
++        return fail(join, ret);
++    ret = av_packet_copy_props(packet, base);
++    if (ret < 0) {
++        av_packet_unref(packet);
++        return fail(join, ret);
++    }
++    packet->stream_index = join->stream_index;
++    memcpy(packet->data, base->data, base->size);
++    uint8_t *write = packet->data + base->size;
++    size_t prefix, at = start(enhancement->data, enhancement->size, 0, &prefix);
++    while (at < (size_t)enhancement->size) {
++        size_t next_prefix, next = start(enhancement->data, enhancement->size, at + prefix, &next_prefix);
++        const uint8_t *nal = enhancement->data + at + prefix;
++        size_t size = next - at - prefix;
++        memcpy(write, "\0\0\0\1", 4); write += 4;
++        if (((nal[0] >> 1) & 63) != 62) {
++            *write++ = 0x7e;
++            *write++ = 1;
++        }
++        memcpy(write, nal, size); write += size;
++        at = next; prefix = next_prefix;
++    }
++    join->queued -= base->size + enhancement->size;
++    for (int i = 0; i < 2; i++) {
++        JoinLayer *layer = &join->layers[i];
++        av_packet_free(&layer->queue[0]);
++        layer->count--;
++        memmove(layer->queue, layer->queue + 1, layer->count * sizeof(*layer->queue));
++        memmove(layer->poc, layer->poc + 1, layer->count * sizeof(*layer->poc));
++    }
++    return 0;
++}
++
++int ff_dovi_join_finish(FFDoviJoin *join)
++{
++    if (join->error)
++        return join->error;
++    if (!join->finished) {
++        for (int i = 0; i < 2; i++) {
++            int ret = parse(join, i, NULL);
++            if (ret < 0)
++                return ret;
++        }
++        join->finished = 1;
++    }
++    return 0;
++}
++
++int ff_dovi_join_flush(FFDoviJoin *join)
++{
++    if (join->error)
++        return join->error;
++    for (int i = 0; i < 2; i++) {
++        JoinLayer *layer = &join->layers[i];
++        for (unsigned j = 0; j < layer->count; j++)
++            av_packet_free(&layer->queue[j]);
++        av_parser_close(layer->parser);
++        layer->parser = av_parser_init(AV_CODEC_ID_HEVC);
++        if (!layer->parser)
++            return fail(join, AVERROR(ENOMEM));
++        layer->count = 0;
++        layer->pending = 0;
++    }
++    join->queued = 0;
++    join->finished = 0;
++    return 0;
++}
++
++void ff_dovi_join_free(FFDoviJoin **ptr)
++{
++    FFDoviJoin *join = *ptr;
++    if (!join)
++        return;
++    for (int i = 0; i < 2; i++) {
++        JoinLayer *layer = &join->layers[i];
++        for (unsigned j = 0; j < layer->count; j++)
++            av_packet_free(&layer->queue[j]);
++        av_parser_close(layer->parser);
++        avcodec_free_context(&layer->codec);
++    }
++    av_freep(ptr);
++}
+--- /dev/null
++++ b/libavformat/dovi_join.h
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#ifndef AVFORMAT_DOVI_JOIN_H
++#define AVFORMAT_DOVI_JOIN_H
++#include "avformat.h"
++typedef struct FFDoviJoin FFDoviJoin;
++int ff_dovi_join_alloc(FFDoviJoin **out, AVFormatContext *format, AVStream *bl, AVStream *el);
++int ff_dovi_join_push(FFDoviJoin *join, int layer, const AVPacket *packet);
++int ff_dovi_join_receive(FFDoviJoin *join, AVPacket *packet);
++int ff_dovi_join_finish(FFDoviJoin *join);
++int ff_dovi_join_flush(FFDoviJoin *join);
++void ff_dovi_join_free(FFDoviJoin **join);
++#endif

@@ -1,0 +1,240 @@
+.search { position: relative; padding: 108px 64px 80px; }
+
+
+.field,.chips,.results { position: relative; }
+
+.field { margin: 0; }
+
+.hint { display: inline-flex; align-items: center; gap: 8px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); white-space: nowrap; }
+
+.hint kbd { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--color-line-strong); font: inherit; font-weight: var(--type-button-weight); }
+
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+
+.results { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 52px 40px; padding-top: 40px; }
+
+.empty { width: 100%; display: flex; flex-direction: column; gap: 48px; }
+
+.emptySection { width: 100%; }
+
+.genres { display: grid; grid-template-columns: repeat(4, minmax(0, 316px)); gap: 16px; }
+
+.genres > * { width: 100%; }
+
+.lives { display: grid; grid-template-columns: repeat(4, minmax(0, 316px)); gap: 16px; }
+
+.lives > * { width: 100%; }
+
+.section { flex: none; min-width: 0; }
+
+.pagedSection { max-width: 100%; width: min(100%, calc(var(--search-preview-count) * var(--search-preview-width) + (var(--search-preview-count) - 1) * 16px)); }
+.pagedRow.pagedRow { --layout-gutter: 0px; margin-top: 0; }
+.pagedRow.pagedRow > header { padding: 0; }
+.pagedRow.pagedRow > div { padding: 0 0 14px; gap: 16px; }
+.pagedRow [data-shelf-index] > * { width: 100%; }
+.followingRow.followingRow > header { display: none; }
+.section[data-group=songs] .pagedRow > div { display: grid; grid-auto-flow: column; grid-template-rows: repeat(4, 58px); gap: 0 16px; }
+@media (max-width: 1023px) {
+  .pagedSection { width: min(100%, calc(var(--search-preview-count) * var(--search-preview-width) + (var(--search-preview-count) - 1) * 12px)); }
+  .pagedRow.pagedRow > div { gap: 12px; }
+  .section[data-group=songs] .pagedRow > div { column-gap: 12px; }
+}
+
+.section header,.recent header,.emptySection header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; min-height: 30px; }
+
+.section header h2,.recent h2,.single h2,.emptySection h2 { font-size: var(--type-row-heading-size); font-weight: var(--type-button-weight); letter-spacing: var(--type-row-heading-tracking); line-height: normal; margin: 0; }
+
+.section header > span,.emptySection header > span { font-size: var(--type-person-title-size); color: var(--color-text-tertiary); }
+
+.section header > button,.recent header > button,.emptySection header > button { margin-left: auto; }
+
+/* The drawn See all: the words, then a 2px-stated 18px right chevron. */
+.seeAll { display: inline-flex; align-items: center; gap: 2px; }
+
+.emptySection header > .trailingLink { flex-direction: row-reverse; }
+.emptySection header > .allGenresLink.allGenresLink { height: auto; min-height: 0; padding: 0 0 0 16px; gap: 2px; font-size: var(--type-person-title-size); font-weight: var(--type-button-weight); line-height: normal; color: var(--color-text-secondary); }
+
+.cards { display: flex; gap: 16px; align-items: start; }
+
+.cards > * { width: calc(150px * var(--search-card-scale)); }
+
+.section[data-group=movies],.section[data-group=shows],.section[data-group=episodes] { width: 100%; }
+
+.section[data-group=movies] .cards,.section[data-group=shows] .cards { display: grid; grid-template-columns: repeat(var(--search-columns),minmax(0,1fr)); }
+
+.section[data-group=movies] .cards > *,.section[data-group=shows] .cards > * { width: 100%; }
+
+.section[data-group=episodes] .cards > * { width: calc((100% - 48px)/4); }
+
+.section[data-group=people] .cards > *,.section[data-group=artists] .cards > * { width: 124px; }
+
+.section[data-group=songs] { flex: 1 1 452px; }
+
+/* Live TV results are the kit's channel cards: the last section takes what's left of its line. */
+.section[data-group=live-tv] { flex: 1 1 auto; }
+
+.section[data-group=live-tv] .cards > * { flex: 1 0 300px; width: auto; }
+
+.liveCard { width: 300px; }
+
+.section[data-group=songs] .cards { display: block; }
+
+.section[data-group=songs] .cards > * { width: 100%; }
+
+.song { display: grid; grid-template-columns: 44px minmax(0,1fr) auto; gap: 14px; align-items: center; width: 100%; height: 58px; padding: 0 12px 0 6px; border: 0; background: transparent; color: inherit; border-radius: 10px; text-align: left; cursor: pointer; }
+
+.song:hover { background: var(--color-raised); }
+
+.song > :first-child { width: 44px; height: 44px; border-radius: 6px; overflow: hidden; }
+
+.song b,.song small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+.song b { font-size: var(--type-body-size); font-weight: var(--type-button-weight); }
+
+.song small { font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+
+.recent,.single,.partial { width: 100%; }
+
+.recent > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.recent > div > button { color: var(--color-text-secondary); font-weight: var(--type-body-strong-weight); }
+.recent[data-compact] header { margin-bottom: 8px; }
+.recent[data-compact] header h2 { font-size: var(--type-row-heading-size); font-weight: var(--type-row-heading-weight); }
+.recent > .recentList { display: block; overflow: hidden; border-radius: 14px; background: var(--color-raised); }
+.recentRow { position: relative; width: 100%; min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 8px 14px; border: 0; background: transparent; color: var(--color-text-secondary); text-align: left; font-size: calc(var(--type-body-size) + .5px); font-weight: var(--type-body-strong-weight); cursor: pointer; }
+.recentRow > svg { flex: none; color: var(--color-text-tertiary); }
+.recentRow + .recentRow::before { content: ''; position: absolute; top: 0; left: 56px; right: 0; height: 1px; background: var(--color-line); }
+.recentRow:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; }
+
+.partial { display: flex; align-items: center; gap: 14px; color: var(--color-text-secondary); padding: 12px 12px 12px 18px; border-radius: 12px; background: var(--color-raised); box-shadow: inset 0 0 0 1px var(--color-line); }
+.partial > button { margin-left: auto; }
+
+.top { width: 100%; display: flex; gap: 24px; align-items: center; }
+
+.top > :nth-child(2) { width: 174px; }
+
+.skeleton { width: 100%; display: grid; grid-template-columns: repeat(7,1fr); gap: 16px; }
+
+.skeletonBlock,.placeholder { display: block; aspect-ratio: 2/3; border-radius: 12px; background: var(--color-raised); }
+
+@media(max-width:1023px) { .search { padding: 80px 20px 110px; }
+
+.results { gap: 30px 20px; padding-top: 24px; }
+
+.empty { gap: 30px; }
+
+.genres { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+
+.lives { display: flex; overflow-x: auto; }
+
+.lives > * { flex: none; width: 316px; }
+
+.hint { display: none; }
+
+.cards { gap: 12px; overflow-x: auto; }
+
+.cards > * { flex: none; width: 132px; }
+
+.section[data-group=movies] .cards,.section[data-group=shows] .cards { display: flex; }
+
+.section[data-group=movies] .cards > *,.section[data-group=shows] .cards > * { width: 118px; }
+
+.section[data-group=episodes] .cards > * { width: 262px; }
+
+.chips { flex-wrap: nowrap; overflow-x: auto; }
+
+.chips > * { flex: none; }
+
+.top { flex-wrap: wrap; }
+
+.section[data-group=live-tv] .cards > * { flex: none; width: min(300px, 84vw); }
+
+.skeleton { grid-template-columns: repeat(3,1fr); }
+ }
+
+.song small > span { margin-left: 14px; }
+.channel { display: flex; align-items: center; gap: 12px; width: 300px; padding: 16px; border-radius: 12px; border: 0; background: var(--color-raised); color: var(--color-text); text-align: left; cursor: pointer; }
+.channel small { color: var(--color-text-tertiary); }
+
+.songSelection { display: flex; align-items: center; gap: 12px; }
+.songSelection > button:last-child { flex: 1; min-width: 0; }
+
+.songSelection[data-selected="true"] .song b { color: var(--color-accent-strong); }
+.songSelection[data-preview="true"] .song { background: color-mix(in srgb,var(--color-accent-strong) 12%,transparent); }
+.songSelection[data-preview="true"] > button[data-variant="row"][aria-pressed="false"] { background: color-mix(in srgb,var(--color-accent-strong) 45%,transparent); box-shadow: inset 0 0 0 2px var(--color-accent-strong); }
+.sectionActions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.section .selectGroup { opacity: 0; }
+.section:hover .selectGroup,.section:focus-within .selectGroup { opacity: 1; }
+@media (pointer: coarse) { .section .selectGroup { opacity: 1; } }
+
+/* Frame 4: the phone search bar is the app's field and Cancel, not the desktop field. */
+.sbar { position: relative; }
+@media (max-width: 599px) {
+  .sbar { display: flex; align-items: center; gap: 10px; }
+  .sbar .field { flex: 1; min-width: 0; }
+  .sbar .cancel[data-variant='text'] { flex: none; color: var(--color-text-secondary); font-size: var(--type-fixed-size-15point-5px); font-weight: var(--type-fixed-weight-600); }
+  /* The drawn top result: the title's own art behind it, the artist's circle when it has
+     one, its real facts, and Play only where this title really plays. */
+  .phoneTop { position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-height: 148px; margin: 14px 0 2px; padding: 14px 16px; border-radius: 14px; overflow: hidden; background: var(--color-raised); isolation: isolate; }
+  .phoneTopBg { position: absolute; inset: -30%; width: 160%; height: 160%; object-fit: cover; filter: blur(40px) saturate(1.4); opacity: .5; z-index: -1; }
+  .phoneTopOpen { position: absolute; inset: 0; z-index: 0; border: 0; background: transparent; cursor: pointer; }
+  .phoneTopOpen:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; border-radius: 14px; }
+  .phoneTopRing { position: relative; z-index: 1; flex: none; display: grid; pointer-events: none; place-items: center; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; background: var(--color-raised-high); box-shadow: 0 16px 30px -12px var(--color-shadow), 0 0 0 3px color-mix(in srgb, var(--color-text) 14%, transparent); font-size: var(--type-fixed-size-30px); font-weight: var(--type-fixed-weight-800); }
+  .phoneTopRing > * { width: 100%; height: 100%; }
+  .phoneTopCopy { position: relative; z-index: 1; flex: 1; min-width: 0; pointer-events: none; }
+  .phoneTopCopy > small { display: block; font-size: var(--type-fixed-size-12point-5px); font-weight: var(--type-fixed-weight-700); color: var(--color-accent-strong); }
+  .phoneTopCopy > b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; margin: 3px 0 4px; font-size: var(--type-fixed-size-25px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-035em); line-height: var(--type-fixed-line-1point-05); }
+  .phoneTopCopy > :last-child { font-size: var(--type-fixed-size-13px); color: var(--color-text-secondary); }
+  .phoneTopPlay { position: relative; z-index: var(--layer-content); flex: none; width: 46px; height: 46px; border-radius: 50%; }
+}
+
+/* Desktop-search frame 3: a full-width Songs answer carries the Music library's columns. */
+.resultTotal { margin-left: 12px; font-size: var(--type-person-title-size); font-weight: var(--type-fixed-weight-400); color: var(--color-text-tertiary); }
+.songColumns,.songTableRow { display: grid; grid-template-columns: 44px minmax(0,2.3fr) minmax(0,1.25fr) minmax(0,1.7fr) 64px 64px; align-items: center; gap: 14px; }
+.songColumns { padding: 0 12px 8px 6px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.songColumns > :nth-child(n+5) { text-align: right; }
+.songTableRow { position: relative; width: 100%; min-height: 58px; padding: 0 12px 0 6px; border-radius: 10px; }
+.songTableRow:hover { background: var(--color-raised); }
+.songTableRow[data-selected="true"] .songTitleCell b { color: var(--color-accent-strong); }
+.songTableRow[data-preview="true"] { background: color-mix(in srgb,var(--color-accent-strong) 12%,transparent); }
+.songIndex { display: grid; place-items: center; font-size: var(--type-caption-size); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.songTitleCell { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.songTitleCell > :first-child { flex: none; width: 44px; height: 44px; border-radius: 6px; overflow: hidden; }
+.songTitleCell b { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--type-body-size); font-weight: var(--type-button-weight); }
+/* music-plus f8: the song's own notable formats, outlined, never filled; the title shrinks first. */
+.songTitleText { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.songTitleText > b { min-width: 0; }
+.songBadge { flex: none; display: inline-flex; align-items: center; height: 20px; padding: 0 6px; margin-left: 2px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--color-text) 30%, transparent); font-size: var(--type-fixed-size-11point-5px); font-weight: var(--type-fixed-weight-700); letter-spacing: var(--type-fixed-tracking-point-01em); line-height: normal; color: var(--color-text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.songArtist,.songAlbum,.songPlays,.songLength { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.songPlays,.songLength { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 599px) {
+  .songColumns,.songTableRow { grid-template-columns: 32px minmax(0,1fr) 52px; gap: 10px; }
+  .songColumns > :nth-child(3),.songColumns > :nth-child(4),.songColumns > :nth-child(5),
+  .songArtist,.songAlbum,.songPlays { display: none; }
+  .songColumns > :nth-child(6) { text-align: right; }
+}
+.songIndexPlay { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--color-text-tertiary); font: inherit; cursor: pointer; }
+.songIndexPlay > svg { display: none; }
+.songIndexPlay:hover > span,.songIndexPlay:focus-visible > span { display: none; }
+.songIndexPlay:hover > svg,.songIndexPlay:focus-visible > svg { display: block; }
+.songIndexPlay:hover,.songIndexPlay:focus-visible { background: var(--color-raised-high); color: var(--color-text); }
+
+/* Frame 4: the phone field's query is the app's 600 weight, and its song rows keep
+   the artist only, never the album line the desktop row adds. */
+@media (max-width: 599px) {
+  .sbar .field input { font-weight: var(--type-body-strong-weight); }
+  .song small > span { display: none; }
+}
+
+/* Phone-app 7: the Search title sits above the field until the viewer types; frame 4's
+   Cancel then takes over in the bar. */
+@media (max-width: 599px) {
+  .phoneSearchTitle { margin: 0 0 12px; font-size: var(--type-fixed-size-2rem); line-height: var(--type-fixed-line-1point-15); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-035em); }
+}
+
+/* Phone-app 7: each recent search keeps its own remove control beside the row. */
+.recentItem { position: relative; }
+.recentItem + .recentItem .recentRow::before { content: ''; position: absolute; top: 0; left: 56px; right: 0; height: 1px; background: var(--color-line); }
+.recent[data-compact] .recentRow { padding-right: 48px; }
+.recentRemove { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--color-text-tertiary); }
+
+.resultStatus { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }

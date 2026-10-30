@@ -1,0 +1,48 @@
+.canvas { position: relative; width: 100%; height: 100%; padding: 24px; }
+.anchor { position: absolute; left: 90px; top: 24px; }
+.menuYear { margin-left: 10px; font-size: 14px; line-height: normal; font-weight: 600; letter-spacing: 0; color: var(--color-text-tertiary); }
+.toolbar { display: flex; align-items: center; gap: 16px; height: 52px; }
+.output { position: absolute; left: 24px; bottom: 24px; }
+.sortRows > button { height: 36px; }
+.sortOrder { margin: 2px 4px 6px; background: var(--color-raised); }
+.sortHeading { margin: 0; padding: 10px 12px 6px; font-size: 13px; font-weight: 700; line-height: normal; color: var(--color-text-tertiary); }
+.surfaceCopy { margin: 0; }
+.destructive.destructive { color: var(--color-record); background: rgba(241,121,121,.14); }
+.recordingDialog { --overlay-width: 436px; }
+.historyDialog { padding: 28px 28px 24px; border-radius: 18px; background: var(--color-raised-high); }
+.historyDialog h2 { margin: 0 0 10px; font-size: 22px; letter-spacing: -.02em; line-height: normal; }
+.historyDialog footer { margin-top: 24px; }
+.bannerPosition { width: max-content; max-width: calc(100% - 24px); position: absolute; top: 92px; left: 50%; translate: -50% 0; }
+.noticePosition { position: absolute; inset: 60px 12px auto; }
+.toastPosition { position: absolute; bottom: 28px; left: 50%; translate: -50% 0; white-space: nowrap; }
+.toastBackplate, .bannerBackplate { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 480px; height: 200px; overflow: hidden; border-radius: 12px; }
+.toastBackplate .toastPosition { bottom: 22px; }
+.referencePosters { position: absolute; left: 24px; top: 22px; display: flex; gap: 16px; opacity: .55; }
+.referencePosters img { display: block; width: 130px; height: 195px; object-fit: cover; border-radius: 10px; }
+.referenceBackdrop, .bannerBackdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.bannerBackdrop { object-position: 70% 20%; filter: brightness(.55); }
+.confirmBackplate { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 480px; height: 300px; overflow: hidden; border-radius: 12px; }
+.phoneBannerBackplate { position: absolute; inset: 0; width: 390px; height: 200px; overflow: hidden; border-radius: 12px; }
+.phoneBannerBackplate .bannerBackdrop { object-position: 62% 20%; }
+.phoneBannerBackplate .bannerPosition { top: 106px; }
+
+.historyDialog.historyDialog footer > button { height: 44px; padding: 0 20px; font-size: 15.5px; }
+.harnessControls { display: flex; flex-wrap: wrap; gap: 12px; }
+.anchoredTrigger { position: absolute; left: 20px; bottom: 80px; }
+.harnessBody { display: grid; gap: 12px; }
+
+.recordingDialog footer > button { font-size: 15px; gap: 8px; }
+
+.versionChoice > span:first-child { color: var(--color-accent-strong); background: rgba(64,159,212,.18); }
+
+.sortOrder.sortOrder { display: flex; box-shadow: none; }
+.sortOrder [role="radio"] { flex: 1; padding: 0 12px; }
+.sortOrder [role="radio"][aria-checked="true"] { background: var(--color-raised-bright); box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+
+.phoneRecordingSheet { padding-bottom: 22px; }
+.phoneRecordingHeader > div:nth-child(2) { padding: 4px 20px 2px; }
+.phoneRecordingBody > div { display: flow-root; }
+.phoneRecordingBody p { margin: 6px 20px 0; font-size: 14px; line-height: 1.5; color: var(--color-text-secondary); }
+.phoneRecordingBody p b { color: var(--color-text); }
+.phoneRecordingActions { display: flex; flex-direction: column; gap: 10px; margin: 20px 16px 0; }
+.phoneRecordingActions.phoneRecordingActions > button { width: 100%; height: 50px; border-radius: 10px; font-size: 15px; }

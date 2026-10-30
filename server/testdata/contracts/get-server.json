@@ -1,0 +1,15 @@
+{
+  "schema": "GetServerResponse",
+  "method": "GET",
+  "path": "/v1/server",
+  "status": 200,
+  "response": {
+    "id": "JbRYJAtcoMWqZLxoWk8Lmxf6icHUJ0hhEQn62KHzw-Q",
+    "name": "Portico",
+    "api": {
+      "major": 1,
+      "level": 1
+    },
+    "setupRequired": false
+  }
+}

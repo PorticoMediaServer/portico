@@ -1,0 +1,21 @@
+{
+  "package": "react-native-webview",
+  "version": "16.0.0",
+  "files": [
+    {
+      "path": "apple/RNCWebViewImpl.m",
+      "beforeSHA256": "850f01b6e92d24c1675ea4754480108b405ccfbfa1746fced4eb52fa0b03b63b",
+      "afterSHA256": "b932df0c086182dd39fbf3fdf7b216a8c2e762ee2b6afac11bed3786f97af6c5",
+      "replacements": [
+        {
+          "before": "#import \"objc/runtime.h\"",
+          "after": "#import \"objc/runtime.h\"\n\n// Optional app-owned local Read assets; no WebKit or trust overrides.\nextern void PorticoConfigureReaderWebView(WKWebViewConfiguration *configuration) __attribute__((weak_import));"
+        },
+        {
+          "before": "  [self resetupScripts:wkWebViewConfig];",
+          "after": "  [self resetupScripts:wkWebViewConfig];\n  if (PorticoConfigureReaderWebView != NULL) {\n    PorticoConfigureReaderWebView(wkWebViewConfig);\n  }"
+        }
+      ]
+    }
+  ]
+}

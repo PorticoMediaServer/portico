@@ -1,0 +1,38 @@
+name: portico-media-server
+arch: ${PORTICO_PACKAGE_ARCH}
+platform: linux
+version: ${PORTICO_PACKAGE_VERSION}
+section: video
+priority: optional
+maintainer: Justin Ehler <https://ehler.ca>
+description: Free personal media server for organizing and streaming your media.
+vendor: Portico
+homepage: https://getportico.tv
+license: GPL-3.0-or-later
+contents:
+  - src: ${PORTICO_PACKAGE_ROOT}/portico-server
+    dst: /usr/lib/portico-media-server/portico-server
+    file_info:
+      mode: 0755
+  - src: ${PORTICO_PACKAGE_ROOT}/third_party/
+    dst: /usr/lib/portico-media-server/third_party
+    type: tree
+  - src: ${PORTICO_PACKAGE_ROOT}/web/
+    dst: /usr/lib/portico-media-server/web
+    type: tree
+  - src: ${PORTICO_PACKAGE_ROOT}/manifest.json
+    dst: /usr/lib/portico-media-server/manifest.json
+  - src: ${PORTICO_PACKAGE_ROOT}/manifest.sig
+    dst: /usr/lib/portico-media-server/manifest.sig
+  - src: ${PORTICO_PACKAGE_ROOT}/LICENSE
+    dst: /usr/share/doc/portico-media-server/LICENSE
+  - src: ${PORTICO_PACKAGE_ROOT}/THIRD-PARTY-NOTICES.md
+    dst: /usr/share/doc/portico-media-server/THIRD-PARTY-NOTICES.md
+  - src: ${PORTICO_PACKAGE_ROOT}/licenses/
+    dst: /usr/share/doc/portico-media-server/licenses
+    type: tree
+  - src: packaging/linux/portico-media-server.service
+    dst: /usr/lib/systemd/system/portico-media-server.service
+scripts:
+  postinstall: packaging/linux/postinstall.sh
+  preremove: packaging/linux/preremove.sh

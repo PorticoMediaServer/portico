@@ -1,0 +1,12 @@
+/* Local narrow-screen layout for the original controls, without changing their state or focus. */
+@media (max-width: 599px) {
+  .rows { min-width: 0; max-width: 100%; }
+  .selectRow.selectRow, .numberRow.numberRow { grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; max-width: 100%; }
+  .selectRow > div, .numberRow > div { min-width: 0; max-width: 100%; }
+  .selectRow > div:nth-child(2), .numberRow > div:nth-child(2) { justify-content: flex-start; }
+  .selectField.selectField { width: 100%; min-width: 0; max-width: 100%; }
+  .select.select { width: 100%; min-width: 0; max-width: 100%; height: auto; min-height: 40px; padding-block: 8px; }
+  .select > span:first-child { min-width: 0; overflow: visible; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+  .numberRow > div:nth-child(2) > div { min-width: 0; max-width: 100%; }
+  .numberRow > div:nth-child(2) > span { flex: none; }
+}

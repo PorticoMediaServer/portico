@@ -1,0 +1,20 @@
+{
+  "schema": "GetDirectProfileRestrictionsResponse",
+  "method": "GET",
+  "path": "/v1/direct/profiles/profile/restrictions",
+  "auth": "owner",
+  "status": 200,
+  "response": {
+    "profileId": "profile",
+    "ratingSystem": "",
+    "maximumAgeRating": "",
+    "maximumAge": -1,
+    "allowUnrated": true,
+    "blockedLabels": [],
+    "allowDownloads": true,
+    "allowLiveTv": true,
+    "allowDvr": true,
+    "allowWatchTogether": true,
+    "revision": 1
+  }
+}

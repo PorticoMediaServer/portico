@@ -1,0 +1,192 @@
+name: Full deterministic inventory
+# Schedule held until bootstrap is green; exact diagnostic ownership below.
+on: workflow_dispatch
+permissions:
+  contents: read
+concurrency:
+  group: nightly-full
+  cancel-in-progress: false
+jobs:
+  hygiene:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s ci -p 'test_*.py'
+      - run: python3 ci/source_guard.py
+      - run: bash ci/secret-scan.sh
+  planner:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    outputs:
+      go_matrix: ${{ steps.plan.outputs.go_matrix }}
+      go: ${{ steps.plan.outputs.go }}
+      js: ${{ steps.plan.outputs.js }}
+      android: ${{ steps.plan.outputs.android }}
+      js_matrix: ${{ steps.plan.outputs.js_matrix }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: |
+            server/go.sum
+            apikit/go.sum
+      - id: plan
+        env:
+          CI_FULL_PLAN: true
+        run: python3 ci/plan.py --full --tier nightly
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: selection
+          path: ci-plan.json
+  go_build:
+    needs: planner
+    if: needs.planner.outputs.go == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: '**/go.sum'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: selection
+      - run: python3 ci/run.py download
+      - run: python3 ci/run.py build
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: playback-helper
+          path: ci-tools/portico-server
+          if-no-files-found: error
+  go_tests:
+    needs: planner
+    if: needs.planner.outputs.go == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.planner.outputs.go_matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: '**/go.sum'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: selection
+      - run: python3 ci/run.py download
+      - run: python3 ci/run.py ffmpeg --index '${{ matrix.index }}'
+      - run: python3 ci/run.py go --index '${{ matrix.index }}'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ !cancelled() }}
+        with:
+          name: go-${{ matrix.index }}
+          path: ci-results/
+  js:
+    needs: planner
+    if: needs.planner.outputs.js == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.planner.outputs.js_matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: '**/go.sum'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: ${{ matrix.component == 'apps/desktop' && 'apps/desktop/.node-version' || '.node-version' }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/*/package-lock.json
+            website/package-lock.json
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: selection
+      - env:
+          COMPONENT: ${{ matrix.component }}
+        run: python3 ci/run.py ffmpeg --component "$COMPONENT"
+      - name: Install owning lockfiles
+        env:
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          npm ci
+          case "$COMPONENT" in
+            apps/*|website) (cd "$COMPONENT" && npm ci --legacy-peer-deps --workspaces=false) ;;
+          esac
+      - env:
+          COMPONENT: ${{ matrix.component }}
+        run: python3 ci/run.py js --component "$COMPONENT"
+  android:
+    needs: planner
+    if: needs.planner.outputs.android == 'true'
+    uses: ./.github/workflows/android-tests.yml
+  diagnostic:
+    needs: [planner, go_build]
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [pressure, golden]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: '**/go.sum'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: selection
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: playback-helper
+          path: ci-tools
+      - run: python3 ci/run.py download
+      - env:
+          LANE: ${{ matrix.lane }}
+        run: python3 ci/nightly_lane.py "$LANE"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: diagnostic-${{ matrix.lane }}
+          path: ci-results/
+  merge:
+    name: ci/nightly/full
+    if: ${{ !cancelled() }}
+    needs: [planner, hygiene, go_build, go_tests, js, android, diagnostic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: selection
+      - env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 ci/run.py aggregate --needs "$RESULTS"
+          python3 -c 'import json,os; assert json.loads(os.environ["RESULTS"])["diagnostic"]["result"] == "success"'

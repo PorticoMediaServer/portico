@@ -1,0 +1,28 @@
+.tableScroll { max-width: 100%; overflow-x: auto; }
+.libraryTable { width: 100%; min-width: 680px; border-collapse: collapse; font-size: var(--type-caption-size); }
+.libraryTable caption { text-align: left; padding: 12px 0; font-weight: var(--type-row-heading-weight); color: var(--color-text); }
+.libraryTable th, .libraryTable td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--color-line); }
+.libraryTable thead th { font-weight: var(--type-row-heading-weight); color: var(--color-text-tertiary); }
+.libraryTable tbody th { font-weight: var(--type-row-heading-weight); color: var(--color-text); }
+.libraryTable select { width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid var(--color-line); border-radius: 8px; color: var(--color-text); background: var(--color-raised); font: inherit; }
+.libraryTable select:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.libraryTable select:disabled { opacity: .6; }
+.usage { display: block; width: 100%; height: 8px; margin-top: 12px; accent-color: var(--color-accent); }
+.saveBar { position: sticky; bottom: var(--shell-tab-height, 0px); display: flex; justify-content: flex-end; gap: 12px; padding: 16px; background: var(--color-raised); border-top: 1px solid var(--color-line); }
+
+.pending { margin-right: auto; align-self: center; color: var(--color-text-secondary); font-size: var(--type-caption-size); }
+@media (max-width: 599px) {
+  .tableScroll { overflow: visible; }
+  .libraryTable { display: block; min-width: 0; }
+  .libraryTable caption { display: block; }
+  .libraryTable thead { display: none; }
+  .libraryTable tbody { display: grid; gap: 12px; }
+  .libraryTable tr { display: block; padding: 16px; border: 1px solid var(--color-line); border-radius: 14px; background: var(--color-raised); }
+  .libraryTable tbody th { display: block; padding: 0 0 10px; border: 0; }
+  .libraryTable td { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, 1fr); align-items: center; gap: 10px; padding: 10px 0; }
+  .libraryTable td::before { content: attr(data-label); color: var(--color-text-secondary); }
+  .libraryTable td[data-applicable='false'] { display: none; }
+  .libraryTable td:last-child { border-bottom: 0; }
+  .libraryTable td > button[role='switch'] { justify-self: end; }
+  .saveBar { gap: 8px; padding: 12px 8px; border-radius: 14px 14px 0 0; }
+}

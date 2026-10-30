@@ -1,0 +1,1480 @@
+{
+  "schema": "GetBootstrapResponse",
+  "method": "GET",
+  "path": "/v1/bootstrap",
+  "auth": "viewer",
+  "status": 200,
+  "response": {
+    "server": {
+      "id": "wXMWIpk1BPl8Q3hyDvkEk2pHpv4Ptc78zwRTWsrzeK8",
+      "name": "Fixture",
+      "api": {
+        "major": 1,
+        "level": 1
+      },
+      "setupRequired": false
+    },
+    "capabilities": {
+      "api": {
+        "major": 1,
+        "level": 1
+      },
+      "features": {
+        "downloads": "unavailable",
+        "dvr": "unavailable",
+        "feedback": "enabled",
+        "live_tv": "unavailable",
+        "playback_v1": "enabled",
+        "playback_v1_kinds": "movie,episode,video,audiobook,audiobook_file,book,song,track",
+        "queueTransitions": "enabled",
+        "subtitle_burn_in": "enabled",
+        "transcoding": "enabled",
+        "watch_together": "enabled"
+      },
+      "limits": {
+        "bulkJobsActiveMax": 32,
+        "downloadBatchMax": 100,
+        "longPollMaxMs": 25000,
+        "pageSizeMax": 100,
+        "playlistWriteMax": 200,
+        "queueKeysMax": 10000000,
+        "selectorIdsMax": 500
+      }
+    },
+    "me": {
+      "viewer": {
+        "accountId": "nHlSuHKuwDQw_gWG7Wphasxik01uKhcGrJz3GNgNADA",
+        "profileId": "lsNjBKAq_NahjqkiTJRsWIA2U4zatnFX0WDfe2asYWw",
+        "serverId": "wXMWIpk1BPl8Q3hyDvkEk2pHpv4Ptc78zwRTWsrzeK8",
+        "authority": "local",
+        "role": "owner"
+      }
+    },
+    "libraries": [],
+    "preferences": {
+      "audioEffects": {
+        "neverBoost": false,
+        "smoothTransitions": true,
+        "dsdGainDb": -6,
+        "gapless": true,
+        "crossfadeMs": 0,
+        "normalization": "off"
+      },
+      "deviceClass": "web",
+      "deviceBound": true,
+      "registry": {
+        "revision": "settings.14a.preferences.music.2",
+        "fields": [
+          {
+            "consumer": "client.playback.controls",
+            "step": 1,
+            "key": "playback.skipBackMs",
+            "type": "integer",
+            "default": 10000,
+            "allowedValues": [
+              5000,
+              10000,
+              15000,
+              30000
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.skipBackMs"
+          },
+          {
+            "consumer": "client.playback.controls",
+            "step": 1,
+            "key": "playback.skipForwardMs",
+            "type": "integer",
+            "default": 30000,
+            "allowedValues": [
+              10000,
+              15000,
+              30000,
+              60000
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.skipForwardMs"
+          },
+          {
+            "consumer": "client.playback.continuation",
+            "key": "playback.autoplayNext",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.autoplayNext"
+          },
+          {
+            "consumer": "client.playback.continuation",
+            "step": 1,
+            "key": "playback.upNextCountdownMs",
+            "type": "integer",
+            "default": 10000,
+            "allowedValues": [
+              0,
+              5000,
+              10000,
+              15000
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.upNextCountdownMs"
+          },
+          {
+            "consumer": "client.playback.continuation",
+            "key": "playback.startNextDuringCredits",
+            "type": "boolean",
+            "default": false,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.startNextDuringCredits"
+          },
+          {
+            "consumer": "server.playback.queue_completion",
+            "key": "playback.passoutProtection",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.passoutProtection"
+          },
+          {
+            "consumer": "server.playback.queue_completion",
+            "step": 1,
+            "key": "playback.passoutAfterEpisodes",
+            "type": "integer",
+            "default": 3,
+            "min": 2,
+            "max": 5,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.passoutAfterEpisodes"
+          },
+          {
+            "consumer": "client.playback.markers",
+            "key": "playback.introSkip",
+            "type": "string",
+            "default": "ask",
+            "allowedValues": [
+              "ask",
+              "auto",
+              "off"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.introSkip"
+          },
+          {
+            "consumer": "client.playback.markers",
+            "key": "playback.creditsSkip",
+            "type": "string",
+            "default": "ask",
+            "allowedValues": [
+              "ask",
+              "auto",
+              "off"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.creditsSkip"
+          },
+          {
+            "consumer": "client.playback.markers",
+            "key": "playback.recapSkip",
+            "type": "string",
+            "default": "ask",
+            "allowedValues": [
+              "ask",
+              "auto",
+              "off"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.recapSkip"
+          },
+          {
+            "consumer": "client.playback.speed",
+            "key": "playback.defaultSpeed",
+            "type": "number",
+            "default": 1,
+            "allowedValues": [
+              0.5,
+              0.75,
+              1,
+              1.25,
+              1.5,
+              1.75,
+              2
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.defaultSpeed"
+          },
+          {
+            "consumer": "server.catalog.listening_preferences",
+            "key": "audiobooks.defaultSpeed",
+            "type": "number",
+            "default": 1,
+            "allowedValues": [
+              0.5,
+              0.75,
+              1,
+              1.25,
+              1.5,
+              1.75,
+              2,
+              2.5,
+              3
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "audiobooks",
+            "labelKey": "preferences.audiobooks.defaultSpeed"
+          },
+          {
+            "consumer": "server.catalog.listening_preferences",
+            "step": 1,
+            "key": "playback.sleepTimerMinutes",
+            "type": "integer",
+            "default": 0,
+            "allowedValues": [
+              0,
+              30,
+              60,
+              90,
+              120
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.sleepTimerMinutes"
+          },
+          {
+            "consumer": "server.catalog.personal_activity",
+            "step": 1,
+            "key": "playback.startedThresholdPercent",
+            "type": "integer",
+            "default": 5,
+            "min": 1,
+            "max": 25,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.startedThresholdPercent"
+          },
+          {
+            "consumer": "server.catalog.personal_activity",
+            "step": 1,
+            "key": "playback.playedThresholdPercent",
+            "type": "integer",
+            "default": 95,
+            "min": 75,
+            "max": 100,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.playedThresholdPercent"
+          },
+          {
+            "consumer": "client.playback.tracks",
+            "key": "playback.preferredAudioLanguages",
+            "type": "languageList",
+            "default": [
+              "@appLanguage",
+              "@original"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.preferredAudioLanguages"
+          },
+          {
+            "consumer": "client.playback.tracks",
+            "key": "playback.preferredSubtitleLanguages",
+            "type": "languageList",
+            "default": [
+              "@appLanguage"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.preferredSubtitleLanguages"
+          },
+          {
+            "consumer": "client.playback.subtitles",
+            "key": "playback.subtitleMode",
+            "type": "string",
+            "default": "foreign",
+            "allowedValues": [
+              "off",
+              "foreign",
+              "forced",
+              "always"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.subtitleMode"
+          },
+          {
+            "consumer": "client.playback.subtitles",
+            "key": "playback.subtitleSize",
+            "type": "string",
+            "default": "medium",
+            "allowedValues": [
+              "small",
+              "medium",
+              "large",
+              "extra-large"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.subtitleSize"
+          },
+          {
+            "consumer": "client.playback.subtitles",
+            "key": "playback.subtitleBackground",
+            "type": "string",
+            "default": "translucent",
+            "allowedValues": [
+              "none",
+              "outline",
+              "shadow",
+              "translucent",
+              "opaque"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.subtitleBackground"
+          },
+          {
+            "consumer": "client.subtitlePreferences",
+            "key": "playback.subtitleColor",
+            "type": "string",
+            "default": "white",
+            "allowedValues": [
+              "white",
+              "yellow",
+              "cyan",
+              "green",
+              "pink"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.subtitleColor"
+          },
+          {
+            "consumer": "client.subtitlePreferences",
+            "key": "playback.subtitlePosition",
+            "type": "string",
+            "default": "bottom",
+            "allowedValues": [
+              "bottom",
+              "raised",
+              "top"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.subtitlePosition"
+          },
+          {
+            "consumer": "client.subtitlePreferences",
+            "key": "playback.subtitleFont",
+            "type": "string",
+            "default": "default",
+            "allowedValues": [
+              "default",
+              "serif",
+              "mono",
+              "rounded"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.subtitleFont"
+          },
+          {
+            "consumer": "client.subtitlePreferences",
+            "key": "playback.keepSubtitleStyling",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.keepSubtitleStyling"
+          },
+          {
+            "consumer": "server.playback.preference_selection",
+            "key": "playback.preferSdhSubtitles",
+            "type": "boolean",
+            "default": false,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.preferSdhSubtitles"
+          },
+          {
+            "consumer": "server.playback.preference_selection",
+            "key": "playback.forcedSubtitleFallback",
+            "type": "string",
+            "default": "none",
+            "allowedValues": [
+              "none",
+              "full"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.forcedSubtitleFallback"
+          },
+          {
+            "consumer": "server.playback.preference_selection",
+            "key": "playback.useUntaggedForced",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.useUntaggedForced"
+          },
+          {
+            "consumer": "server.playback.preference_selection",
+            "key": "playback.audioDescription",
+            "type": "string",
+            "default": "avoid",
+            "allowedValues": [
+              "avoid",
+              "prefer"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.audioDescription"
+          },
+          {
+            "consumer": "server.playback.preference_selection",
+            "key": "playback.audioTrackChoice",
+            "type": "string",
+            "default": "best",
+            "allowedValues": [
+              "best",
+              "channels",
+              "stereo"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.audioTrackChoice"
+          },
+          {
+            "consumer": "client.subtitlePreferences",
+            "key": "playback.useSystemCaptionStyle",
+            "type": "boolean",
+            "default": false,
+            "scopes": [
+              "profile-device"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.useSystemCaptionStyle"
+          },
+          {
+            "consumer": "client.playback.lyrics",
+            "key": "playback.showSyncedLyrics",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "playback",
+            "labelKey": "preferences.playback.showSyncedLyrics"
+          },
+          {
+            "consumer": "server.playback.delivery_policy",
+            "key": "delivery.directPlay",
+            "type": "string",
+            "default": "prefer",
+            "allowedValues": [
+              "allow",
+              "prefer",
+              "never",
+              "require"
+            ],
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "delivery",
+            "labelKey": "preferences.delivery.directPlay"
+          },
+          {
+            "consumer": "server.playback.delivery_policy",
+            "key": "delivery.directStream",
+            "type": "string",
+            "default": "allow",
+            "allowedValues": [
+              "allow",
+              "prefer",
+              "never",
+              "require"
+            ],
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "delivery",
+            "labelKey": "preferences.delivery.directStream"
+          },
+          {
+            "consumer": "server.playback.delivery_policy",
+            "key": "delivery.transcode",
+            "type": "string",
+            "default": "allow",
+            "allowedValues": [
+              "allow",
+              "prefer",
+              "never",
+              "require"
+            ],
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "delivery",
+            "labelKey": "preferences.delivery.transcode"
+          },
+          {
+            "consumer": "server.playback.delivery_policy",
+            "key": "quality.home",
+            "type": "string",
+            "default": "original",
+            "allowedValues": [
+              "original",
+              "automatic",
+              "2160p",
+              "1080p-high",
+              "1080p-low",
+              "720p-high",
+              "720p-low",
+              "480p",
+              "240p"
+            ],
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "quality",
+            "labelKey": "preferences.quality.home"
+          },
+          {
+            "consumer": "server.playback.delivery_policy",
+            "key": "quality.remote",
+            "type": "string",
+            "default": "original",
+            "allowedValues": [
+              "original",
+              "automatic",
+              "2160p",
+              "1080p-high",
+              "1080p-low",
+              "720p-high",
+              "720p-low",
+              "480p",
+              "240p"
+            ],
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "quality",
+            "labelKey": "preferences.quality.remote"
+          },
+          {
+            "consumer": "server.playback.delivery_policy",
+            "key": "music.qualityHome",
+            "type": "string",
+            "default": "original",
+            "allowedValues": [
+              "original",
+              "cd-quality",
+              "320",
+              "96"
+            ],
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "music",
+            "labelKey": "preferences.music.qualityHome"
+          },
+          {
+            "consumer": "server.downloads.quality",
+            "key": "music.qualityDownloads",
+            "type": "string",
+            "default": "320",
+            "allowedValues": [
+              "original",
+              "cd-quality",
+              "320",
+              "96"
+            ],
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "music",
+            "labelKey": "preferences.music.qualityDownloads"
+          },
+          {
+            "consumer": "client.audio_effects",
+            "key": "music.neverBoost",
+            "type": "boolean",
+            "default": false,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "music",
+            "labelKey": "preferences.music.neverBoost"
+          },
+          {
+            "consumer": "client.audio_effects",
+            "key": "music.smoothTransitions",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "music",
+            "labelKey": "preferences.music.smoothTransitions"
+          },
+          {
+            "consumer": "server.playback.audio_conversion",
+            "step": 1,
+            "key": "music.dsdGainDb",
+            "type": "integer",
+            "default": -6,
+            "allowedValues": [
+              0,
+              -3,
+              -6,
+              -9,
+              -12
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "music",
+            "labelKey": "preferences.music.dsdGainDb"
+          },
+          {
+            "consumer": "server.playback.delivery_policy",
+            "key": "music.qualityAway",
+            "type": "string",
+            "default": "320",
+            "allowedValues": [
+              "original",
+              "cd-quality",
+              "320",
+              "96"
+            ],
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "music",
+            "labelKey": "preferences.music.qualityAway"
+          },
+          {
+            "consumer": "server.playback.delivery_policy",
+            "key": "music.qualityMobile",
+            "type": "string",
+            "default": "320",
+            "allowedValues": [
+              "original",
+              "cd-quality",
+              "320",
+              "96"
+            ],
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "music",
+            "labelKey": "preferences.music.qualityMobile"
+          },
+          {
+            "consumer": "client.audio_effects",
+            "key": "music.audioNormalization",
+            "type": "string",
+            "default": "off",
+            "allowedValues": [
+              "off",
+              "track",
+              "album"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "music",
+            "labelKey": "preferences.music.audioNormalization"
+          },
+          {
+            "consumer": "client.audio_effects",
+            "step": 1,
+            "key": "music.crossfadeMs",
+            "type": "integer",
+            "default": 0,
+            "min": 0,
+            "max": 12000,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "music",
+            "labelKey": "preferences.music.crossfadeMs"
+          },
+          {
+            "consumer": "client.audio_effects",
+            "key": "music.gapless",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "music",
+            "labelKey": "preferences.music.gapless"
+          },
+          {
+            "consumer": "server.catalog.personal_activity",
+            "key": "privacy.pauseWatchHistory",
+            "type": "boolean",
+            "default": false,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "privacy",
+            "labelKey": "preferences.privacy.pauseWatchHistory"
+          },
+          {
+            "consumer": "server.catalog.recommendation_engine",
+            "key": "privacy.showActivityToMembers",
+            "type": "boolean",
+            "default": false,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "privacy",
+            "labelKey": "preferences.privacy.showActivityToMembers"
+          },
+          {
+            "consumer": "server.social.privacy",
+            "key": "privacy.includeInWatchTogether",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "privacy",
+            "labelKey": "preferences.privacy.includeInWatchTogether"
+          },
+          {
+            "consumer": "server.httpapi.search_history",
+            "key": "search.rememberHistory",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "search",
+            "labelKey": "preferences.search.rememberHistory"
+          },
+          {
+            "consumer": "client.region",
+            "key": "region.locale",
+            "type": "locale",
+            "default": "auto",
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "region",
+            "labelKey": "preferences.region.locale"
+          },
+          {
+            "consumer": "client.regionPreferences",
+            "key": "region.formats",
+            "type": "locale",
+            "default": "auto",
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "region",
+            "labelKey": "preferences.region.formats"
+          },
+          {
+            "consumer": "client.regionPreferences",
+            "key": "region.dateOrder",
+            "type": "string",
+            "default": "auto",
+            "allowedValues": [
+              "auto",
+              "dmy",
+              "mdy",
+              "ymd"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "region",
+            "labelKey": "preferences.region.dateOrder"
+          },
+          {
+            "consumer": "client.regionPreferences",
+            "key": "region.firstDay",
+            "type": "string",
+            "default": "auto",
+            "allowedValues": [
+              "auto",
+              "mon",
+              "sun",
+              "sat"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "region",
+            "labelKey": "preferences.region.firstDay"
+          },
+          {
+            "consumer": "client.regionPreferences",
+            "key": "region.sizeUnits",
+            "type": "string",
+            "default": "binary",
+            "allowedValues": [
+              "binary",
+              "decimal"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "region",
+            "labelKey": "preferences.region.sizeUnits"
+          },
+          {
+            "consumer": "client.region",
+            "key": "region.hourCycle",
+            "type": "string",
+            "default": "auto",
+            "allowedValues": [
+              "auto",
+              "h12",
+              "h23"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "region",
+            "labelKey": "preferences.region.hourCycle"
+          },
+          {
+            "consumer": "server.catalog.home_layout",
+            "key": "home.rowOrder",
+            "type": "string-list",
+            "default": [],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "home",
+            "labelKey": "preferences.home.rowOrder"
+          },
+          {
+            "consumer": "server.catalog.home_layout",
+            "key": "home.hiddenRowIds",
+            "type": "string-list",
+            "default": [],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "home",
+            "labelKey": "preferences.home.hiddenRowIds"
+          },
+          {
+            "consumer": "client.appearance",
+            "key": "appearance.showBackdrops",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "appearance",
+            "labelKey": "preferences.appearance.showBackdrops"
+          },
+          {
+            "consumer": "client.appearance",
+            "step": 1,
+            "key": "appearance.cardSizePercent",
+            "type": "integer",
+            "default": 100,
+            "min": 75,
+            "max": 150,
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "appearance",
+            "labelKey": "preferences.appearance.cardSizePercent"
+          },
+          {
+            "consumer": "client.appearancePreferences",
+            "key": "appearance.motion",
+            "type": "string",
+            "default": "follow",
+            "allowedValues": [
+              "follow",
+              "reduce"
+            ],
+            "scopes": [
+              "profile-device"
+            ],
+            "group": "appearance",
+            "labelKey": "preferences.appearance.motion"
+          },
+          {
+            "consumer": "client.appearancePreferences",
+            "key": "appearance.textSize",
+            "type": "string",
+            "default": "standard",
+            "allowedValues": [
+              "standard",
+              "large"
+            ],
+            "scopes": [
+              "profile-device"
+            ],
+            "group": "appearance",
+            "labelKey": "preferences.appearance.textSize"
+          },
+          {
+            "consumer": "client.appearancePreferences",
+            "key": "appearance.layout",
+            "type": "string",
+            "default": "auto",
+            "allowedValues": [
+              "auto",
+              "television",
+              "touch"
+            ],
+            "scopes": [
+              "profile-device"
+            ],
+            "group": "appearance",
+            "labelKey": "preferences.appearance.layout"
+          },
+          {
+            "consumer": "client.appearancePreferences",
+            "key": "appearance.libraryView",
+            "type": "string",
+            "default": "grid",
+            "allowedValues": [
+              "grid",
+              "list"
+            ],
+            "scopes": [
+              "profile-device"
+            ],
+            "group": "appearance",
+            "labelKey": "preferences.appearance.libraryView"
+          },
+          {
+            "consumer": "client.appearancePreferences",
+            "key": "appearance.episodesLayout",
+            "type": "string",
+            "default": "auto",
+            "allowedValues": [
+              "auto",
+              "tiles",
+              "list"
+            ],
+            "scopes": [
+              "profile-device"
+            ],
+            "group": "appearance",
+            "labelKey": "preferences.appearance.episodesLayout"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "reading.theme",
+            "type": "string",
+            "default": "dark",
+            "allowedValues": [
+              "dark",
+              "black",
+              "sepia",
+              "light"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.theme"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "reading.font",
+            "type": "string",
+            "default": "literata",
+            "allowedValues": [
+              "publisher",
+              "literata",
+              "manrope"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.font"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "step": 1,
+            "key": "reading.textSize",
+            "type": "integer",
+            "default": 5,
+            "allowedValues": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.textSize"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "reading.lineSpacing",
+            "type": "string",
+            "default": "normal",
+            "allowedValues": [
+              "tight",
+              "normal",
+              "loose"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.lineSpacing"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "reading.margins",
+            "type": "string",
+            "default": "normal",
+            "allowedValues": [
+              "narrow",
+              "normal",
+              "wide"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.margins"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "reading.alignment",
+            "type": "string",
+            "default": "justified",
+            "allowedValues": [
+              "left",
+              "justified"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.alignment"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "reading.layout",
+            "type": "string",
+            "default": "pages",
+            "allowedValues": [
+              "pages",
+              "scroll"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.layout"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "reading.twoPages",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.twoPages"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "reading.tapToTurn",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.tapToTurn"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "reading.hyphenation",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.hyphenation"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "reading.highlightColour",
+            "type": "string",
+            "default": "yellow",
+            "allowedValues": [
+              "yellow",
+              "green",
+              "blue",
+              "pink"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.highlightColour"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "reading.pdfView",
+            "type": "string",
+            "default": "automatic",
+            "allowedValues": [
+              "automatic",
+              "spread",
+              "width",
+              "page"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "reading",
+            "labelKey": "preferences.reading.pdfView"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "comics.fit",
+            "type": "string",
+            "default": "auto",
+            "allowedValues": [
+              "auto",
+              "width",
+              "height"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "comics",
+            "labelKey": "preferences.comics.fit"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "comics.direction",
+            "type": "string",
+            "default": "file",
+            "allowedValues": [
+              "file",
+              "ltr",
+              "rtl",
+              "vertical"
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "comics",
+            "labelKey": "preferences.comics.direction"
+          },
+          {
+            "consumer": "client.readingPreferences",
+            "key": "comics.firstPageAlone",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "comics",
+            "labelKey": "preferences.comics.firstPageAlone"
+          },
+          {
+            "consumer": "client.notifications",
+            "key": "notifications.badges",
+            "type": "boolean",
+            "default": true,
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "notifications",
+            "labelKey": "preferences.notifications.badges"
+          }
+        ]
+      },
+      "documents": [
+        {
+          "scope": "profile-server",
+          "revision": 1,
+          "values": {},
+          "digest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "activeRevision": 1
+        },
+        {
+          "scope": "profile-device-class",
+          "revision": 1,
+          "values": {},
+          "digest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "activeRevision": 1
+        },
+        {
+          "scope": "profile-device",
+          "revision": 1,
+          "values": {},
+          "digest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "activeRevision": 1
+        }
+      ],
+      "effective": {
+        "appearance.cardSizePercent": 100,
+        "appearance.episodesLayout": "auto",
+        "appearance.layout": "auto",
+        "appearance.libraryView": "grid",
+        "appearance.motion": "follow",
+        "appearance.showBackdrops": true,
+        "appearance.textSize": "standard",
+        "audiobooks.defaultSpeed": 1,
+        "comics.direction": "file",
+        "comics.firstPageAlone": true,
+        "comics.fit": "auto",
+        "delivery.directPlay": "prefer",
+        "delivery.directStream": "allow",
+        "delivery.transcode": "allow",
+        "home.hiddenRowIds": [],
+        "home.rowOrder": [],
+        "music.audioNormalization": "off",
+        "music.crossfadeMs": 0,
+        "music.dsdGainDb": -6,
+        "music.gapless": true,
+        "music.neverBoost": false,
+        "music.qualityAway": "320",
+        "music.qualityDownloads": "320",
+        "music.qualityHome": "original",
+        "music.qualityMobile": "320",
+        "music.smoothTransitions": true,
+        "notifications.badges": true,
+        "playback.audioDescription": "avoid",
+        "playback.audioTrackChoice": "best",
+        "playback.autoplayNext": true,
+        "playback.creditsSkip": "ask",
+        "playback.defaultSpeed": 1,
+        "playback.forcedSubtitleFallback": "none",
+        "playback.introSkip": "ask",
+        "playback.keepSubtitleStyling": true,
+        "playback.passoutAfterEpisodes": 3,
+        "playback.passoutProtection": true,
+        "playback.playedThresholdPercent": 95,
+        "playback.preferSdhSubtitles": false,
+        "playback.preferredAudioLanguages": [
+          "@appLanguage",
+          "@original"
+        ],
+        "playback.preferredSubtitleLanguages": [
+          "@appLanguage"
+        ],
+        "playback.recapSkip": "ask",
+        "playback.showSyncedLyrics": true,
+        "playback.skipBackMs": 10000,
+        "playback.skipForwardMs": 30000,
+        "playback.sleepTimerMinutes": 0,
+        "playback.startNextDuringCredits": false,
+        "playback.startedThresholdPercent": 5,
+        "playback.subtitleBackground": "translucent",
+        "playback.subtitleColor": "white",
+        "playback.subtitleFont": "default",
+        "playback.subtitleMode": "foreign",
+        "playback.subtitlePosition": "bottom",
+        "playback.subtitleSize": "medium",
+        "playback.upNextCountdownMs": 10000,
+        "playback.useSystemCaptionStyle": false,
+        "playback.useUntaggedForced": true,
+        "privacy.includeInWatchTogether": true,
+        "privacy.pauseWatchHistory": false,
+        "privacy.showActivityToMembers": false,
+        "quality.home": "original",
+        "quality.remote": "original",
+        "reading.alignment": "justified",
+        "reading.font": "literata",
+        "reading.highlightColour": "yellow",
+        "reading.hyphenation": true,
+        "reading.layout": "pages",
+        "reading.lineSpacing": "normal",
+        "reading.margins": "normal",
+        "reading.pdfView": "automatic",
+        "reading.tapToTurn": true,
+        "reading.textSize": 5,
+        "reading.theme": "dark",
+        "reading.twoPages": true,
+        "region.dateOrder": "auto",
+        "region.firstDay": "auto",
+        "region.formats": "auto",
+        "region.hourCycle": "auto",
+        "region.locale": "auto",
+        "region.sizeUnits": "binary",
+        "search.rememberHistory": true
+      },
+      "effectiveSource": {
+        "appearance.cardSizePercent": "default",
+        "appearance.episodesLayout": "default",
+        "appearance.layout": "default",
+        "appearance.libraryView": "default",
+        "appearance.motion": "default",
+        "appearance.showBackdrops": "default",
+        "appearance.textSize": "default",
+        "audiobooks.defaultSpeed": "default",
+        "comics.direction": "default",
+        "comics.firstPageAlone": "default",
+        "comics.fit": "default",
+        "delivery.directPlay": "default",
+        "delivery.directStream": "default",
+        "delivery.transcode": "default",
+        "home.hiddenRowIds": "default",
+        "home.rowOrder": "default",
+        "music.audioNormalization": "default",
+        "music.crossfadeMs": "default",
+        "music.dsdGainDb": "default",
+        "music.gapless": "default",
+        "music.neverBoost": "default",
+        "music.qualityAway": "default",
+        "music.qualityDownloads": "default",
+        "music.qualityHome": "default",
+        "music.qualityMobile": "default",
+        "music.smoothTransitions": "default",
+        "notifications.badges": "default",
+        "playback.audioDescription": "default",
+        "playback.audioTrackChoice": "default",
+        "playback.autoplayNext": "default",
+        "playback.creditsSkip": "default",
+        "playback.defaultSpeed": "default",
+        "playback.forcedSubtitleFallback": "default",
+        "playback.introSkip": "default",
+        "playback.keepSubtitleStyling": "default",
+        "playback.passoutAfterEpisodes": "default",
+        "playback.passoutProtection": "default",
+        "playback.playedThresholdPercent": "default",
+        "playback.preferSdhSubtitles": "default",
+        "playback.preferredAudioLanguages": "default",
+        "playback.preferredSubtitleLanguages": "default",
+        "playback.recapSkip": "default",
+        "playback.showSyncedLyrics": "default",
+        "playback.skipBackMs": "default",
+        "playback.skipForwardMs": "default",
+        "playback.sleepTimerMinutes": "default",
+        "playback.startNextDuringCredits": "default",
+        "playback.startedThresholdPercent": "default",
+        "playback.subtitleBackground": "default",
+        "playback.subtitleColor": "default",
+        "playback.subtitleFont": "default",
+        "playback.subtitleMode": "default",
+        "playback.subtitlePosition": "default",
+        "playback.subtitleSize": "default",
+        "playback.upNextCountdownMs": "default",
+        "playback.useSystemCaptionStyle": "default",
+        "playback.useUntaggedForced": "default",
+        "privacy.includeInWatchTogether": "default",
+        "privacy.pauseWatchHistory": "default",
+        "privacy.showActivityToMembers": "default",
+        "quality.home": "default",
+        "quality.remote": "default",
+        "reading.alignment": "default",
+        "reading.font": "default",
+        "reading.highlightColour": "default",
+        "reading.hyphenation": "default",
+        "reading.layout": "default",
+        "reading.lineSpacing": "default",
+        "reading.margins": "default",
+        "reading.pdfView": "default",
+        "reading.tapToTurn": "default",
+        "reading.textSize": "default",
+        "reading.theme": "default",
+        "reading.twoPages": "default",
+        "region.dateOrder": "default",
+        "region.firstDay": "default",
+        "region.formats": "default",
+        "region.hourCycle": "default",
+        "region.locale": "default",
+        "region.sizeUnits": "default",
+        "search.rememberHistory": "default"
+      },
+      "clampedFields": [],
+      "registryRevision": "settings.14a.preferences.music.2"
+    },
+    "homeLayout": {
+      "revision": 1,
+      "rowOrder": [],
+      "hiddenRowIds": []
+    }
+  }
+}

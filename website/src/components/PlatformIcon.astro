@@ -1,0 +1,37 @@
+---
+import {
+  siAndroid,
+  siApple,
+  siDocker,
+  siLg,
+  siLinux,
+  siRoku,
+  siSamsung
+} from 'simple-icons';
+import type { SimpleIcon } from 'simple-icons';
+import type { PlatformIconName } from '@/data/downloads';
+
+const { name } = Astro.props as { name: PlatformIconName };
+const icons: Partial<Record<PlatformIconName, SimpleIcon>> = {
+  android: siAndroid,
+  apple: siApple,
+  docker: siDocker,
+  lg: siLg,
+  linux: siLinux,
+  roku: siRoku,
+  samsung: siSamsung
+};
+const icon = icons[name];
+---
+
+{name === 'windows' ? (
+  <svg class={`platform-icon platform-icon-${name}`} viewBox="0 0 48 48" aria-hidden="true">
+    <path d="M7 10.5 22 8.4v14.2H7V10.5Zm18-2.5 16-2.3v16.9H25V8ZM7 25.6h15v14L7 37.5V25.6Zm18 0h16v16.7L25 40V25.6Z" />
+  </svg>
+) : icon ? (
+  <svg class={`platform-icon platform-icon-${name}`} viewBox="0 0 24 24" aria-hidden="true">
+    <path d={icon.path} />
+  </svg>
+) : (
+  <img class={`platform-icon platform-icon-image platform-icon-${name}`} src={`/platforms/${name}.svg`} alt="" />
+)}

@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+# Run in the signed-in owner's session so macOS user data/cache conventions
+# apply. Never move or delete data from an earlier service installation.
+owner=$(stat -f '%Su' /dev/console)
+case "$owner" in root|loginwindow|'') echo 'Open Portico after signing in to finish registration.'; exit 0;; esac
+uid=$(id -u "$owner")
+home=$(dscl . -read "/Users/$owner" NFSHomeDirectory | sed 's/^NFSHomeDirectory: //')
+case "$home" in /*) ;; *) echo 'Cannot determine the signed-in user home' >&2; exit 1;; esac
+agents="$home/Library/LaunchAgents"
+mkdir -p "$agents"
+chown "$owner" "$agents"
+plist="$agents/tv.getportico.server.service.plist"
+install -o "$owner" -m 644 '/Applications/Portico Media Server.app/Contents/Resources/launchd/tv.getportico.server.service.plist' "$plist"
+plutil -lint "$plist"
+launchctl enable "gui/$uid/tv.getportico.server.service"
+launchctl bootstrap "gui/$uid" "$plist"

@@ -1,0 +1,5 @@
+/* Phone-only screen treatment: the auth12 shell keeps its brand and legal
+   off the small screen so they cannot collide with the 30px entry title. */
+@media (max-width: 599px) {
+  .stage > header, .stage > footer { display: none; }
+}

@@ -1,0 +1,14 @@
+.git
+**/node_modules
+**/dist
+**/.DS_Store
+**/*.tsbuildinfo
+**/__pycache__
+
+# Generated build inputs stay outside the image context. The qualified FFmpeg
+# bundle under third_party/ffmpeg/bundle is deliberately included.
+.cache
+.scratch
+.toolchain
+.release
+runtime

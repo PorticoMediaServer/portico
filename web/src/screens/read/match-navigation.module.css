@@ -1,0 +1,4 @@
+.navigation { display: flex; align-items: center; gap: 4px; max-width: 100%; padding: 6px 8px 6px 14px; border-radius: 12px; color: var(--color-text); background: color-mix(in srgb, var(--color-raised-high) 97%, transparent); box-shadow: 0 14px 30px -12px var(--color-shadow), 0 0 0 1px var(--color-line); }
+.navigation span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-inline-end: 8px; font-size: var(--type-fixed-size-13px); font-weight: var(--type-fixed-weight-600); }
+.navigation button { display: grid; place-items: center; flex: none; width: 40px; height: 44px; border-radius: 8px; background: transparent; }
+.navigation button:hover { background: var(--color-raised); }

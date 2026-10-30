@@ -1,0 +1,19 @@
+/* account.html: the account workspace's dialog panels are `.board .glass`
+   (323, padding 24px) as drawn in frames 22-26, and its phone sheets leave
+   40 at the bottom with a 2 20 4 heading (.sheet 267, .shd 269 in frame 29).
+   Both are variants of the shared overlay defaults, so only the account 20-29
+   callsites opt in; every other screen keeps the kit's 26 26 22, 34 and 2 20 6
+   fallbacks. account.html has no `.dlg` instance (339 is an unused rule there). */
+.overlaySpacing {
+  --overlay-dialog-padding: 24px;
+  --overlay-sheet-padding-bottom: max(40px, env(safe-area-inset-bottom));
+  --overlay-sheet-heading-padding: 2px 20px 4px;
+}
+.form { display: flex; flex-direction: column; gap: 16px; }
+.pager { display: flex; justify-content: center; gap: 12px; margin-top: 18px; }
+.phoneOnly { display: none; }
+@media (max-width: 640px) {
+  .form { gap: 12px; }
+  .phoneOnly { display: contents; }
+  .desktopOnly { display: none; }
+}

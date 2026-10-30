@@ -1,0 +1,9 @@
+/* DEV-only gallery for mock.html#extras; the same production hero artwork treatments. */
+.gallery { display: flow-root; width: 858px; margin: 56px 0 0; }
+.gallery h3 { margin: 0 0 6px; font-size: calc(var(--type-heading-size) * 11 / 10); font-weight: var(--type-row-heading-weight); line-height: calc(var(--type-lockup-size) * 15 / 23); letter-spacing: var(--type-row-heading-tracking); }
+.lead { max-width: 620px; margin: 0 0 22px; font-size: var(--type-body-size); line-height: calc(var(--type-body-size) * 1.5); color: var(--color-text-tertiary); }
+.fb { position: relative; height: 236px; margin-bottom: 20px; border-radius: 14px; overflow: hidden; background: var(--color-raised-soft); }
+.label { position: absolute; z-index: var(--layer-art-label); right: 16px; top: 14px; padding: 4px 9px; border-radius: 6px; background: color-mix(in srgb, var(--color-ink) 70%, transparent); font-size: var(--type-live-label-size); font-weight: var(--type-live-label-weight); color: var(--color-text-secondary); }
+.copy { position: absolute; z-index: var(--layer-content); left: 36px; bottom: 34px; width: 420px; }
+.title { margin: 0 0 12px; font-size: calc(var(--type-lockup-size) * 26 / 23); line-height: calc(var(--type-lockup-size) * 24.44 / 23); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-lockup-tracking); color: var(--color-text); text-shadow: 0 2px 30px color-mix(in srgb, var(--color-ink) 50%, transparent); }
+.copy [class*='facts'] { margin: 0; font-size: var(--type-row-subtitle-size); line-height: normal; }

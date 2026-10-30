@@ -1,0 +1,35 @@
+--- a/libavformat/bluray.c
++++ b/libavformat/bluray.c
+@@ -20,6 +20,7 @@
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+  */
+ 
++#include <limits.h>
+ #include <libbluray/bluray.h>
+ 
+ #include "libavutil/avstring.h"
+@@ -37,6 +38,7 @@
+     int playlist;
+     int angle;
+     int chapter;
++    int min_playlist_length;
+     /*int region;*/
+ } BlurayContext;
+ 
+@@ -45,6 +47,7 @@
+ {"playlist", "", OFFSET(playlist), AV_OPT_TYPE_INT, { .i64=-1 }, -1,  99999, AV_OPT_FLAG_DECODING_PARAM },
+ {"angle",    "", OFFSET(angle),    AV_OPT_TYPE_INT, { .i64=0 },   0,   0xfe, AV_OPT_FLAG_DECODING_PARAM },
+ {"chapter",  "", OFFSET(chapter),  AV_OPT_TYPE_INT, { .i64=1 },   1, 0xfffe, AV_OPT_FLAG_DECODING_PARAM },
++{"min_playlist_length", "minimum relevant playlist length in seconds", OFFSET(min_playlist_length), AV_OPT_TYPE_INT, { .i64=MIN_PLAYLIST_LENGTH }, 0, INT_MAX, AV_OPT_FLAG_DECODING_PARAM },
+ /*{"region",   "bluray player region code (1 = region A, 2 = region B, 4 = region C)", OFFSET(region), AV_OPT_TYPE_INT, { .i64=0 }, 0, 3, AV_OPT_FLAG_DECODING_PARAM },*/
+ {NULL}
+ };
+@@ -138,7 +141,7 @@
+     */
+ 
+     /* load title list */
+-    num_title_idx = bd_get_titles(bd->bd, TITLES_RELEVANT, MIN_PLAYLIST_LENGTH);
++    num_title_idx = bd_get_titles(bd->bd, TITLES_RELEVANT, bd->min_playlist_length);
+     av_log(h, AV_LOG_INFO, "%d usable playlists:\n", num_title_idx);
+     if (num_title_idx < 1) {
+         return AVERROR(EIO);

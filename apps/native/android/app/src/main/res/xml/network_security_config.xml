@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A Portico server may be reached over plain HTTP at any address its owner gives out, at home
+     or away (its identity is verified by its pinned key, not by a certificate). Which plain-HTTP
+     routes the app uses is Settings › This device › Insecure connections (Never, On my network,
+     Always), enforced by the shared client rules, never here. TLS connections are checked against
+     the system's trust store; automatic routes a Portico Account hands out are always TLS. A server's own certificate (self-signed or from the owner's private authority) is
+     trusted only for the address it was seen at, after the server proved its identity over it,
+     by the app's own clients (PorticoServerTrust), not here. The app trusts no user-installed
+     authority. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

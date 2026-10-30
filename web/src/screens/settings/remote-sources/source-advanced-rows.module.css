@@ -1,0 +1,19 @@
+/* remote-sources .r: one full-width row, the label column and the control column, with the
+   authored gap and padding and a soft separator. The phone row is the same row, tighter. */
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px; align-items: center; padding: 18px 22px; }
+/* remote-sources .r: a group draws a top line before each later row, and a help or status
+   paragraph inside the group never removes it. The group's direct children are either the anatomy
+   rows or their marker wrappers, and both carry the same hook, so the line follows the real row
+   order in both cases. */
+.group > [data-advanced-row] ~ [data-advanced-row] { border-top: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); }
+.l { display: grid; gap: 4px; min-width: 0; }
+.l > b { font-size: var(--type-fixed-size-16px); font-weight: var(--type-fixed-weight-600); }
+.l > p { margin: 0; font-size: var(--type-fixed-size-14px); line-height: var(--type-fixed-line-1point-45); color: var(--color-text-tertiary); }
+.control { display: flex; align-items: center; justify-content: flex-end; min-width: 0; }
+/* remote-sources.html 271-278 .lr: the phone row is the same two-part row, tighter. */
+@media (max-width: 599px) {
+  .row { gap: 12px; padding: 8px 14px; min-height: 58px; }
+  .l { gap: 2px; }
+  .l > b { font-size: var(--type-fixed-size-15point-5px); font-weight: var(--type-fixed-weight-600); }
+  .l > p { margin: 0; font-size: var(--type-fixed-size-12point-5px); font-weight: var(--type-fixed-weight-500); line-height: var(--type-fixed-line-1point-4); }
+}

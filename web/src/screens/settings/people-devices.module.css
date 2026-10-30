@@ -1,0 +1,8 @@
+.devices { list-style: none; padding: 0; margin: 0 0 16px; border-radius: 12px; overflow: hidden; background: color-mix(in srgb, var(--color-ink) 40%, transparent); }
+.devices li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 14px 18px; border-top: 1px solid var(--color-line-soft); }
+.devices li:first-child { border-top: 0; }
+.icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 11px; background: var(--color-raised-high); color: var(--color-text-secondary); }
+.name { min-width: 0; overflow-wrap: anywhere; }
+.name b { display: block; font-size: var(--type-tab-size); font-weight: var(--type-row-heading-weight); }
+.name small { display: block; margin-top: 3px; font-size: var(--type-chip-size); color: var(--color-text-tertiary); }
+@media (max-width: 599px) { .devices li { gap: 10px; padding: 14px 12px; } }

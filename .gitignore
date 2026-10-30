@@ -1,0 +1,37 @@
+node_modules/
+.build/
+build/
+DerivedData/
+.cache/
+.scratch/
+runtime/
+__pycache__/
+*.tsbuildinfo
+.DS_Store
+
+# Go writes a binary named after the package directory when built without -o.
+server/server
+server/server.exe
+
+.env
+.env.*
+!.env.example
+*.p8
+*.p12
+*.key
+/server/scalebench
+
+# Sonic build artifacts and installed runtime inputs.
+.sonic-model/
+.sonic-build/
+.sonic-release/
+sonic-output/
+third_party/portico-sonic/bundle/
+
+# Private state and local verification outputs.
+.private/
+ci-results/
+ci-plan.json
+go.work.sum
+
+ci-tools/

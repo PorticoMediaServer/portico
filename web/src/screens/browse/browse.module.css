@@ -1,0 +1,105 @@
+.pendingCard { pointer-events: none; }
+/* The grid owns a thin scrollbar inside its content edge; let that width live in the right
+   gutter so the drawn poster row still reaches the gutter like frame #grid's fluid grid. */
+.results { position: relative; min-height: 280px; margin: 0 var(--shell-gutter, var(--gutter-desktop)); margin-right: calc(var(--shell-gutter, var(--gutter-desktop)) - var(--grid-overflow, 0px)); }
+.results[data-view='grid'] { padding-top: 26px; }
+.results[data-shape='collection'], .results[data-empty] { padding-top: 0; }
+.collectionsNote { display: flex; align-items: center; gap: 10px; margin: 0; padding: 22px 0 22px; font-size: calc(var(--type-body-size) - 1px); color: var(--color-text-tertiary); }
+.collectionsNote svg { flex: none; color: var(--color-accent-strong); }
+.results[data-view='list'] { padding-top: 22px; }
+.rail { position: absolute; right: calc(-46px + var(--grid-overflow, 0px)); top: 28px; }
+.listHead, .listRow { display: grid; grid-template-columns: minmax(0,1fr) 84px 118px 86px 112px 136px 60px 92px; align-items: center; column-gap: 8px; padding: 0 12px; }
+.listHead { height: 44px; border-bottom: 1px solid var(--color-line); font-size: var(--type-caption-size); font-weight: var(--type-row-heading-weight); color: var(--color-text-tertiary); }
+.listHead > :not(:first-child) { text-align: right; }
+.listHead button { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.listHead button:focus-visible, .listTitle button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+.listRow { position: relative; height: 70px; border-radius: 10px; font-size: calc(var(--type-body-size) - .5px); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+.listRow::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 0; height: 1px; background: var(--color-line); opacity: .55; }
+.listRow:hover, .listRow:focus-within { background: color-mix(in srgb, var(--color-text) 5.5%, transparent); }
+.listRow > span { text-align: right; white-space: nowrap; }
+.listTitle { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.listTitle > button[data-layout-primary] { display: flex; align-items: center; gap: 16px; width: 100%; min-width: 0; padding: 0; border: 0; background: none; color: var(--color-text); font: inherit; font-size: var(--type-body-strong-size); font-weight: var(--type-body-strong-weight); text-align: left; cursor: pointer; }
+.listTitle > button[data-layout-primary] > .listName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.listArt { display: block; flex: none; width: 36px; height: 54px; border-radius: 5px; overflow: hidden; }
+.resolution { padding: 2px 7px; border-radius: 6px; font-size: var(--type-card-subtitle-size); font-weight: var(--type-row-heading-weight); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 22%, transparent); }
+.listWatched { display: flex; justify-content: center; align-items: center; }
+/* desktop-listen 4 / music-plus 9: the music list's own #/Title/Artist/Album/Duration/Plays/Date added. */
+.results[data-music] .listHead, .results[data-music] .listRow { grid-template-columns: 44px minmax(0,1.8fr) minmax(0,1fr) minmax(0,1.2fr) 80px 64px 120px 72px; column-gap: 16px; padding: 0 12px 0 8px; }
+.results[data-music] .listHead { height: 42px; }
+.results[data-music] .listRow { height: 56px; }
+.results[data-music] .listRow::after { display: none; }
+.results[data-music] .listHead > :first-child { text-align: center; }
+.results[data-music] .listArt { width: 40px; height: 40px; border-radius: 6px; }
+.results[data-music] .listName { font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); }
+.results[data-music] .musicMeta { overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-fixed-size-14px); color: var(--color-text-secondary); }
+.results[data-music] .musicNumber { overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-fixed-size-14px); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.results[data-music] .listRow > :first-child { display: grid; place-items: center; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+
+/* desktop-read 2c: a Reading list draws its own six columns; cells without a fact stay empty. */
+.results[data-reading] .listHead, .results[data-reading] .listRow { grid-template-columns: minmax(0,1fr) 180px 150px 230px 70px 110px 92px; }
+.results[data-reading] .listHead > :not(:first-child), .results[data-reading] .listRow > span { text-align: left; }
+.results[data-reading] .listHead > .listNumber, .results[data-reading] .listRow > .listNumber { text-align: right; }
+.listAuthor, .listSeries { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-secondary); }
+.listProgress { display: inline-flex; align-items: center; gap: 6px; }
+.miniProgress { display: inline-block; width: 34px; height: 4px; border-radius: 4px; overflow: hidden; background: var(--color-line); }
+.miniProgress > span { display: block; height: 100%; background: var(--color-accent-strong); }
+.listActions { display: flex; justify-content: flex-end; gap: 6px; opacity: 0; }
+.listRow:hover .listActions, .listRow:focus-within .listActions { opacity: 1; }
+@media (pointer: coarse) { .listActions { opacity: 1; } }
+@media (max-width: 1023px) { .results { margin: 0 20px; margin-right: calc(20px - var(--grid-overflow, 0px)); } .rail { right: calc(-18px + var(--grid-overflow, 0px)); } }
+/* E-web-20: the phone rail sits 4px from the edge in a 30px gutter of its own, clear of the cards. */
+@media (max-width: 599px) { .results:has(> .rail) { margin-right: calc(30px - var(--grid-overflow, 0px)); } .rail { right: calc(-26px + var(--grid-overflow, 0px)); } }
+@media (prefers-reduced-motion: reduce) { .results * { scroll-behavior: auto; } }
+.library { min-height: 100dvh; padding-bottom: 72px; }
+.headerTabs { margin-top: 22px; padding-inline: var(--shell-gutter, var(--gutter-desktop)); }
+.phoneTabs { padding-inline: 20px; }
+.scopeChips { display: flex; align-items: center; gap: 8px; }
+.scopeSeparator { width: 1px; height: 22px; margin: 0 4px; background: var(--color-line); flex: none; }
+.filterHeader { padding: 30px 32px 0; }
+.filterHeader h2 { margin: 0; font-size: calc(var(--type-title-size) + 2px); font-weight: var(--type-lockup-weight); letter-spacing: calc(var(--type-row-heading-tracking) * 2); }
+.filterHeader + p { padding: 6px 32px 10px; }
+.filterCount { font-size: calc(var(--type-body-size) - .5px); }
+.filterBody { padding: 0 32px 32px; }
+.filterFooter { display: flex; gap: 12px; margin-top: 0; padding: 18px 32px 24px; background: var(--color-raised); box-shadow: 0 -1px 0 var(--color-line), 0 -30px 30px -10px var(--color-raised); }
+.filterFooter > :last-child { flex: 1; }
+.phoneFilterHeader h2 { flex: 1; }
+.filterTitle { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+@media (max-width: 599px) { .filterFooter { padding: 12px 16px max(30px, env(safe-area-inset-bottom)); } }
+.libraries { padding: 104px var(--shell-gutter, var(--gutter-desktop)) 72px; }
+.libraries h1 { margin: 0 0 28px; font-size: var(--type-lockup-size); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-lockup-tracking); }
+.libraryCards { display: flex; gap: 20px; flex-wrap: wrap; }
+.libraryCards[data-compact='true'] { flex-direction: column; gap: 14px; }
+@media (max-width: 599px) { .libraries { padding: 22px 20px 88px; } }
+.homeRow { min-height: 100dvh; padding-bottom: 72px; }
+.homeRowHeader { padding: 104px var(--shell-gutter, var(--gutter-desktop)) 0; }
+.homeRowHeader h1 { margin: 14px 0 12px; font-size: var(--type-lockup-long-size); line-height: calc(var(--type-lockup-long-size) * .98); font-weight: var(--type-lockup-long-weight); letter-spacing: var(--type-lockup-long-tracking); }
+.homeRowHeader p { max-width: 760px; margin: 0; color: var(--color-text-secondary); font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); }
+.homeRowHeader strong { color: var(--color-text); font-weight: var(--type-row-heading-weight); }
+.homeRowActions { display: flex; gap: 12px; margin: 26px 0 20px; }
+@media (max-width: 599px) {
+  .homeRowHeader { position: relative; padding: 98px 20px 0; }
+  .homeRowHeader > button { position: absolute; top: 0; left: 16px; height: 58px; padding-inline: 0; }
+  .homeRowHeader h1 { margin: 0 0 8px; font-size: var(--type-display-size); line-height: calc(var(--type-display-size) * 1.05); letter-spacing: var(--type-banner-title-tracking); }
+}
+.shelfHeading { border: 0; padding: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; display: inline-flex; align-items: center; gap: 1px; cursor: pointer; text-align: left; }
+.shelfHeading svg { flex: none; color: var(--color-text-tertiary); }
+
+.unmatchedHelp {
+  margin: 24px var(--shell-gutter, var(--gutter-desktop));
+  color: var(--color-text-tertiary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-fixed-line-1point-5);
+}
+
+.listRow[data-selected="true"] .listTitle > button[data-layout-primary] { color: var(--color-accent-strong); }
+.listRow[data-preview="true"] { background: color-mix(in srgb,var(--color-accent-strong) 12%,transparent); }
+.listRow[data-preview="true"] .listTitle > button[data-variant="row"][aria-pressed="false"] { background: color-mix(in srgb,var(--color-accent-strong) 45%,transparent); box-shadow: inset 0 0 0 2px var(--color-accent-strong); }
+.listRow:hover .listTitle > button[data-variant="row"],.listRow:focus-within .listTitle > button[data-variant="row"] { opacity: 1; }
+
+.songBadge { flex: none; white-space: nowrap; border: 1px solid color-mix(in srgb, var(--color-text) 30%, transparent); border-radius: 4px; padding: 2px 5px; color: var(--color-text-secondary); font-size: var(--type-fixed-size-12px); line-height: var(--type-fixed-line-1); font-weight: var(--type-fixed-weight-600); font-variant-numeric: tabular-nums; }
+
+/* Expanded touch libraries keep their results live beside the Filters region. */
+.browseContent { min-width: 0; overflow-x: clip; } /* E-web-20: the A–Z rail's widened hit areas never widen the page. */
+.browseContent[data-filters-docked='true'] { margin-right: 380px; }
+.dockedFilters { border-radius: 0; }
+.dockedFilters > footer { display: flex; gap: 10px; }

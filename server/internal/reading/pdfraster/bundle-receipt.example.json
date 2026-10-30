@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "artifact": "portico-reading-pdf-raster",
+  "buildImage": "debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8",
+  "depotToolsCommit": "b52fe87d04af61df3dd07748ff2c2c0b649dca09",
+  "pdfium": {
+    "repository": "https://pdfium.googlesource.com/pdfium",
+    "commit": "7b3f6f93625e6df97a7d9e677137a558df8648c4",
+    "tree": "b4026fdde2ec2b18de5efb188330f9fe120777be"
+  },
+  "bubblewrap": {
+    "repository": "https://github.com/containers/bubblewrap",
+    "tag": "v0.11.0",
+    "commit": "a871b148b7bc0571f50b917cd5fd03b427f54ed1",
+    "build": "static"
+  },
+  "worker": {
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "static": true,
+    "argv": ["pageIndex", "widthPx"]
+  },
+  "sandbox": {
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "static": true
+  },
+  "licenses": [
+    "licenses/PDFIUM.txt",
+    "licenses/PDFIUM-THIRD-PARTY-NOTICES.txt",
+    "licenses/BUBBLEWRAP.txt",
+    "licenses/LIBCAP.txt"
+  ],
+  "linkedCode": [
+    "PDFium (BSD-style plus Apache-2.0; bundled third-party notices retained)",
+    "bubblewrap (LGPL-2.0-or-later)",
+    "libcap (BSD-3-Clause) when the sandbox links it"
+  ],
+  "notes": "The build image above is the pinned base; Release publishes and records the final build-image digest, worker and sandbox SHA-256, and the generated notice inventory, including bwrap and every linked code component. The example placeholder hashes are not valid artifacts."
+}

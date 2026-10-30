@@ -1,0 +1,5 @@
+.calendar { border-collapse: separate; border-spacing: 4px; --calendar-gutter: var(--shell-gutter, var(--gutter-desktop)); width: min(calc(100% - 2 * var(--calendar-gutter)), 560px); margin: 20px var(--shell-gutter, var(--gutter-desktop)); color: var(--color-text); }
+.calendar caption { text-align: start; margin-bottom: 12px; font-size: var(--type-row-heading-size); line-height: var(--type-row-heading-line); font-weight: var(--type-row-heading-weight); letter-spacing: var(--type-row-heading-tracking); }
+.calendar th { font-size: var(--type-caption-size); line-height: var(--type-caption-line); font-weight: var(--type-caption-weight); letter-spacing: var(--type-caption-tracking); color: var(--color-text-secondary); }
+.calendar td { text-align: center; }
+.calendar td > button { width: 100%; padding-inline: 6px; min-width: 0; }

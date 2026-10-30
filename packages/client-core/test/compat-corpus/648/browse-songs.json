@@ -1,0 +1,198 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/libraries/oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8/browse",
+    "body": {
+      "pivot": "songs",
+      "query": null,
+      "sort": [],
+      "cursor": "",
+      "limit": 5,
+      "range": null,
+      "seek": null
+    }
+  },
+  "status": 200,
+  "body": {
+    "pivot": "songs",
+    "applied": {
+      "query": null,
+      "sort": [
+        {
+          "field": "title",
+          "direction": "asc"
+        }
+      ]
+    },
+    "entries": [
+      {
+        "addedAt": "2026-10-29T09:32:01.061Z",
+        "album": {
+          "id": "TFmaguJtaiBfE0GA2pSkcw",
+          "name": "Assembly of Copper"
+        },
+        "available": true,
+        "durationMs": 0,
+        "favorite": false,
+        "id": "FZH_ujVknbAIgHBifTyT1w",
+        "kind": "song",
+        "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+        "missing": false,
+        "navigation": {
+          "view": "item",
+          "entityId": "FZH_ujVknbAIgHBifTyT1w"
+        },
+        "playback": {
+          "itemId": "FZH_ujVknbAIgHBifTyT1w"
+        },
+        "progressMs": 0,
+        "sortLetter": "#",
+        "subtitle": "Unknown artist",
+        "title": "01 - Ticket",
+        "trackNumber": 1,
+        "watched": false
+      },
+      {
+        "addedAt": "2026-10-29T09:32:01.272Z",
+        "album": {
+          "id": "kfVlPTcKwadjxvoB-2xN8A",
+          "name": "Second Copper"
+        },
+        "audioFacts": {
+          "codec": "mp3",
+          "sampleRate": 44100,
+          "channels": 1,
+          "layout": "mono",
+          "lossless": false
+        },
+        "available": true,
+        "durationMs": 2000,
+        "favorite": false,
+        "id": "oJWKdv5TcaoJfDf8znYQmw",
+        "kind": "song",
+        "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+        "missing": false,
+        "navigation": {
+          "view": "item",
+          "entityId": "oJWKdv5TcaoJfDf8znYQmw"
+        },
+        "playback": {
+          "itemId": "oJWKdv5TcaoJfDf8znYQmw"
+        },
+        "progressMs": 0,
+        "sortLetter": "#",
+        "subtitle": "Ansel Grey",
+        "title": "Ticket Second Copper",
+        "trackNumber": 1,
+        "watched": false
+      },
+      {
+        "addedAt": "2026-10-29T09:31:54.686Z",
+        "album": {
+          "id": "w3_2FR6m3bbR5VM2PhpmYQ",
+          "name": "AlbumAlac"
+        },
+        "available": true,
+        "durationMs": 0,
+        "favorite": false,
+        "id": "D8yt8z9gMHGGU8_a7bEQTg",
+        "kind": "song",
+        "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+        "missing": false,
+        "navigation": {
+          "view": "item",
+          "entityId": "D8yt8z9gMHGGU8_a7bEQTg"
+        },
+        "playback": {
+          "itemId": "D8yt8z9gMHGGU8_a7bEQTg"
+        },
+        "progressMs": 0,
+        "sortLetter": "A",
+        "subtitle": "Unknown artist",
+        "title": "AlbumAlac",
+        "trackNumber": 2,
+        "watched": false
+      },
+      {
+        "addedAt": "2026-10-29T09:31:54.937Z",
+        "album": {
+          "id": "w3_2FR6m3bbR5VM2PhpmYQ",
+          "name": "AlbumAlac"
+        },
+        "available": true,
+        "durationMs": 0,
+        "favorite": false,
+        "id": "OvXPV7FMbDy9drdWcEue9A",
+        "kind": "song",
+        "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+        "missing": false,
+        "navigation": {
+          "view": "item",
+          "entityId": "OvXPV7FMbDy9drdWcEue9A"
+        },
+        "playback": {
+          "itemId": "OvXPV7FMbDy9drdWcEue9A"
+        },
+        "progressMs": 0,
+        "sortLetter": "A",
+        "subtitle": "Unknown artist",
+        "title": "AlbumAlac",
+        "trackNumber": 1,
+        "watched": false
+      },
+      {
+        "addedAt": "2026-10-29T09:32:01.719Z",
+        "album": {
+          "id": "Ku4NCD9sR1sAU9yMNjDvzQ",
+          "name": "AlbumOne"
+        },
+        "available": true,
+        "durationMs": 0,
+        "favorite": false,
+        "id": "MzXTuA2xfPjh__wGwd1qtw",
+        "kind": "song",
+        "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+        "missing": false,
+        "navigation": {
+          "view": "item",
+          "entityId": "MzXTuA2xfPjh__wGwd1qtw"
+        },
+        "playback": {
+          "itemId": "MzXTuA2xfPjh__wGwd1qtw"
+        },
+        "progressMs": 0,
+        "sortLetter": "A",
+        "subtitle": "Unknown artist",
+        "title": "AlbumOne",
+        "trackNumber": 1,
+        "watched": false
+      }
+    ],
+    "pageInfo": {
+      "start": 0,
+      "total": 8,
+      "totalIsLowerBound": false,
+      "revision": "browse_ec5350af8ef356791587cc398a191fb4d1a4a661edbcbb74b2d8debbb15a5184",
+      "hasMore": true,
+      "nextCursor": "<scrubbed>",
+      "durationMs": 2000,
+      "durationIsLowerBound": true
+    },
+    "positionIndex": [
+      {
+        "key": "#",
+        "index": 0
+      },
+      {
+        "key": "A",
+        "index": 2
+      }
+    ],
+    "wholeSelectionPreparing": {
+      "kind": "browse-selection-preparing",
+      "state": "preparing",
+      "queryId": "WQG-R1a5q3p1yL_PfSDXcvO9huCznI3zK4UOqnfgCiM",
+      "retryAfterMs": 1000
+    }
+  }
+}

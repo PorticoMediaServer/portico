@@ -1,0 +1,7 @@
+.section { margin-top: 28px; }
+.section h3 { margin: 0 0 6px; font-size: var(--type-heading-size); font-weight: var(--type-title-weight); letter-spacing: var(--type-row-heading-tracking); }
+.lede { max-width: 660px; margin: 0 0 14px; font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); color: var(--color-text-tertiary); }
+.box { position: relative; background: var(--color-raised); border-radius: 14px; }
+.address { display: flex; align-items: center; justify-content: flex-start; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.address code { font-family: var(--font-mono); font-size: var(--type-caption-size); overflow-wrap: anywhere; min-width: 0; }
+.copied { display: inline-flex; align-items: center; gap: 5px; font-size: var(--type-caption-size); color: var(--color-healthy); }

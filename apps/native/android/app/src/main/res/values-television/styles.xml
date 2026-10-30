@@ -1,0 +1,9 @@
+<resources>
+    <!-- A television's wordmark (640 on the design canvas) can't fit the splash icon's circle, so
+         the system frame is the ink alone; the boot view fades the wordmark in with the backdrop. -->
+    <style name="Theme.Portico.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/portico_ink</item>
+        <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="postSplashScreenTheme">@style/AppTheme</item>
+    </style>
+</resources>

@@ -1,0 +1,5 @@
+/* The real TitleHero artwork box stays the view-transition target; only the
+   supplied claim names it. Reduce motion keeps no geometry morph at all. */
+.art { position: absolute; inset: 0; }
+@media (prefers-reduced-motion: reduce) { .art { view-transition-name: none !important; } }
+:global(html[data-reduce-motion='true']) .art { view-transition-name: none !important; }

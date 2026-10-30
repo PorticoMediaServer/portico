@@ -1,0 +1,42 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import DocsSidebar from '@/components/DocsSidebar.astro';
+
+type Props = {
+  title: string;
+  description: string;
+  category: string;
+  categoryTitle: string;
+  currentId?: string;
+  audience?: string;
+  updated?: Date;
+};
+
+const { title, description, category, categoryTitle, currentId = '', audience, updated } = Astro.props;
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="docs-shell">
+    <DocsSidebar currentId={currentId} currentCategory={category} />
+    <article class="docs-article">
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="/docs/">Documentation</a>
+        <span aria-hidden="true">/</span>
+        <a href={`/docs/${category}/`}>{categoryTitle}</a>
+      </nav>
+      <header class="article-header">
+        <h1>{title}</h1>
+        <p>{description}</p>
+        {(audience || updated) && (
+          <div class="article-meta">
+            {audience && <span>{audience}</span>}
+            {updated && <span>Updated {updated.toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</span>}
+          </div>
+        )}
+      </header>
+      <div class="article-body">
+        <slot />
+      </div>
+    </article>
+  </div>
+</BaseLayout>

@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {"types": ["react", "node"], "allowImportingTsExtensions": true, "noEmit": true},
+  "include": ["**/*.ts", "../types/**/*.d.ts"],
+  "exclude": []
+}

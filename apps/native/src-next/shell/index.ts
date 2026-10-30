@@ -1,0 +1,11 @@
+export {NativeShell} from './NativeShell';
+export {LastLibraryMemory} from './library-memory';
+export {restoreNativeShellRuntime} from './bootstrap';
+export {createNativeShellBindings} from './assembly';
+export {nativeShellRoutes, NativeShellRouteRegistry} from './route-registry';
+export type {NativeRouteFactory, NativeRouteRenderer, NativeWatchFactory, NativeWatchRenderer, NativeBoundRoutes} from './route-registry';
+export type {NativeShellRoute, NativeRouteSnapshot, NativeRouteAdmission, NativeRoutePresentation} from './routes';
+export type {NativeShellBindings, NativeShellBootstrapContext, RestoredNativeShellRuntime} from './bootstrap';
+export type {NativeShellRuntime, NativeShellSnapshot, NativeHomeActions} from './runtime';
+export type {ShellAuthority, ShellScope, ShellDestination} from './model';
+export type {NativeShellPlaybackAdapter, NativeShellPlaybackSnapshot, NativeShellPlaybackStart, NativeShellSurfaceProps, NativeShellBounds, NativeShellVideoSnapshot} from './playback';

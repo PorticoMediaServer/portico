@@ -1,0 +1,13 @@
+/* states.html f23: the ring and its line sit at 44% of the picture, over the shade. */
+.waiting {position: absolute; z-index: var(--layer-live-chrome); left: 50%; top: 44%; transform: translate(-50%, -50%); width: max-content; max-width: calc(100% - 48px); display: flex; flex-direction: column; align-items: center; gap: 16px; pointer-events: none; text-align: center;}
+/* The dock has no intrinsic height before a session exists; the preparation notice is
+   viewport-anchored so 44% means the viewport, not the dock's bottom edge. */
+.preparation {position: fixed; z-index: calc(var(--layer-player) + 2); left: 50%; top: 44%; transform: translate(-50%, -50%); width: max-content; max-width: calc(100vw - 48px); display: flex; flex-direction: column; align-items: center; gap: 16px; pointer-events: none; text-align: center;}
+.ring {flex: none; animation: waiting-turn 0.9s linear infinite;}
+.ring circle {fill: none; stroke-width: 1.6;}
+.track {stroke: color-mix(in srgb, var(--color-text) 16%, transparent);}
+.arc {stroke: var(--color-text); stroke-linecap: round; stroke-dasharray: 56.55; stroke-dashoffset: 42;}
+.waiting p, .preparation p {margin: 0; max-width: 100%; box-sizing: border-box; padding: 7px 14px; border-radius: 10px; background: color-mix(in srgb, var(--color-ink) 62%, transparent); font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-title-weight); color: var(--color-text-secondary);}
+@keyframes waiting-turn {from {transform: rotate(-90deg);} to {transform: rotate(270deg);}}
+@media (prefers-reduced-motion: reduce) {.ring {animation: none; transform: rotate(-90deg);}}
+[data-reduce-motion="true"] .ring, :root[data-reduce-motion="true"] .ring {animation: none; transform: rotate(-90deg);}

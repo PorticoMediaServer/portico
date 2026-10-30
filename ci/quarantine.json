@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "status": "approved",
+  "entries": [
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadPathGoldenEquivalence",
+      "owner": "Justin Ehler",
+      "reason": "2/2 sampled failures; handoff stale revision counters and intended Get.sources delta",
+      "expires": "2026-11-02",
+      "tier": "merge-and-nightly"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestAlbumsJoinByReleaseAndOwnerCanSeparateAFolder",
+      "owner": "Justin Ehler",
+      "reason": "2/2 sampled functional failures; adoption pumping plus bounded SeparateFolder repair awaiting recomposition",
+      "expires": "2026-11-02",
+      "tier": "merge-and-nightly"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestDerivedWorkerCompletesWithForegroundPressure",
+      "owner": "Justin Ehler",
+      "reason": "1/2 failures; 15s deadline versus observed 16.18s; coalescing branch not CI qualified",
+      "expires": "2026-11-05",
+      "tier": "nightly"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest",
+      "owner": "Justin Ehler",
+      "reason": "1/2 failures; scaled ingest window and retry coordination need deterministic fixture",
+      "expires": "2026-11-05",
+      "tier": "nightly"
+    }
+  ]
+}

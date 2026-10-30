@@ -1,0 +1,164 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/libraries/mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY/browse",
+    "body": {
+      "pivot": "songs",
+      "query": null,
+      "sort": [],
+      "cursor": "",
+      "limit": 5,
+      "range": null,
+      "seek": null
+    }
+  },
+  "status": 200,
+  "body": {
+    "pivot": "songs",
+    "applied": {
+      "query": null,
+      "sort": [
+        {
+          "field": "title",
+          "direction": "asc"
+        }
+      ]
+    },
+    "entries": [
+      {
+        "addedAt": "2026-10-29T09:33:17.276Z",
+        "album": {
+          "id": "bTGvP6tnJCefjTxJ0KgLQQ",
+          "name": "Assembly of Copper"
+        },
+        "available": true,
+        "durationMs": 0,
+        "favorite": false,
+        "id": "MKTg1OVAPuefVNdiOObFwQ",
+        "kind": "song",
+        "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
+        "missing": false,
+        "navigation": {
+          "view": "item",
+          "entityId": "MKTg1OVAPuefVNdiOObFwQ"
+        },
+        "playback": {
+          "itemId": "MKTg1OVAPuefVNdiOObFwQ"
+        },
+        "progressMs": 0,
+        "sortLetter": "#",
+        "subtitle": "Unknown artist",
+        "title": "01 - Ticket",
+        "trackNumber": 1,
+        "watched": false
+      },
+      {
+        "addedAt": "2026-10-29T09:33:17.478Z",
+        "album": {
+          "id": "QLnwN9NLPDtrRs-2jHFeVg",
+          "name": "Second Copper"
+        },
+        "available": true,
+        "durationMs": 0,
+        "favorite": false,
+        "id": "HM7_7rY0KNf0HHLXLgWIEQ",
+        "kind": "song",
+        "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
+        "missing": false,
+        "navigation": {
+          "view": "item",
+          "entityId": "HM7_7rY0KNf0HHLXLgWIEQ"
+        },
+        "playback": {
+          "itemId": "HM7_7rY0KNf0HHLXLgWIEQ"
+        },
+        "progressMs": 0,
+        "sortLetter": "#",
+        "subtitle": "Unknown artist",
+        "title": "01 - Ticket",
+        "trackNumber": 1,
+        "watched": false
+      },
+      {
+        "addedAt": "2026-10-29T09:33:16.707Z",
+        "album": {
+          "id": "VSvWMIj5pmrp-8bBxOVmTA",
+          "name": "AlbumAlac"
+        },
+        "available": true,
+        "durationMs": 0,
+        "favorite": false,
+        "id": "yP_nlQbI01pBR-PbWft-JQ",
+        "kind": "song",
+        "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
+        "missing": false,
+        "navigation": {
+          "view": "item",
+          "entityId": "yP_nlQbI01pBR-PbWft-JQ"
+        },
+        "playback": {
+          "itemId": "yP_nlQbI01pBR-PbWft-JQ"
+        },
+        "progressMs": 0,
+        "sortLetter": "A",
+        "subtitle": "Unknown artist",
+        "title": "AlbumAlac",
+        "trackNumber": 2,
+        "watched": false
+      },
+      {
+        "addedAt": "2026-10-29T09:33:16.827Z",
+        "album": {
+          "id": "VSvWMIj5pmrp-8bBxOVmTA",
+          "name": "AlbumAlac"
+        },
+        "available": true,
+        "durationMs": 0,
+        "favorite": false,
+        "id": "2tZFxVhxBzLv-2FH87QC5Q",
+        "kind": "song",
+        "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
+        "missing": false,
+        "navigation": {
+          "view": "item",
+          "entityId": "2tZFxVhxBzLv-2FH87QC5Q"
+        },
+        "playback": {
+          "itemId": "2tZFxVhxBzLv-2FH87QC5Q"
+        },
+        "progressMs": 0,
+        "sortLetter": "A",
+        "subtitle": "Unknown artist",
+        "title": "AlbumAlac",
+        "trackNumber": 1,
+        "watched": false
+      }
+    ],
+    "pageInfo": {
+      "start": 0,
+      "total": 4,
+      "totalIsLowerBound": false,
+      "revision": "browse_3981450a19d2b108c41c7326078f4967fec4e73356d06ab4bb550c1d4478a49f",
+      "hasMore": false,
+      "nextCursor": "",
+      "durationMs": 0,
+      "durationIsLowerBound": true
+    },
+    "positionIndex": [
+      {
+        "key": "#",
+        "index": 0
+      },
+      {
+        "key": "A",
+        "index": 2
+      }
+    ],
+    "wholeSelectionPreparing": {
+      "kind": "browse-selection-preparing",
+      "state": "preparing",
+      "queryId": "k4eo7xzPOFoe30HRpfMwbjn33GqnrbHYdVqSRPSEpKY",
+      "retryAfterMs": 1000
+    }
+  }
+}

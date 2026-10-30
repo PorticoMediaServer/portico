@@ -1,0 +1,35 @@
+---
+import { getCollection } from 'astro:content';
+import { docCategories } from '@/data/docs';
+
+const { currentId = '', currentCategory = '' } = Astro.props as {
+  currentId?: string;
+  currentCategory?: string;
+};
+const entries = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
+---
+
+<nav class="docs-sidebar" aria-label="Documentation">
+  <a class="docs-home-link" href="/docs/">Documentation home</a>
+  <label class="docs-sidebar-search">
+    <span class="sr-only">Filter documentation navigation</span>
+    <input type="search" placeholder="Find an article" data-sidebar-search />
+  </label>
+  {docCategories.map((category) => {
+    const articles = entries.filter((entry) => entry.data.category === category.id);
+    const active = currentCategory === category.id;
+    return (
+      <details open={active}>
+        <summary>{category.title}</summary>
+        <div>
+          <a class="docs-category-link" href={`/docs/${category.id}/`} aria-current={active && !currentId ? 'page' : undefined}>Overview</a>
+          {articles.map((article) => (
+            <a href={`/docs/${article.id}/`} aria-current={currentId === article.id ? 'page' : undefined}>{article.data.title}</a>
+          ))}
+        </div>
+      </details>
+    );
+  })}
+</nav>
+
+<script is:inline src="/scripts/docs-sidebar.js"></script>

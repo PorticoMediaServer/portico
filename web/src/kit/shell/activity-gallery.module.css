@@ -1,0 +1,16 @@
+.stage { width: 100%; height: 100%; background: var(--color-ink); }
+.tools { position: absolute; top: 18px; right: 64px; height: 40px; display: flex; align-items: center; gap: 6px; }
+.tools > button { position: relative; width: 40px; height: 40px; border: 0; border-radius: 50%; padding: 9px; background: none; color: var(--color-text-secondary); }
+.tools > button:hover { background: color-mix(in srgb, var(--color-text) 10%, transparent); }
+.avatar { display: inline-flex; margin-left: 8px; }
+.stage[data-reference-open] .tools > button, .stage[data-reference-open] .avatar { opacity: .4; }
+.specimen { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); zoom: 2; }
+.stage[data-specimen] { background: var(--color-raised); }
+.output { position: absolute; left: 20px; bottom: 20px; color: var(--color-text); }
+.notificationDot { position: absolute; top: 8px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent-strong); box-shadow: 0 0 0 2px var(--color-ink); }
+
+.harness { position: absolute; left: 20px; bottom: 60px; }
+
+/* The page dimmer is body-mounted; this isolated entry keeps the real toolbar above it. */
+.referenceSurface { position: relative; background: var(--color-ink); overflow: hidden; }
+.stage[data-reference-open] .tools { z-index: 20; }

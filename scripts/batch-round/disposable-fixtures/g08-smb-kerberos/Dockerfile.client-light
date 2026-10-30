@@ -1,0 +1,15 @@
+# Light KDC/SMB rehearsal client: Debian plus the already-qualified local
+# rclone 1.75.2 binary. No download, no Portico image, no host ports.
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      krb5-user smbclient strace ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY rclone /usr/local/bin/rclone
+RUN chmod 0755 /usr/local/bin/rclone \
+ && test "$(/usr/local/bin/rclone version | head -1)" = "rclone v1.75.2"
+
+ENTRYPOINT ["/bin/sleep", "infinity"]

@@ -1,0 +1,20 @@
+/* Server › Streaming › Hardware. The device list is the frame's list row: a
+   44 px method tile, the card's own name, its method beneath, and a badge that
+   says whether conversions go there now. The test row keeps the button and its
+   one result line on one line. */
+.devices { display: grid; }
+
+.device { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--color-line-soft); }
+.device:first-child { border-top: 0; }
+
+.deviceIcon { width: 44px; height: 44px; border-radius: 11px; display: grid; place-items: center; background: var(--color-raised-high); color: var(--color-text-secondary); }
+
+.deviceText b { display: block; font-size: var(--type-fixed-size-15point-5px); font-weight: var(--type-fixed-weight-700); }
+.deviceText small { display: block; margin-top: 3px; font-size: var(--type-fixed-size-13point-5px); color: var(--color-text-tertiary); }
+
+.badge { border-radius: 6px; border: 1px solid color-mix(in srgb, var(--color-text) 24%, transparent); color: var(--color-text-secondary); padding: 2px 8px; font-size: var(--type-fixed-size-12px); font-weight: var(--type-fixed-weight-700); white-space: nowrap; }
+.badge[data-tone='ok'] { border-color: transparent; color: var(--color-healthy); background: color-mix(in srgb, var(--color-healthy) 14%, transparent); }
+
+.test { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+.result { display: inline-flex; align-items: center; gap: 6px; font-size: var(--type-fixed-size-13point-5px); color: var(--color-healthy); }

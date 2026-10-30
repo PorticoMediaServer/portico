@@ -1,0 +1,23 @@
+{
+  "name": "@portico/reader-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ports": "./src/ports.ts",
+    "./fonts": "./src/fonts.ts"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test-concurrency=1 --test test/*.test.ts",
+    "check": "tsc -p tsconfig.json && npm test"
+  },
+  "dependencies": {
+    "@portico/client-core": "0.1.0",
+    "@noble/hashes": "2.4.0",
+    "pdfjs-dist": "6.4.299",
+    "foliate-js": "https://codeload.github.com/johnfactotum/foliate-js/tar.gz/78914aef4466eb960965702401634c2cb348e9b1",
+    "@zip.js/zip.js": "2.24.0",
+    "dompurify": "3.4.17"
+  }
+}

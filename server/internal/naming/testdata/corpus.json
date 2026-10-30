@@ -1,0 +1,5956 @@
+[
+  {
+    "group": "plex",
+    "path": "Alien (1979)/Alien (1979).mkv",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "plex-loose",
+    "path": "Alien (1979).mp4",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "radarr",
+    "path": "Alien (1979)/Alien (1979) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "scene",
+    "path": "Alien.1979.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "scene",
+    "path": "Alien.1979.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "bad-library",
+    "path": "Alien (1979)/movie.mkv",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/Alien (1979).mkv",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "versions",
+    "path": "Alien (1979)/Alien (1979) - 1080p.mkv",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "versions",
+    "path": "Alien (1979)/Alien (1979) - 4K.mkv",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "editions",
+    "path": "Alien (1979)/{edition-Director's Cut} Alien (1979).mkv",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "multipart",
+    "path": "Alien (1979)/Alien (1979) - pt1.mkv",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "provider-hints",
+    "path": "Alien (1979) {tmdb-12345}/Alien (1979).mkv",
+    "kind": "movie",
+    "title": "Alien",
+    "year": 1979
+  },
+  {
+    "group": "plex",
+    "path": "Arrival (2016)/Arrival (2016).mkv",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "plex-loose",
+    "path": "Arrival (2016).mp4",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "radarr",
+    "path": "Arrival (2016)/Arrival (2016) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "scene",
+    "path": "Arrival.2016.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "scene",
+    "path": "Arrival.2016.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "bad-library",
+    "path": "Arrival (2016)/movie.mkv",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/Arrival (2016).mkv",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "versions",
+    "path": "Arrival (2016)/Arrival (2016) - 1080p.mkv",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "versions",
+    "path": "Arrival (2016)/Arrival (2016) - 4K.mkv",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "editions",
+    "path": "Arrival (2016)/{edition-Director's Cut} Arrival (2016).mkv",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "multipart",
+    "path": "Arrival (2016)/Arrival (2016) - pt1.mkv",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "provider-hints",
+    "path": "Arrival (2016) {tmdb-12345}/Arrival (2016).mkv",
+    "kind": "movie",
+    "title": "Arrival",
+    "year": 2016
+  },
+  {
+    "group": "plex",
+    "path": "1917 (2019)/1917 (2019).mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "plex-loose",
+    "path": "1917 (2019).mp4",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "radarr",
+    "path": "1917 (2019)/1917 (2019) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "scene",
+    "path": "1917.2019.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "scene",
+    "path": "1917.2019.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "bad-library",
+    "path": "1917 (2019)/movie.mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/1917 (2019).mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "versions",
+    "path": "1917 (2019)/1917 (2019) - 1080p.mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "versions",
+    "path": "1917 (2019)/1917 (2019) - 4K.mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "editions",
+    "path": "1917 (2019)/{edition-Director's Cut} 1917 (2019).mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "multipart",
+    "path": "1917 (2019)/1917 (2019) - pt1.mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "provider-hints",
+    "path": "1917 (2019) {tmdb-12345}/1917 (2019).mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 2019
+  },
+  {
+    "group": "plex",
+    "path": "2001 A Space Odyssey (1968)/2001 A Space Odyssey (1968).mkv",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "plex-loose",
+    "path": "2001 A Space Odyssey (1968).mp4",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "radarr",
+    "path": "2001 A Space Odyssey (1968)/2001 A Space Odyssey (1968) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "scene",
+    "path": "2001.A.Space.Odyssey.1968.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "scene",
+    "path": "2001.A.Space.Odyssey.1968.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "bad-library",
+    "path": "2001 A Space Odyssey (1968)/movie.mkv",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/2001 A Space Odyssey (1968).mkv",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "versions",
+    "path": "2001 A Space Odyssey (1968)/2001 A Space Odyssey (1968) - 1080p.mkv",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "versions",
+    "path": "2001 A Space Odyssey (1968)/2001 A Space Odyssey (1968) - 4K.mkv",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "editions",
+    "path": "2001 A Space Odyssey (1968)/{edition-Director's Cut} 2001 A Space Odyssey (1968).mkv",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "multipart",
+    "path": "2001 A Space Odyssey (1968)/2001 A Space Odyssey (1968) - pt1.mkv",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "provider-hints",
+    "path": "2001 A Space Odyssey (1968) {tmdb-12345}/2001 A Space Odyssey (1968).mkv",
+    "kind": "movie",
+    "title": "2001 A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "plex",
+    "path": "Blade Runner 2049 (2017)/Blade Runner 2049 (2017).mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "plex-loose",
+    "path": "Blade Runner 2049 (2017).mp4",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "radarr",
+    "path": "Blade Runner 2049 (2017)/Blade Runner 2049 (2017) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "scene",
+    "path": "Blade.Runner.2049.2017.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "scene",
+    "path": "Blade.Runner.2049.2017.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "bad-library",
+    "path": "Blade Runner 2049 (2017)/movie.mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/Blade Runner 2049 (2017).mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "versions",
+    "path": "Blade Runner 2049 (2017)/Blade Runner 2049 (2017) - 1080p.mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "versions",
+    "path": "Blade Runner 2049 (2017)/Blade Runner 2049 (2017) - 4K.mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "editions",
+    "path": "Blade Runner 2049 (2017)/{edition-Director's Cut} Blade Runner 2049 (2017).mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "multipart",
+    "path": "Blade Runner 2049 (2017)/Blade Runner 2049 (2017) - pt1.mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "provider-hints",
+    "path": "Blade Runner 2049 (2017) {tmdb-12345}/Blade Runner 2049 (2017).mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "plex",
+    "path": "Wonder Woman 1984 (2020)/Wonder Woman 1984 (2020).mkv",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "plex-loose",
+    "path": "Wonder Woman 1984 (2020).mp4",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "radarr",
+    "path": "Wonder Woman 1984 (2020)/Wonder Woman 1984 (2020) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "scene",
+    "path": "Wonder.Woman.1984.2020.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "scene",
+    "path": "Wonder.Woman.1984.2020.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "bad-library",
+    "path": "Wonder Woman 1984 (2020)/movie.mkv",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/Wonder Woman 1984 (2020).mkv",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "versions",
+    "path": "Wonder Woman 1984 (2020)/Wonder Woman 1984 (2020) - 1080p.mkv",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "versions",
+    "path": "Wonder Woman 1984 (2020)/Wonder Woman 1984 (2020) - 4K.mkv",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "editions",
+    "path": "Wonder Woman 1984 (2020)/{edition-Director's Cut} Wonder Woman 1984 (2020).mkv",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "multipart",
+    "path": "Wonder Woman 1984 (2020)/Wonder Woman 1984 (2020) - pt1.mkv",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "provider-hints",
+    "path": "Wonder Woman 1984 (2020) {tmdb-12345}/Wonder Woman 1984 (2020).mkv",
+    "kind": "movie",
+    "title": "Wonder Woman 1984",
+    "year": 2020
+  },
+  {
+    "group": "plex",
+    "path": "Death Race 2000 (1975)/Death Race 2000 (1975).mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "plex-loose",
+    "path": "Death Race 2000 (1975).mp4",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "radarr",
+    "path": "Death Race 2000 (1975)/Death Race 2000 (1975) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "scene",
+    "path": "Death.Race.2000.1975.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "scene",
+    "path": "Death.Race.2000.1975.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "bad-library",
+    "path": "Death Race 2000 (1975)/movie.mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/Death Race 2000 (1975).mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "versions",
+    "path": "Death Race 2000 (1975)/Death Race 2000 (1975) - 1080p.mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "versions",
+    "path": "Death Race 2000 (1975)/Death Race 2000 (1975) - 4K.mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "editions",
+    "path": "Death Race 2000 (1975)/{edition-Director's Cut} Death Race 2000 (1975).mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "multipart",
+    "path": "Death Race 2000 (1975)/Death Race 2000 (1975) - pt1.mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "provider-hints",
+    "path": "Death Race 2000 (1975) {tmdb-12345}/Death Race 2000 (1975).mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "plex",
+    "path": "300 (2006)/300 (2006).mkv",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "plex-loose",
+    "path": "300 (2006).mp4",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "radarr",
+    "path": "300 (2006)/300 (2006) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "scene",
+    "path": "300.2006.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "scene",
+    "path": "300.2006.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "bad-library",
+    "path": "300 (2006)/movie.mkv",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/300 (2006).mkv",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "versions",
+    "path": "300 (2006)/300 (2006) - 1080p.mkv",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "versions",
+    "path": "300 (2006)/300 (2006) - 4K.mkv",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "editions",
+    "path": "300 (2006)/{edition-Director's Cut} 300 (2006).mkv",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "multipart",
+    "path": "300 (2006)/300 (2006) - pt1.mkv",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "provider-hints",
+    "path": "300 (2006) {tmdb-12345}/300 (2006).mkv",
+    "kind": "movie",
+    "title": "300",
+    "year": 2006
+  },
+  {
+    "group": "plex",
+    "path": "St Vincent (2014)/St Vincent (2014).mkv",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "plex-loose",
+    "path": "St Vincent (2014).mp4",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "radarr",
+    "path": "St Vincent (2014)/St Vincent (2014) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "scene",
+    "path": "St.Vincent.2014.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "scene",
+    "path": "St.Vincent.2014.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "bad-library",
+    "path": "St Vincent (2014)/movie.mkv",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/St Vincent (2014).mkv",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "versions",
+    "path": "St Vincent (2014)/St Vincent (2014) - 1080p.mkv",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "versions",
+    "path": "St Vincent (2014)/St Vincent (2014) - 4K.mkv",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "editions",
+    "path": "St Vincent (2014)/{edition-Director's Cut} St Vincent (2014).mkv",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "multipart",
+    "path": "St Vincent (2014)/St Vincent (2014) - pt1.mkv",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "provider-hints",
+    "path": "St Vincent (2014) {tmdb-12345}/St Vincent (2014).mkv",
+    "kind": "movie",
+    "title": "St Vincent",
+    "year": 2014
+  },
+  {
+    "group": "plex",
+    "path": "The Wolf of Wall Street (2013)/The Wolf of Wall Street (2013).mkv",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "plex-loose",
+    "path": "The Wolf of Wall Street (2013).mp4",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "radarr",
+    "path": "The Wolf of Wall Street (2013)/The Wolf of Wall Street (2013) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "scene",
+    "path": "The.Wolf.of.Wall.Street.2013.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "scene",
+    "path": "The.Wolf.of.Wall.Street.2013.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "bad-library",
+    "path": "The Wolf of Wall Street (2013)/movie.mkv",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/The Wolf of Wall Street (2013).mkv",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "versions",
+    "path": "The Wolf of Wall Street (2013)/The Wolf of Wall Street (2013) - 1080p.mkv",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "versions",
+    "path": "The Wolf of Wall Street (2013)/The Wolf of Wall Street (2013) - 4K.mkv",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "editions",
+    "path": "The Wolf of Wall Street (2013)/{edition-Director's Cut} The Wolf of Wall Street (2013).mkv",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "multipart",
+    "path": "The Wolf of Wall Street (2013)/The Wolf of Wall Street (2013) - pt1.mkv",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "provider-hints",
+    "path": "The Wolf of Wall Street (2013) {tmdb-12345}/The Wolf of Wall Street (2013).mkv",
+    "kind": "movie",
+    "title": "The Wolf of Wall Street",
+    "year": 2013
+  },
+  {
+    "group": "plex",
+    "path": "E T the Extra-Terrestrial (1982)/E T the Extra-Terrestrial (1982).mkv",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "plex-loose",
+    "path": "E T the Extra-Terrestrial (1982).mp4",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "radarr",
+    "path": "E T the Extra-Terrestrial (1982)/E T the Extra-Terrestrial (1982) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "scene",
+    "path": "E.T.the.Extra-Terrestrial.1982.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "scene",
+    "path": "E.T.the.Extra-Terrestrial.1982.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "bad-library",
+    "path": "E T the Extra-Terrestrial (1982)/movie.mkv",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/E T the Extra-Terrestrial (1982).mkv",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "versions",
+    "path": "E T the Extra-Terrestrial (1982)/E T the Extra-Terrestrial (1982) - 1080p.mkv",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "versions",
+    "path": "E T the Extra-Terrestrial (1982)/E T the Extra-Terrestrial (1982) - 4K.mkv",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "editions",
+    "path": "E T the Extra-Terrestrial (1982)/{edition-Director's Cut} E T the Extra-Terrestrial (1982).mkv",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "multipart",
+    "path": "E T the Extra-Terrestrial (1982)/E T the Extra-Terrestrial (1982) - pt1.mkv",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "provider-hints",
+    "path": "E T the Extra-Terrestrial (1982) {tmdb-12345}/E T the Extra-Terrestrial (1982).mkv",
+    "kind": "movie",
+    "title": "E T the Extra-Terrestrial",
+    "year": 1982
+  },
+  {
+    "group": "plex",
+    "path": "Kill Bill Vol 1 (2003)/Kill Bill Vol 1 (2003).mkv",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "plex-loose",
+    "path": "Kill Bill Vol 1 (2003).mp4",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "radarr",
+    "path": "Kill Bill Vol 1 (2003)/Kill Bill Vol 1 (2003) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "scene",
+    "path": "Kill.Bill.Vol.1.2003.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "scene",
+    "path": "Kill.Bill.Vol.1.2003.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "bad-library",
+    "path": "Kill Bill Vol 1 (2003)/movie.mkv",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/Kill Bill Vol 1 (2003).mkv",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "versions",
+    "path": "Kill Bill Vol 1 (2003)/Kill Bill Vol 1 (2003) - 1080p.mkv",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "versions",
+    "path": "Kill Bill Vol 1 (2003)/Kill Bill Vol 1 (2003) - 4K.mkv",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "editions",
+    "path": "Kill Bill Vol 1 (2003)/{edition-Director's Cut} Kill Bill Vol 1 (2003).mkv",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "multipart",
+    "path": "Kill Bill Vol 1 (2003)/Kill Bill Vol 1 (2003) - pt1.mkv",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "provider-hints",
+    "path": "Kill Bill Vol 1 (2003) {tmdb-12345}/Kill Bill Vol 1 (2003).mkv",
+    "kind": "movie",
+    "title": "Kill Bill Vol 1",
+    "year": 2003
+  },
+  {
+    "group": "plex",
+    "path": "Amélie (2001)/Amélie (2001).mkv",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "plex-loose",
+    "path": "Amélie (2001).mp4",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "radarr",
+    "path": "Amélie (2001)/Amélie (2001) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "scene",
+    "path": "Amélie.2001.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "scene",
+    "path": "Amélie.2001.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "bad-library",
+    "path": "Amélie (2001)/movie.mkv",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/Amélie (2001).mkv",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "versions",
+    "path": "Amélie (2001)/Amélie (2001) - 1080p.mkv",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "versions",
+    "path": "Amélie (2001)/Amélie (2001) - 4K.mkv",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "editions",
+    "path": "Amélie (2001)/{edition-Director's Cut} Amélie (2001).mkv",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "multipart",
+    "path": "Amélie (2001)/Amélie (2001) - pt1.mkv",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "provider-hints",
+    "path": "Amélie (2001) {tmdb-12345}/Amélie (2001).mkv",
+    "kind": "movie",
+    "title": "Amélie",
+    "year": 2001
+  },
+  {
+    "group": "plex",
+    "path": "Seven Samurai (1954)/Seven Samurai (1954).mkv",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "plex-loose",
+    "path": "Seven Samurai (1954).mp4",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "radarr",
+    "path": "Seven Samurai (1954)/Seven Samurai (1954) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "scene",
+    "path": "Seven.Samurai.1954.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "scene",
+    "path": "Seven.Samurai.1954.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "bad-library",
+    "path": "Seven Samurai (1954)/movie.mkv",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/Seven Samurai (1954).mkv",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "versions",
+    "path": "Seven Samurai (1954)/Seven Samurai (1954) - 1080p.mkv",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "versions",
+    "path": "Seven Samurai (1954)/Seven Samurai (1954) - 4K.mkv",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "editions",
+    "path": "Seven Samurai (1954)/{edition-Director's Cut} Seven Samurai (1954).mkv",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "multipart",
+    "path": "Seven Samurai (1954)/Seven Samurai (1954) - pt1.mkv",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "provider-hints",
+    "path": "Seven Samurai (1954) {tmdb-12345}/Seven Samurai (1954).mkv",
+    "kind": "movie",
+    "title": "Seven Samurai",
+    "year": 1954
+  },
+  {
+    "group": "plex",
+    "path": "Metropolis (1927)/Metropolis (1927).mkv",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "plex-loose",
+    "path": "Metropolis (1927).mp4",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "radarr",
+    "path": "Metropolis (1927)/Metropolis (1927) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "scene",
+    "path": "Metropolis.1927.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "scene",
+    "path": "Metropolis.1927.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "bad-library",
+    "path": "Metropolis (1927)/movie.mkv",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/Metropolis (1927).mkv",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "versions",
+    "path": "Metropolis (1927)/Metropolis (1927) - 1080p.mkv",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "versions",
+    "path": "Metropolis (1927)/Metropolis (1927) - 4K.mkv",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "editions",
+    "path": "Metropolis (1927)/{edition-Director's Cut} Metropolis (1927).mkv",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "multipart",
+    "path": "Metropolis (1927)/Metropolis (1927) - pt1.mkv",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "provider-hints",
+    "path": "Metropolis (1927) {tmdb-12345}/Metropolis (1927).mkv",
+    "kind": "movie",
+    "title": "Metropolis",
+    "year": 1927
+  },
+  {
+    "group": "plex",
+    "path": "The Cabinet of Dr Caligari (1920)/The Cabinet of Dr Caligari (1920).mkv",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "plex-loose",
+    "path": "The Cabinet of Dr Caligari (1920).mp4",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "radarr",
+    "path": "The Cabinet of Dr Caligari (1920)/The Cabinet of Dr Caligari (1920) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "scene",
+    "path": "The.Cabinet.of.Dr.Caligari.1920.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "scene",
+    "path": "The.Cabinet.of.Dr.Caligari.1920.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "bad-library",
+    "path": "The Cabinet of Dr Caligari (1920)/movie.mkv",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/The Cabinet of Dr Caligari (1920).mkv",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "versions",
+    "path": "The Cabinet of Dr Caligari (1920)/The Cabinet of Dr Caligari (1920) - 1080p.mkv",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "versions",
+    "path": "The Cabinet of Dr Caligari (1920)/The Cabinet of Dr Caligari (1920) - 4K.mkv",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "editions",
+    "path": "The Cabinet of Dr Caligari (1920)/{edition-Director's Cut} The Cabinet of Dr Caligari (1920).mkv",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "multipart",
+    "path": "The Cabinet of Dr Caligari (1920)/The Cabinet of Dr Caligari (1920) - pt1.mkv",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "provider-hints",
+    "path": "The Cabinet of Dr Caligari (1920) {tmdb-12345}/The Cabinet of Dr Caligari (1920).mkv",
+    "kind": "movie",
+    "title": "The Cabinet of Dr Caligari",
+    "year": 1920
+  },
+  {
+    "group": "plex",
+    "path": "Dune Part Two (2024)/Dune Part Two (2024).mkv",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "plex-loose",
+    "path": "Dune Part Two (2024).mp4",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "radarr",
+    "path": "Dune Part Two (2024)/Dune Part Two (2024) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "scene",
+    "path": "Dune.Part.Two.2024.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "scene",
+    "path": "Dune.Part.Two.2024.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "bad-library",
+    "path": "Dune Part Two (2024)/movie.mkv",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/Dune Part Two (2024).mkv",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "versions",
+    "path": "Dune Part Two (2024)/Dune Part Two (2024) - 1080p.mkv",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "versions",
+    "path": "Dune Part Two (2024)/Dune Part Two (2024) - 4K.mkv",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "editions",
+    "path": "Dune Part Two (2024)/{edition-Director's Cut} Dune Part Two (2024).mkv",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "multipart",
+    "path": "Dune Part Two (2024)/Dune Part Two (2024) - pt1.mkv",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "provider-hints",
+    "path": "Dune Part Two (2024) {tmdb-12345}/Dune Part Two (2024).mkv",
+    "kind": "movie",
+    "title": "Dune Part Two",
+    "year": 2024
+  },
+  {
+    "group": "plex",
+    "path": "Nosferatu (1922)/Nosferatu (1922).mkv",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "plex-loose",
+    "path": "Nosferatu (1922).mp4",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "radarr",
+    "path": "Nosferatu (1922)/Nosferatu (1922) [imdbid-tt1234567] [Bluray-1080p][DTS 5.1][x264]-GROUP.mkv",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "scene",
+    "path": "Nosferatu.1922.1080p.BluRay.x264.DTS-GROUP.mkv",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "scene",
+    "path": "Nosferatu.1922.2160p.WEB-DL.DDP5.1.HDR.HEVC-GROUP.mkv",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "bad-library",
+    "path": "Nosferatu (1922)/movie.mkv",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "bad-library",
+    "path": "Unknown Folder/Nosferatu (1922).mkv",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "versions",
+    "path": "Nosferatu (1922)/Nosferatu (1922) - 1080p.mkv",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "versions",
+    "path": "Nosferatu (1922)/Nosferatu (1922) - 4K.mkv",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "editions",
+    "path": "Nosferatu (1922)/{edition-Director's Cut} Nosferatu (1922).mkv",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "multipart",
+    "path": "Nosferatu (1922)/Nosferatu (1922) - pt1.mkv",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "provider-hints",
+    "path": "Nosferatu (1922) {tmdb-12345}/Nosferatu (1922).mkv",
+    "kind": "movie",
+    "title": "Nosferatu",
+    "year": 1922
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Severance (2022)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Severance (2022)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Severance (2022)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Severance (2022)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Severance (2022)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Severance (2022)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Severance (2022)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Severance (2022)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Severance (2022)/Season 1/Severance - S01E02.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Severance (2022)/Season 1/Severance - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Severance (2022)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Severance (2022)/Severance.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Severance (2022)/Severance - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Severance (2022)/Severance - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Severance (2022)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Severance",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Doctor Who (2005)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Doctor Who (2005)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Doctor Who (2005)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Doctor Who (2005)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Doctor Who (2005)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Doctor Who (2005)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Doctor Who (2005)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Doctor Who (2005)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Doctor Who (2005)/Season 1/Doctor Who - S01E02.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Doctor Who (2005)/Season 1/Doctor Who - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Doctor Who (2005)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Doctor Who (2005)/Doctor.Who.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Doctor Who (2005)/Doctor Who - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Doctor Who (2005)/Doctor Who - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Doctor Who (2005)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Doctor Who",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Breaking Bad (2008)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Breaking Bad (2008)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Breaking Bad (2008)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Breaking Bad (2008)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Breaking Bad (2008)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Breaking Bad (2008)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Breaking Bad (2008)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Breaking Bad (2008)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Breaking Bad (2008)/Season 1/Breaking Bad - S01E02.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Breaking Bad (2008)/Season 1/Breaking Bad - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Breaking Bad (2008)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Breaking Bad (2008)/Breaking.Bad.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Breaking Bad (2008)/Breaking Bad - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Breaking Bad (2008)/Breaking Bad - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Breaking Bad (2008)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Office US (2005)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Office US (2005)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Office US (2005)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Office US (2005)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Office US (2005)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Office US (2005)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Office US (2005)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Office US (2005)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "The Office US (2005)/Season 1/The Office US - S01E02.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "The Office US (2005)/Season 1/The Office US - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "The Office US (2005)/S01E02.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "The Office US (2005)/The.Office.US.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "The Office US (2005)/The Office US - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "The Office US (2005)/The Office US - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "The Office US (2005)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Mr Robot (2015)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Mr Robot (2015)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Mr Robot (2015)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Mr Robot (2015)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Mr Robot (2015)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Mr Robot (2015)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Mr Robot (2015)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Mr Robot (2015)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Mr Robot (2015)/Season 1/Mr Robot - S01E02.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Mr Robot (2015)/Season 1/Mr Robot - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Mr Robot (2015)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Mr Robot (2015)/Mr.Robot.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Mr Robot (2015)/Mr Robot - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Mr Robot (2015)/Mr Robot - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Mr Robot (2015)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Mr Robot",
+    "year": 2015,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Blakes 7 (1978)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Blakes 7 (1978)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Blakes 7 (1978)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Blakes 7 (1978)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Blakes 7 (1978)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Blakes 7 (1978)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Blakes 7 (1978)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Blakes 7 (1978)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Blakes 7 (1978)/Season 1/Blakes 7 - S01E02.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Blakes 7 (1978)/Season 1/Blakes 7 - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Blakes 7 (1978)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Blakes 7 (1978)/Blakes.7.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Blakes 7 (1978)/Blakes 7 - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Blakes 7 (1978)/Blakes 7 - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Blakes 7 (1978)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Blakes 7",
+    "year": 1978,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Space 1999 (1975)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Space 1999 (1975)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Space 1999 (1975)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Space 1999 (1975)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Space 1999 (1975)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Space 1999 (1975)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Space 1999 (1975)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Space 1999 (1975)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Space 1999 (1975)/Season 1/Space 1999 - S01E02.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Space 1999 (1975)/Season 1/Space 1999 - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Space 1999 (1975)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Space 1999 (1975)/Space.1999.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Space 1999 (1975)/Space 1999 - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Space 1999 (1975)/Space 1999 - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Space 1999 (1975)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Space 1999",
+    "year": 1975,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Season 1/Cyberpunk 2077 Edgerunners - S01E02.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Season 1/Cyberpunk 2077 Edgerunners - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Cyberpunk.2077.Edgerunners.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Cyberpunk 2077 Edgerunners - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Cyberpunk 2077 Edgerunners - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Cyberpunk 2077 Edgerunners (2022)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Café (2019)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Café (2019)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Café (2019)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Café (2019)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Café (2019)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Café (2019)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Café (2019)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Café (2019)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Café (2019)/Season 1/Café - S01E02.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Café (2019)/Season 1/Café - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Café (2019)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Café (2019)/Café.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Café (2019)/Café - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Café (2019)/Café - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Café (2019)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Café",
+    "year": 2019,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Jeopardy (1984)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Jeopardy (1984)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Jeopardy (1984)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Jeopardy (1984)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Jeopardy (1984)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Jeopardy (1984)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Jeopardy (1984)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Jeopardy (1984)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Jeopardy (1984)/Season 1/Jeopardy - S01E02.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Jeopardy (1984)/Season 1/Jeopardy - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Jeopardy (1984)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Jeopardy (1984)/Jeopardy.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Jeopardy (1984)/Jeopardy - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Jeopardy (1984)/Jeopardy - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Jeopardy (1984)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 1984,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Extras (2005)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Extras (2005)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Extras (2005)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Extras (2005)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Extras (2005)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Extras (2005)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Extras (2005)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Extras (2005)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Extras (2005)/Season 1/Extras - S01E02.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Extras (2005)/Season 1/Extras - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Extras (2005)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Extras (2005)/Extras.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Extras (2005)/Extras - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Extras (2005)/Extras - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Extras (2005)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Extras",
+    "year": 2005,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Simpsons (1989)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Simpsons (1989)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Simpsons (1989)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Simpsons (1989)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Simpsons (1989)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Simpsons (1989)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Simpsons (1989)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "The Simpsons (1989)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "The Simpsons (1989)/Season 1/The Simpsons - S01E02.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "The Simpsons (1989)/Season 1/The Simpsons - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "The Simpsons (1989)/S01E02.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "The Simpsons (1989)/The.Simpsons.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "The Simpsons (1989)/The Simpsons - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "The Simpsons (1989)/The Simpsons - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "The Simpsons (1989)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "The Simpsons",
+    "year": 1989,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1923 (2022)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1923 (2022)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1923 (2022)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1923 (2022)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1923 (2022)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1923 (2022)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1923 (2022)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1923 (2022)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "1923 (2022)/Season 1/1923 - S01E02.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "1923 (2022)/Season 1/1923 - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "1923 (2022)/S01E02.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "1923 (2022)/1923.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "1923 (2022)/1923 - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "1923 (2022)/1923 - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "1923 (2022)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "1923",
+    "year": 2022,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1883 (2021)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1883 (2021)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1883 (2021)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1883 (2021)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1883 (2021)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1883 (2021)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1883 (2021)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "1883 (2021)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "1883 (2021)/Season 1/1883 - S01E02.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "1883 (2021)/Season 1/1883 - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "1883 (2021)/S01E02.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "1883 (2021)/1883.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "1883 (2021)/1883 - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "1883 (2021)/1883 - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "1883 (2021)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "1883",
+    "year": 2021,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Lost (2004)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Lost (2004)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Lost (2004)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Lost (2004)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Lost (2004)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Lost (2004)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Lost (2004)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Lost (2004)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Lost (2004)/Season 1/Lost - S01E02.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Lost (2004)/Season 1/Lost - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Lost (2004)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Lost (2004)/Lost.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Lost (2004)/Lost - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Lost (2004)/Lost - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Lost (2004)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Lost",
+    "year": 2004,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Twin Peaks (1990)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Twin Peaks (1990)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Twin Peaks (1990)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Twin Peaks (1990)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Twin Peaks (1990)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Twin Peaks (1990)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Twin Peaks (1990)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Twin Peaks (1990)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Twin Peaks (1990)/Season 1/Twin Peaks - S01E02.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Twin Peaks (1990)/Season 1/Twin Peaks - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Twin Peaks (1990)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Twin Peaks (1990)/Twin.Peaks.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Twin Peaks (1990)/Twin Peaks - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Twin Peaks (1990)/Twin Peaks - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Twin Peaks (1990)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Star Trek (1966)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Star Trek (1966)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Star Trek (1966)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Star Trek (1966)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Star Trek (1966)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Star Trek (1966)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Star Trek (1966)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Star Trek (1966)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Star Trek (1966)/Season 1/Star Trek - S01E02.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Star Trek (1966)/Season 1/Star Trek - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Star Trek (1966)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Star Trek (1966)/Star.Trek.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Star Trek (1966)/Star Trek - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Star Trek (1966)/Star Trek - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Star Trek (1966)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Star Trek",
+    "year": 1966,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Futurama (1999)/Season 2/E01.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Futurama (1999)/Season 02/E01.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Futurama (1999)/S02/E01.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Futurama (1999)/Series 2/E01.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Futurama (1999)/Saison 2/E01.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Futurama (1999)/Staffel 2/E01.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Futurama (1999)/Temporada 2/E01.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "translated-seasons",
+    "path": "Futurama (1999)/Season 2 (2020)/E01.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "plex",
+    "path": "Futurama (1999)/Season 1/Futurama - S01E02.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "sonarr",
+    "path": "Futurama (1999)/Season 1/Futurama - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "flat",
+    "path": "Futurama (1999)/S01E02.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "scene",
+    "path": "Futurama (1999)/Futurama.1x02.HDTV.x264-GROUP.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Futurama (1999)/Futurama - s01e02e03.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 1,
+    "episodes": [
+      2,
+      3
+    ]
+  },
+  {
+    "group": "multi-episode",
+    "path": "Futurama (1999)/Futurama - S01E02-E04.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 1,
+    "episodes": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "group": "bad-library",
+    "path": "Futurama (1999)/Season 1/S02E01.mkv",
+    "kind": "tv",
+    "title": "Futurama",
+    "year": 1999,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Frieren/[Group] Frieren - 001 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Frieren",
+    "year": 0,
+    "absolute": 1
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Frieren/[Group] Frieren - 002 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Frieren",
+    "year": 0,
+    "absolute": 2
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Frieren/[Group] Frieren - 007 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Frieren",
+    "year": 0,
+    "absolute": 7
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Frieren/[Group] Frieren - 012 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Frieren",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Frieren/[Group] Frieren - 024 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Frieren",
+    "year": 0,
+    "absolute": 24
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Frieren/[Group] Frieren - 099 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Frieren",
+    "year": 0,
+    "absolute": 99
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Frieren/[Group] Frieren - 100 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Frieren",
+    "year": 0,
+    "absolute": 100
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Frieren/[Group] Frieren - 317 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Frieren",
+    "year": 0,
+    "absolute": 317
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Frieren/Frieren - 012v2.mkv",
+    "kind": "anime",
+    "title": "Frieren",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Frieren/[Fansubs] Frieren - 012 [1920x1080][10bit].mkv",
+    "kind": "anime",
+    "title": "Frieren",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Cowboy Bebop/[Group] Cowboy Bebop - 001 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Cowboy Bebop",
+    "year": 0,
+    "absolute": 1
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Cowboy Bebop/[Group] Cowboy Bebop - 002 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Cowboy Bebop",
+    "year": 0,
+    "absolute": 2
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Cowboy Bebop/[Group] Cowboy Bebop - 007 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Cowboy Bebop",
+    "year": 0,
+    "absolute": 7
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Cowboy Bebop/[Group] Cowboy Bebop - 012 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Cowboy Bebop",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Cowboy Bebop/[Group] Cowboy Bebop - 024 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Cowboy Bebop",
+    "year": 0,
+    "absolute": 24
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Cowboy Bebop/[Group] Cowboy Bebop - 099 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Cowboy Bebop",
+    "year": 0,
+    "absolute": 99
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Cowboy Bebop/[Group] Cowboy Bebop - 100 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Cowboy Bebop",
+    "year": 0,
+    "absolute": 100
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Cowboy Bebop/[Group] Cowboy Bebop - 317 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Cowboy Bebop",
+    "year": 0,
+    "absolute": 317
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Cowboy Bebop/Cowboy Bebop - 012v2.mkv",
+    "kind": "anime",
+    "title": "Cowboy Bebop",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Cowboy Bebop/[Fansubs] Cowboy Bebop - 012 [1920x1080][10bit].mkv",
+    "kind": "anime",
+    "title": "Cowboy Bebop",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "One Piece/[Group] One Piece - 001 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "One Piece",
+    "year": 0,
+    "absolute": 1
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "One Piece/[Group] One Piece - 002 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "One Piece",
+    "year": 0,
+    "absolute": 2
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "One Piece/[Group] One Piece - 007 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "One Piece",
+    "year": 0,
+    "absolute": 7
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "One Piece/[Group] One Piece - 012 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "One Piece",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "One Piece/[Group] One Piece - 024 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "One Piece",
+    "year": 0,
+    "absolute": 24
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "One Piece/[Group] One Piece - 099 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "One Piece",
+    "year": 0,
+    "absolute": 99
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "One Piece/[Group] One Piece - 100 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "One Piece",
+    "year": 0,
+    "absolute": 100
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "One Piece/[Group] One Piece - 317 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "One Piece",
+    "year": 0,
+    "absolute": 317
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "One Piece/One Piece - 012v2.mkv",
+    "kind": "anime",
+    "title": "One Piece",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "One Piece/[Fansubs] One Piece - 012 [1920x1080][10bit].mkv",
+    "kind": "anime",
+    "title": "One Piece",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Naruto Shippuden/[Group] Naruto Shippuden - 001 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Naruto Shippuden",
+    "year": 0,
+    "absolute": 1
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Naruto Shippuden/[Group] Naruto Shippuden - 002 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Naruto Shippuden",
+    "year": 0,
+    "absolute": 2
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Naruto Shippuden/[Group] Naruto Shippuden - 007 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Naruto Shippuden",
+    "year": 0,
+    "absolute": 7
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Naruto Shippuden/[Group] Naruto Shippuden - 012 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Naruto Shippuden",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Naruto Shippuden/[Group] Naruto Shippuden - 024 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Naruto Shippuden",
+    "year": 0,
+    "absolute": 24
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Naruto Shippuden/[Group] Naruto Shippuden - 099 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Naruto Shippuden",
+    "year": 0,
+    "absolute": 99
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Naruto Shippuden/[Group] Naruto Shippuden - 100 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Naruto Shippuden",
+    "year": 0,
+    "absolute": 100
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Naruto Shippuden/[Group] Naruto Shippuden - 317 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Naruto Shippuden",
+    "year": 0,
+    "absolute": 317
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Naruto Shippuden/Naruto Shippuden - 012v2.mkv",
+    "kind": "anime",
+    "title": "Naruto Shippuden",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Naruto Shippuden/[Fansubs] Naruto Shippuden - 012 [1920x1080][10bit].mkv",
+    "kind": "anime",
+    "title": "Naruto Shippuden",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Neon Genesis Evangelion/[Group] Neon Genesis Evangelion - 001 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Neon Genesis Evangelion",
+    "year": 0,
+    "absolute": 1
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Neon Genesis Evangelion/[Group] Neon Genesis Evangelion - 002 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Neon Genesis Evangelion",
+    "year": 0,
+    "absolute": 2
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Neon Genesis Evangelion/[Group] Neon Genesis Evangelion - 007 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Neon Genesis Evangelion",
+    "year": 0,
+    "absolute": 7
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Neon Genesis Evangelion/[Group] Neon Genesis Evangelion - 012 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Neon Genesis Evangelion",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Neon Genesis Evangelion/[Group] Neon Genesis Evangelion - 024 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Neon Genesis Evangelion",
+    "year": 0,
+    "absolute": 24
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Neon Genesis Evangelion/[Group] Neon Genesis Evangelion - 099 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Neon Genesis Evangelion",
+    "year": 0,
+    "absolute": 99
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Neon Genesis Evangelion/[Group] Neon Genesis Evangelion - 100 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Neon Genesis Evangelion",
+    "year": 0,
+    "absolute": 100
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Neon Genesis Evangelion/[Group] Neon Genesis Evangelion - 317 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Neon Genesis Evangelion",
+    "year": 0,
+    "absolute": 317
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Neon Genesis Evangelion/Neon Genesis Evangelion - 012v2.mkv",
+    "kind": "anime",
+    "title": "Neon Genesis Evangelion",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Neon Genesis Evangelion/[Fansubs] Neon Genesis Evangelion - 012 [1920x1080][10bit].mkv",
+    "kind": "anime",
+    "title": "Neon Genesis Evangelion",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Attack on Titan/[Group] Attack on Titan - 001 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Attack on Titan",
+    "year": 0,
+    "absolute": 1
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Attack on Titan/[Group] Attack on Titan - 002 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Attack on Titan",
+    "year": 0,
+    "absolute": 2
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Attack on Titan/[Group] Attack on Titan - 007 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Attack on Titan",
+    "year": 0,
+    "absolute": 7
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Attack on Titan/[Group] Attack on Titan - 012 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Attack on Titan",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Attack on Titan/[Group] Attack on Titan - 024 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Attack on Titan",
+    "year": 0,
+    "absolute": 24
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Attack on Titan/[Group] Attack on Titan - 099 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Attack on Titan",
+    "year": 0,
+    "absolute": 99
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Attack on Titan/[Group] Attack on Titan - 100 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Attack on Titan",
+    "year": 0,
+    "absolute": 100
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Attack on Titan/[Group] Attack on Titan - 317 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Attack on Titan",
+    "year": 0,
+    "absolute": 317
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Attack on Titan/Attack on Titan - 012v2.mkv",
+    "kind": "anime",
+    "title": "Attack on Titan",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Attack on Titan/[Fansubs] Attack on Titan - 012 [1920x1080][10bit].mkv",
+    "kind": "anime",
+    "title": "Attack on Titan",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Fullmetal Alchemist Brotherhood/[Group] Fullmetal Alchemist Brotherhood - 001 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Fullmetal Alchemist Brotherhood",
+    "year": 0,
+    "absolute": 1
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Fullmetal Alchemist Brotherhood/[Group] Fullmetal Alchemist Brotherhood - 002 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Fullmetal Alchemist Brotherhood",
+    "year": 0,
+    "absolute": 2
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Fullmetal Alchemist Brotherhood/[Group] Fullmetal Alchemist Brotherhood - 007 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Fullmetal Alchemist Brotherhood",
+    "year": 0,
+    "absolute": 7
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Fullmetal Alchemist Brotherhood/[Group] Fullmetal Alchemist Brotherhood - 012 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Fullmetal Alchemist Brotherhood",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Fullmetal Alchemist Brotherhood/[Group] Fullmetal Alchemist Brotherhood - 024 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Fullmetal Alchemist Brotherhood",
+    "year": 0,
+    "absolute": 24
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Fullmetal Alchemist Brotherhood/[Group] Fullmetal Alchemist Brotherhood - 099 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Fullmetal Alchemist Brotherhood",
+    "year": 0,
+    "absolute": 99
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Fullmetal Alchemist Brotherhood/[Group] Fullmetal Alchemist Brotherhood - 100 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Fullmetal Alchemist Brotherhood",
+    "year": 0,
+    "absolute": 100
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Fullmetal Alchemist Brotherhood/[Group] Fullmetal Alchemist Brotherhood - 317 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Fullmetal Alchemist Brotherhood",
+    "year": 0,
+    "absolute": 317
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Fullmetal Alchemist Brotherhood/Fullmetal Alchemist Brotherhood - 012v2.mkv",
+    "kind": "anime",
+    "title": "Fullmetal Alchemist Brotherhood",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Fullmetal Alchemist Brotherhood/[Fansubs] Fullmetal Alchemist Brotherhood - 012 [1920x1080][10bit].mkv",
+    "kind": "anime",
+    "title": "Fullmetal Alchemist Brotherhood",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Mushishi/[Group] Mushishi - 001 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Mushishi",
+    "year": 0,
+    "absolute": 1
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Mushishi/[Group] Mushishi - 002 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Mushishi",
+    "year": 0,
+    "absolute": 2
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Mushishi/[Group] Mushishi - 007 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Mushishi",
+    "year": 0,
+    "absolute": 7
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Mushishi/[Group] Mushishi - 012 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Mushishi",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Mushishi/[Group] Mushishi - 024 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Mushishi",
+    "year": 0,
+    "absolute": 24
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Mushishi/[Group] Mushishi - 099 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Mushishi",
+    "year": 0,
+    "absolute": 99
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Mushishi/[Group] Mushishi - 100 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Mushishi",
+    "year": 0,
+    "absolute": 100
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Mushishi/[Group] Mushishi - 317 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Mushishi",
+    "year": 0,
+    "absolute": 317
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Mushishi/Mushishi - 012v2.mkv",
+    "kind": "anime",
+    "title": "Mushishi",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Mushishi/[Fansubs] Mushishi - 012 [1920x1080][10bit].mkv",
+    "kind": "anime",
+    "title": "Mushishi",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "86 Eighty Six/[Group] 86 Eighty Six - 001 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "86 Eighty Six",
+    "year": 0,
+    "absolute": 1
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "86 Eighty Six/[Group] 86 Eighty Six - 002 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "86 Eighty Six",
+    "year": 0,
+    "absolute": 2
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "86 Eighty Six/[Group] 86 Eighty Six - 007 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "86 Eighty Six",
+    "year": 0,
+    "absolute": 7
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "86 Eighty Six/[Group] 86 Eighty Six - 012 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "86 Eighty Six",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "86 Eighty Six/[Group] 86 Eighty Six - 024 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "86 Eighty Six",
+    "year": 0,
+    "absolute": 24
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "86 Eighty Six/[Group] 86 Eighty Six - 099 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "86 Eighty Six",
+    "year": 0,
+    "absolute": 99
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "86 Eighty Six/[Group] 86 Eighty Six - 100 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "86 Eighty Six",
+    "year": 0,
+    "absolute": 100
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "86 Eighty Six/[Group] 86 Eighty Six - 317 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "86 Eighty Six",
+    "year": 0,
+    "absolute": 317
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "86 Eighty Six/86 Eighty Six - 012v2.mkv",
+    "kind": "anime",
+    "title": "86 Eighty Six",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "86 Eighty Six/[Fansubs] 86 Eighty Six - 012 [1920x1080][10bit].mkv",
+    "kind": "anime",
+    "title": "86 Eighty Six",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Demon Slayer/[Group] Demon Slayer - 001 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Demon Slayer",
+    "year": 0,
+    "absolute": 1
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Demon Slayer/[Group] Demon Slayer - 002 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Demon Slayer",
+    "year": 0,
+    "absolute": 2
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Demon Slayer/[Group] Demon Slayer - 007 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Demon Slayer",
+    "year": 0,
+    "absolute": 7
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Demon Slayer/[Group] Demon Slayer - 012 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Demon Slayer",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Demon Slayer/[Group] Demon Slayer - 024 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Demon Slayer",
+    "year": 0,
+    "absolute": 24
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Demon Slayer/[Group] Demon Slayer - 099 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Demon Slayer",
+    "year": 0,
+    "absolute": 99
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Demon Slayer/[Group] Demon Slayer - 100 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Demon Slayer",
+    "year": 0,
+    "absolute": 100
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Demon Slayer/[Group] Demon Slayer - 317 [1080p][ABCD1234].mkv",
+    "kind": "anime",
+    "title": "Demon Slayer",
+    "year": 0,
+    "absolute": 317
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Demon Slayer/Demon Slayer - 012v2.mkv",
+    "kind": "anime",
+    "title": "Demon Slayer",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "anime-fansubs",
+    "path": "Demon Slayer/[Fansubs] Demon Slayer - 012 [1920x1080][10bit].mkv",
+    "kind": "anime",
+    "title": "Demon Slayer",
+    "year": 0,
+    "absolute": 12
+  },
+  {
+    "group": "numeric-titles",
+    "path": "1917.mkv",
+    "kind": "movie",
+    "title": "1917",
+    "year": 0
+  },
+  {
+    "group": "numeric-titles",
+    "path": "2012.mkv",
+    "kind": "movie",
+    "title": "2012",
+    "year": 0
+  },
+  {
+    "group": "numeric-titles",
+    "path": "1941.mkv",
+    "kind": "movie",
+    "title": "1941",
+    "year": 0
+  },
+  {
+    "group": "numeric-titles",
+    "path": "2046.mkv",
+    "kind": "movie",
+    "title": "2046",
+    "year": 0
+  },
+  {
+    "group": "numeric-titles",
+    "path": "1883.mkv",
+    "kind": "movie",
+    "title": "1883",
+    "year": 0
+  },
+  {
+    "group": "numeric-titles",
+    "path": "1923.mkv",
+    "kind": "movie",
+    "title": "1923",
+    "year": 0
+  },
+  {
+    "group": "numeric-titles",
+    "path": "Blade Runner 2049.mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 0
+  },
+  {
+    "group": "numeric-titles",
+    "path": "Space 1999.mkv",
+    "kind": "movie",
+    "title": "Space 1999",
+    "year": 0
+  },
+  {
+    "group": "numeric-titles",
+    "path": "Cyberpunk 2077 Edgerunners.mkv",
+    "kind": "movie",
+    "title": "Cyberpunk 2077 Edgerunners",
+    "year": 0
+  },
+  {
+    "group": "numeric-titles",
+    "path": "Summer of 1984.mkv",
+    "kind": "movie",
+    "title": "Summer of 1984",
+    "year": 0
+  },
+  {
+    "group": "numeric-titles",
+    "path": "My Movie 20131209.mkv",
+    "kind": "movie",
+    "title": "My Movie 20131209",
+    "year": 0
+  },
+  {
+    "group": "year-edge-cases",
+    "path": "2001: A Space Odyssey (1968).mkv",
+    "kind": "movie",
+    "title": "2001: A Space Odyssey",
+    "year": 1968
+  },
+  {
+    "group": "year-edge-cases",
+    "path": "Blade Runner 2049 Directors Cut (2017).mkv",
+    "kind": "movie",
+    "title": "Blade Runner 2049",
+    "year": 2017
+  },
+  {
+    "group": "year-edge-cases",
+    "path": "Movie.2019.1080p.[2020].mkv",
+    "kind": "movie",
+    "title": "Movie",
+    "year": 2019
+  },
+  {
+    "group": "year-edge-cases",
+    "path": "Movie (1999) (2019).mkv",
+    "kind": "movie",
+    "title": "Movie",
+    "year": 1999
+  },
+  {
+    "group": "year-edge-cases",
+    "path": "Maximum Ride - 2016 - WEBDL-1080p - x264 AC3.mkv",
+    "kind": "movie",
+    "title": "Maximum Ride",
+    "year": 2016
+  },
+  {
+    "group": "year-edge-cases",
+    "path": "Death Race 2000 1975.mkv",
+    "kind": "movie",
+    "title": "Death Race 2000",
+    "year": 1975
+  },
+  {
+    "group": "year-edge-cases",
+    "path": "Film.1999.Remastered.2019.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 1999
+  },
+  {
+    "group": "year-edge-cases",
+    "path": "Blade Runner (1982) The Final Cut 2007.mkv",
+    "kind": "movie",
+    "title": "Blade Runner",
+    "year": 1982
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Season 2/01 - Title.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Season 2/Episode 1.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 2,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Show - 102.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Show 102 - Title.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Specials/S00E01.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 0,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Season 2/Show S01E01.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 1,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "The Office (US)/Season 1/The.Office.US.S01E01.mkv",
+    "kind": "tv",
+    "title": "The Office US",
+    "year": 0,
+    "season": 1,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Season 1/Show - 1x01-02.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 1,
+    "episodes": [
+      1,
+      2
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Cowboy Bebop/Season 1/Cowboy Bebop - S01E12 - Jupiter Jazz (Part 1).mkv",
+    "kind": "tv",
+    "title": "Cowboy Bebop",
+    "year": 0,
+    "season": 1,
+    "episodes": [
+      12
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Season 1/Show - S01E19 - The Siege of the North, Part 1.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 1,
+    "episodes": [
+      19
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Season 1/Show S01E01 - The S01E02 Paradox.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 1,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Season 1/Show S01E01 - 2x4 Lumber.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 1,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show (2020)/Season 1/Show S01E01 1920x1080.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 2020,
+    "season": 1,
+    "episodes": [
+      1
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Show S01E00.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 1,
+    "episodes": [
+      0
+    ]
+  },
+  {
+    "group": "episode-edge-cases",
+    "path": "Show/Season 1/Disc 1/S01E02.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "season": 1,
+    "episodes": [
+      2
+    ]
+  },
+  {
+    "group": "dated-episodes",
+    "path": "Jeopardy/Season 40/Jeopardy - 2024-01-15.mkv",
+    "kind": "tv",
+    "title": "Jeopardy",
+    "year": 0,
+    "date": "2024-01-15"
+  },
+  {
+    "group": "dated-episodes",
+    "path": "News/2011-11-15.mkv",
+    "kind": "tv",
+    "title": "News",
+    "year": 0,
+    "date": "2011-11-15"
+  },
+  {
+    "group": "dated-episodes",
+    "path": "News/Season 1/News.2024.02.29.mkv",
+    "kind": "tv",
+    "title": "News",
+    "year": 0,
+    "date": "2024-02-29"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film {imdb-tt1234567}.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "imdb",
+    "id": "tt1234567"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film {imdb-tt1234567}/movie.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "imdb",
+    "id": "tt1234567"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Show {imdb-tt1234567}/Season 1/S01E01.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "provider": "imdb",
+    "id": "tt1234567"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film {tmdb-12345}.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "tmdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film {tmdb-12345}/movie.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "tmdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Show {tmdb-12345}/Season 1/S01E01.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "provider": "tmdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film {tvdb-12345}.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "tvdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film {tvdb-12345}/movie.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "tvdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Show {tvdb-12345}/Season 1/S01E01.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "provider": "tvdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film [imdbid-tt1234567].mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "imdb",
+    "id": "tt1234567"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film [imdbid-tt1234567]/movie.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "imdb",
+    "id": "tt1234567"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Show [imdbid-tt1234567]/Season 1/S01E01.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "provider": "imdb",
+    "id": "tt1234567"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film [tmdbid=12345].mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "tmdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film [tmdbid=12345]/movie.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "tmdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Show [tmdbid=12345]/Season 1/S01E01.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "provider": "tmdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film [tvdbid-12345].mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "tvdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film [tvdbid-12345]/movie.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "tvdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Show [tvdbid-12345]/Season 1/S01E01.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "provider": "tvdb",
+    "id": "12345"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film tt1234567.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "imdb",
+    "id": "tt1234567"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Film tt1234567/movie.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 0,
+    "provider": "imdb",
+    "id": "tt1234567"
+  },
+  {
+    "group": "provider-hints",
+    "path": "Show tt1234567/Season 1/S01E01.mkv",
+    "kind": "tv",
+    "title": "Show",
+    "year": 0,
+    "provider": "imdb",
+    "id": "tt1234567"
+  },
+  {
+    "group": "parts",
+    "path": "Film (2020)/Film (2020) - pt1.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 2020,
+    "part": 1
+  },
+  {
+    "group": "parts",
+    "path": "Film (2020)/Film (2020) - cd2.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 2020,
+    "part": 2
+  },
+  {
+    "group": "parts",
+    "path": "Film (2020)/Film (2020) - part 3.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 2020,
+    "part": 3
+  },
+  {
+    "group": "parts",
+    "path": "Film (2020)/Film (2020) - disc 1.mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 2020,
+    "part": 1
+  },
+  {
+    "group": "editions",
+    "path": "Film (2020)/Film {edition-Director's Cut} (2020).mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 2020,
+    "edition": "Director's Cut"
+  },
+  {
+    "group": "editions",
+    "path": "Film (2020)/Film {edition-Extended Edition} (2020).mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 2020,
+    "edition": "Extended Edition"
+  },
+  {
+    "group": "editions",
+    "path": "Film (2020)/Film {edition-Unrated} (2020).mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 2020,
+    "edition": "Unrated"
+  },
+  {
+    "group": "editions",
+    "path": "Film (2020)/Film {edition-Theatrical Cut} (2020).mkv",
+    "kind": "movie",
+    "title": "Film",
+    "year": 2020,
+    "edition": "Theatrical Cut"
+  },
+  {
+    "group": "disc-layouts",
+    "path": "Film (2020)/BDMV/STREAM/00001.m2ts",
+    "kind": "movie",
+    "title": "Film",
+    "year": 2020,
+    "disc": "BDMV"
+  },
+  {
+    "group": "disc-layouts",
+    "path": "Film (2020)/VIDEO_TS/VTS_01_1.VOB",
+    "kind": "movie",
+    "title": "Film",
+    "year": 2020,
+    "disc": "VIDEO_TS"
+  },
+  {
+    "group": "audio-paths",
+    "path": "Artist/Album (2020)/Disc 1 - Studio/01 - Track.flac",
+    "kind": "music",
+    "title": "Track",
+    "year": 0,
+    "track": 1,
+    "discNumber": 1
+  },
+  {
+    "group": "audio-paths",
+    "path": "Artist/Album (2020)/CD2/2-03 - Another Track.flac",
+    "kind": "music",
+    "title": "Another Track",
+    "year": 0,
+    "track": 3,
+    "discNumber": 2
+  },
+  {
+    "group": "audio-paths",
+    "path": "Author/Book (2017)/Chapter 12 - Chapter Title.m4b",
+    "kind": "audiobook",
+    "title": "Chapter Title",
+    "year": 0,
+    "track": 12
+  }
+]

@@ -1,0 +1,9 @@
+node_modules
+build
+dist
+buildinfo.json
+*.log
+.tmp
+.DS_Store
+# Copied from ../native/assets by scripts/vega.mjs before a build.
+assets/fonts

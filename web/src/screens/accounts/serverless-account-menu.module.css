@@ -1,0 +1,8 @@
+.description { display: block; margin-top: 1px; font-size: calc(var(--type-caption-size) - .5px); font-weight: var(--type-micro-weight); color: var(--color-text-tertiary); }
+.help { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.help > svg { flex: none; color: var(--color-text-tertiary); }
+
+/* A real 32-character username wraps inside the who row instead of overflowing
+   the menu or the phone sheet. */
+.who > div:last-child { min-width: 0; }
+.who b, .who small { overflow-wrap: anywhere; }

@@ -1,0 +1,3 @@
+# Independent reference for the server's streaming STFT/mel implementation.
+# Build/test dependency only, never part of the inference runtime.
+librosa==0.10.2.post1

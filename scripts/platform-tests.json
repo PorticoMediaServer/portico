@@ -1,0 +1,178 @@
+{
+  "version": 1,
+  "apple": [
+    {
+      "source": "apps/native/test/apple-audio-capture-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Owned Apple runner; link PorticoAudioCapture; disposable output path; 44100/2 and 96000/8 fixtures."
+    },
+    {
+      "source": "apps/native/test/apple-audio-decode-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Owned Apple runner; link real audio renderer; nonempty authored decode fixture directory."
+    },
+    {
+      "source": "apps/native/test/apple-audio-effects-tests.m",
+      "execution": "macos-foundation",
+      "frameworks": [
+        "Foundation"
+      ]
+    },
+    {
+      "source": "apps/native/test/apple-audio-output-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Owned Apple runner; offline AVAudioEngine graph and real PorticoEqualizer header; physical output remains unverified."
+    },
+    {
+      "source": "apps/native/test/apple-audio-processing-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Isolated iOS simulator/device with AVAudioSession and disposable app preference domain."
+    },
+    {
+      "source": "apps/native/test/apple-audio-render-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Isolated iOS simulator/device; real renderer/processing implementation and authored audio fixtures."
+    },
+    {
+      "source": "apps/native/test/apple-download-manifest-tests.m",
+      "execution": "macos-foundation",
+      "frameworks": [
+        "Foundation"
+      ]
+    },
+    {
+      "source": "apps/native/test/apple-download-storage-tests.m",
+      "execution": "macos-foundation",
+      "frameworks": [
+        "Foundation"
+      ]
+    },
+    {
+      "source": "apps/native/test/apple-haptics-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Disposable isolated iOS simulator; simulator refusal only, never a physical-feedback claim."
+    },
+    {
+      "source": "apps/native/test/apple-listening-policy-tests.m",
+      "execution": "macos-foundation",
+      "frameworks": [
+        "Foundation"
+      ]
+    },
+    {
+      "source": "apps/native/test/apple-local-audio-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "RN06 real AVPlayer local catalogue and public controller; authored local-audio.mp4 from test/make-local-track-fixtures.py. No physical-output acceptance."
+    },
+    {
+      "source": "apps/native/test/apple-local-subtitle-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "RN06 local VTT and real rich renderer; authored VobSub pair from test/make-local-track-fixtures.py plus local Manrope font. No physical-route acceptance."
+    },
+    {
+      "source": "apps/native/test/apple-playback-failures-tests.m",
+      "execution": "macos-foundation",
+      "frameworks": [
+        "Foundation",
+        "AVFoundation"
+      ]
+    },
+    {
+      "source": "apps/native/test/apple-playback-observation-tests.m",
+      "execution": "macos-foundation",
+      "frameworks": [
+        "Foundation",
+        "CoreVideo"
+      ]
+    },
+    {
+      "source": "apps/native/test/apple-presentation-readiness-tests.m",
+      "execution": "macos-foundation",
+      "frameworks": [
+        "Foundation",
+        "AVFoundation"
+      ]
+    },
+    {
+      "source": "apps/native/test/apple-reader-assets-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Owned Apple runner with WebKit and real PorticoReaderAssetOrigin implementation; disposable bundle directory."
+    },
+    {
+      "source": "apps/native/test/apple-reading-bytes-tests.m",
+      "execution": "macos-reading",
+      "runner": "apps/native/scripts/check-apple-reading-stream.sh"
+    },
+    {
+      "source": "apps/native/test/apple-reading-stream-prefetch-tests.m",
+      "execution": "macos-reading",
+      "runner": "apps/native/scripts/check-apple-reading-stream.sh"
+    },
+    {
+      "source": "apps/native/test/apple-reading-stream-tests.m",
+      "execution": "macos-reading",
+      "runner": "apps/native/scripts/check-apple-reading-stream.sh"
+    },
+    {
+      "source": "apps/native/test/apple-server-trust-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Disposable isolated iOS simulator device set; loopback TLS certificate/fixtures; run proof and second-process readback phases."
+    },
+    {
+      "source": "apps/native/test/apple-subtitle-offset-tests.m",
+      "execution": "macos-foundation",
+      "frameworks": [
+        "Foundation",
+        "AVFoundation"
+      ]
+    },
+    {
+      "source": "apps/native/test/apple-subtitle-payload-tests.m",
+      "execution": "macos-foundation",
+      "frameworks": [
+        "Foundation",
+        "AVFoundation"
+      ]
+    },
+    {
+      "source": "apps/native/test/apple-subtitle-picker-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Disposable isolated iOS simulator app and UIKit scene; real subtitle picker/file implementation."
+    },
+    {
+      "source": "apps/native/test/apple-subtitle-timeline-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "iOS simulator; real PorticoSubtitleSelection.m with this file (PorticoServerTrust is stubbed in the test); no network."
+    },
+    {
+      "source": "apps/native/test/apple-topshelf-feed-tests.swift",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Owned Apple runner; compile with actual PorticoShelfFeed implementation from the tvOS app."
+    },
+    {
+      "source": "apps/native/test/apple-video-snapshot-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Disposable isolated iOS simulator app; real video surface and authored video fixture."
+    },
+    {
+      "source": "apps/native/test/apple-webvtt-clock-tests.m",
+      "execution": "owned-apple",
+      "owner": "Native Apple qualification",
+      "requirements": "Owned Apple runner; real subtitle selection implementation and media frameworks; disposable local files."
+    }
+  ]
+}

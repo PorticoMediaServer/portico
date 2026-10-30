@@ -1,0 +1,25 @@
+/* owner-people.html frame14: 420px dialog, 16px stack, 34px colors, 10px gap. */
+.fields { display: flex; flex-direction: column; gap: 16px; }
+.colors { border: 0; padding: 0; margin: 0; min-width: 0; }
+.colors legend { padding: 0; margin-bottom: 8px; color: var(--color-text-secondary); font-size: var(--type-synopsis-size); font-weight: var(--type-row-heading-weight); }
+.colors > div { display: flex; gap: 10px; flex-wrap: wrap; padding: 5px; }
+.colors button { width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: var(--profile-color); cursor: pointer; }
+.colors button[aria-checked="true"] { box-shadow: 0 0 0 3px var(--color-raised-high), 0 0 0 5px var(--color-text); }
+.colors button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 6px; }
+.colors button:disabled { cursor: default; }
+.limit { margin: 0; color: var(--color-text-secondary); font-size: var(--type-caption-size); line-height: normal; }
+/* settings.html profile list: 44px identity, 16px gap, 14px/18px rows. */
+.profiles { list-style: none; padding: 0; margin: 0; border-radius: 12px; overflow: hidden; background: color-mix(in srgb, var(--color-ink) 40%, transparent); }
+.profiles li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--color-line-soft); }
+.profiles li:first-child { border-top: 0; }
+.profileIcon { width: 44px; height: 44px; border-radius: 11px; display: grid; place-items: center; background: var(--color-raised-high); color: var(--color-text-secondary); }
+.profileName { min-width: 0; overflow-wrap: anywhere; }
+.profileName b { display: block; font-size: var(--type-tab-size); font-weight: var(--type-row-heading-weight); }
+.profileName small { display: block; margin-top: 3px; font-size: var(--type-chip-size); color: var(--color-text-tertiary); }
+.profileActions { display: flex; align-items: center; gap: 10px; }
+.addProfile { margin-top: 12px; }
+.pinFields { display: grid; gap: 16px; }
+.pinFields > label { display: grid; gap: 8px; font-size: var(--type-synopsis-size); color: var(--color-text-secondary); }
+.danger { color: var(--color-record); }
+.pictureActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pictureError { margin: 0; color: var(--color-record); font-size: var(--type-caption-size); }

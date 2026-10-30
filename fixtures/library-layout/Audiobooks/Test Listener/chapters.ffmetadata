@@ -1,0 +1,16 @@
+;FFMETADATA1
+[CHAPTER]
+TIMEBASE=1/1000
+START=0
+END=30000
+title=First test chapter
+[CHAPTER]
+TIMEBASE=1/1000
+START=30000
+END=60000
+title=Second test chapter
+[CHAPTER]
+TIMEBASE=1/1000
+START=60000
+END=90000
+title=Third test chapter

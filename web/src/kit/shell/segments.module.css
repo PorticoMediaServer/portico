@@ -1,0 +1,67 @@
+.windows { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 12px; padding-left: 28px; line-height: normal; color: var(--color-text); }
+.window { min-width: 0; }
+.windowLabel { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--color-text-tertiary); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.windowLabel b { color: var(--color-text-secondary); font-weight: 700; }
+.timeline { position: relative; height: 30px; border-radius: 7px; background: var(--color-raised-high); background-image: repeating-linear-gradient(90deg, color-mix(in srgb, var(--color-text) 6%, transparent) 0 1px, transparent 1px 10%); }
+.segment { position: absolute; top: 4px; bottom: 4px; border-radius: 5px; }
+.segment[data-kind='intro'] { background: var(--color-accent-strong); }
+.segment[data-kind='recap'] { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-accent-strong) 85%, transparent) 0 3px, color-mix(in srgb, var(--color-accent-strong) 30%, transparent) 3px 6px); }
+.segment[data-kind='credits'] { background: #a9bccb; }
+.segment[data-suggested] { opacity: .6; outline: 1.5px dashed var(--color-white); outline-offset: 2px; }
+.segment[data-editing] { box-shadow: 0 0 0 2px var(--color-text); }
+.handle { position: absolute; top: -5px; bottom: -5px; width: 10px; margin-left: -5px; border: 0; padding: 0; border-radius: 4px; background: var(--color-text); box-shadow: 0 2px 8px color-mix(in srgb, var(--color-shadow) 60%, transparent); cursor: ew-resize; touch-action: none; }
+.marker { margin-top: 10px; font-size: 13px; color: var(--color-text-secondary); }
+.markerLine { display: flex; align-items: center; gap: 10px; min-height: 30px; font-variant-numeric: tabular-nums; }
+.markerLine > b { font-weight: 700; color: var(--color-text); }
+.markerFacts { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin-top: 2px; font-size: 13px; color: var(--color-text-tertiary); }
+.markerFacts > * { white-space: nowrap; }
+.markerFacts .trust { font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: color-mix(in srgb, var(--color-text) 7%, transparent); color: var(--color-text-secondary); }
+.markerFacts .trust[data-tone='suggested'] { background: color-mix(in srgb, var(--color-accent) 14%, transparent); color: var(--color-accent-strong); }
+.markerActions { margin-left: auto; display: flex; gap: 2px; }
+.markerActions button { width: 30px; height: 30px; border: 0; padding: 0; border-radius: 8px; background: none; display: grid; place-items: center; color: var(--color-text-secondary); cursor: pointer; }
+.markerActions button:hover { background: color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text); }
+.editRow { display: flex; align-items: flex-end; gap: 8px; margin-top: 12px; }
+.timeField { display: inline-flex; flex-direction: column; gap: 3px; font-size: 11.5px; font-weight: 700; color: var(--color-text-tertiary); }
+.timeField input { height: 34px; width: 80px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--color-ink); box-shadow: inset 0 0 0 1px var(--color-line-strong); display: flex; align-items: center; font-size: 14px; color: var(--color-text); font-variant-numeric: tabular-nums; }
+.timeField input[aria-invalid] { box-shadow: inset 0 0 0 1px var(--color-record); }
+.save, .cancel { height: 34px; padding: 0 13px; border: 0; border-radius: 9px; font-size: 14px; line-height: normal; font-weight: 700; cursor: pointer; }
+.save { background: var(--color-text); color: var(--color-ink); }
+.save:disabled { opacity: .5; cursor: default; }
+.cancel { padding: 0 8px; background: none; color: var(--color-text-secondary); }
+@media (max-width: 599px) { .windows { grid-template-columns: 1fr; padding-left: 0; } }
+
+.markerFacts .trust[data-tone='automatic'] { background: color-mix(in srgb, var(--color-healthy) 12%, transparent); color: var(--color-healthy); }
+
+/* owner-libraries#23b/#25: the phone adjust sheet: kind first, then one zoomed
+   window and the two time steppers. */
+.adjustSheet { display: flex; flex-direction: column; gap: 16px; }
+.adjustSheet .timeline { height: 44px; }
+.stepper { display: flex; flex-direction: column; gap: 6px; }
+.stepperLabel { font-size: 12px; font-weight: 700; color: var(--color-text-tertiary); }
+.stepperRow { display: flex; align-items: center; gap: 10px; }
+.stepperRow .timeField { flex: 1; }
+.stepperRow .timeField input { width: 100%; height: 42px; font-size: 17px; }
+.stepButton { flex: none; width: 42px; height: 42px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--color-text) 8%, transparent); color: var(--color-text); font-size: 22px; font-weight: 600; line-height: 1; cursor: pointer; touch-action: none; }
+.stepButton:active { background: color-mix(in srgb, var(--color-text) 16%, transparent); }
+.stepButton:focus-visible { outline: 2px solid var(--color-accent-strong); outline-offset: 2px; }
+
+/* owner-libraries#23b: the Type choice colours the edited segment at once. */
+.segment[data-kind='commercial'] { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--color-accent-strong) 70%, transparent) 0 3px, color-mix(in srgb, var(--color-accent-strong) 24%, transparent) 3px 6px); }
+.segment[data-kind='outro'] { background: #8fa6b8; }
+
+/* owner-libraries#23b: the adjust sheet's range labels, hint and quiet Dismiss row. */
+.windowRange { display: flex; justify-content: space-between; margin-top: -8px; font-size: 11.5px; font-weight: 700; color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.sheetHint { margin: 0; font-size: var(--type-caption-size); line-height: 1.45; color: var(--color-text-tertiary); }
+.sheetDismiss { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; padding: 12px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--color-record) 8%, transparent); color: var(--color-record); font: inherit; text-align: left; cursor: pointer; }
+.sheetDismiss > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sheetDismiss b { font-weight: 700; }
+.sheetDismiss small { color: var(--color-text-tertiary); font-size: var(--type-caption-size); line-height: 1.4; }
+
+/* owner-libraries#23b: the episode the adjusted marker belongs to. */
+.sheetContext { margin: -8px 0 0; font-size: var(--type-caption-size); font-weight: 600; color: var(--color-text-tertiary); }
+
+/* owner-libraries#23b: the sheet's acts stack Save over Cancel at phone size. */
+@media (max-width: 599px) {
+ .sheetActs { display: flex; flex-direction: column; gap: 10px; }
+ .sheetActs > * { width: 100%; }
+}

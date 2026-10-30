@@ -1,0 +1,17 @@
+{
+  "name": "@portico/client-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./admin": "./src/admin/index.ts",
+    "./kit-model": "./src/presentation/kit-model/index.ts",
+    "./selection-model": "./src/selection-model/index.ts",
+    "./home-selection": "./src/home-selection/index.ts"
+  },
+  "scripts": {
+    "test": "node scripts/run-tests.mjs",
+    "lint:routes": "node scripts/check-generated-routes.mjs"
+  }
+}

@@ -1,0 +1,186 @@
+/* Exact geometry: desktop-player f1, phone-player r1/r4, tablet-play f1/f3.
+ * This layer is transparent: the parent's one MediaSurface paints the picture beneath it. */
+.watch {
+  --watch-controls-exit: var(--motion-slow);
+  --watch-title-size: 34px; --watch-title-line: 1.08; --watch-title-weight: 800; --watch-title-tracking: -.035em;
+  --watch-subtitle-size: 15px; --watch-subtitle-weight: 400;
+  --watch-time-size: 13.5px; --watch-time-weight: 600; --watch-pill-weight: 700;
+  --watch-skip-size: 8.5px; --watch-skip-weight: 800;
+  --watch-preview-time-size: 15px; --watch-preview-time-weight: 800;
+  --watch-gesture-size: 13px; --watch-gesture-weight: 800;
+ position: fixed; inset: 0; z-index: calc(var(--layer-player) + 1); color: var(--color-text); pointer-events: none; isolation: isolate; }
+.watch[hidden] { display: none; }
+.pictureSlot { position: absolute; inset: 0; pointer-events: none; }
+.chrome { position: absolute; inset: 0; }
+.pictureTap { position: absolute; inset: 0; padding: 0; border: 0; background: transparent; pointer-events: auto; cursor: pointer; touch-action: manipulation; }
+.tapFeedback { position: absolute; z-index: 1; top: 0; bottom: 0; width: 44%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 38px; gap: 6px; background: color-mix(in srgb, var(--color-text) 16%, transparent); font-size: var(--watch-gesture-size); font-weight: var(--watch-gesture-weight); pointer-events: none; animation: tapFeedback var(--motion-hero) var(--ease-out) forwards; }
+.tapFeedback[data-direction='left'] { left: 0; border-radius: 0 60% 60% 0 / 0 50% 50% 0; }
+.tapFeedback[data-direction='right'] { right: 0; border-radius: 60% 0 0 60% / 50% 0 0 50%; }
+.tapDot { position: absolute; width: 38px; height: 38px; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid color-mix(in srgb, var(--color-white) 70%, transparent); background: color-mix(in srgb, var(--color-white) 20%, transparent); }
+@keyframes tapFeedback { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tapFeedback { animation-duration: var(--motion-reduced); animation-timing-function: linear; } }
+:global([data-reduce-motion='true']) .tapFeedback { animation-duration: var(--motion-reduced); animation-timing-function: linear; }
+.shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, color-mix(in srgb, var(--color-dim) 84%, transparent) 0, color-mix(in srgb, var(--color-dim) 38%, transparent) 130px, transparent 240px), linear-gradient(0deg, color-mix(in srgb, var(--color-dim) 94%, transparent) 0, color-mix(in srgb, var(--color-dim) 62%, transparent) 150px, transparent 340px); }
+.top { position: absolute; inset: 0 0 auto; display: flex; align-items: flex-start; gap: 18px; padding: 30px 40px; }
+.identity { min-width: 0; flex: 0 1 auto; text-shadow: 0 2px 24px color-mix(in srgb, var(--color-shadow) 45%, transparent); }
+.identity h2, .identity p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.identity h2 { margin: 0 0 5px; font-size: var(--watch-title-size); line-height: var(--watch-title-line); font-weight: var(--watch-title-weight); letter-spacing: var(--watch-title-tracking); }
+.identity p { font-size: var(--watch-subtitle-size); font-weight: var(--watch-subtitle-weight); margin: 0; color: var(--color-text-secondary); }
+.identity [data-fact='episode-label'] { color: var(--color-text); font-weight: var(--type-button-weight); }
+.gap { display: inline-block; width: 10px; }
+.together { align-self: center; margin-left: 10px; flex: none; pointer-events: auto; }
+.together:empty { display: none; }
+.tools { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
+.control { position: relative; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: var(--color-text); flex: none; cursor: pointer; pointer-events: auto; transition: background var(--motion-standard) var(--ease-out); }
+.control:hover, .control[aria-pressed='true'] { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.control:disabled { color: var(--color-text-tertiary); cursor: default; }
+.control[data-large] { background: color-mix(in srgb, var(--color-text) 10%, transparent); backdrop-filter: blur(20px); }
+.control[data-large]:hover { background: color-mix(in srgb, var(--color-text) 20%, transparent); }
+.control[data-main] { width: 62px; height: 62px; background: var(--color-text); color: var(--color-ink); }
+.control[data-main]:hover { background: var(--color-white); }
+.control small { font-size: var(--watch-skip-size); font-weight: var(--watch-skip-weight); position: absolute; left: 50%; top: 50%; transform: translate(-50%, -40%); }
+.control:focus-visible, .pill:focus-visible, .pictureTap:focus-visible, .rail input:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+/* The picture button fills the window, so its ring is drawn inside the edge. */
+.pictureTap:focus-visible { outline-offset: -6px; }
+.bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 40px 24px; }
+.seek { position: relative; height: 22px; display: flex; align-items: center; }
+.rail { position: relative; flex: 1; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--color-text) 16%, transparent); transition: height var(--motion-standard) var(--ease-out); }
+.buffered, .hoverFill { position: absolute; top: 0; bottom: 0; border-radius: inherit; pointer-events: none; }
+.buffered { background: color-mix(in srgb, var(--color-text) 26%, transparent); }
+.hoverFill { left: 0; background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.hoverLine { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: color-mix(in srgb, var(--color-white) 90%, transparent); pointer-events: none; }
+@media (hover: hover) and (pointer: fine) { .watch:not([data-mode='portrait']) .seek:hover .rail { height: 8px; } }
+.rail > i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--color-accent-strong); border-radius: inherit; }
+.rail .marker { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--color-white) 50%, transparent); box-shadow: inset 2px 0 0 color-mix(in srgb, var(--color-dim) 55%, transparent), inset -2px 0 0 color-mix(in srgb, var(--color-dim) 55%, transparent); }
+.rail input { position: absolute; left: 0; width: 100%; top: 50%; transform: translateY(-50%); height: 22px; margin: 0; appearance: none; background: transparent; pointer-events: auto; cursor: pointer; }
+.rail input::-webkit-slider-runnable-track { height: 6px; background: transparent; }
+.rail input::-moz-range-track { height: 6px; background: transparent; }
+.rail input::-webkit-slider-thumb { appearance: none; height: 18px; width: 18px; border-radius: 50%; border: 0; margin-top: -6px; background: var(--color-white); box-shadow: 0 2px 10px color-mix(in srgb, var(--color-shadow) 60%, transparent); }
+.rail input::-moz-range-thumb { height: 18px; width: 18px; border-radius: 50%; border: 0; background: var(--color-white); }
+/* The frame's centre stays half a frame inside the bar's ends, so the whole picture stays on screen. */
+.scrubPreview { --scrub-half: 128px; position: absolute; bottom: 30px; width: 256px; transform: translateX(-50%); display: block; pointer-events: none; }
+.scrubPreview[data-ready='false'] { visibility: hidden; }
+.scrubFrame { display: block; position: relative; width: 256px; height: 144px; border-radius: 10px; overflow: hidden; background: var(--color-shadow); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-text) 90%, transparent), 0 26px 44px -14px var(--color-shadow); }
+.scrubSheet { border-radius: 0; }
+.scrubFrame > b { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 0 6px; text-align: center; font-size: var(--watch-preview-time-size); font-weight: var(--watch-preview-time-weight); font-variant-numeric: tabular-nums; background: linear-gradient(0deg, color-mix(in srgb, var(--color-dim) 88%, transparent), transparent); }
+.scrubPreview[data-phone='true'] { --scrub-half: 89px; --watch-preview-time-size: 14px; bottom: 22px; width: 178px; }
+.scrubPreview[data-phone='true'] .scrubFrame { width: 178px; height: 100px; border-radius: 9px; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--color-text) 55%, transparent), 0 18px 34px -12px var(--color-shadow); }
+.scrubPreview[data-phone='true'] .scrubFrame > b { padding-bottom: 5px; }
+.times { font-size: var(--watch-time-size); font-weight: var(--watch-time-weight); display: flex; justify-content: space-between; margin-top: 8px; color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.times b { color: var(--color-text); font-weight: var(--type-button-weight); }
+.clock { display: inline-flex; align-items: baseline; gap: 5px; }
+.controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-top: 10px; }
+.transport { display: flex; align-items: center; gap: 14px; }
+.leading, .trailing { display: flex; align-items: center; gap: 6px; }
+.leading > button { pointer-events: auto; }
+.trailing { justify-content: flex-end; }
+.pill { font-size: var(--watch-time-size); font-weight: var(--watch-pill-weight); height: 34px; padding: 0 12px; border-radius: 17px; display: inline-flex; align-items: center; gap: 6px; color: var(--color-text); white-space: nowrap; background: color-mix(in srgb, var(--color-text) 10%, transparent); margin: 0 3px; border: 0; font-variant-numeric: tabular-nums; pointer-events: auto; cursor: pointer; }
+.pill span { color: var(--color-text-tertiary); font-weight: var(--type-caption-strong-weight); }
+.pill:hover { background: color-mix(in srgb, var(--color-text) 20%, transparent); }
+.trackPill { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px 0 11px; border-radius: 18px; border: 0; color: var(--color-text); background: color-mix(in srgb, var(--color-text) 14%, transparent); backdrop-filter: blur(20px); font-size: var(--watch-time-size); font-weight: var(--watch-pill-weight); cursor: pointer; pointer-events: auto; }
+.trackPill > span { color: var(--color-text-tertiary); }
+.trackPill:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.volume { display: inline-flex; align-items: center; gap: 4px; margin-right: 12px; pointer-events: auto; }
+.volume > :last-child { width: 84px; }
+.center { display: none; }
+.body { position: absolute; inset: 100% 0 auto; visibility: hidden; pointer-events: none; }
+.notices { position: absolute; top: 104px; right: var(--watch-notice-right, 40px); pointer-events: auto; }
+/* A-08: the notice column (live notices and the loss notice) stays top right but moves beside an
+   open Live mini guide (live-chrome .miniGuide: right 40 / 24, 440 wide) instead of over its rows. */
+.watch[data-live-guide-open] { --watch-notice-right: calc(40px + 440px + 16px); }
+@media (max-width: 1023px) { .watch[data-live-guide-open] { --watch-notice-right: calc(24px + 440px + 12px); } }
+@media (max-width: 899px) { .watch[data-live-guide-open] { --watch-notice-right: 24px; } }
+.prompts { position: absolute; inset: 0; pointer-events: none; }
+.prompts > * { pointer-events: auto; }
+/* Keep only the outgoing paint through its fade. The original groups become
+   inert in the same commit; no retained tree or new input/timer owner is made. */
+.watch[data-controls-exit='tap'] { --watch-controls-exit: var(--motion-standard); }
+.watch[data-controls-exit='close'] { --watch-controls-exit: var(--motion-quick); }
+.top, .bottom, .center, .shade { opacity: 1; visibility: visible; transition: opacity var(--motion-standard) var(--ease-out), visibility 0s; }
+.watch[data-controls-visible='false'] .top, .watch[data-controls-visible='false'] .bottom, .watch[data-controls-visible='false'] .center, .watch[data-controls-visible='false'] .shade { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--watch-controls-exit) var(--ease-in), visibility 0s var(--watch-controls-exit); }
+/* phone-player f6e: while the admitted Still watching modal holds, the player's
+   top bar, transport and bottom bar are not drawn; the stage and scrim remain. */
+.watch[data-still-watching='true'] .top, .watch[data-still-watching='true'] .center, .watch[data-still-watching='true'] .bottom { opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
+:global(body:has([data-watch-screen]:not([hidden]))) { overflow: hidden; }
+.watch[data-scrubbing='true'] .controls { visibility: hidden; pointer-events: none; }
+.watch[data-mode='portrait'] { --watch-picture-top: env(safe-area-inset-top, 0px); --watch-picture-height: calc(100vw * 9 / 16); }
+.watch[data-mode='portrait'] .pictureSlot, .watch[data-mode='portrait'] .chrome { top: var(--watch-picture-top); bottom: auto; height: var(--watch-picture-height); }
+.watch[data-mode='portrait'] .shade { background: color-mix(in srgb, var(--color-dim) 44%, transparent); }
+.watch[data-mode='portrait'] .top { padding: 4px 6px; gap: 0; }
+.watch[data-mode='portrait'] .identity, .watch[data-mode='portrait'] .together { display: none; }
+.watch[data-mode='portrait'] .tools { gap: 2px; }
+.watch[data-mode='portrait'] .control { width: 38px; height: 38px; background: transparent; backdrop-filter: none; }
+.watch[data-mode='portrait'] .center { display: flex; position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); justify-content: center; }
+.watch[data-mode='portrait'] .transport { justify-content: space-evenly; width: 100%; gap: 0; }
+.watch[data-mode='portrait'] .control[data-main] { width: 58px; height: 58px; background: var(--color-text); color: var(--color-ink); }
+.watch[data-mode='portrait'] .center .control:has(small) { width: 46px; height: 46px; }
+.watch[data-mode='portrait'] .center .control:has(small) svg { width: 34px; height: 34px; }
+.watch[data-mode='portrait'] .bottom { padding: 0 6px 8px 14px; display: flex; align-items: center; gap: 5px; }
+.watch[data-mode='portrait'] .seek { position: absolute; bottom: -1px; left: 0; right: 0; height: 3px; }
+.watch[data-mode='portrait'] .rail, .watch[data-mode='portrait'] .rail > i { height: 3px; border-radius: 0; }
+.watch[data-mode='portrait'] .rail .marker { min-width: 12px; box-sizing: border-box; background: color-mix(in srgb, var(--color-text) 70%, transparent); box-shadow: none; border-left: 1.5px solid color-mix(in srgb, var(--color-ink) 90%, transparent); border-right: 1.5px solid color-mix(in srgb, var(--color-ink) 90%, transparent); }
+.watch[data-mode='portrait'] .rail input::-webkit-slider-thumb { opacity: 0; }
+.watch[data-mode='portrait'] .times { margin-top: 0; gap: 5px; }
+.watch[data-mode='portrait'] .controls { display: flex; margin-top: 0; margin-left: auto; }
+.watch[data-mode='portrait'] .controls > .transport, .watch[data-mode='portrait'] .leading, .watch[data-mode='portrait'] .volume { display: none; }
+.watch[data-mode='portrait'] .body { inset: calc(var(--watch-picture-top) + var(--watch-picture-height)) 0 0; visibility: visible; pointer-events: auto; overflow: auto; background: var(--color-ink); }
+.watch[data-mode='portrait'] .notices { top: calc(var(--watch-picture-top) + 52px); right: 14px; left: 14px; }
+.watch[data-mode='book'] .body, .watch[data-mode='tabletop'] .body { visibility: visible; overflow: auto; pointer-events: auto; background: var(--color-ink); }
+.watch[data-mode='tabletop'] .shade { background: var(--color-ink); }
+.watch[data-mode='tabletop'] .pictureTap { pointer-events: none; }
+.watch[data-touch-expanded='true'] .top { padding: 26px 32px; gap: 16px; }
+.watch[data-touch-expanded='true'] .together { margin-left: 6px; }
+.watch[data-touch-expanded='true'] .bottom { padding: 0 32px 32px; }
+.watch[data-touch-expanded='true'] .seek, .watch[data-touch-expanded='true'] .rail input { height: 44px; }
+.watch[data-touch-expanded='true'] .rail input::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -7px; }
+.watch[data-touch-expanded='true'] .rail input::-moz-range-thumb { width: 20px; height: 20px; }
+.watch[data-touch-expanded='true'] .times { margin-top: 0; }
+.watch[data-touch-expanded='true'] .controls { margin-top: 8px; }
+.watch[data-touch-expanded='true'] .pill { --watch-time-size: 14px; height: 44px; padding: 0 16px; border-radius: 22px; margin: 0 2px; }
+.watch[data-touch-expanded='true'] .leading > button { height: 44px; }
+.watch[data-touch-expanded='true'] .scrubPreview { bottom: 40px; }
+@media (max-width: 1023px) and (orientation: landscape) {
+  .watch { --watch-title-size: 16.5px; --watch-title-line: normal; --watch-title-tracking: -.015em; --watch-subtitle-size: 13px; --watch-subtitle-weight: 600; --watch-time-size: 12.5px; --watch-time-weight: 700; --watch-skip-size: 11.5px; --watch-track-size: 13.5px; }
+  .trackPill { font-size: var(--watch-track-size); }
+  .top { inset: 12px max(54px, env(safe-area-inset-right)) auto max(54px, env(safe-area-inset-left)); padding: 0; gap: 6px; align-items: center; }
+  .identity { margin-left: 2px; }
+  .identity h2 { margin-bottom: 1px; }
+  .top .control { width: 42px; height: 42px; background: color-mix(in srgb, var(--color-ink) 45%, transparent); backdrop-filter: blur(18px); }
+  .bottom { left: max(60px, env(safe-area-inset-left)); right: max(60px, env(safe-area-inset-right)); bottom: 15px; padding: 0; }
+  .bottom .seek { margin: 0 58px 0 68px; height: 20px; }
+  .bottom .rail { height: 4px; }
+  .rail .marker { min-width: 28px; box-sizing: border-box; background: color-mix(in srgb, var(--color-text) 70%, transparent); box-shadow: none; border-left: 2px solid color-mix(in srgb, var(--color-ink) 90%, transparent); border-right: 2px solid color-mix(in srgb, var(--color-ink) 90%, transparent); }
+  .bottom .times { position: absolute; left: 0; right: 0; top: 1px; margin: 0; pointer-events: none; }
+  .bottom .controls { margin-top: 11px; }
+  .transport { gap: 38px; }
+  .control { width: 46px; height: 46px; }
+  .control:has(small) { width: 58px; height: 58px; }
+  .center .control:has(small) svg { width: 38px; height: 38px; }
+  .control[data-main] { width: 74px; height: 74px; }
+  .controls > .transport { display: none; }
+  .controls { grid-template-columns: 1fr 1fr; }
+  .center { display: flex; position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); justify-content: center; }
+  .volume { display: none; }
+}
+/* §2.6 keeps these opacity-only chrome fades under either reduction setting. */
+@media (prefers-reduced-motion: reduce) { .control { transition: none; } }
+:global([data-reduce-motion='true']) .control { transition: none; }
+
+/* The drawn live player branch; the generic VOD/phone chrome is unchanged when no live port exists. */
+.liveOverlay { position: absolute; inset: 0; opacity: 1; visibility: visible; pointer-events: none; transition: opacity var(--motion-standard) var(--ease-out), visibility 0s; }
+.liveOverlay[data-visible='false'] { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--watch-controls-exit) var(--ease-in), visibility 0s var(--watch-controls-exit); }
+
+/* desktop-player f4b: the finished film's own backdrop, blurred under a veil. */
+.endAmbient { position: absolute; inset: -14%; width: 128%; height: 128%; overflow: hidden; opacity: .55; filter: blur(80px) saturate(1.5); pointer-events: none; }
+.endAmbient img { width: 100%; height: 100%; object-fit: cover; }
+.endVeil { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(80% 90% at 20% 30%, color-mix(in srgb, var(--color-ink) 20%, transparent), color-mix(in srgb, var(--color-ink) 75%, transparent) 80%), linear-gradient(0deg, color-mix(in srgb, var(--color-ink) 85%, transparent), transparent 46%); }
+
+/* A measured pre-expansion target carries no admitted controls or visible paint. */
+.watch[data-video-preview] { opacity: 0; pointer-events: none; }
+
+/* Only the full player's More popover uses the authored video glass treatment. */
+.playerMenu.playerMenu { padding: 6px; border-radius: 16px; background: color-mix(in srgb, var(--color-raised-high) 95%, transparent); backdrop-filter: blur(30px) saturate(1.3); box-shadow: 0 30px 60px -18px var(--color-shadow), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent); }
+.playerMenu [role='menuitem'], .playerMenu [role='menuitemradio'] { min-height: 44px; padding: 6px 12px; border-radius: 10px; font-size: var(--type-body-size); font-weight: var(--type-body-strong-weight); color: var(--color-text); }
+@media (prefers-reduced-transparency: reduce) { .playerMenu.playerMenu { background: var(--color-raised-high); backdrop-filter: none; } }
+@media (prefers-reduced-motion: reduce) { .rail { transition: none; } }
+:global([data-reduce-motion='true']) .rail { transition: none; }

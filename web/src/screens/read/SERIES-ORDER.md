@@ -1,0 +1,7 @@
+# Explicit selected-title series order
+
+The owner bulk editor keeps the original selected item objects and pick order. Only an explicit nonempty Series field edit on a multi-title selection offers the Book/Volume order plan. The first planned row is numbered1, with drag or keyboard movement before save. These are proposed owner values, not inferred current metadata. Clearing Series does not renumber anything. Ordinary bulk edits retain their common-field command.
+
+The caller requires the real preview's bulk seriesNumber field. Fresh per-target previews supply original CAS revisions; numbered saves use existing post_metadata_bulk commands with one selected target each, common edited fields plus that target's explicit seriesNumber. No new route, schema, actor, source grant or whole-series capture exists. Unselected titles are never renumbered, and global position uniqueness is not claimed.
+
+Every command body and operation ID is retained. The cursor advances only after its receipt is validated. An uncertain reply retries the same original command, then continues remaining commands; known failed rows alone may form a fresh subset operation with fresh revisions and their original planned numbers. The original selected-object/Reading-authority lifetime and local-owner guard enclose preview, each request and every completion. No playback, reading progress, contents or host/session state changes.

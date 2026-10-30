@@ -1,0 +1,10 @@
+.trigger { flex: none; max-width: 100%; white-space: normal; }
+.note { margin: 0 0 16px; color: var(--color-text-secondary); }
+.rows { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; }
+.row { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent); }
+.row:last-child { border-bottom: 0; padding-bottom: 0; }
+.summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
+.summary time { flex-basis: 100%; color: var(--color-text-tertiary); font-size: var(--type-label-size); }
+.summary span { color: var(--color-text-secondary); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.form { display: grid; gap: 16px; }

@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/items/FZH_ujVknbAIgHBifTyT1w"
+  },
+  "status": 200,
+  "body": {
+    "addedAt": "2026-10-29T09:32:01.061Z",
+    "available": true,
+    "durationMs": 0,
+    "id": "FZH_ujVknbAIgHBifTyT1w",
+    "kind": "song",
+    "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+    "missing": false,
+    "progressMs": 0,
+    "song": {
+      "providerReleaseStatus": "unmatched",
+      "albumId": "TFmaguJtaiBfE0GA2pSkcw",
+      "albumTitle": "Assembly of Copper",
+      "albumArtist": "Unknown artist",
+      "artist": "Unknown artist",
+      "trackNumber": 1,
+      "providerMatchStatus": "pending"
+    },
+    "sources": [
+      {
+        "audioCodec": "",
+        "container": "mp3",
+        "durationMs": 0,
+        "height": 0,
+        "id": "3N8vG-JmkYwebaQTEhDFUqQ8Nobh-H4JvvSCQV_C9wY",
+        "videoCodec": "",
+        "width": 0
+      }
+    ],
+    "title": "01 - Ticket",
+    "watched": false
+  }
+}

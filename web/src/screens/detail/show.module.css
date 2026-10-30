@@ -1,0 +1,300 @@
+.starring { margin: -4px 0 26px; font-size: var(--type-starring-size); color: var(--color-text-tertiary); }
+.starring .personLink { box-shadow: none; }
+.starring .personLink:hover { box-shadow: inset 0 -1px 0 color-mix(in srgb,var(--color-text) 70%,transparent); }
+
+.phoneHero { position: relative; margin-bottom: 24px; }
+.phonePicture { position: relative; height: 330px; }
+.phoneCopy { position: absolute; z-index: 1; left: 20px; right: 20px; bottom: 4px; text-align: center; }
+.phoneCopy h1 { margin: 0 0 10px; }
+.phoneCopy > div { justify-content: center; gap: 6px 12px; margin: 0; font-size: var(--type-fixed-size-13px); }
+.phoneHero .heroActions { position: relative; margin: 0; padding: 18px 20px 0; flex-wrap: nowrap; gap: 10px; }
+.phoneHero .heroActions > button:not([data-icon-only]) { flex: 1; min-width: 0; padding-left: 12px; padding-right: 12px; }
+.phoneHero .phoneSynopsis[data-variant=hero] { position: relative; margin: 16px 20px 0; font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.phoneHero .starring { position: relative; margin: 8px 20px 0; }
+
+@media(min-width:600px) and (max-width:1023px) {
+  .phonePicture { height: 560px; }
+  .phonePicture .phoneArt::after { inset: 0; background: linear-gradient(180deg,transparent 40%,color-mix(in srgb,var(--color-ink) 70%,transparent) 66%,color-mix(in srgb,var(--color-ink) 96%,transparent) 100%); }
+  .phoneCopy { left: 40px; right: 40px; bottom: 20px; }
+  .phoneCopy h1 { margin-bottom: 12px; }
+  .phoneCopy > div { font-size: var(--type-fixed-size-15px); }
+  .phoneHero .heroActions { padding: 0 40px; justify-content: center; }
+  .phoneHero .heroActions > button:not([data-icon-only]) { flex: none; padding-left: 20px; padding-right: 20px; }
+  .phoneHero .heroActions > button[data-variant=primary] { flex: 0 1 300px; }
+  .phoneHero .phoneSynopsis[data-variant=hero] { max-width: 600px; margin: 16px auto 0; padding: 0 28px; text-align: center; font-size: var(--type-fixed-size-15point-5px); line-height: var(--type-fixed-line-1point-55); -webkit-line-clamp: 3; }
+  .phoneHero .starring { text-align: center; }
+}
+
+.episodes { padding: 28px 64px 82px; }
+
+.toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+
+.toolbarActions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+.toolbarActions > button[data-variant="toolbar"] { height: 38px; padding: 0 13px; font-size: var(--type-see-all-size); gap: 7px; }
+
+.toolbarActions > button[data-icon-only] { width: 38px; height: 38px; }
+
+.progress { font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+
+.progressDivider { width: 1px; height: 22px; background: var(--color-line); }
+
+.watchedProgress { display: inline-flex; align-items: center; gap: 10px; font-size: var(--type-see-all-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-secondary); }
+
+.watchedMeter { width: 64px; height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--color-text) 18%, transparent); overflow: hidden; }
+
+.watchedMeter i { display: block; height: 100%; background: var(--color-accent-strong); }
+
+.hide { margin-left: 12px; display: flex; align-items: center; gap: 10px; font-size: var(--type-caption-size); color: var(--color-text-secondary); }
+
+.layoutToggle { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+
+.layoutToggle button { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-tertiary); cursor: pointer; }
+
+.layoutToggle button:hover { color: var(--color-text); }
+
+.layoutToggle button[aria-pressed="true"] { background: var(--color-raised-bright); color: var(--color-text); }
+
+.layoutToggle button:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 1px; }
+
+.tiles { display: grid; grid-template-columns: repeat(var(--episode-columns),minmax(0,1fr)); gap: 28px 16px; align-items: start; }
+
+.tiles > * { width: 100%; }
+
+.tiles[data-layout=list] { display: flex; flex-direction: column; gap: 12px; }
+
+.tiles[data-layout=list] .episodeRow > button { display: grid; grid-template-columns: 220px minmax(0,1fr); column-gap: 24px; text-align: left; }
+.tiles[data-layout=list] .episodeRow > button > :first-child { grid-column: 1; grid-row: 1 / 3; }
+.tiles[data-layout=list] .episodeRow > button > :nth-child(2) { grid-column: 2; margin-top: 0; align-self: end; }
+.tiles[data-layout=list] .episodeRow > button > :nth-child(3) { grid-column: 2; align-self: start; }
+
+.expanded { grid-column: 1 / -1; }
+
+.context { margin: 0 0 8px; font-size: var(--type-caption-size); }
+
+.adjacent { display: flex; gap: 20px; margin-top: 24px; }
+
+.adjacent small { display: block; font-size: var(--type-label-size); color: var(--color-text-tertiary); }
+
+.paging { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+
+@media(max-width:1023px) { .episodes { padding: 20px 20px 110px; }
+
+.toolbar { flex-wrap: wrap; gap: 12px; }
+
+.progress, .progressDivider, .watchedProgress { display: none; }
+
+.hide { margin-left: 0; }
+.toolbarActions { margin-left: 0; flex-wrap: wrap; }
+
+.layoutToggle { display: none; }
+
+.tiles { gap: 24px 12px; }
+
+.tiles[data-layout=list] { gap: 20px; }
+.tiles[data-layout=list] .episodeRow > button { grid-template-columns: 136px minmax(0,1fr); column-gap: 14px; }
+.tiles[data-layout=list] .episodeRow > button > :first-child { grid-row: 1; }
+.tiles[data-layout=list] .episodeRow > button > :nth-child(2) { align-self: center; }
+.tiles[data-layout=list] .episodeRow > button > :nth-child(2) > :first-child { font-size: var(--type-episode-title-size); }
+.tiles[data-layout=list] .episodeRow > button > :nth-child(3) { grid-column: 1 / -1; margin-top: 9px; }
+
+}
+
+@media(min-width:600px) and (max-width:1023px) {
+  .tiles[data-layout=list] .episodeRow > button { grid-template-columns: 210px minmax(0,1fr); column-gap: 18px; }
+  .tiles[data-layout=list] .episodeRow > button > :first-child { grid-row: 1 / 3; }
+  .tiles[data-layout=list] .episodeRow > button > :nth-child(2) { align-self: end; }
+  .tiles[data-layout=list] .episodeRow > button > :nth-child(3) { grid-column: 2; margin-top: 6px; }
+}
+
+/* Frame 4: the show's Details tab, its cast and crew, and the owner's Server panel. */
+.detailsTab { padding: 32px 64px 74px; }
+
+.detailsGrid { display: grid; grid-template-columns: 360px minmax(0,1fr); gap: 64px; }
+
+.sectionHeading { margin: 0 0 16px; display: flex; align-items: baseline; gap: 12px; font-size: var(--type-detail-heading-size); line-height: var(--type-detail-heading-line); font-weight: var(--type-detail-heading-weight); letter-spacing: var(--type-detail-heading-tracking); }
+
+.facts { display: grid; grid-template-columns: 124px 1fr; gap: 12px 16px; margin: 0; font-size: var(--type-body-size); line-height: calc(var(--type-body-size) * 1.45); }
+
+.facts dt { color: var(--color-text-tertiary); }
+
+.facts dd { margin: 0; color: var(--color-text); }
+
+.personLink { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; border-radius: 3px; box-shadow: inset 0 -1px 0 color-mix(in srgb,var(--color-text) 20%,transparent); transition: box-shadow 160ms var(--ease-out), color 160ms var(--ease-out); }
+
+.personLink:hover { color: var(--color-text); box-shadow: inset 0 -1px 0 color-mix(in srgb,var(--color-text) 70%,transparent); }
+
+.personLink:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 2px; }
+
+.castBlock header button { height: auto; padding: 0; gap: 2px; flex-direction: row-reverse; align-items: center; font-size: var(--type-chip-size); font-weight: var(--type-button-weight); color: var(--color-text-secondary); }
+
+.castBlock h2 { font-size: var(--type-detail-heading-size); line-height: var(--type-detail-heading-line); font-weight: var(--type-detail-heading-weight); letter-spacing: var(--type-detail-heading-tracking); margin: 0 0 16px; }
+
+.castBlock div section + section { margin-top: 26px; padding-top: 24px; border-top: 1px solid color-mix(in srgb,var(--color-line) 60%,transparent); }
+
+.castBlock section > div { gap: 22px; }
+
+.castBlock button { width: 120px; }
+
+.castBlock button > span:first-child { display: block; width: 96px; height: 96px; }
+
+.castBlock button b { margin-top: 10px; font-size: var(--type-person-title-size); font-weight: var(--type-person-title-weight); line-height: normal; }
+
+.castBlock button small { margin-top: 2px; font-size: var(--type-caption-size); font-weight: var(--type-caption-weight); line-height: normal; }
+
+.showPage [class*="pinnedDesktopTitle"] { font-size: calc(var(--type-detail-heading-size) + 2px); line-height: var(--type-detail-heading-line); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-detail-heading-tracking); }
+
+.pinActions { gap: 10px; }
+
+.owner { margin: 48px 0 0; padding: 22px 24px 24px; border-radius: 16px; background: radial-gradient(120% 70% at 100% 0%, color-mix(in srgb,var(--color-accent-deep) 20%,transparent), transparent 62%), radial-gradient(100% 60% at 0% 100%, color-mix(in srgb,var(--color-generated-green) 20%,transparent), transparent 66%), color-mix(in srgb,var(--color-ink) 70%,var(--color-raised)); box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--color-accent-strong) 16%,transparent); }
+
+.ownerHeader { display: flex; align-items: center; gap: 12px; }
+
+.ownerHeader b { display: flex; align-items: center; gap: 10px; font-size: var(--type-detail-heading-size); line-height: var(--type-detail-heading-line); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-detail-heading-tracking); }
+
+.ownerHeader small { display: block; margin-top: 1px; font-size: var(--type-caption-strong-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-tertiary); }
+
+.ownerRow { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 20px; }
+
+.ownerCell { position: relative; padding: 18px 20px; border-radius: 12px; background: color-mix(in srgb,var(--color-ink) 50%,transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--color-text) 6%,transparent); }
+
+.ownerLabel { font-size: var(--type-caption-strong-size); font-weight: var(--type-button-weight); line-height: normal; color: var(--color-text-tertiary); }
+
+.ownerBig { display: flex; gap: 14px; margin-top: 6px; font-size: var(--type-subheading-size); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-subheading-tracking); }
+
+.ownerBig > span + span { color: var(--color-text-secondary); font-weight: var(--type-button-weight); }
+
+.ownerCell p { margin: 8px 0 0; font-size: var(--type-starring-size); line-height: var(--type-body-line); color: var(--color-text-secondary); }
+
+.ownerCell > button { position: absolute; right: 14px; top: 14px; }
+
+.changeChip { padding: 0 8px; gap: 7px; }
+
+.changeChip[aria-expanded="true"] { background: var(--color-raised-bright); box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--color-text) 14%,transparent); }
+
+.settingsMenu { padding: 18px 18px 16px; }
+
+.menuHead { display: flex; align-items: center; gap: 10px; }
+
+.menuHead b { font-size: var(--type-wide-title-size); font-weight: var(--type-lockup-weight); }
+
+.menuTag { margin-left: auto; padding: 3px 8px; border-radius: 6px; background: color-mix(in srgb,var(--color-ink) 50%,transparent); color: var(--color-text-secondary); font-size: var(--type-label-size); font-weight: var(--type-button-weight); white-space: nowrap; }
+
+.menuLede { margin: 6px 0 4px; font-size: var(--type-chip-size); line-height: var(--type-body-line); color: var(--color-text-tertiary); }
+
+.menuGrid { display: grid; grid-template-columns: 132px 1fr; gap: 10px 14px; align-items: center; margin-top: 16px; }
+
+.menuLabel { font-size: var(--type-chip-size); font-weight: var(--type-button-weight); color: var(--color-text-secondary); }
+
+.settingsSeg { display: flex; width: 100%; background: var(--color-raised); box-shadow: none; }
+
+.settingsSeg [role="radio"] { flex: 1; min-width: 0; padding: 0 10px; font-size: var(--type-chip-size); font-weight: var(--type-button-weight); white-space: nowrap; border-radius: 8px; }
+
+.settingsSeg [role="radio"][data-state="checked"] { background: var(--color-raised-bright); color: var(--color-text); box-shadow: 0 1px 2px color-mix(in srgb,var(--color-shadow) 30%,transparent); }
+
+.preview { margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: color-mix(in srgb,var(--color-ink) 45%,transparent); display: flex; gap: 10px; align-items: baseline; font-size: var(--type-chip-size); color: var(--color-text-tertiary); }
+
+.preview b { color: var(--color-text); font-weight: var(--type-lockup-weight); }
+
+.preview span + span { color: var(--color-text-secondary); font-weight: var(--type-caption-strong-weight); }
+
+@media(max-width:1023px) { .detailsTab { padding: 24px 20px 110px; }
+
+.expanded { margin-top: -24px; }
+
+.detailsGrid { display: block; }
+
+.castBlock { margin-top: 36px; }
+
+.owner { margin-top: 36px; }
+
+.ownerCell { padding-bottom: 64px; }
+
+.ownerCell > button { position: static; margin-top: 12px; }
+
+}
+
+.expanded { margin-top: -28px; }
+
+.contextShow { color: var(--color-text-secondary); }
+
+.episodeSide { display: flex; flex-direction: column; gap: 10px; }
+
+.episodeNav { display: flex; align-items: center; gap: 14px; margin: 0 -8px; padding: 8px; border: 0; border-radius: 12px; background: none; color: inherit; text-align: left; cursor: pointer; }
+
+.episodeNav:hover { background: color-mix(in srgb,var(--color-text) 6%,transparent); }
+
+.episodeNav:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 0; }
+
+.episodeNavArt { position: relative; width: 112px; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; flex: none; background: var(--color-raised); }
+
+.episodeNavArt > * { width: 100%; height: 100%; }
+
+.episodeNavCopy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.episodeNavCopy small { display: flex; align-items: center; gap: 2px; font-size: var(--type-caption-strong-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-tertiary); }
+
+.episodeNavCopy b { font-size: var(--type-episode-title-size); font-weight: var(--type-episode-title-weight); color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.episodeCredits { display: grid; grid-template-columns: 96px 1fr; gap: 10px 14px; margin: 14px 0 0; padding-top: 18px; border-top: 1px solid color-mix(in srgb,var(--color-line) 60%,transparent); font-size: var(--type-starring-size); line-height: calc(var(--type-starring-size) * 1.45); }
+
+.episodeCredits dt { color: var(--color-text-tertiary); }
+
+.episodeCredits dd { display: flex; flex-direction: column; gap: 2px; margin: 0; color: var(--color-text-secondary); }
+
+.guestLine { display: flex; align-items: baseline; gap: 8px; }
+
+.guestLine > span:last-child { font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+
+.episodeRow [class*="episodeTitle"] { font-size: var(--type-wide-title-size); }
+
+.episodeRow [data-role="status"] { color: var(--color-accent-strong); font-weight: var(--type-caption-strong-weight); }
+
+.episodeRow [data-role="supplement"] { color: var(--color-text-secondary); }
+
+.relatedRows { padding: 28px 0 96px; }
+
+.relatedRows > :first-child { margin-top: 0; }
+
+/* The drawn season menu: header with the real total and jump box, two-line season rows. */
+.seasonPopover { padding: 10px 8px 8px; }
+
+.seasonHeader { display: flex; align-items: center; gap: 12px; padding: 4px 6px 10px 10px; }
+
+.seasonHeader b { font-size: var(--type-see-all-size); font-weight: var(--type-lockup-weight); color: var(--color-text-secondary); }
+
+.seasonJump { margin-left: auto; width: 168px; }
+
+.seasonList { display: flex; flex-direction: column; gap: 0; max-height: min(52vh, 290px); overflow: auto; }
+
+.seasonRow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 0 14px 0 12px; border: 0; border-radius: 9px; background: transparent; color: var(--color-text-secondary); text-align: left; font: inherit; cursor: pointer; }
+
+.seasonRow:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); color: var(--color-text); }
+
+.seasonRow:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: -2px; }
+
+.seasonRow[aria-selected="true"] { background: color-mix(in srgb, var(--color-accent) 16%, transparent); color: var(--color-text); }
+
+.seasonName { display: grid; gap: 2px; min-width: 0; flex: 1; }
+
+.seasonName b { font-size: var(--type-compact-button-size); font-weight: var(--type-button-weight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.seasonName small { font-size: var(--type-audiobook-detail-progress-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-tertiary); }
+
+.seasonFacts { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-left: auto; font-size: var(--type-audiobook-detail-progress-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-tertiary); white-space: nowrap; }
+
+.seasonDescription { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
+
+.seasonWatched { display: inline-flex; align-items: center; gap: 4px; color: var(--color-accent-strong); }
+
+.seasonProgress { width: 56px; height: 4px; border-radius: 2px; overflow: hidden; background: color-mix(in srgb, var(--color-text) 16%, transparent); }
+
+.seasonProgress i { display: block; height: 100%; background: var(--color-accent-strong); }
+
+.seasonPaging { display: flex; gap: 8px; padding: 8px 4px 2px; }
+
+.seasonPaging button { border: 0; padding: 6px 8px; border-radius: 8px; background: transparent; color: var(--color-text-secondary); font: inherit; font-size: var(--type-see-all-size); font-weight: var(--type-row-heading-weight); cursor: pointer; }
+
+.seasonPaging button:hover { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+
+.seasonSpecials { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-line); }

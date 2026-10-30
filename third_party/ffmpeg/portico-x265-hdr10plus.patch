@@ -1,0 +1,105 @@
+--- a/libavcodec/libx265.c
++++ b/libavcodec/libx265.c
+@@ -31,11 +31,14 @@
+ #include "libavutil/buffer.h"
+ #include "libavutil/internal.h"
+ #include "libavutil/mastering_display_metadata.h"
++#include "libavutil/hdr_dynamic_metadata.h"
+ #include "libavutil/mem.h"
+ #include "libavutil/opt.h"
+ #include "libavutil/pixdesc.h"
+ #include "avcodec.h"
++#include "bytestream.h"
+ #include "codec_internal.h"
++#include "itut35.h"
+ #include "dovi_rpu.h"
+ #include "encode.h"
+ #include "atsc_a53.h"
+@@ -78,6 +81,7 @@
+     int sei_data_size;
+     int udu_sei;
+     int a53_cc;
++    int hdr10plus;
+ 
+     ReorderedData *rd;
+     int         nb_rd;
+@@ -698,6 +702,58 @@
+     return 0;
+ }
+ 
++static int libx265_add_hdr_plus(libx265Context *ctx, x265_picture *picture,
++                                const AVFrame *frame)
++{
++    const AVFrameSideData *sd = av_frame_get_side_data(frame, AV_FRAME_DATA_DYNAMIC_HDR_PLUS);
++    const AVDynamicHDRPlus *hdr;
++    x265_sei *sei = &picture->userSEI;
++    x265_sei_payload *item;
++    uint8_t *buffer, *payload;
++    void *tmp;
++    size_t size;
++    int ret;
++
++    if (!ctx->hdr10plus || !sd)
++        return 0;
++    if (sd->size != sizeof(AVDynamicHDRPlus))
++        return AVERROR_INVALIDDATA;
++    hdr = (const AVDynamicHDRPlus *)sd->data;
++    if (hdr->application_version != 1)
++        return AVERROR_INVALIDDATA;
++    ret = av_dynamic_hdr_plus_to_t35(hdr, NULL, &size);
++    if (ret < 0)
++        return ret;
++    if (!size || size > AV_HDR_PLUS_MAX_PAYLOAD_SIZE)
++        return AVERROR_INVALIDDATA;
++    buffer = av_malloc(size + 6);
++    if (!buffer)
++        return AVERROR(ENOMEM);
++    payload = buffer;
++    bytestream_put_byte(&payload, ITU_T_T35_COUNTRY_CODE_US);
++    bytestream_put_be16(&payload, ITU_T_T35_PROVIDER_CODE_SAMSUNG);
++    bytestream_put_be16(&payload, 0x0001);
++    bytestream_put_byte(&payload, 0x04);
++    ret = av_dynamic_hdr_plus_to_t35(hdr, &payload, &size);
++    if (ret < 0) {
++        av_free(buffer);
++        return ret;
++    }
++    tmp = av_fast_realloc(ctx->sei_data, &ctx->sei_data_size,
++                         (sei->numPayloads + 1) * sizeof(*item));
++    if (!tmp) {
++        av_free(buffer);
++        return AVERROR(ENOMEM);
++    }
++    ctx->sei_data = tmp;
++    sei->payloads = ctx->sei_data;
++    item = &sei->payloads[sei->numPayloads++];
++    item->payload = buffer;
++    item->payloadSize = size + 6;
++    item->payloadType = (SEIPayloadType)SEI_TYPE_USER_DATA_REGISTERED_ITU_T_T35;
++    return 0;
++}
++
+ static void free_picture(libx265Context *ctx, x265_picture *pic)
+ {
+     x265_sei *sei = &pic->userSEI;
+@@ -783,6 +839,12 @@
+         }
+ 
+         x265pic.userData = (void*)(intptr_t)(rd_idx + 1);
++
++        ret = libx265_add_hdr_plus(ctx, &x265pic, pic);
++        if (ret < 0) {
++            free_picture(ctx, &x265pic);
++            return ret;
++        }
+ 
+         if (ctx->a53_cc) {
+             void *sei_data;
+@@ -1050,6 +1112,7 @@
+     { "x265-stats",  "Filename for 2 pass stats",                                                   OFFSET(stats),     AV_OPT_TYPE_STRING, { 0 }, 0, 0, VE },
+     { "udu_sei",     "Use user data unregistered SEI if available",                                 OFFSET(udu_sei),   AV_OPT_TYPE_BOOL,   { .i64 = 0 }, 0, 1, VE },
+     { "a53cc",       "Use A53 Closed Captions (if available)",                                      OFFSET(a53_cc),    AV_OPT_TYPE_BOOL,   { .i64 = 0 }, 0, 1, VE },
++    { "hdr10plus",   "Carry frame HDR10+ metadata (requires unchanged HDR rendering)", OFFSET(hdr10plus), AV_OPT_TYPE_BOOL, { .i64 = 0 }, 0, 1, VE },
+     { "x265-params", "set the x265 configuration using a :-separated list of key=value parameters", OFFSET(x265_opts), AV_OPT_TYPE_DICT,   { 0 }, 0, 0, VE },
+ #if X265_BUILD >= 167
+     { "dolbyvision", "Enable Dolby Vision RPU coding", OFFSET(dovi.enable), AV_OPT_TYPE_BOOL, {.i64 = FF_DOVI_AUTOMATIC }, -1, 1, VE, .unit = "dovi" },

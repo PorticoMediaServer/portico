@@ -1,0 +1,23 @@
+{
+ "file": "album-flac-08.flac",
+ "container": "flac",
+ "codec": "flac",
+ "sampleRate": 44100,
+ "channels": 2,
+ "durationFrames": 165433,
+ "rawFrames": 165433,
+ "trim": {
+  "startFrames": 0,
+  "endFrames": 0,
+  "source": "flac"
+ },
+ "signal": {
+  "formula": "amplitude*sin(2*pi*frequency*(n+offset)/sampleRate)",
+  "amplitude": 0.5,
+  "frequency": 441,
+  "offset": 936299
+ },
+ "tolerance": 0.0001,
+ "edgeFrames": 64,
+ "edgeTolerance": 0.0001
+}

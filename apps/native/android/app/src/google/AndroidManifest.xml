@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Google Cast exists only in the build for devices with Google Play services. The receiver
+         application id is the one the iOS build reads (PorticoCastApplicationID); with none, Cast
+         reports itself unavailable and the app offers no Cast destination. -->
+    <application>
+        <meta-data android:name="PorticoCastApplicationID" android:value="${porticoCastApplicationId}" />
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="tv.getportico.portico.native.PorticoCastOptions" />
+    </application>
+</manifest>

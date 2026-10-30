@@ -1,0 +1,23 @@
+/** Wording authored in the web Show screen (desktop-detail.html frame 4). */
+export const showMessages = {
+  'next.show.about': 'About',
+  'next.show.firstAired': 'First aired',
+  'next.show.status': 'Status',
+  'next.show.createdBy': 'Created by',
+  'next.show.rated': 'Rated',
+  'next.show.onThisServer': 'On this server',
+  'next.show.episodeDisplay': 'Episode display',
+  'next.show.groupEpisodes': 'Group episodes',
+  'next.show.group.bySeason': 'By season',
+  'next.show.group.oneList': 'In one list',
+  'next.show.group.ranges': 'Ranges of 100',
+  'next.show.numberThem': 'Number them',
+  'next.show.number.acrossSeasons': 'Across seasons',
+  'next.show.order': 'Order',
+  'next.show.readsAs': 'Reads as',
+  'next.show.forEveryone': 'For everyone',
+  'next.show.membersNeverSee': 'Members never see this. Changes here apply for everyone on this server.',
+  'next.show.howListed': 'How episodes are listed on every device.',
+  'next.show.change': 'Change',
+  'next.show.guestStars': 'Guest stars',
+} as const;

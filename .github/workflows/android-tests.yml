@@ -1,0 +1,54 @@
+name: Android JVM tests
+on:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  unit-and-transport:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm, cache-dependency-path: apps/native/package-lock.json}
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with: {distribution: temurin, java-version: '17', cache: gradle}
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ env.ANDROID_HOME }}/ndk/27.1.12297006
+          key: android-ndk-${{ runner.os }}-27.1.12297006
+      - name: Android SDK used by the JVM compilation and standalone harnesses
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"'
+      - id: native-deps
+        run: npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false
+        working-directory: apps/native
+      - name: JVM tests for Android and Fire OS
+        if: ${{ !cancelled() && steps.native-deps.outcome == 'success' }}
+        # A unit-test JVM never links or packages libmpv. Keep production media
+        # checks unchanged and omit only its asset-staging prerequisite here.
+        run: ./gradlew --no-daemon --continue :app:testGoogleDebugUnitTest :app:testFiretvDebugUnitTest -x :portico-mpv:stageMediaEngine
+        working-directory: apps/native/android
+      - name: Production Android transport, layout and URL-route harnesses
+        if: ${{ !cancelled() && steps.native-deps.outcome == 'success' }}
+        env:
+          PORTICO_ANDROID_TEST_OUT_DIR: ${{ runner.temp }}/android-harnesses
+        run: python3 scripts/run-android-harnesses.py
+      - name: Compile debug only with qualified prebuilt engine
+        # Existing Gradle checkMediaEngine validates the entire payload. Never build it here.
+        if: ${{ hashFiles('third_party/media-engine/out/android/lib/x86_64/libmpv.so') != '' }}
+        run: ./gradlew --no-daemon :app:assembleGoogleDebug :app:assembleFiretvDebug -PreactNativeArchitectures=x86_64
+        working-directory: apps/native/android
+      - name: Retain per-suite Android results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-jvm-and-transport
+          path: |
+            apps/native/android/app/build/test-results/**
+            apps/native/android/app/build/reports/tests/**
+            ${{ runner.temp }}/android-harnesses/**
+          if-no-files-found: error
+          retention-days: 7

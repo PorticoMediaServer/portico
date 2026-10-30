@@ -1,0 +1,122 @@
+[
+  {
+    "name": "@react-native-community/blur",
+    "version": "4.4.1",
+    "platforms": [
+      "android",
+      "apple"
+    ],
+    "licence": "MIT",
+    "licenceFile": "LICENSE",
+    "licenceSHA256": "70c1ad1d39f1bf2e22488d76001142647742105517b745459294d01ce2654d00",
+    "url": "https://github.com/react-native-community/react-native-blur"
+  },
+  {
+    "name": "@react-native-masked-view/masked-view",
+    "version": "0.3.2",
+    "platforms": [
+      "android",
+      "apple"
+    ],
+    "licence": "MIT",
+    "licenceFile": "LICENSE",
+    "licenceSHA256": "22a28f29cff8f5ecf9f463301d9c03b8245a2952ebae0bcab633fd654c0792fb",
+    "url": "https://github.com/react-native-masked-view/masked-view"
+  },
+  {
+    "name": "react-native-gesture-handler",
+    "version": "2.30.0",
+    "platforms": [
+      "android",
+      "apple"
+    ],
+    "licence": "MIT",
+    "licenceFile": "LICENSE",
+    "licenceSHA256": "f1ae22eddd3a96c3b7b8a494ef03749ae6a1e19574bacc9c195d83c916de09e2",
+    "url": "https://github.com/software-mansion/react-native-gesture-handler"
+  },
+  {
+    "name": "react-native-keyboard-controller",
+    "version": "1.22.9",
+    "platforms": [
+      "android",
+      "apple"
+    ],
+    "licence": "MIT",
+    "licenceFile": "LICENSE",
+    "licenceSHA256": "b0fd50df5e9be71bf15fecbcfb68df5beee5e70cd391b0ffd8abcdbceff115a4",
+    "url": "https://github.com/kirillzyusko/react-native-keyboard-controller"
+  },
+  {
+    "name": "react-native-reanimated",
+    "version": "4.6.0",
+    "platforms": [
+      "android",
+      "apple"
+    ],
+    "licence": "MIT",
+    "licenceFile": "LICENSE",
+    "licenceSHA256": "f1ae22eddd3a96c3b7b8a494ef03749ae6a1e19574bacc9c195d83c916de09e2",
+    "url": "https://github.com/software-mansion/react-native-reanimated"
+  },
+  {
+    "name": "react-native-safe-area-context",
+    "version": "5.9.1",
+    "platforms": [
+      "android",
+      "apple"
+    ],
+    "licence": "MIT",
+    "licenceFile": "LICENSE",
+    "licenceSHA256": "f5c7a4d527258e11fdfe3d84eb73cd14fe6d64224ef051e59f6ee21fe378800c",
+    "url": "https://github.com/AppAndFlow/react-native-safe-area-context"
+  },
+  {
+    "name": "react-native-screens",
+    "version": "4.23.0",
+    "platforms": [
+      "android",
+      "apple"
+    ],
+    "licence": "MIT",
+    "licenceFile": "LICENSE",
+    "licenceSHA256": "95b52e497653b738fd50e4bd3a8197dc41593c63129acb4f8069dbf49530ef82",
+    "url": "https://github.com/software-mansion/react-native-screens"
+  },
+  {
+    "name": "react-native-svg",
+    "version": "15.15.5",
+    "platforms": [
+      "android",
+      "apple"
+    ],
+    "licence": "MIT",
+    "licenceFile": "LICENSE",
+    "licenceSHA256": "1bc2aa7dad15097cd71308d9ae013ff14d11a84357b170c1554f4035fb8a3acb",
+    "url": "https://github.com/software-mansion/react-native-svg"
+  },
+  {
+    "name": "react-native-webview",
+    "version": "16.0.0",
+    "platforms": [
+      "android",
+      "apple"
+    ],
+    "licence": "MIT",
+    "licenceFile": "LICENSE",
+    "licenceSHA256": "22a28f29cff8f5ecf9f463301d9c03b8245a2952ebae0bcab633fd654c0792fb",
+    "url": "https://github.com/react-native-webview/react-native-webview"
+  },
+  {
+    "name": "react-native-worklets",
+    "version": "0.12.2",
+    "platforms": [
+      "android",
+      "apple"
+    ],
+    "licence": "MIT",
+    "licenceFile": "LICENSE",
+    "licenceSHA256": "92c22d327a6644efda43527bfa6f136f4382359f40bc288eda0764f67be9c269",
+    "url": "https://github.com/software-mansion/react-native-reanimated"
+  }
+]

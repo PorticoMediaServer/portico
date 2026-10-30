@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "target": "x86_64-linux-musl",
+  "libmobi": {
+    "version": "0.12",
+    "repository": "https://github.com/bfabiszewski/libmobi",
+    "commit": "85dcfe803fc2a21020ddcf15c3eb66b93d388add",
+    "licence": "LGPL-3.0-or-later",
+    "files": {
+      "src/miniz.c": "37ca7a2774e7c575a58c3e09bdbe4d358940237d41fd5e1f9e56b2540d5e693c",
+      "src/mobi.h": "dac4a80d25258949ec127640e3ee9a32ca3b853871b89766c52a698b443415b0",
+      "tools/mobitool.c": "717249997b1ed6d6af0125fd852334a6a757c3da83c2bc91a6b0081690d2094e"
+    }
+  },
+  "miniz": {
+    "version": "1.15 r4 (bundled at the libmobi commit)",
+    "licence": "Unlicense / public-domain dedication in src/miniz.c",
+    "source": "libmobi/src/miniz.c",
+    "sha256": "37ca7a2774e7c575a58c3e09bdbe4d358940237d41fd5e1f9e56b2540d5e693c"
+  },
+  "xmlwriter": {"version": "internal at the libmobi commit", "licence": "LGPL-3.0-or-later", "libxml2": "not linked"},
+  "musl": {
+    "version": "1.2.6",
+    "source": "https://musl.libc.org/releases/musl-1.2.6.tar.gz",
+    "sha256": "d585fd3b613c66151fc3249e8ed44f77020cb5e6c1e635a616d3f9f82460512a",
+    "licence": "MIT with full COPYRIGHT notices retained"
+  },
+  "toolchain": {"clang": "18.1.8", "ld.lld": "18.1.8", "llvm-ar": "18.1.8", "llvm-ranlib": "18.1.8", "cmake": "3.30.5", "make": "4.4.1", "llvm-readelf": "18.1.8"},
+  "configuration": {"USE_XMLWRITER": true, "USE_ENCRYPTION": false, "USE_LIBXML2": false, "USE_ZLIB": false, "MOBI_DEBUG": false},
+  "deliveryStatus": "source recipe only; Release qualification and actual artifact hashes required"
+}

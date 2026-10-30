@@ -1,0 +1,2064 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/libraries/oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8/browse-capabilities?pivot=albums"
+  },
+  "status": 200,
+  "body": {
+    "surfaces": [
+      {
+        "id": "library",
+        "endpoint": "/v1/libraries/{id}/browse",
+        "sorts": [
+          "title",
+          "added",
+          "year",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "forYou",
+          "lastPlayed",
+          "releaseDate",
+          "artist",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "group-titles",
+        "endpoint": "/v1/libraries/{id}/browse",
+        "sorts": [
+          "title",
+          "added",
+          "year",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "forYou",
+          "lastPlayed",
+          "releaseDate",
+          "artist",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "collection-titles",
+        "endpoint": "/v1/libraries/{id}/browse",
+        "membershipField": "collection",
+        "sorts": [
+          "title",
+          "added",
+          "year",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "forYou",
+          "lastPlayed",
+          "releaseDate",
+          "artist",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "container-titles",
+        "endpoint": "/v1/libraries/{id}/browse",
+        "membershipField": "memberOf",
+        "sorts": [
+          "title",
+          "added",
+          "year",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "forYou",
+          "lastPlayed",
+          "releaseDate",
+          "artist",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "list-titles",
+        "endpoint": "/v1/libraries/{id}/browse",
+        "membershipField": "list",
+        "sorts": [
+          "title",
+          "added",
+          "year",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "forYou",
+          "lastPlayed",
+          "releaseDate",
+          "artist",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "saved-collection-titles",
+        "endpoint": "/v1/libraries/{id}/browse",
+        "membershipField": "savedCollection",
+        "sorts": [
+          "title",
+          "added",
+          "year",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "forYou",
+          "lastPlayed",
+          "releaseDate",
+          "artist",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "row-titles",
+        "endpoint": "/v1/libraries/{id}/browse",
+        "membershipField": "homeRow",
+        "sorts": [
+          "title",
+          "added",
+          "year",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "forYou",
+          "lastPlayed",
+          "releaseDate",
+          "artist",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "search-results",
+        "endpoint": "/v1/libraries/{id}/browse",
+        "membershipField": "search",
+        "sorts": [
+          "title",
+          "added",
+          "year",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "forYou",
+          "lastPlayed",
+          "releaseDate",
+          "artist",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "saved-view",
+        "endpoint": "/v1/libraries/{id}/browse",
+        "sorts": [
+          "title",
+          "added",
+          "year",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "forYou",
+          "lastPlayed",
+          "releaseDate",
+          "artist",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      }
+    ],
+    "library": {
+      "defaultView": "browse",
+      "id": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+      "name": "Music",
+      "kind": "music",
+      "pinned": false
+    },
+    "pivots": [
+      {
+        "id": "discover",
+        "labelKey": "library.discover",
+        "entityKinds": [
+          "artist"
+        ],
+        "defaultSort": [
+          {
+            "field": "title",
+            "direction": "asc"
+          }
+        ],
+        "supportedViews": [
+          "rail"
+        ],
+        "browsable": false,
+        "sorts": [],
+        "filters": [],
+        "paging": "keyset"
+      },
+      {
+        "id": "artists",
+        "labelKey": "library.artists",
+        "entityKinds": [
+          "artist"
+        ],
+        "defaultSort": [
+          {
+            "field": "title",
+            "direction": "asc"
+          }
+        ],
+        "supportedViews": [
+          "grid",
+          "list"
+        ],
+        "browsable": true,
+        "sorts": [
+          "title",
+          "added",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "lastPlayed",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "albums",
+        "labelKey": "library.albums",
+        "entityKinds": [
+          "album"
+        ],
+        "defaultSort": [
+          {
+            "field": "title",
+            "direction": "asc"
+          }
+        ],
+        "supportedViews": [
+          "grid",
+          "list"
+        ],
+        "browsable": true,
+        "sorts": [
+          "title",
+          "added",
+          "year",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "forYou",
+          "lastPlayed",
+          "releaseDate",
+          "artist",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "songs",
+        "labelKey": "library.songs",
+        "entityKinds": [
+          "song"
+        ],
+        "defaultSort": [
+          {
+            "field": "title",
+            "direction": "asc"
+          }
+        ],
+        "supportedViews": [
+          "list"
+        ],
+        "browsable": true,
+        "sorts": [
+          "title",
+          "added",
+          "year",
+          "duration",
+          "communityRating",
+          "personalRating",
+          "lastPlayed",
+          "album",
+          "artist",
+          "trackNumber",
+          "fileSize",
+          "random",
+          "groupOrder",
+          "playCount"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "discNumber",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "genres",
+        "labelKey": "library.genres",
+        "entityKinds": [
+          "category"
+        ],
+        "defaultSort": [
+          {
+            "field": "title",
+            "direction": "asc"
+          }
+        ],
+        "supportedViews": [
+          "grid"
+        ],
+        "browsable": true,
+        "aggregate": "genre",
+        "sorts": [
+          "title",
+          "count",
+          "recentActivity"
+        ],
+        "filters": [
+          "entityKind",
+          "match",
+          "search",
+          "title",
+          "year",
+          "decade",
+          "dateAdded",
+          "playState",
+          "favorite",
+          "watchlisted",
+          "personalRating",
+          "lastPlayedAt",
+          "genre",
+          "tag",
+          "label",
+          "collection",
+          "communityRating",
+          "availability",
+          "audioLanguage",
+          "durationMs",
+          "artist",
+          "album",
+          "versions",
+          "memberOf",
+          "savedCollection",
+          "discNumber",
+          "homeRow",
+          "list"
+        ],
+        "paging": "keyset"
+      },
+      {
+        "id": "playlists",
+        "labelKey": "library.tab.playlists",
+        "entityKinds": [
+          "playlist"
+        ],
+        "defaultSort": [
+          {
+            "field": "title",
+            "direction": "asc"
+          }
+        ],
+        "supportedViews": [
+          "grid"
+        ],
+        "browsable": true,
+        "sorts": [
+          "title"
+        ],
+        "filters": [],
+        "paging": "offset"
+      }
+    ],
+    "resolvedPivot": {
+      "id": "albums",
+      "labelKey": "library.albums",
+      "entityKinds": [
+        "album"
+      ],
+      "defaultSort": [
+        {
+          "field": "title",
+          "direction": "asc"
+        }
+      ],
+      "supportedViews": [
+        "grid",
+        "list"
+      ],
+      "browsable": true,
+      "sorts": [
+        "title",
+        "added",
+        "year",
+        "duration",
+        "communityRating",
+        "personalRating",
+        "forYou",
+        "lastPlayed",
+        "releaseDate",
+        "artist",
+        "fileSize",
+        "random",
+        "groupOrder",
+        "playCount"
+      ],
+      "filters": [
+        "entityKind",
+        "match",
+        "search",
+        "title",
+        "year",
+        "decade",
+        "dateAdded",
+        "playState",
+        "favorite",
+        "watchlisted",
+        "personalRating",
+        "lastPlayedAt",
+        "genre",
+        "tag",
+        "label",
+        "collection",
+        "communityRating",
+        "availability",
+        "audioLanguage",
+        "durationMs",
+        "artist",
+        "album",
+        "versions",
+        "memberOf",
+        "savedCollection",
+        "homeRow",
+        "list"
+      ],
+      "paging": "keyset"
+    },
+    "fields": [
+      {
+        "id": "entityKind",
+        "labelKey": "browse.field.entityKind",
+        "type": "enum",
+        "operators": [
+          "equals",
+          "not-equals",
+          "in",
+          "not-in"
+        ],
+        "controlHint": "select",
+        "complexity": "quick",
+        "cost": "indexed",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ],
+        "allowedValues": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author",
+          "collection"
+        ]
+      },
+      {
+        "id": "match",
+        "labelKey": "browse.field.match",
+        "type": "enum",
+        "operators": [
+          "equals",
+          "not-equals",
+          "in",
+          "not-in"
+        ],
+        "controlHint": "select",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "show",
+          "season",
+          "episode",
+          "artist",
+          "album",
+          "song"
+        ],
+        "allowedValues": [
+          "matched",
+          "unmatched"
+        ]
+      },
+      {
+        "id": "search",
+        "labelKey": "browse.field.search",
+        "type": "string",
+        "operators": [
+          "contains"
+        ],
+        "controlHint": "text",
+        "complexity": "quick",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ]
+      },
+      {
+        "id": "title",
+        "labelKey": "browse.field.title",
+        "type": "string",
+        "operators": [
+          "equals",
+          "not-equals",
+          "contains",
+          "starts-with",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "text",
+        "complexity": "quick",
+        "cost": "indexed",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ]
+      },
+      {
+        "id": "year",
+        "labelKey": "browse.field.year",
+        "type": "number",
+        "operators": [
+          "equals",
+          "not-equals",
+          "less-than",
+          "at-most",
+          "greater-than",
+          "at-least",
+          "between",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "number-range",
+        "complexity": "quick",
+        "cost": "indexed",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "album",
+          "song",
+          "book",
+          "audiobook_file"
+        ],
+        "facetSource": {
+          "endpoint": "/v1/libraries/{id}/facets",
+          "field": "year"
+        }
+      },
+      {
+        "id": "decade",
+        "labelKey": "browse.field.decade",
+        "type": "number",
+        "operators": [
+          "equals",
+          "not-equals",
+          "in",
+          "not-in",
+          "between"
+        ],
+        "controlHint": "facet-multi-select",
+        "complexity": "quick",
+        "cost": "indexed",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "album",
+          "song",
+          "book",
+          "audiobook_file"
+        ],
+        "facetSource": {
+          "endpoint": "/v1/libraries/{id}/facets",
+          "field": "decade"
+        }
+      },
+      {
+        "id": "dateAdded",
+        "labelKey": "browse.field.dateAdded",
+        "type": "date",
+        "operators": [
+          "within-last-days",
+          "equals",
+          "not-equals",
+          "less-than",
+          "at-most",
+          "greater-than",
+          "at-least",
+          "between",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "date-range",
+        "complexity": "quick",
+        "cost": "indexed",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ]
+      },
+      {
+        "id": "playState",
+        "labelKey": "browse.field.playState",
+        "type": "enum",
+        "operators": [
+          "equals",
+          "not-equals",
+          "in",
+          "not-in"
+        ],
+        "controlHint": "select",
+        "complexity": "quick",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ],
+        "allowedValues": [
+          "unplayed",
+          "in-progress",
+          "played"
+        ]
+      },
+      {
+        "id": "favorite",
+        "labelKey": "browse.field.favorite",
+        "type": "boolean",
+        "operators": [
+          "equals",
+          "not-equals"
+        ],
+        "controlHint": "toggle",
+        "complexity": "quick",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      },
+      {
+        "id": "watchlisted",
+        "labelKey": "browse.field.watchlisted",
+        "type": "boolean",
+        "operators": [
+          "equals",
+          "not-equals"
+        ],
+        "controlHint": "toggle",
+        "complexity": "quick",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      },
+      {
+        "id": "personalRating",
+        "labelKey": "browse.field.personalRating",
+        "type": "number",
+        "operators": [
+          "equals",
+          "not-equals",
+          "less-than",
+          "at-most",
+          "greater-than",
+          "at-least",
+          "between",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "number-range",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      },
+      {
+        "id": "lastPlayedAt",
+        "labelKey": "browse.field.lastPlayedAt",
+        "type": "date",
+        "operators": [
+          "within-last-days",
+          "equals",
+          "not-equals",
+          "less-than",
+          "at-most",
+          "greater-than",
+          "at-least",
+          "between",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "date-range",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      },
+      {
+        "id": "genre",
+        "labelKey": "browse.field.genre",
+        "type": "identity-set",
+        "operators": [
+          "contains",
+          "contains-any",
+          "contains-all",
+          "equals",
+          "not-equals",
+          "starts-with",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "facet-multi-select",
+        "complexity": "quick",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ],
+        "facetSource": {
+          "endpoint": "/v1/libraries/{id}/facets",
+          "field": "genre"
+        }
+      },
+      {
+        "id": "tag",
+        "labelKey": "browse.field.tag",
+        "type": "identity-set",
+        "operators": [
+          "contains",
+          "contains-any",
+          "contains-all",
+          "equals",
+          "not-equals",
+          "starts-with",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "facet-multi-select",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ],
+        "facetSource": {
+          "endpoint": "/v1/libraries/{id}/facets",
+          "field": "tag"
+        }
+      },
+      {
+        "id": "label",
+        "labelKey": "browse.field.label",
+        "type": "identity-set",
+        "operators": [
+          "contains",
+          "contains-any",
+          "contains-all",
+          "equals",
+          "not-equals",
+          "starts-with",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "facet-multi-select",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ],
+        "facetSource": {
+          "endpoint": "/v1/libraries/{id}/facets",
+          "field": "label"
+        }
+      },
+      {
+        "id": "collection",
+        "labelKey": "browse.field.collection",
+        "type": "identity-set",
+        "operators": [
+          "contains",
+          "contains-any",
+          "contains-all",
+          "equals",
+          "not-equals",
+          "starts-with",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "facet-multi-select",
+        "complexity": "quick",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ],
+        "facetSource": {
+          "endpoint": "/v1/libraries/{id}/facets",
+          "field": "collection"
+        }
+      },
+      {
+        "id": "communityRating",
+        "labelKey": "browse.field.communityRating",
+        "type": "number",
+        "operators": [
+          "equals",
+          "not-equals",
+          "less-than",
+          "at-most",
+          "greater-than",
+          "at-least",
+          "between",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "number-range",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ]
+      },
+      {
+        "id": "availability",
+        "labelKey": "browse.field.availability",
+        "type": "enum",
+        "operators": [
+          "equals",
+          "not-equals",
+          "in",
+          "not-in"
+        ],
+        "controlHint": "select",
+        "complexity": "quick",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ],
+        "allowedValues": [
+          "available",
+          "partial",
+          "unavailable"
+        ]
+      },
+      {
+        "id": "audioLanguage",
+        "labelKey": "browse.field.audioLanguage",
+        "type": "identity-set",
+        "operators": [
+          "contains",
+          "contains-any",
+          "contains-all",
+          "equals",
+          "not-equals",
+          "starts-with",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "facet-multi-select",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ],
+        "facetSource": {
+          "endpoint": "/v1/libraries/{id}/facets",
+          "field": "audioLanguage"
+        }
+      },
+      {
+        "id": "durationMs",
+        "labelKey": "browse.field.durationSeconds",
+        "type": "number",
+        "operators": [
+          "equals",
+          "not-equals",
+          "less-than",
+          "at-most",
+          "greater-than",
+          "at-least",
+          "between",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "number-range",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      },
+      {
+        "id": "artist",
+        "labelKey": "browse.field.artist",
+        "type": "identity-set",
+        "operators": [
+          "contains",
+          "contains-any",
+          "contains-all",
+          "equals",
+          "not-equals",
+          "starts-with",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "text",
+        "complexity": "quick",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "song",
+          "album",
+          "artist"
+        ]
+      },
+      {
+        "id": "album",
+        "labelKey": "browse.field.album",
+        "type": "identity-set",
+        "operators": [
+          "contains",
+          "contains-any",
+          "contains-all",
+          "equals",
+          "not-equals",
+          "starts-with",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "text",
+        "complexity": "quick",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "song",
+          "album",
+          "artist"
+        ]
+      },
+      {
+        "id": "versions",
+        "labelKey": "browse.field.versions",
+        "type": "number",
+        "operators": [
+          "equals",
+          "not-equals",
+          "less-than",
+          "at-most",
+          "greater-than",
+          "at-least",
+          "between",
+          "in",
+          "not-in",
+          "is-present",
+          "is-missing"
+        ],
+        "controlHint": "number-range",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      },
+      {
+        "id": "memberOf",
+        "labelKey": "browse.field.memberOf",
+        "type": "identity-set",
+        "operators": [
+          "equals",
+          "in",
+          "not-in"
+        ],
+        "controlHint": "text",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ]
+      },
+      {
+        "id": "savedCollection",
+        "labelKey": "browse.field.savedCollection",
+        "type": "identity-set",
+        "operators": [
+          "equals",
+          "in",
+          "not-in"
+        ],
+        "controlHint": "text",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      },
+      {
+        "id": "homeRow",
+        "labelKey": "browse.field.homeRow",
+        "type": "string",
+        "operators": [
+          "equals"
+        ],
+        "controlHint": "text",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ]
+      },
+      {
+        "id": "list",
+        "labelKey": "browse.field.list",
+        "type": "identity-set",
+        "operators": [
+          "equals",
+          "in",
+          "not-in"
+        ],
+        "controlHint": "text",
+        "complexity": "standard",
+        "cost": "indexed-join",
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      }
+    ],
+    "sorts": [
+      {
+        "id": "title",
+        "labelKey": "sort.title",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "asc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author",
+          "playlist"
+        ]
+      },
+      {
+        "id": "added",
+        "labelKey": "sort.added",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "desc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ]
+      },
+      {
+        "id": "year",
+        "labelKey": "sort.year",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "desc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "album",
+          "song",
+          "book",
+          "audiobook_file"
+        ]
+      },
+      {
+        "id": "duration",
+        "labelKey": "sort.duration",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "desc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      },
+      {
+        "id": "communityRating",
+        "labelKey": "sort.communityRating",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "desc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ]
+      },
+      {
+        "id": "personalRating",
+        "labelKey": "sort.personalRating",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "desc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      },
+      {
+        "id": "forYou",
+        "labelKey": "sort.forYou",
+        "directions": [
+          "desc"
+        ],
+        "defaultDirection": "desc",
+        "expensive": true,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "show",
+          "album",
+          "book"
+        ]
+      },
+      {
+        "id": "lastPlayed",
+        "labelKey": "sort.lastPlayed",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "desc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      },
+      {
+        "id": "releaseDate",
+        "labelKey": "sort.releaseDate",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "desc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "album",
+          "book"
+        ]
+      },
+      {
+        "id": "artist",
+        "labelKey": "sort.artist",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "asc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "song",
+          "album"
+        ]
+      },
+      {
+        "id": "fileSize",
+        "labelKey": "sort.fileSize",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "desc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": true,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      },
+      {
+        "id": "random",
+        "labelKey": "sort.random",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "asc",
+        "expensive": false,
+        "seeded": true,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ]
+      },
+      {
+        "id": "groupOrder",
+        "labelKey": "sort.groupOrder",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "asc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": true,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book",
+          "author"
+        ]
+      },
+      {
+        "id": "playCount",
+        "labelKey": "sort.playCount",
+        "directions": [
+          "asc",
+          "desc"
+        ],
+        "defaultDirection": "desc",
+        "expensive": false,
+        "seeded": false,
+        "ownerOnly": false,
+        "requiresGroup": false,
+        "applicableKinds": [
+          "movie",
+          "episode",
+          "show",
+          "season",
+          "collection",
+          "song",
+          "album",
+          "artist",
+          "audiobook_file",
+          "book"
+        ]
+      }
+    ],
+    "quickFilters": [
+      {
+        "id": "in-progress",
+        "labelKey": "filter.inProgress",
+        "query": {
+          "field": "playState",
+          "operator": "equals",
+          "value": "in-progress"
+        }
+      },
+      {
+        "id": "unwatched",
+        "labelKey": "filter.unwatched",
+        "query": {
+          "field": "playState",
+          "operator": "equals",
+          "value": "unplayed"
+        }
+      },
+      {
+        "id": "watched",
+        "labelKey": "filter.watched",
+        "query": {
+          "field": "playState",
+          "operator": "equals",
+          "value": "played"
+        }
+      },
+      {
+        "id": "favorites",
+        "labelKey": "filter.favorites",
+        "query": {
+          "field": "favorite",
+          "operator": "equals",
+          "value": true
+        }
+      },
+      {
+        "id": "watchlist",
+        "labelKey": "filter.watchlist",
+        "query": {
+          "field": "watchlisted",
+          "operator": "equals",
+          "value": true
+        }
+      },
+      {
+        "id": "available",
+        "labelKey": "filter.available",
+        "query": {
+          "field": "availability",
+          "operator": "equals",
+          "value": "available"
+        }
+      },
+      {
+        "id": "missing",
+        "labelKey": "filter.missing",
+        "query": {
+          "field": "availability",
+          "operator": "equals",
+          "value": "unavailable"
+        }
+      }
+    ],
+    "queryLimits": {
+      "maximumDepth": 5,
+      "maximumClauses": 40,
+      "maximumBytes": 65536,
+      "maximumSorts": 1,
+      "defaultLimit": 40,
+      "maximumLimit": 100,
+      "cursorTtlMs": 1800000
+    }
+  }
+}

@@ -1,0 +1,275 @@
+/* Exact public/auth geometry from auth.html 4, 4b, 13 and 14 (812dacac).
+   Browser chrome belongs to the browser and is excluded from content comparisons. */
+.stage { position: relative; isolation: isolate; min-height: 100svh; overflow: hidden; background: var(--color-ink); font-size: 16px; }
+.stage, .stage button, .stage input { font-family: var(--font); }
+.phoneFace, .phonePINHeading, .phonePINLabel, .phoneProfileBack { display: none; }
+.brand { position: absolute; z-index: 1; left: 64px; top: 30px; display: flex; align-items: center; gap: 14px; }
+.brand img { display: block; height: calc(20px * var(--spec-navigation-web-wordmark-scale)); width: auto; }
+.brand span { padding-left: calc(14px * var(--spec-navigation-web-wordmark-scale)); border-left: 1.5px solid var(--color-line-strong); color: var(--color-text-secondary); font-size: calc(16px * var(--spec-navigation-web-wordmark-scale)); font-weight: 700; line-height: calc(20px * var(--spec-navigation-web-wordmark-scale)); }
+.topRight { position: absolute; z-index: 1; right: 64px; top: 20px; display: flex; align-items: center; gap: 14px; font-size: 14px; color: var(--color-text-tertiary); }
+.topRight button { height: 44px; }
+.topRight button[data-variant="glass"] { box-shadow: inset 0 0 0 1px rgba(237,245,250,.1), 0 40px 80px -28px rgba(0,0,0,.9); }
+.content { position: relative; min-height: 100svh; width: 440px; margin-left: 64px; display: flex; flex-direction: column; justify-content: center; padding: 100px 0; }
+.content :where(h1) { font-size: 64px; line-height: .98; font-weight: 800; letter-spacing: -.045em; margin: 0 0 14px; text-wrap: balance; text-shadow: 0 2px 30px rgba(7,16,24,.5); }
+.content :where(h2) { font-size: 44px; line-height: normal; font-weight: 800; letter-spacing: -.04em; margin: 26px 0 8px; }
+.eyebrow { margin: 0 0 10px; font-size: 15px; line-height: normal; font-weight: 600; color: var(--color-accent-strong); }
+.lede { font-size: 17px; line-height: 1.5; color: var(--color-text-secondary); margin: 0 0 28px; }
+.form { display: flex; flex-direction: column; }
+.form > [data-variant="auth"] { margin-bottom: 16px; }
+.form label { line-height: normal; }
+.form [data-variant="auth"] input[type="password"] { font-size: 20px; letter-spacing: .14em; }
+.form > [data-variant="auth"]:has(input[data-filled]) > div { background: rgba(64,159,212,.13); }
+.submit { width: 100%; margin-top: 8px; }
+.submit[data-retry-waiting] { background: rgba(237,245,250,.16); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.signInLabel { display: grid; }
+.signInLabel > span { grid-area: 1 / 1; transition: opacity var(--motion-quick) var(--ease-out); }
+.signInLabel > [aria-hidden="true"] { opacity: 0; }
+.form [data-variant="auth"]:has(input[aria-invalid="true"]) > div { box-shadow: inset 0 0 0 1.5px var(--color-danger); }
+.handoffSubmit { width: 100%; }
+.links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 26px; margin-top: 22px; font-size: 15px; line-height: normal; font-weight: 700; }
+.links a, .links button { color: var(--color-accent-strong); text-decoration: none; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.links [data-quiet] { color: var(--color-text-secondary); }
+.challengeHelp { margin: 12px 0 10px; color: var(--color-text-tertiary); font-size: 13px; line-height: 1.5; }
+.challengeHelp button { border: 0; padding: 0; background: none; color: var(--color-accent-strong); font: inherit; font-weight: 700; cursor: pointer; }
+.serverGroup > h3 { margin: 18px 4px 8px; font-size: 13.5px; font-weight: 700; color: var(--color-text-tertiary); }
+.serverRow { width: 100%; height: 62px; display: flex; align-items: center; gap: 14px; padding: 0 14px; border: 0; border-radius: 12px; background: none; color: var(--color-text); text-align: left; cursor: pointer; }
+.serverRow + .serverRow { box-shadow: 0 -1px 0 var(--color-line-soft); }
+.serverIcon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; background: var(--color-raised-bright); color: var(--color-text-secondary); flex: none; }
+.serverRow > span:nth-child(2) { flex: 1; font-size: 15.5px; font-weight: 700; }
+.serverRow small { display: block; margin-top: 1px; color: var(--color-text-tertiary); font-size: 13px; font-weight: 600; }
+.serverRow > svg { color: var(--color-line-strong); }
+.serverRow[data-current] { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.serverRow[data-current] .serverIcon { background: linear-gradient(135deg, var(--color-accent-deep), var(--color-generated-green)); color: var(--color-white); }
+.serverRow:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; }
+.legal { position: absolute; z-index: 1; left: 64px; bottom: 26px; display: flex; gap: 22px; font-size: 13px; line-height: normal; font-weight: 600; color: var(--color-text-tertiary); }
+.legal a { color: inherit; text-decoration: none; }
+.reveal { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--color-text-tertiary); font-size: 14px; font-weight: 700; cursor: pointer; }
+.error { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 12px; font-size: 15px; line-height: 1.45; margin: 0 0 18px; background: rgba(243,139,136,.1); box-shadow: inset 0 0 0 1px rgba(243,139,136,.32); }
+.error > svg { flex: none; margin-top: 1px; color: var(--color-danger); }
+.error.wait { background: rgba(232,188,106,.1); box-shadow: inset 0 0 0 1px rgba(232,188,106,.3); }
+.error.wait > svg { color: var(--color-amber); }
+.stage[data-layout="center"] .content { align-items: center; text-align: center; margin: 0; width: 100%; }
+.loadingCard { width: 480px; max-width: 100%; padding: 44px 24px; text-align: center; border-radius: 20px; background: rgba(13,27,37,.86); backdrop-filter: blur(26px) saturate(1.2); box-shadow: inset 0 0 0 1px rgba(237,245,250,.1), 0 40px 80px -28px rgba(0,0,0,.9); }
+.loadingCard h1 { margin: 0; font-size: 22px; line-height: 1.05; font-weight: 800; letter-spacing: -.035em; text-shadow: none; }
+.loadingSpinner { display: block; width: 20px; height: 20px; margin: 0 auto 18px; border: 2.5px solid rgba(237,245,250,.16); border-top-color: var(--color-accent-strong); border-radius: 50%; animation: preparing 1s linear infinite; }
+@keyframes preparing { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loadingSpinner { animation: none; } }
+:global([data-reduce-motion='true']) .loadingSpinner { animation: none; }
+@media (prefers-reduced-transparency: reduce) { .loadingCard { background: var(--color-raised-soft); backdrop-filter: none; } }
+/* The picker heading is left-aligned over centred faces (auth.html 13 `.who h1`: text-align
+   start inside a centred flex column), not the centred PIN copy of the same stage. */
+.pickerTitle { position: relative; font-size: 64px !important; line-height: normal !important; margin: 0 0 56px !important; text-align: start; }
+.pin { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.desktopFace > span { font-size: 58px; }
+.pin > p { font-size: 17px; color: var(--color-text-secondary); margin: 0 0 30px; line-height: normal; }
+.pin .codeError { margin: 14px 0 0; font-size: 15px; line-height: 1.45; }
+.codeGroup { display: flex; flex-direction: column; align-items: center; }
+.codeBoxes { position: relative; display: flex; gap: 10px; }
+.codeBoxes[data-grouped] > span:nth-of-type(4) { margin-left: 8px; }
+.codeBoxes input { position: absolute; inset: 0; z-index: 1; width: 100%; opacity: 0; cursor: text; }
+.codeBoxes > span { width: 56px; height: 64px; border-radius: 12px; display: grid; place-items: center; font-size: 28px; font-weight: 800; background: rgba(7,16,24,.62); box-shadow: inset 0 0 0 1px var(--color-line-strong); backdrop-filter: blur(16px); }
+.pin .codeBoxes > span { width: 68px; height: 76px; }
+.codeBoxes[data-pin] > span::after { content: ''; grid-area: 1 / 1; width: 14px; height: 14px; border-radius: 50%; background: var(--color-text); opacity: 0; transition: opacity var(--motion-quick) var(--ease-out); }
+.codeBoxes[data-pin] > [data-filled]::after { opacity: 1; }
+.codeBoxes[data-pin] > span { transition: box-shadow var(--motion-quick) var(--ease-out); }
+.codeBoxes[data-pin] > [data-current]::before { grid-area: 1 / 1; }
+.codeBoxes > [data-current] { box-shadow: inset 0 0 0 1.5px var(--color-accent-strong); }
+.codeBoxes > [data-current]::before { content: ''; width: 2px; height: 30px; border-radius: 1px; background: var(--color-accent-strong); }
+.codeBoxes[data-error] > span { box-shadow: inset 0 0 0 1.5px var(--color-danger); }
+.codeError { color: var(--color-danger); font-size: 13.5px; font-weight: 600; line-height: 1.45; margin: 8px 0 0; }
+.pin .codeError { animation: pinError var(--motion-standard) var(--ease-out); }
+@keyframes pinError { from { opacity: 0; } to { opacity: 1; } }
+.remember { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; color: var(--color-text-secondary); margin: 26px 0; }
+.remember input { appearance: none; margin: 0; width: 24px; height: 24px; border-radius: 7px; box-shadow: inset 0 0 0 2px var(--color-line-strong); }
+.remember input:checked { background: var(--color-accent-strong); box-shadow: none; }
+.remember input:checked::after { content: '✓'; display: grid; place-items: center; color: var(--color-ink); font-weight: 800; }
+.pinActions { display: flex; align-items: center; gap: 12px; }
+.pinActions button { height: 44px; padding: 0 18px; font-size: 15px; line-height: normal; letter-spacing: normal; }
+.pinActions button:last-child { padding: 0 14px; color: var(--color-accent-strong); }
+.serverContext { display: flex; gap: 4px; align-items: center; }
+.serverContext b { color: var(--color-text-secondary); font-weight: 700; }
+.remembered { display: flex; gap: 10px; margin: 0 0 22px; }
+.accountChip { height: 44px; display: inline-flex; align-items: center; gap: 10px; padding: 0 16px 0 6px; border: 0; border-radius: 22px; font-size: 15px; font-weight: 700; color: var(--color-text-secondary); background: rgba(237,245,250,.08); cursor: pointer; }
+.accountChip > span { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; background: linear-gradient(135deg,#c27a3a,#3d2414); }
+.accountChip:nth-child(2n) > span { background: linear-gradient(135deg,#3f8a7e,#173d38); }
+.accountChip[data-selected] { background: rgba(237,245,250,.16); color: var(--color-text); box-shadow: inset 0 0 0 1.5px rgba(237,245,250,.45); }
+.recovery { display: flex; flex-direction: column; gap: 16px; }
+.recovery > p { margin: 0; color: var(--color-text-secondary); font-size: 15px; line-height: 1.5; }
+.recovery form { display: flex; flex-direction: column; gap: 18px; }
+.recovery > label { color: var(--color-text-secondary); font-size: 13px; font-weight: 700; }
+.recovery .recoveryQuiet { font-size: 13px; color: var(--color-text-tertiary); text-align: center; }
+/* Auth 12: actual invitation facts, with no guessed library-kind artwork. */
+.invitationContent { width: 480px; }
+.phoneInvitationBody, .phoneInvitationLibraries { display: none; }
+.invitedBy { display: flex; align-items: center; gap: 12px; margin: -10px 0 26px; font-size: 15px; font-weight: 600; color: var(--color-text-tertiary); }
+.invitedBy b { color: var(--color-text-secondary); }
+.inviterAvatar { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: var(--color-text); background: linear-gradient(135deg,#2f86bb,#153749); }
+.invitationGap { display: inline-block; width: 12px; }
+.invitationForm label { display: flex; align-items: baseline; gap: 10px; }
+.invitationForm label small { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--color-text-tertiary); }
+.invitationPair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+.invitationPair > * { min-width: 0; }
+.passwordStrength { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px; line-height: normal; font-weight: 700; color: var(--color-healthy); }
+.passwordStrength i { flex: none; width: 40px; height: 4px; border-radius: 2px; background: var(--color-line-strong); }
+.passwordStrength [data-on] { background: var(--color-healthy); }
+.passwordStrength span { margin-left: 6px; }
+.passwordStrength[data-level="0"], .passwordStrength[data-level="1"] { color: var(--color-danger); }
+.passwordStrength[data-level="0"] [data-on], .passwordStrength[data-level="1"] [data-on] { background: var(--color-danger); }
+.invitationSubmit { width: 100%; margin-top: 6px; }
+.porticoInvitationContent { justify-content: flex-start; padding-top: 108px; }
+.porticoInvitationContent h1 { font-size: 30px; line-height: 1.04; letter-spacing: -.04em; margin-bottom: 8px; }
+.porticoInvitationContent .eyebrow { font-size: 13.5px; margin-bottom: 6px; }
+.porticoInvitationContent .lede { font-size: 14px; line-height: 1.5; margin-bottom: 14px; }
+/* connect27: the dialog's compact server preview and its one action row. */
+.invitationPreview { display: flex; align-items: center; gap: 16px; margin: 14px 0 0; padding: 16px 18px; border-radius: 16px; background: rgba(7,16,24,.5); box-shadow: inset 0 0 0 1px var(--color-line-soft); }
+.invitationPreviewIcon { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(135deg, #2f86bb, #1e5b52); color: #fff; }
+.invitationPreview > span:last-child { min-width: 0; }
+.invitationPreview b { display: block; font-size: 19px; font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.invitationPreview small { display: block; margin-top: 3px; font-size: 14px; font-weight: 600; color: var(--color-text-tertiary); }
+/* A real username is shown whole: the row stacks on a narrow dialog and the
+   labels wrap instead of truncating. */
+.invitationCompactActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.invitationCompactActions > * { flex: 1 1 100%; }
+.invitationCompactActions button { height: auto; min-height: 42px; padding-top: 10px; padding-bottom: 10px; white-space: normal; }
+.invitationCompactActions button > span { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+@media (min-width: 480px) { .invitationCompactActions > * { flex: 1 1 0; min-width: 0; } }
+.invitationLibraries { border-radius: 16px; padding: 14px 16px 16px; background: rgba(16,33,45,.8); box-shadow: inset 0 0 0 1px rgba(237,245,250,.09); margin: 0 0 14px; }
+.invitationLibraries > span { font-size: 12.5px; font-weight: 700; color: var(--color-text-tertiary); }
+.invitationLibraries > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.invitationLibraries > div > span { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 10px; border-radius: 16px; background: rgba(237,245,250,.08); font-size: 13.5px; font-weight: 700; color: var(--color-text-secondary); }
+.invitationLibraries > div > span > svg { color: var(--color-text-tertiary); }
+.invitationLibraries p { margin: 10px 0 0; font-size: 13px; color: var(--color-text-secondary); }
+.invitationAccount { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: rgba(237,245,250,.07); margin: 0 0 14px; }
+.invitationAccountAvatar { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 700; background: linear-gradient(135deg,#c27a3a,#3d2414); }
+.invitationHeaderAvatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; background: linear-gradient(135deg,#c27a3a,#3d2414); }
+.invitationAccount b { display: block; font-size: 15px; font-weight: 700; }
+.invitationAccount small { display: block; font-size: 12.5px; color: var(--color-text-tertiary); margin-top: 1px; font-weight: 600; }
+.invitationAccount button { margin-left: auto; padding: 0; border: 0; background: none; color: var(--color-accent-strong); font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.invitationQuiet { margin: 14px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--color-text-tertiary); }
+.invitationFailureContent { align-items: center; text-align: center; width: 460px; }
+.invitationFailureContent h2 { font-size: 25px; line-height: 1.12; font-weight: 800; letter-spacing: -.03em; margin: 0 0 10px; text-wrap: balance; }
+.invitationFailureContent > p { font-size: 15px; line-height: 1.5; color: var(--color-text-secondary); margin: 0 0 24px; text-wrap: pretty; }
+.invitationFailureContent > button { width: 100%; margin-bottom: 10px; }
+.invitationFailureContent > small { font-size: 13px; line-height: 1.5; color: var(--color-text-tertiary); margin: 6px 0 0; }
+.invitationFailureIcon { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; background: rgba(232,188,106,.12); color: var(--color-amber); margin-bottom: 22px; box-shadow: 0 0 0 10px rgba(232,188,106,.05); }
+.identityFailurePanel { position: relative; height: 470px; border-radius: 20px; padding: 30px 30px 28px; display: flex; flex-direction: column; background: rgba(13,27,37,.8); backdrop-filter: blur(26px) saturate(1.2); box-shadow: inset 0 0 0 1px rgba(237,245,250,.1), 0 40px 80px -28px rgba(0,0,0,.9); }
+.identityFailureIcon { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; margin: 0 0 22px; flex: none; color: var(--color-amber); background: rgba(237,245,250,.1); backdrop-filter: blur(20px); box-shadow: inset 0 0 0 1px rgba(237,245,250,.12); }
+.identityFailureIcon[data-changed] { color: var(--color-record); }
+.identityFailurePanel h3 { font-size: 29px; line-height: 1.06; font-weight: 800; letter-spacing: -.035em; margin: 0 0 10px; text-wrap: balance; }
+.identityFailurePanel > p { font-size: 15.5px; line-height: 1.55; color: var(--color-text-secondary); margin: 0 0 18px; text-wrap: pretty; }
+.identityFailureActions { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+.identityFailureActions > button[data-variant] { height: 48px; font-size: 16px; justify-content: center; }
+.identityFailureActions > button[data-variant="glass"] { box-shadow: inset 0 0 0 1px rgba(237,245,250,.1), 0 40px 80px -28px rgba(0,0,0,.9); }
+.identityForgetLink { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 0 0; border: 0; background: none; color: var(--color-text-secondary); font-size: 15px; font-weight: 700; cursor: pointer; }
+.identityForgetDialog > footer button { height: 46px; font-size: 15px; padding: 0 20px; border-radius: 11px; }
+.identityForgetDanger[data-variant="glass"] { background: rgba(243,139,136,.14); color: var(--color-danger); }
+/* Auth20: two independently submitted recovery proofs on the Local server. */
+.localRecoveryContent { width: calc(100% - 128px); justify-content: flex-start; padding-top: 112px; }
+.localRecoveryContent h1 { margin-bottom: 12px; }
+.localRecoveryContent > .lede { max-width: 660px; margin-bottom: 34px; }
+.localRecoveryPanels { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; max-width: 1100px; }
+.localRecoveryPanels form { min-width: 0; height: 100%; border-radius: 20px; padding: 28px; background: rgba(13,27,37,.86); backdrop-filter: blur(26px) saturate(1.2); box-shadow: inset 0 0 0 1px rgba(237,245,250,.1), 0 40px 80px -28px rgba(0,0,0,.9); }
+.localRecoveryPanels h3 { margin: 0 0 10px; font-size: 24px; line-height: 1.1; font-weight: 800; letter-spacing: -.03em; }
+.localRecoveryPanels p { margin: 0 0 18px; color: var(--color-text-secondary); font-size: 14.5px; line-height: 1.5; }
+.localRecoveryPanels [data-variant="auth"] { margin-bottom: 16px; }
+.localRecoveryPanels [data-variant="auth"] > div { height: 48px; }
+.localRecoveryPanels button[data-variant] { width: 100%; height: 50px; font-size: 16px; }
+.localRecoveryPanels .localRecoveryQuiet { margin: 14px 0 0; font-size: 13.5px; color: var(--color-text-tertiary); line-height: 1.5; }
+.localRecoveryPair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.localRecoveryPair > * { min-width: 0; }
+.localRecoveryBack { display: inline-flex; align-items: center; align-self: flex-start; gap: 6px; margin-top: 26px; padding: 0; border: 0; background: none; color: var(--color-text-secondary); font-size: 15px; font-weight: 700; cursor: pointer; }
+.localRecoveryMember { min-width: 0; }
+.phoneRecoveryCopy, .localRecoveryMemberToggle, .localRecoveryPhoneBack { display: none; }
+@media (max-width: 700px) {
+  .localRecoveryStage .brand, .desktopRecoveryCopy { display: none; }
+  .phoneRecoveryCopy { display: inline; }
+  .localRecoveryStage .content { padding: 56px 22px 26px; }
+  .localRecoveryContent h1 { font-size: 32px; line-height: 1.04; margin-bottom: 10px; }
+  .localRecoveryContent > .lede { font-size: 14.5px; margin-bottom: 14px; }
+  .localRecoveryPanels { display: block; }
+  .localRecoveryPanels > form { border-radius: 14px; padding: 16px; background: rgba(7,16,24,.5); box-shadow: inset 0 0 0 1px var(--color-line); }
+  .localRecoveryPanels h3 { font-size: 16px; line-height: normal; letter-spacing: normal; margin-bottom: 4px; }
+  .localRecoveryPanels p { font-size: 13.5px; margin-bottom: 12px; }
+  .localRecoveryPanels > form [data-variant="auth"] { margin-bottom: 10px; }
+  .localRecoveryPanels > form button[data-variant] { height: 46px; font-size: 15px; }
+  .localRecoveryPanels > form .localRecoveryQuiet { display: none; }
+  .localRecoveryMemberToggle { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 0; padding: 14px 4px; border: 0; border-top: 1px solid var(--color-line-soft); background: none; color: var(--color-text); text-align: left; font-size: 14.5px; font-weight: 700; cursor: pointer; }
+  .localRecoveryMemberToggle small { display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.4; font-weight: 600; color: var(--color-text-tertiary); }
+  .localRecoveryMemberToggle svg { flex: none; margin-left: auto; color: var(--color-text-tertiary); }
+  .localRecoveryMemberToggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .localRecoveryMember form { display: none; height: auto; padding: 0 4px 14px; border-radius: 0; background: none; box-shadow: none; }
+  .localRecoveryMember form[data-open] { display: block; }
+  .localRecoveryMember form h3 { display: none; }
+  .localRecoveryBack { margin-top: 6px; font-size: 14px; }
+  .localRecoveryBack > svg { display: none; }
+  .localRecoveryPhoneBack { display: inline-flex; position: absolute; top: 0; left: 8px; height: 48px; align-items: center; gap: 6px; padding: 0 8px; border: 0; background: none; color: var(--color-text-secondary); font-size: 16px; font-weight: 600; cursor: pointer; }
+  .porticoInvitationContent { padding-top: 54px; }
+  .porticoInvitationStage .brand { top: 20px; }
+  .porticoInvitationStage .brand img { height: calc(17px * var(--spec-navigation-web-wordmark-scale)); }
+  .porticoInvitationStage .topRight { top: 12px; }
+  .porticoInvitationContent > button, .invitationFailureContent > button { height: 48px; font-size: 16px; border-radius: 11px; padding: 0 20px; }
+  .invitationFailureContent { width: 100%; margin: 0; padding: 90px 30px; justify-content: center; }
+  .invitationFailureStage .brand { top: 20px; }
+  .invitationFailureStage .brand img { height: calc(17px * var(--spec-navigation-web-wordmark-scale)); }
+  .localInvitationStage .brand, .localInvitationStage .legal, .localInvitationStage .links, .localInvitationStage .invitedBy, .desktopInvitationBody { display: none; }
+  .phoneInvitationBody, .phoneInvitationLibraries { display: block; }
+  .localInvitationStage .content { padding: 22px 22px 26px; }
+  .localInvitationStage h1 { font-size: 30px; line-height: 1.04; margin-bottom: 8px; }
+  .localInvitationStage .eyebrow { font-size: 13.5px; margin-bottom: 6px; }
+  .localInvitationStage .lede { font-size: 14px; line-height: 1.5; margin-bottom: 14px; }
+  .localInvitationStage .invitationLibraries { padding: 12px 14px 14px; }
+  .localInvitationStage .invitationLibraries > div { margin-top: 8px; }
+  .localInvitationStage .invitationName > p, .localInvitationStage .passwordStrength { display: none; }
+  .localInvitationStage .form > [data-variant="auth"] { margin-bottom: 8px; }
+  .localInvitationStage .form label { font-size: 13px; margin-bottom: 6px; }
+  .localInvitationStage [data-variant="auth"] > div { height: 48px; border-radius: 11px; padding: 0 14px; }
+  .localInvitationStage [data-variant="auth"] input { font-size: 16px; }
+  .localInvitationStage .form [data-variant="auth"] input[type="password"] { font-size: 15px; }
+  .localInvitationStage .invitationPair { gap: 10px; margin-bottom: 8px; }
+  .localInvitationStage .invitationSubmit { margin-top: 4px; height: 48px; font-size: 16px; border-radius: 11px; }
+  .brand { left: 22px; top: 36px; }
+  .brand img { height: calc(22px * var(--spec-navigation-web-wordmark-scale)); }
+  .content { width: auto; min-height: 100svh; margin: 0; padding: 126px 22px 100px; justify-content: flex-start; }
+  .content :where(h1) { font-size: 36px; line-height: 1.05; letter-spacing: -.04em; }
+  .lede { font-size: 15px; margin-bottom: 26px; }
+  .legal { left: 22px; bottom: 26px; }
+  .topRight { right: 22px; top: 28px; }
+  .stage[data-layout="center"] .content { padding-top: 106px; }
+  .pickerTitle { font-size: 32px !important; text-align: left; margin-bottom: 26px !important; }
+  .pin .codeBoxes > span { width: 62px; height: 70px; }
+  .serverContext { display: none; }
+  .profilesStage .brand, .profilesStage .topRight, .pinStage .brand, .pinStage .topRight { display: none; }
+  .profilesStage[data-layout="center"] .content { align-items: stretch; text-align: left; padding: 106px 22px 0; }
+  .profilesStage .pickerTitle { margin: 0 0 32px !important; text-wrap: wrap; }
+  .profilesStage .content button > b { letter-spacing: normal; }
+  .pinStage[data-layout="center"] .content { padding: 104px 22px 0; justify-content: flex-start; }
+  .pinStage .phoneFace, .pinStage .phonePINHeading, .pinStage .phonePINLabel { display: block; }
+  .pinStage .desktopFace, .pinStage .desktopPINHeading, .pinStage .remember { display: none; }
+  .pinStage .phoneFace > span { font-size: 34px; }
+  .pinStage h1.phonePINHeading { margin: 18px 0 4px; font-size: 26px; line-height: normal; font-weight: 800; letter-spacing: -.03em; }
+  .pinStage p.phonePINHeading { font-size: 15px; margin: 0 0 22px; }
+  .pinStage .phonePINLabel { font-size: 13px; font-weight: 700; color: var(--color-text-secondary); margin: 0 0 10px; }
+  .pinStage .pin .codeBoxes > span { width: 56px; height: 62px; }
+  .pinStage .pinActions { margin-top: 16px; }
+  .pinStage .pinActions button:first-child { display: none; }
+  .pinStage .pinActions button:last-child { padding: 0; height: auto; font-size: 15px; }
+  .pinStage .phoneProfileBack { position: absolute; z-index: 2; top: 50px; left: 8px; display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 6px 0 0; border: 0; background: none; color: var(--color-text-secondary); font-size: 16px; font-weight: 600; }
+}
+
+@media (min-width: 600px) and (max-width: 1023px) {
+  .profilesStage .pickerTitle { font-size: 54px !important; margin-bottom: 48px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .signInLabel > span, .codeBoxes[data-pin] > span::after { transition: opacity var(--motion-reduced) linear; }
+  .codeBoxes[data-pin] > span { transition: none; }
+  .pin .codeError { animation-duration: var(--motion-reduced); animation-timing-function: linear; }
+}
+:global([data-reduce-motion="true"]) .signInLabel > span, :global([data-reduce-motion="true"]) .codeBoxes[data-pin] > span::after { transition: opacity var(--motion-reduced) linear; }
+:global([data-reduce-motion="true"]) .codeBoxes[data-pin] > span { transition: none; }
+:global([data-reduce-motion="true"]) .pin .codeError { animation-duration: var(--motion-reduced); animation-timing-function: linear; }
+
+/* The same stage inside a dialog: no page backdrop, wordmark or legal footer. */
+.stage[data-bare] { min-height: 0; overflow: visible; background: transparent; }
+.stage[data-bare] .content { min-height: 0; width: 100%; margin: 0; padding: 0; }
+.stage[data-bare] .content :where(h1) { font-size: 30px; line-height: 1.1; margin: 0 0 10px; text-shadow: none; }
+.stage[data-bare] .content :where(h2) { font-size: 22px; margin: 0 0 8px; }

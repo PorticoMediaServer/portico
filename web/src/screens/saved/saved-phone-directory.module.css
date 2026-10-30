@@ -1,0 +1,9 @@
+.rows { margin: 14px 16px 0; border-radius: 14px; background: var(--color-raised); overflow: hidden; }
+.rows > [role='listitem'] + [role='listitem'] { position: relative; }
+.rows > [role='listitem'] + [role='listitem']::before { content: ''; position: absolute; z-index: 1; top: 0; left: 56px; right: 0; height: 1px; background: color-mix(in srgb, var(--color-line-strong) 45%, transparent); pointer-events: none; }
+.row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 8px 14px; border: 0; background: transparent; color: var(--color-text); font: inherit; font-size: var(--type-fixed-size-15point-5px); font-weight: var(--type-fixed-weight-600); text-align: left; cursor: pointer; }
+.row:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; }
+.icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--color-raised-bright); color: var(--color-text-secondary); flex: none; }
+.label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.count { flex: none; color: var(--color-text-tertiary); font-size: var(--type-fixed-size-14point-5px); font-weight: var(--type-fixed-weight-600); font-variant-numeric: tabular-nums; }
+.chevron { flex: none; color: var(--color-line-strong); }

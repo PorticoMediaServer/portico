@@ -1,0 +1,29 @@
+.stage { position: relative; width: 100%; height: 100%; background: var(--color-ink); color: var(--color-text); overflow: hidden; line-height: normal; }
+.fallback { background: var(--color-raised-soft); border-radius: 14px; }
+.boundedResume { background: var(--color-raised); border-radius: 14px; }
+.boundedLibrary { background: var(--color-raised); border-radius: 16px; }
+.boundedCollection { width: 421.328125px; height: 236.984375px; background: #0a2233; border-radius: 14px; }
+.boundedSession { background: var(--color-raised-high); border-radius: 9px; }
+.crop { position: relative; width: 100%; height: 100%; }
+.generated { position: relative; width: 100%; height: 100%; border-radius: 8px; overflow: hidden; }
+.artist { width: 172px; height: 172px; }
+.person { width: 96px; height: 96px; }
+.cover { width: 100%; height: 100%; border-radius: 8px; }
+.profileStage { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.profileStage h1 { position: relative; font-size: 64px; font-weight: 800; letter-spacing: -.045em; margin: 0 0 56px; }
+.profilePhone { display: block; padding: 106px 22px 0; }
+.profilePhone h1 { font-size: 32px; letter-spacing: -.04em; margin-bottom: 6px; }
+.profilePhone p { position: relative; font-size: 14.5px; color: var(--color-text-secondary); margin: 0 0 30px; }
+.profileTV h1 { font-size: 72px; margin-bottom: 80px; }
+.outcome { position: absolute; bottom: 16px; font-size: 14px; }
+.row { display: flex; align-items: center; gap: 28px; height: 100%; padding: 24px; }
+.button { border: 0; border-radius: 10px; padding: 12px 16px; background: var(--color-text); color: var(--color-ink); font: inherit; font-weight: 700; cursor: pointer; }
+.lifecycle { display: grid; place-items: center; }
+.lifecycle > .artworkBox { width: 190px; height: 285px; border-radius: 10px; background: var(--color-raised); }
+.lifecycleControls { display: flex; gap: 12px; position: absolute; bottom: 24px; }
+.fallbackLabel { display: grid; place-items: center; width: 100%; height: 100%; color: var(--color-text-tertiary); font-size: 14px; }
+.mosaic { width: 190px; height: 190px; border-radius: 10px; }
+
+.stateFull { opacity: .7; -webkit-mask-image: linear-gradient(180deg,#000,transparent 55%); mask-image: linear-gradient(180deg,#000,transparent 55%); }
+
+.cover .compactCoverTitle { white-space: nowrap; text-wrap: nowrap; text-overflow: ellipsis; display: flow-root; font-weight: 600; }

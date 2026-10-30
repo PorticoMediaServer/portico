@@ -1,0 +1,175 @@
+/* Receiver presentation: cast-receiver.html, design 69f2d45. All geometry is at 1920×1080. */
+@font-face { font-family: Manrope; src: url('assets/manrope-var-latin.woff2') format('woff2'); font-weight: 200 800; font-display: swap; }
+:root { color-scheme: dark; --ink: #071018; --raised: #10212d; --accent: #409fd4; --accent-strong: #5cb3e2; --text: #edf5fa; --text-2: #bdccd6; --text-3: #96a9b5; --line: #28404f; --line-strong: #3b5668; --focus: #d5efff; --danger: #f38b88; --glow: rgba(92,179,226,.6); --ease: cubic-bezier(.2,.7,.2,1); }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--ink); color: var(--text); font-family: Manrope, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+*, *::before, *::after { box-sizing: border-box; }
+img, svg { display: block; } svg { flex: none; }
+button { font: inherit; color: inherit; border: 0; padding: 0; cursor: pointer; }
+[hidden] { display: none !important; }
+#player { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #03080c; }
+#ui { position: absolute; top: 50%; left: 50%; width: 1920px; height: 1080px; transform: translate(-50%, -50%) scale(var(--receiver-scale,1)); transform-origin: center; pointer-events: none; }
+.sprites { position: absolute; }
+.screen { position: absolute; inset: 0; overflow: hidden; }
+.screen.atmosphere { background: var(--ink); }
+#ui > section { display: none; }
+#ui[data-state="idle"] #splash, #ui[data-state="loading"] #loading, #ui[data-state="splash"] #playback-splash, #ui[data-state="playing"] #playing, #ui[data-state="error"] #error { display: block; }
+.gap { display: inline-block; width: 16px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; transition: transform 160ms var(--ease), background 160ms var(--ease); }
+.btn:active { transform: scale(.97); }
+.btn.play { background: var(--text); color: var(--ink); }
+.btn.play:hover { background: #fff; }
+.btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+/* ---------- TV canvas (as tv-player.html): 1920 x 1080, overscan-safe 96 px ---------- */
+.screen.tv { width: 1920px; height: 1080px; --safe: 96px; --danger: #f38b88; --glow: rgba(92,179,226,.6); }
+
+
+.tv .gap { width: 16px; }
+
+/* Ambience: colours only (auth.html). No artwork, letterforms or logo marks in the background. */
+.gen { position: absolute; inset: 0; pointer-events: none; overflow: hidden; background:
+  radial-gradient(44% 66% at 86% 4%, rgba(47,134,187,.46) 0%, rgba(47,134,187,.15) 46%, transparent 74%),
+  radial-gradient(42% 58% at 64% 104%, rgba(30,91,82,.6) 0%, rgba(30,91,82,.18) 50%, transparent 76%),
+  radial-gradient(38% 50% at 4% 0%, rgba(21,55,73,.75) 0%, transparent 72%); }
+.gen.round { background:
+  radial-gradient(44% 62% at 10% -2%, rgba(47,134,187,.36) 0%, rgba(47,134,187,.11) 50%, transparent 76%),
+  radial-gradient(44% 62% at 92% 102%, rgba(30,91,82,.55) 0%, rgba(30,91,82,.16) 50%, transparent 76%),
+  radial-gradient(32% 44% at 94% 4%, rgba(64,159,212,.12) 0%, transparent 72%); }
+/* The small wordmark, top left, as on every state screen. */
+.wm { position: absolute; z-index: 3; left: 96px; top: 76px; height: 40px; width: auto; }
+/* The symbol, top right while playing (the player's logo): the left end of the wordmark, cropped as the TV rail does. */
+.sym { position: absolute; z-index: 4; right: 96px; top: 80px; width: 28px; height: 40px; overflow: hidden; }
+.sym img { height: 40px; width: auto; max-width: none; }
+
+/* Buttons and key hints at ten-foot size */
+.tv .btn { height: 72px; padding: 0 44px; border-radius: 14px; font-size: 26px; gap: 14px; }
+.hint { display: flex; align-items: center; gap: 12px; font-size: 22px; color: var(--text-2); font-weight: 600; }
+.key-cap { display: inline-grid; place-items: center; min-width: 52px; height: 40px; padding: 0 12px; border-radius: 10px; border: 1.5px solid rgba(237,245,250,.34); color: var(--text-2); font-size: 19px; font-weight: 800; }
+
+/* ---------- 1: idle ---------- */
+.mid { position: absolute; z-index: 2; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 200px; }
+.mid h1 { font-size: 62px; line-height: 1.05; font-weight: 800; letter-spacing: -.035em; margin: 0 0 26px; }
+.mid p { font-size: 32px; line-height: 1.45; font-weight: 500; color: var(--text-2); max-width: 1240px; margin: 0; text-wrap: balance; }
+.mid p b { color: var(--text); font-weight: 700; }
+
+/* ---------- 2-5: loading ---------- */
+.amb { position: absolute; left: -10%; top: -20%; width: 120%; height: 140%; object-fit: cover; filter: blur(110px) saturate(1.5); opacity: .34; }
+.amb + .shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(7,16,24,.5), rgba(7,16,24,.1) 60%, rgba(7,16,24,.3)); }
+.ldrow { position: absolute; z-index: 2; left: 160px; right: 160px; top: 50%; transform: translateY(-50%); display: flex; align-items: flex-end; gap: 76px; }
+.ldrow .art { flex: none; width: 400px; height: 600px; border-radius: 16px; overflow: hidden; background: var(--raised);
+  box-shadow: 0 44px 90px -24px rgba(0,0,0,.95), 0 0 0 1.5px rgba(237,245,250,.12); }
+.ldrow .art.sq { width: 480px; height: 480px; }
+.ldrow .art img { width: 100%; height: 100%; object-fit: cover; }
+/* No artwork: the mock's tinted fallback with a glyph, in the kind's shape. */
+.ldrow .art.none { display: grid; place-items: center; color: rgba(237,245,250,.62);
+  background: radial-gradient(70% 120% at 85% 10%, #2f86bb 0%, transparent 60%), radial-gradient(60% 90% at 60% 110%, #1e5b52 0%, transparent 65%), #0c1a25; }
+.ldrow .tx { flex: 1; min-width: 0; padding-bottom: 4px; }
+.st { display: flex; align-items: center; gap: 14px; margin: 0 0 20px; font-size: 28px; line-height: 1; font-weight: 700; color: var(--accent-strong); }
+.st i { width: 12px; height: 12px; border-radius: 50%; background: var(--accent-strong); flex: none; } /* still: no spinner, no pulse */
+.ldrow h1 { margin: 0; font-size: 84px; line-height: .98; font-weight: 800; letter-spacing: -.045em; text-wrap: balance; text-shadow: 0 2px 30px rgba(7,16,24,.5); }
+.ldrow .sub { margin: 24px 0 0; font-size: 34px; line-height: 1.2; font-weight: 600; color: var(--text-2); }
+.ldrow .sub2 { margin: 10px 0 0; font-size: 28px; line-height: 1.2; font-weight: 600; color: var(--text-3); }
+.ldrow .epl2 { display: flex; align-items: baseline; margin: 24px 0 0; font-size: 34px; line-height: 1.2; font-weight: 600; color: var(--text-2); white-space: nowrap; min-width: 0; }
+.ldrow .epl2 b { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-weight: 700; }
+.ldrow .wait { margin: 30px 0 0; max-width: 900px; font-size: 28px; line-height: 1.4; font-weight: 600; color: var(--text-2); }
+
+/* ---------- 6: the player's own splash ---------- */
+.splash { position: absolute; z-index: 2; left: 50%; top: 50%; width: 422px; transform: translate(-50%, -50%); } /* 22 vw, as --splash-size */
+
+/* ---------- 7-9: playing ---------- */
+.pv { position: absolute; inset: 0; overflow: hidden; background: #03080c; }
+.pic { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.sh-t, .sh-b { position: absolute; pointer-events: none; z-index: 1; left: 0; right: 0; }
+.sh-t { top: 0; height: 400px; background: linear-gradient(180deg, rgba(4,9,13,.88) 0, rgba(4,9,13,.6) 38%, rgba(4,9,13,.2) 72%, rgba(4,9,13,0) 100%); }
+.sh-b { bottom: 0; height: 600px; background: linear-gradient(0deg, rgba(4,9,13,.96) 0, rgba(4,9,13,.84) 30%, rgba(4,9,13,.46) 60%, rgba(4,9,13,0) 100%); }
+.veil { position: absolute; inset: 0; z-index: 1; background: rgba(4,9,13,.34); }
+/* Identity: the TV player's proportions (title 44, episode line 24), one line each, the episode name giving way first. */
+.ptop { position: absolute; z-index: 3; left: 96px; top: 80px; width: 1180px; }
+.pid h1 { margin: 0; font-size: 44px; line-height: 52px; font-weight: 800; letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 24px rgba(0,0,0,.45); }
+.epl { display: flex; align-items: baseline; min-width: 0; margin: 4px 0 0; font-size: 24px; line-height: 32px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.epl > * { flex: none; }
+.epl b { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-weight: 700; }
+/* Progress: a plain line, no knob, no intro or credits tints. The sender drives playback, so nothing here takes focus. */
+.pbot { position: absolute; z-index: 4; left: 96px; right: 96px; bottom: 80px; }
+.sb { position: relative; height: 40px; display: flex; align-items: center; }
+.sb .trk2 { position: relative; width: 100%; height: 8px; border-radius: 4px; background: rgba(237,245,250,.22); overflow: hidden; }
+.sb .trk2 > i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent-strong); border-radius: 4px; }
+.under { position: relative; height: 44px; margin-top: 6px; font-size: 24px; line-height: 44px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.under .l { position: absolute; left: 0; top: 0; }
+.under .r { position: absolute; right: 0; top: 0; color: var(--text-2); }
+/* Paused or buffering: a flat tinted pill (no blur, which a Chromecast can't afford over video), centred in the time row. */
+.state { position: absolute; left: 50%; top: 0; transform: translateX(-50%); height: 44px; padding: 0 22px 0 16px; border-radius: 12px; display: inline-flex; align-items: center; gap: 10px;
+  background: rgba(7,16,24,.66); box-shadow: inset 0 0 0 1px rgba(237,245,250,.12); font-size: 22px; line-height: 1; font-weight: 700; color: var(--text); white-space: nowrap; }
+.state i { width: 10px; height: 10px; border-radius: 50%; background: var(--accent-strong); flex: none; margin-left: 6px; }
+.state.buf { padding-left: 14px; }
+/* Music: the cover and the words are the screen; the same progress line sits at the bottom. */
+.mrow { position: absolute; z-index: 2; left: 160px; right: 160px; top: 50%; transform: translateY(-58%); display: flex; align-items: center; gap: 84px; }
+.mrow .art { flex: none; width: 560px; height: 560px; border-radius: 18px; overflow: hidden; box-shadow: 0 50px 100px -26px rgba(0,0,0,.95), 0 0 0 1.5px rgba(237,245,250,.12); }
+.mrow .art img { width: 100%; height: 100%; object-fit: cover; }
+.mrow .tx { min-width: 0; }
+.mrow .np { display: flex; align-items: center; gap: 14px; margin: 0 0 22px; font-size: 26px; line-height: 1; font-weight: 700; color: var(--accent-strong); }
+.mrow h1 { margin: 0; font-size: 96px; line-height: .98; font-weight: 800; letter-spacing: -.045em; text-wrap: balance; }
+.mrow .ar { margin: 26px 0 0; font-size: 40px; line-height: 1.2; font-weight: 700; color: var(--text-2); }
+.mrow .al { margin: 10px 0 0; font-size: 30px; line-height: 1.2; font-weight: 600; color: var(--text-3); }
+.eq { display: inline-flex; align-items: flex-end; gap: 4px; height: 20px; flex: none; }
+.eq i { width: 5px; border-radius: 1.5px; background: var(--accent-strong); }
+.eq i:nth-child(1) { height: 55%; } .eq i:nth-child(2) { height: 100%; } .eq i:nth-child(3) { height: 38%; }
+
+/* ---------- 10-14: error cards ---------- */
+.ec { position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 1120px; padding: 72px 90px 78px; border-radius: 36px; text-align: center;
+  background: rgba(13,27,37,.78); box-shadow: inset 0 0 0 1.5px rgba(237,245,250,.1), 0 60px 120px -40px rgba(0,0,0,.9); }
+.ec .mk { width: 112px; height: 112px; border-radius: 50%; margin: 0 auto 36px; display: grid; place-items: center; background: rgba(243,139,136,.16); color: var(--danger); font-size: 64px; line-height: 1; font-weight: 800; }
+.ec h1 { margin: 0 0 22px; font-size: 56px; line-height: 1.08; font-weight: 800; letter-spacing: -.035em; text-wrap: balance; }
+.ec p { margin: 0 auto; max-width: 860px; text-wrap: balance; font-size: 32px; line-height: 1.45; font-weight: 500; color: var(--text-2); }
+
+/* ---------- 15-16: takeover prompt and notice strip: opaque, anchored above the raised overlay so they never move when it appears ---------- */
+.tko { position: absolute; z-index: 6; left: 50%; bottom: 306px; transform: translateX(-50%); width: max-content; max-width: 1344px; padding: 34px 48px 38px 40px; border-radius: 28px; overflow: hidden;
+  display: flex; align-items: center; gap: 30px; background: #0f1d28; box-shadow: 0 40px 90px -20px rgba(0,0,0,.9), inset 0 0 0 1.5px rgba(237,245,250,.12); }
+.tko .ic { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; flex: none; background: rgba(92,179,226,.14); color: var(--accent-strong); }
+.tko h2 { margin: 0; font-size: 36px; line-height: 44px; font-weight: 800; letter-spacing: -.025em; }
+.tko p { margin: 6px 0 0; font-size: 26px; line-height: 34px; font-weight: 600; color: var(--text-2); }
+.tko .keys { display: flex; gap: 38px; margin-top: 20px; }
+.tko .left { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: rgba(237,245,250,.12); }
+.tko .left b { display: block; height: 100%; background: var(--accent-strong); }
+.nt { position: absolute; z-index: 7; left: 50%; bottom: 210px; transform: translateX(-50%); height: 64px; padding: 0 34px 0 14px; border-radius: 32px; display: inline-flex; align-items: center; gap: 16px;
+  background: #0f1d28; box-shadow: 0 24px 60px -18px rgba(0,0,0,.85), inset 0 0 0 1.5px rgba(237,245,250,.12); font-size: 26px; font-weight: 700; white-space: nowrap; }
+.nt .ni { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.nt.info .ni { background: rgba(92,179,226,.16); color: var(--accent-strong); }
+.nt.warn .ni { background: rgba(243,139,136,.18); color: var(--danger); font-size: 24px; font-weight: 800; line-height: 1; }
+
+/* ---------- 17: the browser-only pairing page (diagnostic) ---------- */
+.bp { margin-top: 44px; display: flex; flex-direction: column; align-items: center; }
+.bp label { font-size: 24px; font-weight: 600; color: var(--text-3); margin-bottom: 14px; }
+.bp .row { display: flex; align-items: center; gap: 20px; }
+.bp .btn { height: 104px; padding: 0 56px; font-size: 30px; }
+.bp .code { width: 560px; height: 104px; border-radius: 18px; display: grid; place-items: center; background: rgba(16,33,45,.9); box-shadow: inset 0 0 0 1.5px var(--line-strong);
+  font-size: 60px; font-weight: 800; letter-spacing: .14em; padding-left: .14em; font-variant-numeric: tabular-nums; }
+.bp .code.fz { box-shadow: 0 0 0 4px var(--ink), 0 0 0 8px var(--focus), 0 26px 64px -12px var(--glow); }
+.bp .stat { min-height: 40px; margin: 26px 0 0; font-size: 26px; line-height: 1.3; font-weight: 600; color: var(--text-3); }
+
+
+/* The video element stays mounted; this layer never becomes a control surface. */
+#video-overlay { position: absolute; inset: 0; opacity: 0; transition: opacity 320ms var(--ease); }
+#ui[data-overlay="visible"] #video-overlay { opacity: 1; transition-duration: 180ms; }
+#playing[data-audio="false"] #playing-progress { opacity: 0; transition: opacity 320ms var(--ease); }
+#ui[data-overlay="visible"] #playing[data-audio="false"] #playing-progress { opacity: 1; transition-duration: 180ms; }
+#playing[data-audio="true"] { background: var(--ink); }
+#playing[data-audio="true"] .video-only, #playing[data-audio="false"] .audio-only { display: none; }
+#playing:not([data-paused="true"]) .veil { display: none; }
+#playing-art-tile.none { display: grid; place-items: center; color: rgba(237,245,250,.62); background: radial-gradient(70% 120% at 85% 10%, #2f86bb 0%, transparent 60%), radial-gradient(60% 90% at 60% 110%, #1e5b52 0%, transparent 65%), #0c1a25; }
+#loading-art, #playing-art { width: 100%; height: 100%; object-fit: cover; }
+#browser-pair { pointer-events: auto; }
+#code-input { font-family: inherit; color: var(--text); border: 0; outline: none; text-align: center; text-transform: uppercase; padding-top: 0; padding-right: 0; padding-bottom: 0; }
+#code-input:focus-visible { box-shadow: 0 0 0 4px var(--ink), 0 0 0 8px var(--focus), 0 26px 64px -12px var(--glow); }
+#status[data-tone="error"] { color: var(--danger); }
+#pair:disabled { cursor: default; }
+#takeover, #notice { pointer-events: none; }
+#notice[data-tone="warning"] .ni { background: rgba(243,139,136,.18); color: var(--danger); font-size: 24px; font-weight: 800; line-height: 1; }
+#takeover-remaining { transform-origin: left center; }
+@media (prefers-reduced-motion: reduce) {
+  #video-overlay, #ui[data-overlay="visible"] #video-overlay,
+  #playing[data-audio="false"] #playing-progress,
+  #ui[data-overlay="visible"] #playing[data-audio="false"] #playing-progress { transition: opacity 160ms var(--ease); }
+  .btn { transition: background 160ms var(--ease); }
+  .btn:active { transform: none; }
+}

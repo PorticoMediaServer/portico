@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- React Native resolves bundled JS images (assets/wordmark.png and any
+     library image) by drawable name at runtime, which the resource shrinker
+     cannot see. Keep drawables; other resource types still shrink. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/*" />

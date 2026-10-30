@@ -1,0 +1,10 @@
+/* motion 3.7–3.9: a closing panel leaves in quick 120, `in`, falling the 8 px it rose; Reduce motion
+   keeps the fade only. The panel's own arrive animation stays on the panel itself. */
+.presence { display: contents; }
+.presence[data-leaving] > * { animation: panel-leave var(--motion-quick) var(--ease-in) both; pointer-events: none; }
+@keyframes panel-leave { to { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .presence[data-leaving] > * { animation: panel-leave-fade var(--motion-reduced) var(--motion-reduced-easing) both; } }
+:global([data-reduce-motion='true']) .presence[data-leaving] > * { animation: panel-leave-fade var(--motion-reduced) var(--motion-reduced-easing) both; }
+/* Lite (platform/motion-tier): the reduced fade for now, kept as its own hook. */
+:global([data-motion-tier='lite']) .presence[data-leaving] > * { animation: panel-leave-fade var(--motion-reduced) var(--motion-reduced-easing) both; }
+@keyframes panel-leave-fade { to { opacity: 0; } }

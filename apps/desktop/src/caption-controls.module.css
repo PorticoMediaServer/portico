@@ -1,0 +1,7 @@
+.captions { position:fixed;top:0;right:0;z-index:var(--layer-notice);display:flex; }
+.captions button { appearance:none;border:0;border-radius:0;padding:0;width:46px;height:32px;display:grid;place-items:center;background:transparent;color:color-mix(in srgb,var(--color-white) 92%,transparent);cursor:default; }
+.captions[data-focused='false'] button { color:color-mix(in srgb,var(--color-white) 42%,transparent); }
+.captions button:hover,.captions button[data-hover='true'] { background:color-mix(in srgb,var(--color-white) 9%,transparent); }
+.captions button.close:hover,.captions button.close[data-hover='true'] { background:var(--color-windows-caption-close);color:var(--color-white); }
+.captions button:focus-visible { outline:2px solid var(--color-accent);outline-offset:-2px; }
+.captions svg { display:block;stroke:currentColor;stroke-width:1;fill:none;pointer-events:none; }

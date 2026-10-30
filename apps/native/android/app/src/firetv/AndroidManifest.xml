@@ -1,0 +1,31 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Fire OS only: the parts of the shared manifest (app/src/main) that belong to touch devices.
+         Portico registers no camera scanner and no download module on a television
+         (PorticoPackage keeps PorticoQRScanner, PorticoDownloads and the download work off a
+         screen without touch), so the Fire build declares neither the camera nor the scanner
+         activity, the download services or their permissions. Nothing in the television path
+         starts any of them; the Android TV build keeps them because it shares the google
+         flavour with phones. -->
+
+    <uses-permission android:name="android.permission.CAMERA" tools:node="remove" />
+    <uses-feature android:name="android.hardware.camera.any" tools:node="remove" />
+
+    <!-- Offline downloads belong to phones and tablets (see PorticoPackage). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" tools:node="remove" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />
+    <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" tools:node="remove" />
+
+    <application>
+        <activity
+            android:name=".native.PorticoQRScanActivity"
+            tools:node="remove" />
+        <service
+            android:name=".native.PorticoDownloadService"
+            tools:node="remove" />
+        <service
+            android:name=".native.PorticoDownloadJob"
+            tools:node="remove" />
+    </application>
+</manifest>

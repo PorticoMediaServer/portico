@@ -1,0 +1,11 @@
+--- a/build-ffmpeg
++++ b/build-ffmpeg
+@@ -1102,7 +1102,7 @@
+ 
+       execute meson setup build --prefix="${WORKSPACE}" --buildtype=release --default-library=static --libdir="${WORKSPACE}"/lib
+       cd build || exit
+-      execute meson configure -Dc_args="-march=native" -Dprefix="${WORKSPACE}" -Dlibdir="${WORKSPACE}"/lib
++      execute meson configure -Dbenchmarks=disabled -Dtests=disabled -Dtests_cpp=disabled -Ddocs=disabled -Dprefix="${WORKSPACE}" -Dlibdir="${WORKSPACE}"/lib
+       execute meson compile
+       execute meson install
+ 

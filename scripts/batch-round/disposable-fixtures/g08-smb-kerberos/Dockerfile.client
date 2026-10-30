@@ -1,0 +1,9 @@
+# Client and server fixture image: the pinned Portico image plus Kerberos tools
+# and a packet/connection tracer. Built only on the disposable host.
+ARG PORTICO_IMAGE
+FROM ${PORTICO_IMAGE}
+
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends krb5-user smbclient strace curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*

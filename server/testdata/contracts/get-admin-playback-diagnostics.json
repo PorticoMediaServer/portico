@@ -1,0 +1,58 @@
+{
+  "schema": "GetAdminPlaybackDiagnosticsResponse",
+  "method": "GET",
+  "path": "/v1/admin/playback/diagnostics",
+  "auth": "owner",
+  "status": 200,
+  "response": {
+    "diagnostics": {
+      "directConfigured": false,
+      "hlsConfigured": false,
+      "finiteHlsConfigured": false,
+      "lifecycle": "unavailable",
+      "activeConversionSessions": null,
+      "conversionSessionLimit": null,
+      "conversionLimitSource": "unavailable",
+      "outputPolicy": "unavailable",
+      "hostConversionCapacity": 0,
+      "memorySpills": 0,
+      "memoryPlacementsRefused": 0,
+      "conversionsRefused": 0,
+      "hardwareFallbacks": 0,
+      "fragmentedOutput": false,
+      "recentFailures": [],
+      "hardware": {
+        "configured": "",
+        "effective": "",
+        "device": "",
+        "probes": [],
+        "devices": [],
+        "formats": [],
+        "lastError": null,
+        "lastTest": 0
+      },
+      "sessions": {
+        "active": null,
+        "hardware": null,
+        "software": null,
+        "background": null,
+        "limits": {
+          "concurrent": 0,
+          "hardware": 0,
+          "software": 0,
+          "background": 0
+        }
+      },
+      "throughput": {
+        "convertedSecondsPerSecond": null,
+        "detail": "The delivery service does not yet publish converted media progress, so no rate can be reported."
+      }
+    },
+    "freshUntil": "2026-10-28T14:49:33.927753369Z",
+    "observedAt": "2026-10-28T14:49:03.927753369Z",
+    "scope": {
+      "serverId": "_F2n9wYCdDuoSEgKnsyQLIkjdc5Rm4BdnCxlMnRNWFE",
+      "viewerFence": "57804610da10e4d4b3be2db6ad36d4a369d1ed43c05f039473a4228519f66b1a"
+    }
+  }
+}

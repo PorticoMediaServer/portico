@@ -1,0 +1,4 @@
+<resources>
+    <!-- packages/design `ink`: the canvas, shown before the first frame. -->
+    <color name="portico_ink">#071018</color>
+</resources>

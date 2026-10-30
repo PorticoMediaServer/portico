@@ -1,0 +1,26 @@
+diff --git a/images/base-linux64/ct-ng-config b/images/base-linux64/ct-ng-config
+index 27ce2d8..4517eea 100644
+--- a/images/base-linux64/ct-ng-config
++++ b/images/base-linux64/ct-ng-config
+@@ -994,7 +994,7 @@ CT_NCURSES_V_6_5=y
+ # CT_NCURSES_V_6_1 is not set
+ # CT_NCURSES_V_6_0 is not set
+ CT_NCURSES_VERSION="6.5"
+-CT_NCURSES_MIRRORS="https://invisible-mirror.net/archives/ncurses $(CT_Mirrors GNU ncurses)"
++CT_NCURSES_MIRRORS="$(CT_Mirrors GNU ncurses)"
+ CT_NCURSES_ARCHIVE_FILENAME="@{pkg_name}-@{version}"
+ CT_NCURSES_ARCHIVE_DIRNAME="@{pkg_name}-@{version}"
+ CT_NCURSES_ARCHIVE_FORMATS=".tar.gz"
+diff --git a/images/base-linuxarm64/ct-ng-config b/images/base-linuxarm64/ct-ng-config
+index 8ff9cb4..371b9b7 100644
+--- a/images/base-linuxarm64/ct-ng-config
++++ b/images/base-linuxarm64/ct-ng-config
+@@ -999,7 +999,7 @@ CT_NCURSES_V_6_5=y
+ # CT_NCURSES_V_6_1 is not set
+ # CT_NCURSES_V_6_0 is not set
+ CT_NCURSES_VERSION="6.5"
+-CT_NCURSES_MIRRORS="https://invisible-mirror.net/archives/ncurses $(CT_Mirrors GNU ncurses)"
++CT_NCURSES_MIRRORS="$(CT_Mirrors GNU ncurses)"
+ CT_NCURSES_ARCHIVE_FILENAME="@{pkg_name}-@{version}"
+ CT_NCURSES_ARCHIVE_DIRNAME="@{pkg_name}-@{version}"
+ CT_NCURSES_ARCHIVE_FORMATS=".tar.gz"

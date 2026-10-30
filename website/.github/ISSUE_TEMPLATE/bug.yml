@@ -1,0 +1,36 @@
+name: Bug report
+description: Tell us about something that did not work as expected.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve Portico. Remove private media names, paths, credentials, and account information from logs and screenshots.
+  - type: input
+    id: version
+    attributes: {label: Portico version, placeholder: "For example: 0.1.0"}
+    validations: {required: true}
+  - type: input
+    id: platform
+    attributes: {label: Platform and installation method, placeholder: "For example: Windows 11 ARM64 installer"}
+    validations: {required: true}
+  - type: textarea
+    id: problem
+    attributes: {label: What happened?, description: Describe the problem and what you expected instead.}
+    validations: {required: true}
+  - type: textarea
+    id: steps
+    attributes: {label: Steps to reproduce, description: Give the smallest sequence that reliably shows the problem.}
+    validations: {required: true}
+  - type: textarea
+    id: evidence
+    attributes: {label: Sanitized logs or screenshots, description: Drag attachments here after removing private information.}
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

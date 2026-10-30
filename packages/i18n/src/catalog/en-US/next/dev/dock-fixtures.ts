@@ -1,0 +1,23 @@
+/** Reference content belongs only to serve-time galleries, never the product catalogue. */
+export const dockFixtureMessages = {
+  'next.dock.fixture.song': 'Hardest To Love',
+  'next.dock.fixture.tooLate': 'Too Late',
+  'next.dock.fixture.artist': 'The Weeknd',
+  'next.dock.fixture.album': 'After Hours',
+  'next.dock.fixture.show': 'The Last of Us',
+  'next.dock.fixture.infected': 'Infected',
+  'next.dock.fixture.longTime': 'Long, Long Time',
+  'next.dock.fixture.slow': 'Slow Horses',
+  'next.dock.fixture.failure': "Failure's Contagious",
+  'next.dock.fixture.martian': 'The Martian',
+  'next.dock.fixture.weir': 'Andy Weir',
+  'next.dock.fixture.dna': 'DNA.',
+  'next.dock.fixture.kendrick': 'Kendrick Lamar',
+  'next.dock.fixture.damn': 'DAMN.',
+  'next.dock.fixture.device': 'Living room TV',
+  'next.dock.fixture.insideOut': 'Inside Out',
+  'next.dock.fixture.longShow': 'Demon Slayer: Kimetsu no Yaiba',
+  'next.dock.fixture.longEpisode': 'The Boar Bares Its Fangs, Zenitsu Sleeps',
+  'next.dock.fixture.sleep': '28 min',
+  'next.dock.fixture.year': '2017',
+} as const;

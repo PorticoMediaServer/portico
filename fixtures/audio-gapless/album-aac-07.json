@@ -1,0 +1,23 @@
+{
+ "file": "album-aac-07.m4a",
+ "container": "mp4",
+ "codec": "aac",
+ "sampleRate": 44100,
+ "channels": 2,
+ "durationFrames": 157514,
+ "rawFrames": 159744,
+ "trim": {
+  "startFrames": 2112,
+  "endFrames": 118,
+  "source": "itunsmpb"
+ },
+ "signal": {
+  "formula": "amplitude*sin(2*pi*frequency*(n+offset)/sampleRate)",
+  "amplitude": 0.5,
+  "frequency": 441,
+  "offset": 778785
+ },
+ "tolerance": 0.05,
+ "edgeFrames": 64,
+ "edgeTolerance": 0.1
+}

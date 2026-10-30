@@ -1,0 +1,8 @@
+/* Screen-local corrections measured against settings.html#account/playback.
+   The shared group heading inherits the body's computed 21px line box, while the
+   approved mock gives the 20px heading its own normal 27px line. The six-pixel
+   difference moves every row of a group down. Scope the correction to this
+   screen; the kit keeps its own rule until its owner lands the shared fix. */
+.screen section h3 {
+  line-height: normal;
+}

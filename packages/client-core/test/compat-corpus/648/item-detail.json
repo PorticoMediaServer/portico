@@ -1,0 +1,136 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/items/FZH_ujVknbAIgHBifTyT1w/detail?related=none"
+  },
+  "status": 200,
+  "body": {
+    "collections": [],
+    "languages": {
+      "audio": [],
+      "subtitles": []
+    },
+    "scope": {
+      "serverId": "srv_-J4TM5L_dh6V3_4YFZxJza7pNo9Y9rLHE8XSPfKTmjk",
+      "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+      "itemId": "FZH_ujVknbAIgHBifTyT1w",
+      "viewerFence": "e2bd6c6f20b194d47f38f176b4abe0e6a364190a27a80109fcb189961921777d"
+    },
+    "revision": {
+      "catalog": 93,
+      "viewer": 0
+    },
+    "item": {
+      "addedAt": "2026-10-29T09:32:01.061Z",
+      "available": true,
+      "durationMs": 0,
+      "id": "FZH_ujVknbAIgHBifTyT1w",
+      "kind": "song",
+      "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+      "missing": false,
+      "progressMs": 0,
+      "song": {
+        "providerReleaseStatus": "unmatched",
+        "albumId": "TFmaguJtaiBfE0GA2pSkcw",
+        "albumTitle": "Assembly of Copper",
+        "albumArtist": "Unknown artist",
+        "artist": "Unknown artist",
+        "trackNumber": 1,
+        "providerMatchStatus": "pending"
+      },
+      "title": "01 - Ticket",
+      "watched": false
+    },
+    "personal": {
+      "conflicts": [],
+      "favorite": false,
+      "lastPlayedAt": "",
+      "progressMs": 0,
+      "rating": null,
+      "revision": 0,
+      "status": "current",
+      "watched": false,
+      "watchlisted": false
+    },
+    "actions": [
+      {
+        "id": "watchlist",
+        "labelKey": "action.watchlist",
+        "enabled": true
+      },
+      {
+        "id": "favorite",
+        "labelKey": "action.favorite",
+        "enabled": true
+      },
+      {
+        "id": "rating",
+        "labelKey": "action.rating",
+        "enabled": true,
+        "min": 0,
+        "max": 10,
+        "step": 1
+      },
+      {
+        "id": "watched",
+        "labelKey": "action.watched",
+        "enabled": true
+      },
+      {
+        "id": "play",
+        "labelKey": "action.play",
+        "enabled": true,
+        "playback": {
+          "itemId": "FZH_ujVknbAIgHBifTyT1w",
+          "startMs": 0
+        }
+      },
+      {
+        "id": "music_metadata_review",
+        "labelKey": "action.music_metadata_review",
+        "enabled": true
+      },
+      {
+        "id": "metadata_edit",
+        "labelKey": "action.metadata_edit",
+        "enabled": true
+      },
+      {
+        "id": "delete",
+        "labelKey": "action.unlink_item",
+        "enabled": true
+      },
+      {
+        "id": "enqueue",
+        "labelKey": "entry.addToQueue",
+        "enabled": true,
+        "playback": {
+          "itemId": "FZH_ujVknbAIgHBifTyT1w",
+          "startMs": 0
+        }
+      },
+      {
+        "id": "add_to_playlist",
+        "labelKey": "action.add_to_playlist",
+        "enabled": true
+      },
+      {
+        "id": "add_to_collection",
+        "labelKey": "action.add_to_collection",
+        "enabled": true
+      }
+    ],
+    "metadata": {
+      "sources": [],
+      "status": "unavailable",
+      "ratings": [],
+      "genres": [],
+      "credits": [],
+      "creditTotals": {
+        "cast": 0,
+        "crew": 0
+      }
+    },
+    "markers": []
+  }
+}

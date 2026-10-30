@@ -1,0 +1,22 @@
+.header h2 { margin: 0; font-size: var(--type-fixed-size-21px); line-height: var(--type-fixed-line-1point-2); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-025em); }
+.body { padding-top: 22px; }
+.timeline { position: relative; height: 24px; }
+.track { position: absolute; left: 0; right: 0; top: 9px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--color-text) 16%, transparent); }
+.fill { display: block; width: var(--progress, 0%); height: 100%; border-radius: 3px; background: var(--color-text); opacity: .9; }
+.original { position: absolute; left: var(--original, 0%); top: -3px; width: 2px; height: 12px; border-radius: 1px; background: var(--color-text-tertiary); }
+.timeline input { position: absolute; top: 0; left: -9px; width: calc(100% + 18px); height: 24px; margin: 0; appearance: none; background: transparent; cursor: pointer; }
+.timeline input::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--color-text); box-shadow: 0 2px 8px color-mix(in srgb, var(--color-shadow) 50%, transparent); }
+.timeline input::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: var(--color-text); box-shadow: 0 2px 8px color-mix(in srgb, var(--color-shadow) 50%, transparent); }
+.timeline input:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+.timeline input:disabled { cursor: default; }
+.clock { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: var(--type-fixed-size-13px); color: var(--color-text-secondary); font-weight: var(--type-fixed-weight-600); font-variant-numeric: tabular-nums; }
+.footer { gap: 10px; }
+.footer > button { flex: 1; justify-content: center; }
+
+@media (max-width: 599px) {
+  .header { --overlay-sheet-heading-padding: 6px 20px 0; padding-bottom: 4px; }
+  .header h2 { line-height: var(--type-fixed-line-1point-2); letter-spacing: var(--type-fixed-tracking-minus-point-025em); }
+  .header > p { margin: 8px 20px 0; font-size: var(--type-fixed-size-14point-5px); line-height: var(--type-fixed-line-1point-5); }
+  .body { padding: 22px 20px 96px; }
+  .footer.footer { padding: 18px 20px max(34px, env(safe-area-inset-bottom)); }
+}

@@ -1,0 +1,132 @@
+diff --git a/build-ffmpeg b/build-ffmpeg
+index 586ef02..231bea1 100755
+--- a/build-ffmpeg
++++ b/build-ffmpeg
+@@ -14,8 +14,9 @@ CFLAGS="-I${WORKSPACE}/include"
+ LDFLAGS="-L${WORKSPACE}/lib"
+ LDEXEFLAGS=""
+ EXTRALIBS="-ldl -lpthread -lm -lz"
+-CONFIGURE_OPTIONS=("--disable-doc" "--disable-ffplay" "--disable-ffprobe" "--enable-hardcoded-tables")
++CONFIGURE_OPTIONS=("--disable-doc" "--disable-ffplay" "--enable-hardcoded-tables")
+ NONFREE_AND_GPL=false
++GPL_ONLY=false
+ LATEST=false
+ MANPAGES=1
+ CURRENT_PACKAGE_VERSION=0
+@@ -343,6 +344,7 @@ usage() {
+   echo "      --version                  Display version information"
+   echo "  -b, --build                    Starts the build process"
+   echo "      --enable-gpl-and-non-free  Enable GPL and non-free codecs  - https://ffmpeg.org/legal.html"
++  echo "      --enable-gpl               Enable redistributable GPL codecs without non-free components"
+   echo "  -c, --cleanup                  Remove all working dirs"
+   echo "      --latest                   Build latest version of dependencies if newer available"
+   echo "      --full-static              Build a full static FFmpeg binary (eg. glibc, pthreads etc...) **only Linux**"
+@@ -382,6 +384,12 @@ while (($# > 0)); do
+         NONFREE_AND_GPL=true
+       fi
+ 
++      if [[ "$1" == "--enable-gpl" ]]; then
++
++        CONFIGURE_OPTIONS+=("--enable-gpl" "--enable-version3")
++        GPL_ONLY=true
++      fi
++
+       if [[ "$1" == "--cleanup" || "$1" =~ '-c' && ! "$1" =~ '--' ]]; then
+ 
+         cflag='-c'
+@@ -800,7 +808,7 @@ if command_exists "cargo"; then
+   fi
+ fi
+ 
+-if ${NONFREE_AND_GPL}; then
++if ${GPL_ONLY} || ${NONFREE_AND_GPL}; then
+ 
+   if build "x264" "b35605ac"; then
+ 
+@@ -824,7 +832,7 @@ if ${NONFREE_AND_GPL}; then
+ fi
+ 
+ # 32-bit ARM platforms like Raspberry Pi don't build x265 cleanly.
+-if ${NONFREE_AND_GPL} && [[ ! "${TARGET_ARCH}" == "armv7l" ]] ; then
++if { ${GPL_ONLY} || ${NONFREE_AND_GPL}; } && [[ ! "${TARGET_ARCH}" == "armv7l" ]] ; then
+ 
+   if build "x265" "4.1"; then
+ 
+@@ -901,7 +909,7 @@ if [[ ! "${TARGET_ARCH}" == "arm"* ]]; then
+   CONFIGURE_OPTIONS+=("--enable-libvpx")
+ fi
+ 
+-if ${NONFREE_AND_GPL}; then
++if ${GPL_ONLY} || ${NONFREE_AND_GPL}; then
+ 
+   if ! isLinux; then
+ 
+@@ -929,7 +937,7 @@ if ${NONFREE_AND_GPL}; then
+   CONFIGURE_OPTIONS+=("--enable-libxvid")
+ fi
+ 
+-if ${NONFREE_AND_GPL}; then
++if ${GPL_ONLY} || ${NONFREE_AND_GPL}; then
+ 
+   if build "vid_stab" "1.1.1"; then
+ 
+@@ -985,8 +993,59 @@ if build "zimg" "3.0.5"; then
+ fi
+ 
+ CONFIGURE_OPTIONS+=("--enable-libzimg")
++
++if build "freetype" "2.14.3"; then
++
++  download "https://downloads.sourceforge.net/project/freetype/freetype2/${CURRENT_PACKAGE_VERSION}/freetype-${CURRENT_PACKAGE_VERSION}.tar.xz" "freetype-${CURRENT_PACKAGE_VERSION}.tar.xz"
++  execute ./configure --prefix="${WORKSPACE}" --without-harfbuzz --disable-shared --enable-static
++  execute make -j ${MJOBS}
++  execute make install
++
++  build_done "freetype" "${CURRENT_PACKAGE_VERSION}"
++fi
++
++CONFIGURE_OPTIONS+=("--enable-libfreetype")
++
++if build "fribidi" "04a8cb7a3674717e509c79cd6ee3e127d0c75f4c"; then
++
++  download "https://github.com/fribidi/fribidi/archive/${CURRENT_PACKAGE_VERSION}.tar.gz" "fribidi-${CURRENT_PACKAGE_VERSION}.tar.gz"
++
++  execute meson setup build --prefix="${WORKSPACE}" --buildtype=release --default-library=static --libdir="${WORKSPACE}"/lib -Dbin=false -Ddocs=false -Dtests=false
++  execute ninja -C build -j ${MJOBS}
++  execute ninja -C build install
++
++  build_done "fribidi" "${CURRENT_PACKAGE_VERSION}"
++fi
++
++CONFIGURE_OPTIONS+=("--enable-libfribidi")
++
++if build "harfbuzz" "d8dabe2594596c656b54c3b0072f3aa3093f30a9"; then
++
++  download "https://github.com/harfbuzz/harfbuzz/archive/${CURRENT_PACKAGE_VERSION}.tar.gz" "harfbuzz-${CURRENT_PACKAGE_VERSION}.tar.gz"
++
++  execute meson setup build --prefix="${WORKSPACE}" --buildtype=release --default-library=static --libdir="${WORKSPACE}"/lib -Dfreetype=enabled -Dglib=disabled -Dgobject=disabled -Dcairo=disabled -Dchafa=disabled -Dtests=disabled -Dintrospection=disabled -Ddocs=disabled -Ddoc_tests=false -Dutilities=disabled
++  execute ninja -C build -j ${MJOBS}
++  execute ninja -C build install
++
++  build_done "harfbuzz" "${CURRENT_PACKAGE_VERSION}"
++fi
++
++CONFIGURE_OPTIONS+=("--enable-libharfbuzz")
++
++if build "libass" "3087d2b2ffda76602a17f9b09d25cb8addc8d313"; then
++
++  download "https://github.com/libass/libass/archive/${CURRENT_PACKAGE_VERSION}.tar.gz" "libass-${CURRENT_PACKAGE_VERSION}.tar.gz"
++
++  execute meson setup build --prefix="${WORKSPACE}" --buildtype=release --default-library=static --libdir="${WORKSPACE}"/lib -Dtest=disabled -Dcompare=disabled -Dprofile=disabled -Dfuzz=disabled -Dcheckasm=disabled -Dfontconfig=disabled -Dcoretext=enabled -Ddirectwrite=disabled -Dasm=enabled -Dlibunibreak=disabled
++  execute ninja -C build -j ${MJOBS}
++  execute ninja -C build install
++
++  build_done "libass" "${CURRENT_PACKAGE_VERSION}"
++fi
++
++CONFIGURE_OPTIONS+=("--enable-libass")
+ 
+ ##
+ ## audio library
+ ##
+ 

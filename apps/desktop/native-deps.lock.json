@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "node": "24.22.1",
+  "rust": "1.99.0",
+  "mpv": {
+    "version": "0.41.0",
+    "repository": "https://github.com/mpv-player/mpv",
+    "commit": "41f6a645068483470267271e1d09966ca3b9f413",
+    "url": "https://codeload.github.com/mpv-player/mpv/tar.gz/refs/tags/v0.41.0",
+    "sha256": "ee21092a5ee427353392360929dc64645c54479aefdb5babc5cfbb5fad626209",
+    "license": "GPL-2.0-or-later",
+    "clientApiMajor": 2
+  },
+  "ffmpeg": {
+    "contractCommit": "f3ef43fafe8e929f9b5c0822b87c09e9debe4f65",
+    "lockPath": "third_party/ffmpeg/sources.lock.json",
+    "preparerPath": "scripts/prepare-ffmpeg-source.py",
+    "sourceCommit": "253db2a7b0a8045c54ce68ce33d7f601229b1822",
+    "preparedReceiptSha256": "a47f4c8e3dadc47e0fd564d47f7b4c3f2a9b1f7680c4765f0750e562efb6a71f",
+    "sharedAbi": {
+      "avcodec": 62,
+      "avformat": 62,
+      "avutil": 60,
+      "avfilter": 11,
+      "avdevice": 62,
+      "swscale": 9,
+      "swresample": 6
+    },
+    "license": "GPL-3.0-or-later",
+    "requiredPatches": 100,
+    "sourceSha256": "87bedcefc860cd234cdeddbebdcd3ce45aeedc81d0fbb258ed839ff778be3140",
+    "preparedArchiveSha256": "fab924966d2600f3766c5bbea90e412643593c22f2607a3d5a22ea8298a43668",
+    "sourceLockSha256": "26f49038f9f3bc9c6c883768d1a285d1b1be04e01a7ae2860d005f60f80a8b88",
+    "preparerSha256": "2b0a024fb6c068a9a1068312663e760bf7b628fe490ba0e26d8cb0bfd8446ca2",
+    "postSeriesPatches": [
+      {
+        "path": "third_party/ffmpeg/portico-dovi-profile.patch",
+        "sha256": "4f7907150fcbd6eb21e1847c0bf2f90d0cddc4999c92f9a0102c5d00aca6b180"
+      },
+      {
+        "path": "third_party/ffmpeg/portico-dovi-join.patch",
+        "sha256": "b15d70a2872174a6c10373c1bff26131513e8995b4b946b20896aec49607c569",
+        "sourceContract": "third_party/ffmpeg/portico-dovi-join.v1.json",
+        "qualification": "actual target option and dual-PID fixtures required; name alone grants nothing"
+      }
+    ]
+  },
+  "packageLimits": {
+    "downloadBytes": 268435456,
+    "installedBytes": 805306368
+  },
+  "releaseReady": false
+}

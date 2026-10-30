@@ -1,0 +1,18 @@
+.paper { background: var(--color-white); color: var(--color-ink); padding: 32px; }
+.paper h2, .paper h3 { margin: 0 0 12px; }
+.paper p { max-width: 480px; }
+.paper svg { width: 112px; height: 112px; fill: var(--color-ink); background: var(--color-white); }
+.paper table { width: 100%; border-collapse: collapse; margin-top: 24px; text-align: left; }
+.paper th, .paper td { padding: 12px 8px; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 16%, var(--color-white)); }
+.codeActions { display: flex; gap: 8px; margin-top: 8px; }
+.code { font-family: var(--font-mono); overflow-wrap: anywhere; }
+@media print {
+  :global(body) * { visibility: hidden; }
+  .paper, .paper * { visibility: visible; }
+  .sheet { position: absolute; inset: 0; transform: none; width: 100%; max-width: none; max-height: none; overflow: visible; }
+  .sheet > header, .sheet > footer { display: none; }
+  .sheet > div { max-height: none; overflow: visible; }
+  .paper { position: static; overflow: visible; }
+  .codeActions { display: none; }
+  .paper tr { break-inside: avoid; }
+}

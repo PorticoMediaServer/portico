@@ -1,0 +1,59 @@
+/* desktop-player f4b: left column at 64/128, full-width related row above the bottom edge. */
+.card { position: absolute; inset: 0; z-index: var(--layer-live-chrome); overflow-y: auto; color: var(--color-text); }
+.left { margin: 128px 0 0 64px; width: min(600px, calc(100% - 128px)); }
+.kicker { margin: 0 0 10px; font-size: var(--type-watch-end-kicker-size); font-weight: var(--type-title-weight); color: var(--color-text-secondary); }
+.title { margin: 0 0 24px; font-size: var(--type-watch-end-title-size); line-height: var(--type-watch-end-title-line); letter-spacing: var(--type-watch-end-title-tracking); font-weight: var(--type-lockup-weight); }
+.rate { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+.rate > span { font-size: var(--type-watch-end-kicker-size); font-weight: var(--type-title-weight); color: var(--color-text-secondary); }
+.stars { display: flex; gap: 2px; }
+.stars button { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--color-text-tertiary); cursor: pointer; }
+.stars button[data-lit] { color: var(--color-accent-strong); }
+.stars button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 1px; }
+.actions { display: flex; gap: 10px; }
+.feature { position: absolute; right: 64px; top: 104px; width: min(500px, 42%); }
+.featureArt { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: var(--color-material); box-shadow: 0 34px 60px -24px var(--color-shadow), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 14%, transparent); }
+.featureArt img { width: 100%; height: 100%; object-fit: cover; }
+.featureArt::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, color-mix(in srgb, var(--color-ink) 94%, transparent)); }
+.featureText { position: absolute; z-index: 1; left: 22px; right: 22px; bottom: 18px; display: grid; gap: 2px; }
+.featureText small { font-size: var(--type-watch-end-name-size); font-weight: var(--type-title-weight); color: var(--color-accent-strong); }
+.featureText b { font-size: var(--type-watch-end-feature-size); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-watch-end-title-tracking); }
+.featureText span { font-size: var(--type-watch-end-name-size); color: var(--color-text-secondary); }
+.feature .actions { margin-top: 14px; }
+.row { position: absolute; left: 0; right: 0; bottom: 18px; padding: 0 64px; }
+.row h2 { margin: 0 0 8px; font-size: var(--type-row-heading-size, 22px); font-weight: var(--type-row-heading-weight, 700); }
+.track { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 4px; }
+.related { display: grid; gap: 6px; width: 132px; flex: none; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.art { display: block; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: var(--color-material); }
+.art img { width: 100%; height: 100%; object-fit: cover; }
+.name { font-size: var(--type-watch-end-name-size); font-weight: var(--type-body-strong-weight); line-height: var(--type-watch-end-name-line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.year { font-size: var(--type-watch-end-year-size); color: var(--color-text-tertiary); }
+.related:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: 10px; }
+@media (max-width: 1279px) {
+  .left { margin: 96px 0 0 40px; width: min(600px, calc(100% - 80px)); }
+  .title { font-size: var(--type-watch-end-title-compact-size); }
+  .row { padding: 0 40px; }
+}
+
+/* phone-player f6d: the phone end card is two centred columns, not the desktop
+   left column plus feature. */
+.card[data-layout='phone'] .feature { display: none; }
+.card[data-layout='phone'] .left { position: absolute; left: 60px; top: 50%; transform: translateY(-50%); margin: 0; width: 330px; }
+.card[data-layout='phone'] .kicker { margin: 0 0 6px; font-size: var(--type-fixed-size-13point-5px); }
+.card[data-layout='phone'] .title { margin: 6px 0 10px; font-size: var(--type-fixed-size-44px); line-height: var(--type-fixed-line-point-98); letter-spacing: var(--type-fixed-tracking-minus-point-045em); }
+.card[data-layout='phone'] .meta { display: flex; align-items: center; gap: 6px 12px; margin: 0 0 14px; font-size: var(--type-fixed-size-13px); color: var(--color-text-secondary); }
+.card[data-layout='phone'] .meta strong { color: var(--color-text); font-weight: var(--type-fixed-weight-700); }
+.card[data-layout='phone'] .rate { gap: 8px; margin-bottom: 16px; }
+.card[data-layout='phone'] .rate > span { font-size: var(--type-fixed-size-13point-5px); font-weight: var(--type-fixed-weight-700); color: var(--color-text-secondary); margin-right: 2px; }
+.card[data-layout='phone'] .stars button { width: 32px; height: 32px; }
+.card[data-layout='phone'] .row { position: absolute; left: auto; right: 60px; top: 50%; transform: translateY(-50%); bottom: auto; width: 370px; padding: 0; }
+.card[data-layout='phone'] .row h2 { display: flex; align-items: center; gap: 2px; margin: 0 0 10px; font-size: var(--type-fixed-size-15px); }
+.card[data-layout='phone'] .row h2 svg { color: var(--color-text-tertiary); }
+.card[data-layout='phone'] .track { gap: 10px; }
+.card[data-layout='phone'] .related { width: 85px; }
+.card[data-layout='phone'] .name { font-size: var(--type-fixed-size-12px); }
+.card[data-layout='phone'] .year { font-size: var(--type-fixed-size-11point-5px); }
+/* Upright phones: the same two blocks stacked, as the card has no landscape rail. */
+@media (max-aspect-ratio: 1/1) {
+ .card[data-layout='phone'] .left { position: relative; left: auto; top: auto; transform: none; margin: 64px 24px 24px; width: auto; }
+ .card[data-layout='phone'] .row { position: relative; right: auto; top: auto; transform: none; width: auto; padding: 0 24px 32px; }
+}

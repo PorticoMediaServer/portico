@@ -1,0 +1,34 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fieldset legend {
+  padding: 0 0 6px;
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-strong-weight);
+  color: var(--color-text-secondary);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--type-body-size);
+}
+
+.formNote {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  color: var(--color-text-tertiary);
+}

@@ -1,0 +1,16 @@
+.page { height: 100dvh; min-height: 860px; }
+.ready { width: 9px; height: 9px; border-radius: 50%; background: var(--color-healthy); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-healthy) 16%, transparent); }
+.kinds { position: absolute; z-index: var(--layer-art-label); left: var(--gutter-desktop); right: var(--gutter-desktop); bottom: 64px; }
+.kinds h2 { margin: 0 0 14px; font-size: var(--type-subheading-size); font-weight: var(--type-button-weight); color: var(--color-text-secondary); }
+.grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+.kind { position: relative; height: 128px; border: 0; border-radius: 14px; overflow: hidden; text-align: left; padding: 18px 20px; display: flex; flex-direction: column; color: var(--color-text); font-family: var(--font); cursor: pointer; background: radial-gradient(120% 140% at 100% 0%, var(--kind-tint) 0%, transparent 62%), var(--color-raised); }
+.kind[data-kind="movie"] { --kind-tint: var(--color-accent-deep); }
+.kind[data-kind="tv"] { --kind-tint: var(--color-generated-green); }
+.kind[data-kind="anime"] { --kind-tint: var(--color-library-kind-anime); }
+.kind[data-kind="music"] { --kind-tint: var(--color-library-kind-music); }
+.kind[data-kind="audiobook"] { --kind-tint: var(--color-library-kind-audiobook); }
+.kind b { margin-top: auto; font-size: var(--type-library-kind-title-size); font-weight: var(--type-library-kind-title-weight); letter-spacing: var(--type-library-kind-title-tracking); }
+.kind small { margin-top: 2px; font-size: var(--type-report-meta-size); color: var(--color-text-tertiary); }
+.kind:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+@media (max-width: 1023px) { .page { height: auto; min-height: 100dvh; overflow: visible; } .kinds { position: relative; inset: auto; margin: 420px 32px 64px; } .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 599px) { .kinds { margin-inline: 20px; } .grid { grid-template-columns: minmax(0, 1fr); } }

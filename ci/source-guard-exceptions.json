@@ -1,0 +1,8 @@
+{
+  "files": {
+    "packages/client-core/test/remote-sources.test.ts": {
+      "sha256": "4b586453056ad17a7221c38447c8a148217690e6df5b19869eadaeaabb492611",
+      "reason": "Exact frozen negative-validation fixture contains nonfunctional PEM-shaped input; comprehensive secret scanning still applies."
+    }
+  }
+}

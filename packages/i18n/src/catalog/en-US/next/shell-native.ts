@@ -1,0 +1,22 @@
+/** Native shell gallery and platform-specific wording. Shared product wording lives in shell.ts. */
+export const shellNativeMessages = {
+  'next.shell.native.galleryTitle': 'Shell',
+  'next.shell.native.identityGallery': 'Server identity',
+  'next.shell.native.accountGallery': 'Profiles and account',
+  'next.shell.native.settingsGallery': 'Settings',
+  'next.shell.native.peopleGallery': 'People and devices',
+  'next.shell.native.statisticsGallery': 'Statistics',
+  'next.shell.native.segmentsGallery': 'Intros and credits',
+  'next.shell.native.moreOptions': 'More options',
+  'next.shell.native.open': 'Open',
+  'next.shell.native.noLanguages': 'No languages chosen',
+  'next.shell.native.decreaseSymbol': '−',
+  'next.shell.native.increaseSymbol': '+',
+  'next.shell.native.adjustSegment': 'Adjust {kind}',
+  'next.shell.native.watchFromBefore': 'Watch from 3 seconds before',
+  'next.shell.native.togetherGallery': 'Watch Together',
+  'next.shell.native.notificationGallery': 'Notifications',
+  'next.shell.native.rowGallery': 'Settings rows',
+  'next.shell.native.languageGallery': 'Languages',
+  'next.shell.native.subtitleGallery': 'Subtitle appearance',
+} as const satisfies Record<`next.shell.native.${string}`, string>;

@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "purpose": "procedural fixture tooling only; not a new runtime bundle dependency",
+  "doviTool": {
+    "repository": "https://github.com/quietvoid/dovi_tool",
+    "commit": "26ed61ff36f946313889a09c0d2da202e9ceb97a",
+    "archiveSha256": "1438f8aaede8c3ccecfdc873f659cac320bb4ff483b906109b177f21c86a19b0",
+    "version": "2.3.4",
+    "license": "MIT",
+    "libraryLicenseReceipt": "portico-libdovi-source.json",
+    "build": "cargo build --locked --release --no-default-features --features internal-font -j1"
+  },
+  "hdr10plusTool": {
+    "repository": "https://github.com/quietvoid/hdr10plus_tool",
+    "commit": "faa437e52b317d08f5d0df43278640623d318479",
+    "archiveSha256": "9def295c678bbd889bfda9c44f3be2059f50c09b306e34d2732ad7fa1a41b477",
+    "version": "1.7.2",
+    "libraryVersion": "2.1.5",
+    "license": "MIT",
+    "licenseSha256": "f35d4515dd8d81c7996af2b20e9605561d1af0c21bc12ba7cc4fa4c60aed2178",
+    "build": "cargo build --locked --release --no-default-features --features internal-font -j1"
+  },
+  "encoder": "Actual fixture encoder and binary hash are recorded in the fixture manifest. The Ubuntu development pair is not HW1.",
+  "publication": "Generated images and metadata only, GPL-3.0-only. Real supplied licensed samples remain private.",
+  "limits": {"frames": 24, "compilerWorkers": 1, "encoderWorkers": 1, "bytesPerVideo": 1048576}
+}

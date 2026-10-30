@@ -1,0 +1,41 @@
+.shell { position: relative; background: var(--color-ink); }
+.stateBrand { position: absolute; z-index: var(--layer-content); top: 32px; left: 64px; height: 20px; width: auto; }
+@media (max-width: 599px) { .stateBrand { top: 22px; left: 20px; height: 16px; } }
+.avatar { display: block; flex: none; width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--color-accent-deep), var(--color-ambient)); }
+.shell[data-navigation='rail'] .avatar { width: 40px; height: 40px; margin-bottom: 4px; }
+.shell[data-navigation='sidebar'] .avatar { width: 38px; height: 38px; margin: 12px auto 0 12px; }
+.tabs { justify-content: flex-start; }
+.tabs > a { flex: 0 0 20%; }
+.progressLayer { position: fixed; inset: 0; z-index: var(--layer-sticky); pointer-events: none; background: var(--color-ink); }
+.waiting { position: absolute; inset: 76px 0 0; }
+.spinner { position: absolute; top: calc(50% - 23px); left: calc(50% - 15px); width: 30px; height: 30px; opacity: 0; transition: opacity var(--motion-slow) var(--ease-out); }
+.spinner i { display: block; width: 100%; height: 100%; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--color-text) 16%, transparent); border-top-color: var(--color-accent-strong); animation: spin 1s linear infinite; }
+.waiting:not([data-phase='picture']) .spinner { opacity: 1; }
+.message { position: absolute; top: calc(50% + 25px); left: 24px; right: 24px; font-size: var(--type-fixed-size-15px); line-height: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-secondary); text-align: center; }
+.message span { position: absolute; left: 0; right: 0; opacity: 0; transition: opacity var(--motion-standard) var(--ease-out); }
+.message span[data-shown] { opacity: 1; }
+.progressLayer[data-navigation='tabs'] .waiting { inset: 56px 0 calc(56px + env(safe-area-inset-bottom, 0px)); }
+.progressLayer[data-navigation='tabs'] .spinner { top: calc(50% - 22px); left: calc(50% - 14px); width: 28px; height: 28px; }
+.progressLayer[data-navigation='tabs'] .message { top: calc(50% + 24px); }
+.progressLayer[data-navigation='tabs'] .spinner i { border-width: 2.5px; }
+.progressLayer[data-navigation='rail'] .waiting { inset: 0 0 0 84px; }
+.progressLayer[data-navigation='sidebar'] .waiting { inset: 0 0 0 248px; }
+.progressLayer[data-navigation='rail'] .spinner, .progressLayer[data-navigation='sidebar'] .spinner { top: calc(50% - 24px); left: calc(50% - 16px); width: 32px; height: 32px; }
+.progressLayer[data-navigation='rail'] .message, .progressLayer[data-navigation='sidebar'] .message { top: calc(50% + 28px); font-size: var(--type-fixed-size-17px); line-height: var(--type-fixed-size-24px); }
+.progressLayer[data-leaving] { animation: leave var(--motion-slow) var(--ease-in-out) both; }
+.progressLayer[data-leaving] .waiting { animation: leave var(--motion-quick) var(--ease-in) both; }
+:global([data-boot-content-arriving]) { animation: arrive var(--motion-slow) var(--ease-out) 60ms both; }
+:global([data-boot-navigation-arriving]) { animation: arrive var(--motion-slow) var(--ease-out) both; }
+.srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes breathe { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
+@keyframes leave { to { opacity: 0; } }
+@keyframes arrive { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner, .message span { transition-duration: var(--motion-reduced); }
+  .spinner i { animation: breathe 1.6s ease-in-out infinite; }
+  .progressLayer[data-leaving], .progressLayer[data-leaving] .waiting, :global([data-boot-content-arriving]), :global([data-boot-navigation-arriving]) { animation-duration: var(--motion-reduced); animation-delay: 0ms; }
+}
+:global([data-reduce-motion='true']) .spinner, :global([data-reduce-motion='true']) .message span { transition-duration: var(--motion-reduced); }
+:global([data-reduce-motion='true']) .spinner i { animation: breathe 1.6s ease-in-out infinite; }
+:global([data-reduce-motion='true']) .progressLayer[data-leaving], :global([data-reduce-motion='true']) .progressLayer[data-leaving] .waiting, :global([data-reduce-motion='true'] [data-boot-content-arriving]), :global([data-reduce-motion='true'] [data-boot-navigation-arriving]) { animation-duration: var(--motion-reduced); animation-delay: 0ms; }

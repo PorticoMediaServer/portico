@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Portico</Name><Repository>ghcr.io/porticomediaserver/portico-server:latest</Repository>
+  <Registry>https://ghcr.io/porticomediaserver/portico-server</Registry><Network>bridge</Network><Privileged>false</Privileged>
+  <Support>https://github.com/PorticoMediaServer/portico-server/issues</Support><Project>https://getportico.tv</Project>
+  <Overview>Portico media server. Store the database on a local cache pool. /mnt/user/appdata is the conventional mapping; prefer /mnt/cache/appdata/portico to avoid the FUSE pool. For Intel hardware transcoding, install the Intel GPU TOP plugin and keep the render device below. AMD uses that render device too, and codec availability is probed. For NVIDIA, use the Portico-NVIDIA template and install the Nvidia Driver plugin.</Overview>
+  <WebUI>http://[IP]:[PORT:32500]/</WebUI><Category>MediaServer:Video</Category>
+  <Config Name="Data" Target="/config" Default="/mnt/user/appdata/portico" Mode="rw" Description="Persistent data. Prefer a local cache-pool path such as /mnt/cache/appdata/portico." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/portico</Config>
+  <Config Name="Transcode" Target="/transcode" Default="/mnt/cache/appdata/portico-transcode" Mode="rw" Description="Dedicated fast local disk directory for Disk, fallback and spill. Keep this on disk; Memory when available uses a separate bounded tmpfs (Docker /dev/shm by default)." Type="Path" Display="always" Required="false" Mask="false">/mnt/cache/appdata/portico-transcode</Config>
+  <Config Name="Media" Target="/media" Default="/mnt/user/media" Mode="ro" Description="Your media library" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/media</Config>
+  <Config Name="Web" Target="32500" Default="32500" Mode="tcp" Type="Port" Display="always" Required="true" Mask="false">32500</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
+  <Config Name="UMASK" Target="UMASK" Default="0002" Type="Variable" Display="advanced" Required="true" Mask="false">0002</Config>
+  <Config Name="TZ" Target="TZ" Default="Etc/UTC" Type="Variable" Display="advanced" Required="true" Mask="false">Etc/UTC</Config>
+  <Config Name="Intel or AMD render device" Target="/dev/dri" Default="/dev/dri" Mode="" Description="The Intel or AMD render device for hardware transcoding. Remove it if this server has no GPU; actual codec availability is still probed." Type="Device" Display="always" Required="false" Mask="false">/dev/dri</Config>
+  <Config Name="Platform" Target="PORTICO_PLATFORM" Default="unraid" Type="Variable" Display="advanced" Required="false" Mask="false">unraid</Config>
+</Container>

@@ -1,0 +1,31 @@
+{
+  "schema": "PostDeviceResponse",
+  "method": "POST",
+  "path": "/v1/devices",
+  "auth": "owner",
+  "request": {
+    "installationId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "name": "TV",
+    "platform": "tvOS",
+    "app": "Portico",
+    "appVersion": "1"
+  },
+  "status": 201,
+  "response": {
+    "id": "PZXycfPlP4_wrye6pZmrYds4Vdsd44UEKZsCjOGRiB0",
+    "authority": "local",
+    "installationId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "name": "TV",
+    "platform": "tvOS",
+    "app": "Portico",
+    "appVersion": "1",
+    "ip": "192.0.2.1",
+    "firstSeen": "2026-09-23T09:18:42Z",
+    "lastSeen": "2026-09-23T09:18:42Z",
+    "trusted": false,
+    "approvalState": "approved",
+    "rememberAccount": true,
+    "current": false,
+    "sessions": 0
+  }
+}

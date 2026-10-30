@@ -1,0 +1,18 @@
+{
+  "rootPublic": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+  "envelope": {
+    "payload": "eyJraW5kIjoicG9ydGljby50cnVzdC50ZXN0LXZlY3RvciIsInZhbHVlIjoxfQ",
+    "signature": "BQyYT9tgUKf1o8DRsYVxy07xPae3udFS2ykIc9YJjepHz8aHdmrWomv9KeidEl18JBvGax8l0eWin5_ihC0eAA",
+    "keyId": "shared-vector",
+    "certificate": {
+      "keyId": "shared-vector",
+      "publicKey": "oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA",
+      "purpose": "documents",
+      "notBefore": "2026-01-01T00:00:00Z",
+      "notAfter": "2026-06-30T00:00:00Z",
+      "revision": 7,
+      "revoked": [],
+      "signature": "EiUVPAh5eKRmLujJbfP3jh-Jr3Xl0A5RIbl3aJ0p9QAy_2b0uvWjHpcUG58j2AbzjHCEbi4XOBzCWxwiO1-FBA"
+    }
+  }
+}

@@ -1,0 +1,4 @@
+.body {display: flex; flex-direction: column; gap: 16px; font-size: var(--type-body-size); line-height: var(--type-body-line);}
+.body p {margin: 0; overflow-wrap: anywhere;}
+.confirm {display: flex; align-items: flex-start; gap: 12px; cursor: pointer;}
+.confirm input {flex: none; margin-top: 4px; accent-color: var(--color-accent-strong);}

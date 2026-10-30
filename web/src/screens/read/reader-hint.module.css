@@ -1,0 +1,16 @@
+/* phone-read 14: the first-time tap zones sit over the page but under nothing
+   else; the page itself stays visible behind the scrim. */
+.hint { position: absolute; inset: 0; z-index: var(--layer-menu); display: flex; flex-direction: column;
+  justify-content: space-between; background: color-mix(in srgb, var(--color-dim) 55%, transparent); color: var(--color-text); }
+.zones { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: stretch; }
+.zone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: 20px; text-align: center; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); }
+.zone + .zone { border-inline-start: 1px dashed color-mix(in srgb, var(--color-text) 25%, transparent); }
+.zone small { font-size: var(--type-fixed-size-12px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); }
+.center { color: var(--color-text-secondary); }
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px calc(18px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--color-ink) 94%, transparent); border-top: 1px solid var(--color-line); }
+.instruction { display: flex; align-items: center; gap: 10px; font-size: var(--type-fixed-size-13px); line-height: var(--type-fixed-line-1point-4); color: var(--color-text-secondary); }
+@media (max-width: 599px) { .zone { font-size: var(--type-fixed-size-14px); gap: 8px; padding: 14px 10px; } .foot { padding-inline: 16px; } }
+
+.instructions { display: flex; flex-direction: column; gap: 10px; }

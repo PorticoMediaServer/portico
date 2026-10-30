@@ -1,0 +1,349 @@
+name: Release Portico Media Server
+
+# A numbered release starts from a reviewed vMAJOR.MINOR.PATCH tag. It reruns
+# the CI suite, builds every server binary from an isolated, sealed source
+# snapshot (scripts/build-server-release.py) with the approved FFmpeg toolchain
+# release (third_party/ffmpeg/sources.lock.json releaseTag), packages them,
+# pushes the container image and publishes the GitHub Release.
+#
+# Repository secret: PORTICO_RELEASE_SIGNING_KEY, the base64 of the 32-byte raw
+# Ed25519 private key that signs each build manifest (server/api/release-signing.md).
+# Optional: PORTICO_MACOS_SIGNING_IDENTITY for a signed macOS app.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v-prefixed tag to build and publish
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ github.ref_name }}${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  identity:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.identity.outputs.tag }}
+      sha: ${{ steps.identity.outputs.sha }}
+      version: ${{ steps.identity.outputs.version }}
+      toolchain_tag: ${{ steps.identity.outputs.toolchain_tag }}
+      built_at: ${{ steps.identity.outputs.built_at }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {ref: '${{ inputs.tag || github.ref }}', fetch-depth: 0}
+      - id: identity
+        env: {REQUESTED_TAG: '${{ inputs.tag || github.ref_name }}'}
+        run: |
+          [[ "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]
+          {
+            echo "tag=$REQUESTED_TAG"
+            echo "sha=$(git rev-parse HEAD)"
+            echo "version=${REQUESTED_TAG#v}"
+            echo "toolchain_tag=$(python3 -c "import json;print(json.load(open('third_party/ffmpeg/sources.lock.json'))['releaseTag'])")"
+            echo "built_at=$(git show -s --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ HEAD)"
+          } >> "$GITHUB_OUTPUT"
+      - name: The signing key is configured
+        env: {KEY: '${{ secrets.PORTICO_RELEASE_SIGNING_KEY }}', PUBLIC_KEY: '${{ vars.PORTICO_RELEASE_PUBLIC_KEY }}'}
+        run: test -n "$KEY" || { echo "Set the PORTICO_RELEASE_SIGNING_KEY repository secret before releasing." >&2; exit 1; }
+
+  tests:
+    needs: identity
+    uses: ./.github/workflows/ci.yml
+    # The suite must run on the tag being published, not on the ref a manual
+    # dispatch happened to start from.
+    with: {ref: '${{ needs.identity.outputs.sha }}'}
+
+  qualification:
+    needs: [identity, tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      PORTICO_TEST_TIER: all
+      PORTICO_PERFORMANCE_TIER: release
+      PORTICO_REQUIRE_QUALIFIED_FFMPEG: "1"
+      GOFLAGS: -p=2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {ref: '${{ needs.identity.outputs.sha }}'}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - name: Test the application revision with its qualified media bundle
+        env: {GH_TOKEN: '${{ github.token }}', TOOLCHAIN_TAG: '${{ needs.identity.outputs.toolchain_tag }}'}
+        run: |
+          set -euo pipefail
+          mkdir -p .toolchain third_party/ffmpeg/bundle .scratch
+          gh release download "$TOOLCHAIN_TAG" --pattern "portico-ffmpeg-${TOOLCHAIN_TAG}-linux-x64.tar.xz" --dir .toolchain
+          tar -xJf .toolchain/*.tar.xz -C third_party/ffmpeg/bundle
+          scripts/verify-ffmpeg-bundle.sh third_party/ffmpeg/bundle full
+          export PORTICO_GO_TAGS="$(python3 scripts/release-build-tags.py --capability)"
+          cd server
+          go build -tags "$PORTICO_GO_TAGS" -o ../.scratch/portico-server ./cmd/server
+          export PORTICO_PLAYBACK_TEST_HELPER="$GITHUB_WORKSPACE/.scratch/portico-server"
+          go test -tags "$PORTICO_GO_TAGS" -timeout=120m ./...
+
+  web:
+    needs: [identity, tests]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {ref: '${{ needs.identity.outputs.sha }}'}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: {node-version-file: .node-version, cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build --workspace portico-web
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: {name: web-dist, path: web/dist, if-no-files-found: error}
+
+  server:
+    environment: server-release
+    # Every target is cross-compiled on Linux (CGO off); the sealing script runs
+    # the server suite before each build, so each job needs the test database.
+    needs: [identity, tests, qualification, web]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: linux, arch: amd64, target: linux-x64}
+          - {os: linux, arch: arm64, target: linux-arm64}
+          - {os: windows, arch: amd64, target: windows-x64}
+          - {os: windows, arch: arm64, target: windows-arm64}
+          - {os: darwin, arch: arm64, target: macos-arm64}
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: portico
+          POSTGRES_PASSWORD: disposable-ci-password
+          POSTGRES_DB: portico_test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {ref: '${{ needs.identity.outputs.sha }}'}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: {name: web-dist, path: .release/web}
+      - name: Release tools
+        run: |
+          python3 -m pip install --user -r scripts/requirements-release.txt
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.43.4
+          sudo apt-get update -qq && sudo apt-get install -y -qq nsis zip
+          mkdir -p .cache/tmp .scratch
+          printf '%s' 'postgres://portico:disposable-ci-password@localhost:5432/portico_test?sslmode=disable' > .scratch/postgres.url
+          echo "PORTICO_TEST_DATABASE_URL_FILE=$PWD/.scratch/postgres.url" >> "$GITHUB_ENV"
+      - name: Download the qualified FFmpeg toolchain
+        env: {GH_TOKEN: '${{ github.token }}', TOOLCHAIN_TAG: '${{ needs.identity.outputs.toolchain_tag }}'}
+        run: |
+          mkdir -p .toolchain/ffmpeg
+          gh release download "$TOOLCHAIN_TAG" --pattern "portico-ffmpeg-${TOOLCHAIN_TAG}-${{ matrix.target }}.tar.xz" --dir .toolchain
+          tar -xJf .toolchain/*.tar.xz -C .toolchain/ffmpeg
+      - name: Download and verify Sonic for Linux packages
+        if: matrix.os == 'linux'
+        run: python3 scripts/sonic-bundle.py fetch .toolchain/sonic --target '${{ matrix.target }}'
+      - name: Restore the release signing key
+        env: {KEY: '${{ secrets.PORTICO_RELEASE_SIGNING_KEY }}', PUBLIC_KEY: '${{ vars.PORTICO_RELEASE_PUBLIC_KEY }}'}
+        run: |
+          install -d -m 700 runtime/release-signing
+          umask 077
+          printf '%s' "$KEY" | base64 --decode > runtime/release-signing/private-key
+          test "$(wc -c < runtime/release-signing/private-key)" -eq 32
+          test -n "$PUBLIC_KEY"
+          printf '%s' "$PUBLIC_KEY" | base64 --decode > runtime/release-signing/pinned-public-key
+          test "$(wc -c < runtime/release-signing/pinned-public-key)" -eq 32
+          echo "PORTICO_RELEASE_PUBLIC_KEY_FILE=$PWD/runtime/release-signing/pinned-public-key" >> "$GITHUB_ENV"
+      - name: Build and seal the server
+        id: build
+        run: |
+          sonic_args=()
+          if [ '${{ matrix.os }}' = linux ]; then sonic_args=(--sonic-bundle .toolchain/sonic); fi
+          result="$(python3 scripts/build-server-release.py --version '${{ needs.identity.outputs.version }}' --os '${{ matrix.os }}' --arch '${{ matrix.arch }}' --ffmpeg-bundle .toolchain/ffmpeg "${sonic_args[@]}" | tail -1)"
+          echo "stage=$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['directory'])" "$result")" >> "$GITHUB_OUTPUT"
+      - name: Package
+        run: ./scripts/package-release.sh '${{ matrix.os }}' '${{ matrix.arch }}' '${{ needs.identity.outputs.version }}' '${{ steps.build.outputs.stage }}' .release/web dist '${{ github.run_number }}'
+      - name: Forget the signing key
+        if: always()
+        run: rm -rf runtime/release-signing
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: matrix.os != 'darwin'
+        with: {name: 'assets-${{ matrix.target }}', path: 'dist/*${{ matrix.os == ''windows'' && ''Windows'' || ''linux'' }}*${{ matrix.arch == ''amd64'' && ''x64'' || ''arm64'' }}*.*', if-no-files-found: error}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: matrix.os == 'darwin'
+        with: {name: macos-payload, path: dist/payload-darwin-arm64, if-no-files-found: error}
+
+  macos:
+    environment: server-release
+    needs: [identity, server]
+    runs-on: macos-15
+    env:
+      PORTICO_MACOS_INSTALLER_IDENTITY: ${{ secrets.PORTICO_MACOS_INSTALLER_IDENTITY }}
+      PORTICO_MACOS_SIGNING_IDENTITY: ${{ secrets.PORTICO_MACOS_SIGNING_IDENTITY }}
+      PORTICO_RELEASE_SIGNING_KEY_FILE: ${{ github.workspace }}/runtime/release-signing/private-key
+      PORTICO_RELEASE_PUBLIC_KEY_FILE: ${{ github.workspace }}/runtime/release-signing/pinned-public-key
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {ref: '${{ needs.identity.outputs.sha }}'}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: {name: macos-payload, path: .release/macos-payload}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        if: env.PORTICO_MACOS_SIGNING_IDENTITY != ''
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - name: Signed package tools
+        if: env.PORTICO_MACOS_SIGNING_IDENTITY != ''
+        run: |
+          python3 -m venv .release/signing-venv
+          .release/signing-venv/bin/python -m pip install -r scripts/requirements-release.txt
+          echo "$PWD/.release/signing-venv/bin" >> "$GITHUB_PATH"
+      - name: Restore the release signing key
+        if: env.PORTICO_MACOS_SIGNING_IDENTITY != ''
+        env: {KEY: '${{ secrets.PORTICO_RELEASE_SIGNING_KEY }}', PUBLIC_KEY: '${{ vars.PORTICO_RELEASE_PUBLIC_KEY }}'}
+        run: |
+          install -d -m 700 runtime/release-signing
+          umask 077
+          python3 -c "import base64,os,pathlib; pathlib.Path(os.environ['PORTICO_RELEASE_SIGNING_KEY_FILE']).write_bytes(base64.b64decode(os.environ['KEY'], validate=True))"
+          test "$(wc -c < runtime/release-signing/private-key)" -eq 32
+          test -n "$PUBLIC_KEY"
+          printf '%s' "$PUBLIC_KEY" | base64 --decode > runtime/release-signing/pinned-public-key
+      - run: ./scripts/package-macos.sh '${{ needs.identity.outputs.version }}' .release/macos-payload dist '${{ github.run_number }}'
+      - name: Forget the signing key
+        if: always()
+        run: rm -rf runtime/release-signing
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: {name: assets-macos-arm64, path: dist/Portico-Media-Server-macOS-arm64.*, if-no-files-found: error}
+
+  docker:
+    environment: server-release
+    # Do not move the public container tags until every native package exists.
+    needs: [identity, server, macos]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {ref: '${{ needs.identity.outputs.sha }}'}
+      - name: Download the qualified FFmpeg toolchain for both image architectures
+        # The image build copies third_party/ffmpeg/bundle, which is generated
+        # and never committed, and no earlier job's workspace reaches this one.
+        # Each architecture gets its own bundle; the Dockerfile picks the one
+        # for the image it is building and verifies it there.
+        env: {GH_TOKEN: '${{ github.token }}', TOOLCHAIN_TAG: '${{ needs.identity.outputs.toolchain_tag }}'}
+        run: |
+          set -euo pipefail
+          for pair in x64:amd64 arm64:arm64; do
+            target="linux-${pair%%:*}"
+            bundle="third_party/ffmpeg/bundle/linux-${pair##*:}"
+            mkdir -p ".toolchain/$target" "$bundle"
+            gh release download "$TOOLCHAIN_TAG" --pattern "portico-ffmpeg-${TOOLCHAIN_TAG}-${target}.tar.xz" --dir ".toolchain/$target"
+            tar -xJf ".toolchain/$target"/*.tar.xz -C "$bundle"
+            python3 scripts/verify-ffmpeg-manifest.py "$bundle"
+            test "$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['target'])" "$bundle/toolchain-manifest.json")" = "$target"
+          done
+      - name: Download and verify Sonic for both image architectures
+        run: |
+          set -euo pipefail
+          for pair in x64:amd64 arm64:arm64; do
+            python3 scripts/sonic-bundle.py fetch "third_party/portico-sonic/bundle/linux-${pair##*:}" --target "linux-${pair%%:*}"
+          done
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with: {registry: ghcr.io, username: '${{ github.actor }}', password: '${{ github.token }}'}
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        id: build
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/porticomediaserver/portico-server:${{ needs.identity.outputs.version }}
+            ghcr.io/porticomediaserver/portico-server:latest
+          build-args: |
+            PORTICO_VERSION=${{ needs.identity.outputs.version }}
+            PORTICO_BUILT_AT=${{ needs.identity.outputs.built_at }}
+          provenance: mode=max
+          sbom: true
+      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with: {subject-name: 'ghcr.io/porticomediaserver/portico-server', subject-digest: '${{ steps.build.outputs.digest }}', push-to-registry: true}
+
+  publish:
+    environment: server-release
+    needs: [identity, server, macos, docker]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {ref: '${{ needs.identity.outputs.sha }}'}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: {path: dist/artifacts, pattern: 'assets-*', merge-multiple: true}
+      - name: Verify the complete platform payload
+        run: |
+          set -euo pipefail
+          expected=(
+            Portico-Media-Server-Windows-x64-Setup.exe
+            Portico-Media-Server-Windows-x64-Portable.zip
+            Portico-Media-Server-Windows-arm64-Setup.exe
+            Portico-Media-Server-Windows-arm64-Portable.zip
+            Portico-Media-Server-macOS-arm64.dmg
+            Portico-Media-Server-macOS-arm64.pkg
+            portico-media-server-linux-x64.tar.gz
+            portico-media-server-linux-x64.deb
+            portico-media-server-linux-x64.rpm
+            portico-media-server-linux-arm64.tar.gz
+            portico-media-server-linux-arm64.deb
+            portico-media-server-linux-arm64.rpm
+          )
+          for asset in "${expected[@]}"; do
+            [[ -s "dist/artifacts/$asset" ]] || { echo "Missing or empty release asset: $asset" >&2; exit 1; }
+          done
+          actual="$(find dist/artifacts -maxdepth 1 -type f | wc -l | tr -d ' ')"
+          [[ "$actual" == "${#expected[@]}" ]] || { echo "Expected ${#expected[@]} assets, found $actual." >&2; find dist/artifacts -maxdepth 1 -type f | sort >&2; exit 1; }
+      - run: |
+          (cd dist/artifacts && sha256sum ./* | sort -k2 > checksums.sha256)
+          node scripts/write-public-update-manifest.mjs '${{ needs.identity.outputs.version }}'
+          cp dist/portico-update-manifest.json dist/artifacts/
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with: {path: dist/artifacts, format: spdx-json, output-file: dist/artifacts/portico-release.spdx.json}
+      - name: Authenticate the complete release
+        env: {KEY: '${{ secrets.PORTICO_RELEASE_SIGNING_KEY }}', PUBLIC_KEY: '${{ vars.PORTICO_RELEASE_PUBLIC_KEY }}'}
+        run: |
+          set -euo pipefail
+          python3 -m venv .release/sealing-venv
+          .release/sealing-venv/bin/pip install -r scripts/requirements-release.txt
+          install -d -m 700 runtime/release-signing
+          umask 077
+          printf '%s' "$KEY" | base64 --decode > runtime/release-signing/private-key
+          printf '%s' "$PUBLIC_KEY" | base64 --decode > runtime/release-signing/pinned-public-key
+          .release/sealing-venv/bin/python scripts/seal-release-artifacts.py dist/artifacts --key runtime/release-signing/private-key --public-key runtime/release-signing/pinned-public-key --source '${{ needs.identity.outputs.sha }}'
+      - name: Forget final release signing material
+        if: always()
+        run: rm -rf runtime/release-signing
+      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with: {subject-path: 'dist/artifacts/*'}
+      - name: The release tag still names the tested revision
+        env: {TAG: '${{ needs.identity.outputs.tag }}', SOURCE_SHA: '${{ needs.identity.outputs.sha }}'}
+        run: |
+          set -euo pipefail
+          remote_sha=$(git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}" | awk 'NR==1 { direct=$1 } $2 ~ /\^\{\}$/ { peeled=$1 } END { print peeled ? peeled : direct }')
+          test "$remote_sha" = "$SOURCE_SHA"
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: '${{ needs.identity.outputs.tag }}'
+          name: 'Portico Media Server ${{ needs.identity.outputs.version }} — Development Preview'
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+          body: |
+            Portico Media Server is still prerelease-quality software. This release is published as the current development preview so the permanent `/releases/latest` link remains useful.
+
+            Linux downloads include distribution-neutral `.tar.gz` bundles for x64 and ARM64 as well as DEB and RPM packages.
+
+            Packages are unsigned. Automatic installation is disabled; verify `checksums.sha256` and install manually.
+          files: dist/artifacts/*

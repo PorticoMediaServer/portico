@@ -1,0 +1,23 @@
+{
+ "file": "single-alac.m4a",
+ "container": "mp4",
+ "codec": "alac",
+ "sampleRate": 44100,
+ "channels": 2,
+ "durationFrames": 221104,
+ "rawFrames": 221104,
+ "trim": {
+  "startFrames": 0,
+  "endFrames": 0,
+  "source": "itunsmpb"
+ },
+ "signal": {
+  "formula": "amplitude*sin(2*pi*frequency*(n+offset)/sampleRate)",
+  "amplitude": 0.5,
+  "frequency": 441,
+  "offset": 0
+ },
+ "tolerance": 0.0001,
+ "edgeFrames": 64,
+ "edgeTolerance": 0.0001
+}

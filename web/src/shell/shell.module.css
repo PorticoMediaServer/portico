@@ -1,0 +1,124 @@
+.shell { min-height: 100dvh; --shell-gutter: var(--gutter-phone); --shell-tab-height: calc(56px + env(safe-area-inset-bottom, 0px)); padding-bottom: var(--shell-tab-height); }
+.shell[data-desktop='true'] { --shell-gutter: clamp(32px, calc(32px + (100vw - 1024px) / 13), 64px); padding-bottom: 0; }
+/* The fixed top bar's height. A flat page clears it with this; a page under a hero or wash does not. Rail, sidebar and phone have no top bar. */
+.shell { --shell-top: 0px; }
+.shell[data-navigation='topbar'] { --shell-top: 76px; }
+.shell[data-has-dock='true'] { padding-bottom: calc(var(--shell-tab-height) + 78px); }
+.shell[data-desktop='true'][data-has-dock='true'] { padding-bottom: 92px; }
+.shell[data-navigation='rail'], .shell[data-navigation='sidebar'] { --shell-tab-height: 0px; --shell-gutter: 24px; --shell-nav-width: 84px; padding-left: var(--shell-nav-width); padding-bottom: 0; }
+.shell[data-navigation='sidebar'] { --shell-nav-width: 248px; --shell-gutter: 32px; }
+.shell[data-navigation='tabs'] :global([data-home-document]:has([data-with-hero='false'])) { padding-top: 56px; }
+.shell[data-navigation='topbar'] :global([data-home-document]:has([data-with-hero='false'])) { padding-top: 76px; }
+.shell[data-navigation='rail'][data-has-dock='true'], .shell[data-navigation='sidebar'][data-has-dock='true'] { padding-bottom: 92px; }
+/* Pinned navigation surrounds one shrinking library scroller. */
+.rail { position: fixed; inset: 0 auto 0 0; width: var(--shell-nav-width); z-index: var(--layer-navigation); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: max(16px, env(safe-area-inset-top, 0px)) 0 max(12px, env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--color-ink) 72%, transparent); backdrop-filter: blur(18px); border-right: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); }
+.railPrimary, .railFixed, .railBottom, .railBrand { flex: none; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.railItem { position: relative; flex: none; min-height: 56px; width: 72px; min-width: 44px; border: 0; border-radius: 14px; background: none; color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 3px; padding: 6px 0 5px; text-decoration: none; cursor: pointer; font-size: var(--type-tab-bar-size); font-weight: var(--type-tab-bar-weight); line-height: var(--type-tab-bar-line); }
+.railItem svg { flex: none; }
+.railItem [data-nav-label] { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.railItem:hover, .railItem[aria-current='page'], .collapse:hover { background: color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text); }
+.rail a:focus-visible, .rail button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; }
+.railBrand { min-height: 48px; flex-direction: row; justify-content: center; }
+.railBrand .brand { min-height: 44px; display: flex; align-items: center; }
+.railBrand .brand img { height: calc(17px * var(--spec-navigation-web-wordmark-scale)); }
+.railDivider { flex: none; height: 1px; width: 36px; margin: 5px auto; background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.libraryGroup { flex: 0 1 auto; min-height: 0; width: 100%; display: flex; flex-direction: column; }
+.railLibraries { min-height: 0; width: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; display: flex; flex-direction: column; align-items: center; gap: 2px; scrollbar-width: none; --nav-fade-start: 0px; --nav-fade-end: 0px; mask-image: linear-gradient(to bottom, transparent, black var(--nav-fade-start), black calc(100% - var(--nav-fade-end)), transparent); }
+.railLibraries[data-fade-start='true'] { --nav-fade-start: 14px; }
+.railLibraries[data-fade-end='true'] { --nav-fade-end: 14px; }
+.libraryHeading { margin: 14px 12px 4px; color: var(--color-text-tertiary); font-size: var(--type-label-size); font-weight: var(--type-button-weight); }
+.railBottom { margin-top: auto; padding-top: 4px; }
+.railBottom .avatar { margin: 4px 0 0; min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+.railItem[data-icon-only='true'] { width: 44px; min-height: 44px; height: 44px; padding: 0; }
+.railItem[data-nav-activity][data-icon-only='true'] { width: 64px; flex-direction: row; gap: 5px; }
+.railItem [data-nav-count] { flex: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: grid; place-items: center; color: var(--color-action-ink); background: var(--color-accent-strong); font-size: var(--type-tab-bar-size); font-weight: var(--type-lockup-weight); line-height: var(--type-tab-bar-line); }
+.railItem[data-icon-only='true']:not([data-nav-activity]) [data-nav-count] { position: absolute; top: 0; right: 0; box-shadow: 0 0 0 2px var(--color-ink); }
+.railItem[data-nav-activity][data-icon-only='true'] [data-nav-count] { padding: 0; background: none; color: var(--color-text); font-size: var(--type-nav-size); }
+.railItem[data-nav-activity]:has([data-nav-count]) { color: var(--color-accent-strong); }
+.railItem[data-nav-activity][data-nav-busy] { color: var(--color-accent-strong); }
+.railItem [data-nav-dot] { position: absolute; top: 8px; left: 24px; width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent-strong); box-shadow: 0 0 0 2px var(--color-ink); }
+.railItem [data-nav-dot='major'] { width: 8px; height: 8px; background: var(--color-danger); }
+.collapse { flex: none; width: 44px; min-height: 44px; display: grid; place-items: center; border: 0; border-radius: 12px; color: var(--color-text-secondary); background: none; cursor: pointer; }
+.shell[data-navigation='sidebar'] .rail { padding-left: 12px; padding-right: 12px; }
+.shell[data-navigation='sidebar'] .railBrand { justify-content: space-between; padding-left: 12px; }
+.shell[data-navigation='sidebar'] .railItem { width: 100%; min-height: 44px; height: 44px; flex-direction: row; justify-content: flex-start; gap: 12px; padding: 0 12px; border-radius: 12px; font-size: var(--type-nav-size); line-height: var(--type-nav-line); }
+.shell[data-navigation='sidebar'] .railItem svg { width: 20px; height: 20px; }
+.shell[data-navigation='sidebar'] .railItem [data-nav-count] { margin-left: auto; height: 22px; min-width: 22px; }
+.shell[data-navigation='sidebar'] .railItem[data-nav-activity] [data-nav-count] { color: var(--color-accent-strong); background: color-mix(in srgb, var(--color-accent-strong) 20%, transparent); }
+.shell[data-navigation='sidebar'] .railDivider { width: calc(100% - 24px); margin: 9px auto; }
+.profileRow { height: 60px; width: 100%; margin-top: 6px; padding: 0 12px 0 10px; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--color-text) 6%, transparent); color: var(--color-text); display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer; }
+.profileText { min-width: 0; flex: 1; }
+.profileText b, .profileText small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profileText b { font-size: var(--type-nav-size); font-weight: var(--type-button-weight); line-height: var(--type-nav-line); }
+.profileText small { font-size: var(--type-label-size); color: var(--color-text-tertiary); line-height: var(--type-label-line); }
+.profileRow > svg { flex: none; color: var(--color-text-tertiary); }
+.shell[data-pointer='coarse'] button:not([data-compact-hit-target]), .shell[data-pointer='coarse'] a { min-height: 44px; min-width: 44px; }
+
+/* states.html 4b / desktop-app.html#16: one quiet line under the top bar while the
+   server stops answering. It never covers the page and leaves by itself. */
+.away { position: fixed; z-index: var(--layer-navigation); top: 88px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 18px 0 14px; border-radius: 20px; white-space: nowrap; background: color-mix(in srgb, var(--color-ink) 90%, transparent); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 14px 30px -12px color-mix(in srgb, var(--color-ink) 80%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent); font-size: var(--type-nav-size); font-weight: var(--type-nav-weight); line-height: var(--type-nav-line); color: var(--color-text-secondary); }
+.shell[data-navigation='rail'] .away, .shell[data-navigation='sidebar'] .away { top: 16px; }
+.awayDot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--color-amber); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-amber) 16%, transparent); }
+.awayLink { margin-left: 6px; font-weight: var(--type-button-weight); color: var(--color-accent-strong); text-decoration: none; }
+/* motion.html 3.1: the bars themselves are named so a page change holds them still. The
+   wrapper has no box of its own (its bars are fixed), so naming it captured nothing. */
+.navigation { position: relative; z-index: var(--layer-navigation); }
+.topnav, .rail { view-transition-name: nav; }
+.tabbar { view-transition-name: nav-tabs; }
+.topnav { position: fixed; z-index: var(--layer-navigation); inset: 0 0 auto; height: 76px; display: flex; align-items: center; gap: 40px; padding: 0 var(--shell-gutter); background: linear-gradient(180deg, color-mix(in srgb, var(--color-ink) 78%, transparent), transparent); }
+.topnav[data-solid='true'] { background: color-mix(in srgb, var(--color-ink) 88%, transparent); -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2); box-shadow: 0 1px 0 color-mix(in srgb, var(--color-text) 8%, transparent); }
+.topnav .avatar[data-current] { box-shadow: 0 0 0 2px var(--color-ink), 0 0 0 4px var(--color-accent); }
+/* Only the installed native host supplies these OS/fullscreen facts. Shared media siblings inherit the clearances. */
+:global(:root:has([data-window-os='macos'][data-window-fullscreen='false'])) { --window-chrome-left-clearance: 104px; }
+:global(:root:has([data-window-os='windows'][data-window-fullscreen='false'])) { --window-chrome-right-clearance: 150px; }
+.topnav { padding-left: max(var(--shell-gutter), var(--window-chrome-left-clearance, 0px)); padding-right: max(var(--shell-gutter), var(--window-chrome-right-clearance, 0px)); }
+.shell[data-window-os='macos'][data-window-fullscreen='false'] .rail { padding-top: 48px; }
+.nativeRailMark { flex: none; height: 44px; width: 100%; display: flex; align-items: center; justify-content: center; }
+.nativeRailMark > span { display: block; width: 19px; height: 28px; overflow: hidden; }
+.nativeRailMark img { height: 28px; width: auto; max-width: none; }
+.brand { color: var(--color-text); font-size: var(--type-nav-size); font-weight: var(--type-lockup-weight); line-height: var(--type-nav-line); letter-spacing: var(--type-nav-tracking); text-decoration: none; flex: none; }
+.brand img { display: block; height: calc(20px * var(--spec-navigation-web-wordmark-scale)); width: auto; }
+.phoneHeader .brand { display: flex; align-items: center; }
+.phoneHeader .brand img { height: calc(16px * var(--spec-navigation-web-wordmark-scale)); }
+.destinations { position: relative; display: flex; flex: 1; gap: 26px; list-style: none; margin: 0; padding: 0; min-width: 0; align-items: center; }
+.destinations > li { flex: none; }
+.destinations a, .more, .destinationMeasure { position: relative; transition: color 160ms var(--ease-out); color: var(--color-text-secondary); font-size: var(--type-nav-size); font-weight: var(--type-nav-weight); line-height: var(--type-nav-line); text-decoration: none; padding: 6px 0; white-space: nowrap; display: flex; align-items: center; gap: 4px; }
+.destinationMeasurements { position: fixed; inset: 0 auto auto 0; width: 0; height: 0; overflow: hidden; visibility: hidden; display: flex; pointer-events: none; }
+.destinationMeasure { flex: none; }
+.more { border: 0; background: none; cursor: pointer; }
+.underlineAnchor { display: contents; }
+.navUnderline { position: absolute; z-index: 1; height: 2px; border-radius: 2px; background: var(--color-accent); pointer-events: none; opacity: 0; transform-origin: left center; }
+.libraryMenu [data-menu-item] { height: auto; min-height: 38px; padding-block: 9px; }
+.libraryMenu [data-menu-item] > span { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+.destinations a:hover, .more:hover, .destinations [aria-current='page'], .more[data-active='true'] { color: var(--color-text); }
+.tools { margin-left: auto; display: flex; align-items: center; gap: 6px; flex: none; }
+.icon { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--color-text-secondary); position: relative; text-decoration: none; }
+.icon:hover, .icon[aria-current='page'] { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 10%, transparent); }
+.icon[aria-current='page']::after { content: ''; position: absolute; width: 16px; height: 2px; bottom: -3px; left: 12px; border-radius: 2px; background: var(--color-accent); }
+.dot { position: absolute; top: 9px; right: 10px; width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent-strong); box-shadow: 0 0 0 2px var(--color-ink); }
+.avatar { position: relative; background: none; border: 0; padding: 0; border-radius: 50%; margin-left: 8px; cursor: pointer; }
+.phoneHeader { position: absolute; z-index: var(--layer-hero-navigation); inset: 0 0 auto; height: 56px; padding: 0 16px 0 20px; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(180deg, color-mix(in srgb, var(--color-ink) 72%, transparent), transparent); }
+.phoneHeader .dot { width: 10px; height: 10px; top: -1px; right: -2px; }
+.tabbar { position: fixed; z-index: var(--layer-navigation); inset: auto 0 0; height: var(--shell-tab-height); padding: 7px 14px env(safe-area-inset-bottom, 0px); display: flex; justify-content: space-around; background: color-mix(in srgb, var(--color-raised) 90%, transparent); backdrop-filter: blur(24px); border-top: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); }
+.tabbar a, .tabbar button { display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--color-text-tertiary); font-size: var(--type-tab-bar-size); font-weight: var(--type-tab-bar-weight); line-height: var(--type-tab-bar-line); text-decoration: none; padding: 0; border: 0; background: none; cursor: pointer; min-width: 44px; min-height: 44px; }
+.tabbar [aria-current='page'] { color: var(--color-text); }
+.skip { position: fixed; z-index: var(--layer-notice); top: 8px; left: 8px; transform: translateY(-200%); background: var(--color-raised); color: var(--color-text); padding: 12px; }
+.skip:focus { transform: none; }
+@media (min-width: 1024px) and (max-width: 1250px) { .topnav { gap: 24px; } .destinations { gap: 16px; } }
+@media (prefers-reduced-motion: reduce) { .skip { transition: none; } }
+
+.phoneTools { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.phoneHeader .avatar { margin-left: 4px; display: flex; align-items: center; justify-content: flex-end; }
+.dashboardCard.dashboardCard { display: flex; height: auto; min-height: 64px; width: calc(100% - 32px); margin: 10px 16px 0; padding: 12px 14px; border-radius: 14px; text-align: left; color: var(--color-text); background: var(--color-raised); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 20%, transparent); }
+.dashboardCard > span { display: flex; align-items: center; gap: 12px; width: 100%; }
+.dashboardIcon { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; background: color-mix(in srgb, var(--color-ink) 50%, transparent); color: var(--color-accent-strong); flex: none; }
+.dashboardText { min-width: 0; flex: 1; }
+.dashboardText small { display: block; font-size: var(--type-label-size); font-weight: var(--type-button-weight); color: var(--color-accent-strong); }
+.dashboardText b { display: block; font-size: var(--type-subheading-size); font-weight: var(--type-lockup-weight); letter-spacing: calc(var(--type-episode-title-tracking) * 2); margin-top: 1px; }
+.dashboardCard > span > svg { color: var(--color-text-tertiary); flex: none; }
+.dashboardCard:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+
+/* desktop-app.html frame 5 .capshade: the authored 52 px gradient from the page's
+   ink, ending clear, so the Windows caption symbols stay readable over a scroll. */
+.captionShade { position: fixed; inset: 0 0 auto var(--shell-nav-width); height: 52px; z-index: var(--layer-navigation); pointer-events: none; opacity: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--color-ink) 90%, transparent) 0, color-mix(in srgb, var(--color-ink) 66%, transparent) 30px, color-mix(in srgb, var(--color-ink) 0%, transparent) 52px); }
+.captionShade[data-on] { opacity: 1; }

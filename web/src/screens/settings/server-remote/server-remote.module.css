@@ -1,0 +1,16 @@
+.page { min-width: 0; }
+.reach { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; margin-top: 28px; padding: 22px 24px; border-radius: 14px; background: var(--color-raised); }
+.reach[data-tone='ok'] { background: radial-gradient(80% 160% at 100% 0%, color-mix(in srgb, var(--color-healthy) 12%, transparent), transparent 60%), var(--color-raised); }
+.reach[data-tone='warn'] { background: radial-gradient(80% 160% at 100% 0%, color-mix(in srgb, var(--color-amber) 12%, transparent), transparent 60%), var(--color-raised); }
+.reachTitle { display: flex; align-items: center; gap: 12px; font-size: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-02em); }
+.reachTitle::before { content: ''; flex: none; width: 11px; height: 11px; border-radius: 50%; background: var(--color-text-tertiary); }
+.reach[data-tone='ok'] .reachTitle::before { background: var(--color-healthy); box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-healthy) 16%, transparent); }
+.reach[data-tone='warn'] .reachTitle::before { background: var(--color-amber); box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-amber) 16%, transparent); }
+.note { margin: 8px 0 0 23px; font-size: var(--type-fixed-size-14px); color: var(--color-text-secondary); }
+.certificateStatus { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 12px; font-size: var(--type-fixed-size-14px); }
+.certificateStatus[data-problem] { color: var(--color-amber); }
+@media (max-width: 599px) {
+  .reach { grid-template-columns: minmax(0, 1fr); padding: 18px; }
+  .reach > button { justify-self: start; margin-left: 23px; }
+  .reachTitle { font-size: var(--type-fixed-size-20px); }
+}

@@ -1,0 +1,59 @@
+/* desktop-listen's album page, lifted onto the current kit. */
+.page { position: relative; isolation: isolate; padding: 24px var(--shell-gutter, 40px) 80px; color: var(--color-text); }
+.bar { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+/* desktop-listen#album: under the desktop top bar there is no back row; the hero starts at 148px
+   (bar 76 + 72), clear of the bar. The rail and phone keep their back row. */
+:global([data-navigation='topbar']) .page { padding-top: calc(var(--shell-top, 76px) + 64px); }
+:global([data-navigation='topbar']) .bar { display: none; }
+/* A row carries its own gutter; inside this padded page it bleeds back to the edge so its heading
+   and first card sit on the page gutter, not twice it. */
+.page > [data-layout-row] { margin-inline: calc(-1 * var(--shell-gutter, 40px)); }
+.barTitle { font-size: var(--type-body-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hero { display: flex; align-items: flex-end; gap: 56px; margin: 8px 0 28px; }
+.art { position: relative; flex: none; width: 340px; height: 340px; border-radius: 12px; background: var(--color-raised); }
+.ambient { z-index: -1; }
+.copy { min-width: 0; padding-bottom: 4px; }
+.kind { margin: 0 0 12px; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-secondary); }
+/* Clear Lockup's inline scale at the call site so these responsive tokens own it. */
+.title { --album-title-size: calc(var(--type-fixed-size-16px) * 6.5); max-width: 900px; margin-bottom: 22px; font-size: var(--album-title-size); font-weight: var(--type-lockup-weight); line-height: var(--type-fixed-line-point-98); }
+.title[data-long] { --album-title-size: calc(var(--type-fixed-size-17px) * 4); }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 0; }
+.by { font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
+.artist { margin: 6px 0 10px; font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-caption-strong-weight); color: var(--color-text-secondary); }
+.meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 26px; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 72px; padding-top: 52px; margin-bottom: 56px; }
+.full { display: grid; grid-template-columns: minmax(0, 1fr); padding-top: 52px; margin-bottom: 56px; }
+.tracks { min-width: 0; }
+.sortBar { display: flex; justify-content: flex-end; margin-bottom: 18px; }
+.trackGroup + .trackGroup { margin-top: 24px; }
+.discHeading { margin: 0 0 12px; font-size: var(--type-body-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-secondary); }
+.aside { min-width: 0; }
+.detailsTitle { margin: 0 0 12px; font-size: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-700); letter-spacing: var(--type-fixed-tracking-minus-point-015em); }
+.facts { display: grid; grid-template-columns: 104px 1fr; gap: 12px 16px; margin: 0; font-size: var(--type-fixed-size-15px); }
+.facts dt { color: var(--color-text-tertiary); }
+.facts dd { margin: 0; }
+.overview { margin: 0 0 18px; }
+.source { display: block; margin: -8px 0 24px; color: var(--color-text-tertiary); font-size: var(--type-caption-size); }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.badge { display: inline-flex; align-items: center; height: 26px; padding: 0 9px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--color-text) 30%, transparent); font-size: var(--type-fixed-size-13px); font-weight: var(--type-caption-strong-weight); color: var(--color-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 1023px) {
+  .hero { gap: 32px; }
+  .art { width: 260px; height: 260px; }
+  .title { --album-title-size: var(--type-fixed-size-56px); }
+  .title[data-long] { --album-title-size: calc(var(--type-fixed-size-21px) * 2); }
+  .split { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .facts { grid-template-columns: 88px 1fr; }
+}
+@media (max-width: 599px) {
+  .page { padding: 12px 16px 64px; }
+  .hero { flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+  .copy { width: 100%; }
+  .title, .title[data-long] { --album-title-size: var(--type-fixed-size-30px); font-weight: var(--type-fixed-weight-800); }
+  .kind { display: none; }
+  .by { font-size: var(--type-fixed-size-16px); font-weight: var(--type-fixed-weight-700); color: var(--color-accent-strong); }
+  .art { width: 232px; height: 232px; }
+  .meta { flex-direction: column; justify-content: center; }
+  .meta > div { font-size: var(--type-fixed-size-13px); }
+  .actions, .badges { justify-content: center; }
+  .badge { font-size: var(--type-fixed-size-11px); height: 20px; padding: 0 6px; border-radius: 4px; }
+}

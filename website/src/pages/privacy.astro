@@ -1,0 +1,137 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+<BaseLayout title="Privacy" description="What information Portico processes on its website, software and hosted services, and what it doesn't.">
+  <article class="legal-page section-light">
+    <h1>Privacy</h1>
+    <p class="legal-lead">Your media activity stays between your devices and the Portico Server you choose. Portico Services coordinate access, but they aren't part of the media path.</p>
+
+    <p><strong>Last updated:</strong> October 22, 2026</p>
+
+    <h2>Who this policy covers</h2>
+    <p>This policy covers information processed by the Portico public website, Portico applications, and Portico-hosted account and connection services (“Portico Services”).</p>
+    <p>Each independently operated Portico Server has its own administrator and its own data practices. The server owner, not Portico, controls the media, local accounts, permissions, server logs and other information held on that server.</p>
+
+    <h2>Public website</h2>
+    <p>The public website doesn't use advertising, tracking pixels, account sessions, or analytics that follow you across the web.</p>
+    <p>When you visit, our delivery and hosting systems must process ordinary request information to return the page and protect the service. This includes the requested address, the time, browser information, your network address and security signals. We don't use that information to build advertising profiles.</p>
+
+    <h2>Portico Account information</h2>
+    <p>If you use Portico Services, we process the information needed to provide and protect your account. This can include:</p>
+    <ul>
+      <li>your email address</li>
+      <li>your username and display name</li>
+      <li>authentication and recovery information</li>
+      <li>active sessions</li>
+      <li>registered devices</li>
+      <li>security events</li>
+      <li>records of your requests to us</li>
+    </ul>
+    <p>We don't store passwords and comparable secrets as readable account records. We store them using appropriate one-way or encrypted protections.</p>
+    <p>Profiles, their names and pictures, viewing preferences and permissions live only on each Portico Server. Portico Services don't store them.</p>
+
+    <h2>Server coordination information</h2>
+    <p>Portico Services process the limited account and connection information needed to connect accounts and servers. This can include:</p>
+    <ul>
+      <li>a server identifier and public identity key</li>
+      <li>the owner account and an index of account roles: owner, administrator or member</li>
+      <li>registered addresses and signed connection information</li>
+      <li>connection reachability and health state</li>
+      <li>certificate coordination state</li>
+      <li>software version and device descriptors</li>
+      <li>timestamps</li>
+      <li>the public network address observed when a server contacts Portico Services</li>
+    </ul>
+    <p>The server decides who may use it and what they may do. Portico Services keep the role index so apps can show your server list; they don't store libraries, access permissions or invitations.</p>
+    <p>To let apps connect at home, a Portico Account server's home-network addresses are published under public DNS names. Those names and addresses can be looked up publicly. Knowing an address doesn't authorize access: the server still requires sign-in.</p>
+    <p>A server using local accounts doesn't contact Portico Services. If its owner switches to local sign-in while offline, a notice already queued for delivery withdraws its Portico registration when Services can be reached.</p>
+
+    <h2>Media and streaming stay private</h2>
+    <p>Portico Services don't host, proxy, tunnel, relay, cache, transform, inspect, meter or store any of the following: video, audio, Live TV, DVR recordings, artwork, subtitles or downloads. They don't receive ordinary library browsing, playback, progress, remote-control or server API traffic.</p>
+    <p>Portico Services don't collect:</p>
+    <ul>
+      <li>library metadata</li>
+      <li>titles</li>
+      <li>filenames</li>
+      <li>filesystem paths</li>
+      <li>private source addresses</li>
+      <li>playback history</li>
+      <li>watchlists</li>
+      <li>ratings</li>
+      <li>queues</li>
+      <li>local searches</li>
+      <li>stream contents</li>
+      <li>streaming details</li>
+    </ul>
+    <p>Your client connects directly to the Portico Server, so Portico Services aren't technically in a position to monitor that activity.</p>
+    <p>Account and connection-coordination requests still carry the limited technical information described above. Your media traffic and media activity don't pass through Portico Services.</p>
+
+    <h2>A future relay</h2>
+    <p>Portico doesn't currently provide a media relay. If we introduce an optional relay, it's intended to carry end-to-end encrypted connections that Portico can't decrypt or inspect.</p>
+    <p>A relay may need to process limited connection, security and traffic-volume information to operate. It won't be designed to reveal stream contents, titles, library information or playback details. We'll publish updated privacy information specific to that feature before it becomes available.</p>
+
+    <h2>Diagnostics and communications</h2>
+    <p>Portico may process operational logs, error details, request identifiers, network addresses, security signals and aggregate service measurements. We need these to keep hosted services secure and reliable. We keep sensitive information in logs to a minimum, and we don't use operator tools to browse private servers.</p>
+    <p>If you contact support or report abuse, we process the messages, attachments and contact details you provide. We use them to respond and to keep an appropriate record of the matter.</p>
+
+    <h2>How we use information</h2>
+    <p>We use information to:</p>
+    <ul>
+      <li>provide and secure Portico Accounts</li>
+      <li>coordinate connections</li>
+      <li>show the servers your account belongs to</li>
+      <li>deliver service messages</li>
+      <li>diagnose failures</li>
+      <li>prevent fraud and abuse</li>
+      <li>improve reliability</li>
+      <li>respond to requests</li>
+      <li>enforce our terms</li>
+      <li>comply with lawful obligations</li>
+    </ul>
+    <p>We don't sell personal information or use it for targeted advertising.</p>
+
+    <h2>When information is shared</h2>
+    <p>We share information only as reasonably needed:</p>
+    <ul>
+      <li>with service providers that help operate Portico, such as infrastructure, content delivery, email, security and support providers</li>
+      <li>with a server owner when needed to administer a membership or address a service issue</li>
+      <li>when you direct us to share it</li>
+      <li>when required by valid legal process, or when necessary to protect people, Portico or its services</li>
+    </ul>
+    <p>Providers receive only the information appropriate to their role and are expected to protect it.</p>
+    <p>Casting to a Chromecast loads Google’s Cast software from Google.</p>
+    <p>If Portico's ownership or operations change, relevant information may be transferred as part of that transaction, subject to continued protection and applicable law.</p>
+
+    <h2>Abuse and legal requests</h2>
+    <p>We review reports sent to <a href="mailto:abuse@getportico.tv">abuse@getportico.tv</a> in good faith. When necessary to investigate or to allow a response, we may share a report, including the reporter's contact information, with the relevant account or server operator. We won't do this if law, safety or the circumstances call for a different approach. Our <a href="/abuse/">Abuse page</a> explains the process and how to request a correction.</p>
+    <p>Portico responds to valid legal process. We may preserve or disclose information where the law requires it. We can't provide media or media activity that Portico Services don't have.</p>
+
+    <h2 id="retention">Retention</h2>
+    <p>Our goal is to keep personal and operational information for as short a time as practical while keeping the service secure and usable.</p>
+    <p>Active account, membership, session and current connection information stays available while it's needed for those functions. It isn't deleted just because it was created more than 30 days ago.</p>
+    <p>Once information is no longer needed for its stated purpose, we delete or anonymize it as soon as practical, and ordinarily no later than 30 days afterward. A longer period may apply when:</p>
+    <ul>
+      <li>the information is still needed for security, service recovery, resolving a dispute, or another purpose described in this policy, or</li>
+      <li>Portico is required or compelled by law to preserve it.</li>
+    </ul>
+    <p>Encrypted backups rotate on a separate, limited recovery schedule. A deleted value may remain, inaccessible, in a backup until that backup expires.</p>
+    <p>Deleting a Portico Account is refused while it owns a server. Change owner, switch to local sign-in or start over on that server first. When an account is deleted or leaves, Portico Services send only a departure notice. Each server disables that membership and keeps its profiles and media activity until its owner deletes them. Portico Services never erase data on a server. A person's own request to delete their server profiles and history is handled by that server.</p>
+    <p>After a server leaves Portico Services, its registration, account links, addresses and certificate orders are removed. Public-name withdrawal records remain so DNS readers that were offline can remove the names too. These records contain only public names and feed sequence numbers, with no server or account identifiers, network addresses or keys. A hashed receipt permits safe retries of the withdrawal notice.</p>
+    <p>Where feasible, we keep transient network information for shorter periods. Raw or hashed network addresses, stale endpoint observations, rate-limit state and cached connection-retry state are ordinarily kept for about one or two days or less after they stop being operationally useful. Portico doesn't keep them permanently just for convenience.</p>
+    <p>Routine operational audit events are generally kept for seven days. Security and support audit records may be kept longer while they're still needed for those purposes. Request-network fingerprints are removed from them earlier.</p>
+
+    <h2>Your choices</h2>
+    <p>You can review and change account and sign-in settings through Portico Services, and profile, access and media settings on each server. You can also ask for access to, correction of, or deletion of your personal information by emailing <a href="mailto:admin@getportico.tv">admin@getportico.tv</a>. We may need to verify the request. Some information may be kept where it's required for security, legal compliance or another permitted reason.</p>
+    <p>Server owners manage the information stored on their own Portico Servers and can see server-wide play history. Administrators can see Now playing and manage People; they don't get full play history. Your main profile can manage the other profiles on your account without seeing their history. Send requests about a server's media, accounts, permissions, playback records or logs to its owner.</p>
+
+    <h2>Security</h2>
+    <p>Portico uses technical and organizational safeguards appropriate to the information it processes. These include encrypted transport, limited access, credential protection and data minimization. No system can guarantee absolute security. Please use strong account protection and report suspected compromise promptly.</p>
+
+    <h2>International processing</h2>
+    <p>Portico and its service providers may process information in more than one country. Where required, we use appropriate safeguards for information transferred across borders. We apply this policy to the information in our care.</p>
+
+    <h2>Changes and contact</h2>
+    <p>We may update this policy as Portico develops. When we do, the date above will change. Where practicable, we'll give reasonable notice of material changes.</p>
+    <p>Send privacy and security questions to <a href="mailto:admin@getportico.tv">admin@getportico.tv</a>. Send copyright and abuse reports to <a href="mailto:abuse@getportico.tv">abuse@getportico.tv</a>.</p>
+  </article>
+</BaseLayout>

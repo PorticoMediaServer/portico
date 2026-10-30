@@ -1,0 +1,288 @@
+{
+  "schema": "GetRatingSystemsResponse",
+  "method": "GET",
+  "path": "/v1/rating-systems",
+  "auth": "viewer",
+  "status": 200,
+  "response": {
+    "items": [
+      {
+        "id": "mpaa",
+        "name": "MPA (United States film)",
+        "region": "US",
+        "values": [
+          {
+            "code": "G",
+            "label": "G — General audiences",
+            "minimumAge": 0
+          },
+          {
+            "code": "PG",
+            "label": "PG — Parental guidance suggested",
+            "minimumAge": 8
+          },
+          {
+            "code": "PG-13",
+            "label": "PG-13 — Parents strongly cautioned",
+            "minimumAge": 13
+          },
+          {
+            "code": "R",
+            "label": "R — Restricted",
+            "minimumAge": 17
+          },
+          {
+            "code": "NC-17",
+            "label": "NC-17 — Adults only",
+            "minimumAge": 18
+          }
+        ],
+        "screens": [
+          "movie"
+        ]
+      },
+      {
+        "id": "us-tv",
+        "name": "US TV Parental Guidelines",
+        "region": "US",
+        "values": [
+          {
+            "code": "TV-Y",
+            "label": "TV-Y — All children",
+            "minimumAge": 0
+          },
+          {
+            "code": "TV-G",
+            "label": "TV-G — General audience",
+            "minimumAge": 0
+          },
+          {
+            "code": "TV-Y7",
+            "label": "TV-Y7 — Older children",
+            "minimumAge": 7
+          },
+          {
+            "code": "TV-PG",
+            "label": "TV-PG — Parental guidance",
+            "minimumAge": 8
+          },
+          {
+            "code": "TV-14",
+            "label": "TV-14 — Parents strongly cautioned",
+            "minimumAge": 14
+          },
+          {
+            "code": "TV-MA",
+            "label": "TV-MA — Mature audience",
+            "minimumAge": 17
+          }
+        ],
+        "screens": [
+          "show",
+          "season",
+          "episode"
+        ]
+      },
+      {
+        "id": "bbfc",
+        "name": "BBFC (United Kingdom)",
+        "region": "GB",
+        "values": [
+          {
+            "code": "U",
+            "label": "U — Universal",
+            "minimumAge": 0
+          },
+          {
+            "code": "PG",
+            "label": "PG — Parental guidance",
+            "minimumAge": 8
+          },
+          {
+            "code": "12A",
+            "label": "12A — Cinema, under 12 accompanied",
+            "minimumAge": 12
+          },
+          {
+            "code": "12",
+            "label": "12 — Suitable for 12 years and over",
+            "minimumAge": 12
+          },
+          {
+            "code": "15",
+            "label": "15 — Suitable only for 15 years and over",
+            "minimumAge": 15
+          },
+          {
+            "code": "18",
+            "label": "18 — Suitable only for adults",
+            "minimumAge": 18
+          }
+        ],
+        "screens": [
+          "movie",
+          "show",
+          "season",
+          "episode"
+        ]
+      },
+      {
+        "id": "fsk",
+        "name": "FSK (Germany)",
+        "region": "DE",
+        "values": [
+          {
+            "code": "0",
+            "label": "FSK 0",
+            "minimumAge": 0
+          },
+          {
+            "code": "6",
+            "label": "FSK 6",
+            "minimumAge": 6
+          },
+          {
+            "code": "12",
+            "label": "FSK 12",
+            "minimumAge": 12
+          },
+          {
+            "code": "16",
+            "label": "FSK 16",
+            "minimumAge": 16
+          },
+          {
+            "code": "18",
+            "label": "FSK 18",
+            "minimumAge": 18
+          }
+        ],
+        "screens": [
+          "movie",
+          "show",
+          "season",
+          "episode"
+        ]
+      },
+      {
+        "id": "cnc",
+        "name": "CNC (France)",
+        "region": "FR",
+        "values": [
+          {
+            "code": "TP",
+            "label": "Tous publics",
+            "minimumAge": 0
+          },
+          {
+            "code": "-10",
+            "label": "Interdit aux moins de 10 ans",
+            "minimumAge": 10
+          },
+          {
+            "code": "-12",
+            "label": "Interdit aux moins de 12 ans",
+            "minimumAge": 12
+          },
+          {
+            "code": "-16",
+            "label": "Interdit aux moins de 16 ans",
+            "minimumAge": 16
+          },
+          {
+            "code": "-18",
+            "label": "Interdit aux moins de 18 ans",
+            "minimumAge": 18
+          }
+        ],
+        "screens": [
+          "movie",
+          "show",
+          "season",
+          "episode"
+        ]
+      },
+      {
+        "id": "acb",
+        "name": "ACB (Australia)",
+        "region": "AU",
+        "values": [
+          {
+            "code": "G",
+            "label": "G — General",
+            "minimumAge": 0
+          },
+          {
+            "code": "PG",
+            "label": "PG — Parental guidance",
+            "minimumAge": 8
+          },
+          {
+            "code": "M",
+            "label": "M — Mature",
+            "minimumAge": 15
+          },
+          {
+            "code": "MA15+",
+            "label": "MA 15+ — Mature accompanied",
+            "minimumAge": 15
+          },
+          {
+            "code": "R18+",
+            "label": "R 18+ — Restricted",
+            "minimumAge": 18
+          },
+          {
+            "code": "X18+",
+            "label": "X 18+ — Restricted",
+            "minimumAge": 18
+          }
+        ],
+        "screens": [
+          "movie",
+          "show",
+          "season",
+          "episode"
+        ]
+      },
+      {
+        "id": "age",
+        "name": "Minimum age",
+        "region": "",
+        "values": [
+          {
+            "code": "0+",
+            "label": "All ages",
+            "minimumAge": 0
+          },
+          {
+            "code": "6+",
+            "label": "6 and over",
+            "minimumAge": 6
+          },
+          {
+            "code": "12+",
+            "label": "12 and over",
+            "minimumAge": 12
+          },
+          {
+            "code": "16+",
+            "label": "16 and over",
+            "minimumAge": 16
+          },
+          {
+            "code": "18+",
+            "label": "18 and over",
+            "minimumAge": 18
+          }
+        ],
+        "screens": [
+          "movie",
+          "show",
+          "season",
+          "episode"
+        ]
+      }
+    ]
+  }
+}

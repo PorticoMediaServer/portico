@@ -1,0 +1,288 @@
+name: Validate server packages
+
+# Real release packaging with disposable manifest signing. No tags, releases,
+# registries, production signing material or changes to the Hosted trust root.
+on:
+  workflow_dispatch:
+    inputs:
+      toolchain_run:
+        description: Prior validation run to reuse matching toolchain artifacts (missing targets rebuild)
+        type: string
+        required: false
+        default: ''
+      scope:
+        description: All platforms, or macOS using an already completed toolchain artifact
+        type: choice
+        options: [all, macos]
+        required: true
+        default: all
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: server-build-validation-${{ github.ref }}${{ inputs.scope == 'macos' && '-macos' || '' }}
+  cancel-in-progress: false
+
+env:
+  VALIDATION_VERSION: 0.0.${{ github.run_number }}
+  # Keep disposable signing files in the project parent, outside the checkout.
+  PORTICO_RELEASE_SIGNING_KEY_FILE: ${{ github.workspace }}/../.private/server-validation-signing/private-key
+  PORTICO_RELEASE_PUBLIC_KEY_FILE: ${{ github.workspace }}/../.private/server-validation-signing/validation-public-key
+
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - name: Download Go dependencies for the offline licence inventory
+        working-directory: server
+        run: go mod download
+      - name: Audio fixture tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check:web
+      - run: npm run build --workspace portico-web
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: validation-web, path: web/dist, if-no-files-found: error, retention-days: 3}
+
+  toolchain:
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include: ${{ fromJSON(inputs.scope == 'macos' && '[{"runner":"macos-15","target":"macos-arm64"}]' || '[{"runner":"ubuntu-24.04","target":"linux-x64"},{"runner":"ubuntu-24.04","target":"linux-arm64"},{"runner":"ubuntu-24.04","target":"windows-x64"},{"runner":"ubuntu-24.04","target":"windows-arm64"},{"runner":"macos-15","target":"macos-arm64"}]') }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Reuse a matching validation toolchain when available
+        if: inputs.toolchain_run != ''
+        env: {GH_TOKEN: '${{ github.token }}', PREVIOUS_RUN: '${{ inputs.toolchain_run }}', VALIDATION_SCOPE: '${{ inputs.scope }}'}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PREVIOUS_RUN" =~ ^[0-9]+$ ]]
+          work="runtime/ffmpeg-build/${{ matrix.target }}"
+          mkdir -p "$work"
+          if gh run download "$PREVIOUS_RUN" --name 'validation-ffmpeg-${{ matrix.target }}' --dir "$work"; then
+            mkdir -p "$work/reused"
+            tar -xJf "$work/portico-ffmpeg-${{ matrix.target }}.tar.xz" -C "$work/reused"
+            python3 scripts/verify-ffmpeg-manifest.py "$work/reused"
+            cmp third_party/ffmpeg/sources.lock.json "$work/reused/sources.lock.json"
+            cmp third_party/ffmpeg/requirements.v1.json "$work/reused/requirements.v1.json"
+            mkdir -p "$work/recipe-check"
+            tar -xJf "$work/reused/corresponding-source.tar.xz" -C "$work/recipe-check" provenance
+            for script in build-ffmpeg.sh normalize-ffmpeg-bundle.py patch-btbn-winarm64-system-error.sh; do
+              cmp "scripts/$script" "$work/recipe-check/provenance/scripts/$script"
+            done
+            diff -r third_party/ffmpeg/patches "$work/recipe-check/provenance/contract/patches"
+          else
+            if [[ "$VALIDATION_SCOPE" == macos ]]; then
+              echo 'Focused macOS validation requires a completed matching artifact; never restart source builds.' >&2
+              exit 1
+            fi
+            echo 'No prior artifact for this target; build its pinned recipe.'
+          fi
+      - name: Build the pinned FFmpeg recipe
+        env: {VALIDATION_SCOPE: '${{ inputs.scope }}'}
+        shell: bash
+        run: |
+          if [[ "$VALIDATION_SCOPE" == macos ]]; then
+            test -s 'runtime/ffmpeg-build/${{ matrix.target }}/portico-ffmpeg-${{ matrix.target }}.tar.xz'
+            exit 0
+          fi
+          if [[ ! -s 'runtime/ffmpeg-build/${{ matrix.target }}/portico-ffmpeg-${{ matrix.target }}.tar.xz' ]]; then
+            ./scripts/build-ffmpeg.sh '${{ matrix.target }}'
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validation-ffmpeg-${{ matrix.target }}
+          path: runtime/ffmpeg-build/${{ matrix.target }}/portico-ffmpeg-${{ matrix.target }}.tar.xz
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+  server:
+    needs: [web, toolchain]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include: ${{ fromJSON(inputs.scope == 'macos' && '[{"os":"darwin","arch":"arm64","target":"macos-arm64"}]' || '[{"os":"linux","arch":"amd64","target":"linux-x64"},{"os":"linux","arch":"arm64","target":"linux-arm64"},{"os":"windows","arch":"amd64","target":"windows-x64"},{"os":"windows","arch":"arm64","target":"windows-arm64"},{"os":"darwin","arch":"arm64","target":"macos-arm64"}]') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: validation-web, path: .release/web}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: validation-ffmpeg-${{ matrix.target }}
+          path: .toolchain
+      - name: Packaging tools and disposable manifest signer
+        run: |
+          set -euo pipefail
+          python3 -m venv .release/venv
+          .release/venv/bin/pip install -r scripts/requirements-release.txt
+          echo "$PWD/.release/venv/bin" >> "$GITHUB_PATH"
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.43.4
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nsis zip
+          mkdir -p .cache/tmp .toolchain/ffmpeg
+          install -d -m 700 "$(dirname "$PORTICO_RELEASE_SIGNING_KEY_FILE")"
+          tar -xJf .toolchain/*.tar.xz -C .toolchain/ffmpeg
+          cmp third_party/ffmpeg/sources.lock.json .toolchain/ffmpeg/sources.lock.json
+          cmp third_party/ffmpeg/requirements.v1.json .toolchain/ffmpeg/requirements.v1.json
+          .release/venv/bin/python - <<'SIGNER'
+          import pathlib, os
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          key = Ed25519PrivateKey.generate()
+          private = pathlib.Path(os.environ['PORTICO_RELEASE_SIGNING_KEY_FILE'])
+          private.touch(mode=0o600)
+          private.write_bytes(key.private_bytes_raw())
+          public = pathlib.Path(os.environ['PORTICO_RELEASE_PUBLIC_KEY_FILE'])
+          public.write_bytes(key.public_key().public_bytes_raw())
+          SIGNER
+      - name: Build, test and seal the actual source snapshot
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/build-server-release.py --version "$VALIDATION_VERSION" --os '${{ matrix.os }}' --arch '${{ matrix.arch }}' --ffmpeg-bundle .toolchain/ffmpeg | tee .release/build.log
+          result="$(tail -1 .release/build.log)"
+          echo "stage=$(python3 -c 'import json,sys;print(json.loads(sys.argv[1])["directory"])' "$result")" >> "$GITHUB_OUTPUT"
+      - name: Package with the release scripts
+        run: |
+          ./scripts/package-release.sh '${{ matrix.os }}' '${{ matrix.arch }}' "$VALIDATION_VERSION" '${{ steps.build.outputs.stage }}' .release/web dist '${{ github.run_number }}'
+          mkdir -p dist/evidence
+          cp "$PORTICO_RELEASE_PUBLIC_KEY_FILE" dist/evidence/
+          cp '${{ steps.build.outputs.stage }}/manifest.json' '${{ steps.build.outputs.stage }}/manifest.sig' dist/evidence/
+          printf '%s\n' 'CI VALIDATION ONLY: disposable manifest signer; OS installers unsigned; official Hosted root unchanged; not a production release.' > dist/evidence/VALIDATION.txt
+      - name: Forget the disposable private key
+        if: always()
+        run: rm -f "$PORTICO_RELEASE_SIGNING_KEY_FILE" "$PORTICO_RELEASE_PUBLIC_KEY_FILE"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: matrix.os != 'darwin'
+        with:
+          name: validation-assets-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*.rpm
+            dist/*.exe
+            dist/*.zip
+            dist/evidence/
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: matrix.os == 'darwin'
+        with: {name: validation-macos-payload, path: dist/payload-darwin-arm64, if-no-files-found: error, retention-days: 3}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: matrix.os == 'darwin'
+        with: {name: validation-macos-evidence, path: dist/evidence, if-no-files-found: error, retention-days: 3}
+
+  macos:
+    needs: server
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: validation-macos-payload, path: .release/macos-payload}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: validation-macos-evidence, path: dist/evidence}
+      - name: Execute the native server and qualify the actual media bundle
+        run: |
+          chmod +x .release/macos-payload/portico-server .release/macos-payload/third_party/ffmpeg/bin/*
+          .release/macos-payload/portico-server --version
+          ./scripts/verify-ffmpeg-bundle.sh .release/macos-payload/third_party/ffmpeg full
+      - run: ./scripts/package-macos.sh "$VALIDATION_VERSION" .release/macos-payload dist '${{ github.run_number }}'
+      - name: Inspect installer and disk image
+        run: |
+          pkgutil --check-signature dist/Portico-Media-Server-macOS-arm64.pkg || test "$?" = 1
+          hdiutil verify dist/Portico-Media-Server-macOS-arm64.dmg
+          pkgutil --expand-full dist/Portico-Media-Server-macOS-arm64.pkg .release/expanded-package
+          python3 - <<'VERIFY'
+          import hashlib, json, pathlib, subprocess, os
+          binaries = list(pathlib.Path('.release/expanded-package').rglob('portico-server'))
+          assert len(binaries) == 1, binaries
+          binary = binaries[0]
+          manifest = json.loads((binary.parent / 'manifest.json').read_text())
+          assert manifest['target'] == 'darwin-arm64'
+          assert manifest['version'] == os.environ['VALIDATION_VERSION']
+          assert hashlib.sha256(binary.read_bytes()).hexdigest() == manifest['artifact']['sha256']
+          assert (binary.parent / 'web/index.html').is_file()
+          subprocess.run([str(binary.resolve()), '--version'], check=True)
+          print('Expanded PKG contains the exact sealed ARM64 binary and web application.')
+          VERIFY
+          shasum -a 256 dist/Portico-Media-Server-macOS-arm64.pkg dist/Portico-Media-Server-macOS-arm64.dmg > dist/evidence/checksums.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validation-assets-macos-arm64
+          path: |
+            dist/Portico-Media-Server-macOS-arm64.*
+            dist/evidence/
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+  docker:
+    if: inputs.scope != 'macos'
+    needs: toolchain
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, arch: amd64, target: linux-x64}
+          - {runner: ubuntu-24.04-arm, arch: arm64, target: linux-arm64}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: validation-ffmpeg-${{ matrix.target }}
+          path: .toolchain
+      - run: |
+          mkdir -p third_party/ffmpeg/bundle
+          tar -xJf .toolchain/*.tar.xz -C third_party/ffmpeg/bundle
+          cmp third_party/ffmpeg/sources.lock.json third_party/ffmpeg/bundle/sources.lock.json
+          cmp third_party/ffmpeg/requirements.v1.json third_party/ffmpeg/bundle/requirements.v1.json
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          push: false
+          load: true
+          tags: portico-validation:${{ matrix.arch }}
+          build-args: |
+            PORTICO_VERSION=${{ env.VALIDATION_VERSION }}
+            PORTICO_BUILT_AT=${{ github.event.repository.updated_at }}
+      - name: Verify native image and preserve downloadable image
+        run: |
+          set -euo pipefail
+          docker image inspect portico-validation:${{ matrix.arch }} --format '{{.Architecture}}' | grep -Fx '${{ matrix.arch }}'
+          docker run --rm --entrypoint /opt/portico/third_party/ffmpeg/bin/ffmpeg portico-validation:${{ matrix.arch }} -version
+          docker run --rm --entrypoint /usr/local/bin/portico-server portico-validation:${{ matrix.arch }} --version
+          mkdir -p dist
+          docker save portico-validation:${{ matrix.arch }} | gzip -1 > dist/portico-server-docker-${{ matrix.arch }}.tar.gz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validation-docker-${{ matrix.arch }}
+          path: dist/portico-server-docker-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0

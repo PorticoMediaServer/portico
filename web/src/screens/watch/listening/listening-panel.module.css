@@ -1,0 +1,40 @@
+/* desktop-listen f2/f9: the existing 452px panel; phone uses the same bounded content. */
+.queue, .lyrics { min-width: 0; min-height: 0; }
+.queueRow { display: flex; align-items: center; gap: 12px; min-height: 60px; margin: 0 8px; padding: 0 10px 0 6px; border-radius: 10px; }
+.queueRow:hover, .queueRow:focus-within { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.queueRow[data-current] { background: color-mix(in srgb, var(--color-text) 10%, transparent); }
+.queueRow[data-current] b { color: var(--color-accent-strong); }
+.queueCopy { flex: 1; min-width: 0; }
+.queueCopy b { display: block; overflow-wrap: anywhere; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-700); }
+.queueCopy small { display: block; margin-top: 2px; color: var(--color-text-tertiary); font-size: var(--type-fixed-size-13px); }
+.actions { display: flex; align-items: center; gap: 2px; }
+.policy { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 16px; }
+.footer { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 14px 16px; color: var(--color-text-tertiary); font-size: var(--type-fixed-size-13px); }
+.footer > :last-child { margin-left: auto; }
+.lines { display: flex; flex-direction: column; gap: 14px; padding: 24px; }
+.line { margin: 0; padding: 0; border: 0; background: transparent; color: var(--color-text-tertiary); font-size: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-700); line-height: var(--type-fixed-line-1point-3); text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; }
+button.line { cursor: pointer; }
+.line[data-active], button.line:hover { color: var(--color-text); }
+button.line:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+.empty { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 30px 24px; }
+.resources { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin: 0; padding: 20px 24px; border: 0; }
+.resources legend { font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-700); }
+.resource { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid transparent; border-radius: 10px; color: var(--color-text); background: transparent; text-align: left; cursor: pointer; }
+.resource[aria-pressed="true"] { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
+.resource small { color: var(--color-text-tertiary); }
+@media (max-width: 720px) { .queueRow { flex-wrap: wrap; height: auto; padding-block: 10px; } .line { font-size: var(--type-fixed-size-20px); } }
+
+.tabs { display: flex; gap: 4px; margin-bottom: 14px; padding: 4px; border-radius: 12px; background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.tabs > button { flex: 1; }
+.tabs > button[aria-pressed="true"] { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+
+/* desktop-listen: real row art and metadata; fine pointers reveal edits on hover or keyboard focus. */
+.queueCover { width: 40px; height: 40px; flex: none; overflow: hidden; border-radius: 6px; }
+.grip { width: 6px; height: 18px; flex: none; opacity: .28; background-image: radial-gradient(circle,var(--color-text) 1px,transparent 1px); background-size: 3px 6px; }
+.duration { flex: none; font-size: var(--type-fixed-size-13px); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.summary { display: flex; flex-wrap: wrap; gap: 10px; }
+@media (hover: hover) and (pointer: fine) {
+  .queueRow .actions { opacity: 0; }
+  .queueRow:hover .actions, .queueRow:focus-within .actions { opacity: 1; }
+}
+@media (max-width: 599px) { .queueRow { gap: 8px; margin-inline: 0; } .queueRow .actions { margin-left: auto; } }

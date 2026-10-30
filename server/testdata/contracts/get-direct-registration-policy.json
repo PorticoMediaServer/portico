@@ -1,0 +1,11 @@
+{
+  "schema": "GetDirectRegistrationPolicyResponse",
+  "method": "GET",
+  "path": "/v1/direct/registration-policy",
+  "auth": "owner",
+  "status": 200,
+  "response": {
+    "selfRegistration": "off",
+    "deviceApproval": "auto"
+  }
+}

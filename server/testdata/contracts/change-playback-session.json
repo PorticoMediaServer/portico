@@ -1,0 +1,45 @@
+{
+  "schema": "ChangePlaybackSessionResponse",
+  "method": "PATCH",
+  "path": "/v1/playback/sessions/{id}",
+  "auth": "device",
+  "request": {
+    "state": "paused"
+  },
+  "status": 200,
+  "response": {
+    "id": "ps_1R6a7AS0bgZgt0w-cMFM",
+    "revision": "2",
+    "kind": "vod",
+    "role": "local",
+    "state": "paused",
+    "itemId": "5Sqw8-jfkN_7zwkkd4X54Q",
+    "versionId": "9kWnBwLaqUJQTopURBGupz7qLAJa_KckV-qaz3dbLac",
+    "lease": {
+      "expiresAt": "2026-10-22T22:51:36.433Z",
+      "reportEveryMs": 30000
+    },
+    "presentation": {
+      "generation": 1,
+      "mode": "direct",
+      "url": "/v1/media/8a8ctP1xXtOFtkIehg2kA_YUlR-F-V3QsQOiw0ON8Ck",
+      "engine": "native",
+      "startPositionMs": 0,
+      "subtitles": [],
+      "decision": {
+        "video": {
+          "action": "direct",
+          "reasons": []
+        },
+        "audio": {
+          "action": "direct",
+          "reasons": []
+        }
+      },
+      "quality": {
+        "mode": "original"
+      },
+      "container": "mp4"
+    }
+  }
+}

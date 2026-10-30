@@ -1,0 +1,18 @@
+/* Drawn placement is relative to the parent's picture/control surface. */
+.corner { --skip-text-size: 16.5px; --skip-text-weight: 800; position: absolute; right: 40px; bottom: 64px; transform: translateY(calc(var(--prompt-lift, 0px) * -1)); display: flex; gap: 10px; align-items: center; pointer-events: auto; }
+.corner[data-controls-visible='true'] { --prompt-lift: 100px; }
+.skip { height: 52px; padding: 0 20px 0 24px; border: 0; border-radius: 12px; background: var(--color-text); color: var(--color-ink); font-size: var(--skip-text-size); font-weight: var(--skip-text-weight); line-height: normal; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 18px 36px -14px color-mix(in srgb, var(--color-shadow) 85%, transparent); cursor: pointer; transition: transform 90ms var(--ease-out); }
+.skip:active { transform: scale(.97); }
+.skip:hover { background: var(--color-white); }
+.dismiss { width: 44px; height: 44px; border: 0; border-radius: 50%; display: grid; place-items: center; color: var(--color-text-secondary); background: color-mix(in srgb, var(--color-ink) 50%, transparent); backdrop-filter: blur(20px); cursor: pointer; }
+.glyph { display: block; flex: none; }
+.skip:focus-visible, .dismiss:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.corner[data-layout='tablet'] { right: 32px; }
+.corner[data-layout='tablet'][data-controls-visible='true'] { --prompt-lift: 144px; }
+.corner[data-layout='tablet'] .dismiss { width: 48px; height: 48px; }
+.corner[data-layout='phone'] { --skip-text-size: 15px; --skip-text-weight: 700; right: 60px; bottom: 26px; }
+.corner[data-layout='phone'][data-controls-visible='true'] { --prompt-lift: 74px; }
+.corner[data-layout='phone'] .skip { height: 44px; padding: 0 16px 0 18px; border-radius: 10px; gap: 8px; box-shadow: 0 14px 30px -12px color-mix(in srgb, var(--color-shadow) 80%, transparent); }
+@media (prefers-reduced-motion: reduce) { .skip { transition: opacity var(--motion-reduced) linear; } .skip:active { transform: none; opacity: .85; } }
+:global([data-reduce-motion='true']) .skip { transition: opacity var(--motion-reduced) linear; }
+:global([data-reduce-motion='true']) .skip:active { transform: none; opacity: .85; }

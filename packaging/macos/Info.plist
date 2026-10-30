@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key><string>Portico Media Server</string>
+  <key>CFBundleExecutable</key><string>Portico Media Server</string>
+  <key>CFBundleIdentifier</key><string>tv.getportico.server</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>Portico Media Server</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>__PORTICO_VERSION__</string>
+  <key>CFBundleVersion</key><string>__PORTICO_BUILD__</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>LSArchitecturePriority</key><array><string>arm64</string></array>
+  <key>LSUIElement</key><true/>
+  <key>CFBundleIconFile</key><string>PorticoServer</string>
+  <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>

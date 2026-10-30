@@ -1,0 +1,15 @@
+/* phone-player f6e: the dialog itself. The kit scrim, focus trap and portal stay
+   the modal's own; only the drawn card is restyled here. */
+.dialog.dialog { padding: 20px; border-radius: 18px; background: color-mix(in srgb, var(--color-ink) 88%, transparent); backdrop-filter: blur(24px);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 12%, transparent), 0 24px 50px -16px var(--color-shadow); }
+
+.header { margin: 0; }
+.dialog.dialog h2 { margin: 0; font-size: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-025em); line-height: var(--type-fixed-line-1point-2); }
+
+.body.body { font-size: var(--type-fixed-size-14px); line-height: var(--type-fixed-line-1point-5); }
+.next.next { margin: 6px 0 0; font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); }
+.next.next b { color: var(--color-text); font-weight: var(--type-fixed-weight-700); }
+.body p + p { margin-top: 4px; }
+
+.footer.footer { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px; margin-top: 16px; }
+.dialog.dialog button[data-size='small'] { --control-height: 40px; --control-inset: 15px; --control-radius: 10px; --control-gap: 7px; font-size: var(--type-fixed-size-14point-5px); }

@@ -1,0 +1,46 @@
+{
+  "soxr": {
+    "repository": "https://git.code.sf.net/p/soxr/code",
+    "commit": "945b592b70470e29f917f4de89b4281fbbd540c0"
+  },
+  "fontconfig": {
+    "repository": "https://gitlab.freedesktop.org/fontconfig/fontconfig.git",
+    "commit": "d32a1911248576d01583557efcfe4b48fb2d0a5e"
+  },
+  "dvdread": {
+    "repository": "https://code.videolan.org/videolan/libdvdread.git",
+    "commit": "ce9bdb7775601f4e6b95136b875bc72a53c5ba7d"
+  },
+  "dvdnav": {
+    "repository": "https://code.videolan.org/videolan/libdvdnav.git",
+    "commit": "2ffc50b5c37a6ddc086829203fc44e95588198dd"
+  },
+  "udfread": {
+    "repository": "https://code.videolan.org/videolan/libudfread.git",
+    "commit": "0151d9d61e5f832664f502608d41a77c28846efa"
+  },
+  "bluray": {
+    "repository": "https://code.videolan.org/videolan/libbluray.git",
+    "commit": "065247e5ef40ccf39857db81e2c1368354a23ef8"
+  },
+  "placebo": {
+    "repository": "https://code.videolan.org/videolan/libplacebo.git",
+    "commit": "22ee762e8e0890fc54068beb670310f0edce7263"
+  },
+  "vulkanHeaders": {
+    "repository": "https://github.com/KhronosGroup/Vulkan-Headers.git",
+    "commit": "02c384291060efdab25c852a44d446b35e736bcc"
+  },
+  "vulkanLoader": {
+    "repository": "https://github.com/KhronosGroup/Vulkan-Loader.git",
+    "commit": "0d210fdf88a81b0e833096079f73dda477da62f8"
+  },
+  "moltenVK": {
+    "repository": "https://github.com/KhronosGroup/MoltenVK.git",
+    "commit": "db445ff2042d9ce348c439ad8451112f354b8d2a"
+  },
+  "shaderc": {
+    "repository": "https://github.com/google/shaderc.git",
+    "commit": "7060a6615a1c6e2515e696651eea685524ecadb5"
+  }
+}

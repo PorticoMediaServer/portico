@@ -1,0 +1,23 @@
+{
+ "file": "single-aac-itunes.m4a",
+ "container": "mp4",
+ "codec": "aac",
+ "sampleRate": 44100,
+ "channels": 2,
+ "durationFrames": 221104,
+ "rawFrames": 223232,
+ "trim": {
+  "startFrames": 2112,
+  "endFrames": 16,
+  "source": "itunsmpb"
+ },
+ "signal": {
+  "formula": "amplitude*sin(2*pi*frequency*(n+offset)/sampleRate)",
+  "amplitude": 0.5,
+  "frequency": 441,
+  "offset": 0
+ },
+ "tolerance": 0.05,
+ "edgeFrames": 64,
+ "edgeTolerance": 0.1
+}

@@ -1,0 +1,34 @@
+{
+  "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "lib": [
+      "es2022",
+      "dom",
+      "dom.iterable"
+    ],
+    "types": [
+      "react"
+    ],
+    "strict": true,
+    "paths": {
+      "@portico/design": [
+        "../../packages/design/src/index.ts"
+      ],
+      "@/*": [
+        "./src-next/*"
+      ]
+    }
+  },
+  "include": [
+    "App.tsx",
+    "src-next/**/*.ts",
+    "src-next/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "ios/Pods",
+    "tvos/Pods",
+    "test",
+    "scripts"
+  ]
+}

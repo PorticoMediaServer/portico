@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "erasableSyntaxOnly": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["src/presentation/**/*.ts", "src/licences/**/*.ts", "src/collections/**/*.ts", "src/artwork/**/*.ts", "src/cast/**/*.ts", "src/playback-v1/**/*.ts", "src/guide/**/*.ts", "src/selection-model/**/*.ts", "src/home-selection/**/*.ts", "src/admin/**/*.ts", "../design/src/**/*.ts", "../i18n/src/**/*.ts"]
+}

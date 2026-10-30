@@ -1,0 +1,90 @@
+/* listening-notices frames 2 and 3: the expanded web Now playing host. */
+.frame { position: fixed; inset: 0; z-index: var(--layer-art-label); display: block; padding: 0; overflow-x: hidden; overflow-y: auto; color: var(--color-text); background-color: var(--color-ink); background-image: var(--backdrop-glows); background-size: var(--backdrop-glows-size); background-repeat: no-repeat; }
+.top { position: absolute; z-index: var(--layer-hero-navigation); inset: 0 0 auto; height: 84px; display: flex; align-items: center; gap: 16px; padding: 0 32px; }
+.round { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--color-text); background: color-mix(in srgb, var(--color-text) 10%, transparent); cursor: pointer; }
+.from { min-width: 0; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-fixed-size-14px); color: var(--color-text-secondary); }
+.spacer { flex: 1; }
+.glass { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--color-text) 12%, transparent); color: var(--color-text); font: inherit; font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-600); cursor: pointer; }
+.main { position: absolute; z-index: var(--layer-art-label); left: 0; top: 84px; bottom: 28px; width: 940px; max-width: calc(100% - 484px); display: flex; flex-direction: column; align-items: center; justify-content: safe center; }
+.cover { flex: none; width: var(--np-column, 480px); max-width: 100%; aspect-ratio: 1; border-radius: 14px; overflow: hidden; --music-cover-shadow: 0 50px 90px -30px color-mix(in srgb, var(--color-shadow) 95%, transparent), 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent); box-shadow: var(--music-cover-shadow); }
+.info { width: var(--np-column, 480px); max-width: 100%; margin-top: 30px; min-width: 0; display: block; }
+.identity { display: flex; align-items: flex-end; gap: 12px; }
+.identity > div { flex: 1; min-width: 0; }
+.info h1 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-fixed-size-36px); line-height: var(--type-fixed-line-1point-05); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-03em); }
+.info p { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0 0; font-size: var(--type-fixed-size-17px); color: var(--color-text-secondary); }
+.signal { position: relative; display: flex; margin-top: 10px; }
+.scrub { width: var(--np-column, 480px); max-width: 100%; margin-top: 16px; }
+.controls { display: flex; align-items: center; justify-content: center; gap: 24px; margin-top: 18px; }
+.ctl { position: relative; flex: none; width: 50px; height: 50px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--color-text); cursor: pointer; }
+.ctl:disabled { opacity: .4; cursor: default; }
+.big { width: 74px; height: 74px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--color-text); color: var(--color-ink); cursor: pointer; }
+.big:disabled { opacity: .5; cursor: default; }
+.volume { width: var(--np-column, 480px); max-width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; }
+.volume > :last-child { width: 160px; flex: none; }
+.side { position: absolute; z-index: var(--layer-row-arrow); right: 32px; top: 92px; bottom: 32px; width: 452px; min-height: 0; overflow: auto; border-radius: 20px; padding: 14px 16px; background: color-mix(in srgb, var(--color-ink) 44%, transparent); -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); }
+.side h2 { margin: 0 0 12px; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-01em); }
+.section { margin: 14px 0 8px; font-size: var(--type-fixed-size-12px); font-weight: var(--type-fixed-weight-700); color: var(--color-text-tertiary); }
+.queueRow { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+.queueRow b { display: block; font-size: var(--type-fixed-size-14px); }
+.queueRow small { display: block; font-size: var(--type-fixed-size-12point-5px); color: var(--color-text-tertiary); }
+.duration { margin-left: auto; font-size: var(--type-fixed-size-12point-5px); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.eq { display: inline-flex; align-items: flex-end; gap: 3px; height: 16px; }
+.eq i { width: 3px; border-radius: 1px; background: var(--color-accent-strong); }
+.eq i:nth-child(1) { height: 55%; } .eq i:nth-child(2) { height: 100%; } .eq i:nth-child(3) { height: 38%; }
+@media (max-width: 1023px) {
+  .main { position: absolute; width: 100%; max-width: none; }
+  .side { display: none; }
+}
+@media (max-width: 599px) {
+  .frame[data-phone] { display: flex; flex-direction: column; }
+  .top { position: relative; flex: none; height: 54px; padding: 6px 14px 0; gap: 8px; }
+  .top .glass { min-width: 44px; min-height: 44px; padding: 0 10px; background: transparent; }
+  .from { flex: 1; min-width: 0; text-align: center; font-size: var(--type-fixed-size-12px); line-height: calc(var(--type-fixed-line-1point-3) * 25 / 26); }
+  .from + .spacer { display: none; }
+  .main { position: relative; flex: 1 0 auto; inset: auto; width: 100%; padding: 16px 24px 0; justify-content: flex-start; }
+  .cover { width: min(280px,100%); max-width: 100%; border-radius: 14px; }
+  .info { width: min(342px,100%); margin-top: 20px; }
+  .identity { align-items: center; }
+  .info h1 { font-size: calc(var(--type-fixed-size-22px) * 23 / 22); letter-spacing: var(--type-fixed-tracking-minus-point-025em); }
+  .info p { margin-top: 2px; font-size: var(--type-fixed-size-16px); font-weight: var(--type-fixed-weight-600); }
+  .scrub { width: 100%; margin-top: 16px; }
+  .controls { width: 100%; justify-content: space-between; gap: 0; padding: 0 2px; margin-top: 18px; }
+  .ctl { width: 48px; height: 48px; }
+  .big { width: 76px; height: 76px; }
+  .frame .phoneTools { position: relative; z-index: var(--layer-art-label); flex: none; inset: auto; width: min(342px,calc(100% - 48px)); margin: 22px auto calc(24px + env(safe-area-inset-bottom)); }
+}
+
+
+/* Motion 2.5 (1532-34, 2565-87): the three drawn content groups fade in, 60 ms
+   apart, 180 each. Fade only - nothing rises, and the static cover never moves.
+   Pure paint: no clock, state or lifecycle is added by these rules. */
+@keyframes music-fade { from { opacity: 0; } to { opacity: 1; } }
+.fade1 { animation: music-fade var(--motion-standard) var(--ease-out) both; }
+.fade2 { animation: music-fade var(--motion-standard) var(--ease-out) 60ms both; }
+.fade3 { animation: music-fade var(--motion-standard) var(--ease-out) 120ms both; }
+@media (prefers-reduced-motion: reduce) {
+  .fade1, .fade2, .fade3 { animation: music-fade var(--motion-reduced) linear both; }
+}
+[data-reduce-motion="true"] .fade1,
+[data-reduce-motion="true"] .fade2,
+[data-reduce-motion="true"] .fade3 { animation: music-fade var(--motion-reduced) linear both; }
+
+/* The original measured owner drives these same groups while it retains the current music view. */
+.frame[data-music-motion-owned] .fade1, .frame[data-music-motion-owned] .fade2, .frame[data-music-motion-owned] .fade3 { animation: none; }
+
+.frame[data-music-motion-owned] .cover { box-shadow: none; }
+
+.phoneTools { position: absolute; inset: auto 24px 18px; display: flex; justify-content: center; gap: 10px; }
+
+.ctl[aria-pressed="true"] { color: var(--color-accent-strong); }
+.ctl:focus-visible, .big:focus-visible, .glass:focus-visible, .round:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+.repeatOne { position: absolute; bottom: 4px; font-size: var(--type-fixed-size-11px); font-weight: var(--type-fixed-weight-800); }
+.notice { display: flex; justify-content: center; margin-top: 20px; }
+@media (min-width: 600px) and (max-width: 1023px) { .main { bottom: 80px; } }
+@media (prefers-reduced-transparency: reduce) { .side { background: var(--color-ink); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+[data-reduce-transparency="true"] .side { background: var(--color-ink); -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* desktop-listen.html draws a 900 px window. Shorter windows shrink the column (cover, words, bar,
+   volume) so the whole stack stays between the header and the foot: about 330 px of words and
+   controls sit under the cover, and the header and foot take 112 px. */
+@media (min-width: 600px) { .frame { --np-column: clamp(240px, calc(100dvh - 442px), 480px); } }

@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["PORTICO_APPLE_TEAM_ID.tv.getportico.portico.ios"],
+        "components": [
+          {"/": "/account", "comment": "Portico Account pages"},
+          {"/": "/device", "comment": "Approve a device"},
+          {"/": "/join", "comment": "Server and account invitations"},
+          {"/": "/together/join", "comment": "Watch Together"},
+          {"/": "/app/account-return", "comment": "A provider sign-in returning to the app"},
+          {"/": "/s/*", "comment": "O-162: a shared link to a screen on a server"}
+        ]
+      }
+    ]
+  }
+}

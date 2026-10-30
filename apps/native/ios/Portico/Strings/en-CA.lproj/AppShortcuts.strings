@@ -1,0 +1,5 @@
+/* Generated from packages/i18n; do not edit. */
+"Continue watching in ${applicationName}" = "Continue watching in ${applicationName}";
+"Play ${title} in ${applicationName}" = "Play ${title} in ${applicationName}";
+"Resume ${applicationName}" = "Resume ${applicationName}";
+"Watch ${title} in ${applicationName}" = "Watch ${title} in ${applicationName}";

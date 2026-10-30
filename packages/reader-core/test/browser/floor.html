@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Reader runtime verification</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><style>html,body{margin:0}#surface{width:800px;height:600px}</style></head><body><div id="surface"></div><script>
+// Runs before the module graph so an actual parser/worker failure is retained.
+window.readerFloorErrors=[];
+window.snapshotProof=new Promise(function(resolve){
+  var settled=false;
+  window.readerFloorFinish=function(result){if(settled)return;settled=true;clearTimeout(timer);resolve(result);};
+  var timer=setTimeout(function(){window.readerFloorFinish({status:'fail',stage:'bootstrap-or-operation-timeout',errors:window.readerFloorErrors});},110000);
+});
+window.addEventListener('error',function(event){window.readerFloorErrors.push({message:event.message,stack:event.error&&event.error.stack||'',file:event.filename,line:event.lineno,column:event.colno});});
+window.addEventListener('unhandledrejection',function(event){window.readerFloorErrors.push({message:String(event.reason),stack:event.reason&&event.reason.stack||''});});
+</script><script type="module" src="./floor.ts"></script></body></html>

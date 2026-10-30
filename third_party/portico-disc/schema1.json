@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "portico-disc.schema1",
+  "title": "portico-disc source-only WIP protocol",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/probe"
+    },
+    {
+      "$ref": "#/$defs/seek"
+    }
+  ],
+  "$defs": {
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": 1
+        },
+        "kind": {
+          "enum": [
+            "bluray",
+            "dvd"
+          ]
+        },
+        "packaging": {
+          "enum": [
+            "iso",
+            "folder"
+          ]
+        },
+        "encryption": {
+          "enum": [
+            "none",
+            "aacs",
+            "bdplus",
+            "css"
+          ]
+        },
+        "titles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "discOrder": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4095
+              },
+              "playlist": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99999
+              },
+              "playlistFile": {
+                "type": "string",
+                "pattern": "^[0-9]{5}\\.mpls$"
+              },
+              "title": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99
+              },
+              "vts": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99
+              },
+              "pgc": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "durationMs": {
+                "type": "integer",
+                "minimum": 60000,
+                "maximum": 604800000
+              },
+              "angleCount": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 255
+              },
+              "clips": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "sequence": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4095
+                    },
+                    "file": {
+                      "type": "string",
+                      "pattern": "^[0-9]{5}\\.m2ts$"
+                    },
+                    "inTime90k": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "outTime90k": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "sequence",
+                    "file",
+                    "inTime90k",
+                    "outTime90k"
+                  ]
+                },
+                "maxItems": 4096
+              },
+              "streams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "clipSequence": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4095
+                    },
+                    "pid": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 8191
+                    },
+                    "kind": {
+                      "enum": [
+                        "video",
+                        "audio",
+                        "subtitle",
+                        "interactive"
+                      ]
+                    },
+                    "coding": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 255
+                    },
+                    "language": {
+                      "type": "string",
+                      "pattern": "^(?:[a-z]{2,3})?$"
+                    },
+                    "dolbyVisionEnhancementLayer": {
+                      "type": "boolean"
+                    },
+                    "dolbyVisionEnhancementKnown": {
+                      "type": "boolean"
+                    },
+                    "dolbyVisionBasePid": {
+                      "type": "integer",
+                      "minimum": 32,
+                      "maximum": 8190
+                    },
+                    "videoRole": {
+                      "enum": [
+                        "primary",
+                        "secondary",
+                        "enhancement"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "clipSequence",
+                    "pid",
+                    "kind",
+                    "coding",
+                    "language",
+                    "dolbyVisionEnhancementLayer",
+                    "dolbyVisionEnhancementKnown"
+                  ]
+                },
+                "maxItems": 65536
+              },
+              "chapters": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "startMs": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 604800000
+                    }
+                  },
+                  "required": [
+                    "startMs"
+                  ]
+                },
+                "maxItems": 65535
+              }
+            },
+            "required": [
+              "discOrder",
+              "durationMs",
+              "angleCount",
+              "clips",
+              "streams",
+              "chapters"
+            ]
+          },
+          "maxItems": 4096
+        }
+      },
+      "required": [
+        "schema",
+        "kind",
+        "packaging",
+        "encryption",
+        "titles"
+      ]
+    },
+    "seek": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": 1
+        },
+        "playlist": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99999
+        },
+        "requestedMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 604800000
+        },
+        "byteOffset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "titleTimeMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 604800000
+        }
+      },
+      "required": [
+        "schema",
+        "playlist",
+        "requestedMs",
+        "byteOffset",
+        "titleTimeMs"
+      ]
+    }
+  }
+}

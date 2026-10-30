@@ -1,0 +1,43 @@
+[extend]
+useDefault = true
+
+# The generic API-key rule reads this comma-separated controller assignment as
+# a key. Match only that expression at its source path, not the file. Commits
+# before the 28 Oct 2026 rename of web-next to web carry it at the old path.
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Account move controller variable assignment"
+condition = "AND"
+paths = ['''^web(?:-next)?/src/platform/account-entry\.ts$''']
+regexTarget = "match"
+regexes = ['''^this\.api,proof=this\.moveProof;$''']
+
+# Earlier commits of the regression fixture quote that same non-secret code.
+# Keep the exception on that one literal line; real keys in the helper still fail.
+[[rules.allowlists]]
+description = "Literal account assignment in its scanner regression fixture"
+condition = "AND"
+paths = ['''^scripts/check-gitleaks-config\.py$''']
+regexTarget = "line"
+regexes = ['''^\s*expression = "this\.api,proof=this\.moveProof;"$''']
+
+# Portico ships built-in application credentials for its metadata providers on
+# purpose (see THIRD-PARTY-NOTICES.md). They identify Portico to TMDB and
+# TheTVDB and are not user or server secrets.
+[[allowlists]]
+description = "Built-in metadata provider credentials"
+paths = ['''server/internal/metadata/project\.go''']
+
+# Example tokens in the API guide, idempotency and request keys in tests, and
+# SQL that matches the generic key pattern.
+[[allowlists]]
+description = "Documentation examples, test request keys and SQL"
+paths = [
+  '''server/api/guide/.*\.md''',
+  '''.*_test\.go''',
+  '''server/internal/catalog/local_artwork\.go''',
+  '''server/internal/playbackv1/queue_counts\.go''',
+  '''packages/client-core/src/session-selection\.ts''',
+]

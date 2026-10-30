@@ -1,0 +1,10 @@
+/* auth.html frame 5's drawn composition, limited to the Services sign-in screen.
+   Page shell, heading, providers and fields remain the canonical Kit components. */
+.returnLink { margin-top: 14px; font-size: var(--type-body-strong-size); line-height: normal; font-weight: var(--type-display-weight); }
+.returnLink a { color: var(--color-text-secondary); text-decoration: none; }
+.returnLink a > span { display: inline-flex; align-items: center; gap: 6px; }
+/* The drawn divider inherits the page's normal line height, not the app's 1.5. */
+.divider { line-height: normal; }
+/* The drawn empty password field shows its 17px placeholder; typed dots keep the kit size. */
+.password input[type="password"]::placeholder { font-size: var(--type-subheading-size); letter-spacing: normal; }
+.submit { margin-top: 8px; }

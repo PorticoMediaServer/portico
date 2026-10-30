@@ -1,0 +1,39 @@
+---
+import { getCollection, render } from 'astro:content';
+import DocsLayout from '@/layouts/DocsLayout.astro';
+import { docCategories, getDocCategory } from '@/data/docs';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('docs');
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const category = getDocCategory(entry.data.category);
+if (!category) throw new Error(`Unknown documentation category: ${entry.data.category}`);
+const categories = new Map(docCategories.map((item) => [item.id, item.order]));
+const sequence = (await getCollection('docs')).sort((a, b) => {
+  const categoryOrder = (categories.get(a.data.category) ?? 99) - (categories.get(b.data.category) ?? 99);
+  return categoryOrder || a.data.order - b.data.order;
+});
+const currentIndex = sequence.findIndex((item) => item.id === entry.id);
+const previous = currentIndex > 0 ? sequence[currentIndex - 1] : undefined;
+const next = currentIndex < sequence.length - 1 ? sequence[currentIndex + 1] : undefined;
+---
+
+<DocsLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  category={category.id}
+  categoryTitle={category.title}
+  currentId={entry.id}
+  audience={entry.data.audience}
+  updated={entry.data.updated}
+>
+  <Content />
+  <nav class="article-pagination" aria-label="Documentation article navigation">
+    {previous ? <a href={`/docs/${previous.id}/`}><span>Previous</span><strong>{previous.data.title}</strong></a> : <span />}
+    {next ? <a href={`/docs/${next.id}/`}><span>Next</span><strong>{next.data.title}</strong></a> : <span />}
+  </nav>
+</DocsLayout>

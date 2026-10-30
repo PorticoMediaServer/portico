@@ -1,0 +1,11 @@
+export {DockBar} from './DockBar';
+export {MediaBar} from './MediaBar';
+export {DockHost} from './DockHost';
+export {MediaSurface} from './MediaSurface';
+export {NowPlayingCard, type NowPlayingCardProps} from './NowPlayingCard';
+export {DockNotice, type DockNoticeData} from './DockNotice';
+export {LevelMeter} from './LevelMeter';
+export {PlayerMorph, GestureRelease, type MotionSample} from './motion';
+export {dockView, actionCurrent, dispatchDockAction, commandFor, progressOf, seekBounds, seekTarget, positionOf} from './model';
+export {dockText} from './text';
+export type {DockAction, DockActionKind, DockBinding, DockControl, DockHostProps, DockIntent, DockLayout, DockMessageId, DockMode, DockPresentation, DockRendererProps, DockStarting, DockTranslate, DockView, MediaSurfaceProps} from './types';

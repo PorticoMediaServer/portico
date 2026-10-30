@@ -1,0 +1,12 @@
+# Historical throwaway browser-fixture password; current fixtures generate it
+# at runtime. Exempt only this finding, never the file or future credentials.
+b33d6a01af820140ac5f7c745e3e2558bab077d9:web-next/test/services-links-browser.mjs:generic-api-key:70
+
+# Reviewed fixed idempotency fixture, never an external credential. Source name
+# corrected in c8b155954; these two historical findings alone remain exempt.
+522d566fca48c8ff160c314f46897750e2e011e2:web-next/test/settings-library-lyrics-fetch.test.ts:generic-api-key:6
+12985d8fc2eb8c732ff647f550d835bb868591cb:web-next/test/settings-library-lyrics-fetch.test.ts:generic-api-key:6
+
+# Security-reviewed nonfunctional truncated service-account test specimen.
+# Exempt this historical finding only; preserve private-key detection elsewhere.
+1d2c1a4cccd243cde6ff80a1c6b6b02e7fdcbf6b:packages/client-core/test/remote-sources.test.ts:private-key:574

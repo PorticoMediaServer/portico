@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+if launchctl print system/tv.getportico.server.service >/dev/null 2>&1; then
+ launchctl bootout system/tv.getportico.server.service
+fi
+# Retire the old boot-time job; leave its data and account untouched.
+rm -f /Library/LaunchDaemons/tv.getportico.server.service.plist
+owner=$(stat -f '%Su' /dev/console)
+case "$owner" in root|loginwindow|'') exit 0;; esac
+uid=$(id -u "$owner")
+if launchctl print "gui/$uid/tv.getportico.server.service" >/dev/null 2>&1; then
+ launchctl bootout "gui/$uid/tv.getportico.server.service"
+fi

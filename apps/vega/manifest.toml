@@ -1,0 +1,82 @@
+schema-version = 1
+
+[package]
+title = "Portico"
+version = "0.1.0"
+id = "tv.getportico.portico.vega"
+
+[os.version]
+min = "1.2"
+target = "1.2"
+
+# The build regenerates the [[needs.module]] list from package.json (the SDK's module manifest
+# builder); only the OS module is written by hand.
+[needs]
+[[needs.module]]
+id = "/com.amazon.vega.os@IVega_1_2"
+
+[wants]
+# VoiceView state and accessibility events used by the shared player.
+[[wants.privilege]]
+id = "com.amazon.devconf.privilege.accessibility"
+
+# The system keyboard, for text fields.
+[[wants.service]]
+id = "com.amazon.inputmethod.service"
+
+# Link kind (wired, Wi-Fi) for the viewer's per-network quality choice.
+[[wants.service]]
+id = "com.amazon.network.service"
+
+[[wants.privilege]]
+id = "com.amazon.network.privilege.net-info"
+
+# Playback (the W3C media element): the media server and its buffers, transforms and audio.
+[[wants.service]]
+id = "com.amazon.media.server"
+
+[[wants.service]]
+id = "com.amazon.mediametrics.service"
+
+[[wants.service]]
+id = "com.amazon.media.playersession.service"
+
+[[wants.service]]
+id = "com.amazon.mediabuffer.service"
+
+[[wants.service]]
+id = "com.amazon.mediatransform.service"
+
+[[wants.service]]
+id = "com.amazon.audio.stream"
+
+[[wants.service]]
+id = "com.amazon.audio.control"
+
+[[wants.service]]
+id = "com.amazon.audio.system"
+
+[[wants.service]]
+id = "com.amazon.gipc.uuid.*"
+
+[offers]
+[[offers.service]]
+id = "com.amazon.gipc.uuid.*"
+
+[components]
+[[components.interactive]]
+id = "tv.getportico.portico.vega.main"
+runtime-module = "/com.amazon.kepler.runtime.react_native_kepler_4@IReactNativeKepler_0"
+launch-type = "singleton"
+# The media category and the interface below let the app answer the remote's transport keys and
+# voice requests itself (src/bridge/system-media.ts) instead of the system acting on the player.
+categories = ["com.amazon.category.main", "com.amazon.category.kepler.media"]
+
+[[extras]]
+key = "interface.provider"
+component-id = "tv.getportico.portico.vega.main"
+
+[extras.value.application]
+[[extras.value.application.interface]]
+interface_name = "com.amazon.kepler.media.IMediaPlaybackServer"
+command_options = ["StartOver", "Previous", "Next", "SkipForward", "SkipBackward"]

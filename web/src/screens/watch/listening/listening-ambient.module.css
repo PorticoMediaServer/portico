@@ -1,0 +1,9 @@
+/* Approved expanded listening wash; only authenticated tiny ambient art enters this layer. */
+.ambient { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.ambient > div { -webkit-mask-image: none; mask-image: none; }
+.ambient [data-artwork-status] { inset: -20%; width: 140%; height: 140%; filter: blur(130px) saturate(1.9); opacity: .75; }
+.ambient::after { content: ''; position: absolute; inset: 0; background: radial-gradient(60% 80% at 33% 46%,transparent,color-mix(in srgb,var(--color-ink) 50%,transparent)),linear-gradient(180deg,color-mix(in srgb,var(--color-ink) 30%,transparent),color-mix(in srgb,var(--color-ink) 8%,transparent) 30%,color-mix(in srgb,var(--color-ink) 55%,transparent)); }
+.phone [data-artwork-status] { inset: -25%; width: 150%; height: 150%; filter: blur(80px) saturate(1.7) brightness(.75); opacity: .9; }
+.phone::after { background: linear-gradient(180deg,color-mix(in srgb,var(--color-ink) 25%,transparent),color-mix(in srgb,var(--color-ink) 50%,transparent) 50%,color-mix(in srgb,var(--color-ink) 90%,transparent)); }
+@media (prefers-reduced-transparency: reduce) { .ambient { display: none; } }
+[data-reduce-transparency="true"] .ambient { display: none; }

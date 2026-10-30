@@ -1,0 +1,44 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+
+const features = [
+  ['Libraries for the media you keep', 'Build separate homes for movies, television, anime, music, audiobooks, live channels, and recordings. Portico adds artwork and useful details without changing the files themselves.'],
+  ['A personal account for everyone', 'Each person gets their own progress, Saved items, history, preferences, and access. Server owners decide which libraries and actions each account can use.'],
+  ['Playback that fits the device', 'Portico plays the original file whenever it can. When the selected device, track, subtitle, or connection needs a different format, the server can prepare one.'],
+  ['Live TV and DVR', 'Bring compatible channels and guide data into Portico, watch live programming, schedule recordings, and manage conflicts from the same server.'],
+  ['Direct remote connections', 'Portico Accounts help authorized apps discover and verify an authorized server. Media requests go directly to that server instead of passing through Portico Cloud.'],
+  ['Server management, built in', 'Manage libraries, people, playback, remote access, Live TV, work queues, backups, diagnostics, and server health from Portico.']
+];
+---
+
+<BaseLayout title="Features" description="Libraries, playback, household accounts, remote access, Live TV, and server administration in Portico.">
+  <header class="page-intro dark-intro">
+    <div>
+      <h1>A media server made for the whole household.</h1>
+      <p>Viewers get a clear library and player. Server owners get the controls they need without adding clutter for everyone else.</p>
+    </div>
+  </header>
+
+  <section class="feature-editorial section-light">
+    {features.map(([title, body], index) => (
+      <article>
+        <span>{String(index + 1).padStart(2, '0')}</span>
+        <h2>{title}</h2>
+        <p>{body}</p>
+      </article>
+    ))}
+  </section>
+
+  <figure class="feature-mid-proof section-light">
+    <img src="/media/portico-detail.png" alt="Portico show detail screen with playback and library actions" />
+  </figure>
+
+  <section class="feature-proof">
+    <div>
+      <h2>One experience, from the library to the player.</h2>
+      <p>Browse, search, save, and resume from the same account wherever you use Portico.</p>
+      <a class="button button-primary" href="/download/">Download Portico</a>
+    </div>
+    <img src="/media/portico-home.png" alt="Portico home screen" />
+  </section>
+</BaseLayout>

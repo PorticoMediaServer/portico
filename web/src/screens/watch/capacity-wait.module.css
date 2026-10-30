@@ -1,0 +1,11 @@
+/* states f9: the server's directed wait, over the page when a first start has no picture yet. */
+.cover { position: fixed; inset: 0; z-index: var(--layer-dialog); background-color: var(--color-ink); background-image: var(--backdrop-glows); background-size: var(--backdrop-glows-size); background-repeat: no-repeat; }
+/* The drawn alive line: a small ring and the remaining seconds. */
+.alive { display: flex; align-items: center; gap: 12px; margin: 0; font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-title-weight); color: var(--color-text); }
+.ring { flex: none; animation: capacity-turn 1.2s linear infinite; }
+.ring circle { fill: none; stroke-width: 2.6; }
+.track { stroke: color-mix(in srgb, var(--color-text) 16%, transparent); }
+.arc { stroke: var(--color-accent-strong); stroke-linecap: round; stroke-dasharray: 56.55; stroke-dashoffset: 20; }
+@keyframes capacity-turn { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+@media (prefers-reduced-motion: reduce) { .ring { animation: none; transform: rotate(-90deg); } }
+:global([data-reduce-motion='true']) .ring { animation: none; transform: rotate(-90deg); }

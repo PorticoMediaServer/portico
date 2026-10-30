@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "license": "GPL-3.0-or-later",
+  "content": "procedural pictures and RPU only",
+  "sourceManifestSha256": "3a750950d94101e0b8460314da28f3b5babb372b55a3ecbe33ab02304aaeb6ee",
+  "generatorSha256": "ef434492719f90def7240e1344a3e5d8bc2d403303efe00827b745832ac9ea9b",
+  "tsmuxerSha256": "e1e2caeb624876c22d1ee1cb545d4ded9da4c5138b2259f36fd236b0f67e2e47",
+  "tsmuxerSourceCommit": "f06ac394c55ccee1cb76ae54f4636532a2d10253",
+  "pmtPacketsAuthored": 792,
+  "scope": "STN/PMT and ordered track source facts; small non-UHD-conforming geometry; no FEL reconstruction, HW1 or full disc playback claim",
+  "fixtures": [
+    {
+      "id": "stn-fel-bdmv",
+      "path": "stn-fel-bdmv",
+      "files": {
+        "BDMV/BACKUP/CLIPINF/00001.clpi": "2bdafe2d54ea32bb592c01283151a5d43b9b6f0af629c65db9e034a367d3906f",
+        "BDMV/BACKUP/MovieObject.bdmv": "e5aae020fc3b54d16e13851030023802e138a764ec89434a69426c456363c525",
+        "BDMV/BACKUP/PLAYLIST/00001.mpls": "4bceaaf129fd604900e9e02a839fea7b534599a9a5b29df7e0494975349fc6f4",
+        "BDMV/BACKUP/index.bdmv": "ea62b81dda70bae93de438ab0e3ccf7057a4151e2e977e6ed38638a4e06baa20",
+        "BDMV/CLIPINF/00001.clpi": "2bdafe2d54ea32bb592c01283151a5d43b9b6f0af629c65db9e034a367d3906f",
+        "BDMV/MovieObject.bdmv": "e5aae020fc3b54d16e13851030023802e138a764ec89434a69426c456363c525",
+        "BDMV/PLAYLIST/00001.mpls": "4bceaaf129fd604900e9e02a839fea7b534599a9a5b29df7e0494975349fc6f4",
+        "BDMV/STREAM/00001.m2ts": "a9ae8cce89b62f19525a24762a7150caab652e79f4d7e5a3f1ead053aa71cd3c",
+        "BDMV/index.bdmv": "ea62b81dda70bae93de438ab0e3ccf7057a4151e2e977e6ed38638a4e06baa20"
+      },
+      "expected": {
+        "schema": 1,
+        "kind": "bluray",
+        "packaging": "folder",
+        "encryption": "none",
+        "titles": [
+          {
+            "discOrder": 0,
+            "playlist": 1,
+            "playlistFile": "00001.mpls",
+            "durationMs": 66000,
+            "angleCount": 1,
+            "clips": [
+              {
+                "sequence": 0,
+                "file": "00001.m2ts",
+                "inTime90k": 54000000,
+                "outTime90k": 59940000
+              }
+            ],
+            "streams": [
+              {
+                "clipSequence": 0,
+                "pid": 4113,
+                "kind": "video",
+                "coding": 36,
+                "language": "",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": false,
+                "videoRole": "primary"
+              },
+              {
+                "clipSequence": 0,
+                "pid": 4117,
+                "kind": "video",
+                "coding": 36,
+                "language": "",
+                "dolbyVisionEnhancementLayer": true,
+                "dolbyVisionEnhancementKnown": true,
+                "videoRole": "enhancement"
+              }
+            ],
+            "chapters": [
+              {
+                "startMs": 0
+              },
+              {
+                "startMs": 33000
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "pmt-fel-bdmv",
+      "path": "pmt-fel-bdmv",
+      "files": {
+        "BDMV/BACKUP/CLIPINF/00001.clpi": "2bdafe2d54ea32bb592c01283151a5d43b9b6f0af629c65db9e034a367d3906f",
+        "BDMV/BACKUP/MovieObject.bdmv": "e5aae020fc3b54d16e13851030023802e138a764ec89434a69426c456363c525",
+        "BDMV/BACKUP/PLAYLIST/00001.mpls": "4bceaaf129fd604900e9e02a839fea7b534599a9a5b29df7e0494975349fc6f4",
+        "BDMV/BACKUP/index.bdmv": "ea62b81dda70bae93de438ab0e3ccf7057a4151e2e977e6ed38638a4e06baa20",
+        "BDMV/CLIPINF/00001.clpi": "2bdafe2d54ea32bb592c01283151a5d43b9b6f0af629c65db9e034a367d3906f",
+        "BDMV/MovieObject.bdmv": "e5aae020fc3b54d16e13851030023802e138a764ec89434a69426c456363c525",
+        "BDMV/PLAYLIST/00001.mpls": "4bceaaf129fd604900e9e02a839fea7b534599a9a5b29df7e0494975349fc6f4",
+        "BDMV/STREAM/00001.m2ts": "9387d6f989fed2c22b94302e60440fe9b6433afbafe9a042e7018a9b1bf59e0d",
+        "BDMV/index.bdmv": "ea62b81dda70bae93de438ab0e3ccf7057a4151e2e977e6ed38638a4e06baa20"
+      },
+      "expected": {
+        "schema": 1,
+        "kind": "bluray",
+        "packaging": "folder",
+        "encryption": "none",
+        "titles": [
+          {
+            "discOrder": 0,
+            "playlist": 1,
+            "playlistFile": "00001.mpls",
+            "durationMs": 66000,
+            "angleCount": 1,
+            "clips": [
+              {
+                "sequence": 0,
+                "file": "00001.m2ts",
+                "inTime90k": 54000000,
+                "outTime90k": 59940000
+              }
+            ],
+            "streams": [
+              {
+                "clipSequence": 0,
+                "pid": 4113,
+                "kind": "video",
+                "coding": 36,
+                "language": "",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": false,
+                "videoRole": "primary"
+              },
+              {
+                "clipSequence": 0,
+                "pid": 4117,
+                "kind": "video",
+                "coding": 36,
+                "language": "",
+                "dolbyVisionEnhancementLayer": true,
+                "dolbyVisionEnhancementKnown": true,
+                "videoRole": "enhancement",
+                "dolbyVisionBasePid": 4113
+              }
+            ],
+            "chapters": [
+              {
+                "startMs": 0
+              },
+              {
+                "startMs": 33000
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+/* See all: Recommended for you — design/ui-v1/desktop-browse.html#seeall, 1440 wide.
+   The drawn header (`.sa-head`) sits over the kit browse page: a back link, the 64px
+   title, the server's why line with its titles in bold, Play and Shuffle. The ambient
+   wash is the page's own artwork, so it stops behind the header like the frame. */
+.homeRow { position: relative; isolation: isolate; min-height: 100dvh; padding-bottom: 72px; }
+.ambient { position: absolute; inset: 0 0 auto; height: 560px; pointer-events: none; z-index: -1;
+  -webkit-mask-image: linear-gradient(180deg, var(--color-ink) 0%, transparent 100%); mask-image: linear-gradient(180deg, var(--color-ink) 0%, transparent 100%); }
+.header { position: relative; z-index: 1; padding: 104px var(--shell-gutter, var(--gutter-desktop)) 0; }
+/* Frame 47: the phone wash is one full-bleed image behind the header (its values live in the
+   kit's `library-phone` treatment); the desktop three-image wash keeps `.ambient`. */
+.ambientPhone { position: absolute; inset: 0 0 auto; pointer-events: none; z-index: -1; }
+/* The frame's `.back`: 15px/700 with the 18px left arrow, pulled 4px past the gutter. */
+.back.back[data-size='small'] { --control-height: 29px; --control-inset: 8px; --control-gap: 4px; --control-icon: 18px; --control-radius: 8px; margin-left: -4px; padding-left: 2px; color: var(--color-text-secondary); }
+.back.back[data-size='small']:hover:not(:disabled) { color: var(--color-text); }
+.title { margin: 14px 0 12px; font-size: var(--type-lockup-long-size); line-height: calc(var(--type-lockup-long-size) * .98); font-weight: var(--type-lockup-long-weight); letter-spacing: var(--type-lockup-long-tracking); }
+.why { max-width: 760px; margin: 0 0 26px; color: var(--color-text-secondary); font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); }
+.why strong { color: var(--color-text); font-weight: var(--type-row-heading-weight); }
+.actions { display: flex; align-items: center; gap: 12px; }
+/* Frame 46a: the back row sits over the wash, the 34px title and 14px why line follow,
+   then Play and Shuffle share one full-width row before the toolbar's own chip rows. */
+@media (max-width: 599px) {
+  .header { padding: 98px 20px 0; }
+  .header > .back { position: absolute; top: 0; left: 16px; height: 58px; padding-inline: 0; }
+  .title { margin: 0 0 8px; font-size: var(--type-display-size); line-height: calc(var(--type-display-size) * 1.05); letter-spacing: var(--type-banner-title-tracking); }
+  .why { margin: 0; font-size: var(--type-banner-body-size); line-height: var(--type-banner-body-line); }
+  .actions { margin: 0; padding: 14px 0 0; gap: 10px; }
+  .actions > * { flex: 1 1 0; height: 46px; border-radius: 10px; font-size: var(--type-body-strong-size); }
+}
+
+/* Frame 47's toolbar sits directly on the page wash. These overrides belong to
+   See all; the library's opaque sticky toolbar and other phone pages keep theirs. */
+@media (max-width: 599px) {
+  .homeRow > [data-platform='phone'][data-sticky] {
+    background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none;
+    box-shadow: none; padding-block: 0;
+  }
+  .homeRow > [data-platform='phone'][data-sticky]::after { display: none; }
+  .homeRow > [data-platform='phone'][data-sticky] > div:first-child { padding: 14px 20px 0; }
+  .homeRow > [data-platform='phone'][data-sticky] > div:nth-child(2) { padding: 14px 20px 0; }
+  .homeRow > [data-platform='phone'] [role='radiogroup'] > [role='radio'] {
+    height: 34px; padding: 0 13px; border-radius: 9px; font-size: var(--type-chip-size); gap: 6px;
+  }
+  .homeRow > [data-platform='phone'] [role='radio'] > span:last-child { font-size: var(--type-label-size); font-weight: var(--type-chip-weight); }
+  .homeRow > [data-platform='phone'] > div:first-child > button[data-variant='glass'] {
+    background: transparent; box-shadow: inset 0 0 0 1px var(--color-line-strong);
+  }
+}

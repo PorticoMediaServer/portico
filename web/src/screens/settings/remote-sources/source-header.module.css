@@ -1,0 +1,48 @@
+/* The authored top of a remote source: remote-sources.html#7d tiles and the page's
+   own .pgt/.pgs/.note/.stat rows (lines 163-164, 1076-1082, 1109-1112). The
+   caller supplies the badge, notice, actions and rows; this owns the layout. */
+.header { display: grid; gap: 14px; }
+.head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.name { margin: 0; font-size: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-03em); }
+.origin { margin: 6px 0 0; font-family: var(--font-mono); font-size: var(--type-fixed-size-13point-5px); color: var(--color-text-tertiary); }
+.actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+/* The drawn problem note: .note.w, 8% amber with its 22% ring. */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-amber) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-amber) 22%, transparent);
+  font-size: var(--type-fixed-size-14px);
+  line-height: var(--type-fixed-line-1point-5);
+  color: var(--color-text-secondary);
+}
+.notice svg { flex: none; margin-top: 1px; color: var(--color-amber); }
+/* The drawn fact rows: .box stat > .r, 190px / 1fr / auto at 15px 22px and 18px gap. */
+.header dl {
+  display: grid;
+  margin: 0;
+  border-radius: 14px;
+  background: var(--color-raised);
+  overflow: hidden;
+}
+.header dl > div {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 15px 22px;
+  border-top: 1px solid var(--color-line-soft);
+}
+.header dl > div:first-child { border-top: 0; }
+.header dl dt { font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); }
+.header dl dd { margin: 0; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); color: var(--color-text); line-height: var(--type-fixed-line-1point-45); }
+.header dl dd small { display: block; margin-top: 2px; font-size: var(--type-fixed-size-13point-5px); font-weight: var(--type-fixed-weight-500); color: var(--color-text-tertiary); }
+/* Phone keeps the same facts and note; the rows take the phone tiles' narrower
+   label column and the action row moves under the badge. */
+.header[data-phone] .head { align-items: flex-start; }
+.header[data-phone] .actions { margin-left: 0; width: 100%; justify-content: flex-end; }
+.header[data-phone] dl > div { grid-template-columns: 130px minmax(0, 1fr); gap: 12px; padding: 12px 16px; }

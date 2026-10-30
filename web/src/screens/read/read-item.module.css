@@ -1,0 +1,26 @@
+/* desktop-read 3/1b: the sparse book page's cover glow and ambient tint come
+   from the book's own colours. With generated art that is the title's tint. */
+.ambient {
+  position: absolute;
+  inset: -20% -10% 0;
+  background:
+    radial-gradient(48% 62% at 18% 58%, color-mix(in srgb, var(--read-tint-first) 62%, transparent) 0, transparent 72%),
+    radial-gradient(52% 68% at 46% 44%, color-mix(in srgb, var(--read-tint-second) 48%, transparent) 0, transparent 76%);
+  filter: blur(70px);
+  opacity: .85;
+}
+@media (prefers-reduced-motion: reduce) { .ambient { filter: blur(70px); } }
+
+/* phone-read 3: .btn.play.wide.cbtn fills the phone's action row (.btn.wide { flex: 1 }); the page's
+   own primary Read/Resume button is that control. Phone only, so desktop and tablet are unchanged. */
+@media (max-width: 599px) { button.primary { flex: 1; min-width: 0; } }
+
+/* A version chooser that stays reachable while the original publication is still
+   opening or has failed, beside the state's own action. */
+.versionRow { display: flex; justify-content: center; margin-top: 16px; }
+
+/* phone-read.html 3 .nb: the reading branch keeps its own Back on a phone, above
+   the hero, the loading skeleton and the failure state alike. */
+.phoneTopBar { position: sticky; z-index: var(--layer-sticky); top: 0; display: flex; align-items: center; height: 52px; padding: 8px 12px 0; background: color-mix(in srgb, var(--color-ink) 86%, transparent); backdrop-filter: blur(18px); }
+/* phone-read.html 3 .gr: a 38px round control, not the kit's 42px small default. */
+.phoneTopBar button[data-size="small"] { width: 38px; height: 38px; border-radius: 50%; }

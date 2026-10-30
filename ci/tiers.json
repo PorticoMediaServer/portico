@@ -1,0 +1,67 @@
+{
+  "status": "approved-checkpoint-3-corrected",
+  "nightly_only": [
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "name": "TestP252bOnePinCompleteWriterHold"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "name": "TestReadingLibraryRemovalCostIsLinear"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "name": "TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "name": "TestDerivedWorkerCompletesWithForegroundPressure"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "name": "TestMBStagingTenThousandCompleteFinalWriterHold"
+    }
+  ],
+  "reviewed_kept": [
+    "TestReadPathGoldenEquivalence",
+    "TestKeysetPagesDoNotRescanTheirPrefix",
+    "TestBulkBuildDerivesWhatIncrementalBuildDoes",
+    "TestReadingInitialReadyHasNoPollDelayOrHiddenHandle",
+    "TestReadingCompleteRestartEveryDurablePhase",
+    "TestSIGTERMDrainsInsideItsBudgetAndLeavesNoChildren",
+    "TestEveryRouteSurvivesHostileInput",
+    "TestRecommendationCandidateSetsStayBounded",
+    "TestProgressingManifestCanOutlastThirtySeconds",
+    "TestOwnerRecoveryEmptyLaneSleepsUntilActualWake"
+  ],
+  "nightly_lanes": {
+    "pressure": [
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+        "name": "TestP252bOnePinCompleteWriterHold"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+        "name": "TestReadingLibraryRemovalCostIsLinear"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+        "name": "TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+        "name": "TestDerivedWorkerCompletesWithForegroundPressure"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+        "name": "TestMBStagingTenThousandCompleteFinalWriterHold"
+      }
+    ],
+    "golden": [
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestReadPathGoldenEquivalence"
+      }
+    ]
+  }
+}

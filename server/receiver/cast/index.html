@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Portico</title>
+<!-- CAF owns the mounted media element. Portico's view only presents engine observations.
+     All assets except Google's framework ship in the embedded receiver filesystem. -->
+<link rel="stylesheet" href="receiver.css">
+<script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+</head>
+<body>
+<video id="player" class="castMediaElement" playsinline></video>
+<div id="ui" class="tv" data-state="idle" data-overlay="hidden">
+  <svg class="sprites" width="0" height="0" aria-hidden="true"><defs>
+    <symbol id="i-pause" viewBox="0 0 24 24"><g fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1.2"/><rect x="14" y="4" width="4" height="16" rx="1.2"/></g></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13M9 8l11-2"/><ellipse cx="6" cy="18" rx="3" ry="2"/><ellipse cx="17" cy="16" rx="3" ry="2"/></g></symbol>
+    <symbol id="i-tv" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="6" width="18" height="12.5" rx="2"/><path d="m9 2.5 3 3.5 3-3.5"/></g></symbol>
+    <symbol id="i-cast" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.2V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5.5"/><path d="M3 12.2a6.8 6.8 0 0 1 6.8 6.8M3 16.2a2.8 2.8 0 0 1 2.8 2.8"/><circle cx="3.6" cy="19.2" r=".4"/></g></symbol>
+  </defs></svg>
+  <section id="splash" class="screen atmosphere" aria-live="polite">
+    <div class="gen round"></div><img class="wm" src="assets/portico-wordmark-mono-white.svg" alt="Portico">
+    <div class="mid"><h1 data-text="idle.title"></h1><p id="idle-hint"></p>
+      <form id="browser-pair" class="bp" hidden>
+        <label for="code-input" data-text="pair.label"></label>
+        <div class="row"><input class="code" id="code-input" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn play" id="pair" type="submit" data-text="pair.connect"></button></div>
+        <p class="stat" id="status" role="status"></p>
+      </form>
+    </div>
+  </section>
+  <section id="loading" class="screen atmosphere" aria-live="polite">
+    <div class="gen"></div><img class="amb" id="loading-ambient" alt="" hidden><div class="shade" id="loading-shade" hidden></div>
+    <div class="ldrow">
+      <div class="art none" id="loading-art-tile"><img id="loading-art" alt="" hidden><svg id="loading-glyph" width="200" height="200" aria-hidden="true"><use href="#i-tv"/></svg></div>
+      <div class="tx"><p class="st"><i aria-hidden="true"></i><span id="loading-eyebrow" data-text="gettingReady"></span></p><h1 id="loading-title"></h1><p class="sub" id="loading-subtitle" hidden></p><p class="sub2" id="loading-album" hidden></p><p class="wait" id="loading-wait" data-text="preparingLong" hidden></p></div>
+    </div>
+  </section>
+  <section id="playback-splash" class="screen atmosphere"><div class="gen round"></div><img class="splash" src="assets/portico-wordmark-mono-white.svg" alt="Portico"></section>
+  <section id="playing" class="screen" data-audio="false">
+    <div class="audio-only gen"></div><img class="audio-only amb" id="playing-ambient" alt="" hidden><div class="audio-only shade" id="playing-shade" hidden></div>
+    <div class="audio-only mrow"><div class="art none" id="playing-art-tile"><img id="playing-art" alt="" hidden><svg id="playing-glyph" width="200" height="200" aria-hidden="true"><use href="#i-music"/></svg></div><div class="tx"><p class="np"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span data-text="nowPlaying"></span></p><h1 id="audio-title"></h1><p class="ar" id="audio-artist" hidden></p><p class="al" id="audio-album" hidden></p></div></div>
+    <span class="audio-only sym"><img src="assets/portico-wordmark-mono-white.svg" alt="Portico"></span>
+    <div class="video-only" id="video-overlay"><div class="veil"></div><div class="sh-t"></div><div class="sh-b"></div><div class="ptop"><div class="pid"><h1 id="playing-title"></h1><p class="epl" id="playing-subtitle" hidden></p></div></div><span class="sym"><img src="assets/portico-wordmark-mono-white.svg" alt="Portico"></span></div>
+    <div class="pbot" id="playing-progress"><div class="sb" id="progress-track" hidden><div class="trk2"><i id="progress-fill"></i></div></div><div class="under"><span class="l" id="time-played" hidden></span><span class="state" id="state-pill" hidden><svg id="state-pause" width="22" height="22" aria-hidden="true"><use href="#i-pause"/></svg><i id="state-buffering" aria-hidden="true" hidden></i><span id="state-label"></span></span><span class="r" id="time-left" hidden></span></div></div>
+  </section>
+  <section id="error" class="screen atmosphere" role="alert"><div class="gen round"></div><img class="wm" src="assets/portico-wordmark-mono-white.svg" alt="Portico"><div class="ec"><div class="mk" aria-hidden="true">!</div><h1 id="error-title"></h1><p id="error-body"></p></div></section>
+  <div class="tko" id="takeover" role="alert" hidden><span class="ic"><svg width="44" height="44" aria-hidden="true"><use href="#i-cast"/></svg></span><div><h2 id="takeover-title"></h2><p id="takeover-body"></p><div class="keys" id="takeover-keys" hidden><span class="hint"><span class="key-cap" data-text="key.ok"></span><span data-text="allow"></span></span><span class="hint"><span class="key-cap" data-text="key.back"></span><span data-text="deny"></span></span></div></div><span class="left" aria-hidden="true"><b id="takeover-remaining"></b></span></div>
+  <div class="nt warn" id="notice" role="status" data-tone="warning" hidden><span class="ni" aria-hidden="true">!</span><span id="notice-message"></span></div>
+</div>
+<script src="receiver-text.js"></script>
+<script src="view.js"></script>
+<script src="contracts.js"></script>
+<script src="receiver.js"></script>
+</body>
+</html>

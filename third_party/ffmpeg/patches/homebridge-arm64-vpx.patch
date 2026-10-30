@@ -1,0 +1,20 @@
+--- a/build-ffmpeg
++++ b/build-ffmpeg
+@@ -886,7 +886,7 @@
+   CONFIGURE_OPTIONS+=("--enable-libx265")
+ fi
+ 
+-if [[ ! "${TARGET_ARCH}" == "arm"* ]]; then
++if [[ ! "${TARGET_ARCH}" == "arm"* || "${TARGET_ARCH}" == "arm64" || "${TARGET_ARCH}" == "aarch64" ]]; then
+ 
+   if build "libvpx" "1.15.2"; then
+ 
+@@ -1494,7 +1494,7 @@
+ 
+ build "ffmpeg" "${FFMPEG_VERSION}"
+ 
+-download "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.gz" "FFmpeg-release-${FFMPEG_VERSION}.tar.gz"
++download "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" "ffmpeg-${FFMPEG_VERSION}.tar.xz"
+ 
+ # shellcheck disable=SC2086
+ echo ./configure "${CONFIGURE_OPTIONS[@]}" \

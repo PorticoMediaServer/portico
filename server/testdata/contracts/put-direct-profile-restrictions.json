@@ -1,0 +1,31 @@
+{
+  "schema": "PutDirectProfileRestrictionsResponse",
+  "method": "PUT",
+  "path": "/v1/direct/profiles/profile/restrictions",
+  "auth": "owner",
+  "request": {
+    "expectedRevision": 1,
+    "ratingSystem": "mpaa",
+    "maximumAgeRating": "PG-13",
+    "allowUnrated": false,
+    "blockedLabels": [],
+    "allowDownloads": true,
+    "allowLiveTv": true,
+    "allowDvr": true,
+    "allowWatchTogether": true
+  },
+  "status": 200,
+  "response": {
+    "profileId": "profile",
+    "ratingSystem": "mpaa",
+    "maximumAgeRating": "PG-13",
+    "maximumAge": 13,
+    "allowUnrated": false,
+    "blockedLabels": [],
+    "allowDownloads": true,
+    "allowLiveTv": true,
+    "allowDvr": true,
+    "allowWatchTogether": true,
+    "revision": 2
+  }
+}

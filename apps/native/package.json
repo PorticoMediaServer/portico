@@ -1,0 +1,67 @@
+{
+  "name": "portico-apple",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "react-native start --port 19424",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:hooks": "eslint --no-eslintrc -c .eslintrc.hooks.cjs --ext .ts,.tsx src-next App.tsx ../vega/src",
+    "test": "node --experimental-strip-types --import ./test/register.mjs --test test/*.test.ts",
+    "typecheck:test": "tsc -p test/tsconfig.json --noEmit",
+    "lint:strings": "node ../../packages/i18n/scripts/lint-glossary.mjs && node ../../packages/i18n/scripts/lint-strings.mjs src-next scripts/next-strings-baseline.json --all --strict && node ../../packages/i18n/scripts/lint-raw-errors.mjs src-next --strict",
+    "lint:boundary": "node scripts/lint-boundary.mjs",
+    "check:next": "npm run lint:boundary && npm run lint:hooks && npm run lint:strings && npm run typecheck && npm run typecheck:next-test && npm test",
+    "typecheck:next-test": "tsc -p test/tsconfig.next.json --noEmit",
+    "postinstall": "node scripts/patch-apple-blur.mjs && node scripts/patch-android-blur.mjs && node scripts/patch-android-reader.mjs",
+    "test:apple-blur-patch": "node --test test/apple-blur-patch.test.mjs",
+    "test:android-blur-patch": "node --test test/android-blur-patch.test.mjs",
+    "test:android-package": "node --test test/package-android-emulator.test.mjs"
+  },
+  "dependencies": {
+    "@bacons/text-decoder": "0.0.0",
+    "@react-native-community/blur": "4.4.1",
+    "@react-native-masked-view/masked-view": "0.3.2",
+    "@react-navigation/native": "7.4.1",
+    "@react-navigation/native-stack": "7.19.1",
+    "qrcode": "1.5.4",
+    "react": "19.2.8",
+    "react-native": "npm:react-native-tvos@0.83.10-1",
+    "react-native-gesture-handler": "2.30.0",
+    "react-native-keyboard-controller": "1.22.9",
+    "react-native-qrcode-svg": "6.3.22",
+    "react-native-reanimated": "4.6.0",
+    "react-native-safe-area-context": "^5.5.2",
+    "react-native-screens": "4.23.0",
+    "react-native-svg": "15.15.5",
+    "react-native-url-polyfill": "^4.0.0",
+    "react-native-webview": "16.0.0",
+    "react-native-worklets": "0.12.2",
+    "semver": "^7.8.5"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "20.0.0",
+    "@react-native-community/cli-platform-android": "20.0.0",
+    "@react-native-community/cli-platform-ios": "20.0.0",
+    "@react-native/babel-preset": "0.83.10",
+    "@react-native/eslint-config": "0.83.10",
+    "@react-native/metro-config": "0.83.10",
+    "@react-native/typescript-config": "0.83.10",
+    "@types/react": "^19.2.0",
+    "eslint": "^8.19.0",
+    "prettier": "2.8.8",
+    "rolldown": "1.2.11",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "reanimated": {
+    "staticFeatureFlags": {
+      "IOS_SYNCHRONOUSLY_UPDATE_UI_PROPS": true
+    }
+  }
+}

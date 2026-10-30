@@ -1,0 +1,1212 @@
+{
+  "format": "portico-playback-canonical-v1",
+  "description": "Fixed canonical and rejection corpus for independent implementations. Inputs are canonical-envelope fixtures; validate body against operation schema before hashing. No behavioral verification has run.",
+  "fixtures": [
+    {
+      "name": "create",
+      "semanticEnvelope": {
+        "operation": "create",
+        "targetId": null,
+        "body": {
+          "protocolVersion": "2.0",
+          "command": {
+            "controllerId": "controller_phone",
+            "controllerEpoch": "epoch_new",
+            "commandLaneId": "lane_movie",
+            "sequence": "1",
+            "requestId": "request_create"
+          },
+          "desired": {
+            "context": {
+              "itemId": "item_movie",
+              "editionId": null,
+              "partId": null,
+              "mappingId": null
+            },
+            "source": {
+              "mode": "automatic",
+              "sourceId": null,
+              "sourceVersionId": null
+            },
+            "audio": {
+              "mode": "automatic",
+              "trackId": null
+            },
+            "subtitles": {
+              "track": {
+                "mode": "automatic",
+                "trackId": null
+              },
+              "renderMode": "automatic"
+            },
+            "quality": {
+              "mode": "automatic",
+              "maxBitrateBps": null,
+              "maxWidth": null,
+              "maxHeight": null,
+              "allowLossyConversion": false,
+              "allowHDRToSDR": false
+            },
+            "state": "playing",
+            "rate": {
+              "numerator": "1",
+              "denominator": "1"
+            },
+            "seek": {
+              "seekCommandId": "seek_start",
+              "target": {
+                "context": {
+                  "itemId": "item_movie",
+                  "editionId": null,
+                  "partId": null,
+                  "mappingId": null
+                },
+                "positionUs": "120000000"
+              }
+            },
+            "offerSelection": null
+          },
+          "capabilities": {
+            "profileVersion": "avplayer_ios_v1",
+            "engine": "AVPlayer",
+            "engineVersion": "iOS26",
+            "os": "iOS",
+            "osVersion": "26",
+            "outputRouteId": "built_in",
+            "outputRouteRevision": "1",
+            "transports": [
+              {
+                "transport": "original_http",
+                "containers": [
+                  "mp4"
+                ],
+                "video": [
+                  {
+                    "codec": "h264",
+                    "profiles": [
+                      "High"
+                    ],
+                    "levels": [
+                      "4.1"
+                    ],
+                    "bitDepths": [
+                      8
+                    ],
+                    "maxWidth": 1920,
+                    "maxHeight": 1080,
+                    "maxFrameRate": {
+                      "numerator": "30",
+                      "denominator": "1"
+                    },
+                    "dynamicRanges": [
+                      "sdr"
+                    ],
+                    "maxChannels": null,
+                    "channelLayouts": [],
+                    "sampleRatesHz": []
+                  }
+                ],
+                "audio": [
+                  {
+                    "codec": "aac",
+                    "profiles": [
+                      "LC"
+                    ],
+                    "levels": [],
+                    "bitDepths": [],
+                    "maxWidth": null,
+                    "maxHeight": null,
+                    "maxFrameRate": null,
+                    "dynamicRanges": [],
+                    "maxChannels": 2,
+                    "channelLayouts": [
+                      "stereo"
+                    ],
+                    "sampleRatesHz": [
+                      44100,
+                      48000
+                    ]
+                  }
+                ],
+                "byteRanges": true,
+                "audioTrackSwitching": "replacement",
+                "subtitleRenderers": [
+                  "external_text"
+                ]
+              }
+            ],
+            "candidatePreparation": "serial_attach",
+            "backgroundControl": true,
+            "evidence": "declared"
+          },
+          "replaces": null
+        }
+      },
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"1\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"AVPlayer\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}}",
+      "canonicalUTF8": "{\"body\":{\"capabilities\":{\"backgroundControl\":true,\"candidatePreparation\":\"serial_attach\",\"engine\":\"AVPlayer\",\"engineVersion\":\"iOS26\",\"evidence\":\"declared\",\"os\":\"iOS\",\"osVersion\":\"26\",\"outputRouteId\":\"built_in\",\"outputRouteRevision\":\"1\",\"profileVersion\":\"avplayer_ios_v1\",\"transports\":[{\"audio\":[{\"bitDepths\":[],\"channelLayouts\":[\"stereo\"],\"codec\":\"aac\",\"dynamicRanges\":[],\"levels\":[],\"maxChannels\":2,\"maxFrameRate\":null,\"maxHeight\":null,\"maxWidth\":null,\"profiles\":[\"LC\"],\"sampleRatesHz\":[44100,48000]}],\"audioTrackSwitching\":\"replacement\",\"byteRanges\":true,\"containers\":[\"mp4\"],\"subtitleRenderers\":[\"external_text\"],\"transport\":\"original_http\",\"video\":[{\"bitDepths\":[8],\"channelLayouts\":[],\"codec\":\"h264\",\"dynamicRanges\":[\"sdr\"],\"levels\":[\"4.1\"],\"maxChannels\":null,\"maxFrameRate\":{\"denominator\":\"1\",\"numerator\":\"30\"},\"maxHeight\":1080,\"maxWidth\":1920,\"profiles\":[\"High\"],\"sampleRatesHz\":[]}]}]},\"command\":{\"commandLaneId\":\"lane_movie\",\"controllerEpoch\":\"epoch_new\",\"controllerId\":\"controller_phone\",\"requestId\":\"request_create\",\"sequence\":\"1\"},\"desired\":{\"audio\":{\"mode\":\"automatic\",\"trackId\":null},\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"offerSelection\":null,\"quality\":{\"allowHDRToSDR\":false,\"allowLossyConversion\":false,\"maxBitrateBps\":null,\"maxHeight\":null,\"maxWidth\":null,\"mode\":\"automatic\"},\"rate\":{\"denominator\":\"1\",\"numerator\":\"1\"},\"seek\":{\"seekCommandId\":\"seek_start\",\"target\":{\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"positionUs\":\"120000000\"}},\"source\":{\"mode\":\"automatic\",\"sourceId\":null,\"sourceVersionId\":null},\"state\":\"playing\",\"subtitles\":{\"renderMode\":\"automatic\",\"track\":{\"mode\":\"automatic\",\"trackId\":null}}},\"protocolVersion\":\"2.0\",\"replaces\":null},\"operation\":\"create\",\"targetId\":null}",
+      "sha256": "1ecbd15a5879dee29aebe0197963ddbcba49f8a5cad1b3453f573eadb94978c4"
+    },
+    {
+      "name": "pause",
+      "semanticEnvelope": {
+        "operation": "create",
+        "targetId": null,
+        "body": {
+          "protocolVersion": "2.0",
+          "command": {
+            "controllerId": "controller_phone",
+            "controllerEpoch": "epoch_new",
+            "commandLaneId": "lane_movie",
+            "sequence": "1",
+            "requestId": "request_create"
+          },
+          "desired": {
+            "context": {
+              "itemId": "item_movie",
+              "editionId": null,
+              "partId": null,
+              "mappingId": null
+            },
+            "source": {
+              "mode": "automatic",
+              "sourceId": null,
+              "sourceVersionId": null
+            },
+            "audio": {
+              "mode": "automatic",
+              "trackId": null
+            },
+            "subtitles": {
+              "track": {
+                "mode": "automatic",
+                "trackId": null
+              },
+              "renderMode": "automatic"
+            },
+            "quality": {
+              "mode": "automatic",
+              "maxBitrateBps": null,
+              "maxWidth": null,
+              "maxHeight": null,
+              "allowLossyConversion": false,
+              "allowHDRToSDR": false
+            },
+            "state": "paused",
+            "rate": {
+              "numerator": "1",
+              "denominator": "1"
+            },
+            "seek": {
+              "seekCommandId": "seek_start",
+              "target": {
+                "context": {
+                  "itemId": "item_movie",
+                  "editionId": null,
+                  "partId": null,
+                  "mappingId": null
+                },
+                "positionUs": "120000000"
+              }
+            },
+            "offerSelection": null
+          },
+          "capabilities": {
+            "profileVersion": "avplayer_ios_v1",
+            "engine": "AVPlayer",
+            "engineVersion": "iOS26",
+            "os": "iOS",
+            "osVersion": "26",
+            "outputRouteId": "built_in",
+            "outputRouteRevision": "1",
+            "transports": [
+              {
+                "transport": "original_http",
+                "containers": [
+                  "mp4"
+                ],
+                "video": [
+                  {
+                    "codec": "h264",
+                    "profiles": [
+                      "High"
+                    ],
+                    "levels": [
+                      "4.1"
+                    ],
+                    "bitDepths": [
+                      8
+                    ],
+                    "maxWidth": 1920,
+                    "maxHeight": 1080,
+                    "maxFrameRate": {
+                      "numerator": "30",
+                      "denominator": "1"
+                    },
+                    "dynamicRanges": [
+                      "sdr"
+                    ],
+                    "maxChannels": null,
+                    "channelLayouts": [],
+                    "sampleRatesHz": []
+                  }
+                ],
+                "audio": [
+                  {
+                    "codec": "aac",
+                    "profiles": [
+                      "LC"
+                    ],
+                    "levels": [],
+                    "bitDepths": [],
+                    "maxWidth": null,
+                    "maxHeight": null,
+                    "maxFrameRate": null,
+                    "dynamicRanges": [],
+                    "maxChannels": 2,
+                    "channelLayouts": [
+                      "stereo"
+                    ],
+                    "sampleRatesHz": [
+                      44100,
+                      48000
+                    ]
+                  }
+                ],
+                "byteRanges": true,
+                "audioTrackSwitching": "replacement",
+                "subtitleRenderers": [
+                  "external_text"
+                ]
+              }
+            ],
+            "candidatePreparation": "serial_attach",
+            "backgroundControl": true,
+            "evidence": "declared"
+          },
+          "replaces": null
+        }
+      },
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"1\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"paused\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"AVPlayer\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}}",
+      "canonicalUTF8": "{\"body\":{\"capabilities\":{\"backgroundControl\":true,\"candidatePreparation\":\"serial_attach\",\"engine\":\"AVPlayer\",\"engineVersion\":\"iOS26\",\"evidence\":\"declared\",\"os\":\"iOS\",\"osVersion\":\"26\",\"outputRouteId\":\"built_in\",\"outputRouteRevision\":\"1\",\"profileVersion\":\"avplayer_ios_v1\",\"transports\":[{\"audio\":[{\"bitDepths\":[],\"channelLayouts\":[\"stereo\"],\"codec\":\"aac\",\"dynamicRanges\":[],\"levels\":[],\"maxChannels\":2,\"maxFrameRate\":null,\"maxHeight\":null,\"maxWidth\":null,\"profiles\":[\"LC\"],\"sampleRatesHz\":[44100,48000]}],\"audioTrackSwitching\":\"replacement\",\"byteRanges\":true,\"containers\":[\"mp4\"],\"subtitleRenderers\":[\"external_text\"],\"transport\":\"original_http\",\"video\":[{\"bitDepths\":[8],\"channelLayouts\":[],\"codec\":\"h264\",\"dynamicRanges\":[\"sdr\"],\"levels\":[\"4.1\"],\"maxChannels\":null,\"maxFrameRate\":{\"denominator\":\"1\",\"numerator\":\"30\"},\"maxHeight\":1080,\"maxWidth\":1920,\"profiles\":[\"High\"],\"sampleRatesHz\":[]}]}]},\"command\":{\"commandLaneId\":\"lane_movie\",\"controllerEpoch\":\"epoch_new\",\"controllerId\":\"controller_phone\",\"requestId\":\"request_create\",\"sequence\":\"1\"},\"desired\":{\"audio\":{\"mode\":\"automatic\",\"trackId\":null},\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"offerSelection\":null,\"quality\":{\"allowHDRToSDR\":false,\"allowLossyConversion\":false,\"maxBitrateBps\":null,\"maxHeight\":null,\"maxWidth\":null,\"mode\":\"automatic\"},\"rate\":{\"denominator\":\"1\",\"numerator\":\"1\"},\"seek\":{\"seekCommandId\":\"seek_start\",\"target\":{\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"positionUs\":\"120000000\"}},\"source\":{\"mode\":\"automatic\",\"sourceId\":null,\"sourceVersionId\":null},\"state\":\"paused\",\"subtitles\":{\"renderMode\":\"automatic\",\"track\":{\"mode\":\"automatic\",\"trackId\":null}}},\"protocolVersion\":\"2.0\",\"replaces\":null},\"operation\":\"create\",\"targetId\":null}",
+      "sha256": "0ef325e68690c41ff374cea64f4bb1505dc1e34234f493a9d040e6ef4e38fed0"
+    },
+    {
+      "name": "reordered_whitespace_same_digest",
+      "semanticEnvelope": {
+        "operation": "create",
+        "targetId": null,
+        "body": {
+          "protocolVersion": "2.0",
+          "command": {
+            "controllerId": "controller_phone",
+            "controllerEpoch": "epoch_new",
+            "commandLaneId": "lane_movie",
+            "sequence": "1",
+            "requestId": "request_create"
+          },
+          "desired": {
+            "context": {
+              "itemId": "item_movie",
+              "editionId": null,
+              "partId": null,
+              "mappingId": null
+            },
+            "source": {
+              "mode": "automatic",
+              "sourceId": null,
+              "sourceVersionId": null
+            },
+            "audio": {
+              "mode": "automatic",
+              "trackId": null
+            },
+            "subtitles": {
+              "track": {
+                "mode": "automatic",
+                "trackId": null
+              },
+              "renderMode": "automatic"
+            },
+            "quality": {
+              "mode": "automatic",
+              "maxBitrateBps": null,
+              "maxWidth": null,
+              "maxHeight": null,
+              "allowLossyConversion": false,
+              "allowHDRToSDR": false
+            },
+            "state": "playing",
+            "rate": {
+              "numerator": "1",
+              "denominator": "1"
+            },
+            "seek": {
+              "seekCommandId": "seek_start",
+              "target": {
+                "context": {
+                  "itemId": "item_movie",
+                  "editionId": null,
+                  "partId": null,
+                  "mappingId": null
+                },
+                "positionUs": "120000000"
+              }
+            },
+            "offerSelection": null
+          },
+          "capabilities": {
+            "profileVersion": "avplayer_ios_v1",
+            "engine": "AVPlayer",
+            "engineVersion": "iOS26",
+            "os": "iOS",
+            "osVersion": "26",
+            "outputRouteId": "built_in",
+            "outputRouteRevision": "1",
+            "transports": [
+              {
+                "transport": "original_http",
+                "containers": [
+                  "mp4"
+                ],
+                "video": [
+                  {
+                    "codec": "h264",
+                    "profiles": [
+                      "High"
+                    ],
+                    "levels": [
+                      "4.1"
+                    ],
+                    "bitDepths": [
+                      8
+                    ],
+                    "maxWidth": 1920,
+                    "maxHeight": 1080,
+                    "maxFrameRate": {
+                      "numerator": "30",
+                      "denominator": "1"
+                    },
+                    "dynamicRanges": [
+                      "sdr"
+                    ],
+                    "maxChannels": null,
+                    "channelLayouts": [],
+                    "sampleRatesHz": []
+                  }
+                ],
+                "audio": [
+                  {
+                    "codec": "aac",
+                    "profiles": [
+                      "LC"
+                    ],
+                    "levels": [],
+                    "bitDepths": [],
+                    "maxWidth": null,
+                    "maxHeight": null,
+                    "maxFrameRate": null,
+                    "dynamicRanges": [],
+                    "maxChannels": 2,
+                    "channelLayouts": [
+                      "stereo"
+                    ],
+                    "sampleRatesHz": [
+                      44100,
+                      48000
+                    ]
+                  }
+                ],
+                "byteRanges": true,
+                "audioTrackSwitching": "replacement",
+                "subtitleRenderers": [
+                  "external_text"
+                ]
+              }
+            ],
+            "candidatePreparation": "serial_attach",
+            "backgroundControl": true,
+            "evidence": "declared"
+          },
+          "replaces": null
+        }
+      },
+      "rawInput": "{\n   \"body\": {\n      \"protocolVersion\": \"2.0\",\n      \"command\": {\n         \"controllerId\": \"controller_phone\",\n         \"controllerEpoch\": \"epoch_new\",\n         \"commandLaneId\": \"lane_movie\",\n         \"sequence\": \"1\",\n         \"requestId\": \"request_create\"\n      },\n      \"desired\": {\n         \"context\": {\n            \"itemId\": \"item_movie\",\n            \"editionId\": null,\n            \"partId\": null,\n            \"mappingId\": null\n         },\n         \"source\": {\n            \"mode\": \"automatic\",\n            \"sourceId\": null,\n            \"sourceVersionId\": null\n         },\n         \"audio\": {\n            \"mode\": \"automatic\",\n            \"trackId\": null\n         },\n         \"subtitles\": {\n            \"track\": {\n               \"mode\": \"automatic\",\n               \"trackId\": null\n            },\n            \"renderMode\": \"automatic\"\n         },\n         \"quality\": {\n            \"mode\": \"automatic\",\n            \"maxBitrateBps\": null,\n            \"maxWidth\": null,\n            \"maxHeight\": null,\n            \"allowLossyConversion\": false,\n            \"allowHDRToSDR\": false\n         },\n         \"state\": \"playing\",\n         \"rate\": {\n            \"numerator\": \"1\",\n            \"denominator\": \"1\"\n         },\n         \"seek\": {\n            \"seekCommandId\": \"seek_start\",\n            \"target\": {\n               \"context\": {\n                  \"itemId\": \"item_movie\",\n                  \"editionId\": null,\n                  \"partId\": null,\n                  \"mappingId\": null\n               },\n               \"positionUs\": \"120000000\"\n            }\n         },\n         \"offerSelection\": null\n      },\n      \"capabilities\": {\n         \"profileVersion\": \"avplayer_ios_v1\",\n         \"engine\": \"AVPlayer\",\n         \"engineVersion\": \"iOS26\",\n         \"os\": \"iOS\",\n         \"osVersion\": \"26\",\n         \"outputRouteId\": \"built_in\",\n         \"outputRouteRevision\": \"1\",\n         \"transports\": [\n            {\n               \"transport\": \"original_http\",\n               \"containers\": [\n                  \"mp4\"\n               ],\n               \"video\": [\n                  {\n                     \"codec\": \"h264\",\n                     \"profiles\": [\n                        \"High\"\n                     ],\n                     \"levels\": [\n                        \"4.1\"\n                     ],\n                     \"bitDepths\": [\n                        8\n                     ],\n                     \"maxWidth\": 1920,\n                     \"maxHeight\": 1080,\n                     \"maxFrameRate\": {\n                        \"numerator\": \"30\",\n                        \"denominator\": \"1\"\n                     },\n                     \"dynamicRanges\": [\n                        \"sdr\"\n                     ],\n                     \"maxChannels\": null,\n                     \"channelLayouts\": [],\n                     \"sampleRatesHz\": []\n                  }\n               ],\n               \"audio\": [\n                  {\n                     \"codec\": \"aac\",\n                     \"profiles\": [\n                        \"LC\"\n                     ],\n                     \"levels\": [],\n                     \"bitDepths\": [],\n                     \"maxWidth\": null,\n                     \"maxHeight\": null,\n                     \"maxFrameRate\": null,\n                     \"dynamicRanges\": [],\n                     \"maxChannels\": 2,\n                     \"channelLayouts\": [\n                        \"stereo\"\n                     ],\n                     \"sampleRatesHz\": [\n                        44100,\n                        48000\n                     ]\n                  }\n               ],\n               \"byteRanges\": true,\n               \"audioTrackSwitching\": \"replacement\",\n               \"subtitleRenderers\": [\n                  \"external_text\"\n               ]\n            }\n         ],\n         \"candidatePreparation\": \"serial_attach\",\n         \"backgroundControl\": true,\n         \"evidence\": \"declared\"\n      },\n      \"replaces\": null\n   },\n   \"targetId\": null,\n   \"operation\": \"create\"\n}",
+      "canonicalUTF8": "{\"body\":{\"capabilities\":{\"backgroundControl\":true,\"candidatePreparation\":\"serial_attach\",\"engine\":\"AVPlayer\",\"engineVersion\":\"iOS26\",\"evidence\":\"declared\",\"os\":\"iOS\",\"osVersion\":\"26\",\"outputRouteId\":\"built_in\",\"outputRouteRevision\":\"1\",\"profileVersion\":\"avplayer_ios_v1\",\"transports\":[{\"audio\":[{\"bitDepths\":[],\"channelLayouts\":[\"stereo\"],\"codec\":\"aac\",\"dynamicRanges\":[],\"levels\":[],\"maxChannels\":2,\"maxFrameRate\":null,\"maxHeight\":null,\"maxWidth\":null,\"profiles\":[\"LC\"],\"sampleRatesHz\":[44100,48000]}],\"audioTrackSwitching\":\"replacement\",\"byteRanges\":true,\"containers\":[\"mp4\"],\"subtitleRenderers\":[\"external_text\"],\"transport\":\"original_http\",\"video\":[{\"bitDepths\":[8],\"channelLayouts\":[],\"codec\":\"h264\",\"dynamicRanges\":[\"sdr\"],\"levels\":[\"4.1\"],\"maxChannels\":null,\"maxFrameRate\":{\"denominator\":\"1\",\"numerator\":\"30\"},\"maxHeight\":1080,\"maxWidth\":1920,\"profiles\":[\"High\"],\"sampleRatesHz\":[]}]}]},\"command\":{\"commandLaneId\":\"lane_movie\",\"controllerEpoch\":\"epoch_new\",\"controllerId\":\"controller_phone\",\"requestId\":\"request_create\",\"sequence\":\"1\"},\"desired\":{\"audio\":{\"mode\":\"automatic\",\"trackId\":null},\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"offerSelection\":null,\"quality\":{\"allowHDRToSDR\":false,\"allowLossyConversion\":false,\"maxBitrateBps\":null,\"maxHeight\":null,\"maxWidth\":null,\"mode\":\"automatic\"},\"rate\":{\"denominator\":\"1\",\"numerator\":\"1\"},\"seek\":{\"seekCommandId\":\"seek_start\",\"target\":{\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"positionUs\":\"120000000\"}},\"source\":{\"mode\":\"automatic\",\"sourceId\":null,\"sourceVersionId\":null},\"state\":\"playing\",\"subtitles\":{\"renderMode\":\"automatic\",\"track\":{\"mode\":\"automatic\",\"trackId\":null}}},\"protocolVersion\":\"2.0\",\"replaces\":null},\"operation\":\"create\",\"targetId\":null}",
+      "sha256": "1ecbd15a5879dee29aebe0197963ddbcba49f8a5cad1b3453f573eadb94978c4"
+    },
+    {
+      "name": "json_escaping_and_controls",
+      "semanticEnvelope": {
+        "operation": "create",
+        "targetId": null,
+        "body": {
+          "protocolVersion": "2.0",
+          "command": {
+            "controllerId": "controller_phone",
+            "controllerEpoch": "epoch_new",
+            "commandLaneId": "lane_movie",
+            "sequence": "1",
+            "requestId": "request_create"
+          },
+          "desired": {
+            "context": {
+              "itemId": "item_movie",
+              "editionId": null,
+              "partId": null,
+              "mappingId": null
+            },
+            "source": {
+              "mode": "automatic",
+              "sourceId": null,
+              "sourceVersionId": null
+            },
+            "audio": {
+              "mode": "automatic",
+              "trackId": null
+            },
+            "subtitles": {
+              "track": {
+                "mode": "automatic",
+                "trackId": null
+              },
+              "renderMode": "automatic"
+            },
+            "quality": {
+              "mode": "automatic",
+              "maxBitrateBps": null,
+              "maxWidth": null,
+              "maxHeight": null,
+              "allowLossyConversion": false,
+              "allowHDRToSDR": false
+            },
+            "state": "playing",
+            "rate": {
+              "numerator": "1",
+              "denominator": "1"
+            },
+            "seek": {
+              "seekCommandId": "seek_start",
+              "target": {
+                "context": {
+                  "itemId": "item_movie",
+                  "editionId": null,
+                  "partId": null,
+                  "mappingId": null
+                },
+                "positionUs": "120000000"
+              }
+            },
+            "offerSelection": null
+          },
+          "capabilities": {
+            "profileVersion": "avplayer_ios_v1",
+            "engine": "Quote\" Backslash\\ Newline\nTab\tReturn\rBack\bForm\fCtrl\u0001",
+            "engineVersion": "iOS26",
+            "os": "iOS",
+            "osVersion": "26",
+            "outputRouteId": "built_in",
+            "outputRouteRevision": "1",
+            "transports": [
+              {
+                "transport": "original_http",
+                "containers": [
+                  "mp4"
+                ],
+                "video": [
+                  {
+                    "codec": "h264",
+                    "profiles": [
+                      "High"
+                    ],
+                    "levels": [
+                      "4.1"
+                    ],
+                    "bitDepths": [
+                      8
+                    ],
+                    "maxWidth": 1920,
+                    "maxHeight": 1080,
+                    "maxFrameRate": {
+                      "numerator": "30",
+                      "denominator": "1"
+                    },
+                    "dynamicRanges": [
+                      "sdr"
+                    ],
+                    "maxChannels": null,
+                    "channelLayouts": [],
+                    "sampleRatesHz": []
+                  }
+                ],
+                "audio": [
+                  {
+                    "codec": "aac",
+                    "profiles": [
+                      "LC"
+                    ],
+                    "levels": [],
+                    "bitDepths": [],
+                    "maxWidth": null,
+                    "maxHeight": null,
+                    "maxFrameRate": null,
+                    "dynamicRanges": [],
+                    "maxChannels": 2,
+                    "channelLayouts": [
+                      "stereo"
+                    ],
+                    "sampleRatesHz": [
+                      44100,
+                      48000
+                    ]
+                  }
+                ],
+                "byteRanges": true,
+                "audioTrackSwitching": "replacement",
+                "subtitleRenderers": [
+                  "external_text"
+                ]
+              }
+            ],
+            "candidatePreparation": "serial_attach",
+            "backgroundControl": true,
+            "evidence": "declared"
+          },
+          "replaces": null
+        }
+      },
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"1\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"Quote\\\" Backslash\\\\ Newline\\nTab\\tReturn\\rBack\\bForm\\fCtrl\\u0001\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}}",
+      "canonicalUTF8": "{\"body\":{\"capabilities\":{\"backgroundControl\":true,\"candidatePreparation\":\"serial_attach\",\"engine\":\"Quote\\\" Backslash\\\\ Newline\\nTab\\tReturn\\rBack\\bForm\\fCtrl\\u0001\",\"engineVersion\":\"iOS26\",\"evidence\":\"declared\",\"os\":\"iOS\",\"osVersion\":\"26\",\"outputRouteId\":\"built_in\",\"outputRouteRevision\":\"1\",\"profileVersion\":\"avplayer_ios_v1\",\"transports\":[{\"audio\":[{\"bitDepths\":[],\"channelLayouts\":[\"stereo\"],\"codec\":\"aac\",\"dynamicRanges\":[],\"levels\":[],\"maxChannels\":2,\"maxFrameRate\":null,\"maxHeight\":null,\"maxWidth\":null,\"profiles\":[\"LC\"],\"sampleRatesHz\":[44100,48000]}],\"audioTrackSwitching\":\"replacement\",\"byteRanges\":true,\"containers\":[\"mp4\"],\"subtitleRenderers\":[\"external_text\"],\"transport\":\"original_http\",\"video\":[{\"bitDepths\":[8],\"channelLayouts\":[],\"codec\":\"h264\",\"dynamicRanges\":[\"sdr\"],\"levels\":[\"4.1\"],\"maxChannels\":null,\"maxFrameRate\":{\"denominator\":\"1\",\"numerator\":\"30\"},\"maxHeight\":1080,\"maxWidth\":1920,\"profiles\":[\"High\"],\"sampleRatesHz\":[]}]}]},\"command\":{\"commandLaneId\":\"lane_movie\",\"controllerEpoch\":\"epoch_new\",\"controllerId\":\"controller_phone\",\"requestId\":\"request_create\",\"sequence\":\"1\"},\"desired\":{\"audio\":{\"mode\":\"automatic\",\"trackId\":null},\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"offerSelection\":null,\"quality\":{\"allowHDRToSDR\":false,\"allowLossyConversion\":false,\"maxBitrateBps\":null,\"maxHeight\":null,\"maxWidth\":null,\"mode\":\"automatic\"},\"rate\":{\"denominator\":\"1\",\"numerator\":\"1\"},\"seek\":{\"seekCommandId\":\"seek_start\",\"target\":{\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"positionUs\":\"120000000\"}},\"source\":{\"mode\":\"automatic\",\"sourceId\":null,\"sourceVersionId\":null},\"state\":\"playing\",\"subtitles\":{\"renderMode\":\"automatic\",\"track\":{\"mode\":\"automatic\",\"trackId\":null}}},\"protocolVersion\":\"2.0\",\"replaces\":null},\"operation\":\"create\",\"targetId\":null}",
+      "sha256": "4c92371c06d133a19fcf05e15de9aebead906ec5cac289737cf5e22785413dab"
+    },
+    {
+      "name": "unicode_scalars_no_ascii_escape",
+      "semanticEnvelope": {
+        "operation": "create",
+        "targetId": null,
+        "body": {
+          "protocolVersion": "2.0",
+          "command": {
+            "controllerId": "controller_phone",
+            "controllerEpoch": "epoch_new",
+            "commandLaneId": "lane_movie",
+            "sequence": "1",
+            "requestId": "request_create"
+          },
+          "desired": {
+            "context": {
+              "itemId": "item_movie",
+              "editionId": null,
+              "partId": null,
+              "mappingId": null
+            },
+            "source": {
+              "mode": "automatic",
+              "sourceId": null,
+              "sourceVersionId": null
+            },
+            "audio": {
+              "mode": "automatic",
+              "trackId": null
+            },
+            "subtitles": {
+              "track": {
+                "mode": "automatic",
+                "trackId": null
+              },
+              "renderMode": "automatic"
+            },
+            "quality": {
+              "mode": "automatic",
+              "maxBitrateBps": null,
+              "maxWidth": null,
+              "maxHeight": null,
+              "allowLossyConversion": false,
+              "allowHDRToSDR": false
+            },
+            "state": "playing",
+            "rate": {
+              "numerator": "1",
+              "denominator": "1"
+            },
+            "seek": {
+              "seekCommandId": "seek_start",
+              "target": {
+                "context": {
+                  "itemId": "item_movie",
+                  "editionId": null,
+                  "partId": null,
+                  "mappingId": null
+                },
+                "positionUs": "120000000"
+              }
+            },
+            "offerSelection": null
+          },
+          "capabilities": {
+            "profileVersion": "avplayer_ios_v1",
+            "engine": "Média 日本 🎬    ",
+            "engineVersion": "iOS26",
+            "os": "iOS",
+            "osVersion": "26",
+            "outputRouteId": "built_in",
+            "outputRouteRevision": "1",
+            "transports": [
+              {
+                "transport": "original_http",
+                "containers": [
+                  "mp4"
+                ],
+                "video": [
+                  {
+                    "codec": "h264",
+                    "profiles": [
+                      "High"
+                    ],
+                    "levels": [
+                      "4.1"
+                    ],
+                    "bitDepths": [
+                      8
+                    ],
+                    "maxWidth": 1920,
+                    "maxHeight": 1080,
+                    "maxFrameRate": {
+                      "numerator": "30",
+                      "denominator": "1"
+                    },
+                    "dynamicRanges": [
+                      "sdr"
+                    ],
+                    "maxChannels": null,
+                    "channelLayouts": [],
+                    "sampleRatesHz": []
+                  }
+                ],
+                "audio": [
+                  {
+                    "codec": "aac",
+                    "profiles": [
+                      "LC"
+                    ],
+                    "levels": [],
+                    "bitDepths": [],
+                    "maxWidth": null,
+                    "maxHeight": null,
+                    "maxFrameRate": null,
+                    "dynamicRanges": [],
+                    "maxChannels": 2,
+                    "channelLayouts": [
+                      "stereo"
+                    ],
+                    "sampleRatesHz": [
+                      44100,
+                      48000
+                    ]
+                  }
+                ],
+                "byteRanges": true,
+                "audioTrackSwitching": "replacement",
+                "subtitleRenderers": [
+                  "external_text"
+                ]
+              }
+            ],
+            "candidatePreparation": "serial_attach",
+            "backgroundControl": true,
+            "evidence": "declared"
+          },
+          "replaces": null
+        }
+      },
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"1\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"Média 日本 🎬    \", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}}",
+      "canonicalUTF8": "{\"body\":{\"capabilities\":{\"backgroundControl\":true,\"candidatePreparation\":\"serial_attach\",\"engine\":\"Média 日本 🎬    \",\"engineVersion\":\"iOS26\",\"evidence\":\"declared\",\"os\":\"iOS\",\"osVersion\":\"26\",\"outputRouteId\":\"built_in\",\"outputRouteRevision\":\"1\",\"profileVersion\":\"avplayer_ios_v1\",\"transports\":[{\"audio\":[{\"bitDepths\":[],\"channelLayouts\":[\"stereo\"],\"codec\":\"aac\",\"dynamicRanges\":[],\"levels\":[],\"maxChannels\":2,\"maxFrameRate\":null,\"maxHeight\":null,\"maxWidth\":null,\"profiles\":[\"LC\"],\"sampleRatesHz\":[44100,48000]}],\"audioTrackSwitching\":\"replacement\",\"byteRanges\":true,\"containers\":[\"mp4\"],\"subtitleRenderers\":[\"external_text\"],\"transport\":\"original_http\",\"video\":[{\"bitDepths\":[8],\"channelLayouts\":[],\"codec\":\"h264\",\"dynamicRanges\":[\"sdr\"],\"levels\":[\"4.1\"],\"maxChannels\":null,\"maxFrameRate\":{\"denominator\":\"1\",\"numerator\":\"30\"},\"maxHeight\":1080,\"maxWidth\":1920,\"profiles\":[\"High\"],\"sampleRatesHz\":[]}]}]},\"command\":{\"commandLaneId\":\"lane_movie\",\"controllerEpoch\":\"epoch_new\",\"controllerId\":\"controller_phone\",\"requestId\":\"request_create\",\"sequence\":\"1\"},\"desired\":{\"audio\":{\"mode\":\"automatic\",\"trackId\":null},\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"offerSelection\":null,\"quality\":{\"allowHDRToSDR\":false,\"allowLossyConversion\":false,\"maxBitrateBps\":null,\"maxHeight\":null,\"maxWidth\":null,\"mode\":\"automatic\"},\"rate\":{\"denominator\":\"1\",\"numerator\":\"1\"},\"seek\":{\"seekCommandId\":\"seek_start\",\"target\":{\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"positionUs\":\"120000000\"}},\"source\":{\"mode\":\"automatic\",\"sourceId\":null,\"sourceVersionId\":null},\"state\":\"playing\",\"subtitles\":{\"renderMode\":\"automatic\",\"track\":{\"mode\":\"automatic\",\"trackId\":null}}},\"protocolVersion\":\"2.0\",\"replaces\":null},\"operation\":\"create\",\"targetId\":null}",
+      "sha256": "514cd1e2f15c6dbd0ceb2c9a276dc70257a67f8af0816bc74c21949b712f13a1"
+    },
+    {
+      "name": "unicode_not_normalized",
+      "semanticEnvelope": {
+        "operation": "create",
+        "targetId": null,
+        "body": {
+          "protocolVersion": "2.0",
+          "command": {
+            "controllerId": "controller_phone",
+            "controllerEpoch": "epoch_new",
+            "commandLaneId": "lane_movie",
+            "sequence": "1",
+            "requestId": "request_create"
+          },
+          "desired": {
+            "context": {
+              "itemId": "item_movie",
+              "editionId": null,
+              "partId": null,
+              "mappingId": null
+            },
+            "source": {
+              "mode": "automatic",
+              "sourceId": null,
+              "sourceVersionId": null
+            },
+            "audio": {
+              "mode": "automatic",
+              "trackId": null
+            },
+            "subtitles": {
+              "track": {
+                "mode": "automatic",
+                "trackId": null
+              },
+              "renderMode": "automatic"
+            },
+            "quality": {
+              "mode": "automatic",
+              "maxBitrateBps": null,
+              "maxWidth": null,
+              "maxHeight": null,
+              "allowLossyConversion": false,
+              "allowHDRToSDR": false
+            },
+            "state": "playing",
+            "rate": {
+              "numerator": "1",
+              "denominator": "1"
+            },
+            "seek": {
+              "seekCommandId": "seek_start",
+              "target": {
+                "context": {
+                  "itemId": "item_movie",
+                  "editionId": null,
+                  "partId": null,
+                  "mappingId": null
+                },
+                "positionUs": "120000000"
+              }
+            },
+            "offerSelection": null
+          },
+          "capabilities": {
+            "profileVersion": "avplayer_ios_v1",
+            "engine": "Média",
+            "engineVersion": "iOS26",
+            "os": "iOS",
+            "osVersion": "26",
+            "outputRouteId": "built_in",
+            "outputRouteRevision": "1",
+            "transports": [
+              {
+                "transport": "original_http",
+                "containers": [
+                  "mp4"
+                ],
+                "video": [
+                  {
+                    "codec": "h264",
+                    "profiles": [
+                      "High"
+                    ],
+                    "levels": [
+                      "4.1"
+                    ],
+                    "bitDepths": [
+                      8
+                    ],
+                    "maxWidth": 1920,
+                    "maxHeight": 1080,
+                    "maxFrameRate": {
+                      "numerator": "30",
+                      "denominator": "1"
+                    },
+                    "dynamicRanges": [
+                      "sdr"
+                    ],
+                    "maxChannels": null,
+                    "channelLayouts": [],
+                    "sampleRatesHz": []
+                  }
+                ],
+                "audio": [
+                  {
+                    "codec": "aac",
+                    "profiles": [
+                      "LC"
+                    ],
+                    "levels": [],
+                    "bitDepths": [],
+                    "maxWidth": null,
+                    "maxHeight": null,
+                    "maxFrameRate": null,
+                    "dynamicRanges": [],
+                    "maxChannels": 2,
+                    "channelLayouts": [
+                      "stereo"
+                    ],
+                    "sampleRatesHz": [
+                      44100,
+                      48000
+                    ]
+                  }
+                ],
+                "byteRanges": true,
+                "audioTrackSwitching": "replacement",
+                "subtitleRenderers": [
+                  "external_text"
+                ]
+              }
+            ],
+            "candidatePreparation": "serial_attach",
+            "backgroundControl": true,
+            "evidence": "declared"
+          },
+          "replaces": null
+        }
+      },
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"1\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"Média\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}}",
+      "canonicalUTF8": "{\"body\":{\"capabilities\":{\"backgroundControl\":true,\"candidatePreparation\":\"serial_attach\",\"engine\":\"Média\",\"engineVersion\":\"iOS26\",\"evidence\":\"declared\",\"os\":\"iOS\",\"osVersion\":\"26\",\"outputRouteId\":\"built_in\",\"outputRouteRevision\":\"1\",\"profileVersion\":\"avplayer_ios_v1\",\"transports\":[{\"audio\":[{\"bitDepths\":[],\"channelLayouts\":[\"stereo\"],\"codec\":\"aac\",\"dynamicRanges\":[],\"levels\":[],\"maxChannels\":2,\"maxFrameRate\":null,\"maxHeight\":null,\"maxWidth\":null,\"profiles\":[\"LC\"],\"sampleRatesHz\":[44100,48000]}],\"audioTrackSwitching\":\"replacement\",\"byteRanges\":true,\"containers\":[\"mp4\"],\"subtitleRenderers\":[\"external_text\"],\"transport\":\"original_http\",\"video\":[{\"bitDepths\":[8],\"channelLayouts\":[],\"codec\":\"h264\",\"dynamicRanges\":[\"sdr\"],\"levels\":[\"4.1\"],\"maxChannels\":null,\"maxFrameRate\":{\"denominator\":\"1\",\"numerator\":\"30\"},\"maxHeight\":1080,\"maxWidth\":1920,\"profiles\":[\"High\"],\"sampleRatesHz\":[]}]}]},\"command\":{\"commandLaneId\":\"lane_movie\",\"controllerEpoch\":\"epoch_new\",\"controllerId\":\"controller_phone\",\"requestId\":\"request_create\",\"sequence\":\"1\"},\"desired\":{\"audio\":{\"mode\":\"automatic\",\"trackId\":null},\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"offerSelection\":null,\"quality\":{\"allowHDRToSDR\":false,\"allowLossyConversion\":false,\"maxBitrateBps\":null,\"maxHeight\":null,\"maxWidth\":null,\"mode\":\"automatic\"},\"rate\":{\"denominator\":\"1\",\"numerator\":\"1\"},\"seek\":{\"seekCommandId\":\"seek_start\",\"target\":{\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"positionUs\":\"120000000\"}},\"source\":{\"mode\":\"automatic\",\"sourceId\":null,\"sourceVersionId\":null},\"state\":\"playing\",\"subtitles\":{\"renderMode\":\"automatic\",\"track\":{\"mode\":\"automatic\",\"trackId\":null}}},\"protocolVersion\":\"2.0\",\"replaces\":null},\"operation\":\"create\",\"targetId\":null}",
+      "sha256": "d031696d494e2a2a136fb84379bbbd2842413c4bfb5ef630c6245bdbb93231fd"
+    },
+    {
+      "name": "intent_target_a",
+      "semanticEnvelope": {
+        "operation": "intent",
+        "targetId": "playback_a",
+        "body": {
+          "protocolVersion": "2.0",
+          "command": {
+            "controllerId": "controller_phone",
+            "controllerEpoch": "epoch_new",
+            "commandLaneId": "lane_movie",
+            "sequence": "2",
+            "requestId": "request_intent"
+          },
+          "expected": {
+            "playbackRevision": "1",
+            "ownershipRevision": "1",
+            "presentationGeneration": null,
+            "presentationRevision": null
+          },
+          "capabilities": {
+            "profileVersion": "avplayer_ios_v1",
+            "engine": "AVPlayer",
+            "engineVersion": "iOS26",
+            "os": "iOS",
+            "osVersion": "26",
+            "outputRouteId": "built_in",
+            "outputRouteRevision": "1",
+            "transports": [
+              {
+                "transport": "original_http",
+                "containers": [
+                  "mp4"
+                ],
+                "video": [
+                  {
+                    "codec": "h264",
+                    "profiles": [
+                      "High"
+                    ],
+                    "levels": [
+                      "4.1"
+                    ],
+                    "bitDepths": [
+                      8
+                    ],
+                    "maxWidth": 1920,
+                    "maxHeight": 1080,
+                    "maxFrameRate": {
+                      "numerator": "30",
+                      "denominator": "1"
+                    },
+                    "dynamicRanges": [
+                      "sdr"
+                    ],
+                    "maxChannels": null,
+                    "channelLayouts": [],
+                    "sampleRatesHz": []
+                  }
+                ],
+                "audio": [
+                  {
+                    "codec": "aac",
+                    "profiles": [
+                      "LC"
+                    ],
+                    "levels": [],
+                    "bitDepths": [],
+                    "maxWidth": null,
+                    "maxHeight": null,
+                    "maxFrameRate": null,
+                    "dynamicRanges": [],
+                    "maxChannels": 2,
+                    "channelLayouts": [
+                      "stereo"
+                    ],
+                    "sampleRatesHz": [
+                      44100,
+                      48000
+                    ]
+                  }
+                ],
+                "byteRanges": true,
+                "audioTrackSwitching": "replacement",
+                "subtitleRenderers": [
+                  "external_text"
+                ]
+              }
+            ],
+            "candidatePreparation": "serial_attach",
+            "backgroundControl": true,
+            "evidence": "declared"
+          },
+          "desired": {
+            "context": {
+              "itemId": "item_movie",
+              "editionId": null,
+              "partId": null,
+              "mappingId": null
+            },
+            "source": {
+              "mode": "automatic",
+              "sourceId": null,
+              "sourceVersionId": null
+            },
+            "audio": {
+              "mode": "automatic",
+              "trackId": null
+            },
+            "subtitles": {
+              "track": {
+                "mode": "automatic",
+                "trackId": null
+              },
+              "renderMode": "automatic"
+            },
+            "quality": {
+              "mode": "automatic",
+              "maxBitrateBps": null,
+              "maxWidth": null,
+              "maxHeight": null,
+              "allowLossyConversion": false,
+              "allowHDRToSDR": false
+            },
+            "state": "playing",
+            "rate": {
+              "numerator": "1",
+              "denominator": "1"
+            },
+            "seek": {
+              "seekCommandId": "seek_start",
+              "target": {
+                "context": {
+                  "itemId": "item_movie",
+                  "editionId": null,
+                  "partId": null,
+                  "mappingId": null
+                },
+                "positionUs": "120000000"
+              }
+            },
+            "offerSelection": null
+          }
+        }
+      },
+      "rawInput": "{\"operation\": \"intent\", \"targetId\": \"playback_a\", \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"2\", \"requestId\": \"request_intent\"}, \"expected\": {\"playbackRevision\": \"1\", \"ownershipRevision\": \"1\", \"presentationGeneration\": null, \"presentationRevision\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"AVPlayer\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}}}",
+      "canonicalUTF8": "{\"body\":{\"capabilities\":{\"backgroundControl\":true,\"candidatePreparation\":\"serial_attach\",\"engine\":\"AVPlayer\",\"engineVersion\":\"iOS26\",\"evidence\":\"declared\",\"os\":\"iOS\",\"osVersion\":\"26\",\"outputRouteId\":\"built_in\",\"outputRouteRevision\":\"1\",\"profileVersion\":\"avplayer_ios_v1\",\"transports\":[{\"audio\":[{\"bitDepths\":[],\"channelLayouts\":[\"stereo\"],\"codec\":\"aac\",\"dynamicRanges\":[],\"levels\":[],\"maxChannels\":2,\"maxFrameRate\":null,\"maxHeight\":null,\"maxWidth\":null,\"profiles\":[\"LC\"],\"sampleRatesHz\":[44100,48000]}],\"audioTrackSwitching\":\"replacement\",\"byteRanges\":true,\"containers\":[\"mp4\"],\"subtitleRenderers\":[\"external_text\"],\"transport\":\"original_http\",\"video\":[{\"bitDepths\":[8],\"channelLayouts\":[],\"codec\":\"h264\",\"dynamicRanges\":[\"sdr\"],\"levels\":[\"4.1\"],\"maxChannels\":null,\"maxFrameRate\":{\"denominator\":\"1\",\"numerator\":\"30\"},\"maxHeight\":1080,\"maxWidth\":1920,\"profiles\":[\"High\"],\"sampleRatesHz\":[]}]}]},\"command\":{\"commandLaneId\":\"lane_movie\",\"controllerEpoch\":\"epoch_new\",\"controllerId\":\"controller_phone\",\"requestId\":\"request_intent\",\"sequence\":\"2\"},\"desired\":{\"audio\":{\"mode\":\"automatic\",\"trackId\":null},\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"offerSelection\":null,\"quality\":{\"allowHDRToSDR\":false,\"allowLossyConversion\":false,\"maxBitrateBps\":null,\"maxHeight\":null,\"maxWidth\":null,\"mode\":\"automatic\"},\"rate\":{\"denominator\":\"1\",\"numerator\":\"1\"},\"seek\":{\"seekCommandId\":\"seek_start\",\"target\":{\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"positionUs\":\"120000000\"}},\"source\":{\"mode\":\"automatic\",\"sourceId\":null,\"sourceVersionId\":null},\"state\":\"playing\",\"subtitles\":{\"renderMode\":\"automatic\",\"track\":{\"mode\":\"automatic\",\"trackId\":null}}},\"expected\":{\"ownershipRevision\":\"1\",\"playbackRevision\":\"1\",\"presentationGeneration\":null,\"presentationRevision\":null},\"protocolVersion\":\"2.0\"},\"operation\":\"intent\",\"targetId\":\"playback_a\"}",
+      "sha256": "5a3ba0fcecc3d19152e1d183eacfa10d4b7dbdba7d41feb205dcb7091b457cbf"
+    },
+    {
+      "name": "intent_target_b",
+      "semanticEnvelope": {
+        "operation": "intent",
+        "targetId": "playback_b",
+        "body": {
+          "protocolVersion": "2.0",
+          "command": {
+            "controllerId": "controller_phone",
+            "controllerEpoch": "epoch_new",
+            "commandLaneId": "lane_movie",
+            "sequence": "2",
+            "requestId": "request_intent"
+          },
+          "expected": {
+            "playbackRevision": "1",
+            "ownershipRevision": "1",
+            "presentationGeneration": null,
+            "presentationRevision": null
+          },
+          "capabilities": {
+            "profileVersion": "avplayer_ios_v1",
+            "engine": "AVPlayer",
+            "engineVersion": "iOS26",
+            "os": "iOS",
+            "osVersion": "26",
+            "outputRouteId": "built_in",
+            "outputRouteRevision": "1",
+            "transports": [
+              {
+                "transport": "original_http",
+                "containers": [
+                  "mp4"
+                ],
+                "video": [
+                  {
+                    "codec": "h264",
+                    "profiles": [
+                      "High"
+                    ],
+                    "levels": [
+                      "4.1"
+                    ],
+                    "bitDepths": [
+                      8
+                    ],
+                    "maxWidth": 1920,
+                    "maxHeight": 1080,
+                    "maxFrameRate": {
+                      "numerator": "30",
+                      "denominator": "1"
+                    },
+                    "dynamicRanges": [
+                      "sdr"
+                    ],
+                    "maxChannels": null,
+                    "channelLayouts": [],
+                    "sampleRatesHz": []
+                  }
+                ],
+                "audio": [
+                  {
+                    "codec": "aac",
+                    "profiles": [
+                      "LC"
+                    ],
+                    "levels": [],
+                    "bitDepths": [],
+                    "maxWidth": null,
+                    "maxHeight": null,
+                    "maxFrameRate": null,
+                    "dynamicRanges": [],
+                    "maxChannels": 2,
+                    "channelLayouts": [
+                      "stereo"
+                    ],
+                    "sampleRatesHz": [
+                      44100,
+                      48000
+                    ]
+                  }
+                ],
+                "byteRanges": true,
+                "audioTrackSwitching": "replacement",
+                "subtitleRenderers": [
+                  "external_text"
+                ]
+              }
+            ],
+            "candidatePreparation": "serial_attach",
+            "backgroundControl": true,
+            "evidence": "declared"
+          },
+          "desired": {
+            "context": {
+              "itemId": "item_movie",
+              "editionId": null,
+              "partId": null,
+              "mappingId": null
+            },
+            "source": {
+              "mode": "automatic",
+              "sourceId": null,
+              "sourceVersionId": null
+            },
+            "audio": {
+              "mode": "automatic",
+              "trackId": null
+            },
+            "subtitles": {
+              "track": {
+                "mode": "automatic",
+                "trackId": null
+              },
+              "renderMode": "automatic"
+            },
+            "quality": {
+              "mode": "automatic",
+              "maxBitrateBps": null,
+              "maxWidth": null,
+              "maxHeight": null,
+              "allowLossyConversion": false,
+              "allowHDRToSDR": false
+            },
+            "state": "playing",
+            "rate": {
+              "numerator": "1",
+              "denominator": "1"
+            },
+            "seek": {
+              "seekCommandId": "seek_start",
+              "target": {
+                "context": {
+                  "itemId": "item_movie",
+                  "editionId": null,
+                  "partId": null,
+                  "mappingId": null
+                },
+                "positionUs": "120000000"
+              }
+            },
+            "offerSelection": null
+          }
+        }
+      },
+      "rawInput": "{\"operation\": \"intent\", \"targetId\": \"playback_b\", \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"2\", \"requestId\": \"request_intent\"}, \"expected\": {\"playbackRevision\": \"1\", \"ownershipRevision\": \"1\", \"presentationGeneration\": null, \"presentationRevision\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"AVPlayer\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}}}",
+      "canonicalUTF8": "{\"body\":{\"capabilities\":{\"backgroundControl\":true,\"candidatePreparation\":\"serial_attach\",\"engine\":\"AVPlayer\",\"engineVersion\":\"iOS26\",\"evidence\":\"declared\",\"os\":\"iOS\",\"osVersion\":\"26\",\"outputRouteId\":\"built_in\",\"outputRouteRevision\":\"1\",\"profileVersion\":\"avplayer_ios_v1\",\"transports\":[{\"audio\":[{\"bitDepths\":[],\"channelLayouts\":[\"stereo\"],\"codec\":\"aac\",\"dynamicRanges\":[],\"levels\":[],\"maxChannels\":2,\"maxFrameRate\":null,\"maxHeight\":null,\"maxWidth\":null,\"profiles\":[\"LC\"],\"sampleRatesHz\":[44100,48000]}],\"audioTrackSwitching\":\"replacement\",\"byteRanges\":true,\"containers\":[\"mp4\"],\"subtitleRenderers\":[\"external_text\"],\"transport\":\"original_http\",\"video\":[{\"bitDepths\":[8],\"channelLayouts\":[],\"codec\":\"h264\",\"dynamicRanges\":[\"sdr\"],\"levels\":[\"4.1\"],\"maxChannels\":null,\"maxFrameRate\":{\"denominator\":\"1\",\"numerator\":\"30\"},\"maxHeight\":1080,\"maxWidth\":1920,\"profiles\":[\"High\"],\"sampleRatesHz\":[]}]}]},\"command\":{\"commandLaneId\":\"lane_movie\",\"controllerEpoch\":\"epoch_new\",\"controllerId\":\"controller_phone\",\"requestId\":\"request_intent\",\"sequence\":\"2\"},\"desired\":{\"audio\":{\"mode\":\"automatic\",\"trackId\":null},\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"offerSelection\":null,\"quality\":{\"allowHDRToSDR\":false,\"allowLossyConversion\":false,\"maxBitrateBps\":null,\"maxHeight\":null,\"maxWidth\":null,\"mode\":\"automatic\"},\"rate\":{\"denominator\":\"1\",\"numerator\":\"1\"},\"seek\":{\"seekCommandId\":\"seek_start\",\"target\":{\"context\":{\"editionId\":null,\"itemId\":\"item_movie\",\"mappingId\":null,\"partId\":null},\"positionUs\":\"120000000\"}},\"source\":{\"mode\":\"automatic\",\"sourceId\":null,\"sourceVersionId\":null},\"state\":\"playing\",\"subtitles\":{\"renderMode\":\"automatic\",\"track\":{\"mode\":\"automatic\",\"trackId\":null}}},\"expected\":{\"ownershipRevision\":\"1\",\"playbackRevision\":\"1\",\"presentationGeneration\":null,\"presentationRevision\":null},\"protocolVersion\":\"2.0\"},\"operation\":\"intent\",\"targetId\":\"playback_b\"}",
+      "sha256": "4f049fff2b98ebc326bbad481255710901911807124970684ca2dd1bbd27377f"
+    }
+  ],
+  "rejections": [
+    {
+      "name": "duplicate_key",
+      "rawInput": "{\"operation\":\"create\",\"operation\":\"create\",\"targetId\":null,\"body\":{\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"1\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"AVPlayer\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}}",
+      "expected": "invalid_request",
+      "validationBoundary": "Duplicate JSON key scanner; body and remaining shape otherwise valid."
+    },
+    {
+      "name": "unpaired_surrogate",
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"1\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"\\ud800\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}}",
+      "expected": "invalid_request",
+      "validationBoundary": "Unicode scalar escape scanner before typed decode; remaining body otherwise valid."
+    },
+    {
+      "name": "trailing_json",
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"1\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"AVPlayer\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}} {}",
+      "expected": "invalid_request"
+    },
+    {
+      "name": "leading_zero_sequence",
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"01\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"AVPlayer\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}}",
+      "expected": "invalid_request"
+    },
+    {
+      "name": "counter_overflow",
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"9223372036854775808\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"AVPlayer\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}}",
+      "expected": "invalid_request"
+    },
+    {
+      "name": "unknown_member",
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"1\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"AVPlayer\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null, \"surprise\": true}}",
+      "expected": "invalid_request"
+    },
+    {
+      "name": "unknown_version",
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"999\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"1\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"1\", \"denominator\": \"1\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"AVPlayer\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}}",
+      "expected": "unsupported_version"
+    },
+    {
+      "name": "nonreduced_rate",
+      "rawInput": "{\"operation\": \"create\", \"targetId\": null, \"body\": {\"protocolVersion\": \"2.0\", \"command\": {\"controllerId\": \"controller_phone\", \"controllerEpoch\": \"epoch_new\", \"commandLaneId\": \"lane_movie\", \"sequence\": \"1\", \"requestId\": \"request_create\"}, \"desired\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"source\": {\"mode\": \"automatic\", \"sourceId\": null, \"sourceVersionId\": null}, \"audio\": {\"mode\": \"automatic\", \"trackId\": null}, \"subtitles\": {\"track\": {\"mode\": \"automatic\", \"trackId\": null}, \"renderMode\": \"automatic\"}, \"quality\": {\"mode\": \"automatic\", \"maxBitrateBps\": null, \"maxWidth\": null, \"maxHeight\": null, \"allowLossyConversion\": false, \"allowHDRToSDR\": false}, \"state\": \"playing\", \"rate\": {\"numerator\": \"2\", \"denominator\": \"2\"}, \"seek\": {\"seekCommandId\": \"seek_start\", \"target\": {\"context\": {\"itemId\": \"item_movie\", \"editionId\": null, \"partId\": null, \"mappingId\": null}, \"positionUs\": \"120000000\"}}, \"offerSelection\": null}, \"capabilities\": {\"profileVersion\": \"avplayer_ios_v1\", \"engine\": \"AVPlayer\", \"engineVersion\": \"iOS26\", \"os\": \"iOS\", \"osVersion\": \"26\", \"outputRouteId\": \"built_in\", \"outputRouteRevision\": \"1\", \"transports\": [{\"transport\": \"original_http\", \"containers\": [\"mp4\"], \"video\": [{\"codec\": \"h264\", \"profiles\": [\"High\"], \"levels\": [\"4.1\"], \"bitDepths\": [8], \"maxWidth\": 1920, \"maxHeight\": 1080, \"maxFrameRate\": {\"numerator\": \"30\", \"denominator\": \"1\"}, \"dynamicRanges\": [\"sdr\"], \"maxChannels\": null, \"channelLayouts\": [], \"sampleRatesHz\": []}], \"audio\": [{\"codec\": \"aac\", \"profiles\": [\"LC\"], \"levels\": [], \"bitDepths\": [], \"maxWidth\": null, \"maxHeight\": null, \"maxFrameRate\": null, \"dynamicRanges\": [], \"maxChannels\": 2, \"channelLayouts\": [\"stereo\"], \"sampleRatesHz\": [44100, 48000]}], \"byteRanges\": true, \"audioTrackSwitching\": \"replacement\", \"subtitleRenderers\": [\"external_text\"]}], \"candidatePreparation\": \"serial_attach\", \"backgroundControl\": true, \"evidence\": \"declared\"}, \"replaces\": null}}",
+      "expected": "invalid_request"
+    }
+  ]
+}

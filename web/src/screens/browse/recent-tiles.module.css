@@ -1,0 +1,44 @@
+/* Phone-web frame 7: the Music library's Recently played row is the app's two-column
+   quick grid — 52px art, 13px title, 11.5px artist — with the playing one marked. */
+.rows > * + * { margin-top:44px; }
+.section { width: 100%; }
+.heading { margin: 0 0 8px; }
+.heading h2 { margin: 0; font-size: var(--type-row-heading-size); font-weight: var(--type-button-weight); letter-spacing: var(--type-row-heading-tracking); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px 0 0; }
+.item { position: relative; min-width: 0; }
+/* The shared hold feedback draws at the pointer; the tile only layers it. */
+.holdFeedback { z-index: var(--layer-hero-navigation); }
+/* collections.html/select.html's one circle: top-left, revealed by hover or focus
+   while the surface is not selecting; it starts selection on that exact row. */
+.tileSelection { position: absolute; z-index: var(--layer-row-arrow); top: 6px; left: 6px; display: inline-flex; appearance: none; margin: 0; padding: 0; border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer; opacity: 0; transition: opacity 200ms cubic-bezier(.2,.7,.2,1); }
+.item:hover .tileSelection, .item:focus-within .tileSelection, .tileSelection:focus-visible, .item[data-selecting] .tileSelection { opacity: 1; }
+.tileMore { position: absolute; z-index: var(--layer-row-arrow); top: 4px; right: 4px; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--color-ink) 72%, transparent); color: var(--color-text-secondary); opacity: 0; cursor: pointer; }
+.item:hover .tileMore, .item:focus-within .tileMore, .tileMore[aria-expanded='true'] { opacity: 1; }
+@media (max-width: 599px) {
+  .item:not([data-selecting]):not([data-selected]) .tileSelection:not(:focus-visible) { opacity: 0; pointer-events: none; }
+  .tileMore { opacity: 1; }
+}
+.tile { display: flex; width: 100%; align-items: center; gap: 10px; height: 52px; min-width: 0; padding: 0; border: 0; border-radius: 9px; overflow: hidden; background: color-mix(in srgb, var(--color-text) 8%, transparent); color: inherit; text-align: left; cursor: pointer; }
+.art { flex: none; width: 52px; height: 52px; overflow: hidden; }
+.copy { min-width: 0; padding-right: 8px; }
+.title { display: flex; align-items: center; min-width: 0; font-size: var(--type-fixed-size-13px); font-weight: var(--type-fixed-weight-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.artist { display: block; margin-top: 1px; font-size: var(--type-fixed-size-11point-5px); color: var(--color-text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile[data-playing] .title { color: var(--color-accent-strong); }
+.tile:focus-visible { outline:3px solid var(--color-focus); outline-offset:3px; }
+@media (min-width:1024px) {
+  .section { --layout-gutter:clamp(32px,calc(32px + (100vw - 1024px) * .076923),64px); }
+  .heading { padding:0 var(--layout-gutter); margin-bottom:14px; }
+  .grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; padding:4px var(--layout-gutter) 0; }
+  .tile { gap:16px; height:76px; border-radius:10px; background:color-mix(in srgb, var(--color-text) 7%, transparent); }
+  .art { width:76px; height:76px; }
+  .copy { flex:1; padding-right:58px; }
+  .title { display:block; font-size: var(--type-fixed-size-15px); }
+  .artist { display:flex; align-items:center; font-size: var(--type-fixed-size-13px); margin-top:3px; }
+  .tile[data-playing] { background:color-mix(in srgb, var(--color-text) 12%, transparent); }
+}
+.levels { display: inline-flex; align-items: flex-end; gap: 2px; width: 13px; height: 11px; margin-right: 5px; flex: none; }
+.levels i { width: 2px; background: currentColor; }
+.levels i:nth-child(1) { height: 6px; }
+.levels i:nth-child(2) { height: 11px; }
+.levels i:nth-child(3) { height: 8px; }
+@media (max-width:1023px) { .rows > * + * { margin-top:28px; } }

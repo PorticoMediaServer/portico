@@ -1,0 +1,33 @@
+# Approved activation design; parent applies triggers after final local checks.
+required_context: ci/required
+workflow: .github/workflows/merge.yml
+# One workflow, no event-specific required names. Never path-filter the aggregate.
+events:
+  pull_request: {}
+  merge_group:
+    types: [checks_requested]
+routing:
+  pull_request: short
+  merge_group: merge # exact event base_sha/head_sha, full deterministic affected suites
+  workflow_dispatch: short-or-merge-full-bootstrap
+branch_protection:
+  required_checks: [ci/required]
+  require_merge_queue: true
+  direct_main_bypass: false
+  proposed_queue_method: rebase
+# Rebase queue SHA must descend from old main and be the exact tested commit.
+nightly:
+  workflows: [nightly.yml]
+  packaging: ci/package-smoke.py --package QUALIFIED_LINUX_TARBALL
+  activation_blocked: qualified sealed Linux package and Android Hermes engine input
+release:
+  staged_files: [ci/release-staged/server-release.yml, ci/release-staged/server-build-validation.yml]
+  environment: server-release
+  blocked: true
+
+queue_invariants:
+  main_target: exact tested merge_group head_sha descending from previous main
+  allowed_method: rebase
+  maximum_group_size: 5
+  admin_bypass: false
+  nightly_schedule: held until green bootstrap

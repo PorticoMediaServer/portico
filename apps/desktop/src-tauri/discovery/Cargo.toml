@@ -1,0 +1,20 @@
+[package]
+name = "portico-desktop-discovery"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "GPL-3.0-only"
+publish = false
+
+[dependencies]
+# Apache-2.0 OR MIT; no logging of untrusted service names, addresses or TXT.
+mdns-sd = { version = "=0.21.4", default-features = false }
+serde = { version = "=1.0.228", features = ["derive"] }
+base64 = { version = "=0.22.1", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+serde_json = "=1.0.145"
+
+[profile.dev]
+debug = 0
+incremental = false

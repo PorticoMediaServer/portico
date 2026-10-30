@@ -1,0 +1,13 @@
+/* remote-sources.html .r.chg: a changed row carries the tint and a 3px accent bar. The control
+   control ring is drawn: no single control element is proved for these rows, so nothing shadows a
+   descendant button or overrides focus-visible. */
+.row { position: relative; }
+.row[data-changed] { background: linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 10%, transparent), color-mix(in srgb, var(--color-accent) 0%, transparent) 56%); }
+.row[data-changed]::after { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 3px; background: var(--color-accent-strong); }
+/* The existing radio-row fill must not cover its parent's changed wash. */
+.analysisChanged.analysisChanged { background: transparent; }
+.preset { display: inline-flex; align-items: center; gap: 10px; padding: 2px 12px 6px; font-size: var(--type-fixed-size-13px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); white-space: nowrap; }
+.reset { border: 0; background: none; padding: 0; font: inherit; font-weight: var(--type-fixed-weight-700); color: var(--color-accent-strong); cursor: pointer; }
+.reset:hover:not(:disabled) { text-decoration: underline; }
+.reset:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.reset:disabled { cursor: default; opacity: .55; text-decoration: none; }

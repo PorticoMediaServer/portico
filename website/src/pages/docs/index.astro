@@ -1,0 +1,49 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { docCategories } from '@/data/docs';
+
+const entries = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
+---
+
+<BaseLayout title="Documentation" description="Setup, administration, playback, remote access, client, and troubleshooting documentation for Portico.">
+  <header class="docs-landing-header section-light">
+    <div>
+      <h1>Portico documentation</h1>
+      <p>Set up a server, organize a library, connect your devices, and keep Portico running.</p>
+      <label class="docs-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m16 16 5 5" /></svg>
+        <span class="sr-only">Filter documentation</span>
+        <input type="search" placeholder="Search article titles" data-doc-search />
+      </label>
+    </div>
+  </header>
+
+  <section class="docs-directory section-light" data-doc-directory>
+    {docCategories.map((category) => {
+      const articles = entries.filter((entry) => entry.data.category === category.id);
+      return (
+        <details class="docs-category" data-doc-category open>
+          <summary>{category.title}</summary>
+          <div class="docs-category-body">
+            <p>{category.description}</p>
+            <a class="docs-category-overview" href={`/docs/${category.id}/`}>Browse {category.title.toLowerCase()}</a>
+          </div>
+          <ul>
+            {articles.map((article) => (
+              <li data-doc-article data-search={`${article.data.title} ${article.data.description}`.toLowerCase()}>
+                <a href={`/docs/${article.id}/`}>
+                  <strong>{article.data.title}</strong>
+                  <span>{article.data.description}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </details>
+      );
+    })}
+    <p class="docs-no-results" hidden data-doc-no-results>No articles match that search.</p>
+  </section>
+
+  <script is:inline src="/scripts/docs-directory.js"></script>
+</BaseLayout>

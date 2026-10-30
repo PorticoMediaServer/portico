@@ -1,0 +1,12 @@
+--- a/build-ffmpeg
++++ b/build-ffmpeg
+@@ -461,7 +461,9 @@
+ 
+ PKG_CONFIG_PATH+="${WORKSPACE}/lib/pkgconfig:/usr/local/lib/${TARGET_ARCH}-${OSTYPE}/pkgconfig:/usr/local/lib/pkgconfig"
+ PKG_CONFIG_PATH+=":/usr/local/share/pkgconfig:/usr/lib/${TARGET_ARCH}-${OSTYPE}/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/lib64/pkgconfig"
++PKG_CONFIG_PATH="${WORKSPACE}/lib/pkgconfig:${WORKSPACE}/share/pkgconfig"
+ export PKG_CONFIG_PATH
++export PKG_CONFIG_LIBDIR="${PKG_CONFIG_PATH}"
+ 
+ echo "Package config path: ${PKG_CONFIG_PATH}"
+ 

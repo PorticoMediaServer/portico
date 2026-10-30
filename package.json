@@ -1,0 +1,25 @@
+{
+  "name": "portico",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "web",
+    "packages/client-core",
+    "packages/design",
+    "packages/player-core",
+    "packages/reader-core"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace portico-web",
+    "check:web": "npm run test:cast && npm run check --workspace portico-web",
+    "test:core": "npm run test --workspace @portico/client-core",
+    "test:cast": "node --test server/receiver/cast/test/*.test.cjs",
+    "test:player": "npm run test --workspace @portico/player-core",
+    "check:player": "npm run check --workspace @portico/player-core",
+    "test:reader": "npm run test --workspace @portico/reader-core",
+    "check:reader": "npm run check --workspace @portico/reader-core",
+    "check:native": "npm --prefix apps/native run typecheck",
+    "check:vega": "npm --prefix apps/vega run typecheck",
+    "check:website": "npm --prefix website run check"
+  }
+}

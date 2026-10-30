@@ -1,0 +1,3 @@
+/* The actual cover only. Its original owner measures both committed slots; no invented rectangle. */
+.cover { position: fixed; left: 0; top: 0; z-index: calc(var(--layer-player) + 5); transform-origin: 0 0; visibility: hidden; pointer-events: none; border-radius: 14px; overflow: visible; }
+.cover > span { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; overflow: hidden; }

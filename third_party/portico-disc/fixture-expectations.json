@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "status": "host helper/protocol fixtures checked; target bundle/full playback not qualified",
+  "manifest": "fixtures/discs/manifest.json",
+  "manifestSha256": "d531e2332adb16261add1fca78f3670be0b4ec2385453018a45fa96c6add77fa",
+  "provenance": "fixtures/discs/provenance.json",
+  "generator": "scripts/generate-disc-fixtures.py",
+  "publication": "Generated mathematical pictures/tone/navigation, GPL-3.0-or-later; no supplied licensed media bytes",
+  "requiredFutureProofs": [
+    "Hardware checked no-decryption patches and exact target bundle/runner",
+    "Real encrypted discs and complex PGC/multi-angle devices",
+    "Actual selected-title FFmpeg decoded seek and chapter readback",
+    "Source/member replacement and title/version/scan integration",
+    "DV BL/EL join and metadata qualification",
+    "Remote reader/range/identity integration"
+  ]
+}

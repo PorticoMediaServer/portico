@@ -1,0 +1,53 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/items/MKTg1OVAPuefVNdiOObFwQ/file-info/groups/members?opening=<scrubbed>&limit=50&group=AQEY4ve-rxNAAKUh7A-uinqF62x8l-kCTaol83n5ELqVTm6hulPffkT1AAAAAAAAAAVN-25Jx2J5YEiDCFILH_0BAAAAAAAAAAUAAAAAAAAAA037bknHYnlgSIMIUgsf_QHutGc8hz3yzT8Fwa0pYxbY7DiZelqca-d9asgXFyJ5rwAAAAAAAAADAAAAAAAAAAMAAAAAAAAAAgAAAAAAAAABAAAAAAAAAAEAAAAAAACBoQAAAAAAAAfQAYSxU9VS1dUW-i0CJBR2RiQ"
+  },
+  "status": 200,
+  "body": {
+    "scope": {
+      "serverId": "srv_7sWWdcN9umujBzM2AlDkD--4cuPxXxauxkI6fcBZgm8",
+      "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
+      "itemId": "MKTg1OVAPuefVNdiOObFwQ",
+      "viewerFence": "s_9H2BRgx9fji61xhlWG3nTVXO_nG2nvpKi4fUVQKbo"
+    },
+    "detail": {
+      "scope": {
+        "serverId": "srv_7sWWdcN9umujBzM2AlDkD--4cuPxXxauxkI6fcBZgm8",
+        "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
+        "itemId": "MKTg1OVAPuefVNdiOObFwQ",
+        "viewerFence": "8831511cf2cef880db84da4b677c9ae41c91147d35d6d4222c39799ecf56e9aa"
+      },
+      "revision": {
+        "catalog": 444,
+        "viewer": 0
+      }
+    },
+    "basis": "pSHsD66KeoXrbHyX6QJNqiXzefkQupVObqG6U99-RPU",
+    "window": {
+      "queryId": "AgAAAAAAAAAFAAAAAAAAAAFN-25Jx2J5YEiDCFILH_0BAAAAAAAAAAoAAAAAAAABvAAAAAAAAAAAGOL3vq8TQAAwpODU5UA-559U12I45sXB-DLXhmDTl_3awMcrjyy2m-3nIk4R-pb-at87OtY9QPQAAAAAAAAAAqVfyWs7L8BltPU6Qn5dNJk.AQcBGOL3vq8TQADqaJ-24sssfvSKMHj8TERjwDFs0ZUViKav9jJJ9FoNuqUh7A-uinqF62x8l-kCTaol83n5ELqVTm6hulPffkT1AAAAAAAAAAUAAAAAAAAAAwAAAAAAAAAAtF24_UbgVOtjfEhGlQogmg",
+      "limit": 50,
+      "returned": 1,
+      "reloadCursor": "AQcDGOL3vq8TQADqaJ-24sssfvSKMHj8TERjwDFs0ZUViKav9jJJ9FoNuqUh7A-uinqF62x8l-kCTaol83n5ELqVTm6hulPffkT1AAAAAAAAAAUAAAAAAAAAAwAAAAAAAAAA5CEgDfWSKzB4ObcKnlMEkg"
+    },
+    "kind": "file-info-members",
+    "groupId": "AQEY4ve-rxNAAKUh7A-uinqF62x8l-kCTaol83n5ELqVTm6hulPffkT1AAAAAAAAAAVN-25Jx2J5YEiDCFILH_0BAAAAAAAAAAUAAAAAAAAAA037bknHYnlgSIMIUgsf_QHutGc8hz3yzT8Fwa0pYxbY7DiZelqca-d9asgXFyJ5rwAAAAAAAAADAAAAAAAAAAMAAAAAAAAAAgAAAAAAAAABAAAAAAAAAAEAAAAAAACBoQAAAAAAAAfQAYSxU9VS1dUW-i0CJBR2RiQ",
+    "total": 1,
+    "members": [
+      {
+        "occurrence": "AQAY4ve-rxNAAKUh7A-uinqF62x8l-kCTaol83n5ELqVTm6hulPffkT1AAAAAAAAAAVN-25Jx2J5YEiDCFILH_0BAAAAAAAAAAUAAAAAAAAAA037bknHYnlgSIMIUgsf_QHutGc8hz3yzT8Fwa0pYxbY7DiZelqca-d9asgXFyJ5rwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH_bKbF3H2R0ax3geIuMGB4",
+        "itemId": "MKTg1OVAPuefVNdiOObFwQ",
+        "id": "E1YnbSXCCsRxM4IQ0sNL2Xbjgf6ClXBKaitJ-pYFwJ8",
+        "path": "/media/… Grey/Assembly of Copper/01 - Ticket.mp3",
+        "size": 33185,
+        "container": "mp3",
+        "duration": 2,
+        "bitRate": 132740,
+        "available": true,
+        "partIndex": 0,
+        "audioCount": 1,
+        "subtitleCount": 0
+      }
+    ]
+  }
+}

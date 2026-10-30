@@ -1,0 +1,30 @@
+{
+  "provenance": {
+    "artifact": "artifact-12934474095",
+    "file": "go-results-server-3-events.jsonl",
+    "sha256": "4153d63091c811941b2e08e58cfe0828dc7094adcf45f12b753112171dc4bf3e",
+    "sanitization": "Only terminal/run fields for one passing test and package; Output reduced to exact benign phrase."
+  },
+  "events": [
+    {
+      "Action": "run",
+      "Package": "portico.local/server/internal/httpapi",
+      "Test": "TestPlaybackV1UnconfirmedSourceIsRetryable"
+    },
+    {
+      "Action": "output",
+      "Package": "portico.local/server/internal/httpapi",
+      "Test": "TestPlaybackV1UnconfirmedSourceIsRetryable",
+      "Output": "playback source read timed out\n"
+    },
+    {
+      "Action": "pass",
+      "Package": "portico.local/server/internal/httpapi",
+      "Test": "TestPlaybackV1UnconfirmedSourceIsRetryable"
+    },
+    {
+      "Action": "pass",
+      "Package": "portico.local/server/internal/httpapi"
+    }
+  ]
+}

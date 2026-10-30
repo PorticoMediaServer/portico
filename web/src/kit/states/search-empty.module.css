@@ -1,0 +1,5 @@
+.empty { width: 100%; position: relative; padding-top: 16px; }
+.empty h2 { font-size: 40px; line-height: normal; font-weight: 800; letter-spacing: -.035em; margin: 0 0 10px; }
+.empty p { font-size: 17px; line-height: normal; color: var(--color-text-secondary); margin: 0; }
+.empty > button { margin-top: 20px; }
+@media(max-width:1023px) { .empty h2 { font-size: 28px; } .empty p { font-size: 14.5px; } }

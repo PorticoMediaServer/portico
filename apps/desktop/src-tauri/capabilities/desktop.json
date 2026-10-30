@@ -1,0 +1,7 @@
+{
+  "identifier": "desktop",
+  "description": "Packaged main webview. No shell, filesystem, process, HTTP or remote-origin permissions.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": []
+}

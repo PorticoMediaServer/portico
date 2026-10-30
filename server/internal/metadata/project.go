@@ -1,0 +1,4 @@
+package metadata
+
+// Intentionally distributed Portico TMDB project identifier, authorized by the owner.
+const ProjectToken = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2OGE5Y2M5ZGNhNjJkMDg2ZWEzZWQwNTg1YmMwZDcyYyIsIm5iZiI6MTc3NzU4Njc3MS44MzIsInN1YiI6IjY5ZjNkMjUzMTA2ODk0N2I0NmZiZDUwZiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.AmRWVmPw6MJOYp5jv83nvOYJUWXRx1YsoEtUDDQht_8"

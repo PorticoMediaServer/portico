@@ -1,0 +1,8 @@
+.stage { position: relative; width: 100%; height: 100%; background: var(--color-ink); line-height: normal; }
+.phone { min-height: 62px; }
+.tvSpecimen { top: 0; right: 0; }
+.morph { isolation: isolate; }
+.expandedSlot { position: absolute; inset: 0; }
+.morphTools { position: absolute; z-index: var(--layer-dialog); right: 24px; top: 24px; }
+.result { display: none; }
+.widgetDocument { overflow: clip; }

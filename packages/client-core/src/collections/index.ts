@@ -1,0 +1,1 @@
+export {createWindowedCollection, type WindowedCollection, type WindowedCollectionOptions, type FetchPage, type PageResult, type Slot, type CollectionSnapshot, type CollectionStatus} from './windowed.ts';

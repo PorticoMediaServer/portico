@@ -1,0 +1,270 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/libraries/oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8/browse",
+    "body": {
+      "pivot": "albums",
+      "query": null,
+      "sort": [],
+      "cursor": "",
+      "limit": 5,
+      "range": null,
+      "seek": null
+    }
+  },
+  "status": 200,
+  "body": {
+    "pivot": "albums",
+    "applied": {
+      "query": null,
+      "sort": [
+        {
+          "field": "title",
+          "direction": "asc"
+        }
+      ]
+    },
+    "entries": [
+      {
+        "addedAt": null,
+        "artist": {
+          "id": "SCoRiOxzk8-fsNWngFB3pA",
+          "name": "Unknown artist"
+        },
+        "count": 2,
+        "homeActions": {
+          "notInterested": true,
+          "play": true,
+          "queue": true,
+          "playlist": true,
+          "collection": true,
+          "myList": false,
+          "favorite": true,
+          "watched": false,
+          "played": true,
+          "rating": false,
+          "editMetadata": true,
+          "refreshMetadata": false,
+          "delete": false,
+          "download": true,
+          "details": true,
+          "state": {
+            "watchlisted": false,
+            "favorite": false,
+            "watched": false,
+            "rating": null,
+            "personalRevision": 0,
+            "containerRevision": 0
+          },
+          "selection": {
+            "play": true,
+            "queue": true,
+            "playlist": true,
+            "collection": true,
+            "myList": true,
+            "favorite": true,
+            "watched": false,
+            "download": true,
+            "edit": true,
+            "refresh": false,
+            "delete": false
+          }
+        },
+        "id": "w3_2FR6m3bbR5VM2PhpmYQ",
+        "kind": "album",
+        "missing": false,
+        "navigation": {
+          "view": "album",
+          "entityId": "w3_2FR6m3bbR5VM2PhpmYQ"
+        },
+        "sortLetter": "A",
+        "title": "AlbumAlac"
+      },
+      {
+        "addedAt": null,
+        "artist": {
+          "id": "SCoRiOxzk8-fsNWngFB3pA",
+          "name": "Unknown artist"
+        },
+        "count": 2,
+        "homeActions": {
+          "notInterested": true,
+          "play": true,
+          "queue": true,
+          "playlist": true,
+          "collection": true,
+          "myList": false,
+          "favorite": true,
+          "watched": false,
+          "played": true,
+          "rating": false,
+          "editMetadata": true,
+          "refreshMetadata": false,
+          "delete": false,
+          "download": true,
+          "details": true,
+          "state": {
+            "watchlisted": false,
+            "favorite": false,
+            "watched": false,
+            "rating": null,
+            "personalRevision": 0,
+            "containerRevision": 0
+          },
+          "selection": {
+            "play": true,
+            "queue": true,
+            "playlist": true,
+            "collection": true,
+            "myList": true,
+            "favorite": true,
+            "watched": false,
+            "download": true,
+            "edit": true,
+            "refresh": false,
+            "delete": false
+          }
+        },
+        "id": "Ku4NCD9sR1sAU9yMNjDvzQ",
+        "kind": "album",
+        "missing": false,
+        "navigation": {
+          "view": "album",
+          "entityId": "Ku4NCD9sR1sAU9yMNjDvzQ"
+        },
+        "sortLetter": "A",
+        "title": "AlbumOne"
+      },
+      {
+        "addedAt": null,
+        "artist": {
+          "id": "SCoRiOxzk8-fsNWngFB3pA",
+          "name": "Unknown artist"
+        },
+        "count": 2,
+        "homeActions": {
+          "notInterested": true,
+          "play": true,
+          "queue": true,
+          "playlist": true,
+          "collection": true,
+          "myList": false,
+          "favorite": true,
+          "watched": false,
+          "played": true,
+          "rating": false,
+          "editMetadata": true,
+          "refreshMetadata": false,
+          "delete": false,
+          "download": true,
+          "details": true,
+          "state": {
+            "watchlisted": false,
+            "favorite": false,
+            "watched": false,
+            "rating": null,
+            "personalRevision": 0,
+            "containerRevision": 0
+          },
+          "selection": {
+            "play": true,
+            "queue": true,
+            "playlist": true,
+            "collection": true,
+            "myList": true,
+            "favorite": true,
+            "watched": false,
+            "download": true,
+            "edit": true,
+            "refresh": false,
+            "delete": false
+          }
+        },
+        "id": "yjvl9LTKtMMUMQFCS1cjcw",
+        "kind": "album",
+        "missing": false,
+        "navigation": {
+          "view": "album",
+          "entityId": "yjvl9LTKtMMUMQFCS1cjcw"
+        },
+        "sortLetter": "A",
+        "title": "AlbumTwo"
+      },
+      {
+        "addedAt": null,
+        "artist": {
+          "id": "SCoRiOxzk8-fsNWngFB3pA",
+          "name": "Unknown artist"
+        },
+        "count": 1,
+        "homeActions": {
+          "notInterested": true,
+          "play": true,
+          "queue": true,
+          "playlist": true,
+          "collection": true,
+          "myList": false,
+          "favorite": true,
+          "watched": false,
+          "played": true,
+          "rating": false,
+          "editMetadata": true,
+          "refreshMetadata": false,
+          "delete": false,
+          "download": true,
+          "details": true,
+          "state": {
+            "watchlisted": false,
+            "favorite": false,
+            "watched": false,
+            "rating": null,
+            "personalRevision": 0,
+            "containerRevision": 0
+          },
+          "selection": {
+            "play": true,
+            "queue": true,
+            "playlist": true,
+            "collection": true,
+            "myList": true,
+            "favorite": true,
+            "watched": false,
+            "download": true,
+            "edit": true,
+            "refresh": false,
+            "delete": false
+          }
+        },
+        "id": "TFmaguJtaiBfE0GA2pSkcw",
+        "kind": "album",
+        "missing": false,
+        "navigation": {
+          "view": "album",
+          "entityId": "TFmaguJtaiBfE0GA2pSkcw"
+        },
+        "sortLetter": "A",
+        "title": "Assembly of Copper"
+      }
+    ],
+    "pageInfo": {
+      "start": 0,
+      "total": 5,
+      "totalIsLowerBound": false,
+      "revision": "browse_1e072ba953851771d18aec20089375ecadaf8065203ad7b5bb53f5009b63db87",
+      "hasMore": true,
+      "nextCursor": "<scrubbed>",
+      "durationMs": 0,
+      "durationIsLowerBound": true
+    },
+    "positionIndex": [
+      {
+        "key": "A",
+        "index": 0
+      },
+      {
+        "key": "S",
+        "index": 4
+      }
+    ]
+  }
+}

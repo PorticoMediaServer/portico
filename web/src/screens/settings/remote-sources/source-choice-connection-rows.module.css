@@ -1,0 +1,79 @@
+/* The Connection-limits box (remote-sources.html#4b/#4c): the caller's .limits
+   owns the box surface, and each row is one full-width line with the drawn label
+   on the left and the unchanged control on the right (.r, line 97: 1fr auto,
+   28px gap, 18px 22px padding, soft separator). */
+.rows { display: grid; }
+.cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  align-items: center;
+  padding: 18px 22px;
+  border-top: 1px solid var(--color-line-soft);
+  position: relative;
+  min-width: 0;
+}
+.cell:first-child { border-top: 0; }
+.labelBlock { display: grid; min-width: 0; }
+.label { font-size: var(--type-fixed-size-16px); font-weight: var(--type-body-strong-weight); }
+/* Authored .r .l > p (remote-sources.html:101): 14px/1.45 under the label. */
+.help { margin: 4px 0 0; max-width: 600px; font-size: var(--type-fixed-size-14px); line-height: var(--type-fixed-line-1point-45); color: var(--color-text-tertiary); }
+.control { display: flex; align-items: center; gap: 12px; justify-content: flex-end; }
+/* Authored .r.chg (remote-sources.html:1016-1017): a 10% accent wash and a 3px
+   accent bar inset 14px from the row's top and bottom. */
+.cell[data-changed] {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 56%);
+}
+.cell[data-changed]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--color-accent);
+}
+/* Authored changed-number ring (remote-sources.html:751, .nf .n.ch). Selected by
+   this row's own data attribute and the field's stable data-variant, never by a
+   kit class, and it stands down while the control holds focus so the kit's
+   canonical focus-visible ring is what draws. */
+.cell[data-changed] div[data-variant="setting"] > div:not(:focus-within) {
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+}
+/* Authored .was (remote-sources.html:1018): 13px/600 in text-3, 10px gap. */
+.marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--type-fixed-size-13px);
+  font-weight: var(--type-fixed-weight-600);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+.marker > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Authored .lk (remote-sources.html:111): 13px/700 in accent-strong, drawn as its
+   own button outside any field label, with the kit's canonical focus ring. */
+.reset {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--type-fixed-size-13px);
+  font-weight: var(--type-fixed-weight-700);
+  color: var(--color-accent-strong);
+  cursor: pointer;
+}
+.reset:hover:not(:disabled) { text-decoration: underline; }
+.reset:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 3px; }
+.reset:disabled { cursor: default; opacity: .5; }
+/* The phone rows (remote-sources.html#11b, .mg > .lr.noic at 58px): the same
+   full-width line with the drawn 8px 14px row padding, 12px gap and the phone's
+   15.5/600 label. Values only; the caller's box still owns the surface. */
+.rows[data-phone] .cell { gap: 12px; padding: 8px 14px; min-height: 58px; }
+.rows[data-phone] .label { font-size: var(--type-fixed-size-15point-5px); font-weight: var(--type-fixed-weight-600); }
+/* Authored phone .lr .tx small (remote-sources.html:277) for the published
+   phone help keys; no local phone copy is supplied here. */
+.rows[data-phone] .help { margin-top: 2px; max-width: none; font-size: var(--type-fixed-size-12point-5px); line-height: var(--type-fixed-line-1point-4); font-weight: var(--type-fixed-weight-500); }

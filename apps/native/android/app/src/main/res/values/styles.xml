@@ -1,0 +1,18 @@
+<resources>
+    <!-- The system's first frame (core-splashscreen): ink with the white wordmark, 176dp, in the
+         window's centre, exactly where the boot view and React's Boot draw it next (PorticoBoot). -->
+    <style name="Theme.Portico.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/portico_ink</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/boot_wordmark</item>
+        <item name="postSplashScreenTheme">@style/AppTheme</item>
+    </style>
+
+    <!-- Portico is always dark: the window is ink, never the platform's white or black. -->
+    <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/portico_ink</item>
+        <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

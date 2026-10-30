@@ -1,0 +1,31 @@
+---
+const { path = Astro.url.pathname } = Astro.props as { path?: string };
+const links = [
+  { label: 'Features', href: '/features/' },
+  { label: 'Downloads', href: '/download/' },
+  { label: 'Documentation', href: '/docs/' },
+  { label: 'Developers', href: '/developers/' }
+];
+---
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="site-brand" href="/" aria-label="Portico home">
+      <img src="/brand/portico-wordmark-white.svg" alt="Portico" />
+    </a>
+    <button class="menu-button" type="button" aria-expanded="false" aria-controls="site-navigation">
+      <span>Menu</span>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14" /></svg>
+    </button>
+    <div class="header-navigation" id="site-navigation">
+      <nav aria-label="Primary navigation">
+        {links.map((link) => (
+          <a href={link.href} aria-current={path.startsWith(link.href) ? 'page' : undefined}>{link.label}</a>
+        ))}
+      </nav>
+      <a class="header-action" href="https://web.getportico.tv">Open Portico</a>
+    </div>
+  </div>
+</header>
+
+<script is:inline src="/scripts/site-header.js"></script>

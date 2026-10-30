@@ -1,0 +1,2502 @@
+{
+  "sourceLanguage" : "en",
+  "version" : "1.0",
+  "strings" : {
+    "home.row.becauseYouWatched" : {
+      "comment" : "home.row.becauseYouWatched. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you watched {title}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you watched {title}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you watched {title}"
+          }
+        }
+      }
+    },
+    "home.row.continueListening" : {
+      "comment" : "home.row.continueListening. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Listening"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Listening"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Listening"
+          }
+        }
+      }
+    },
+    "home.row.continueWatching" : {
+      "comment" : "home.row.continueWatching. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Watching"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Watching"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Watching"
+          }
+        }
+      }
+    },
+    "home.row.directedBy" : {
+      "comment" : "home.row.directedBy. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Directed by {name}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Directed by {name}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Directed by {name}"
+          }
+        }
+      }
+    },
+    "home.row.fromCreator" : {
+      "comment" : "home.row.fromCreator. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From {name}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From {name}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From {name}"
+          }
+        }
+      }
+    },
+    "home.row.genreForYou" : {
+      "comment" : "home.row.genreForYou. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{genre} for you"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{genre} for you"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{genre} for you"
+          }
+        }
+      }
+    },
+    "home.row.hiddenGems" : {
+      "comment" : "home.row.hiddenGems. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hidden gems for you"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hidden gems for you"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hidden gems for you"
+          }
+        }
+      }
+    },
+    "home.row.moodForYou" : {
+      "comment" : "home.row.moodForYou. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{mood} picks for you"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{mood} picks for you"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{mood} picks for you"
+          }
+        }
+      }
+    },
+    "home.row.moreByAuthor" : {
+      "comment" : "home.row.moreByAuthor. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More by {name}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More by {name}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More by {name}"
+          }
+        }
+      }
+    },
+    "home.row.moreFrom" : {
+      "comment" : "home.row.moreFrom. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More from {name}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More from {name}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More from {name}"
+          }
+        }
+      }
+    },
+    "home.row.moreFromArtist" : {
+      "comment" : "home.row.moreFromArtist. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More from {name}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More from {name}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More from {name}"
+          }
+        }
+      }
+    },
+    "home.row.moreLike" : {
+      "comment" : "home.row.moreLike. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More like {title}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More like {title}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More like {title}"
+          }
+        }
+      }
+    },
+    "home.row.moreRecommendations" : {
+      "comment" : "home.row.moreRecommendations. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More recommendations"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More recommendations"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More recommendations"
+          }
+        }
+      }
+    },
+    "home.row.moreWith" : {
+      "comment" : "home.row.moreWith. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More with {name}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More with {name}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More with {name}"
+          }
+        }
+      }
+    },
+    "home.row.nextInFranchise" : {
+      "comment" : "home.row.nextInFranchise. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next in the franchise"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next in the franchise"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next in the franchise"
+          }
+        }
+      }
+    },
+    "home.row.nextInSeries" : {
+      "comment" : "home.row.nextInSeries. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next in the series"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next in the series"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next in the series"
+          }
+        }
+      }
+    },
+    "home.row.popularOnServer" : {
+      "comment" : "home.row.popularOnServer. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Popular on this server"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Popular on this server"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Popular on this server"
+          }
+        }
+      }
+    },
+    "home.row.recentlyAdded" : {
+      "comment" : "home.row.recentlyAdded. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently added"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently added"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently added"
+          }
+        }
+      }
+    },
+    "home.row.recentlyAddedIn" : {
+      "comment" : "home.row.recentlyAddedIn. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently added in {library}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently added in {library}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently added in {library}"
+          }
+        }
+      }
+    },
+    "home.row.recommended" : {
+      "comment" : "home.row.recommended. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended for you"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended for you"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended for you"
+          }
+        }
+      }
+    },
+    "home.row.rediscover" : {
+      "comment" : "home.row.rediscover. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rediscover"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rediscover"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rediscover"
+          }
+        }
+      }
+    },
+    "home.row.shortPicks" : {
+      "comment" : "home.row.shortPicks. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Short picks for you"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Short picks for you"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Short picks for you"
+          }
+        }
+      }
+    },
+    "home.row.starring" : {
+      "comment" : "home.row.starring. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starring {name}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starring {name}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starring {name}"
+          }
+        }
+      }
+    },
+    "home.row.themeForYou" : {
+      "comment" : "home.row.themeForYou. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{theme} for you"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{theme} for you"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{theme} for you"
+          }
+        }
+      }
+    },
+    "home.row.topRated" : {
+      "comment" : "home.row.topRated. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top rated you haven’t seen"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top rated you haven’t seen"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top rated you haven’t seen"
+          }
+        }
+      }
+    },
+    "home.row.trending" : {
+      "comment" : "home.row.trending. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trending now"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trending now"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trending now"
+          }
+        }
+      }
+    },
+    "home.row.upNext" : {
+      "comment" : "home.row.upNext. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up Next"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up Next"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up Next"
+          }
+        }
+      }
+    },
+    "home.row.viewersAlsoWatched" : {
+      "comment" : "home.row.viewersAlsoWatched. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Viewers also watched"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Viewers also watched"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Viewers also watched"
+          }
+        }
+      }
+    },
+    "next.home.addMyList" : {
+      "comment" : "next.home.addMyList. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to My List"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to My List"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to My List"
+          }
+        }
+      }
+    },
+    "next.home.allowedAdministrators" : {
+      "comment" : "next.home.allowedAdministrators. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only administrators and the owner see this page"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only administrators and the owner see this page"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only administrators and the owner see this page"
+          }
+        }
+      }
+    },
+    "next.home.allowedEditors" : {
+      "comment" : "next.home.allowedEditors. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only you and people allowed to edit"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only you and people allowed to edit"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only you and people allowed to edit"
+          }
+        }
+      }
+    },
+    "next.home.audioKinds" : {
+      "comment" : "next.home.audioKinds. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audiobooks and music"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audiobooks and music"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audiobooks and music"
+          }
+        }
+      }
+    },
+    "next.home.becauseHeading" : {
+      "comment" : "next.home.becauseHeading. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you watched"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you watched"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you watched"
+          }
+        }
+      }
+    },
+    "next.home.becauseYouWatched" : {
+      "comment" : "next.home.becauseYouWatched. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you watched {title}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you watched {title}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you watched {title}"
+          }
+        }
+      }
+    },
+    "next.home.booksAvailability" : {
+      "comment" : "next.home.booksAvailability. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shown when a book is in progress"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shown when a book is in progress"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shown when a book is in progress"
+          }
+        }
+      }
+    },
+    "next.home.collection" : {
+      "comment" : "next.home.collection. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collection"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collection"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collection"
+          }
+        }
+      }
+    },
+    "next.home.continueBooks" : {
+      "comment" : "next.home.continueBooks. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue your books"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue your books"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue your books"
+          }
+        }
+      }
+    },
+    "next.home.continueWatching" : {
+      "comment" : "next.home.continueWatching. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Watching"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Watching"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Watching"
+          }
+        }
+      }
+    },
+    "next.home.customizeDescription" : {
+      "comment" : "next.home.customizeDescription. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose which rows appear on Home, and in what order. This is only for this profile."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose which rows appear on Home, and in what order. This is only for this profile."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose which rows appear on Home, and in what order. This is only for this profile."
+          }
+        }
+      }
+    },
+    "next.home.editSelection" : {
+      "comment" : "next.home.editSelection. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit selected titles"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit selected titles"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit selected titles"
+          }
+        }
+      }
+    },
+    "next.home.keepEditing" : {
+      "comment" : "next.home.keepEditing. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep editing"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep editing"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep editing"
+          }
+        }
+      }
+    },
+    "next.home.last30Days" : {
+      "comment" : "next.home.last30Days. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last 30 days"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last 30 days"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last 30 days"
+          }
+        }
+      }
+    },
+    "next.home.layoutChangedBody" : {
+      "comment" : "next.home.layoutChangedBody. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Home layout changed on another device after you opened this. Nothing was overwritten. Reload it to see the latest, then make your changes again."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Home layout changed on another device after you opened this. Nothing was overwritten. Reload it to see the latest, then make your changes again."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Home layout changed on another device after you opened this. Nothing was overwritten. Reload it to see the latest, then make your changes again."
+          }
+        }
+      }
+    },
+    "next.home.layoutChangedBodyCompact" : {
+      "comment" : "next.home.layoutChangedBodyCompact. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Home layout changed on another device after you opened this. Nothing was overwritten. Reload it, then make your changes again."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Home layout changed on another device after you opened this. Nothing was overwritten. Reload it, then make your changes again."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Home layout changed on another device after you opened this. Nothing was overwritten. Reload it, then make your changes again."
+          }
+        }
+      }
+    },
+    "next.home.layoutChangedTitle" : {
+      "comment" : "next.home.layoutChangedTitle. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home couldn’t be saved"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home couldn’t be saved"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home couldn’t be saved"
+          }
+        }
+      }
+    },
+    "next.home.layoutConflict" : {
+      "comment" : "next.home.layoutConflict. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home changed on another device. Refresh the layout before saving."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home changed on another device. Refresh the layout before saving."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home changed on another device. Refresh the layout before saving."
+          }
+        }
+      }
+    },
+    "next.home.layoutDropAction" : {
+      "comment" : "next.home.layoutDropAction. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop"
+          }
+        }
+      }
+    },
+    "next.home.layoutLoadFailedBody" : {
+      "comment" : "next.home.layoutLoadFailedBody. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The list of rows didn’t arrive. Try again."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The list of rows didn’t arrive. Try again."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The list of rows didn’t arrive. Try again."
+          }
+        }
+      }
+    },
+    "next.home.layoutMoveAction" : {
+      "comment" : "next.home.layoutMoveAction. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move"
+          }
+        }
+      }
+    },
+    "next.home.layoutMoveHint" : {
+      "comment" : "next.home.layoutMoveHint. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up and Down move it, Space drops it, Esc puts it back."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up and Down move it, Space drops it, Esc puts it back."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up and Down move it, Space drops it, Esc puts it back."
+          }
+        }
+      }
+    },
+    "next.home.layoutPicked" : {
+      "comment" : "next.home.layoutPicked. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picked up {title}. Position {position} of {count}."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picked up {title}. Position {position} of {count}."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picked up {title}. Position {position} of {count}."
+          }
+        }
+      }
+    },
+    "next.home.layoutPutBackAction" : {
+      "comment" : "next.home.layoutPutBackAction. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Put it back"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Put it back"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Put it back"
+          }
+        }
+      }
+    },
+    "next.home.layoutTVInstruction" : {
+      "comment" : "next.home.layoutTVInstruction. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK picks a row up. Up and Down move it, OK drops it. Left and Right reach each row’s switch."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK picks a row up. Up and Down move it, OK drops it. Left and Right reach each row’s switch."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK picks a row up. Up and Down move it, OK drops it. Left and Right reach each row’s switch."
+          }
+        }
+      }
+    },
+    "next.home.listenNext" : {
+      "comment" : "next.home.listenNext. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen next"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen next"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen next"
+          }
+        }
+      }
+    },
+    "next.home.moreFor" : {
+      "comment" : "next.home.moreFor. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More for {title}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More for {title}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More for {title}"
+          }
+        }
+      }
+    },
+    "next.home.mostWatched" : {
+      "comment" : "next.home.mostWatched. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most watched on this server"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most watched on this server"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most watched on this server"
+          }
+        }
+      }
+    },
+    "next.home.myList" : {
+      "comment" : "next.home.myList. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My List"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My List"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My List"
+          }
+        }
+      }
+    },
+    "next.home.native.mainNavigation" : {
+      "comment" : "next.home.native.mainNavigation. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main navigation"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main navigation"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main navigation"
+          }
+        }
+      }
+    },
+    "next.home.native.mixedSelection" : {
+      "comment" : "next.home.native.mixedSelection. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You’ve picked {types}. Their fields are different, so there is no single form for them. Keep one type to edit it."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You’ve picked {types}. Their fields are different, so there is no single form for them. Keep one type to edit it."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You’ve picked {types}. Their fields are different, so there is no single form for them. Keep one type to edit it."
+          }
+        }
+      }
+    },
+    "next.home.native.profileAndServer" : {
+      "comment" : "next.home.native.profileAndServer. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile and server"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile and server"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile and server"
+          }
+        }
+      }
+    },
+    "next.home.native.selectRow" : {
+      "comment" : "next.home.native.selectRow. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select row"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select row"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select row"
+          }
+        }
+      }
+    },
+    "next.home.newOnServer" : {
+      "comment" : "next.home.newOnServer. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New on your server"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New on your server"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New on your server"
+          }
+        }
+      }
+    },
+    "next.home.noRating" : {
+      "comment" : "next.home.noRating. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No rating"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No rating"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No rating"
+          }
+        }
+      }
+    },
+    "next.home.noViewsBody" : {
+      "comment" : "next.home.noViewsBody. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save one from a library’s filters, then add it here."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save one from a library’s filters, then add it here."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save one from a library’s filters, then add it here."
+          }
+        }
+      }
+    },
+    "next.home.noViewsTitle" : {
+      "comment" : "next.home.noViewsTitle. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No saved views to add"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No saved views to add"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No saved views to add"
+          }
+        }
+      }
+    },
+    "next.home.onNow" : {
+      "comment" : "next.home.onNow. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On now"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On now"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On now"
+          }
+        }
+      }
+    },
+    "next.home.openCollection" : {
+      "comment" : "next.home.openCollection. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open collection"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open collection"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open collection"
+          }
+        }
+      }
+    },
+    "next.home.play" : {
+      "comment" : "next.home.play. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        }
+      }
+    },
+    "next.home.playEpisode" : {
+      "comment" : "next.home.playEpisode. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play S{season} E{episode}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play S{season} E{episode}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play S{season} E{episode}"
+          }
+        }
+      }
+    },
+    "next.home.ratingValue" : {
+      "comment" : "next.home.ratingValue. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{value} out of 10"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{value} out of 10"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{value} out of 10"
+          }
+        }
+      }
+    },
+    "next.home.reason.newIn" : {
+      "comment" : "next.home.reason.newIn. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New in {library}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New in {library}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New in {library}"
+          }
+        }
+      }
+    },
+    "next.home.reason.recentTo" : {
+      "comment" : "next.home.reason.recentTo. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently added to {library}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently added to {library}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently added to {library}"
+          }
+        }
+      }
+    },
+    "next.home.reason.recommended" : {
+      "comment" : "next.home.reason.recommended. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended for you"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended for you"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended for you"
+          }
+        }
+      }
+    },
+    "next.home.reloadLayout" : {
+      "comment" : "next.home.reloadLayout. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload layout"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload layout"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload layout"
+          }
+        }
+      }
+    },
+    "next.home.removeMyList" : {
+      "comment" : "next.home.removeMyList. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from My List"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from My List"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from My List"
+          }
+        }
+      }
+    },
+    "next.home.resume" : {
+      "comment" : "next.home.resume. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume"
+          }
+        }
+      }
+    },
+    "next.home.resumeEpisode" : {
+      "comment" : "next.home.resumeEpisode. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume S{season} E{episode}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume S{season} E{episode}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume S{season} E{episode}"
+          }
+        }
+      }
+    },
+    "next.home.seeAll" : {
+      "comment" : "next.home.seeAll. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See all"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See all"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See all"
+          }
+        }
+      }
+    },
+    "next.home.select" : {
+      "comment" : "next.home.select. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select {title}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select {title}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select {title}"
+          }
+        }
+      }
+    },
+    "next.home.shell.collapsePlayer" : {
+      "comment" : "next.home.shell.collapsePlayer. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse player"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse player"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse player"
+          }
+        }
+      }
+    },
+    "next.home.shell.convertingTo" : {
+      "comment" : "next.home.shell.convertingTo. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converting to {quality}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converting to {quality}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converting to {quality}"
+          }
+        }
+      }
+    },
+    "next.home.shell.home" : {
+      "comment" : "next.home.shell.home. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        }
+      }
+    },
+    "next.home.shell.libraries" : {
+      "comment" : "next.home.shell.libraries. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libraries"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libraries"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libraries"
+          }
+        }
+      }
+    },
+    "next.home.shell.live" : {
+      "comment" : "next.home.shell.live. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live TV"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live TV"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live TV"
+          }
+        }
+      }
+    },
+    "next.home.shell.main" : {
+      "comment" : "next.home.shell.main. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main"
+          }
+        }
+      }
+    },
+    "next.home.shell.more" : {
+      "comment" : "next.home.shell.more. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        }
+      }
+    },
+    "next.home.shell.notifications" : {
+      "comment" : "next.home.shell.notifications. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        }
+      }
+    },
+    "next.home.shell.profileMenu" : {
+      "comment" : "next.home.shell.profileMenu. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{name}, account menu"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{name}, account menu"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{name}, account menu"
+          }
+        }
+      }
+    },
+    "next.home.shell.profiles" : {
+      "comment" : "next.home.shell.profiles. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profiles"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profiles"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profiles"
+          }
+        }
+      }
+    },
+    "next.home.shell.saved" : {
+      "comment" : "next.home.shell.saved. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved"
+          }
+        }
+      }
+    },
+    "next.home.shell.search" : {
+      "comment" : "next.home.shell.search. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
+          }
+        }
+      }
+    },
+    "next.home.shell.settings" : {
+      "comment" : "next.home.shell.settings. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        }
+      }
+    },
+    "next.home.shell.signOut" : {
+      "comment" : "next.home.shell.signOut. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign out"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign out"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign out"
+          }
+        }
+      }
+    },
+    "next.home.shell.skip" : {
+      "comment" : "next.home.shell.skip. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip to content"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip to content"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip to content"
+          }
+        }
+      }
+    },
+    "next.home.shell.switchServer" : {
+      "comment" : "next.home.shell.switchServer. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch server"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch server"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch server"
+          }
+        }
+      }
+    },
+    "next.home.shell.unread" : {
+      "comment" : "next.home.shell.unread. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications, {count} unread"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications, {count} unread"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications, {count} unread"
+          }
+        }
+      }
+    },
+    "next.home.someActionsFailed" : {
+      "comment" : "next.home.someActionsFailed. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some titles could not be changed. Try again for the ones that failed."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some titles could not be changed. Try again for the ones that failed."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some titles could not be changed. Try again for the ones that failed."
+          }
+        }
+      }
+    },
+    "next.home.sourceName" : {
+      "comment" : "next.home.sourceName. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{source}"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{source}"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{source}"
+          }
+        }
+      }
+    },
+    "next.home.videoKinds" : {
+      "comment" : "next.home.videoKinds. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Movies, shows and anime"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Movies, shows and anime"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Movies, shows and anime"
+          }
+        }
+      }
+    },
+    "next.home.whyPopular" : {
+      "comment" : "next.home.whyPopular. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watched by people here over the last month. Only profiles that share their activity count."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watched by people here over the last month. Only profiles that share their activity count."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watched by people here over the last month. Only profiles that share their activity count."
+          }
+        }
+      }
+    },
+    "next.home.whyRecommended" : {
+      "comment" : "next.home.whyRecommended. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chosen from your viewing activity and available libraries."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chosen from your viewing activity and available libraries."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chosen from your viewing activity and available libraries."
+          }
+        }
+      }
+    },
+    "next.home.whyRecommendedFromActivity" : {
+      "comment" : "next.home.whyRecommendedFromActivity. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you’ve been watching {titles}. Titles you’ve finished are left out."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you’ve been watching {titles}. Titles you’ve finished are left out."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Because you’ve been watching {titles}. Titles you’ve finished are left out."
+          }
+        }
+      }
+    },
+    "next.home.whyTrending" : {
+      "comment" : "next.home.whyTrending. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What people on this server are watching most this week."
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What people on this server are watching most this week."
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What people on this server are watching most this week."
+          }
+        }
+      }
+    },
+    "next.home.yourRating" : {
+      "comment" : "next.home.yourRating. Generated from packages/i18n; do not edit.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your rating"
+          }
+        },
+        "en-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your rating"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your rating"
+          }
+        }
+      }
+    }
+  }
+}

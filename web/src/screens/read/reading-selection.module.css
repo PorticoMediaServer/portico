@@ -1,0 +1,15 @@
+/* desktop-read 2b and phone-read 2: Collection follows the Server-tinted Edit action. */
+.bar { display: flex; align-items: center; gap: 10px; margin: 20px var(--shell-gutter, var(--gutter-desktop)); padding: 8px 12px; border-radius: 12px; background: var(--color-ink); box-shadow: 0 0 0 1px var(--color-line); }
+.bar b { white-space: nowrap; }
+.bar small { display: block; color: var(--color-text-tertiary); font-size: var(--type-caption-size); font-weight: var(--type-fixed-weight-500); }
+.actions { display: flex; align-items: center; gap: 4px; }
+.edit.edit { color: var(--color-accent-strong); }
+.done { margin-left: auto; }
+.phone { display: none; }
+@media (max-width: 599px) {
+  .bar { margin: 0 20px 12px; flex-wrap: wrap; justify-content: space-between; background: transparent; box-shadow: none; }
+  .actions { position: fixed; inset: auto 0 0; z-index: var(--layer-sticky); justify-content: space-evenly; min-height: 70px; padding: 6px 12px calc(6px + env(safe-area-inset-bottom)); background: var(--color-ink); box-shadow: 0 -1px 0 var(--color-line); }
+  .actions > button { flex-direction: column; gap: 4px; }
+  .desktop, .done { display: none; }
+  .phone { display: inline; }
+}

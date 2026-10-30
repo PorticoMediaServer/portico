@@ -1,0 +1,33 @@
+/* connect 2: the six connection states, on states.html's full-page state layout. */
+.page { min-height: 100dvh; background: var(--color-ink); color: var(--color-text); }
+.main { position: relative; padding: 0 var(--gutter-desktop); min-height: calc(100dvh - 52px); display: flex; align-items: center; }
+.state { width: 620px; max-width: 100%; }
+.icon { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; margin: 0 0 26px; color: var(--color-text); }
+.icon[data-tone="accent"] { color: var(--color-accent-strong); }
+.icon[data-tone="warning"] { color: var(--color-amber); }
+.spinner { width: 26px; height: 26px; border: 3px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: directory-status-spin 900ms linear infinite; }
+@keyframes directory-status-spin { to { transform: rotate(360deg); } }
+.state h1 { margin: 0 0 18px; font-size: 58px; line-height: 1.02; font-weight: 800; letter-spacing: -.045em; text-wrap: balance; overflow-wrap: anywhere; }
+.body { margin: 0 0 22px; max-width: 560px; font-size: 18px; line-height: 1.55; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.alive { display: flex; align-items: center; gap: 12px; margin: 0 0 22px; font-size: 15px; font-weight: 700; }
+.ring { flex: none; width: 24px; height: 24px; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 2.6; }
+.ringTrack { stroke: rgba(237,245,250,.16); }
+.ringArc { stroke: var(--color-accent-strong); stroke-linecap: round; stroke-dasharray: 56.55; stroke-dashoffset: 14.14; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.quiet { border: 0; padding: 4px 2px; background: none; font: inherit; font-size: 15px; font-weight: 700; color: var(--color-text-secondary); cursor: pointer; }
+.quiet:hover { color: var(--color-text); }
+.help { margin: 26px 0 0; max-width: 540px; font-size: 14px; line-height: 1.55; color: var(--color-text-tertiary); overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .main { padding: 24px var(--gutter-phone) 48px; min-height: calc(100dvh - 46px); align-items: flex-start; padding-top: 64px; }
+  .icon { width: 52px; height: 52px; margin-bottom: 20px; }
+  .state h1 { margin-bottom: 12px; font-size: 32px; line-height: 1.06; letter-spacing: -.04em; }
+  .body { margin-bottom: 18px; font-size: 15px; line-height: 1.5; }
+  .alive { margin-bottom: 18px; font-size: 13px; gap: 10px; }
+  .ring { width: 20px; height: 20px; }
+  .actions { flex-direction: column; align-items: stretch; }
+  .actions > * { width: 100%; justify-content: center; }
+  .quiet { text-align: center; }
+  .help { margin-top: 20px; font-size: 13px; }
+}

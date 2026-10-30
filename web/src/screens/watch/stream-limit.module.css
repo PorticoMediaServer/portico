@@ -1,0 +1,9 @@
+/* states f9: the account's other playbacks inside the failure card, above its actions. */
+.sessions { margin: 18px 0 0; max-width: 460px; }
+.sessions.sessions { display:block; }
+.heading { margin: 0 0 8px; font-size: var(--type-caption-size); line-height: var(--type-caption-line); font-weight: var(--type-caption-strong-weight); color: var(--color-text-secondary); }
+.sessions ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; width:100%; max-height:40vh; overflow-y:auto; }
+.sessions li { display: flex; align-items: center; gap: 12px; min-height: 40px; }
+.sessions li > span { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.sessions b { font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-caption-strong-weight); color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions small { font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

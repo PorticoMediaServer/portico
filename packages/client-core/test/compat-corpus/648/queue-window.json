@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/queues/q_AKRa1n8ZPcV5YAgpnF4v/window?around=current&before=20&after=<scrubbed>"
+  },
+  "status": 200,
+  "body": {
+    "items": [
+      {
+        "entryId": "shrik2lsdr44qu6wy-0",
+        "segmentId": "gqtrqkhodkqz7aw2o",
+        "position": 0,
+        "itemId": "FZH_ujVknbAIgHBifTyT1w",
+        "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+        "kind": "track",
+        "title": "01 - Ticket",
+        "available": true,
+        "albumId": "TFmaguJtaiBfE0GA2pSkcw",
+        "album": "Assembly of Copper",
+        "artistId": "SCoRiOxzk8-fsNWngFB3pA",
+        "artist": "Unknown artist",
+        "track": 1
+      }
+    ],
+    "page": {
+      "limit": 51,
+      "total": 1,
+      "start": 0,
+      "revision": "1"
+    }
+  }
+}

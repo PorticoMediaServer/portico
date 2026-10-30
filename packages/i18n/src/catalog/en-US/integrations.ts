@@ -1,0 +1,17 @@
+export const integrationMessages={
+ 'integrations.compatibility.title':'Integrations compatibility',
+ 'integrations.compatibility.help':'Connect automation and monitoring tools to Portico. Off by default. Players use the Portico API.',
+ 'integrations.appPasswords.title':'App passwords',
+ 'integrations.appPasswords.help':'For tools that ask for a username and password, create a dedicated app password for one user and profile. Use it with the username shown here.',
+ 'integrations.appPasswords.create':'Create app password',
+ 'integrations.appPasswords.target':'User and profile',
+ 'integrations.appPasswords.empty':'No app passwords on this page',
+ 'integrations.appPasswords.revoke':'Revoke this app password and its integration keys?',
+ 'integrations.credential.reveal':'Reveal',
+ 'integrations.credential.hide':'Hide',
+ 'integrations.credential.recoverable':'You can reveal this secret again in Integrations. Keep it private.',
+ 'integrations.credential.retryReveal':'Created. Use Reveal in the list to retrieve its secret.',
+ 'integrations.credential.secret':'Secret',
+ 'integrations.appPasswords.nextUsers':'More users and profiles',
+ 'integrations.appPasswords.noUsers':'No eligible user or profile on this page',
+} as const;

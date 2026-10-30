@@ -1,0 +1,65 @@
+{
+  "modelId": "musicnn-mtt",
+  "modelVersion": "516acb2a0ff5ef73f64547898e018e793152c506",
+  "sourceModel": "MTT_musicnn",
+  "sourceRepository": "https://github.com/jordipons/musicnn",
+  "sourceCommit": "516acb2a0ff5ef73f64547898e018e793152c506",
+  "license": "ISC",
+  "licenseSHA256": "60c4194f702ddd969f969577743546327b4e9db560c07ec286be5cec27f55fcd",
+  "releaseTag": "musicnn-mtt-516acb2a0ff5ef73f64547898e018e793152c506-onnx1",
+  "graph": {
+    "input": "model/Placeholder",
+    "training": "model/Placeholder_2",
+    "embedding": "model/batch_normalization_10/batchnorm/add_1",
+    "logits": "model/dense_1/BiasAdd"
+  },
+  "onnx": {
+    "version": "516acb2a0ff5ef73f64547898e018e793152c506-onnx1",
+    "sha256": "59876d9801156711a7051b4496f45ccfeeac598cf79df02968238d6318627f8a",
+    "bytes": 3193128
+  },
+  "distribution": {
+    "url": "https://files.pythonhosted.org/packages/1b/6f/38229e7d99c438e11114bbfa39c8c39185458c398011d0b6d7d7c7401617/musicnn-0.1.0-py3-none-any.whl",
+    "sha256": "f38a4890c648c1ddbb141c5d96d2b0a8cfcd36746002d896989f7b88beb65cfa",
+    "bytes": 29292476,
+    "metadata": "musicnn-0.1.0.dist-info/METADATA",
+    "licenseFile": "musicnn-0.1.0.dist-info/LICENSE.md"
+  },
+  "files": [
+    {
+      "path": "musicnn/models.py",
+      "bytes": 11594,
+      "sha256": "ca0a4e64b33fa79ef716d56188202cfdb31c123fa5721addb1e295405b671cf8"
+    },
+    {
+      "path": "musicnn/configuration.py",
+      "bytes": 1229,
+      "sha256": "00fd595eb16bad3a605e10bb6eaf0152cb8125bed6e2c884a636f679ae100419"
+    },
+    {
+      "path": "musicnn/MTT_musicnn/.data-00000-of-00001",
+      "bytes": 9465596,
+      "sha256": "041f3935e981a65cea739842d30c188d3a7d2adf4410955c8668eb3de4a5acab"
+    },
+    {
+      "path": "musicnn/MTT_musicnn/.index",
+      "bytes": 4948,
+      "sha256": "da2d7bb670b2b31e9bc441bb1bd75eca31b5b061f963cc1f9630c1aff3238f57"
+    },
+    {
+      "path": "musicnn/MTT_musicnn/.meta",
+      "bytes": 1185287,
+      "sha256": "48f2b91a234a1feaaae6b084bd49668428cdfc54912805617582aa585daabb25"
+    },
+    {
+      "path": "musicnn/MTT_musicnn/checkpoint",
+      "bytes": 175,
+      "sha256": "e87cdca15fe762eaa5f33d3c60bcb9d87533fb0acaecc6be6b9b3dd826eb0948"
+    },
+    {
+      "path": "musicnn/MTT_musicnn/config.json",
+      "bytes": 1169,
+      "sha256": "e00c1abaf8091ee94a7783e670582bf421b4365b9ff50230f03f49aa05dbce64"
+    }
+  ]
+}

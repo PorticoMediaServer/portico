@@ -1,0 +1,9 @@
+The host component is checked against Jellyfin FFmpeg v8.1.3-1 after all 100 upstream patches. The separate post-series patch adds conditional --enable-libdovi and the dovi_profile=mode=2 BSF. It changes no upstream patch manifest. Exact source, MIT licence hash, C ABI recipe and scoped proof are in portico-dovi-profile.v1.json.
+
+The filter requires profile 7 HDR10 BL + RPU + EL configuration and a parsed profile 7 RPU. It converts through libdovi, drops EL wrapper NALs, publishes profile 8 / compatibility 1 / no-EL configuration, and preserves packet timestamps and retained NAL bytes. FEL residuals are discarded, not reconstructed. CBS owns HEVC escaping; the filter uses libdovi's raw-RPU APIs.
+
+Actual minimal host FFmpeg/C-ABI tests passed 96 generated MEL/FEL CM2.9/4.0 metadata packets, wrong-RPU-profile and invalid-configuration negatives, missing-RPU EOF, corrupt CRC rejection, and mode introspection. Actual CLI help reports mode default/min/max 2; stock dovi_rpu exposes only strip and compression. The earlier escaping failure and help-parser failure remain recorded in lane evidence.
+
+Reproduce with scripts/generate-dovi-metadata.py (verified archive + extracted crate, committed offline lock), then scripts/qualify-dovi-profile.py with already prepared FFmpeg source and cargo-c-installed libdovi. Both use one compiler worker and external scratch, with no copied source tree or bundled toolchain in evidence.
+
+This qualifies synthetic metadata packet conversion. It does not qualify decoded BL/EL video joins, mastered FEL imagery, canonical HW1, any other target, or a server playback/download route. The Hardware-owned exact-bundle DolbyVisionProfile7To81 fact defaults false and must remain false until that bundle passes its actual gates. Canonical target builds and software/Hardware route composition remain separate work.

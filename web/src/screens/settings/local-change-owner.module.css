@@ -1,0 +1,9 @@
+/* auth 24h, local kind: the drawn Change owner dialog's body. */
+.body { display: flex; flex-direction: column; gap: 18px; }
+.lede { margin: 0; font-size: var(--type-fixed-size-15px); line-height: var(--type-fixed-line-1point-55); color: var(--color-text-secondary); }
+.empty { margin: -8px 0 0; font-size: var(--type-fixed-size-14px); line-height: var(--type-fixed-line-1point-45); color: var(--color-text-tertiary); }
+.error { margin: 0; font-size: var(--type-fixed-size-14px); line-height: var(--type-fixed-line-1point-45); color: var(--color-danger); }
+.lines { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.lines li { display: flex; align-items: flex-start; gap: 10px; font-size: var(--type-fixed-size-14px); line-height: var(--type-fixed-line-1point-45); color: var(--color-text-secondary); }
+.lines li > svg { flex: none; margin-top: 1px; color: var(--color-text); }
+.lines li[data-tone='info'] > svg { color: var(--color-text-tertiary); }

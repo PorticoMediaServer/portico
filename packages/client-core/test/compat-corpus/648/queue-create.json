@@ -1,0 +1,74 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/queues",
+    "body": {
+      "owner": "device",
+      "segments": [
+        {
+          "source": {
+            "items": {
+              "ids": [
+                "FZH_ujVknbAIgHBifTyT1w"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "status": 201,
+  "body": {
+    "queue": {
+      "id": "q_AKRa1n8ZPcV5YAgpnF4v",
+      "revision": "1",
+      "total": 1,
+      "totalDurationMs": 0,
+      "durationKnown": false,
+      "remainingCount": 0,
+      "current": {
+        "entryId": "shrik2lsdr44qu6wy-0",
+        "position": 0
+      },
+      "repeat": "off",
+      "segments": [
+        {
+          "id": "gqtrqkhodkqz7aw2o",
+          "kind": "items",
+          "label": "1 items",
+          "count": 1,
+          "state": "ready"
+        }
+      ],
+      "segmentCount": 1,
+      "next": {
+        "available": false,
+        "reason": "end"
+      },
+      "postPlay": {
+        "autoplay": true,
+        "countdownMs": 0,
+        "passoutCheckDue": false,
+        "automaticAdvances": 0,
+        "startDuringCredits": false
+      }
+    },
+    "window": [
+      {
+        "entryId": "shrik2lsdr44qu6wy-0",
+        "segmentId": "gqtrqkhodkqz7aw2o",
+        "position": 0,
+        "itemId": "FZH_ujVknbAIgHBifTyT1w",
+        "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+        "kind": "track",
+        "title": "01 - Ticket",
+        "available": true,
+        "albumId": "TFmaguJtaiBfE0GA2pSkcw",
+        "album": "Assembly of Copper",
+        "artistId": "SCoRiOxzk8-fsNWngFB3pA",
+        "artist": "Unknown artist",
+        "track": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+Portico in an unprivileged Proxmox LXC
+
+Pass the render device through to this container.
+
+Use Proxmox's Resources > Add > Device Passthrough for /dev/dri/renderD128
+(or the render node actually present on the host). The container needs read
+and write access to that device. Prefer Proxmox's device passthrough UI so its
+UID/GID mapping matches this unprivileged container. Do not make the container
+privileged or disable AppArmor just to expose a GPU.
+
+For a manually maintained CT config, the equivalent cgroup-v2 device rule is:
+  lxc.cgroup2.devices.allow: c 226:* rwm
+  lxc.mount.entry: /dev/dri dev/dri none bind,optional,create=dir
+Map the host render/video GIDs into the container and grant the portico service
+those groups. Docker inside LXC additionally needs Proxmox's nesting support;
+pass the render device to both LXC and the Portico container.
+
+Check /dev/dri/renderD* inside LXC, then inspect Portico's actual hardware probe
+verdict for each codec. A render node appearing in the container
+is discovery, not proof that the driver encoded or tone-mapped video.
+
+Raspberry Pi 5 has no video encoder; conversion uses the CPU. RK3588 boards need
+a Rockchip vendor kernel and /dev/mpp_service, /dev/rga and /dev/dma_heap mapped
+into the container. ARM64 RKMPP/RGA support remains unqualified until its target build and real
+device feature gates pass; mapping these nodes alone does not enable it.

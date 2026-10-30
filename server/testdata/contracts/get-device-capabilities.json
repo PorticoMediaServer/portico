@@ -1,0 +1,124 @@
+{
+  "schema": "GetDeviceCapabilitiesResponse",
+  "method": "GET",
+  "path": "/v1/me/devices/current/capabilities",
+  "auth": "device",
+  "status": 200,
+  "response": {
+    "revision": 1,
+    "capabilities": {
+      "version": 2,
+      "client": {
+        "family": "web",
+        "form": "browser"
+      },
+      "engineSetting": "automatic",
+      "overrides": {
+        "forceStereo": false,
+        "disablePassthrough": false,
+        "disableHdr": false
+      },
+      "display": {
+        "width": 0,
+        "height": 0,
+        "dynamicRanges": [
+          "sdr"
+        ],
+        "maxFrameRate": 0
+      },
+      "audioOutput": {
+        "route": "",
+        "maxChannels": 6,
+        "spatial": false
+      },
+      "maxBitrateBps": 0,
+      "engines": {
+        "native": {
+          "name": "hls.js",
+          "evidence": "declared",
+          "video": [
+            {
+              "codec": "h264",
+              "profiles": [],
+              "maxLevel": 0,
+              "bitDepths": [
+                8
+              ],
+              "maxWidth": 3840,
+              "maxHeight": 2160,
+              "maxFrameRate": 60,
+              "maxBitrateBps": 0,
+              "dynamicRanges": [
+                "sdr"
+              ],
+              "dolbyVisionProfiles": [],
+              "interlaced": false
+            }
+          ],
+          "audio": [
+            {
+              "codec": "aac",
+              "maxChannels": 6,
+              "maxSampleRate": 0,
+              "objectAudio": []
+            },
+            {
+              "codec": "mp3",
+              "maxChannels": 2,
+              "maxSampleRate": 0,
+              "objectAudio": []
+            }
+          ],
+          "audioPassthrough": [],
+          "transports": [
+            {
+              "transport": "direct",
+              "containers": [
+                "mp4",
+                "webm"
+              ],
+              "video": [
+                "h264"
+              ],
+              "audio": [
+                "aac",
+                "mp3"
+              ]
+            },
+            {
+              "transport": "hls_ts",
+              "containers": [
+                "mpegts"
+              ],
+              "video": [
+                "h264"
+              ],
+              "audio": [
+                "aac",
+                "mp3"
+              ]
+            },
+            {
+              "transport": "hls_fmp4",
+              "containers": [
+                "fmp4"
+              ],
+              "video": [
+                "h264"
+              ],
+              "audio": [
+                "aac",
+                "mp3"
+              ]
+            }
+          ],
+          "subtitleRendering": [
+            "text"
+          ],
+          "toneMapsHdr": false,
+          "embeddedAudioSwitching": true
+        }
+      }
+    }
+  }
+}

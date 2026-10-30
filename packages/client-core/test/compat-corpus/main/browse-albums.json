@@ -1,0 +1,215 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/libraries/mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY/browse",
+    "body": {
+      "pivot": "albums",
+      "query": null,
+      "sort": [],
+      "cursor": "",
+      "limit": 5,
+      "range": null,
+      "seek": null
+    }
+  },
+  "status": 200,
+  "body": {
+    "pivot": "albums",
+    "applied": {
+      "query": null,
+      "sort": [
+        {
+          "field": "title",
+          "direction": "asc"
+        }
+      ]
+    },
+    "entries": [
+      {
+        "addedAt": null,
+        "artist": {
+          "id": "CJaga1320smyf0P6Oh_n6A",
+          "name": "Unknown artist"
+        },
+        "count": 2,
+        "homeActions": {
+          "notInterested": true,
+          "play": true,
+          "queue": true,
+          "playlist": true,
+          "collection": true,
+          "myList": false,
+          "favorite": true,
+          "watched": false,
+          "played": true,
+          "rating": false,
+          "editMetadata": true,
+          "refreshMetadata": false,
+          "delete": false,
+          "download": true,
+          "details": true,
+          "state": {
+            "watchlisted": false,
+            "favorite": false,
+            "watched": false,
+            "rating": null,
+            "personalRevision": 0,
+            "containerRevision": 0
+          },
+          "selection": {
+            "play": true,
+            "queue": true,
+            "playlist": true,
+            "collection": true,
+            "myList": true,
+            "favorite": true,
+            "watched": false,
+            "download": true,
+            "edit": true,
+            "refresh": false,
+            "delete": false
+          }
+        },
+        "id": "VSvWMIj5pmrp-8bBxOVmTA",
+        "kind": "album",
+        "missing": false,
+        "navigation": {
+          "view": "album",
+          "entityId": "VSvWMIj5pmrp-8bBxOVmTA"
+        },
+        "sortLetter": "A",
+        "title": "AlbumAlac"
+      },
+      {
+        "addedAt": null,
+        "artist": {
+          "id": "CJaga1320smyf0P6Oh_n6A",
+          "name": "Unknown artist"
+        },
+        "count": 1,
+        "homeActions": {
+          "notInterested": true,
+          "play": true,
+          "queue": true,
+          "playlist": true,
+          "collection": true,
+          "myList": false,
+          "favorite": true,
+          "watched": false,
+          "played": true,
+          "rating": false,
+          "editMetadata": true,
+          "refreshMetadata": false,
+          "delete": false,
+          "download": true,
+          "details": true,
+          "state": {
+            "watchlisted": false,
+            "favorite": false,
+            "watched": false,
+            "rating": null,
+            "personalRevision": 0,
+            "containerRevision": 0
+          },
+          "selection": {
+            "play": true,
+            "queue": true,
+            "playlist": true,
+            "collection": true,
+            "myList": true,
+            "favorite": true,
+            "watched": false,
+            "download": true,
+            "edit": true,
+            "refresh": false,
+            "delete": false
+          }
+        },
+        "id": "bTGvP6tnJCefjTxJ0KgLQQ",
+        "kind": "album",
+        "missing": false,
+        "navigation": {
+          "view": "album",
+          "entityId": "bTGvP6tnJCefjTxJ0KgLQQ"
+        },
+        "sortLetter": "A",
+        "title": "Assembly of Copper"
+      },
+      {
+        "addedAt": null,
+        "artist": {
+          "id": "CJaga1320smyf0P6Oh_n6A",
+          "name": "Unknown artist"
+        },
+        "count": 1,
+        "homeActions": {
+          "notInterested": true,
+          "play": true,
+          "queue": true,
+          "playlist": true,
+          "collection": true,
+          "myList": false,
+          "favorite": true,
+          "watched": false,
+          "played": true,
+          "rating": false,
+          "editMetadata": true,
+          "refreshMetadata": false,
+          "delete": false,
+          "download": true,
+          "details": true,
+          "state": {
+            "watchlisted": false,
+            "favorite": false,
+            "watched": false,
+            "rating": null,
+            "personalRevision": 0,
+            "containerRevision": 0
+          },
+          "selection": {
+            "play": true,
+            "queue": true,
+            "playlist": true,
+            "collection": true,
+            "myList": true,
+            "favorite": true,
+            "watched": false,
+            "download": true,
+            "edit": true,
+            "refresh": false,
+            "delete": false
+          }
+        },
+        "id": "QLnwN9NLPDtrRs-2jHFeVg",
+        "kind": "album",
+        "missing": false,
+        "navigation": {
+          "view": "album",
+          "entityId": "QLnwN9NLPDtrRs-2jHFeVg"
+        },
+        "sortLetter": "S",
+        "title": "Second Copper"
+      }
+    ],
+    "pageInfo": {
+      "start": 0,
+      "total": 3,
+      "totalIsLowerBound": false,
+      "revision": "browse_73b9cc28d8b77b902e8684633022db1bf82e864c492540bf1afbee3de32d569d",
+      "hasMore": false,
+      "nextCursor": "",
+      "durationMs": 0,
+      "durationIsLowerBound": true
+    },
+    "positionIndex": [
+      {
+        "key": "A",
+        "index": 0
+      },
+      {
+        "key": "S",
+        "index": 2
+      }
+    ]
+  }
+}

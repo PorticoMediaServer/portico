@@ -1,0 +1,48 @@
+.home { min-height: 100dvh; }
+/* The frame's hero wash is the full-height blurred backdrop; the shared treatment fades it
+   below 30%, which darkens the drawn lower hero. Desktop Home restores the drawn wash. */
+.heroAmbient [class*='washLayer'] { -webkit-mask-image: none; mask-image: none; overflow-x: clip; overflow-y: visible; }
+/* mock.html#extras: a poster-only hero uses its poster for the wash and a sharp side poster. */
+.heroPoster { position: absolute; inset: 0; overflow: hidden; background: var(--color-ink); }
+.heroPosterWash { position: absolute; inset: -20%; width: 140%; height: 140%; opacity: .55; }
+.heroPosterWash img { filter: blur(70px) saturate(1.5); }
+.heroPosterShade { position: absolute; inset: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--color-ink) 85%, transparent), color-mix(in srgb, var(--color-ink) 35%, transparent)); }
+.heroPosterArt { position: absolute; right: 44px; top: 11%; height: 78%; aspect-ratio: 2/3; border-radius: 10px; overflow: hidden; box-shadow: 0 24px 40px -14px var(--color-shadow); }
+/* The authored extras panel draws the backdrop at 72% with only the left mask. */
+.heroPanelBackdrop { position: absolute; inset: 0 0 0 auto; width: 72%; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, black 40%); mask-image: linear-gradient(90deg, transparent, black 40%); }
+.heroPanelBackdrop img { object-position: center 30%; }
+.rows { position: relative; z-index: var(--layer-content); padding-bottom: 72px; }
+.rows[data-with-hero='true'] { margin-top: -40px; }
+/* Rows space only from the row drawn above them. An empty slot (a row with nothing yet) adds
+   nothing, so the first drawn row always rises 40px into the hero as the frame does. */
+.rowSlot:not(:empty) ~ .rowSlot:not(:empty) { margin-top: 44px; }
+.rows > [data-music-mixes]:not(:first-child), .rows > [data-music-mixes] ~ .rowSlot:not(:empty) { margin-top:44px; }
+/* Listen next's shorter square cards centre in the line set by its drawn continuation card. */
+.rowSlot[data-home-row='listen_next'] [class*='track'] { align-items: center; }
+.collection { margin: 0 var(--shell-gutter, var(--gutter-desktop)) 0; }
+.rowGuide { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--type-row-subtitle-size); font-weight: var(--type-body-strong-weight); line-height: normal; color: var(--color-text-tertiary); cursor: pointer; }
+.rowGuide:hover { color: var(--color-text-secondary); }
+.rowGuide:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; border-radius: 4px; }
+.scaledRanked > div > span { width: calc(92px * var(--home-card-scale)); height: calc(255px * var(--home-card-scale)); margin-right: calc(-22px * var(--home-card-scale)); font-size: calc(168px * var(--home-card-scale)); }
+.scaledRanked [data-card-kind='poster'] { width: calc(170px * var(--home-card-scale)); }
+.slowNotice { position: absolute; top: 88px; left: 50%; transform: translateX(-50%); z-index: var(--layer-notice); display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 18px 0 14px; border-radius: 20px; white-space: nowrap; background: color-mix(in srgb, var(--color-raised) 90%, transparent); backdrop-filter: blur(24px); box-shadow: 0 14px 30px -12px color-mix(in srgb, var(--color-shadow) 80%, transparent),inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent); font-size: var(--type-row-subtitle-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-secondary); }
+.slowNotice b { color: var(--color-text); font-weight: var(--type-row-heading-weight); }
+.waitingDot { width: 9px; height: 9px; border-radius: 50%; background: var(--color-amber); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-amber) 16%, transparent); flex: none; }
+@media (max-width: 1023px) {
+  .heroPosterArt { right: 0; top: 0; width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; }
+  .heroPosterShade { background: linear-gradient(180deg, color-mix(in srgb, var(--color-ink) 35%, transparent), color-mix(in srgb, var(--color-ink) 85%, transparent)); }
+  .scaledRanked > div > span { width: calc(70px * var(--home-card-scale)); height: calc(172px * var(--home-card-scale)); margin-right: calc(-16px * var(--home-card-scale)); font-size: calc(120px * var(--home-card-scale)); }
+  .scaledRanked [data-card-kind='poster'] { width: calc(116px * var(--home-card-scale)); }
+  .rows { padding-bottom: 32px; }
+  .rows[data-with-hero='true'] { margin-top: 0; }
+  .rowSlot:not(:empty) ~ .rowSlot:not(:empty) { margin-top: 28px; }
+  .rows > [data-music-mixes]:not(:first-child), .rows > [data-music-mixes] ~ .rowSlot:not(:empty) { margin-top:28px; }
+  .collection { margin: 0 20px 0; }
+  .slowNotice { top: 104px; max-width: calc(100% - 16px); height: auto; min-height: 36px; padding: 8px 12px; white-space: normal; font-size: calc(var(--type-body-size) - 1.5px); }
+}
+
+@media (min-width: 600px) and (max-width: 1023px) {
+  .home[data-size-class='medium'] .rows[data-with-hero='true'] { margin-top: -6px; }
+  .home[data-size-class='medium'] .rowSlot:not(:empty) ~ .rowSlot:not(:empty) { margin-top: 30px; }
+  .home[data-size-class='medium'] .rows > [data-music-mixes]:not(:first-child), .home[data-size-class='medium'] .rows > [data-music-mixes] ~ .rowSlot:not(:empty) { margin-top: 30px; }
+}

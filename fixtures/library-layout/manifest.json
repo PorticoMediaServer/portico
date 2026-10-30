@@ -1,0 +1,47 @@
+{
+  "purpose": "Synthetic visual and interaction verification. Every movie contains the same 90-second generated color-bar signal and tone. These names are test data, not real movies. No metadata-provider matches are intended.",
+  "libraries": [
+    {
+      "name": "Design Test Movies",
+      "kind": "movie",
+      "path": "fixtures/library-layout/Movies",
+      "count": 24
+    },
+    {
+      "name": "Design Test Shorts",
+      "kind": "movie",
+      "path": "fixtures/library-layout/Shorts",
+      "count": 2
+    },
+    {
+      "name": "Design Test Empty",
+      "kind": "movie",
+      "path": "fixtures/library-layout/Empty",
+      "count": 0
+    },
+    {
+      "name": "Design Test TV",
+      "kind": "tv",
+      "path": "fixtures/library-layout/TV",
+      "count": 3
+    },
+    {
+      "name": "Design Test Anime",
+      "kind": "anime",
+      "path": "fixtures/library-layout/Anime",
+      "count": 2
+    },
+    {
+      "name": "Design Test Music",
+      "kind": "music",
+      "path": "fixtures/library-layout/Music",
+      "count": 3
+    },
+    {
+      "name": "Design Test Audiobooks",
+      "kind": "audiobook",
+      "path": "fixtures/library-layout/Audiobooks",
+      "count": 1
+    }
+  ]
+}

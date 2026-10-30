@@ -1,0 +1,28 @@
+{
+  "schema": "GetDevicesResponse",
+  "method": "GET",
+  "path": "/v1/devices",
+  "auth": "viewer",
+  "status": 200,
+  "response": {
+    "items": [
+      {
+        "id": "oWHoQnIbetTRaUpfUzHoIP8FUbUijD6JqpnkqE-bxrY",
+        "authority": "local",
+        "installationId": "unnamed-VDdXMGWEvWadc4g40QCE0nzWww5gJMQiyhROpAbRAdY",
+        "name": "Portico device",
+        "platform": "unknown",
+        "app": "portico",
+        "appVersion": "",
+        "ip": "",
+        "firstSeen": "2026-10-16T12:28:23Z",
+        "lastSeen": "2026-10-16T12:28:23Z",
+        "trusted": false,
+        "approvalState": "approved",
+        "rememberAccount": true,
+        "current": true,
+        "sessions": 1
+      }
+    ]
+  }
+}

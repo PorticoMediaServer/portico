@@ -1,0 +1,21 @@
+@media (max-width: 599px) {
+  .header > div:nth-child(2) {
+    display: grid; grid-template-columns: minmax(3.5rem, 1fr) minmax(0, 3fr) minmax(3.5rem, 1fr);
+    align-items: center;
+  }
+  .header > div:nth-child(2) > h2 {
+    grid-column: 2; min-width: 0; text-align: center; overflow-wrap: anywhere;
+    font-size: var(--type-fixed-size-17px); font-weight: var(--type-fixed-weight-700);
+  }
+  .header > div:nth-child(2) > button { grid-column: 3; justify-self: end; }
+  .kinds { display: flex; }
+  .kinds > [role='radio'] {
+    flex: 1; min-width: 0; height: auto; min-height: 34px; padding: 4px 8px;
+    font-size: var(--type-fixed-size-13px); font-weight: var(--type-fixed-weight-700); white-space: normal; overflow-wrap: anywhere; text-align: center;
+  }
+  .footer > button {
+    flex: 1 1 0; min-width: 0; height: auto; min-height: 46px; padding: 0 20px;
+    border-radius: 10px; gap: 8px; font-size: var(--type-fixed-size-15px); white-space: normal;
+  }
+  .footer > button > span { white-space: normal; overflow-wrap: anywhere; }
+}

@@ -1,0 +1,22 @@
+--- a/build-ffmpeg
++++ b/build-ffmpeg
+@@ -729,16 +729,16 @@
+     if command_exists "pip3"; then
+ 
+       # meson and ninja can be installed via pip3
+-      execute /usr/bin/pip3 install pip setuptools --quiet --upgrade --no-cache-dir --disable-pip-version-check
++      # Portico supplies pinned tools through its private build virtualenv.
+ 
+       for r in meson ninja; do
+ 
+         if ! command_exists ${r}; then
+ 
+-          execute /usr/bin/pip3 install ${r} --quiet --upgrade --no-cache-dir --disable-pip-version-check
++          echo "Missing pinned private Python tool: ${r}" >&2; exit 1
+         fi
+ 
+-        export PATH=${PATH}:~/Library/Python/3.9/bin
++        : # Keep the private build environment authoritative.
+       done
+     fi
+   fi

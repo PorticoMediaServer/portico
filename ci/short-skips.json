@@ -1,0 +1,3714 @@
+{
+  "threshold_seconds": 2,
+  "sleep_threshold_seconds": 0.5,
+  "tests": [
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestConsoleHTTP2FirstRequest"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestHTTP2AdmissionJSONFlowStallReleasesAndRecovers"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestHealthCheckAgreesWithReadiness"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestHousekeepingRefreshesGrownTableWithoutRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestMinuteCleanupWakesForItsInputsAndUnknownWrites"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestRealRestoreKeepsItsScrubbedRollbackBackupRestorable"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestRestoreOfAHealthyBackupDoesNotNeedTheTemporaryFolder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestRestoreOfAnotherServersBareDatabaseIsRolledBack"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestRestoreOfThisServersBackupFolderIsKept"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestRestoreOfThisServersBareDatabaseIsKept"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestRestoreRefusesABackgroundPriorityStartupWouldNotAccept"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestSIGTERMDrainsInsideItsBudgetAndLeavesNoChildren"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestStagedRestoreCanReplaceAnInvalidCurrentConfiguration"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestStartAfterARestoreSignsEveryoneOutAndScrubsTheSetAsideCopy"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/cmd/server",
+      "test": "TestStartingServerAnswersFromBindOnOneConnection"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/access",
+      "test": "TestRoleChangeRequiresRevisionAppliesLiveAndRefusesPeers"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/access",
+      "test": "TestShortInvitationRefusesChangedAuthorityAndBindings"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/administration",
+      "test": "TestActivityCachedUpdateTransitionHintsContainNoReleaseFacts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/administration",
+      "test": "TestFilesystemPrefixFindsNameBeyondOrdinaryCap"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/administration",
+      "test": "TestLogoImportBatchesAndBacksOffFailedURLs"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/administration",
+      "test": "TestP252bAdministrationWholeShowFortyOneEpisodesReceiptWithoutScheduler"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/administration",
+      "test": "TestP252bDeleteAllFortyThreePinnedMembers"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/administration",
+      "test": "TestP252bInterruptedDeleteFreshApprovalResumesAfterRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/administration",
+      "test": "TestSelectionDeleteCursorOutsideReferences"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/administration",
+      "test": "TestSelectionDeleteLiveDriftPreventsUnlink"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/apievents",
+      "test": "TestAppendIsTransactionalAndTrimsCanonicalRing"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/apispec",
+      "test": "TestArrayMaximum"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/apispec",
+      "test": "TestEveryDocumentParses"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/assets",
+      "test": "TestInfoStreamsQueuedInputsKeepDistinctTechnicalRevisions"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/audiofacts",
+      "test": "TestPlaybackQueuesMeasurementInsteadOfDecoding"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestApplyBareDatabaseKeepsStateFiles"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestApplyStagedCrashAfterSwitchVerifies"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestApplyStagedCrashDuringRollbackResumes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestApplyStagedCrashWhilePreparingKeepsTheLiveDatabase"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestApplyStagedCrashWhileSwitchingFinishes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestApplyStagedCycle"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestBackupDatabaseManifestVersionsAndStructuralChecks"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestBackupPortableAuthenticationFiles"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestBackupReportsStructurallyValidDatabaseCorruption"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestBackupUnlistedWALRequiresExplicitRecovery"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestChangingAndDisablingProtectionPreservesExistingArchives"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestCompletedRestoreCleanupReplayKeepsItsResultAndNewerState"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestEncryptedBackupRelocatesAndRestoresWithKeysAndHistory"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestEncryptedRestoreRejectsWrongPassphraseTamperTruncationAndTrailingBytes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestEncryptedRetentionAcrossDestinationsKeepsManualCopies"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestExternalDestinationIncludesLocalRecoveryCopies"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestFailedAppliedRestoreWithMissingRecoveryCopyStaysUnresolved"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestFailedRestoreCanRetryTheSameOperation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestListDeletePrune"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestLiveSourceSelectionPreservesSQLiteLocks"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestManifestStreamManagedStorageCarriesOnlyConfig"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestMissingAndCorruptPassphraseKeyCannotPublishPlaintextFallback"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestNextCopyFinishesAStrandedOne"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestPortableFileRefusalPreservesExistingStagedRestore"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestPreReleaseSealedPassphraseFailsClosedUntilExplicitChange"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestPreRestoreCopyKeepsCurrentOnlyOwnerArtworkAndKeys"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestPreRestoreCurrentOnlyCopiesSurvivePreparingCrashAndRollback"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestRepairRestorePreservesAvailablePreviousArtwork"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestRestoreProgressSurvivesRequestCancellation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestRollbackRemovesTheRestoredWALFirst"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestScheduledAndManualBackupsUseLivePolicy"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestScheduledBackupGivesUpOnItsHoldUnderConstantWrites"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestScheduledBackupYieldsToConstantWritesAndManualSharesTurns"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/backup",
+      "test": "TestStreamRestoreCursorResumesAfterDurableFileMove"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestBulkBuildDerivesWhatIncrementalBuildDoes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestBulkReferenceFactsDeriveIntoPlayableMixedLibraries"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestCopyReferenceFactsUsesFreshBaselineWithoutAuthentication"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestNarrowReferenceKeepsMixedShapeAndProductionTriggers"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestPlaylistPageBudgetIsHonest"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestPlaylistPagesSortsFiltersTiesAndReorder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestPlaylistReuseIsIdempotent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestQueryMemoryChurnLeavesNoStoredQueryState"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestSeedResumesAtCommittedBatchBoundary"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog/scalebench",
+      "test": "TestWriteAmplificationUsesTheWriterConnection"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestA3ForYouActivityChangesProductionTasteOutsideBaseWitness"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestA3ForYouActivityDriftRejectsContinuationWithoutEpoch"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestA3ForYouActivityRawWindowBoundsAndHeldInstant"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestA3ForYouPreparedConversionAndActivityRevalidation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestAbandonedTasteBoundsCandidatesBeforeCheckingProgress"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestAbandonedTasteLoadsTheWindowInTwoStatements"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestAcrossListsShareOneOrderedPass"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestAdminDirectoriesCASRestartAndProbe"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestAdminLibraryCountsFilesThatNeedAttention"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestAggregatePagingBeyondTwoHundred"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestAlbumEntityLabelTypeGenres"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestArtistReleaseRolesAndYearOrder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestAudiobookBrowseDoesNotBuildNavigationGroups"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBookPageEnrichmentPreservesStoredTitleAndEdition"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBookTimelineAndListeningViewsShareCanonicalPartOrder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBookTimelineMetadataAndOriginalEditionTitle"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBookTimelinePagesSeekProgressAndUnknownFacts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBookTimelineRestrictedPartsNeverLeak"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBrowseEveryOrderPagesMatchTheOrder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBrowseForYou"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBrowseFreshBucketRequestLandsOnTheBucket"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBrowseHomeMembershipFacetsAndSortedExhaustion"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBrowseRelativeDateFieldsAndExactBoundaries"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkCaptureRestartAndRevisionFence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkJobReceiptRestartAndAtomicProgress"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkJobRevocationConflictAndFailurePaging"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkLocalSearchReplayActions"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkLocalSearchReplayRejectedTailAndPreparing"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkLocalSearchReplayRollbackAndEOFDrift"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkMetadataPreviewExactCandidateBoundaryNeedsExhaustionPage"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkMetadataPreviewPagesBoundCandidatesAndAdvanceEmptyPages"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkPlaylistAfterAndQueryOrder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkResourceCommandsRestartReplayAndDestinationFence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkSchedulerCompletesWithForegroundPressure"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkSchedulerRunsDurableAdapter"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkSelectionCompleteWitnessDrift"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestBulkSnapshotDoesNotGrowOrFilterItself"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestCatalogMutationsAbandonContendedWriterAtRequestDeadline"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestContainerDetailDoesNotReadEveryChild"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestContextualFacetsServeEveryWindowFromOnePass"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestDetailEpisodeArtworkNamesActualInheritedSelection"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestDetailEpisodeFactsFiltersAndSeasonAggregates"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestDetailRowsCursorExhaustionStableRevision"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestDiscoverCarriesPicksForYou"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestElevenLibraryImportSummaryReadCost"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestEpisodeAndSeasonOriginalLanguageComeFromPublishedShow"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestEpisodeAndSeasonQueriesUseViewerRestrictions"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestEpisodesPageIssuesConstantStatements"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFacetBaseSourceShowActualBaselineOracle"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFacetRuntimeColdBaseCapacityTerminalAndSourceWritesIndependent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFacetWindowsPrefixBoundariesAndOverflowFallback"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFileInfoBatchesChildPageAndPreservesFacts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFileInfoMemberSourceRejectsStaleGroupPoints"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFileInfoOpeningPreparationConcurrentInterestsRetireIndependently"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFileInfoOpeningPreparationHasNoDetailAndAcceptsOnlyReadyEpoch"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFilteredGroupingEvaluatesOnlyFieldHolders"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFilteredRangesSeekSparseAnchors"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestFirstCatalogCursorReadDoesNotWrite"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestGenreAuthorityAcceptedEmptyShowFirstHiddenMemberRevokes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestGenreCandidateBackgroundMedia49BetterTargetsRepackAndRetire"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestGenreMembershipMatchesCountedGenres"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestGroupOrderWindowMatchesBrowseAcrossPages"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestHomeActionAvailabilityFindsPermittedMemberBeyond64AndRechecksCurrentPolicy"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestHomeBooksContinuationFiltersMusicBeforeItsPageLimit"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestHomeContinueWalksStartedShowsInSlices"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestHomeDestinationReceiptFailureWindowHasRealLeafTitlesAndRetryResolvesOnlyActualFailure"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestHomeDocumentBoundsKeepRequiredRowsAndCatalogue"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestHomeListenNextGroupsResumesAcrossLibraries"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestHomeMergedRecentLargeFixturePagesPastTheOldWorkBound"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestHomeRecentShelfPagesTheFullSourceNewestFirst"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestHomeTitleContextBatchesAuthorizedParentsAndCountsOnlyVisibleSeasons"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestKeysetPagesDoNotRescanTheirPrefix"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestLibraryListeningSectionsWalkTheTitleIndex"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestLibraryMixFindsItsUpperBoundBySeeking"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestLibraryRemovalDrainsFolderCachesBeforeTheFolders"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestLibrarySummaryBatchKeysMatchLegacy"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestLibrarySummaryCoreAllKindsAndCappedCandidates"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestLibrarySummaryCoreCancellationReleasesRequestSnapshots"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestLibrarySummaryCoreFlightsCancellationAndBounds"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestLibraryVideoCompletionUsesTrustedCreditsOrThreshold"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningAlbumEntityCarriesYearDurationAndArtist"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningArtistEntityBiographyCountryYears"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningArtistMostPlayedRanksTheViewersPlays"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningArtistReleasesMarkAlbumAndAppearance"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningArtistSelectionSeeksTheArtistsSongs"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningArtistTypeAndAlbumCountAreRealFacts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningBookResumeUnavailableAndExplicitPartRecovery"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningBookResumeUsesOnlySelectedAmount"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningEntityIdentityAcrossPagesAndLibraryFence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningGroupStepRunsOnlyAfterAChange"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningMembershipVisibilityUsesIndexedPaths"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningMusicDiscoverWindowsCountsOrderAndPlaylistPrivacy"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningNavigationDiscsAuthorsAndSeries"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningPreferencesCASAndProfileIsolation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningRelatedRowsUseRealLibraryRelationships"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningSelectionBoundsMixBeforeScoring"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningSelectionCountsAreExact"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningSelectionExactBelowTheCapKeepsStaleChecks"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningSharedBrowsePreservesFavoriteDateAndLocalGenres"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningSimilarPagesToExhaustion"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningSimilarRequiresThreeActualSharingListeners"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningSimilarUsesLocalGenresAndCurrentVisibility"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestListeningWholeSelectionMixAndContinuationFence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestManualMetadataIndependentFieldsAutomaticRestoreAndIdentity"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestMoodRowFromTheTitleDataset"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestNotInterestedIsReceiptedUndoableAndLeavesRecommended"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestNotInterestedNamesAShowButNothingElseOnOne"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestOrderedBookSelectionContinuesByPartKey"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestOrderedLibraryListeningStaysFlat"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestOrderedMusicSelectionWalksOrderIndexes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestP252bDirectEpisodeMissingAndLibraryParentCleanupIsBounded"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestP252bLibraryAllPlayableAndSixtyFourContainers"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestP252bMissingBeyondTwentyFourAndAuthorityRevoke"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestP252bOnePinCompleteWriterHold"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestPicksForYouRows"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestPrefixCursorSurvivesDictionaryGrowth"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestPresenceGenreAndTitleFiltersMatchTheTitleTest"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestQueueLocalOrderedRejectedProgressAndStale"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestQueueLocalOrderedSharedCapacityAndCancellation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestReadingCollectionExplicit200AdmissionExecutionReceipt"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestReadingCountReducerMatchesCurrentOracle"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestReadingFacetPreparationFactoryReservesBeforeSourceConstruction"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestReadingFacetPreparationRelativeInstantAndQuantumDrift"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestReadingFacetSQLInputOldOracleParity"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestReadingLibraryRemovalCostIsLinear"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecAbandonmentCountsAgainst"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecBulkBacklogIsHeldOutNotReplayed"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecCandidateHydrationMatchesCompleteHistory"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecCompositionKeepsHomeAndTitleRankingsWithFewerReads"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecCompositionSourceScopeRequiresExactSnapshotAndViewer"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecCompositionTitleSharesMetadataButKeepsTasteAndEdgesIndependent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecForYouMemoStillPlacesWatchedLast"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecHydrationBoundedMissingReadsAndFreshSession"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecHydrationSharesSourceReadsAndKeepsIndependentRowRankings"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecLargeProfileSignalsStayCandidateSized"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecMoreLikeMemoStillPlacesWatchedLast"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecNextBookLoadsSeriesSignals"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecSignalHydrationPreservesExactRetractions"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecSignalReadsRatingsAsStars"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecSignalsUseCandidateAndPositiveSeedIndexes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecTasteExactAcrossRebaseAndRetraction"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecTasteIsExactUnderRetractionAndRefacet"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecTitleSessionDoesNotReuseViewerSeedEdges"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecommendationCandidateSetsStayBounded"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecommendationLargeCatalogRetrievalAndStablePaging"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecommendedFollowsTasteNotJustQuality"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRecommendedIsFreshBeforeTheWorkerRuns"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRelationRowPagesNearestYearToExhaustion"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRemovedLibraryLeavesNoRowsUnderItsHandle"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRemovedLibraryOfEveryKindLeavesNoHiddenRow"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRemovingALibraryTakesItsTitlesAndKeepsState"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestReportCalendarFactsConserveAcrossAllOwnerReads"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestResetRecommendationsForgetsTasteButNotHistory"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestResolvedThumbnailURLUsesSelectedArtworkVersion"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRestrictedBookGroupCountTracksVisibleBooks"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRestrictedContainerPageChecksOnlyItsRows"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRestrictedDeepFactPageChecksOnlyItsPage"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRestrictedListeningCountsComeFromTheClass"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRestrictedRecentlyAddedIsCompleteBehindHiddenTitles"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestRowCursorExhaustionStableRevision"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSavedViewOnHome"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectedArtistFactsStayFlatBesideUnrelatedSongs"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectionBatchCreditGuardOracle"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectionBatchExactOracleAndClone"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectionBatchExceptionalScalarYieldsBeforeNextUnit"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectionBatchLargeScalarIsTransient"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectionBatchPublishedVocabularyOracle"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectionLocalSearchBrowseOracle"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectionLocalSearchColdMeasurement"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectionPreparationFactoryReservesBeforeSourceConstruction"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectionProofReadyDriftRejectsEveryAdmission"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectionReplayBoundedPagesAndRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSelectiveFiltersStayFlatAsTheLibraryGrows"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShortPicksFill"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowMergeRunsInBatchesAndRedirectsOldIds"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowPageContent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceAbsoluteAndEmptyAreHonest"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceConcurrentPublicationDoesNotMixRevisions"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceDefaultAscendingDoesNotWriteNewestFirst"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceEpisodeCreditsUseSelectedVisibleItem"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceEpisodeDirectionPagesAndBindsCursor"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceEpisodeDirectionTiedBoundary"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceEpisodeSeekUsesIndexes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceNextUpChoosesSeasonAndHonoursVisibility"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceProjectsSelectedLogoSeparatelyFromPoster"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceProjectsShowFacts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceRejectsCrossedParentsAndCursorFences"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceRestrictionAppliesBeforeCountsAndEpisodePage"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestShowWorkspaceTargetDefaultAndBoundedPaging"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSmallForYouChargesFullTasteBeforeDecode"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestSmallForYouMatchesBrowseWithExactOverlays"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestTaglessFirstImportThenTagsLeavesOneAlbum"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestTitleSortedSearchWalksTheTitleIndex"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestUntaggedBookFilesAreNumberedFromTheirNames"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestVisibilityClassRangeSeeksFromBoundedAnchor"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestVisibilityJournalBulkBacklogRebuilds"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
+      "test": "TestVisibilityJournalMatchesARebuild"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalogtest",
+      "test": "TestDrainReusesThePreparedWorkerWhileAQueryCapturePinsBackground"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalogtest",
+      "test": "TestFixturesDerive"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/catalogtest",
+      "test": "TestTaste"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestBrowseBlocksCountASmallLibraryThroughChange"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestDerivedWorkerCompletesWithForegroundPressure"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestEntityRemovalRetiresOnlyItsAvailabilityHolderAtomically"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestEpisodeTrickleCostIndependentOfShowSize"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestMemberTraitCountsRemainExactThroughMoveAndDeletion"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestPacedBatchesDeriveTheSameCatalogue"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestReadingCompleteProducerAndSealSubcursorsRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestReadingCompleteRestartEveryDurablePhase"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestSourceAssetAcceptanceCost"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestSourceLibraryScreenArtworkSingleOwner"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestSourceShowEpisodeFullTupleRollbackResetAndReopen"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestSupervisedLoopTriesAFailingIDOnItsOwnSchedule"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestTitleGramsMaintenancePreservesExactSearchAndMeasuresChurn"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
+      "test": "TestTitleGramsMaintenanceQueuesBelowUserWrites"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/connectivity",
+      "test": "TestDiscoveryRunIsSupervisedAndStopsWithoutBlockingStatus"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/contentaccess",
+      "test": "TestARatingRaisedAboveTheLimitHidesTheTitleAtOnce"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/contentaccess",
+      "test": "TestAccountLimitsAndProfileRestrictionsAreOneRule"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/contentaccess",
+      "test": "TestAnAccountRatingLimitComparesAgesAcrossRatingSystems"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dbwork",
+      "test": "TestAccountingWALUsesCommittedNativeWriterCounters"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dbwork",
+      "test": "TestCheckpointHardPhysicalAllocationWithReusedSmallLogicalLog"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dbwork",
+      "test": "TestCheckpointHardPressureDrainsOverlappingReadersAndShrinksPhysicalWAL"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dbwork",
+      "test": "TestCheckpointPinnedReaderBoundsGateRestoresPolicyAndRecovers"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dbwork",
+      "test": "TestSnapshotLifetimeStartsAfterAdmission"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dbwork",
+      "test": "TestWALReservationDiskFailureRefusesWithoutEffect"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestBrowseEveryLibrary"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestBrowsePagingAndMetadata"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestControlRequestsAreBounded"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestDeviceDescription"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestDisabledServesNothing"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestMediaIsServedByTokenWithRanges"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestMediaNamesOfflineStorageAndRecovers"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestMediaServesMountedRemoteInventoryThroughHelper"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestMusicDIDLMeasuredFactsAndMIMER29"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestOnlyTheHomeNetwork"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestStreamEndsWhenSwitchedOff"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/dlna",
+      "test": "TestVideoDemuxAliasesDescribeAndServeTheSameOriginal"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/downloads",
+      "test": "TestACopyOnADeviceOutlivesServerTidying"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/downloads",
+      "test": "TestBundleCarriesTheFilmsFacts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/downloads",
+      "test": "TestContainerRequestRestartIdempotencyAndPolicies"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/downloads",
+      "test": "TestOfflineListeningOrdersPartsObservedInTheSameSecond"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/downloads",
+      "test": "TestPrunePreservesPreparationsWithLiveReceipts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/enrichment",
+      "test": "TestDatasetImportMatchesByProviderIdAndFeedsRecommendations"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/eventfeed",
+      "test": "TestCommittedInventoryPagesDoNotWakeStreamsButSourceDisableDoes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/eventfeed",
+      "test": "TestEmptyOutboxPassKeepsALaterHintDeliverable"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/eventfeed",
+      "test": "TestHubDoesNotRearmAWakeThatQueuedNoHints"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/eventfeed",
+      "test": "TestHubDoesNotWakeItselfAfterDrainingItsOwnFlush"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/eventfeed",
+      "test": "TestHubStaysQuietWhenTheOutboxStartsEmpty"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/eventfeed",
+      "test": "TestPagesStopAtTheByteBudgetAndContinueWithoutLoss"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/eventfeed",
+      "test": "TestQuietReadersAreWokenBeforeTheyFallAPageBehind"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/eventfeed",
+      "test": "TestSecurityWakeIgnoresPrivateProgressAndKeepsSourceAuthority"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/hosted",
+      "test": "TestADepartureOlderThanARejoinIsNotApplied"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/hosted",
+      "test": "TestAccountSetupActualClaimAndVerifiedIdentityCreatePasswordlessOwner"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/hosted",
+      "test": "TestMembershipDeltasArePagedAndFallBackToTheFullList"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/hosted",
+      "test": "TestOwnerChangeRepairActualProducerConsumer"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/hosted",
+      "test": "TestRegisteredReturnLocalOwnerOutcomesPreserveProfilesAndRejectMerge"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi/fixture",
+      "test": "TestCanonicalCreditsAreExplicitAndCacheIsolated"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestAFloodFromOneClientDoesNotRefuseAnother"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestAKeyOutlivesABackupAndARestoreAndSessionsDoNot"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestAdminLogEventsResumeResetAndLifetime"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestAdministrationOwnerBoundaryAndLibrarySettingsRoundTrip"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestAdmissionRefusesOverCapacityWithATypedAnswer"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestBackgroundPauseAndResourceUsageOwnerContracts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestBackupRoutesOwnerBoundaryAndLifecycle"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestBackupSettingsHTTPSecretBoundaryAndEncryptedRestore"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestBrowseAnchorsForEverySort"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestBrowseRoutesPublishAndExecuteTheVocabulary"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestBrowseSelectionHeldProofBindsPublicRangeZeroConversion"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestBrowseSelectionQueryHTTPCapacityAndRevocation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestBulkMetadataPreparationHTTPManyAndDeliveryHold"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestBulkMetadataPreparedHTTPGeneral201StreamsWithoutForegroundCensus"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestBulkMetadataPreparedHTTPMemory200AndDelivery"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestBulkOwnerMetadataCommandsRestartAndReplay"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestCarriedPlaybackAdmissionReadsWithoutWriterToolOrAlert"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestCarriedPlaybackAdmissionSeesUncommittedLimitsAndKeepsWriter"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestCastReceiverCurrentOccurrenceRoutes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestCastReconnectRefusalsPreserveAcceptedGraph"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestCastRejectedNewSenderCannotReplaceAcceptedTarget"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestCompositeResponsesCompressAndMediaDoesNot"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestContainerUndoHTTPReceiptAndRestrictionScope"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestContentGridOpensAtAnIndex"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestConvertedAudioStopsAfterPublicSessionEnds"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestCredentialUseFlushesWithoutAnotherRequest"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestDownloadReaderRechecksTimeBasedAuthority"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestDownloadTransferStopsOnCommittedWithdrawal"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestEveryRouteAnswersErrorsInTheEnvelope"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestEveryRouteSurvivesHostileInput"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestFacetReadyRepresentativeValuesMatchRecordedOracle"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestFifthParkedPollIsRefusedWithAPacedRetry"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestGuideOnlyDevicesLearnFairnessSharesAndRecheckRevocation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestHomeActionAggregateAvailabilityRetainsSnapshotAndCurrentRestrictionFence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestHomeActionAggregateDeleteUsesActualPreviewAndCurrentOwnerPolicy"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestHomeDestinationPickerHidesRestrictedMembershipAndArtwork"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestHomeDynamicGenreRowHydratesPublishedEndpoint"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestIntegrationCountsMatchExactAuthorizedIdentitiesOnEveryAlias"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestLibrarySummaryCoreHTTPUsesLiveAuthorityAndReadyProjection"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestManualMetadataHTTPAuthorizationCancellationAndFreshRevocation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestManualMetadataTransactionAuthorizationPredicates"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestMoveCollisionPublishesIdentityFactsAndOwnerReadHasNoSecrets"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestMusicPrivateReopenRefusesExpiredOrStoppedGrantR36"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1CommitNextRefusesPreparedGenerationDrift"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1ContainerDownloadOptionsHTTPUsesTypedRouteAndDeviceAuthority"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1QueueDurationCoversBeyondWindowAndInvalidatesOnFacts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1QueueQueryCapturesBeyond500AndKeepsItsSnapshot"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1QueueRemovalsCompactInsteadOfRefusing"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1QueueRetentionReceiptsAreBoundToTheOriginalViewer"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1QueueRetentionRejectsUnownedOrInvalidWithoutChangingCurrent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1QueueTransitionFences"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1RejectedReplanKeepsWorkingMediaAndProgress"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1RemoteReportUsesGenuineNextAndRechecksRestriction"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1RestrictedTitleIsNotFoundEverywhere"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1SaveAsPlaylistCopiesALongQueueWhole"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1SaveAsPlaylistStopsWhenTheQueueChanges"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1SaveAsPlaylistStopsWhenTheQueueChangesAfterTheRead"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1SaveAsPlaylistSurvivesARevisionThatKeepsTheOrder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1SessionLifecycle"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1SkipReportsAreMarkerEvidence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1StagedQueuesAreSwept"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPlaybackV1SubtitleOriginalUsesGrantRangesAndRevocation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPorticoOwnerRechecksMembershipAndFamilyInsideTransaction"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPrincipalCacheIsFencedAgainstRevocation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestPrivateConvertedAudioStopsAfterQueueSessionEnds"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadPathGoldenEquivalence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadPathStatementBaseline"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingBrowsePreparationHTTPLeaseReadyCancelAndDrift"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingBrowsePreparationRealClientRangeAndSeek"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingBrowseQueryRestrictions"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingBrowseReadyDeliveryRefusesAggregateAndGiantWithoutLeaseLeak"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingBrowseSharedContentKeepsSessionRevocationPrivate"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingCompleteMultiPageScanAllowsRealHTTPSignIn"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingContinueFormatLocations"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingContinueRegistered"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingDetailFallbackUsesReadingPersonalFences"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingDiscoverOperationStrictAndBounded"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingDiscoverRowsContinueAloneWithoutRepeatOrSkip"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingDiscoverSeriesCountsWholeReadyMembershipBeforePreviewLimit"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingFacetQueriesHTTPCapacityIsTerminalTypedRefusal"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingFacetQueriesHTTPRevokedReadyAndPending"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingFacetQueryRestrictions"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingItemsPagesStayInsideTheirByteBudget"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingPeriodicalGroupsPageSelectedGroupsInKeyOrder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingPermissionChangeKeepsRevisionAndRealEditRepublishes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingPrivateEPUBAndComicActualAssets"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingPrivatePathCandidatesAndCurrentAssociation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingPrivatePathComicFolderReclassification"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingPrivatePathMovedFolderWithdrawsOldAttribution"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingPrivatePathPrimaryVersionAttribution"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingPrivatePathProducerGeneratedTree"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingPrivatePathPublicationCoversEveryCandidate"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingPrivateProfileErasurePreservesSiblingAndArchive"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingRegisteredArchiveAssets"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingRegisteredGzipProgressKeepsExactRevision"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingRemoteSequentialPDF"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestReadingUnchangedRealRescanWritesNoReadingInput"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestRequestCostIsAttributedToOneRoute"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestRestrictedProfileCountsMatchWhatIsShown"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestRestrictedProfileRouteMatrix"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestRestrictedProfileWriteRouteMatrix"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSavedCollectionAdmitsReadingAndProjectsReadingFacts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestScanOutsideWriterDoesNotBlockDirectSignIn"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSearchBurstSharesOneEntryBudget"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSearchGenresHandlerUsesCurrentLibraryAuthority"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSelectionActionHTTPExactLargeConfirmJournalAndReplay"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSelectionActionPrivateHandlesRespectRestriction"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSessionFamilyHTTPLogoutAuthenticGenerations"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSettingsConfigurationRestrictionClassificationAndOwnerMainProfile"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSoakNormalClientHonorsRetryAfterWithoutHidingRefusal"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSocialEventStreamResumeAndHeartbeat"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSocialHostClaimGovernancePrecedesReadiness"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSocialReceiverInboxWait"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestStatementShapeOfCompositeReads"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestSupportHTTPAuthorizationContextAndReleasedSlots"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestTheRollingDeadlineIsReleasedWithTheBody"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestUserMutationSavedEntriesQuotaAndStorageErrorsRollback"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestAPasswordCheckWaitsBrieflyForAHashingSlot"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestAccountBudgetCannotKeepCorrectPasswordLockedOut"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestAccountChangePasswordHashRunsOutsideWriterAndCooloffSkipsSlots"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestAccountMoveLocalKeepsProfilesAndHistoryAndShowsCodesOnce"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestActualSwitchToProtectedProfileNeedsItsPINEvenWithRememberedProof"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestCapturedSetupReturnOriginRetainsFrozenAuthority"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestDirectMePreservesQueryFailuresAndMissingIdentity"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestDirectProfileSwitchRequiresTheDestinationPIN"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestMemberPasswordCostAndOwnershipProofOutsideWriter"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestMemberResetConditionalReplacementRefusesWithoutEffects"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestNewLocalOwnerRefusalsCreateNothing"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestOwnerResetPostProofTwoFactorChoiceCommitsWithPassword"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestOwnerReturnAttemptConsumesBeforeExchangeAndAtomicAdmission"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestPasswordHasherAdmissionIsNotBadCredentials"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestProfilePurgeManyParentsConverge"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestQuickApprovalCannotOutlivePINChange"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestReauthorizeTxRejectsStalePrincipalAndAccountChanges"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestRegistrationRequiresTheExactLiveScope"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestRememberedProfileResumesFromFreshAccountScopedSignIn"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestResetFilePublicationFailureBoundariesNeverPublishPartialCredential"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestSetupContinuationInstalledExchangeCreatesOnlyMatchingOwner"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestSetupRenewalRefusals"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/identity",
+      "test": "TestWrongPINsDoNotLockOtherDevicesOut"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestActivityFileChangesWakeSummaryWithStableCounters"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAnalysisEnqueueRawWindowBoundaries"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAnalysisEnqueueRawWindowConsumesRejectedPrefix"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAnalysisEnqueueRawWindowNeedsParity"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAnalysisEnqueueSonicWindowSelection"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAnalysisEnqueueWindowStatementsAreBounded"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAudioEmbeddedFallbackSurvivesCollectorOnlyWhileCurrent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAudioRefreshCoverRemovalPreservesOwnerChoices"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAudioRefreshInvalidEmbeddedCueRemoval"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAudioRefreshManualLinkRetainsUnchangedCover"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAudioRefreshPreservesManuallyLinkedVersion"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAudioRefreshPublicationFences"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAudioRefreshRequiresCurrentFileBaseline"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestAudioSidecarOnlyChangeRefreshesWithoutAProbe"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestBudgetedFolderBatchScansToTheSameCatalogue"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestDirectoryCachePruneVisitsOnlyChangedFolders"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestDurableContinuationAndCancellation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestInventorySourcePageCost"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestInventorySourceTraversalRestartParity"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestMonitorConfigurationWaitsForActualSourceChanges"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestMonitorExcludesRemoteOwnedSourcesAndKeepsLocalStartupAndFallback"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestMonitorPurgesPendingLocalNoticeWhenRootBecomesRemote"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestNativeMonitorStartsALimitedScanForTheChangedFolder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestReadingClosureCrashRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestReadingClosureUnpublishedTurnsRejectSourceDrift"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestReportedRemovalBudgetDoesNotWaitForEachBlockedPath"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestScanLoopDoesNotRespinAQuantumThatDidNotAdvance"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestScanLoopGivesWayToForegroundWorkBetweenSteps"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestScanStopsAtNameReaderDepthBound"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestSelectiveEnqueueAdvancesPastAnUnchangedCandidatePage"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestSidecarOnlyChangeRefreshesWithoutAProbe"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestStrictIntentEverySourceFenceCancelsWithoutSuccessorWork"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestStrictIntentTransfersBoundedRealHelperBatchesAndSkipsFailedProof"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestSyntheticFixtureEpisodeCountsSurviveInventoryAndBrowse"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestUnchangedRescanQueuesNoDerivedWork"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/linearinput",
+      "test": "TestAbandonedSharedAcquisitionRetiresDuringProgress"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/linearinput",
+      "test": "TestProgressingManifestCanOutlastThirtySeconds"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/linearinput",
+      "test": "TestSharedChannelReadersHaveIndependentLifetime"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/linearinput",
+      "test": "TestSharedChannelRejoinDuringGraceRetainsUpstream"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/linearinput",
+      "test": "TestSharedHLSSelectsBestVariantAndFetchesSegmentOnce"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels/dvr",
+      "test": "TestChannelChoicesPagePastRestrictedPrefix"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels/dvr",
+      "test": "TestInProgressRecordingSurvivesProfileEraseAndRetainsSourceFences"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels/library",
+      "test": "TestConfigCollectionsAndDormantBounds"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels/library",
+      "test": "TestInOrderFormsAdmitTheSameCandidates"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels/library",
+      "test": "TestJustinOnlyMoviesFrom1985"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels/library",
+      "test": "TestLargeShufflePoolKeepsScheduling"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels/library",
+      "test": "TestShuffledEpisodesKeepTheirOrder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels/library",
+      "test": "TestWeightedDrawsFollowTheWeights"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestCursorKeyFirstUseIsAdmittedAndPersisted"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestCursorKeyReplacesInvalidStoredValue"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestCursorKeyWaitsForTheWriterGate"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestLargeProgrammeGuideUsesDiskSpoolAndBoundedPreview"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestOnNowCursorExhaustionStableRevision"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestSealedPreviewMigratesToPlain"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/livechannels",
+      "test": "TestSourceChannelMarksCacheReusesSnapshotAndBoundsRetention"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/lyrics",
+      "test": "TestBulkLyricWorkerCompletesWithForegroundPressure"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/lyrics",
+      "test": "TestLyricsPrivacyIsRecheckedAfterAdmissionBeforeTransport"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/lyrics",
+      "test": "TestSupervisedLyricsRunSitsOutAProviderPause"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mbaccounting",
+      "test": "TestAccountingAbandonedPrivateOwnerExpiresWithoutChangingPinFacts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mbaccounting",
+      "test": "TestAccountingAbortKeepsOldFactsAndReleasesOwner"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mbaccounting",
+      "test": "TestAccountingPhaseGuardAllowsOnlyTheApprovedEdges"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mbaccounting",
+      "test": "TestAccountingPrivateCopyFlipAndFoldHaveExactVisibleCounts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mbaccounting",
+      "test": "TestAccountingPrivateOwnerDoesNotBlockUserOrPlaybackWriters"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mbaccounting",
+      "test": "TestAccountingRestartAtEveryDurablePhaseReleasesProducers"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mbaccounting",
+      "test": "TestAccountingSlowRealProgressRenewsPrivateInactivityLease"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestAnalysisPreviewCapturesCloseWithoutEarlyPublication"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestAnalysisSessionFamilyAndPreparedClockBoundary"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestAuthorityInputSuppressesBytesAfterAuthorityLoss"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestChapterPolicyUsesStoredOwnerEditAndKeepsEvidence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestContinueAdmissionRefusesWithoutConsentOrObject"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestDisabledSegmentWorkIsDroppedInPages"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestOwnerAnalysisStorageLimitsApplyAtCheckpoints"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestReadFactsCaptureProfileRevision"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestReadInvocationCancellationClosesRetainedInput"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestReadInvocationRetainsCheckerUntilOriginalClose"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestRemoteConsentIsNotWholeFileOrPreset"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestRemoteStageGateNeedsConsentForEveryStage"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestResultSummaryRetentionIsBoundedAndWaitsForReferences"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestRetireSweepExaminesOnePageAtATime"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestScanReadContextRequiresOriginalQueuedMembership"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSegmentCatchupEmptyServerDoesNotCreateChangingCommits"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSegmentCatchupKeepsNewRevisionDurableAndCancellationSilent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSegmentCatchupRestartsAtDurableBoundedPage"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSegmentOrphanCheckExaminesOneWindowPerPass"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSegmentRedetectRequeuesInBatches"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSegmentReviewApproveDismissAndRedetectKeepOwnerDecisions"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSegmentWorkerConfirmsASingleEpisodeSeasonFromTheNextSeason"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSegmentWorkerFindsASeasonsIntroAndCreditsAndRespectsTheOwner"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSegmentWorkerReplacesTheRetiredDetectorsGuesses"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSegmentsNeedConsentAndDigestTracksIt"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSonicCueBindingsAndNormalizedVectorsKeepPerSongRanges"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestSonicMusepackClockRequiresFreshMeasuredRate"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestTrickplaySetIsScopedToTheViewerItem"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestTrickplaySetsGoStaleWhenTheSourceRevisionChanges"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestViewerMarkerRevisionMatchesProjectionAndTracksEdits"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestViewerMarkersFollowSourceSelectionAndClockRefusals"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestViewerMarkersKeepOnlyOwnerMarkersWhenDetectionIsOff"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestViewerMarkersProjectSkipDecisionAndHideDismissedAndOwnerKinds"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+      "test": "TestViewerMarkersStayHiddenWithoutLibraryAuthorization"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestAcceptedArtworkDefaultQueuesOnlyMaterializedPreferredAndKeepsOwner"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestArtworkAcquisitionUsesOriginalWhilePreviewKeepsProviderSize"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestArtworkJobLeaseRenewsWhileFetchRuns"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestArtworkJobLostLeaseCancelsFetch"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestArtworkRepublicationRetiresCachedDescriptors"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestArtworkUploadsUseCurrentSizeAndKeepDerivedBucketsFixed"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestArtworkWorkerChecksEpisodeModeBeforeAcquisition"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestBulkMetadataPreviewExplicitPagingPreservesCASOrder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestBulkMetadataPreviewFencesInterPageAndFinalMutation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestBulkMetadataPreviewQueryReportsMoreThan64DistinctValuesWithoutEnumeratingTargets"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestBulkMetadataPreviewWholeView48000"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestBulkPreviewMemoryLegacyOracle200AndNoScratch"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestBulkPreviewPreparationSharesMemoryOnlyWorkAndChecksLiveBasis"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestEpisodeThumbnailPublicationRejectsStaleOrRevokedAuthority"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestEpisodeThumbnailStateUsesAcceptedProviderAbsenceAndPresence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestMBClaimStaysBoundedOverLargePendingSet"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestMBMutationPickerSchedulesReadOnlyContinuationAndSettles"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestMBStagingTenThousandCompleteFinalWriterHold"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestMusicArtistTypeStoresObservedValueOrNull"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestNewEpisodesDoNotRematchAMatchedShow"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestOnlyAnOutageLeavesAParkedTitleARetryTime"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestProviderReadPicksMBRechecksOnlyChosenAlbum"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestScreenConsentAcceptanceConstantLibraries"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestTVDBAcquisitionSearchStaleSuccessAndFailure"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestTVDBDirtyWorkProducerMatrix"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestTVDBDirtyWorkStalePublicationAndCancellation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
+      "test": "TestTitlesParkedByAnEarlierBuildRecoverOnlyFromAnOutage"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/metadataprovider",
+      "test": "TestAniListTrendingGraphQLAndLeanRows"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mounts",
+      "test": "TestAllocationCrashStagesAndRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mounts",
+      "test": "TestFingerprintKeyFirstUseIsAdmittedAndPersisted"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mounts",
+      "test": "TestFingerprintKeyReplacesInvalidStoredValue"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mounts",
+      "test": "TestFingerprintKeyWaitsForTheWriterGate"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/mounts",
+      "test": "TestReceiptRestartUsesOneOwnedReplacement"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestATopologyChangeThatChangesNoRouteDoesNotCallHosted"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestAccessURLChangePublishesOnce"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestAccessURLsDedupedOrderedAndCapped"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestAccessURLsPublishedAsManualCandidates"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestAutomaticMappingsAvoidBrowserRestrictedPorts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCanceledIdentityProbeIsClientClosed"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCertificateConnectedLifecycleRestartAndAuthorityFencing"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCertificateKeyFilePlainAndStable"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCertificateMaterialScopeAndRenewalMargin"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCertificatePauseAndCurrentRevisionGuard"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCertificatePauseResumeCannotInstallLatePendingResponse"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCertificatePublicationUsesDurableTransactionOnProductionPool"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCertificateReadyHookNotCalledForExpiredReceipt"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCertificateReadyHookNotCalledOnFailedInstall"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCertificateReadyHookRunsOnceOnInstall"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCertificateServingReadPathAndTLSResumption"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimAuthorityBootstrapAndLeaseFence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimAuthorityCaptureTerminalWithoutBearer"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimAuthorityRevocationRollbackAndStaleTuple"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimAuthorityStickyRevisionAndDigest"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimCredentialsMigrateToPlain"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimCurrentInstalledCaptureAndCancellation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimEndpointPendingProofAndOwnerFence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimEndpointProofWithoutPendingDenied"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimHandlerIntentCancelWithoutHostedOperationClearsIntent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimHandlerMandatoryAdmissionAndCommitGuard"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimHandlerOwnerJourney"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimHandlerPreparesWithoutAnAccount"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimHandlerSessionRevokedDuringRemote"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimIdentityStoreFreshRestartAndImmutability"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimInstallationReadinessAndWakeCommitTogether"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimLifecycleLateInstallRejectedBeforeDrain"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimLifecycleLateSignatureCleared"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimLifecycleUngatedCallsRefused"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLiteApprovalRevisionAndExpiry"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLiteCancelWinsLateInstallAndRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLiteCancellationProofBindings"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLiteCancellationWhileConnectionBlocked"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLiteConcurrentInstallThenCancel"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLiteGenerationOverflowAndNoKeyAdoption"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLiteGuardRollbackAndDenyOnlyCancellation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLiteInstallRestartAndSchema"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLiteInstallThenCancelRevokesProtectedReference"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLiteInstalledAuthorityIndependentOfOwnerEpoch"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLiteOutboxFailureRollsBackFence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLitePlaintextCredentialAndNoKey"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLitePlaintextRoundTripAndTamper"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestClaimSQLitePrecommitCancelAndSuccessorIsolation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestConfigureCertificatesWiresReadyHookToRemoteReprove"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestConfiguredNetworkingControllerReportsUnconfiguredReadsBeforeClaim"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCurrentManagedHTTPSDoesNotPromoteUnverifiedCandidates"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestCurrentManagedHTTPSIsReadOnlyAndRequiresCurrentLiveTuple"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestFirstOwnerSwitchPreparedSnapshotUsesPendingOperation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestFreshClaimKeysFailureCanRetryAndRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestHostedCandidatesPreserveEveryLANWithinBudget"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestHostedCandidatesStayTLS"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestIPv6AllowedByDefaultAndDisableOverrideRemovesCandidate"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestIPv6PinholeOpensPublishesAndCloses"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestLocalityPublicObservationsWhileRemotePublicationOff"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestManagedHTTPSAbsenceNamesItsReason"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestManualCandidatesAreNeverProven"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestManualHTTPPublishedWithAutomaticRemoteDisabled"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestMappingProbeBacksOffWithoutGatewaySupport"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestNewRemoteScopeUsesOnlyInstalledPorticoLifecycleDefault"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestOwnerBrowserRestrictedPortsWarnWithoutRejecting"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestOwnerPreinstallCancellationSurvivesExpiredApprovalAndRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestOwnerRecoveryEmptyLaneSleepsUntilActualWake"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestOwnerReturnUsesRealRegistrationAndOneConsumedInstalledExchange"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestPinholeProbeBacksOffWithoutFirewallControl"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestProtectedOwnerStartSignsOnlyFullCurrentPreparedSwitch"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestProtectedSetupStartSignsOnlyFullCurrentPendingSetup"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestRegisteredSignInContextBindsActualNameFreshChallengeAndInstalledRegistration"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestRemoteDirectAddressInitializesOnlyCertificateAddressHint"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestReproveBypassesRetryDeadlineOnceButNotHold"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestRestartListenerGapPreservesBothFamiliesAndLANWithoutRepublish"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestRouteCertificateManagedActiveAndRenewalFallback"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestRouteIdentityDescriptorExhaustion"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestRouteIdentityFailureClassesAreLogged"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestRouteIdentityFailureLogIsRateLimitedPerClass"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestRouteProofCertificateBindingAndCompatibility"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestSettingsReadFailureKeepsLastList"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestSetupClaimOnLocalServerRequiresConfirmedMove"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestSetupReturnRecoveryUsesOnlyCurrentUnexpiredInstalledCapture"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestUnboundClaimAdoptsTheApproversAccount"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestUnboundWebClaimRequestIsSigned"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestW2I02RemoteIntentAndPublicationRecheckInstalledAuthority"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestW2I02RemoteIntentAndPublicationRejectStaleConfigRevision"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestWebClaimWatchBelongsToTheServer"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestWebClaimWatchResumesAfterRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/networking",
+      "test": "TestWebInstalledWakesManagersBeforeMissingServingState"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/operations",
+      "test": "TestAdmissionClassesDoNotCrowdEachOtherOut"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/operations",
+      "test": "TestMediaVolumeProbeReleasesDatabaseConnectionBeforeStalledStatfs"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCaptureAndOpenRefuseAnOuterTransactionBeforeSourceOrByteWork"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayRefusesRetiredOriginalAfterCommitTxStarted"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayRefusesRetiredOriginalBeforeAdmission"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayRepeatsOriginalAcrossReadsWritesAndAcceptingTx"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayRequiresOriginalCheckFiniteUnexpiredDeadlineAndNoOuterTx"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayTicketCannotExtendDeadline"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayTicketConcurrentCopiesAdmitOnce"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayTicketCopiesConsumeOnce"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayTicketKeepsMandatoryOriginalCheck"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayTicketRefusesDriftAndRestoration"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayTicketRefusesMissingResolver"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayTicketRefusesUnresolvedZeroAndForeignTickets"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCapturePlayTicketRefusesWrongAcquisitionBindingBeforeWork"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCheckedReaderWithholdsBytesWhenOriginalRetiresDuringRead"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestCompleteOwnedBytesHaveExactReceiptIndependentCursorsAndNoLatestSubstitution"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestDestinationRejectsAReplacedOwnedDirectoryWithoutDeletingReplacement"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestExpiredRetiredAndUnsealedReferencesDoNotGrantRetention"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestIncompleteOverlongFailedAndDeniedAcquisitionsPublishNoReceipt"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestNewPlayCaptureTicketHasNoSideEffects"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestPersistedWriterAccountsSuccessfulBytesBeforeOriginalRefusal"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestPresentationCleanupLeavesAnotherAcquisitionUntouched"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestProvenanceAndReceiptRowsRejectMutation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestRealOwnedReaderDescriptorOutlivesMetadataReferences"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestResolvePlayCaptureTxPinsExactSourceAndOriginalRequest"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestRetiredPresentationReaderKeepsOnlyItsOwnCaptureReference"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestRetirementCancelsExactReaderButQuotaWaitsForPhysicalReaderExit"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestRevokedOriginalPolicyNeverPublishesOrRebindsACompletedArtifact"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestSealedPresentationRetainsOriginalCaptureAndFullCharge"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ownedcapture",
+      "test": "TestUncertainPostSealCleanupCannotUnchargeUntilRealPhysicalLeaseRetires"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestArtworkCandidateOrderFactsKeepSafeDefaultsAndCompositeSeek"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestArtworkSizeSweepSchemaIsIdleAndKeepsExactRequests"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestArtworkSourcesNameTheirSlotFiles"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestBackupProtectionRequiresRetainedSealedMaterial"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestBaselineHasNoDuplicateIndexes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestBrowsePredicateEpochProducerCensus"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestBrowsePredicateEpochSynchronousRollbackAndNoops"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestCatalogueInsertCostIsFlat"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestDirectIdentityFullProfileAccountSurvivesRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestEpisodeThumbnailStoredCreationPolicy"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestEveryForeignKeyChildColumnSetHasLeadingIndexOrJustification"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestForeignSchemaObjectsCostOneCatalogRead"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestFreshBaselineIncludesSegmentAndGatedSchema"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestInspectCandidate"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestInventoryArtworkCandidatesKeepSeparateObservationEvidence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestKnownSchemaColumnsMatchAFreshInstall"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestKnownSchemaObjectsMatchAFreshInstall"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestLibrarySourceProgressBaselineShape"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestLibrarySourceProgressMissingParentAndCascade"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestMaintenanceDefaultsPreserveBackupAndRepresentAnyTime"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestMaintenanceSettingsRejectInvalidValues"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestMetadataArtworkSizeUsesExistingSettingsAuthority"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestMovedAppdataStartsWithCopiedWALAndSHM"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestNoInsertOrIgnoreUpdateTriggerOnAnUpsertedTable"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestNormalizedSettingsHintsFollowCommittedRevision"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestOpenCurrentPublicationAndOriginComposition"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestOwnerCompletionStoredTupleConstraintsAndFamilyCascade"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestPersonalMusicRadiosSeedIndexServesForeignKeyEquality"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestPlannerStatisticsCoverTheWholeSchema"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestPlannerStatisticsNeverHoldTheWriteGateAcrossATable"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestPositiveRecommendationSeedIndexExistsInBaseline"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestProductionStatementGuardRejectsBadSQLFromSource"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestProductionStatementsDoNotScanTheCatalogue"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestProductionStatementsPrepareAgainstTheBaseline"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestProfilePurgeCursorIndexAdvanceCost"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestPruneIdentityProofsAdmitsBothDeletesAtMaintenanceClass"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestPruneIdentityProofsFirstStatementErrorSkipsTheSecond"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestPruneIdentityProofsReclaimsABacklogInBatches"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestPruneIdentityProofsSecondStatementErrorLeavesFirstCommitted"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestPruneIdentityProofsWaitsForTheWriterGate"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestReadingClosureSchemaAndRawPlans"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestReadingInventoryInvalidatesOnlyEffectiveChangesAndKeepsInsertDelete"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestReadingInventoryInvalidationGuardCoversWatchedColumns"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestReadingPathParkedScopesHaveUnparkEvents"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestReadingPublicationLocationAndUnlinkIntegrity"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestReadingRecentProgressSeeksOwnerCursor"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestReadingSourceValuesInventoryObjectLookupAndCascade"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestReadingSourceValuesKeepTypedPerPublicationEvidence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestRebaseChunkFitsTheMaintenancePlan"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestRebaseRefusesAJobFromAnotherRegistry"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestRebaseResumesAnInterruptedMoveExactlyOnce"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestRebaseStatePathsOnMovedState"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestRecommendationsBaselineDoesNotInventPeopleOrRepeatWork"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestRestoreAcceptsACopyOfARunningServer"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestRestoreRebuildsADamagedIndex"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestRestoreRebuildsANonBinaryIndex"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestRestoreSalvagesADamagedTable"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestSalvageReportsLossUnderANonBinaryIndex"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestSchemaMismatchRefusesWithoutChangingState"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestSchemaTemplateProducesTheSameDatabaseAsAFullInstall"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestSeededTablesMatchAFreshInstall"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestSegmentPendingActivityTickReadNeverTouchesSegmentFiles"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestSegmentPendingActivityTracksPendingRowsExactly"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestSelectionActionJournalStorageAndTransitionGuards"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestSetAdmitsConfigurationWriteThroughTheWriterGate"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestShowSourceEditionIsPrivateTextWithLegacyEmptyDefault"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestStorageLimitChecksReadTheCounterFirstAndSeekTheirKeys"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestStorageStatusLeavesOldEvidenceUntouched"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestSummaryClassificationRevisionEffectiveChanges"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestTriggerJoinsSearchInsteadOfScan"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestVerifySchemaObjectsFindsRestoredMeasurementRevisionLoss"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestVerifySchemaObjectsNamesAMissingObjectOfEachKind"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestVerifySeededRowsNamesEachMissingRow"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
+      "test": "TestWebDAVSetupFactsSchemaRequiresExplicitCurrentObservations"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestActivityCleanupFailureRetainsEvidence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestActivityFailedAndExpiredCleanup"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestActivityPaginationReportsAndScope"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestActivitySparseOpenCost"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestActivityStopOwnedSupervisorCleanup"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestAudioRenditionLabelMatchesManifestContract"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestAudioReservationSurvivesFailedCleanupAndSessionDeletion"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestConversionFallbackAppliesTheMembersCurrentCap"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestConversionFallbackKeepsThePresentationCeilings"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestConversionFallbackUsesAdmissionsViewOfTheConnection"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestConversionTargetSurvivesSessionReadback"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestDeliveryPreflightRechecksActualAcceptingConfiguration"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestFinitePostAnalyzeWriterCannotPublishAfterStopOrSuccessor"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestLegacySubtitleReplanAppliesCurrentCeilings"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestMemoryDiscAndFiniteStreamingPlacement"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestMemoryStartupIncompleteOutputRestartsAtRequestedSegment"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestOccurrenceStopFencesActualClassicFiniteRenditionEntries"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestOfferedQualityLadderPerKindAndCurrentIsOffered"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestQuiesceRefusesCarriedSnapshotBeforeWork"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestReplanRefusesAV1PresentationWhoseCeilingsWereNotStored"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestSessionAcceptedBindingInvalidEvidenceRollsBack"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestSessionAcceptedBindingSourceFences"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestStopClaimRebindAfterDrainKeepsFrozenOccurrence"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestSubtitleReplanAppliesTheMembersCurrentCeilings"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestTheSweepDoesNotHoldTheLockAcrossTheFilesystem"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestWindowCopyTimelineRefusesPacketFallback"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackdisc",
+      "test": "TestDiscActiveFamilyContinuationRefusesRetiredOrForeignBindings"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackdisc",
+      "test": "TestDiscDerivedGenerationRetainsExactInputAndOriginalExpiry"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackdisc",
+      "test": "TestDiscDerivedPublicationRepeatsOriginalAndCurrentProof"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackdisc",
+      "test": "TestDriftRefused"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackdisc",
+      "test": "TestZeroQueueCustodyDoesNotSupplyMissingQueueProof"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackruntime",
+      "test": "TestChannelReadRevalidatesRetainedAuthority"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackruntime",
+      "test": "TestLiveSourceFenceSurvivesAGuideRefresh"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestA3RealSixteenCheckpointBatchEpochAndCost"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestAdminSessionsBorrowCallerReadForPresentFacts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestConvertingSeekRestartsOnlyAfterRevisionCommit"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestGrowingQueryShuffleKeepsTheSameSeededOrder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestPassoutProtectionNeedsAnAvailableAutomaticSuccessor"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestQueryCaptureDoesNotMixRevisionsAfterRestart"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestQueryCaptureHeldBasisChecksFreshBatchAndFinalCommit"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestQueryCaptureResumesAfterRestartAtTheSameRevision"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestQueueCarryAdvanceFromAnotherDeviceKeepsContinuation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestQueueCarryAdvanceRetainsLanguagesAcrossFilesAndEndedCompletion"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestQueueCarryExplicitReplacementRetainsReplayAndRecovery"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestQueueCarryFreshPausedRestoreUsesCurrentSettings"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestQueueLocalOrderedRestartReconcilesAndExtendsPartialChunk"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestRefusedMutationsKeepPreparedPlayback"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestSkipEvidenceRequiresCurrentViewerVisibility"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestStopGenerationCapturesOnlyOriginalPreparedChildSet"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestStopGenerationOriginalAndEndedReplay"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestStopGenerationRefusalsHaveNoOccurrenceEffects"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestStopRacingABatchDrainsExactlyOnce"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestStopReceiptCompletionCapacityAndRollback"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestStopReceiptExplicitPositionDispositions"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestStopReceiptFencesOriginalPreparedChild"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestStopReceiptLookupFinishesBeforeAcknowledgement"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+      "test": "TestStopReceiptReplayReprovesOriginalItemAuthority"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/preferenceownership",
+      "test": "TestErasureIsQualifiedAndCascadesOrderedItems"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/preparedmedia",
+      "test": "TestViewIncludesAllSourcesJobsAndVersions"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/rcloneprogram",
+      "test": "TestBoundedFailure"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/rcloneprogram",
+      "test": "TestLockedDAVMixedOperationBudget"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/rcloneprogram",
+      "test": "TestLockedSFTPMixedOperationBudget"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/rcloneprogram",
+      "test": "TestLockedSMBMixedOperationBudget"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/reading",
+      "test": "TestPreparationRawWindowAdvancesAcrossIneligibleTitles"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/reading",
+      "test": "TestPreparationRawWindowUsesPKBeforeEligibility"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/reading",
+      "test": "TestReadingAttributionClearsStaleSeriesAndKeepsOwnerValues"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/recordingaccess",
+      "test": "TestBatchMatchesPerLibraryPolicy"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/recordingmedia",
+      "test": "TestRecordingLayoutActualStoreAndIO"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotemedia",
+      "test": "TestExclusiveSourceTestStuckDrainIsBusyAtFiveSeconds"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotemedia",
+      "test": "TestExclusiveSourceTestTwentySecondWorkIsTerminatedAtFifteen"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotemedia",
+      "test": "TestSourceDAVSetupDiagnosticPacesRequestsAndBytes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotemedia",
+      "test": "TestSourceDAVSetupRangeFactsNeverInferSupport"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotemedia",
+      "test": "TestSourceDAVSetupSharesThreeRequestsAcrossLeafDiagnostics"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestCandidateSourceTestDrainsThenResumesExistingProcess"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestCandidateSourceTestStuckReaderBusyAndTwentySecondChildTimeout"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestConditionalDiscSelectionRefusesDriftWithoutAdoptingReplacement"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestEpisodeLocalSourceUsesConfinedActualScanIdentity"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestEpisodeRangesFactsRequireCurrentTargetAndObservation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestExplicitEpisodeFenceRechecksRealActorTargetAndSource"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestNativeListingInvalidationCannotPublishPartialSnapshot"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestRemoteAbsenceWriterFencesCapturedListingAndConfiguration"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestRemoteDiscOriginRefusesAnalysisPurposesWithConsent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestRemoteSourceRefreshDoesNotWakeItselfForUnchangedMounts"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestRemoteSourceWakeIgnoresTelemetryAndRetainsActualInputs"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestRemovedSourceLinkedFilesKeepWritesWithinClassPlan"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestSourceControllerRealSharedProcessAndScanPublication"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestSourceMetadataCaptureRechecksCurrentSourceAndProfile"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestSubtitlePlaybackSourceFactsRefuseChangedPhysicalSelection"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/remotesources",
+      "test": "TestVerificationListingFenceRejectsEpochAndSourceDrift"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/scanevents",
+      "test": "TestScanAnalysisProgressChangesWithStableFoundCount"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/segmentdetect",
+      "test": "TestSeasonIntroAndCreditsFromSharedThemes"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/segmentdetect",
+      "test": "TestShowWithoutIntroFindsNothing"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/social",
+      "test": "TestJoinedParticipantsRemainVisibleInsideTheirRoom"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/storage",
+      "test": "TestPlaybackAdmissionAndCanceledReader"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/storage",
+      "test": "TestWindowsIdleProbeFixture"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/storage",
+      "test": "TestWindowsProbeDeadlineFixture"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/streamlimits",
+      "test": "TestModesPreserveIntentAndCannotBypassServerCeiling"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/subtitles",
+      "test": "TestAutoSelectAppliesOnceAndOnlyToStoredText"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/subtitles",
+      "test": "TestPlaybackSourceInvocationRechecksCurrentActorSessionAndPin"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/subtitles",
+      "test": "TestSelectionRefusesBeforeDiscoveredBurnCacheExtraction"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/subtitles",
+      "test": "TestSubtitleValidationRefusesStaleSourceAndRetiredAuthorityBeforePublication"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/subtitlevideo",
+      "test": "TestExtractionProgressResetsOnlyForSuccessfulInput"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/subtitlevideo",
+      "test": "TestSelectedRemoteStorageNeverFallsBackToPathAcquisition"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/subtitlevideo",
+      "test": "TestSubtitleSessionUsesAcceptedPlaybackBinding"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/tableretention",
+      "test": "TestBackgroundSpeedControlsRetentionQuantum"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/tableretention",
+      "test": "TestBoundAllowsInterningAndIntentReplayThroughNaturalKeys"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/tableretention",
+      "test": "TestCandidatePagePlanUsesTheAgeIndex"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/tableretention",
+      "test": "TestExpiredGroupHistoryIsDismantledBeforeTheParent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/tableretention",
+      "test": "TestPermanentBoundKeepsExactReplayAndUpdateAtTheCeiling"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/tableretention",
+      "test": "TestPruneParentExaminesOnePagePerCall"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/tableretention",
+      "test": "TestRetentionUsesImportedAndOwnerSavedSpeedOnTheNextBatch"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/tableretention",
+      "test": "TestSweepBoundsReceiptsAndPreservesLiveWork"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/tableretention",
+      "test": "TestSweepExaminesOnePagePerPolicy"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/telemetry",
+      "test": "TestTelemetryPersistsOneBoundedSampleWithoutPerMetricStatements"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite",
+      "test": "TestWALIOPreservesNativeWriteFailureAndCountsAttempt"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/usermutation",
+      "test": "TestRootlessReceiptCapturesProfileLifetimeAndNeverReplaysAcrossRotation"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/webhooks",
+      "test": "TestCatalogueChangesBecomeEventsOnlyForSubscribers"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/webhooks",
+      "test": "TestDeliveryIsSignedRetriedAndLogged"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/webhooks",
+      "test": "TestEveryEventTriggerRunsAndQueuesItsEvent"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/webhooks",
+      "test": "TestOwnerTransferRetiresTestsOnlyOnCommitAndRequiresFreshApproval"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/webhooks",
+      "test": "TestPausedWebhookDoesNotStarveHealthy"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/webhooks",
+      "test": "TestRetiredInflightResponseCannotSettleNewGeneration"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/webhooks",
+      "test": "TestWebhookRetryPreservesEventOrder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/webhooks",
+      "test": "TestWebhookSameMillisecondEventsKeepInsertionOrder"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/webhooks",
+      "test": "TestWebhookValidationRefusesWhatItShould"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/workpolicy",
+      "test": "TestAdmissionReadsDurablePolicyAfterReopen"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/workpolicy",
+      "test": "TestHeavyWorkFactsReadCurrentWindowsAndIndependentPause"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/workpolicy",
+      "test": "TestHeavyWorkFactsRejectMissingAndUnsupportedAuthority"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/workpolicy",
+      "test": "TestHeavyWorkNextAdmissionUsesTheSameCalendarAndPause"
+    }
+  ]
+}

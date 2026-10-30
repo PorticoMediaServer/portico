@@ -1,0 +1,11 @@
+.dock { position: fixed; z-index: var(--layer-player); inset: auto 0 0; view-transition-name: playback; }
+.dock[data-phone='true'] { inset: auto 8px calc(56px + env(safe-area-inset-bottom, 0px) + 8px); }
+/* Navigation changes only the existing dock's inset, never its media owner. */
+:global(body:has([data-navigation='rail'])) .dock { left: 84px; }
+:global(body:has([data-navigation='rail'])) .dock[data-phone='true'] { left: 92px; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+:global(body:has([data-navigation='sidebar'])) .dock { left: 248px; }
+.expandedSlot { position: fixed; inset: 0; background: var(--color-ink); z-index: var(--layer-player); }
+.expandedSlot[hidden] { display: none; }
+.surface:not([data-docked]) { pointer-events: auto; }
+.collapse { position: fixed; top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); z-index: var(--layer-menu); }
+:global(::view-transition-group(playback)) { animation: none; }

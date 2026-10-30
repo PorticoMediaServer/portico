@@ -1,0 +1,223 @@
+{
+  "schema": 1,
+  "source": {
+    "repository": "https://github.com/quietvoid/dovi_tool",
+    "commit": "26ed61ff36f946313889a09c0d2da202e9ceb97a",
+    "archiveSha256": "1438f8aaede8c3ccecfdc873f659cac320bb4ff483b906109b177f21c86a19b0",
+    "crate": "3.4.0"
+  },
+  "license": "GPL-3.0-only; mathematical generated metadata, no supplied licensed samples",
+  "generatorLockSha256": "1196d6d8d3dce2673c9ce17e15665f8209b8d8d9a0e8509244711ed6a224a060",
+  "fixtures": [
+    {
+      "path": "dv-5-V29.rpu",
+      "frames": 24,
+      "profile": "5",
+      "cm": "V29",
+      "bytes": 3215,
+      "recipe": {
+        "cm_version": "V29",
+        "profile": "5",
+        "length": 24,
+        "level6": null,
+        "shots": [
+          {
+            "start": 0,
+            "duration": 24
+          }
+        ]
+      },
+      "scope": "generated RPU parser/BSF fixture; no licensed imagery or FEL reconstruction proof",
+      "sha256": "7258b7fd2636a43139a8d24674107dca507a490e16301f9727bb8510babd03d7"
+    },
+    {
+      "path": "dv-8.1-V29.rpu",
+      "frames": 24,
+      "profile": "8.1",
+      "cm": "V29",
+      "bytes": 3239,
+      "recipe": {
+        "cm_version": "V29",
+        "profile": "8.1",
+        "length": 24,
+        "level6": null,
+        "shots": [
+          {
+            "start": 0,
+            "duration": 24
+          }
+        ]
+      },
+      "scope": "generated RPU parser/BSF fixture; no licensed imagery or FEL reconstruction proof",
+      "sha256": "38abdac768ea2b2556bec1ccc6db521e9908ef5ea954327487c0d3952f35b797"
+    },
+    {
+      "path": "dv-8.4-V29.rpu",
+      "frames": 24,
+      "profile": "8.4",
+      "cm": "V29",
+      "bytes": 8832,
+      "recipe": {
+        "cm_version": "V29",
+        "profile": "8.4",
+        "length": 24,
+        "level6": null,
+        "shots": [
+          {
+            "start": 0,
+            "duration": 24
+          }
+        ]
+      },
+      "scope": "generated RPU parser/BSF fixture; no licensed imagery or FEL reconstruction proof",
+      "sha256": "d66925290be4e8a86f5a47134478b83c8c47690107f328b7abe46fe024a9ba30"
+    },
+    {
+      "path": "dv-7-MEL-V29.rpu",
+      "frames": 24,
+      "profile": "7-MEL",
+      "cm": "V29",
+      "bytes": 4130,
+      "recipe": {
+        "cm_version": "V29",
+        "profile": "8.1",
+        "length": 24,
+        "level6": null,
+        "shots": [
+          {
+            "start": 0,
+            "duration": 24
+          }
+        ]
+      },
+      "scope": "generated RPU parser/BSF fixture; no licensed imagery or FEL reconstruction proof",
+      "sha256": "5a18ef1602c96379459547a513e5f588b6d732931088e4828550ee890852a635"
+    },
+    {
+      "path": "dv-7-FEL-V29.rpu",
+      "frames": 24,
+      "profile": "7-FEL",
+      "cm": "V29",
+      "bytes": 4176,
+      "recipe": {
+        "cm_version": "V29",
+        "profile": "8.1",
+        "length": 24,
+        "level6": null,
+        "shots": [
+          {
+            "start": 0,
+            "duration": 24
+          }
+        ]
+      },
+      "scope": "generated RPU parser/BSF fixture; no licensed imagery or FEL reconstruction proof",
+      "sha256": "a188ad7880b63a9b4a19566250e6a0c590b372ad9e01183a7f849313ae3b1319"
+    },
+    {
+      "path": "dv-5-V40.rpu",
+      "frames": 24,
+      "profile": "5",
+      "cm": "V40",
+      "bytes": 3695,
+      "recipe": {
+        "cm_version": "V40",
+        "profile": "5",
+        "length": 24,
+        "level6": null,
+        "shots": [
+          {
+            "start": 0,
+            "duration": 24
+          }
+        ]
+      },
+      "scope": "generated RPU parser/BSF fixture; no licensed imagery or FEL reconstruction proof",
+      "sha256": "c73cde980382e49eafc0250dcf1ec46b237d12a96f3522719c217f1eb7dcd318"
+    },
+    {
+      "path": "dv-8.1-V40.rpu",
+      "frames": 24,
+      "profile": "8.1",
+      "cm": "V40",
+      "bytes": 3719,
+      "recipe": {
+        "cm_version": "V40",
+        "profile": "8.1",
+        "length": 24,
+        "level6": null,
+        "shots": [
+          {
+            "start": 0,
+            "duration": 24
+          }
+        ]
+      },
+      "scope": "generated RPU parser/BSF fixture; no licensed imagery or FEL reconstruction proof",
+      "sha256": "bdbb78c722d7e1f8606c4d8ca799f5c7ae0f48f6fa69cf9f74de828fdec96611"
+    },
+    {
+      "path": "dv-8.4-V40.rpu",
+      "frames": 24,
+      "profile": "8.4",
+      "cm": "V40",
+      "bytes": 9312,
+      "recipe": {
+        "cm_version": "V40",
+        "profile": "8.4",
+        "length": 24,
+        "level6": null,
+        "shots": [
+          {
+            "start": 0,
+            "duration": 24
+          }
+        ]
+      },
+      "scope": "generated RPU parser/BSF fixture; no licensed imagery or FEL reconstruction proof",
+      "sha256": "84c2d78468b33fbf29e780341ce6fcaba151089005717fb8e28b11918d09d7fc"
+    },
+    {
+      "path": "dv-7-MEL-V40.rpu",
+      "frames": 24,
+      "profile": "7-MEL",
+      "cm": "V40",
+      "bytes": 4610,
+      "recipe": {
+        "cm_version": "V40",
+        "profile": "8.1",
+        "length": 24,
+        "level6": null,
+        "shots": [
+          {
+            "start": 0,
+            "duration": 24
+          }
+        ]
+      },
+      "scope": "generated RPU parser/BSF fixture; no licensed imagery or FEL reconstruction proof",
+      "sha256": "90b927afe7bb1c8ddd552dd52bb9940627c729704aef85b949947a6dbe7a3acc"
+    },
+    {
+      "path": "dv-7-FEL-V40.rpu",
+      "frames": 24,
+      "profile": "7-FEL",
+      "cm": "V40",
+      "bytes": 4656,
+      "recipe": {
+        "cm_version": "V40",
+        "profile": "8.1",
+        "length": 24,
+        "level6": null,
+        "shots": [
+          {
+            "start": 0,
+            "duration": 24
+          }
+        ]
+      },
+      "scope": "generated RPU parser/BSF fixture; no licensed imagery or FEL reconstruction proof",
+      "sha256": "9fc9325175329cf974f11cfddebe987459725855b891041bc30e4b247a8afcc7"
+    }
+  ]
+}

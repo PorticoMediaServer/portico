@@ -1,0 +1,2 @@
+.name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.current { display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 6px; background: color-mix(in srgb, var(--color-accent) 14%, transparent); color: var(--color-accent-strong); font-size: var(--type-fixed-size-11point-5px); font-weight: var(--type-fixed-weight-700); }

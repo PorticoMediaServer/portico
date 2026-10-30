@@ -1,0 +1,80 @@
+/* The authored Custom line: remote-sources.html#4d tiles 4 and 6, .presetrow
+   (remote-sources.html lines 1083-1088). The rule itself carries no surface:
+   the source page wraps it in .box (line 96: var(--color-raised), border-radius 14px)
+   and the wizard tiles specify their own surface inline. The caller
+   owns that wrapper, so this module draws layout only and adds no decoration. */
+.presetRow {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 22px;
+  line-height: normal;
+}
+.icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  color: var(--color-accent-strong);
+}
+.text { min-width: 0; }
+.text b { display: block; font-size: var(--type-fixed-size-16px); font-weight: var(--type-fixed-weight-700); }
+/* Two classes plus the element, so the authored 4px lead survives the kit's
+   .dialogBody p { margin: 0 } (one class plus the element) regardless of chunk order. */
+.presetRow .text p { margin: 4px 0 0; font-size: var(--type-fixed-size-14px); color: var(--color-text-tertiary); line-height: var(--type-fixed-line-1point-5); max-width: 560px; }
+/* .tagr.g (remote-sources.html:955): the changed-count tag the frame actually draws. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: var(--type-fixed-size-11point-5px);
+  font-weight: var(--type-fixed-weight-700);
+  letter-spacing: var(--type-fixed-tracking-0);
+  background: color-mix(in srgb, var(--color-text) 10%, transparent);
+  color: var(--color-text-secondary);
+}
+.actions { display: flex; gap: 8px; }
+/* Effective authored .btn.xs inside .wz: remote-sources.html:224 sets 0 14 padding,
+   :932 overrides only the height to 34, and :130's 0 13 never applies. The kit xs
+   already draws 34 / r9 / gap 6 / 14px; only the inset differs, and this bounded
+   rule (element plus attribute beats .button[data-size="xs"]) makes it 14px. */
+.actions button[data-size="xs"] { --control-inset: 14px; }
+
+/* The phone row: remote-sources.html#11c, .mg > .lr.noic with min-height 62 in the
+   tile, and the row metrics at :271-278. No icon and no count tag; the frame draws
+   only the reset word here. The caller's .mg owns the 16px page margin and surface. */
+.phoneRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 62px;
+  padding: 8px 14px;
+  font-size: var(--type-fixed-size-15point-5px);
+  font-weight: var(--type-fixed-weight-600);
+  line-height: normal;
+  text-align: left;
+}
+.phoneText { flex: 1; min-width: 0; }
+.phoneRow b { display: block; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); }
+.phoneRow small { display: block; font-size: var(--type-fixed-size-12point-5px); color: var(--color-text-tertiary); font-weight: var(--type-fixed-weight-500); margin-top: 2px; line-height: var(--type-fixed-line-1point-4); }
+/* The drawn span is .lr .v.dd: accent-strong, 14.5/600, gap 2, pushed right and
+   never shrunk. The kit's text variant already gives the canonical focus ring and
+   disabled state; these bounded rules take its box down to that span's metrics. */
+.phoneRow button[data-size="xs"] {
+  --control-height: auto;
+  --control-radius: 0;
+  --control-inset: 0;
+  --control-gap: 2px;
+  margin-left: auto;
+  flex: none;
+  font-size: var(--type-fixed-size-14point-5px);
+  font-weight: var(--type-fixed-weight-600);
+  color: var(--color-accent-strong);
+}
+.phoneRow button[data-size="xs"]:hover:not(:disabled) { background: none; color: var(--color-accent-strong); }

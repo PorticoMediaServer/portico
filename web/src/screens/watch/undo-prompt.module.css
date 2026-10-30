@@ -1,0 +1,10 @@
+/* desktop-player .undo and phone-player .undo, at their drawn sizes. */
+.notice { --undo-size: 15.5px; --undo-weight: 700; --undo-action-size: 15px; position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 16px; height: 54px; padding: 0 8px 0 20px; border-radius: 14px; font-size: var(--undo-size); font-weight: var(--undo-weight); line-height: normal; color: var(--color-text); background: color-mix(in srgb, var(--color-player-notice) 84%, transparent); backdrop-filter: blur(24px); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent), 0 18px 36px -14px var(--color-shadow); }
+.notice button { height: 40px; padding: 0 14px 0 11px; border-radius: 10px; border: 0; background: color-mix(in srgb, var(--color-text) 14%, transparent); color: var(--color-text); display: inline-flex; align-items: center; gap: 7px; font-size: var(--undo-action-size); font-weight: var(--type-button-weight); cursor: pointer; }
+.notice button:hover { background: color-mix(in srgb, var(--color-text) 22%, transparent); }
+.notice button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.remaining { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--color-accent-strong); }
+.notice[data-layout='phone'] { --undo-size: 14.5px; --undo-weight: 600; --undo-action-size: 14.5px; height: auto; gap: 14px; padding: 6px 6px 6px 16px; border-radius: 12px; background: color-mix(in srgb, var(--color-ink) 76%, transparent); backdrop-filter: blur(20px); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent), 0 14px 30px -12px color-mix(in srgb, var(--color-shadow) 80%, transparent); color: var(--color-text-secondary); }
+.notice[data-layout='phone'] button { height: 36px; border-radius: 8px; background: color-mix(in srgb, var(--color-text) 16%, transparent); gap: 6px; }
+.notice[data-layout='phone'] .remaining { height: 2px; background: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.notice[data-layout='tablet'] button { height: 44px; }

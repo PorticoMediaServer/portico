@@ -1,0 +1,137 @@
+{
+  "schema": "GetPlaybackOptionsResponse",
+  "method": "GET",
+  "path": "/v1/items/{itemId}/playback-options",
+  "auth": "device",
+  "status": 200,
+  "response": {
+    "itemId": "5Sqw8-jfkN_7zwkkd4X54Q",
+    "kind": "movie",
+    "versions": [
+      {
+        "id": "9kWnBwLaqUJQTopURBGupz7qLAJa_KckV-qaz3dbLac",
+        "label": "1080p · MP4",
+        "container": "mp4",
+        "sizeBytes": 10,
+        "durationMs": 600000,
+        "parts": [
+          {
+            "id": "9kWnBwLaqUJQTopURBGupz7qLAJa_KckV-qaz3dbLac",
+            "index": 0,
+            "durationMs": 600000,
+            "sizeBytes": 10
+          }
+        ],
+        "video": [],
+        "audio": [],
+        "subtitles": []
+      }
+    ],
+    "chapters": [],
+    "markers": [],
+    "qualities": [
+      {
+        "mode": "original",
+        "sameAsOriginal": false,
+        "applicable": true
+      },
+      {
+        "mode": "automatic",
+        "sameAsOriginal": false,
+        "applicable": true
+      },
+      {
+        "mode": "fixed",
+        "id": "2160p",
+        "maxHeight": 2160,
+        "maxVideoBitrateKbps": 40000,
+        "maxAudioBitrateKbps": 192,
+        "sameAsOriginal": false,
+        "dataGBPerHour": 18,
+        "applicable": false
+      },
+      {
+        "mode": "fixed",
+        "id": "1080p-high",
+        "maxHeight": 1080,
+        "maxVideoBitrateKbps": 20000,
+        "maxAudioBitrateKbps": 192,
+        "sameAsOriginal": false,
+        "dataGBPerHour": 9,
+        "applicable": false
+      },
+      {
+        "mode": "fixed",
+        "id": "1080p-low",
+        "maxHeight": 1080,
+        "maxVideoBitrateKbps": 8000,
+        "maxAudioBitrateKbps": 192,
+        "sameAsOriginal": false,
+        "dataGBPerHour": 3.6,
+        "applicable": false
+      },
+      {
+        "mode": "fixed",
+        "id": "720p-high",
+        "maxHeight": 720,
+        "maxVideoBitrateKbps": 4000,
+        "maxAudioBitrateKbps": 128,
+        "sameAsOriginal": false,
+        "dataGBPerHour": 1.8,
+        "applicable": false
+      },
+      {
+        "mode": "fixed",
+        "id": "720p-low",
+        "maxHeight": 720,
+        "maxVideoBitrateKbps": 2000,
+        "maxAudioBitrateKbps": 128,
+        "sameAsOriginal": false,
+        "dataGBPerHour": 0.9,
+        "applicable": false
+      },
+      {
+        "mode": "fixed",
+        "id": "480p",
+        "maxHeight": 480,
+        "maxVideoBitrateKbps": 1500,
+        "maxAudioBitrateKbps": 96,
+        "sameAsOriginal": false,
+        "dataGBPerHour": 0.675,
+        "applicable": false
+      },
+      {
+        "mode": "fixed",
+        "id": "240p",
+        "maxHeight": 240,
+        "maxVideoBitrateKbps": 500,
+        "maxAudioBitrateKbps": 96,
+        "sameAsOriginal": false,
+        "dataGBPerHour": 0.225,
+        "applicable": false
+      }
+    ],
+    "preferred": {
+      "versionId": "9kWnBwLaqUJQTopURBGupz7qLAJa_KckV-qaz3dbLac",
+      "reason": "default",
+      "quality": {
+        "mode": "original"
+      }
+    },
+    "plan": {
+      "versionId": "9kWnBwLaqUJQTopURBGupz7qLAJa_KckV-qaz3dbLac",
+      "mode": "direct",
+      "engine": "native",
+      "streams": [],
+      "quality": {
+        "mode": "original"
+      }
+    },
+    "alternatives": [
+      {
+        "versionId": "9kWnBwLaqUJQTopURBGupz7qLAJa_KckV-qaz3dbLac",
+        "label": "1080p · MP4"
+      }
+    ]
+  }
+}

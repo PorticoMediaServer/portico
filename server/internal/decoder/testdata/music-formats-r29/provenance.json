@@ -1,0 +1,60 @@
+{
+  "input": {
+    "file": "source.wav",
+    "sha256": "a04712ad1db257af8672699d54b408fe31b9bf0aa8cf6b8a203d495de78dbf1d",
+    "channels": 2,
+    "sampleRate": 44100,
+    "bitDepth": 16,
+    "frames": 22050
+  },
+  "source": "Procedural mathematical tones only, no recordings. Encoders are test tools, not redistributed.",
+  "encoding": {
+    "ape": "JMAC1.74 c2 (normal compression)",
+    "mpc7": "mppenc1.16 --silent, source build -fno-strict-aliasing; runtime-initialized fastmath tables tabatan2/tabcos/tabsqrt_ex/tabsqrt_m made non-const in fastmath.c/mppenc.h to avoid readonly writes",
+    "mpc8": "Musepack encoder r495 --silent"
+  },
+  "tools": [
+    {
+      "package": "libcue2_2.2.1-4.2_amd64.deb",
+      "sha256": "6495164789f5e923a7cbb2dc8343a7e773fdce7210e0fcdb2df72c2629860365",
+      "source": "authenticated apt package index",
+      "installedToHost": false
+    },
+    {
+      "package": "libjmac-java_1.74-8_all.deb",
+      "sha256": "8349fa7ab99f431ad781e230ef395aa3b276e15d0522ed9d561c40c92706e51e",
+      "source": "authenticated apt package index",
+      "installedToHost": false
+    },
+    {
+      "package": "libmpcdec6_2%3a0.1~r495-3build1_amd64.deb",
+      "sha256": "6c3f7b249044fde4cb4da58debea9c240f711e186fc5c1e365754bcf28c5be48",
+      "source": "authenticated apt package index",
+      "installedToHost": false
+    },
+    {
+      "package": "libreplaygain1_1.0~r475-4build1_amd64.deb",
+      "sha256": "d0b170db8fc7f90951a0d61841a880d38ec3e50830d3d0b5f0b70f55189d8e02",
+      "source": "authenticated apt package index",
+      "installedToHost": false
+    },
+    {
+      "package": "mppenc_1.16-3_amd64.deb",
+      "sha256": "0104d6a36b0e71d07d64016d3424351060071a4b358aee1cccfc548771edcb98",
+      "source": "authenticated apt package index",
+      "installedToHost": false
+    },
+    {
+      "package": "musepack-tools_2%3a0.1~r495-3build1_amd64.deb",
+      "sha256": "5d7ff6889775b1f3752956cac85caf20c38baaf84f67cf90822c11be1808187e",
+      "source": "authenticated apt package index",
+      "installedToHost": false
+    }
+  ],
+  "sourceArchives": {
+    "mppenc1.16": "https://deb.debian.org/debian/pool/main/m/mppenc/mppenc_1.16.orig.tar.gz",
+    "mppenc1.16Sha256": "228ede067c9d2e86d57ebaa8c5a578d6416afb6e1c3033874bfe2a89b84af979",
+    "libmpcHeaderReference": "https://deb.debian.org/debian/pool/main/libm/libmpc/libmpc_0.1~r495.orig.tar.gz",
+    "libmpcSha256": "5182d7a30eec1b338cafc9c1706d663a6c8dc217b1d90187054512074f662202"
+  }
+}

@@ -1,0 +1,273 @@
+{
+  "schema": 1,
+  "fixtures": [
+    {
+      "id": "bluray-two-clip-bdmv",
+      "path": "bluray-two-clip-bdmv",
+      "files": {
+        "BDMV/BACKUP/CLIPINF/00001.clpi": "a4f1f860611d27821e2f4cc9d0f10ed79da10478cd561b8e388a05825ac2b543",
+        "BDMV/BACKUP/CLIPINF/00002.clpi": "cdb7b2be8b8a1a41108d5c2afd8ff3047dc110574be0362211be7604bdbf368f",
+        "BDMV/BACKUP/MovieObject.bdmv": "8db728eeaff6768cf6871d585cc6f46adae9bcd7d945ecba32787ebe85681ded",
+        "BDMV/BACKUP/PLAYLIST/00001.mpls": "ad861c6b9b13e89ae7b9fb657021a1112b11e4ed1154efc68605fdc8f4290c21",
+        "BDMV/BACKUP/index.bdmv": "06d93a945547bc14fa70776f95369d15c7ea4dd3ad1107cfcac6f8ef52114ad4",
+        "BDMV/CLIPINF/00001.clpi": "a4f1f860611d27821e2f4cc9d0f10ed79da10478cd561b8e388a05825ac2b543",
+        "BDMV/CLIPINF/00002.clpi": "cdb7b2be8b8a1a41108d5c2afd8ff3047dc110574be0362211be7604bdbf368f",
+        "BDMV/MovieObject.bdmv": "8db728eeaff6768cf6871d585cc6f46adae9bcd7d945ecba32787ebe85681ded",
+        "BDMV/PLAYLIST/00001.mpls": "ad861c6b9b13e89ae7b9fb657021a1112b11e4ed1154efc68605fdc8f4290c21",
+        "BDMV/STREAM/00001.m2ts": "f9c913c57624366e7cce6e083498d097d4096610f8f0a0ae1c43fd126656e825",
+        "BDMV/STREAM/00002.m2ts": "7bee2f95862573b079690a41ebf5a93182dc85e91d95f6cb58af65490a00e820",
+        "BDMV/index.bdmv": "06d93a945547bc14fa70776f95369d15c7ea4dd3ad1107cfcac6f8ef52114ad4"
+      },
+      "expected": {
+        "schema": 1,
+        "kind": "bluray",
+        "packaging": "folder",
+        "encryption": "none",
+        "titles": [
+          {
+            "discOrder": 0,
+            "playlist": 1,
+            "playlistFile": "00001.mpls",
+            "durationMs": 72041,
+            "angleCount": 1,
+            "clips": [
+              {
+                "sequence": 0,
+                "file": "00001.m2ts",
+                "inTime90k": 54000000,
+                "outTime90k": 57330000
+              },
+              {
+                "sequence": 1,
+                "file": "00002.m2ts",
+                "inTime90k": 57330000,
+                "outTime90k": 60483750
+              }
+            ],
+            "streams": [
+              {
+                "clipSequence": 0,
+                "pid": 4113,
+                "kind": "video",
+                "coding": 27,
+                "language": "",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": false
+              },
+              {
+                "clipSequence": 0,
+                "pid": 4352,
+                "kind": "audio",
+                "coding": 129,
+                "language": "eng",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": false
+              },
+              {
+                "clipSequence": 1,
+                "pid": 4113,
+                "kind": "video",
+                "coding": 27,
+                "language": "",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": false
+              },
+              {
+                "clipSequence": 1,
+                "pid": 4352,
+                "kind": "audio",
+                "coding": 129,
+                "language": "eng",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": false
+              }
+            ],
+            "chapters": [
+              {
+                "startMs": 0
+              },
+              {
+                "startMs": 36000
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "dvd-two-title-video-ts",
+      "path": "dvd-two-title-video-ts",
+      "files": {
+        "VIDEO_TS/VIDEO_TS.BUP": "4f683b29e8fbb6bc7bbd408107c3d6a6b76a0732bb69f599ca210578b0ff38e6",
+        "VIDEO_TS/VIDEO_TS.IFO": "4f683b29e8fbb6bc7bbd408107c3d6a6b76a0732bb69f599ca210578b0ff38e6",
+        "VIDEO_TS/VTS_01_0.BUP": "002d3409e9dfa6c8f9356b8138cadd534c98f58e26507892c9fc8d5fd915fed8",
+        "VIDEO_TS/VTS_01_0.IFO": "002d3409e9dfa6c8f9356b8138cadd534c98f58e26507892c9fc8d5fd915fed8",
+        "VIDEO_TS/VTS_01_1.VOB": "1e248faec755cd1438518b1888c114fae5406ff5f0a09a733d0cd1677e351c03"
+      },
+      "expected": {
+        "schema": 1,
+        "kind": "dvd",
+        "packaging": "folder",
+        "encryption": "none",
+        "titles": [
+          {
+            "discOrder": 0,
+            "title": 1,
+            "vts": 1,
+            "pgc": 1,
+            "durationMs": 72000,
+            "angleCount": 1,
+            "clips": [],
+            "streams": [
+              {
+                "clipSequence": 0,
+                "pid": 480,
+                "kind": "video",
+                "coding": 2,
+                "language": "",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": true
+              },
+              {
+                "clipSequence": 0,
+                "pid": 128,
+                "kind": "audio",
+                "coding": 0,
+                "language": "en",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": true
+              }
+            ],
+            "chapters": [
+              {
+                "startMs": 0
+              },
+              {
+                "startMs": 36000
+              }
+            ]
+          },
+          {
+            "discOrder": 1,
+            "title": 2,
+            "vts": 1,
+            "pgc": 2,
+            "durationMs": 66000,
+            "angleCount": 1,
+            "clips": [],
+            "streams": [
+              {
+                "clipSequence": 0,
+                "pid": 480,
+                "kind": "video",
+                "coding": 2,
+                "language": "",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": true
+              },
+              {
+                "clipSequence": 0,
+                "pid": 128,
+                "kind": "audio",
+                "coding": 0,
+                "language": "en",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": true
+              }
+            ],
+            "chapters": [
+              {
+                "startMs": 0
+              },
+              {
+                "startMs": 33120
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bluray-udf250-iso",
+      "path": "bluray-udf250.iso",
+      "files": {
+        ".": "413b5ad02c02859824f0237f452c4d0228ac1e1a44420f59a1a2ab82d92696e9"
+      },
+      "expected": {
+        "schema": 1,
+        "kind": "bluray",
+        "packaging": "iso",
+        "encryption": "none",
+        "titles": [
+          {
+            "discOrder": 0,
+            "playlist": 1,
+            "playlistFile": "00001.mpls",
+            "durationMs": 72041,
+            "angleCount": 1,
+            "clips": [
+              {
+                "sequence": 0,
+                "file": "00001.m2ts",
+                "inTime90k": 54000000,
+                "outTime90k": 57330000
+              },
+              {
+                "sequence": 1,
+                "file": "00002.m2ts",
+                "inTime90k": 57330000,
+                "outTime90k": 60483750
+              }
+            ],
+            "streams": [
+              {
+                "clipSequence": 0,
+                "pid": 4113,
+                "kind": "video",
+                "coding": 27,
+                "language": "",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": false
+              },
+              {
+                "clipSequence": 0,
+                "pid": 4352,
+                "kind": "audio",
+                "coding": 129,
+                "language": "eng",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": false
+              },
+              {
+                "clipSequence": 1,
+                "pid": 4113,
+                "kind": "video",
+                "coding": 27,
+                "language": "",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": false
+              },
+              {
+                "clipSequence": 1,
+                "pid": 4352,
+                "kind": "audio",
+                "coding": 129,
+                "language": "eng",
+                "dolbyVisionEnhancementLayer": false,
+                "dolbyVisionEnhancementKnown": false
+              }
+            ],
+            "chapters": [
+              {
+                "startMs": 0
+              },
+              {
+                "startMs": 36000
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

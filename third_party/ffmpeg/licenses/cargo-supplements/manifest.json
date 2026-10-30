@@ -1,0 +1,191 @@
+{
+  "modules": {
+    "anes-0.1.6": {
+      "boundary": "Upstream license files at the crate recorded VCS commit; no copyright line is invented.",
+      "crateCargoSHA256": "42baf88fbaa6a98da7fd05e7e5359d5519616c07f3792cd6d706f813081df19b",
+      "crateVCS": {
+        "git": {
+          "sha1": "378ac7461ecac29fde9e10df7b08359d1315a9ad"
+        }
+      },
+      "files": [
+        {
+          "path": "anes-LICENSE-MIT",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+          "upstreamCommit": "378ac7461ecac29fde9e10df7b08359d1315a9ad",
+          "url": "https://raw.githubusercontent.com/zrzka/anes-rs/378ac7461ecac29fde9e10df7b08359d1315a9ad/LICENSE-MIT"
+        },
+        {
+          "path": "anes-LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+          "upstreamCommit": "378ac7461ecac29fde9e10df7b08359d1315a9ad",
+          "url": "https://raw.githubusercontent.com/zrzka/anes-rs/378ac7461ecac29fde9e10df7b08359d1315a9ad/LICENSE-APACHE"
+        }
+      ],
+      "license": "MIT OR Apache-2.0",
+      "name": "anes",
+      "version": "0.1.6"
+    },
+    "difflib-0.4.0": {
+      "boundary": "Upstream 0.4.0 project license; crate excludes non-Rust files. Original upstream copyright and crate author metadata are both retained; no exact crate source-commit claim.",
+      "crateCargoSHA256": "aed0597f7b6014324ef49cb6502e541e45c35335785345d7d7a5cac46cc64c0f",
+      "crateVCS": null,
+      "files": [
+        {
+          "path": "difflib-LICENSE-MIT",
+          "sha256": "6725d1437fc6c77301f2ff0e7d52914cf4f9509213e1078dc77d9356dbe6eac5",
+          "upstreamCommit": "6fd59b0c089e3baece7ac200b8220ce25d025e02",
+          "url": "https://raw.githubusercontent.com/DimaKudosh/difflib/6fd59b0c089e3baece7ac200b8220ce25d025e02/LICENSE"
+        }
+      ],
+      "license": "MIT",
+      "name": "difflib",
+      "version": "0.4.0"
+    },
+    "dwrote-0.11.5": {
+      "boundary": "The exact crate source header applies MPL 2.0; the full text is from Mozilla. This Windows-only vendored dependency is not a Linux linked-library claim.",
+      "crateCargoSHA256": "f5f002712c93e06fe939d826188415c75532d52d1b84520f1530f21052cb1d28",
+      "crateVCS": {
+        "git": {
+          "sha1": "5bbe910f7156213cdbaca4e1addfe85ea8b421ef"
+        },
+        "path_in_vcs": ""
+      },
+      "files": [
+        {
+          "path": "dwrote-LICENSE-MPL-2.0",
+          "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
+          "upstreamCommit": null,
+          "url": "https://www.mozilla.org/media/MPL/2.0/index.txt"
+        }
+      ],
+      "license": "MPL-2.0",
+      "name": "dwrote",
+      "sourceNotice": {
+        "firstLines": 3,
+        "path": "src/lib.rs",
+        "sha256": "766d05ab96b05bf60a8aeb4fba86ffa05e87a8954dec23e4b52f7eaa6f92eb50"
+      },
+      "version": "0.11.5"
+    },
+    "pathfinder_geometry-0.5.1": {
+      "boundary": "Exact crate source copyright/license header plus upstream project full texts at a checked commit that still declares geometry 0.5.1. The crate VCS commit is not available upstream; no source-byte equivalence claim.",
+      "crateCargoSHA256": "141871f41ab4ac7af854e54f1f637fb168ffbc97fdb57c60608f11b8eb95f1d7",
+      "crateVCS": {
+        "git": {
+          "sha1": "a5e98fac00f433fe2ff4b2135383d82491b8bfc5"
+        }
+      },
+      "files": [
+        {
+          "path": "pathfinder-LICENSE-MIT",
+          "sha256": "0621878e61f0d0fda054bcbe02df75192c28bde1ecc8289cbd86aeba2dd72720",
+          "upstreamCommit": "6c3c0466f451c5bd2007087728cd168798cd64e8",
+          "url": "https://raw.githubusercontent.com/servo/pathfinder/6c3c0466f451c5bd2007087728cd168798cd64e8/LICENSE-MIT"
+        },
+        {
+          "path": "pathfinder-LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+          "upstreamCommit": "6c3c0466f451c5bd2007087728cd168798cd64e8",
+          "url": "https://raw.githubusercontent.com/servo/pathfinder/6c3c0466f451c5bd2007087728cd168798cd64e8/LICENSE-APACHE"
+        }
+      ],
+      "license": "MIT/Apache-2.0",
+      "name": "pathfinder_geometry",
+      "sourceNotice": {
+        "firstLines": 9,
+        "path": "src/lib.rs",
+        "sha256": "cedfb2d85e682e9b9e327a169347bf0cebecd52668e1ed91a3af05ec91b42090"
+      },
+      "version": "0.5.1"
+    },
+    "pathfinder_simd-0.5.6": {
+      "boundary": "Exact crate source header and upstream full texts at its recorded VCS commit.",
+      "crateCargoSHA256": "8c786fc7a21f92ef487513268e52c99a4d889550670a2ec0e1277619e7127bfd",
+      "crateVCS": {
+        "git": {
+          "sha1": "6c3c0466f451c5bd2007087728cd168798cd64e8"
+        },
+        "path_in_vcs": "simd"
+      },
+      "files": [
+        {
+          "path": "pathfinder-LICENSE-MIT",
+          "sha256": "0621878e61f0d0fda054bcbe02df75192c28bde1ecc8289cbd86aeba2dd72720",
+          "upstreamCommit": "6c3c0466f451c5bd2007087728cd168798cd64e8",
+          "url": "https://raw.githubusercontent.com/servo/pathfinder/6c3c0466f451c5bd2007087728cd168798cd64e8/LICENSE-MIT"
+        },
+        {
+          "path": "pathfinder-LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+          "upstreamCommit": "6c3c0466f451c5bd2007087728cd168798cd64e8",
+          "url": "https://raw.githubusercontent.com/servo/pathfinder/6c3c0466f451c5bd2007087728cd168798cd64e8/LICENSE-APACHE"
+        }
+      ],
+      "license": "MIT OR Apache-2.0",
+      "name": "pathfinder_simd",
+      "sourceNotice": {
+        "firstLines": 9,
+        "path": "src/lib.rs",
+        "sha256": "7bc08757defaab4b17d7ceabb702cc0b8dfcd30c6ad364dec6e88a8e2c0ae646"
+      },
+      "version": "0.5.6"
+    },
+    "winapi-i686-pc-windows-gnu-0.4.0": {
+      "boundary": "Exact crate source notice plus full project texts from the recorded winapi 0.3.9 parent repository commit; that commit declares target crate version 0.4.0. Unlinked platform sources, not a Linux binary input.",
+      "crateCargoSHA256": "9652222664ffc7e2a26fdcdebdce0917a455b39d8fbcbf451bf0b011a3067bf7",
+      "crateVCS": null,
+      "files": [
+        {
+          "path": "winapi-LICENSE-MIT",
+          "sha256": "ce7bc3499fee93d5022ef430d5e4201e79a6d9154f3974e42f41349f0569e09b",
+          "upstreamCommit": "796a8e6c2971dc2ff1bcff166e6671284f9b5b6b",
+          "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/LICENSE-MIT"
+        },
+        {
+          "path": "winapi-LICENSE-APACHE",
+          "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+          "upstreamCommit": "796a8e6c2971dc2ff1bcff166e6671284f9b5b6b",
+          "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/LICENSE-APACHE"
+        }
+      ],
+      "license": "MIT/Apache-2.0",
+      "name": "winapi-i686-pc-windows-gnu",
+      "sourceNotice": {
+        "firstLines": 6,
+        "path": "src/lib.rs",
+        "sha256": "79212a91f610f8a77aa6ed4cc77212c2531eeb35630388bf07323cc328fcca42"
+      },
+      "version": "0.4.0"
+    },
+    "winapi-x86_64-pc-windows-gnu-0.4.0": {
+      "boundary": "Exact crate source notice plus full project texts from the recorded winapi 0.3.9 parent repository commit; that commit declares target crate version 0.4.0. Unlinked platform sources, not a Linux binary input.",
+      "crateCargoSHA256": "a88605a11db5def9b6cf73398e83b3edb72228cb43ea935729fac5cd33cec22c",
+      "crateVCS": null,
+      "files": [
+        {
+          "path": "winapi-LICENSE-MIT",
+          "sha256": "ce7bc3499fee93d5022ef430d5e4201e79a6d9154f3974e42f41349f0569e09b",
+          "upstreamCommit": "796a8e6c2971dc2ff1bcff166e6671284f9b5b6b",
+          "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/LICENSE-MIT"
+        },
+        {
+          "path": "winapi-LICENSE-APACHE",
+          "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+          "upstreamCommit": "796a8e6c2971dc2ff1bcff166e6671284f9b5b6b",
+          "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/LICENSE-APACHE"
+        }
+      ],
+      "license": "MIT/Apache-2.0",
+      "name": "winapi-x86_64-pc-windows-gnu",
+      "sourceNotice": {
+        "firstLines": 6,
+        "path": "src/lib.rs",
+        "sha256": "79212a91f610f8a77aa6ed4cc77212c2531eeb35630388bf07323cc328fcca42"
+      },
+      "version": "0.4.0"
+    }
+  },
+  "policy": "Supplement only exact pinned crate versions whose package omits full license texts. Preserve upstream bytes, source notices, authors and limitations. Never modify the Cargo vendor tree.",
+  "schema": 1
+}

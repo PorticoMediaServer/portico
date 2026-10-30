@@ -1,0 +1,18 @@
+{
+  "name": "ONNX Runtime",
+  "version": "1.20.1",
+  "releaseTag": "sonic-1.20.1-mtt-1",
+  "license": "MIT",
+  "source": "https://github.com/microsoft/onnxruntime/tree/v1.20.1",
+  "packages": {
+    "linux-aarch64": {
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-linux-aarch64-1.20.1.tgz",
+      "sha256": "ae4fedbdc8c18d688c01306b4b50c63de3445cdf2dbd720e01a2fa3810b8106a",
+      "bytes": 5366376
+    },
+    "linux-x64": {
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-linux-x64-1.20.1.tgz",
+      "sha256": "67db4dc1561f1e3fd42e619575c82c601ef89849afc7ea85a003abbac1a1a105"
+    }
+  }
+}

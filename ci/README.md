@@ -1,0 +1,17 @@
+# Continuous integration
+
+Pull requests run affected short feedback: whole-module build/vet for the default and capability tag sets, lint, types and affected tests. Go uses `-short`; measured tests at2seconds or more, the five explicit nightly parents, and qualifying Sleep tests skip in this tier. Fast correctness tests stay active. The feedback target is2–5minutes; timings remain subject to measurement.
+
+The merge queue runs the full affected deterministic suite. The required context is `ci/required` on both PR and queue commits, with event/tier validation and exact queue base/head verification. Main receives the exact tested queue SHA as an append-only linear descendant. Queue rebase is the only enabled integration method. Direct main pushes are disabled after bootstrap. There is no duplicate push-to-main workflow.
+
+The planner follows reverse Go imports and test imports. Go-only changes select no JS or Android unless committed generated contracts change. Mixed docs/TS changes do not broaden Go seeds. Short feedback uses the JS dependency graph; merge uses complete affected component inventories. Unknown mappings fail closed. Tests use explicit nonempty lists, with producer/consumer ownership recorded once.
+
+Go test shards run parallel to whole-module build/vet and hygiene. Measured LPT bins account for actual Short guards, target150seconds and cap at10workers. Whole small packages batch at-p=4; partial/split packages use exact parent selections. A shard builds its playback helper. Dependency, npm, Gradle and NDK caches are separate from test results. FFmpeg is installed only for selected probe consumers; a later qualified product build will replace apt with an exact digest-pinned asset.
+
+Nightly has one owner per parent. The five timing/pressure/scale parents and Golden have explicit diagnostic lanes; the deterministic inventory excludes those exact owners and JS-owned producer assignments. A shared build artifact feeds the nightly workers. Merge retains Golden, keyset, bulk-vs-incremental, restricted-profile matrices and the15deterministic P2-52b siblings.
+
+`quarantine.json` lists exact package/parent exceptions with owner, reason and expiry. Expired policies, unknown test failures, build failures, races, panics, timeouts and incomplete terminal events block. Expected log text such as a handled request timing out does not fail a passing test. Stderr is diagnostic output, not a verdict. Passing quarantined tests still report normally.
+
+`ci/package-smoke.py --package QUALIFIED_LINUX_TARBALL` installs/starts a sealed portable package and checks readiness. Packaging activation requires qualified inputs. Android Hermes boot additionally requires its qualified engine/source bundle and device harness. Never build source FFmpeg on a nightly cache miss. Release/toolchain/signing migration inputs remain in release-staged/ until independently qualified; no store acceptance is implied.
+
+The first fresh-repository dispatch uses explicit full bootstrap mode. Nightly scheduling and branch protection follow a green bootstrap; the first real PR through the queue proves the complete integration path. Source selection, raw per-test events and diagnostics are retained as small artifacts.

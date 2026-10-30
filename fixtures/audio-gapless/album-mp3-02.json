@@ -1,0 +1,23 @@
+{
+ "file": "album-mp3-02.mp3",
+ "container": "mp3",
+ "codec": "mp3",
+ "sampleRate": 44100,
+ "channels": 2,
+ "durationFrames": 117919,
+ "rawFrames": 119808,
+ "trim": {
+  "startFrames": 1105,
+  "endFrames": 784,
+  "source": "lame"
+ },
+ "signal": {
+  "formula": "amplitude*sin(2*pi*frequency*(n+offset)/sampleRate)",
+  "amplitude": 0.5,
+  "frequency": 441,
+  "offset": 110000
+ },
+ "tolerance": 0.05,
+ "edgeFrames": 64,
+ "edgeTolerance": 0.1
+}

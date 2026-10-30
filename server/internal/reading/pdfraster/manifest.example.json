@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "target": "x86_64-linux-gnu",
+  "renderer": "pdfium:7b3f6f93625e6df97a7d9e677137a558df8648c4",
+  "options": "portico-pdf-page-v1;bgrx;no-js;no-xfa;no-actions;no-network",
+  "workerSHA256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "sandboxSHA256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "licenses": [
+    "licenses/PDFIUM.txt",
+    "licenses/PDFIUM-THIRD-PARTY-NOTICES.txt"
+  ]
+}

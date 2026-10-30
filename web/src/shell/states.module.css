@@ -1,0 +1,20 @@
+/* Full-page shell states. The drawn page sits under the fixed navigation, so the
+   layout owns the viewport height and the content keeps the frame's own top. */
+.page { min-height: 100dvh; }
+.offlineDownloads { position: fixed; z-index: var(--layer-sticky); top: 56px; left: var(--shell-gutter, var(--gutter-desktop)); right: var(--shell-gutter, var(--gutter-desktop)); max-width: 520px; padding: 16px 18px; border-radius: 16px; background: color-mix(in srgb, var(--color-ink) 88%, transparent); backdrop-filter: blur(22px); }
+.offlineDownloads h2 { margin: 0 0 8px; }
+.offlineDownloads ul { display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; overflow: hidden; }
+.offlineDownloads li { display: flex; gap: 10px; align-items: baseline; min-width: 0; }
+.offlineDownloads li b, .offlineDownloads li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.offlineDownloads li[data-playing] b { color: var(--color-accent, var(--color-text)); }
+/* The launch page's one visible media surface. The desktop host draws the native picture
+   through the measured hole; the element itself stays transparent while it does. */
+.offlinePlayer { position: fixed; z-index: var(--layer-sticky); left: var(--shell-gutter, var(--gutter-desktop)); bottom: 24px; width: min(520px, calc(100vw - 32px)); aspect-ratio: 16 / 9; pointer-events: none; background: var(--color-shadow); }
+.offlinePlayer[data-native-video-active='true'] { background: transparent; }
+.offlinePlayer[data-native-video-active='true'] > video { opacity: 0; }
+.offlinePlayer > video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.detailsHeading { margin: 26px 0 -14px; font-size: var(--type-activity-detail-size); font-weight: var(--type-row-heading-weight); color: var(--color-text-tertiary); }
+.toastWrap { position: fixed; z-index: var(--layer-notice); left: 64px; bottom: 28px; max-width: min(520px,calc(100vw - 32px)); }
+@media (max-width: 1023px) {
+  .toastWrap { left: 12px; right: 12px; bottom: 20px; max-width: none; }
+}

@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/items/FZH_ujVknbAIgHBifTyT1w/file-info"
+  },
+  "status": 200,
+  "body": {
+    "scope": {
+      "serverId": "srv_-J4TM5L_dh6V3_4YFZxJza7pNo9Y9rLHE8XSPfKTmjk",
+      "libraryId": "oMd8TWJKUeEJEjHIryv1kwad4RjYDsVIWewK2TmVwb8",
+      "itemId": "FZH_ujVknbAIgHBifTyT1w",
+      "viewerFence": "6ca329fa06d2ec70c7719d9fea983eeda5ffe216bba8aafd051a07c603a8dce1"
+    },
+    "revision": {
+      "catalog": 93,
+      "viewer": 0
+    },
+    "kind": "song",
+    "files": [
+      {
+        "audio": [],
+        "available": true,
+        "container": "mp3",
+        "durationMs": 0,
+        "id": "3N8vG-JmkYwebaQTEhDFUqQ8Nobh-H4JvvSCQV_C9wY",
+        "itemId": "FZH_ujVknbAIgHBifTyT1w",
+        "partIndex": 0,
+        "path": "/media/… Grey/Assembly of Copper/01 - Ticket.mp3",
+        "size": 33185,
+        "subtitles": []
+      }
+    ],
+    "manage": {
+      "delete": true,
+      "split": true,
+      "merge": true
+    }
+  }
+}

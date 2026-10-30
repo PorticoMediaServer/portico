@@ -1,0 +1,40 @@
+{
+  "schema": "GetDirectAccountResponse",
+  "method": "GET",
+  "path": "/v1/direct",
+  "auth": "owner",
+  "status": 200,
+  "response": {
+    "authority": "local",
+    "serverId": "KY4ROljca7GRzeg2H_wE8mPdX3Y_l_po4H1fs_DAstU",
+    "account": {
+      "id": "_8vjJA7YFHJyYGPcsY7L16nSf3Viasz8AJTewr6NzwE",
+      "username": "owner",
+      "primaryProfileId": "7VMtBQHTsGPktjrVjNaQ3xIZqh4iH-PoWK7p6PSBF1Q",
+      "role": "owner",
+      "revision": 1,
+      "disabled": false,
+      "allowedLibraries": []
+    },
+    "profiles": [
+      {
+        "id": "7VMtBQHTsGPktjrVjNaQ3xIZqh4iH-PoWK7p6PSBF1Q",
+        "name": "owner",
+        "primary": true,
+        "position": 0,
+        "art": "blue",
+        "revision": 1,
+        "pinRevision": 1,
+        "pinRequired": false,
+        "allowedLibraries": []
+      }
+    ],
+    "canManage": true,
+    "capabilities": {
+      "manageAccount": true,
+      "managePeople": true,
+      "manageServer": true,
+      "manageSignIn": true
+    }
+  }
+}

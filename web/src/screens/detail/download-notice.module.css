@@ -1,0 +1,19 @@
+.sheet { padding-bottom: 30px; }
+.header { padding-left: 20px; padding-right: 20px; }
+.title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.poster { width: 44px; height: 66px; border-radius: 6px; overflow: hidden; flex: none; }
+.title b { display: block; font-size: var(--type-library-kind-title-size); font-weight: var(--type-library-kind-title-weight); letter-spacing: var(--type-library-kind-title-tracking); }
+.title small { display: block; margin-top: 2px; font-size: var(--type-stop-help-size); font-weight: var(--type-caption-weight); color: var(--color-text-tertiary); }
+.body { padding: 0; }
+.section { margin: 16px 20px 8px; font-size: var(--type-audiobook-detail-progress-size); font-weight: var(--type-button-weight); color: var(--color-text-tertiary); }
+.options { margin: 0 16px; border-radius: 14px; background: var(--color-raised-bright); overflow: hidden; }
+.option { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 62px; padding: 12px 14px; border: 0; background: none; color: var(--color-text); text-align: left; font: inherit; cursor: pointer; }
+.option + .option::before { content: ''; position: absolute; top: 0; left: 14px; right: 0; height: 1px; background: color-mix(in srgb, var(--color-line-strong) 45%, transparent); }
+.option:disabled { opacity: .5; cursor: default; }
+.option:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: -3px; }
+.copy { flex: 1; min-width: 0; }
+.copy b { display: block; font-size: var(--type-wide-title-size); font-weight: var(--type-button-weight); }
+.copy small { display: block; margin-top: 3px; font-size: var(--type-troubleshooting-reason-size); line-height: var(--type-troubleshooting-reason-line); color: var(--color-text-tertiary); }
+.size { flex: none; font-size: var(--type-stop-help-size); font-weight: var(--type-button-weight); color: var(--color-text-secondary); text-align: right; line-height: calc(var(--type-stop-help-size) * 1.3); }
+.size small { display: block; font-size: var(--type-label-size); font-weight: var(--type-micro-weight); line-height: calc(var(--type-label-size) * 1.3); color: var(--color-text-tertiary); }
+.download { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--color-text) 12%, transparent); }

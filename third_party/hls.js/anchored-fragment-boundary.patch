@@ -1,0 +1,19 @@
+--- a/src/utils/level-helper.ts
++++ b/src/utils/level-helper.ts
+@@ -32,6 +32,16 @@
+       frag = fragFrom;
+     } else {
+       duration = fragFrom.start - fragToPTS;
++      // Isolated diagnostic candidate: anchored first-fragment continuity.
++      if (
++        fragTo.start === 0 &&
++        fragToPTS > 0 &&
++        fragFrom.cc === fragTo.cc &&
++        Number.isFinite(fragTo.endPTS) &&
++        Math.abs(fragTo.endPTS! - fragFrom.start) < 0.000001
++      ) {
++        duration = fragFrom.start - fragTo.start;
++      }
+       frag = fragTo;
+     }
+     if (frag.duration !== duration) {
