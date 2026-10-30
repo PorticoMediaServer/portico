@@ -20,8 +20,13 @@ import (
 // availability facts to exercise every published operator.
 func browseFixture(t *testing.T) (*sql.DB, *Service, catalogtest.Names) {
 	t.Helper()
+	c, names := fixtureTemplates.Open(t, "browse", buildBrowseFixture)
+	return c.DB, New(c.DB), names
+}
+
+func buildBrowseFixture(t *testing.T) (*catalogtest.Catalog, catalogtest.Names) {
+	t.Helper()
 	c := catalogtest.Open(t)
-	db := c.DB
 	films := c.Library("a", "Movies", "movie", "/a")
 	c.Library("tv", "Shows", "tv", "/tv")
 	names := catalogtest.Names{}
@@ -62,7 +67,7 @@ func browseFixture(t *testing.T) (*sql.DB, *Service, catalogtest.Names) {
 	c.Exec(`INSERT INTO personal_watched_intents(profile_id,item_id,watched,authored_at) VALUES('p',?,1,'2026-09-10T00:00:00.000000000Z')`, names["m2"].ID)
 	c.Exec(`INSERT INTO progress(profile_id,item_id,position,unit,completed,playback_id) VALUES('p',?,?,0,0,'pb')`, names["m3"].ID, 10000)
 	c.Drain()
-	return db, New(db), names
+	return c, names
 }
 
 func browseIDs(t *testing.T, s *Service, names catalogtest.Names, query string) []string {
