@@ -21,11 +21,31 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/readprep"
 )
 
+// httpFacetFixture is this fixture's facet composition root. Start drains
+// production source maintenance into the single BASE worker. WaitPrepared waits
+// on the real preparation behind a pending query ID outside every HTTP handler:
+// the fixture calls it after the ordinary handler returns and before its next
+// ordinary authenticated poll, so no request deadline, Retry-After interval or
+// production pacing changes. It is the fixture's own control, not a global.
+type httpFacetFixture struct {
+	start func()
+	wait  func(context.Context, string) error
+}
+
+func (f httpFacetFixture) Start() { f.start() }
+
+func (f httpFacetFixture) WaitPrepared(ctx context.Context, queryID string) error {
+	if f.wait == nil {
+		return errors.New("facet fixture has no preparation wait")
+	}
+	return f.wait(ctx, queryID)
+}
+
 // composeHTTPFacetFixture mirrors the process composition root. The caller
 // drains production source maintenance before starting the single BASE worker.
 // Register database cleanup BEFORE this helper, so Run and the shared store
 // finish before the database is closed.
-func composeHTTPFacetFixture(t *testing.T, d *Dependencies) func() {
+func composeHTTPFacetFixture(t *testing.T, d *Dependencies) httpFacetFixture {
 	t.Helper()
 	store, err := readprep.New(readprep.DefaultConfig())
 	if err != nil {
@@ -55,7 +75,7 @@ func composeHTTPFacetFixture(t *testing.T, d *Dependencies) func() {
 	d.Catalog.UseReadPreparations(store)
 	d.Catalog.UseGenreRuntime(genres)
 	d.FacetReads, d.GenreReads = bases, genres
-	return func() {
+	start := func() {
 		t.Helper()
 		if done != nil {
 			t.Fatal("facet fixture worker started twice")
@@ -63,15 +83,28 @@ func composeHTTPFacetFixture(t *testing.T, d *Dependencies) func() {
 		done = make(chan error, 1)
 		go func() { done <- bases.Run(ctx) }()
 	}
+	return httpFacetFixture{start: start, wait: bases.WaitPreparedForTest}
 }
 
 type httpFacetFixtureCall func(context.Context, string, string, string) *httptest.ResponseRecorder
+
+// httpFacetFixtureWait waits for the real preparation behind one pending query
+// ID. The fixture owns it; it is not production behavior and takes no HTTP
+// request context.
+type httpFacetFixtureWait func(context.Context, string) error
 
 // readyHTTPFacetFixture follows only typed SIMPLE preparation, using the same
 // authenticated caller for initial, poll and cancel. These old callers consume
 // the response immediately and never retain anchors, so release their handle.
 // Contextual/Reading responses and initial errors pass through unchanged.
-func readyHTTPFacetFixture(t *testing.T, path string, call httpFacetFixtureCall) *httptest.ResponseRecorder {
+//
+// Each pending response stays exactly as production served it: its 202/fallback
+// shape, Location, Retry-After and private headers are asserted, and the next
+// ordinary authenticated poll is issued only after wait reports the real worker
+// has left that preparation. The wait runs outside the handler under this
+// fixture's existing 60s deadline; no handler deadline, Retry-After interval or
+// production pacing is changed, and there is no sleep.
+func readyHTTPFacetFixture(t *testing.T, path string, call httpFacetFixtureCall, wait httpFacetFixtureWait) *httptest.ResponseRecorder {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -133,15 +166,17 @@ func readyHTTPFacetFixture(t *testing.T, path string, call httpFacetFixtureCall)
 		if int64(seconds) > int64(time.Until(remaining)/time.Second) {
 			t.Fatalf("facet fixture %s Retry-After exceeds polling deadline: %v", path, w.Header())
 		}
-		timer := time.NewTimer(time.Duration(seconds) * time.Second)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			t.Fatalf("facet fixture did not become ready: %v", ctx.Err())
-		case <-timer.C:
+		// The handler has already returned. Wait on that preparation's real
+		// worker outside the handler, under this fixture's own deadline, then
+		// take the next ordinary authenticated poll.
+		if err := wait(ctx, queryID); err != nil {
+			t.Fatalf("facet fixture %s preparation wait: %v", path, err)
 		}
 		w = call(ctx, http.MethodGet, location, "")
 		polled = true
+		if err := ctx.Err(); err != nil {
+			t.Fatalf("facet fixture did not become ready: %v", err)
+		}
 	}
 	var envelope struct {
 		Kind string `json:"kind"`

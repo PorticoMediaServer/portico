@@ -51,8 +51,8 @@ func TestBrowseRoutesPublishAndExecuteTheVocabulary(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := Dependencies{DB: db, Identity: ident, Catalog: catalog.New(db)}
-	startFacets := composeHTTPFacetFixture(t, &d)
-	startFacets()
+	facets := composeHTTPFacetFixture(t, &d)
+	facets.Start()
 	handler := New(d)
 	rawRequest := func(ctx context.Context, method, path, body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, path, bytes.NewBufferString(body)).WithContext(ctx)
@@ -63,7 +63,7 @@ func TestBrowseRoutesPublishAndExecuteTheVocabulary(t *testing.T) {
 	}
 	request := func(method, path, body string) *httptest.ResponseRecorder {
 		if isHTTPFixtureFacetPath(method, path) {
-			return readyHTTPFacetFixture(t, path, rawRequest)
+			return readyHTTPFacetFixture(t, path, rawRequest, facets.WaitPrepared)
 		}
 		return rawRequest(context.Background(), method, path, body)
 	}
