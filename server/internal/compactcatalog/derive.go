@@ -41,15 +41,16 @@ const (
 	DomainInheritedAttributes = 31
 	// DomainContainerRefresh re-derives a show's, season's, album's, artist's,
 	// book's or collection's browse row after its members changed. It waits
-	// while other derived work is queued (deferredDomains), so a container
-	// whose members arrive over many batches — a show's episodes, an artist's
-	// thousands of songs while a library is first built — is refreshed once
-	// instead of once per batch of its members.
+	// while its producers' derived work is queued (deferredProducers), so a
+	// container whose members arrive over many batches — a show's episodes, an
+	// artist's thousands of songs while a library is first built — is refreshed
+	// once instead of once per batch of its members.
 	DomainContainerRefresh = 35
 )
 
-// deferredDomains wait until no other domain has work, or until they have
-// waited deferredWait since they were last served, whichever is first.
+// deferredDomains wait until the domains that produce their work have no work
+// queued, or until they have waited deferredWait since they were last served,
+// whichever is first.
 // Facet and missing-title projections are consumers, not reasons to defer a
 // container refresh: its browse updates invalidate their source epoch. Waiting
 // on those consumers throttles every refresh quantum by deferredWait while
@@ -59,6 +60,28 @@ const (
 var deferredDomains = map[int]bool{DomainContainerRefresh: true}
 
 const deferredWait = 10 * time.Second
+
+// deferredProducers is the closed set of registered domains whose queued work
+// can later queue a deferred domain's own work, directly or through one
+// another (P2-59 pressure tail, R5). A container refresh waits for these and
+// for nothing else: 36-40 feed only the facet consumers and must not delay it,
+// while 41-43 do through the source fanouts. 33 and 44 are consumers, not
+// producers; they stay hard-fenced on the refresh by the guards above. Every
+// domain in deferredDomains needs an entry here.
+var deferredProducers = map[int][]int{
+	DomainContainerRefresh: {
+		DomainBrowseRows,
+		DomainBrowseEdges,
+		DomainAvailability,
+		DomainItemMetrics,
+		DomainAssetMetrics,
+		DomainLibraryAvailability,
+		DomainInheritedAttributes,
+		DomainAssetSources,
+		DomainEntitySources,
+		DomainLibrarySources,
+	},
+}
 
 // domainPriority (milliseconds) lets a domain's turn come that much before
 // the plain round robin would give it. A library being built shows its titles
@@ -70,21 +93,30 @@ var domainPriority = map[int]int{DomainBrowseRows: 1000, DomainSearch: 1000, Dom
 
 // nextDomainSQL lists the domains with work in the order their turns come.
 // ?1 is the served time (ms) before which a deferred domain's wait is over.
+// A deferred domain coalesces only its closed producer set (deferredProducers),
+// so unrelated domains neither delay it nor are delayed by it.
 var nextDomainSQL = func() string {
-	deferred := []string{}
+	domains := []int{}
 	for d := range deferredDomains {
-		deferred = append(deferred, fmt.Sprint(d))
+		domains = append(domains, d)
 	}
-	sort.Strings(deferred)
+	sort.Ints(domains)
+	coalesce := ""
+	for _, d := range domains {
+		producers := make([]string, 0, len(deferredProducers[d]))
+		for _, p := range deferredProducers[d] {
+			producers = append(producers, fmt.Sprint(p))
+		}
+		coalesce += fmt.Sprintf(`
+ AND (domain NOT IN(%d) OR served_ms<=?1 OR NOT EXISTS(SELECT 1 FROM catalog_derivations o WHERE o.domain IN(%s) AND (o.rebuilding=1 OR EXISTS(SELECT 1 FROM catalog_dirty d WHERE d.domain=o.domain))))`, d, strings.Join(producers, ","))
+	}
 	priority := ""
 	for _, d := range []int{DomainSearch, DomainBrowseRows, DomainBrowseEdges, DomainAvailability} {
 		priority += fmt.Sprintf(" WHEN %d THEN %d", d, domainPriority[d])
 	}
-	list := strings.Join(deferred, ",")
 	return `SELECT domain,rebuilding FROM catalog_derivations st WHERE (rebuilding=1 OR EXISTS(SELECT 1 FROM catalog_dirty d WHERE d.domain=st.domain))
  AND (st.domain<>33 OR (NOT EXISTS(SELECT 1 FROM catalog_dirty WHERE domain IN(35,36,37,38,39,40,41,42,43)) AND NOT EXISTS(SELECT 1 FROM catalog_derivations WHERE domain IN(35,36,37,38,39,40,41,42,43) AND rebuilding=1) AND NOT EXISTS(SELECT 1 FROM catalog_derivation_failures WHERE domain IN(35,36,37,38,39,40,41,42,43))))
- AND (st.domain<>44 OR (NOT EXISTS(SELECT 1 FROM catalog_dirty WHERE domain IN(35,41)) AND NOT EXISTS(SELECT 1 FROM catalog_derivation_failures WHERE domain IN(35,41))))
- AND (domain NOT IN(` + list + `) OR served_ms<=?1 OR NOT EXISTS(SELECT 1 FROM catalog_derivations o WHERE o.domain NOT IN(` + list + `,33,44) AND (o.rebuilding=1 OR EXISTS(SELECT 1 FROM catalog_dirty d WHERE d.domain=o.domain))))
+ AND (st.domain<>44 OR (NOT EXISTS(SELECT 1 FROM catalog_dirty WHERE domain IN(35,41)) AND NOT EXISTS(SELECT 1 FROM catalog_derivation_failures WHERE domain IN(35,41))))` + coalesce + `
  ORDER BY served_ms-CASE domain` + priority + ` ELSE 0 END,domain`
 }()
 

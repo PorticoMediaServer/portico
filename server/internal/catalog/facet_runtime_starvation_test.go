@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/readprep"
@@ -22,6 +23,12 @@ func TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
+	// Both pressure variants belong to this existing nightly-only parent.
+	t.Run("continuous ingest", func(t *testing.T) { testFacetRuntimeColdTaggedIngest(t, false) })
+	t.Run("source change quiet gap", func(t *testing.T) { testFacetRuntimeColdTaggedIngest(t, true) })
+}
+
+func testFacetRuntimeColdTaggedIngest(t *testing.T, sourceChange bool) {
 
 	// Keep the functional scheduling proof small under the race detector.
 	// The opt-in 300k raw-member test below owns throughput acceptance.
@@ -31,7 +38,9 @@ func TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest(t *testing.T) {
 	// Scale only the new scheduler's clock for this focused real-gate test.
 	// Production remains three minutes starvation / a progress-renewed ten-minute cap.
 	f.r.starveAfter = 35 * time.Millisecond
-	f.r.ingestHold = 500 * time.Millisecond
+	// Retain the production hold: the existing two-second source-change quiet
+	// gap must fit before the first committed step can renew the window.
+	// A scaled 500ms hold expires during that gap and enters a five-minute cooldown.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	idle := make([]time.Duration, 0, 80)
@@ -101,7 +110,20 @@ func TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest(t *testing.T) {
 	var latencies []time.Duration
 	began := time.Now()
 	deadline := began.Add(3 * time.Second)
+	injected := false
 	for {
+		if sourceChange && !injected {
+			f.r.cooperateWithColdBuild(ctx)
+			if dbwork.CatalogIngestWindowActive(f.c.DB) {
+				// Model one source capture/acceptance collision at the window boundary.
+				// Keep the real quiet-gap handler, source adapter and subsequent writes.
+				wait := f.r.maintenanceFailure(ctx, d, 0, compactcatalog.ErrFacetProducerChanged)
+				if wait <= 0 || wait > 2*time.Second || d.gap != 2*time.Second {
+					t.Fatalf("source change did not preserve quiet gap: wait=%s gap=%s", wait, d.gap)
+				}
+				injected = true
+			}
+		}
 		f.r.maintain(ctx, d)
 		started := time.Now()
 		if _, err := dbwork.ExecWrite(ctx, f.c.DB, dbwork.ClassInteractive, `UPDATE admin_revision SET revision=revision+1 WHERE id=1`); err != nil {
@@ -140,6 +162,9 @@ func TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest(t *testing.T) {
 			t.Fatal("cold class starved despite bounded ingest window")
 		}
 		time.Sleep(time.Millisecond)
+	}
+	if sourceChange && !injected {
+		t.Fatal("source-change boundary was not exercised")
 	}
 	during := commits.Load()
 	f.r.cooperateWithColdBuild(ctx)
