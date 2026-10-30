@@ -137,6 +137,9 @@ def make_plan(paths, full=False, tier="short"):
             for file in p.get('TestGoFiles',[])+p.get('XTestGoFiles',[]):
                 source=(Path(p['Dir'])/file).read_text()
                 for name in re.findall(r'^func\s+((?:Test|Fuzz)[A-Z0-9_]\w*|Example\w*)\s*\(',source,re.M):
+                    if name=='TestMain':
+                        exemptions.append({'package':p['ImportPath'],'name':name,'reason':'package lifecycle hook; not a runnable test parent'})
+                        continue
                     # Go examples without Output are compile-only by Go's own contract.
                     if name.startswith('Example'):
                         tail=source[source.index('func '+name):]
