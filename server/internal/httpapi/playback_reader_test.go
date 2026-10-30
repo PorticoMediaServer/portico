@@ -5,10 +5,15 @@ import (
 	"errors"
 	"io"
 	"os"
-	"github.com/PorticoMediaServer/portico/server/internal/decoder"
-	"github.com/PorticoMediaServer/portico/server/internal/storage"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
+	"github.com/PorticoMediaServer/portico/server/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server/internal/persistence"
+	"github.com/PorticoMediaServer/portico/server/internal/storage"
 )
+
+var fixtureTemplates *catalogtest.Templates
 
 func TestMain(m *testing.M) {
 	if len(os.Args) == 2 && os.Args[1] == "--portico-storage-helper" {
@@ -26,7 +31,11 @@ func TestMain(m *testing.M) {
 		}
 		os.Exit(0)
 	}
-	os.Exit(m.Run())
+	persistence.UseSchemaTemplate()
+	fixtureTemplates = catalogtest.NewTemplates()
+	code := m.Run()
+	fixtureTemplates.Close()
+	os.Exit(code)
 }
 
 type revokeDuringRead struct {

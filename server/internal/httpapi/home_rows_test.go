@@ -6,16 +6,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/PorticoMediaServer/portico/server/internal/apispec"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
-	"strings"
-	"testing"
-	"time"
 )
 
 func homeAPIFixture(t *testing.T) (http.Handler, identity.Envelope, catalogtest.Names) {
@@ -27,11 +27,8 @@ func homeAPIFixture(t *testing.T) (http.Handler, identity.Envelope, catalogtest.
 func homeAPIFixtureWithConsole(t *testing.T) (http.Handler, identity.Envelope, catalogtest.Names, *operations.Store, *sql.DB) {
 	t.Helper()
 	root := t.TempDir()
-	db, e := persistence.Open(filepath.Join(root, "db"))
-	if e != nil {
-		t.Fatal(e)
-	}
-	t.Cleanup(func() { db.Close() })
+	c, names := fixtureTemplates.Open(t, "home-api", buildHomeAPICatalogue)
+	db := c.DB
 	id, e := identity.New(db, root)
 	if e != nil {
 		t.Fatal(e)
@@ -39,21 +36,6 @@ func homeAPIFixtureWithConsole(t *testing.T) (http.Handler, identity.Envelope, c
 	if _, e = db.Exec(`INSERT INTO accounts(id,username,password_hash,profile_id,epoch) VALUES('owner','owner',x'00','profile',1)`); e != nil {
 		t.Fatal(e)
 	}
-	c := catalogtest.New(t, db)
-	movies := c.Library("movies", "Movies", "movie", "/movies")
-	names := catalogtest.Names{
-		"m1": c.Movie(movies, "/movies/m1.mp4", "First", 2001),
-		"m2": c.Movie(movies, "/movies/m2.mp4", "Second", 2002),
-		"m3": c.Movie(movies, "/movies/m3.mp4", "Third", 2003),
-	}
-	for i, name := range []string{"m1", "m2", "m3"} {
-		added := []string{"2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z", "2026-01-03T00:00:00.000Z"}[i]
-		c.Fields(names[name].ID, map[string]any{"backdrop_url": "/b", "added_text": added})
-		c.Exec(`INSERT INTO personal_items(profile_id,item_id,watchlisted,favorite,revision) VALUES(?,?,1,0,1)`, identity.PersonalKey(identity.Viewer{Authority: "local", AccountID: "owner", ProfileID: "profile"}), names[name].ID)
-	}
-	c.Attributes(names["m1"].ID, "contentRating", "PG-13")
-	c.Genres(names["m1"].ID, "fixture", "Drama", "Comedy", "Thriller")
-	c.Drain()
 	owner, e := id.Issue("owner", "profile", "local", "owner", 1)
 	if e != nil {
 		t.Fatal(e)
@@ -438,4 +420,23 @@ func TestHomeSavedSummaryShapeAndLayoutConflictHTTP(t *testing.T) {
 	if !found {
 		t.Fatal("empty books descriptor absent")
 	}
+}
+
+func buildHomeAPICatalogue(t *testing.T) (*catalogtest.Catalog, catalogtest.Names) {
+	c := catalogtest.Open(t)
+	movies := c.Library("movies", "Movies", "movie", "/movies")
+	names := catalogtest.Names{
+		"m1": c.Movie(movies, "/movies/m1.mp4", "First", 2001),
+		"m2": c.Movie(movies, "/movies/m2.mp4", "Second", 2002),
+		"m3": c.Movie(movies, "/movies/m3.mp4", "Third", 2003),
+	}
+	for i, name := range []string{"m1", "m2", "m3"} {
+		added := []string{"2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z", "2026-01-03T00:00:00.000Z"}[i]
+		c.Fields(names[name].ID, map[string]any{"backdrop_url": "/b", "added_text": added})
+		c.Exec(`INSERT INTO personal_items(profile_id,item_id,watchlisted,favorite,revision) VALUES(?,?,1,0,1)`, identity.PersonalKey(identity.Viewer{Authority: "local", AccountID: "owner", ProfileID: "profile"}), names[name].ID)
+	}
+	c.Attributes(names["m1"].ID, "contentRating", "PG-13")
+	c.Genres(names["m1"].ID, "fixture", "Drama", "Comedy", "Thriller")
+	c.Drain()
+	return c, names
 }

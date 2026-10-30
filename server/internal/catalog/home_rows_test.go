@@ -92,16 +92,22 @@ func homeExec(t *testing.T, db *sql.DB, query string, args ...any) {
 
 func homeFixture(t *testing.T) *sql.DB {
 	t.Helper()
+	c, names := fixtureTemplates.Open(t, "home", buildHomeFixture)
+	homeNamesMu.Lock()
+	homeNamesByDB[c.DB] = names
+	homeNamesMu.Unlock()
+	t.Cleanup(func() { homeNamesMu.Lock(); delete(homeNamesByDB, c.DB); homeNamesMu.Unlock() })
+	return c.DB
+}
+
+func buildHomeFixture(t *testing.T) (*catalogtest.Catalog, catalogtest.Names) {
+	t.Helper()
 	c := catalogtest.Open(t)
-	db := c.DB
 	movies := c.Library("movies", "Movies", "movie", "/movies")
 	tv := c.Library("tv", "Shows", "tv", "/tv")
 	music := c.Library("music", "Music", "music", "/music")
 	books := c.Library("books", "Books", "audiobook", "/books")
 	names := catalogtest.Names{}
-	homeNamesMu.Lock()
-	homeNamesByDB[db] = names
-	homeNamesMu.Unlock()
 	for index, id := range []string{"m1", "m2", "m3", "m4", "m5"} {
 		item := c.Movie(movies, "/movies/"+id+".mkv", "Movie "+id, 2000+index)
 		names[id] = item
@@ -136,7 +142,7 @@ func homeFixture(t *testing.T) *sql.DB {
 		c.Fields(item.ID, map[string]any{"title": "Part " + id, "added_text": "2026-04-01T00:00:00.000Z"})
 	}
 	c.Drain()
-	return db
+	return c, names
 }
 
 func homeWatched(t *testing.T, db *sql.DB, profile string, at string, ids ...string) {

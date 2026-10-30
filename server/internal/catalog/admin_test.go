@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"testing"
+
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
-	"testing"
 )
+
+var fixtureTemplates *catalogtest.Templates
 
 func TestMain(m *testing.M) {
 	if len(os.Args) == 2 && os.Args[1] == "--portico-storage-helper" {
@@ -21,7 +24,11 @@ func TestMain(m *testing.M) {
 		}
 		os.Exit(0)
 	}
-	os.Exit(m.Run())
+	persistence.UseSchemaTemplate()
+	fixtureTemplates = catalogtest.NewTemplates()
+	code := m.Run()
+	fixtureTemplates.Close()
+	os.Exit(code)
 }
 func TestAdminDirectoriesCASRestartAndProbe(t *testing.T) {
 	if testing.Short() {
