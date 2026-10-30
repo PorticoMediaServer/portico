@@ -2,7 +2,7 @@
 
 Thanks for wanting to help. Before you put time into something, here's how this works.
 
-Portico is opinionated on purpose. It does a lot, but every feature is chosen and designed to fit one curated experience, not added as another option or plugin. I'm the only maintainer, and I make the calls on design, scope, architecture, releases and branding. That means a change can be well built and still not be right for Portico, and I may say no to it.
+Portico is opinionated on purpose - every feature has been chosen and designed to fit one curated experience, not added as fragmented options or plugins. I'm the only maintainer, and I make the calls on design, scope, architecture, releases and branding. That means a change can be well built and still not be right for Portico, and I may say no to it.
 
 ## What's welcome
 
@@ -10,15 +10,15 @@ Portico is opinionated on purpose. It does a lot, but every feature is chosen an
 - Reliability and performance improvements
 - Better support for devices, formats and platforms
 - Documentation fixes
+- Translations
 
 Small, obvious fixes can go straight to a pull request. For anything else, including new features and changes to how something behaves, open an issue or start a discussion first, and wait until I've said yes. A yes covers only what we agreed on.
 
 ## What I'm not looking for
 
-- New features nobody asked for
+- New features not already approved
 - More settings, plugins, themes or custom CSS
 - New dependencies I haven't agreed to
-- Translations
 - Cleanups or refactors on their own
 - Changes to the branding or to how Portico Services works
 
