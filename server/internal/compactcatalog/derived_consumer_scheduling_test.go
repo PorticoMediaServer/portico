@@ -56,6 +56,61 @@ func TestContainerRefreshDoesNotWaitForItsProjectionConsumers(t *testing.T) {
 	}
 }
 
+func TestContainerRefreshConsidersOnlyItsProducerClosure(t *testing.T) {
+	db := cc1OpenDB(t, "refresh-producer-closure")
+	now := time.Now().UnixMilli()
+	// A fresh DB starts served_ms=0 and already satisfies the starvation
+	// branch, so seed a just-served refresh to exercise coalescing itself.
+	cc1Exec(t, db, `INSERT INTO catalog_derivations(domain,version,served_ms) VALUES(?,1,?) ON CONFLICT(domain) DO UPDATE SET rebuilding=0,served_ms=excluded.served_ms`, DomainContainerRefresh, now)
+	cc1Exec(t, db, `INSERT INTO catalog_dirty(domain,entity_id,revision) VALUES(?,1,1)`, DomainContainerRefresh)
+	eligible := func(waited int64) bool {
+		t.Helper()
+		var exists bool
+		if err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM (`+nextDomainSQL+`) WHERE domain=?)`, waited, DomainContainerRefresh).Scan(&exists); err != nil {
+			t.Fatal(err)
+		}
+		return exists
+	}
+	cutoff := now - deferredWait.Milliseconds()
+	if !eligible(cutoff) {
+		t.Fatal("unrelated work deferred the refresh")
+	}
+	// 36-40 feed only the facet consumers and are not producers of the
+	// refresh, so their pending work must not coalesce it.
+	for _, domain := range []int{DomainSearch, DomainRelated, DomainCategories, DomainAssetIssues, DomainBookContext, DomainRecFacets, DomainBrowseSortParents, DomainFacetTermFanout, DomainFacetAssetFanout, DomainFacetAttributeTermFanout, DomainFacetAttributeFieldFanout, DomainFacetShowGenreFanout, DomainMissingSources} {
+		// Scheduler eligibility reads registered derivations, as in a prepared worker.
+		cc1Exec(t, db, `INSERT INTO catalog_derivations(domain,version,served_ms) VALUES(?,1,?) ON CONFLICT(domain) DO UPDATE SET rebuilding=0,served_ms=excluded.served_ms`, domain, now)
+		cc1Exec(t, db, `INSERT INTO catalog_dirty(domain,entity_id,revision) VALUES(?,1,1)`, domain)
+		if !eligible(cutoff) {
+			t.Fatalf("unrelated domain %d coalesced the refresh", domain)
+		}
+		cc1Exec(t, db, `DELETE FROM catalog_dirty WHERE domain=?`, domain)
+	}
+	// The closed producer set still coalesces it, and the existing served
+	// deadline still releases it.
+	for _, domain := range []int{DomainBrowseRows, DomainBrowseEdges, DomainAvailability, DomainItemMetrics, DomainAssetMetrics, DomainLibraryAvailability, DomainInheritedAttributes, DomainAssetSources, DomainEntitySources, DomainLibrarySources} {
+		// Scheduler eligibility reads registered derivations, as in a prepared worker.
+		cc1Exec(t, db, `INSERT INTO catalog_derivations(domain,version,served_ms) VALUES(?,1,?) ON CONFLICT(domain) DO UPDATE SET rebuilding=0,served_ms=excluded.served_ms`, domain, now)
+		cc1Exec(t, db, `INSERT INTO catalog_dirty(domain,entity_id,revision) VALUES(?,1,1)`, domain)
+		if eligible(cutoff) {
+			t.Fatalf("refresh skipped coalescing while producer %d is pending", domain)
+		}
+		if !eligible(now) {
+			t.Fatalf("served deadline did not release the refresh while producer %d is pending", domain)
+		}
+		cc1Exec(t, db, `DELETE FROM catalog_dirty WHERE domain=?`, domain)
+	}
+	// A rebuilding producer is pending work too.
+	cc1Exec(t, db, `INSERT INTO catalog_derivations(domain,version,rebuilding,served_ms) VALUES(?,1,1,?) ON CONFLICT(domain) DO UPDATE SET rebuilding=1,served_ms=excluded.served_ms`, DomainLibrarySources, now)
+	if eligible(cutoff) {
+		t.Fatal("rebuilding producer did not coalesce the refresh")
+	}
+	cc1Exec(t, db, `UPDATE catalog_derivations SET rebuilding=0 WHERE domain=?`, DomainLibrarySources)
+	if !eligible(cutoff) {
+		t.Fatal("settled producer did not release the refresh")
+	}
+}
+
 func TestContainerRefreshAndWideFacetConsumersFinish(t *testing.T) {
 	db := cc1OpenDB(t, "refresh-wide-facets")
 	lib := cc1Library(t, db, "wide", "Wide", "movie", "/wide")
