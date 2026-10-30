@@ -43,7 +43,9 @@ export function retainedOptionalNotice(data: LicenceData | undefined, lockText: 
   return {...component, text: data.texts[component.text], copyright: component.copyright ? [...component.copyright] : undefined};
 }
 
-const PORTICO_SOURCE = 'https://github.com/PorticoMediaServer/portico-server';
+const PORTICO_SOURCE = 'https://github.com/PorticoMediaServer/portico';
+// The currently qualified FFmpeg source release remains in the frozen repository.
+const FFMPEG_SOURCE = 'https://github.com/PorticoMediaServer/portico-server';
 
 /** Repository files read, with their digests: the check compares them. */
 function reader() {
@@ -188,7 +190,7 @@ function serverComponents(read: (rel: string) => string, licenceText: string): C
   out.push({
     id: 'server:ffmpeg', name: 'FFmpeg (qualified server build)', version: ffmpeg.ffmpeg?.version ?? ffmpeg.releaseTag, licence: 'GPL-3.0-or-later',
     // The bundle installed with the server carries every library's own licence in its licenses folder.
-    group: 'server', text: licenceText, url: `${PORTICO_SOURCE}/releases/tag/${ffmpeg.releaseTag}`,
+    group: 'server', text: licenceText, url: `${FFMPEG_SOURCE}/releases/tag/${ffmpeg.releaseTag}`,
   });
   return out;
 }
@@ -199,7 +201,7 @@ export function generate() {
   const ffmpeg = JSON.parse(read('third_party/ffmpeg/sources.lock.json'));
   const sources: LicenceSource[] = [
     {id: 'portico', url: PORTICO_SOURCE},
-    {id: 'ffmpeg', url: `${PORTICO_SOURCE}/releases/tag/${ffmpeg.releaseTag}`},
+    {id: 'ffmpeg', url: `${FFMPEG_SOURCE}/releases/tag/${ffmpeg.releaseTag}`},
   ];
   const components: CollectedComponent[] = [
     {id: 'portico', name: 'Portico Media Server and web app', licence: 'GPL-3.0-or-later', group: 'portico', text: licence, url: PORTICO_SOURCE},

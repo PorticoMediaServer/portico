@@ -4,7 +4,7 @@
  "sources": [
   {
    "id": "portico",
-   "url": "https://github.com/PorticoMediaServer/portico-server"
+   "url": "https://github.com/PorticoMediaServer/portico"
   },
   {
    "id": "ffmpeg",
@@ -17,7 +17,7 @@
    "name": "Portico Media Server and web app",
    "licence": "GPL-3.0-or-later",
    "group": "portico",
-   "url": "https://github.com/PorticoMediaServer/portico-server",
+   "url": "https://github.com/PorticoMediaServer/portico",
    "text": 0
   },
   {
@@ -2142,10 +2142,10 @@
  ],
  "inputs": {
   "LICENSE": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
-  "package-lock.json": "ecb4e8e6f8032cbe5ec3c18277adba0ccfea2c531a1cf83c5c7ecafaf99c5cbc",
+  "package-lock.json": "f07809e93aabdf7c6418746180d5820fe083ce9db6c1411a113a0b17bf958ea4",
   "packages/design/LICENSE-LUCIDE": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
   "scripts/release-build-tags.py": "1e0070421a44a8a3d9ecda535d2186ae5679786576da74f38dd40af07c8765c9",
-  "server/go.mod": "1204e448cdabab05c36cb8149f8f88e508c55c71ab56825bd7564badf7e5ed9e",
+  "server/go.mod": "bd3b4913cdbaf693d3d3b90079273b08d60e7fdf00ff9b43e7e380e687be62c3",
   "server/go.sum": "6b3f4af05ef71f96664244e2c210ae98d5d3041506bf74952f68bfea40275feb",
   "server/internal/imagework/SCALE_LICENSE": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
   "server/internal/mediaexec/fonts/LICENSE": "d75938dec098f06f0ac3c00853065d94f020be1c3c62ef1dc2975ba15b4d9b0e",
