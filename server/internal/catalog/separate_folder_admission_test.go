@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"strings"
 	"testing"
 	"time"
 )
@@ -210,8 +212,14 @@ func TestSeparateFolderAdmissionActorFence(t *testing.T) {
 				_, _, _, e := separateFolderAdmitTx(ctx, tx, "music", f.objects[0], "r1")
 				return e
 			})
-			if !errors.Is(err, dbwork.ErrWriterCapacity) {
-				t.Fatalf("actor publication: %v", err)
+			var expected error = dbwork.ErrWriterCapacity
+			if strings.Contains(query, "SET role=") {
+				// Current authority is checked even before consuming a fresh
+				// proof; revocation reports its own refusal, never a retry.
+				expected = identity.ErrForbidden
+			}
+			if !errors.Is(err, expected) {
+				t.Fatalf("actor publication: got %v, want %v", err, expected)
 			}
 			if rows(t, f.c, "SELECT count(*) FROM catalog_entity_mutations") != 0 || rows(t, f.c, "SELECT count(*) FROM catalog_albums") != 1 {
 				t.Fatal("actor race created effects")

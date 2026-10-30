@@ -109,6 +109,7 @@ internal/catalog/scalebench/trickle.go	exerciseTrickle	WithWriteTx	ClassBackgrou
 internal/catalog/search_history.go	(*Service).ClearSearchHistory	ExecWrite	ClassFrom(s.Context(), dbwork.ClassInteractive)	-
 internal/catalog/search_history.go	(*Service).DeleteSearchHistory	ExecWrite	ClassFrom(s.Context(), dbwork.ClassInteractive)	-
 internal/catalog/search_history.go	(*Service).RecordSearch	ExecWrite	ClassFrom(s.Context(), dbwork.ClassInteractive)	-	×2
+internal/catalog/separate_folder_admission.go	(*Service).admitSeparateFolder	WithWriteTx	ClassFrom(proofCtx, dbwork.ClassInteractive)	-
 internal/catalog/separate_folder_admission.go	(*Service).runSeparateFolder	WithWriteTx	ClassFrom(ctx, dbwork.ClassInteractive)	dbwork.DefaultPlan(dbwork.ClassInteractive)
 internal/catalog/separate_folder_background.go	(*Service).separateFolderBackground	WithWriteTx	ClassBackgroundMedia	dbwork.DefaultPlan(dbwork.ClassInteractive)	×2
 internal/catalog/show_settings.go	(*Service).SetShowSettings	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	-

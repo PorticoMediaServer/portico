@@ -67,16 +67,18 @@ func TestSeparateFolderHTTPPausedSourceKeepsIntent(t *testing.T) {
 // through the real authenticated HTTP route, with the original object/revision.
 func TestSeparateFolderAdmissionRefusalUsesRetryableHTTPBoundary(t *testing.T) {
 	f := newSeparateFolderHTTPFixture(t, 2)
-	first := true
+	calls := 0
 	id, err := f.deps.Catalog.SeparateFolder(context.Background(), "music", f.objects[0], "r1", func(*sql.Tx) error {
-		if first {
-			first = false
+		calls++
+		// Keep every read proof conflicted, including all bounded refreshes.
+		// The even calls are writer authorization, which must not nest a writer.
+		if calls%2 == 1 {
 			_, e := dbwork.ExecWrite(context.Background(), f.deps.DB, dbwork.ClassInteractive, `UPDATE catalog_entities SET title=title||' changed' WHERE id=?`, f.album)
 			return e
 		}
 		return nil
 	})
-	if !errors.Is(err, dbwork.ErrWriterCapacity) || id != "" {
+	if !errors.Is(err, dbwork.ErrWriterCapacity) || id != "" || calls != 6 {
 		t.Fatalf("stale read proof: id=%q err=%v", id, err)
 	}
 	w := httptest.NewRecorder()

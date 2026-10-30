@@ -6,6 +6,7 @@ import {separateLibraryFolder, type TitleIdentityApi} from '../src/title-identit
 const file={objectId:'object/1',revision:'original'};
 const flush=async()=>{for(let i=0;i<40;i++)await Promise.resolve();};
 const pending=(hint?:string)=>new ApiError(409,'request_in_progress','pending',true,retryAfterSecondsFrom(hint??null));
+const busy=(hint?:string)=>new ApiError(503,'writer_capacity','busy',true,retryAfterSecondsFrom(hint??null));
 const apiOf=(call:(...args:Parameters<TitleIdentityApi['request']>)=>Promise<unknown>):TitleIdentityApi=>({request:call as TitleIdentityApi['request']});
 
 test('pending retries capture one immutable request and honour parsed Retry-After floors',async t=>{
@@ -50,8 +51,8 @@ test('in-flight cancellation rejects promptly and cannot publish a late successf
  const rejected=assert.rejects(result,{name:'AbortError'});await flush();assert.equal(seen,controller.signal);controller.abort();await rejected;finish({itemId:'late'});await flush();
 });
 
-test('only pending 409 retries; unreadable successes and every other error stop once',async()=>{
- for(const error of [new ApiError(409,'revision_mismatch','stale'),new ApiError(409,'conflict','conflict'),new ApiError(403,'forbidden','no'),new ApiError(401,'unauthorized','no'),new ApiError(503,'request_in_progress','fault'),new Error('network')]){
+test('only pending 409 and writer-capacity 503 retry; other errors stop once',async()=>{
+ for(const error of [new ApiError(409,'revision_mismatch','stale'),new ApiError(409,'conflict','conflict'),new ApiError(403,'forbidden','no'),new ApiError(401,'unauthorized','no'),new ApiError(503,'request_in_progress','fault'),new ApiError(503,'server_busy','busy'),new ApiError(409,'writer_capacity','conflict'),new Error('network')]){
   let calls=0;await assert.rejects(separateLibraryFolder(apiOf(async()=>{calls++;throw error;}),'lib',file),e=>e===error);assert.equal(calls,1);
  }
  for(const value of [undefined,{}, {itemId:''},{itemId:7}]){let calls=0;await assert.rejects(separateLibraryFolder(apiOf(async()=>{calls++;return value;}),'lib',file),/Unreadable/);assert.equal(calls,1);}
@@ -88,4 +89,44 @@ test('an overdue wait cannot start another request after the time budget',async 
  t.mock.timers.enable({apis:['setTimeout','Date'],now:0});let calls=0;const error=pending();
  const result=separateLibraryFolder(apiOf(async()=>{calls++;throw error;}),'lib',file);
  const rejected=assert.rejects(result,e=>e===error);await flush();t.mock.timers.tick(120_000);await rejected;assert.equal(calls,1);
+});
+
+
+test('real transport retries writer capacity then pending with one immutable request',async t=>{
+ t.mock.timers.enable({apis:['setTimeout','Date'],now:1000});
+ const calls:{url:string;body:unknown;time:number}[]=[];
+ const api=new HttpLocalApi('https://folder.example','',async(url,init)=>{
+  calls.push({url:String(url),body:init?.body,time:Date.now()});
+  if(calls.length===1)return new Response(JSON.stringify({error:{code:'writer_capacity',retry:'same_request'}}),{status:503,headers:{'Retry-After':'7'}});
+  if(calls.length===2)return new Response(JSON.stringify({error:{code:'request_in_progress',retry:'same_request'}}),{status:409,headers:{'Retry-After':'3'}});
+  return new Response(JSON.stringify({itemId:'same-album'}));
+ });
+ const input={...file},result=separateLibraryFolder(api,'lib',input);
+ await flush();input.objectId='changed';input.revision='changed';
+ t.mock.timers.tick(6999);await flush();assert.equal(calls.length,1);
+ t.mock.timers.tick(1);await flush();assert.equal(calls.length,2);
+ t.mock.timers.tick(2999);await flush();assert.equal(calls.length,2);
+ t.mock.timers.tick(1);await flush();assert.equal(await result,'same-album');
+ assert.deepEqual(calls.map(c=>c.time),[1000,8000,11000]);
+ assert(calls.every(c=>c.url===calls[0]!.url&&c.body===calls[0]!.body));
+ assert.deepEqual(JSON.parse(String(calls[0]!.body)),{revision:'original'});
+});
+
+test('writer-capacity waits abort without another request',async t=>{
+ t.mock.timers.enable({apis:['setTimeout','Date'],now:0});
+ const controller=new AbortController();let calls=0;
+ const result=separateLibraryFolder(apiOf(async()=>{calls++;throw busy('7');}),'lib',file,controller.signal);
+ const rejected=assert.rejects(result,{name:'AbortError'});await flush();controller.abort();await rejected;
+ t.mock.timers.tick(120_000);await flush();assert.equal(calls,1);
+});
+
+test('writer capacity shares the existing attempt, elapsed and server-floor limits',async t=>{
+ t.mock.timers.enable({apis:['setTimeout','Date'],now:0});
+ for(const hint of [undefined,'5','121']){
+  let calls=0;const error=busy(hint);
+  const result=separateLibraryFolder(apiOf(async()=>{calls++;throw error;}),'lib',file);
+  const rejected=assert.rejects(result,e=>e===error);await flush();
+  if(hint!=='121')for(let i=0;i<32;i++){t.mock.timers.tick(hint==='5'?5000:2000);await flush();}
+  await rejected;assert.equal(calls,hint===undefined?32:hint==='5'?24:1);
+ }
 });
