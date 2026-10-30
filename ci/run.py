@@ -148,6 +148,7 @@ def js_tests(plan,component):
         roots.setdefault(group,[]).append(str(Path(file).relative_to(group)))
     for group,files in roots.items():
         args=['node','--experimental-transform-types']
+        if group=='apps/native': args+=['--experimental-vm-modules']
         if (ROOT/group/'test/register.mjs').exists(): args+=['--import','./test/register.mjs']
         execute(args+['--test-timeout=120000','--test-concurrency=4','--test',*files],ROOT/group)
         pkg=json.loads((ROOT/group/'package.json').read_text()); scripts=pkg.get('scripts',{})
