@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultI18n} from '../../../packages/i18n/src';
+import {parseBrowseNode, type BrowseCapabilities, type BrowseFieldCapability} from '../../../packages/client-core/src/browse';
 import {browseToolbarModel} from '../../../packages/client-core/src/presentation/kit-model';
 import {libraryFilterChange, libraryFilterField} from '../src-next/screens/library/filter-controls';
 import {nativeLibraryCanSave} from '../src-next/screens/library/model';
@@ -71,3 +72,27 @@ test('Phone Library filters put Clear all in the heading and save the actual sta
   assert.deepEqual(calls[1], ['save', {predicates: state.predicates, sort: source.sort}]);
   assert.notDeepEqual(state.predicates, source.predicates);
 });
+
+for (const [name, operators, expected] of [
+  ['between', ['between', 'at-least', 'at-most'], [{variant: 'predicate', field: 'durationMs', operator: 'between', value: [1800000, 3600000]}]],
+  ['at-least/at-most fallback', ['at-least', 'at-most'], [
+    {variant: 'predicate', field: 'durationMs', operator: 'at-least', value: 1800000},
+    {variant: 'predicate', field: 'durationMs', operator: 'at-most', value: 3600000},
+  ]],
+] as const) {
+  test(`Library range preset emits strict tagged predicates through ${name}`, () => {
+    const field: BrowseFieldCapability = {id: 'durationMs', labelKey: 'filter.field.duration', type: 'number',
+      operators, controlHint: 'number-range', complexity: 'quick', cost: 'indexed', applicableKinds: ['movie']};
+    const capabilities: BrowseCapabilities = {
+      library: {id: 'movies', name: 'Movies', kind: 'movie', defaultView: 'grid', pinned: false},
+      pivots: [], resolvedPivot: null, fields: [field], sorts: [], quickFilters: [],
+      queryLimits: {maximumDepth: 8, maximumClauses: 100, maximumBytes: 65536, maximumSorts: 4, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 60000},
+    };
+    const result = libraryFilterChange(capabilities, field, [], {kind: 'range', value: '30-60'}, [], new Date('2026-10-30T12:00:00Z'));
+    assert.deepEqual(result, expected);
+    for (const node of result) {
+      assert.equal(node.variant, 'predicate');
+      assert.deepEqual(parseBrowseNode(node), node);
+    }
+  });
+}
