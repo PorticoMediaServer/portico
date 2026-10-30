@@ -159,7 +159,7 @@ func newLoadFixture(t *testing.T, tier performanceTier) *loadFixture {
 	scanner := ingestion.New(db, cat, assets.Probe{})
 	watchdog := dbwork.NewWatchdog(db)
 	d := Dependencies{DB: db, Identity: ident, Catalog: cat, Ingestion: scanner, Playback: player, Hosted: host, Watchdog: watchdog}
-	startFacets := composeHTTPFacetFixture(t, &d)
+	facets := composeHTTPFacetFixture(t, &d)
 	handler := New(d)
 
 	secret, err := os.ReadFile(storagepaths.Path(root, "setup-token"))
@@ -312,7 +312,7 @@ func newLoadFixture(t *testing.T, tier performanceTier) *loadFixture {
 		t.Fatal("fixture is missing provider-style actor/starring recommendations")
 	}
 	catTest.Drain()
-	startFacets()
+	facets.Start()
 	// Tiny statement probes expect a settled facet answer. Prepare only their
 	// exact requests outside instrumentation; other fixture users (including the
 	// cold-principal-cache test) retain their original first-request behavior.
@@ -328,7 +328,7 @@ func newLoadFixture(t *testing.T, tier performanceTier) *loadFixture {
 			// The cold-scope and ready-BASE paths have distinct preparation
 			// keys. Settle both through the same exact HTTP request.
 			for range 2 {
-				w := readyHTTPFacetFixture(t, "/v1/libraries/"+f.library+"/facets?field="+field, request)
+				w := readyHTTPFacetFixture(t, "/v1/libraries/"+f.library+"/facets?field="+field, request, facets.WaitPrepared)
 				if w.Code != http.StatusOK {
 					t.Fatalf("warm fixture facet %s: %d %s", field, w.Code, w.Body.String())
 				}
