@@ -5,17 +5,33 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET="${1:?usage: build-ffmpeg.sh TARGET [WORK_DIRECTORY]}"
 PHASE="${PORTICO_FFMPEG_PHASE:-full}"
 case "$PHASE" in full) ;; working|compile|package) [[ "$TARGET" == linux-x64 ]] || { echo 'Split compile/package phases currently require linux-x64' >&2; exit 1; };; *) echo 'Unknown source build phase' >&2; exit 1;; esac
-LANE_SCRATCH="${PORTICO_LANE_SCRATCH:?Set PORTICO_LANE_SCRATCH to the workspace .scratch/hardware-r29 directory}"
-[[ "$LANE_SCRATCH" == /*/.scratch/hardware-r29 ]] || { echo 'Use the lane scratch directory on disk' >&2; exit 1; }
-mkdir -p "$LANE_SCRATCH"
-LANE_SCRATCH="$(cd "$LANE_SCRATCH" && pwd -P)"
-case "$LANE_SCRATCH" in /tmp/*|/dev/shm/*) echo 'Lane scratch must be on disk' >&2; exit 1;; esac
+# The dedicated hardware lane names its on-disk scratch directory explicitly.
+# CI and local packaging runs without one use the script-owned runtime
+# directory, so the emitted archive stays on the path packaging reads.
+if [[ -n "${PORTICO_LANE_SCRATCH:-}" ]]; then
+  LANE_SCRATCH="$PORTICO_LANE_SCRATCH"
+  [[ "$LANE_SCRATCH" == /*/.scratch/hardware-r29 ]] || { echo 'Use the lane scratch directory on disk' >&2; exit 1; }
+  mkdir -p "$LANE_SCRATCH"
+  LANE_SCRATCH="$(cd "$LANE_SCRATCH" && pwd -P)"
+  case "$LANE_SCRATCH" in /tmp/*|/dev/shm/*) echo 'Lane scratch must be on disk' >&2; exit 1;; esac
+  TEMP_ROOT="$LANE_SCRATCH"
+else
+  LANE_SCRATCH="$ROOT/runtime"
+  mkdir -p "$LANE_SCRATCH"
+  LANE_SCRATCH="$(cd "$LANE_SCRATCH" && pwd -P)"
+  # Disposable tool caches only. The build output and its archive never move.
+  TEMP_ROOT="${RUNNER_TEMP:-$LANE_SCRATCH}"
+  mkdir -p "$TEMP_ROOT"
+  TEMP_ROOT="$(cd "$TEMP_ROOT" && pwd -P)"
+fi
+export PORTICO_LANE_SCRATCH="$LANE_SCRATCH"
 WORK="${2:-$LANE_SCRATCH/ffmpeg-build/$TARGET}"
-[[ "$WORK" == "$LANE_SCRATCH/"* ]] || { echo 'Build output must stay under the lane scratch directory' >&2; exit 1; }
+[[ "$WORK" == /* ]] || WORK="$PWD/$WORK"
+[[ "$WORK" == "$LANE_SCRATCH/"* ]] || { echo 'Build output must stay under the scratch directory' >&2; exit 1; }
 mkdir -p "$WORK"
 WORK="$(cd "$WORK" && pwd -P)"
-[[ "$WORK" == "$LANE_SCRATCH/"* ]] || { echo 'Build output must stay under the lane scratch directory' >&2; exit 1; }
-export TMPDIR="$LANE_SCRATCH/tmp" GOTMPDIR="$LANE_SCRATCH/go-tmp" XDG_CACHE_HOME="$LANE_SCRATCH/cache" PIP_CACHE_DIR="$LANE_SCRATCH/cache/pip"
+[[ "$WORK" == "$LANE_SCRATCH/"* ]] || { echo 'Build output must stay under the scratch directory' >&2; exit 1; }
+export TMPDIR="$TEMP_ROOT/tmp" GOTMPDIR="$TEMP_ROOT/go-tmp" XDG_CACHE_HOME="$TEMP_ROOT/cache" PIP_CACHE_DIR="$TEMP_ROOT/cache/pip"
 export GOCACHE="$HOME/.cache/go-build"
 mkdir -p "$TMPDIR" "$GOTMPDIR" "$XDG_CACHE_HOME" "$PIP_CACHE_DIR"
 readlock() { python3 -c 'import json,sys;v=json.load(open(sys.argv[1]));print(v[sys.argv[2]][sys.argv[3]])' "$ROOT/third_party/ffmpeg/sources.lock.json" "$1" "$2"; }
@@ -66,7 +82,7 @@ case "$TARGET" in
   done
   # Build tools and downloads are private to this job; never upgrade system Python.
   python3 -m venv "$WORK/python"
-  "$WORK/python/bin/pip" install --disable-pip-version-check 'meson==1.7.0' 'ninja==1.11.1.4' 'setuptools==75.8.0'
+  "$WORK/python/bin/pip" install --disable-pip-version-check 'meson==1.11.0' 'ninja==1.11.1.4' 'setuptools==75.8.0'
   export PATH="$WORK/python/bin:$PATH"
   python3 "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/recipe" "$PREPARED_SOURCE" "$TARGET"
   # Seed the exact verified source consumed by the pinned recipe.

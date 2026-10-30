@@ -462,7 +462,7 @@
       "third_party/ffmpeg/patches/homebridge-zix-build.patch"
     ],
     "pythonBuildTools": {
-      "meson": "1.7.0",
+      "meson": "1.11.0",
       "ninja": "1.11.1.4",
       "setuptools": "75.8.0"
     }
@@ -478,7 +478,15 @@
   ],
   "sourceDateEpoch": 1790508678,
   "linuxSourceBuild": {
-    "compilerImage": "ghcr.io/btbn/ffmpeg-builds/base-linux64@sha256:b25a69b08be0bf5feee8315740259f53caf5e8cc9e01e5bf9ff351cd0b550f0f",
+    "compilerImage": "ghcr.io/btbn/ffmpeg-builds/base-linux64@sha256:1990e7f9b3c8221afae708c224443999eccc8f173beae8bee1c1395b895cc356",
+    "compilerImageProvenance": {
+      "upstreamImage": "ghcr.io/btbn/ffmpeg-builds/base-linux64@sha256:1990e7f9b3c8221afae708c224443999eccc8f173beae8bee1c1395b895cc356",
+      "upstreamCommit": "5031c6f1082414e53688d39e521849905071070d",
+      "upstreamRun": 40871264069,
+      "upstreamJob": 123443521152,
+      "registryDescriptorDigest": "sha256:1990e7f9b3c8221afae708c224443999eccc8f173beae8bee1c1395b895cc356",
+      "qualificationKind": "new-toolchain-not-byte-equivalent"
+    },
     "compilerImagePolicy": "Immutable compiler only; FFmpeg and linked media dependencies are built from the pinned sources. No prebuilt FFmpeg.",
     "roots": [
       "libiconv",
@@ -607,6 +615,6 @@
   },
   "sourceAuthority": {
     "path": "third_party/ffmpeg/source-authority.v1.json",
-    "sha256": "4ec100aa3d68374e27588131ff579b39053631c30513129d1166f80b0a8e80a2"
+    "sha256": "bb3d78c0c971d2b936f535b1cc06a11d40180f20dc3da6d1e5c52fa95ef647a7"
   }
 }
