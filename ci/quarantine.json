@@ -3,14 +3,6 @@
   "status": "approved",
   "entries": [
     {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/catalog",
-      "test": "TestAlbumsJoinByReleaseAndOwnerCanSeparateAFolder",
-      "owner": "Portico reset lead",
-      "reason": "2/2 sampled functional failures; adoption pumping plus bounded SeparateFolder repair awaiting recomposition",
-      "expires": "2026-11-02",
-      "tier": "merge-and-nightly"
-    },
-    {
       "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
       "test": "TestDerivedWorkerCompletesWithForegroundPressure",
       "owner": "Portico reset lead",
