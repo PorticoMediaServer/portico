@@ -272,6 +272,11 @@ func TestRealLocalAudioScanChaptersArtAndBookResume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Book timelines sum each part at millisecond precision. Probe durations
+	// retain finer precision (for example, FFprobe 6 reports 4.04898s for
+	// this MP3), so derive the expected timeline without rounding the sum.
+	firstPartSeconds := math.Round(files[0].Duration*1000) / 1000
+	bookDurationSeconds := firstPartSeconds + math.Round(files[1].Duration*1000)/1000
 	// Home now displays a book, with its real playable part in the resume
 	// target. The retired file-level continue_listening row is not the contract.
 	checkBookResume := func(home catalog.HomeDocument, item string, partPosition, bookPosition float64) {
@@ -284,7 +289,7 @@ func TestRealLocalAudioScanChaptersArtAndBookResume(t *testing.T) {
 				t.Fatalf("book continuation: %+v", row)
 			}
 			book, resume := row.Entries[0], row.Resumes[0]
-			if book.Kind != "book" || book.ID != bookRows[0].ID || book.Playback == nil || book.Playback.ItemID != item || book.Playback.StartSeconds == nil || *book.Playback.StartSeconds != partPosition || book.ProgressSeconds == nil || math.Abs(*book.ProgressSeconds-bookPosition) > 0.000001 || book.Duration == nil || math.Abs(*book.Duration-(files[0].Duration+files[1].Duration)) > 0.000001 {
+			if book.Kind != "book" || book.ID != bookRows[0].ID || book.Playback == nil || book.Playback.ItemID != item || book.Playback.StartSeconds == nil || *book.Playback.StartSeconds != partPosition || book.ProgressSeconds == nil || math.Abs(*book.ProgressSeconds-bookPosition) > 0.000001 || book.Duration == nil || math.Abs(*book.Duration-bookDurationSeconds) > 0.000001 {
 				number := func(value *float64) any {
 					if value == nil {
 						return "nil"
@@ -296,7 +301,7 @@ func TestRealLocalAudioScanChaptersArtAndBookResume(t *testing.T) {
 				if book.Playback != nil {
 					playbackItem, start = book.Playback.ItemID, book.Playback.StartSeconds
 				}
-				t.Fatalf("whole-book bookmark: Kind=%q want=book ID=%q want=%q Playback.ItemID=%q want=%q StartSeconds=%v want=%v ProgressSeconds=%v want=%v Duration=%v want=%v", book.Kind, book.ID, bookRows[0].ID, playbackItem, item, number(start), partPosition, number(book.ProgressSeconds), bookPosition, number(book.Duration), files[0].Duration+files[1].Duration)
+				t.Fatalf("whole-book bookmark: Kind=%q want=book ID=%q want=%q Playback.ItemID=%q want=%q StartSeconds=%v want=%v ProgressSeconds=%v want=%v Duration=%v want=%v", book.Kind, book.ID, bookRows[0].ID, playbackItem, item, number(start), partPosition, number(book.ProgressSeconds), bookPosition, number(book.Duration), bookDurationSeconds)
 			}
 			if resume.EntryID != book.ID || resume.Target.ID != item || resume.Target.ProgressSeconds == nil || *resume.Target.ProgressSeconds != partPosition {
 				t.Fatalf("real part bookmark: %+v", resume)
@@ -335,7 +340,7 @@ func TestRealLocalAudioScanChaptersArtAndBookResume(t *testing.T) {
 	if err != nil {
 		t.Fatal("audio Home", home, err)
 	}
-	checkBookResume(home, files[1].ID, 1, files[0].Duration+1)
+	checkBookResume(home, files[1].ID, 1, firstPartSeconds+1)
 	// Music remains resumable as its album independently of the book row.
 	var musicResumes []catalog.HomeResume
 	for _, row := range home.Rows {

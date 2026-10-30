@@ -287,8 +287,22 @@ func TestManifestPublicationWaitsForTheSessionGeneration(t *testing.T) {
 	if err := s.Ready(ctx, session); err != nil {
 		t.Fatal(err)
 	}
+	// Finish publication before replacing its stamp, so the producer cannot
+	// overwrite the test's stale generation or mask retirement of invalid output.
+	h.mu.Lock()
+	window := h.windows[session.ID]
+	h.mu.Unlock()
+	if window != nil {
+		select {
+		case <-window.done:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	// Zero denotes interrupted output and may be retired. A valid different
+	// generation must stay fenced until the matching stamp is published.
 	marker := filepath.Join(h.root, session.ID, "generation")
-	if err := os.WriteFile(marker, []byte("0"), 0600); err != nil {
+	if err := os.WriteFile(marker, []byte(strconv.Itoa(session.Generation+1)), 0600); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			list := func(path string) []string {
 				entries, readErr := os.ReadDir(path)
