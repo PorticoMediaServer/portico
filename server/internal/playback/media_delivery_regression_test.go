@@ -109,7 +109,12 @@ func TestActiveRenditionDemandDoesNotPretendDelivery(t *testing.T) {
 	}
 	r := p.Renditions[1]
 	if err = h.startRendition(ctx, session.ID, r, 0); err != nil {
-		t.Fatal(err)
+		diagnostic, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		var state, expires, failure string
+		var generation, plans int
+		queryErr := h.db.QueryRowContext(diagnostic, `SELECT ps.state,ps.generation,ps.expires_at,(SELECT count(*) FROM playback_delivery_plans WHERE session_id=ps.id),COALESCE((SELECT failure_code FROM playback_conversion_failures WHERE session_id=ps.id ORDER BY sequence DESC LIMIT 1),'') FROM playback_sessions ps WHERE ps.id=?`, session.ID).Scan(&state, &generation, &expires, &plans, &failure)
+		t.Fatalf("start rendition: %v; session state=%q generation=%d expires=%q now=%q plan_rows=%d last_failure=%q diagnostic_query=%v", err, state, generation, expires, time.Now().UTC().Format(time.RFC3339Nano), plans, failure, queryErr)
 	}
 	key := renditionKey(session.ID, 1)
 	h.mu.Lock()
