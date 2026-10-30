@@ -8,4 +8,4 @@ tar -xzf "$scratch/gitleaks.tar.gz" -C "$scratch" gitleaks
 mkdir "$scratch/snapshot"
 git archive HEAD | tar -x -C "$scratch/snapshot"
 # Snapshot only, comprehensive default rules extended by repository config. No findings printed.
-"$scratch/gitleaks" dir "$scratch/snapshot" --config .gitleaks.toml --redact --no-banner --report-path="$scratch/report.json" >"$scratch/log" 2>&1 || { echo 'Snapshot secret scan failed; findings withheld'; exit 1; }
+(cd "$scratch/snapshot" && "$scratch/gitleaks" dir . --config .gitleaks.toml --redact --no-banner --report-path="$scratch/report.json") >"$scratch/log" 2>&1 || { echo 'Snapshot secret scan failed; findings withheld'; exit 1; }
