@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/claimweb"
@@ -27,68 +28,68 @@ func TestOwnerRecoveryEmptyLaneSleepsUntilActualWake(t *testing.T) {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
 
-	f, h, tr := handlerFixture(t)
-	// Observe the same real SQLite file through the production instrumented
-	// driver. No replacement schema, query stub or artificial timer is used.
-	observed, err := sql.Open(dbwork.DriverName, f.path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { observed.Close() })
-	observed.SetMaxOpenConns(1)
-	h.store.db = observed
-	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Second)
-	defer cancel()
-	ctx, read := dbwork.Measure(ctx)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		h.RunWebClaimRecovery(ctx, func(string) ClaimRequestGuard { return nil })
-	}()
-	defer func() {
-		cancel()
+	synctest.Test(t, func(t *testing.T) {
+		f, h, tr := handlerFixture(t)
+		// Observe the same real SQLite file through the production instrumented
+		// driver. The test clock advances production timers; SQL and recovery code
+		// are real, with no replacement schema or query stub.
+		observed, err := sql.Open(dbwork.DriverName, f.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { observed.Close() })
+		observed.SetMaxOpenConns(1)
+		h.store.db = observed
+		ctx, cancel := context.WithTimeout(t.Context(), 40*time.Second)
+		defer cancel()
+		ctx, read := dbwork.Measure(ctx)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			h.RunWebClaimRecovery(ctx, func(string) ClaimRequestGuard { return nil })
+		}()
+		defer func() {
+			cancel()
+			select {
+			case <-done:
+			case <-time.After(2 * time.Second):
+				t.Error("owner recovery did not stop")
+			}
+		}()
+		// With no setup return resolver, one empty recovery pass reads saved
+		// watches, expired owner captures, queued denials and the pending-work
+		// predicate. Wait for that final predicate before measuring idle work.
+		const emptyPassStatements = 4
+		synctest.Wait()
+		before := read().Statements
+		if before != emptyPassStatements {
+			t.Fatalf("empty recovery startup read %d statements, wanted %d", before, emptyPassStatements)
+		}
+		// Cross the original 30-second retry boundary with the production timer.
+		time.Sleep(30 * time.Second)
+		synctest.Wait()
+		if after := read().Statements; after != before {
+			t.Fatalf("empty recovery polled SQLite at its retry boundary: %d -> %d", before, after)
+		}
+		time.Sleep(time.Second)
+		synctest.Wait()
 		select {
 		case <-done:
-		case <-time.After(2 * time.Second):
-			t.Error("owner recovery did not stop")
+			t.Fatal("empty recovery stopped without cancellation")
+		default:
 		}
-	}()
-	waitForStatements := func(want int64) {
-		t.Helper()
-		deadline := time.NewTimer(3 * time.Second)
-		defer deadline.Stop()
-		tick := time.NewTicker(5 * time.Millisecond)
-		defer tick.Stop()
-		for read().Statements < want {
-			select {
-			case <-deadline.C:
-				t.Fatalf("recovery wake read %d statements, wanted %d", read().Statements, want)
-			case <-tick.C:
-			}
+		if after := read().Statements; after != before {
+			t.Fatalf("empty recovery polled SQLite after its startup read: %d -> %d", before, after)
 		}
-	}
-	// With no setup return resolver, one empty recovery pass reads saved
-	// watches, expired owner captures, queued denials and the pending-work
-	// predicate. Wait for that final predicate before measuring idle work.
-	const emptyPassStatements = 4
-	waitForStatements(emptyPassStatements)
-	before := read().Statements
-	if before != emptyPassStatements {
-		t.Fatalf("empty recovery startup read %d statements, wanted %d", before, emptyPassStatements)
-	}
-	select {
-	case <-time.After(31 * time.Second):
-	case <-done:
-		t.Fatal("empty recovery stopped without cancellation")
-	}
-	if after := read().Statements; after != before {
-		t.Fatalf("empty recovery polled SQLite after its startup read: %d -> %d", before, after)
-	}
-	h.wakeClaimRecovery()
-	waitForStatements(before + emptyPassStatements)
-	if tr.finalizes != 0 || tr.retrieves != 0 || tr.cancels != 0 {
-		t.Fatal("empty recovery performed remote claim work")
-	}
+		h.wakeClaimRecovery()
+		synctest.Wait()
+		if after := read().Statements; after != before+emptyPassStatements {
+			t.Fatalf("recovery wake read %d statements, wanted %d", after, before+emptyPassStatements)
+		}
+		if tr.finalizes != 0 || tr.retrieves != 0 || tr.cancels != 0 {
+			t.Fatal("empty recovery performed remote claim work")
+		}
+	})
 }
 
 // ownerRecoveryFixture keeps real owner/start authority local to these recovery
