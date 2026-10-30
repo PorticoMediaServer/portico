@@ -1348,6 +1348,10 @@
     },
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestAirPlayReceiverPreparesExactCurrentChoicesBeforeHandoff"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
       "test": "TestBackgroundPauseAndResourceUsageOwnerContracts"
     },
     {
@@ -3217,6 +3221,10 @@
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
       "test": "TestActivityStopOwnedSupervisorCleanup"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+      "test": "TestAirPlayCopyFallbackKeepsReceiverIdentity"
     },
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/playback",

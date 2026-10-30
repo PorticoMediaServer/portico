@@ -22,6 +22,9 @@ func airPlayKnownStreams(t *testing.T, f *v1Fixture) {
 }
 
 func TestAirPlayReceiverPreparesExactCurrentChoicesBeforeHandoff(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping measured slow test in short mode")
+	}
 	f, drawn := v1BurnInFixture(t)
 	if _, err := f.db.Exec(`UPDATE playback_owner_policy SET transcoding_enabled=1`); err != nil {
 		t.Fatal(err)
@@ -114,7 +117,7 @@ func TestAirPlayReceiverPreparesExactCurrentChoicesBeforeHandoff(t *testing.T) {
 		}
 		plan, e := f.v1.Playback.SessionPlan(context.Background(), media)
 		if e != nil || plan == nil || !plan.AirPlay || len(plan.Renditions) != 0 || plan.Mode != "hls" {
-			t.Fatal(plan, e)
+			t.Fatalf("receiver plan at choice %d (%q): %+v, error=%v", index, track, plan, e)
 		}
 		if track != "" {
 			selected, e := f.v1.Subtitles.Plan(context.Background(), principal, f.items[0], media)
