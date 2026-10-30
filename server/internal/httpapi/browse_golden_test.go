@@ -316,7 +316,7 @@ func goldenNewBrowseFacets(t *testing.T, f *goldenFixture, c goldenCase) (golden
 	for _, key := range keys {
 		values = append(values, map[string]any{"value": key, "label": labels[key], "count": counts[key], "countIsLowerBound": false})
 	}
-	doc := map[string]any{"field": field, "values": values, "total": len(keys), "totalIsLowerBound": false, "revision": "<volatile>"}
+	doc := map[string]any{"variant": "page", "field": field, "values": values, "total": len(keys), "totalIsLowerBound": false, "revision": "<volatile>"}
 	raw, e := json.Marshal(doc)
 	if e != nil {
 		t.Fatal(e)
