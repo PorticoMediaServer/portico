@@ -4,7 +4,8 @@ import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 /** Titles as things in their own right: titles whose files are gone from disk,
  * saying two titles are one, and removing a library. Owner only. These routes
- * are on the typed registry, so their answers are plain JSON (no envelope). */
+ * generally use the typed registry and return plain JSON (no envelope). The library
+ * inventory helpers below include raw-mux routes outside the generated registry. */
 
 import {firstOfEach,keepReadable,oneOfOr} from './tolerant.ts';
 
@@ -155,11 +156,56 @@ export async function findLibraryFile(api:TitleIdentityApi,libraryId:string,file
 export const FOLDER_SPLITTABLE_KINDS:readonly string[]=Object.freeze(['song','audiobook_file']);
 
 /** Says the folder holding this file is an album (or book) of its own, not part of the one it was joined with. Returns the new album's or book's id. */
-export async function separateLibraryFolder(api:TitleIdentityApi,libraryId:string,file:LibraryFileRecord):Promise<string>{
- if(!id(libraryId)||!id(file.objectId)||!id(file.revision))invalid('folder to separate');
- const out=await api.request<unknown>(libraryBase(libraryId)+'/inventory/'+encodeURIComponent(file.objectId)+'/separate-folder','POST',{revision:file.revision});
- if(!obj(out)||!id(out.itemId))invalid('separated album');
- return out.itemId;
+export async function separateLibraryFolder(api:TitleIdentityApi,libraryId:string,file:LibraryFileRecord,signal?:AbortSignal):Promise<string>{
+ const objectId=file.objectId,revision=file.revision;
+ if(!id(libraryId)||!id(objectId)||!id(revision))invalid('folder to separate');
+ // This raw-mux route is not covered by generated contracts (API-REGISTRY-SEPARATE-FOLDER).
+ const path=libraryBase(libraryId)+'/inventory/'+encodeURIComponent(objectId)+'/separate-folder';
+ const body=Object.freeze({revision}),started=Date.now();
+ let pending:unknown;
+ for(let attempt=0;attempt<32;attempt++){
+  if(signal?.aborted)throw folderCancelled();
+  if(attempt>0&&Date.now()-started>=120_000)throw pending;
+  let out:unknown;
+  try{out=await folderRequest(api,path,body,signal);}
+  catch(error){
+   if(signal?.aborted)throw folderCancelled();
+   // Match the transport's ApiError fields; same_request is not transport auto-retry.
+   if(!obj(error)||error.status!==409||error.code!=='request_in_progress')throw error;
+   pending=error;
+   const seconds=typeof error.retryAfterSeconds==='number'&&error.retryAfterSeconds>0?error.retryAfterSeconds:2;
+   const delay=seconds*1000,remaining=120_000-(Date.now()-started);
+   if(attempt===31||delay>=remaining)throw error;
+   await folderWait(delay,signal);
+   continue;
+  }
+  if(signal?.aborted)throw folderCancelled();
+  if(!obj(out)||!id(out.itemId))invalid('separated album');
+  return out.itemId;
+ }
+ throw pending;
+}
+function folderCancelled():Error{return Object.assign(new Error('cancelled'),{name:'AbortError'});}
+/** Race even a transport that ignores cancellation; its late result cannot publish an id. */
+function folderRequest(api:TitleIdentityApi,path:string,body:Readonly<{revision:string}>,signal?:AbortSignal):Promise<unknown>{
+ return new Promise((resolve,reject)=>{
+  const abort=()=>{signal?.removeEventListener('abort',abort);reject(folderCancelled());};
+  if(signal?.aborted){abort();return;}
+  signal?.addEventListener('abort',abort,{once:true});
+  Promise.resolve().then(()=>{
+   if(signal?.aborted)throw folderCancelled();
+   return api.request<unknown>(path,'POST',body,signal);
+  }).then(resolve,reject).finally(()=>signal?.removeEventListener('abort',abort));
+ });
+}
+function folderWait(delay:number,signal?:AbortSignal):Promise<void>{
+ return new Promise((resolve,reject)=>{
+  const cleanup=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);};
+  const abort=()=>{cleanup();reject(folderCancelled());};
+  const timer=setTimeout(()=>{cleanup();resolve();},delay);
+  if(signal?.aborted){abort();return;}
+  signal?.addEventListener('abort',abort,{once:true});
+ });
 }
 
 /** Says one file is not a version of the title it was grouped with: it becomes a title of its own, and the choice is remembered across scans. Returns the new title's id. */

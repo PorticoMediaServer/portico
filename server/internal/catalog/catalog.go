@@ -71,7 +71,8 @@ type Item struct {
 // copy of four words rather than a copy of a mutex — one Service, one set of
 // caches, one per-request view of it.
 type Service struct {
-	BulkCommands BulkCommandHooks
+	BulkCommands             BulkCommandHooks
+	SeparateFolderRetirement SeparateFolderHooks
 	// Clock supplies the composition instant; nil uses the system clock.
 	Clock func() time.Time
 	// browseInstant binds relative conditions to one read or signed continuation.

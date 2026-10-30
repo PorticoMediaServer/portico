@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -18,10 +19,45 @@ func inventoryFile(t *testing.T, c *catalogtest.Catalog, source string, item cat
 	return object
 }
 
+// settleIdentityAdoptions runs the real mutation adapter until no admitted
+// identity adoption is left. A provider identity publication admits durable
+// adoption custody, which catalogtest.Drain does not advance: Drain only moves
+// compact derived work. Each independent publication must therefore begin from
+// a settled identity index, because a competing adoption is refused while an
+// earlier root is still live.
+func settleIdentityAdoptions(t *testing.T, c *catalogtest.Catalog) {
+	t.Helper()
+	adapter := New(c.DB).MutationAdapter()
+	for turn := 0; turn < 64; turn++ {
+		var root string
+		err := c.DB.QueryRow(`SELECT mutation_id FROM catalog_entity_mutations WHERE owner_kind='identity' AND mode='adopt' AND status<>'terminal' ORDER BY mutation_id LIMIT 1`).Scan(&root)
+		if errors.Is(err, sql.ErrNoRows) {
+			return
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := adapter.Step(context.Background(), root)
+		if err != nil {
+			t.Fatal("actual identity adoption", err)
+		}
+		if out.State == "succeeded" {
+			continue
+		}
+		if out.State != "running" {
+			t.Fatalf("identity adoption %s: %s", out.State, out.Phase)
+		}
+	}
+	t.Fatal("identity adoption did not reach terminal custody in bounded turns")
+}
+
 // Two albums of one MusicBrainz release are one album: the same-numbered
 // tracks become versions of one track. The owner can separate one folder
 // again, and identity never joins it back.
 func TestAlbumsJoinByReleaseAndOwnerCanSeparateAFolder(t *testing.T) {
+	if testing.Short() {
+		t.Skip("full tier: measured normal parent 2.83s")
+	}
 	c := catalogtest.Open(t)
 	music := c.Library("music", "Music", "music", "/music")
 	var src string
@@ -51,7 +87,9 @@ func TestAlbumsJoinByReleaseAndOwnerCanSeparateAFolder(t *testing.T) {
 		})
 	}
 	join(mp3.ID)
+	settleIdentityAdoptions(t, c)
 	join(flac.ID)
+	settleIdentityAdoptions(t, c)
 	if n := rows(t, c, `SELECT count(*) FROM catalog_albums`); n != 1 {
 		t.Fatalf("albums of one release after joining: %d", n)
 	}
@@ -74,6 +112,7 @@ func TestAlbumsJoinByReleaseAndOwnerCanSeparateAFolder(t *testing.T) {
 		t.Fatalf("the folder's files on the separated album: %d", n)
 	}
 	join(id)
+	settleIdentityAdoptions(t, c)
 	if n := rows(t, c, `SELECT count(*) FROM catalog_albums`); n != 2 {
 		t.Fatalf("a separated album was joined back by identity: %d albums", n)
 	}

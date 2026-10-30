@@ -2,8 +2,11 @@ package httpapi
 
 import (
 	"database/sql"
-	"net/http"
+	"errors"
+	"github.com/PorticoMediaServer/portico/apikit/apierror"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
+	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
+	"net/http"
 )
 
 func (d Dependencies) inventoryRoutes(mux *http.ServeMux) {
@@ -223,8 +226,24 @@ func (d Dependencies) inventoryRoutes(mux *http.ServeMux) {
 		case "separate-folder":
 			// separate-folder: this file's folder is an album or book of its own.
 			var container string
-			if container, e = d.Catalog.SeparateFolder(r.Context(), r.PathValue("id"), r.PathValue("object"), body.Revision, authorize); e == nil {
+			if container, e = d.Catalog.SeparateFolder(catalog.WithSeparateFolderActor(r.Context(), p), r.PathValue("id"), r.PathValue("object"), body.Revision, authorize); e == nil {
 				write(w, 200, map[string]any{"itemId": container})
+				return
+			}
+			// The bounded command is still admitted and progressing, so this call
+			// reached no finalize and has no id to report. That is honest
+			// backpressure, not a fault: answer with the existing
+			// request_in_progress policy and its retry delay. Genuine faults,
+			// authorization refusals and revision conflicts keep their own
+			// statuses.
+			if errors.Is(e, catalog.ErrSeparateFolderPending) {
+				policyErrors.Write(w, w.Header().Get("X-Request-Id"), &apierror.Error{Code: "request_in_progress", RetryAfterSeconds: 2, Cause: e})
+				return
+			}
+			// A stale folder binding is the same revision conflict every other
+			// revision-fenced change reports, not a fault.
+			if errors.Is(e, compactcatalog.ErrMutationStale) {
+				policyError(w, "revision_mismatch")
 				return
 			}
 		case "separate":

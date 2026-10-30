@@ -183,7 +183,8 @@ CREATE TABLE retained_title_state(
  unit INTEGER NOT NULL DEFAULT 0,
  completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN(0,1)),
  progress_at TEXT NOT NULL DEFAULT '',
- retained_ms INTEGER NOT NULL) STRICT;
+ retained_ms INTEGER NOT NULL,
+ capture_mutation_id TEXT REFERENCES catalog_entity_mutations(mutation_id) ON DELETE RESTRICT) STRICT;
 CREATE INDEX retained_title_state_profile ON retained_title_state(profile_id,retained_ms,id);
 CREATE TABLE retained_title_state_counts(
  profile_id TEXT PRIMARY KEY,
@@ -4951,6 +4952,7 @@ CREATE UNIQUE INDEX inventory_objects_path ON inventory_objects(source_id,relati
 CREATE INDEX inventory_objects_identity ON inventory_objects(object_identity,size,modified_ns,asset_id);
 CREATE INDEX inventory_objects_source ON inventory_objects(source_id,retired,id);
 CREATE INDEX inventory_objects_asset ON inventory_objects(asset_id,state,retired);
+CREATE INDEX inventory_objects_separate_folder ON inventory_objects(asset_id,source_id,root_incarnation,directory_path,id) WHERE retired=0;
 CREATE INDEX inventory_objects_analysis ON inventory_objects(source_id,seen_job,analysis_state,id);
 CREATE INDEX inventory_changes_source ON inventory_changes(source_id,sequence);
 CREATE INDEX inventory_analysis_pending ON inventory_analysis_queue(job_id,state,object_id);
@@ -12682,7 +12684,7 @@ CREATE TABLE catalog_entity_mutations(
  generation INTEGER NOT NULL DEFAULT 1 CHECK(generation>0),
  family_id TEXT NOT NULL,
  parent_mutation_id TEXT REFERENCES catalog_entity_mutations(mutation_id) ON DELETE RESTRICT,
- owner_kind TEXT NOT NULL CHECK(owner_kind IN('title','administration','missing','library','merge','identity','mb-adoption','empty-parent')),
+ owner_kind TEXT NOT NULL CHECK(owner_kind IN('title','administration','missing','library','merge','identity','mb-adoption','empty-parent','separate')),
  owner_id TEXT NOT NULL,
  owner_generation INTEGER NOT NULL CHECK(owner_generation>0),
  entity_id INTEGER REFERENCES catalog_entities(id) ON DELETE RESTRICT,
@@ -12706,10 +12708,10 @@ CREATE TABLE catalog_entity_mutations(
  target_ancestor_2 INTEGER REFERENCES catalog_entities(id) ON DELETE RESTRICT,
  target_ancestor_3 INTEGER REFERENCES catalog_entities(id) ON DELETE RESTRICT,
  target_ancestor_4 INTEGER REFERENCES catalog_entities(id) ON DELETE RESTRICT,
- mode TEXT NOT NULL CHECK(mode IN('remove','members','force','merge','adopt')),
+ mode TEXT NOT NULL CHECK(mode IN('remove','members','force','merge','adopt','separate')),
  phase TEXT NOT NULL CHECK(phase IN('admitted','children','drain','finalize','album-identity','artist-identity','terminal')),
  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN('active','blocked','waiting','terminal')),
- outcome TEXT NOT NULL DEFAULT 'pending' CHECK(outcome IN('pending','removed','retained','merged','stale','blocked')),
+ outcome TEXT NOT NULL DEFAULT 'pending' CHECK(outcome IN('pending','removed','retained','merged','stale','blocked','separated')),
  cursor INTEGER NOT NULL DEFAULT 0,
  current_child TEXT REFERENCES catalog_entity_mutations(mutation_id) ON DELETE RESTRICT,
  current_key INTEGER NOT NULL DEFAULT 0,
@@ -12718,8 +12720,13 @@ CREATE TABLE catalog_entity_mutations(
  provider_id TEXT NOT NULL DEFAULT '',
  accepted_revision TEXT NOT NULL DEFAULT '',
  cause_operation TEXT NOT NULL DEFAULT '',
+ split_source_id TEXT NOT NULL DEFAULT '',
+ split_directory TEXT NOT NULL DEFAULT '',
+ split_object_id TEXT NOT NULL DEFAULT '',
+ split_object_revision TEXT NOT NULL DEFAULT '',
  acknowledged INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged IN(0,1)),
  child_count INTEGER NOT NULL DEFAULT 0 CHECK(child_count>=0),
+ CHECK((mode='separate' AND split_source_id<>'' AND split_object_id<>'' AND split_object_revision<>'') OR (mode<>'separate' AND split_source_id='' AND split_directory='' AND split_object_id='' AND split_object_revision='')),
  CHECK(owner_kind<>'empty-parent' OR (entity_kind=2 AND mode='members' AND parent_mutation_id IS NULL AND target_id IS NULL AND target_subject_id=0 AND target_public_id='' AND target_incarnation='' AND target_publication_incarnation='' AND current_child IS NULL AND cause_operation='empty-show' AND provider='' AND provider_kind='' AND provider_id='' AND accepted_revision='' AND owner_id=public_id AND public_id<>'' AND phase IN('admitted','finalize','terminal') AND status IN('active','terminal'))),
  CHECK(status<>'waiting' OR (owner_kind='mb-adoption' AND mode='adopt' AND phase='artist-identity' AND entity_kind=6 AND parent_mutation_id IS NULL AND target_id IS NULL AND current_child IS NULL AND provider='musicbrainz' AND provider_kind='release' AND accepted_revision<>'' AND cause_operation<>'' AND public_id<>'' AND entity_incarnation<>'' AND subject_ancestor_1 IS NOT NULL)),
  CHECK((status='terminal' AND phase='terminal' AND entity_id IS NULL AND target_id IS NULL AND outcome<>'pending') OR
@@ -14553,3 +14560,74 @@ WHEN NOT EXISTS(SELECT 1 FROM catalog_asset_links INDEXED BY catalog_asset_links
  INSERT INTO catalog_dirty(domain,entity_id,revision) SELECT 41,source_id,1 FROM catalog_upstream_sources WHERE domain=41 AND source_id=OLD.asset_id
  ON CONFLICT(domain,entity_id) DO UPDATE SET revision=revision+1;
 END;
+
+-- Private retained-state capture custody used as the SeparateFolder
+-- retirement cursor store. The capture arm belongs to the retained-state
+-- cohort; this baseline only carries the objects the catalogue command reads.
+CREATE UNIQUE INDEX retained_title_state_capture
+ ON retained_title_state(capture_mutation_id,profile_id)
+ WHERE capture_mutation_id IS NOT NULL;
+
+CREATE TABLE catalog_purge_jobs(
+ mutation_id TEXT PRIMARY KEY REFERENCES catalog_entity_mutations(mutation_id) ON DELETE RESTRICT,
+ generation INTEGER NOT NULL CHECK(generation>0),
+ plan_digest TEXT NOT NULL CHECK(length(plan_digest)=64),
+ cursor TEXT NOT NULL DEFAULT '' CHECK(length(CAST(cursor AS BLOB))<=512),
+ owner_after TEXT NOT NULL DEFAULT '',
+ owner_value TEXT NOT NULL DEFAULT '',
+ capture_arm INTEGER NOT NULL DEFAULT 0 CHECK(capture_arm BETWEEN 0 AND 7),
+ source_after INTEGER NOT NULL DEFAULT 0,
+ state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN('pending','running','blocked')),
+ attempt INTEGER NOT NULL DEFAULT 0 CHECK(attempt>=0),
+ next_attempt_ms INTEGER NOT NULL DEFAULT 0 CHECK(next_attempt_ms>=0),
+ reason TEXT NOT NULL DEFAULT '' CHECK(length(reason)<=128),
+ owner_started INTEGER NOT NULL DEFAULT 0 CHECK(owner_started IN(0,1)),
+ current_state_id INTEGER UNIQUE REFERENCES retained_title_state(id) ON DELETE SET NULL,
+ reading_arm TEXT NOT NULL DEFAULT 'current'
+  CHECK(reading_arm IN('current','retained','complete')),
+ reading_started INTEGER NOT NULL DEFAULT 0 CHECK(reading_started IN(0,1)),
+ reading_asset_after INTEGER NOT NULL DEFAULT 0,
+ reading_state_after INTEGER NOT NULL DEFAULT 0,
+ reading_source_after TEXT NOT NULL DEFAULT '',
+ identity_after INTEGER NOT NULL DEFAULT 0 CHECK(identity_after BETWEEN 0 AND 12),
+ local_account TEXT NOT NULL DEFAULT '',
+ local_profile TEXT NOT NULL DEFAULT '',
+ local_membership_incarnation TEXT NOT NULL DEFAULT '',
+ local_profile_lifetime TEXT NOT NULL DEFAULT '',
+ CHECK((local_account='' AND local_profile='' AND local_membership_incarnation=''
+        AND local_profile_lifetime='')
+  OR (local_account<>'' AND local_profile<>''
+      AND length(local_membership_incarnation)=32
+      AND local_membership_incarnation NOT GLOB '*[^0-9a-f]*'
+      AND length(local_profile_lifetime)=32
+      AND local_profile_lifetime NOT GLOB '*[^0-9a-f]*'))) STRICT;
+
+CREATE INDEX catalog_purge_due ON catalog_purge_jobs(state,next_attempt_ms,mutation_id);
+
+CREATE INDEX catalog_purge_jobs_local_binding ON catalog_purge_jobs(
+ local_account,local_profile,local_membership_incarnation,local_profile_lifetime,mutation_id);
+
+CREATE INDEX catalog_purge_jobs_owner_value ON catalog_purge_jobs(owner_value,mutation_id);
+
+CREATE TABLE catalog_purge_identities(
+ mutation_id TEXT NOT NULL REFERENCES catalog_purge_jobs(mutation_id) ON DELETE RESTRICT,
+ ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 1 AND 12),
+ identity TEXT NOT NULL,
+ mapping_captured INTEGER NOT NULL DEFAULT 0 CHECK(mapping_captured IN(0,1)),
+ previous_state_id INTEGER,
+ PRIMARY KEY(mutation_id,ordinal),
+ UNIQUE(mutation_id,identity)
+) WITHOUT ROWID, STRICT;
+
+-- Existing actual folder separation: private intent only, never query results.
+CREATE TRIGGER catalog_mutation_split_intent_immutable
+BEFORE UPDATE OF split_source_id,split_directory,split_object_id,split_object_revision ON catalog_entity_mutations
+WHEN OLD.split_source_id IS NOT NEW.split_source_id OR OLD.split_directory IS NOT NEW.split_directory
+ OR OLD.split_object_id IS NOT NEW.split_object_id OR OLD.split_object_revision IS NOT NEW.split_object_revision
+BEGIN SELECT RAISE(ABORT,'immutable catalog separation intent'); END;
+CREATE INDEX prepared_media_retirement_jobs ON prepared_media_jobs(item_id,state,id);
+CREATE INDEX download_grants_retirement ON download_grants(item_id,hash) WHERE revoked=0;
+CREATE INDEX download_receipts_retirement ON download_receipts(item_id,id) WHERE revoked_ms=0;
+CREATE INDEX download_preparations_retirement ON download_preparations(item_id,state,id);
+CREATE INDEX download_request_items_retirement ON download_request_items(item_id,request_id,ordinal) WHERE reason='';
+CREATE INDEX download_requests_retirement ON download_requests(target_id,id) WHERE state='capturing';

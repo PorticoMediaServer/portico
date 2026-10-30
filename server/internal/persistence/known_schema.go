@@ -285,6 +285,9 @@ index catalog_personal_visibility_sort_edge_entity
 index catalog_playlist_entries_item
 index catalog_playlist_entries_page
 index catalog_playlists_owner
+index catalog_purge_due
+index catalog_purge_jobs_local_binding
+index catalog_purge_jobs_owner_value
 index catalog_rec_facet_titles
 index catalog_rec_member_best
 index catalog_rec_postings_entity
@@ -370,17 +373,22 @@ index download_action_claims_preparation
 index download_grants_expiry
 index download_grants_item
 index download_grants_preparation
+index download_grants_retirement
 index download_preparation_item
 index download_preparation_live
 index download_preparation_running
 index download_preparation_viewer
 index download_preparation_work
+index download_preparations_retirement
 index download_receipts_item
 index download_receipts_key_id_fk
 index download_receipts_preparation
+index download_receipts_retirement
 index download_receipts_revocations
 index download_receipts_viewer
 index download_request_items_item
+index download_request_items_retirement
+index download_requests_retirement
 index download_requests_target
 index download_requests_viewer
 index download_requests_work
@@ -453,6 +461,7 @@ index inventory_objects_path
 index inventory_objects_reading_asset_object
 index inventory_objects_reading_closure
 index inventory_objects_reading_source_object
+index inventory_objects_separate_folder
 index inventory_objects_source
 index inventory_operation_jobs_job_id_fk
 index inventory_reading_directories_due
@@ -712,6 +721,7 @@ index prepared_media_item_jobs
 index prepared_media_item_versions
 index prepared_media_object_refs
 index prepared_media_readers
+index prepared_media_retirement_jobs
 index prepared_media_versions_job_id_fk
 index prepared_media_work
 index profile_avatars_digest
@@ -778,6 +788,7 @@ index remote_source_cache_lru
 index remote_source_captures_pending
 index remote_source_choice_refs_name_definition_revision_fk
 index retained_title_identities_state
+index retained_title_state_capture
 index retained_title_state_profile
 index saved_entry_undo_expiry
 index saved_entry_undo_item_id_fk
@@ -1118,6 +1129,8 @@ table catalog_personal_visibility_sort_edges
 table catalog_personal_visibility_sort_profile_jobs
 table catalog_playlist_entries
 table catalog_playlists
+table catalog_purge_identities
+table catalog_purge_jobs
 table catalog_rec_df
 table catalog_rec_facets
 table catalog_rec_member_counts
@@ -2559,6 +2572,7 @@ trigger catalog_movie_category_visible_class_update
 trigger catalog_movie_category_visible_member_delete
 trigger catalog_movie_category_visible_member_insert
 trigger catalog_movie_category_visible_member_update
+trigger catalog_mutation_split_intent_immutable
 trigger catalog_people_names_delete
 trigger catalog_people_names_insert
 trigger catalog_people_names_update
