@@ -835,6 +835,18 @@ export const errors = [
     "retry": "never"
   },
   {
+    "code": "setup_in_progress",
+    "status": 409,
+    "message": "Setup is already in progress in another browser.",
+    "retry": "same_request"
+  },
+  {
+    "code": "setup_source_not_local",
+    "status": 403,
+    "message": "Setup has to start from a device on the same network as this server.",
+    "retry": "never"
+  },
+  {
     "code": "sign_in_kind_local",
     "status": 403,
     "message": "This server uses local accounts. Sign in with its username and password.",

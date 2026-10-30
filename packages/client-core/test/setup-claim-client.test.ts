@@ -71,8 +71,14 @@ test('secure pending failure and network HTTP refuse before any request', async 
   f.replace(); await assert.rejects(f.start(), /pending changed/);
   const unavailable = {...f.ports, assertPendingCurrent: async () => {throw new Error('secure storage unavailable');}};
   await assert.rejects(prepareSetupClaimHandoff(f.api, f.expected, f.binding, unavailable), /secure storage unavailable/);
-  for (const origin of ['http://server.example.test', 'http://127.0.0.1:32500', 'http://localhost.attacker.test'])
-    await assert.rejects(prepareSetupClaimHandoff(f.api, f.expected, {...f.binding, origin}, f.ports));
+  // A public IP literal over http is refused even when the api is bound to that very origin.
+  for (const origin of ['http://8.8.8.8:32500', 'http://[2001:db8::1]:32500', 'http://[::ffff:7f00:1]:32500']) {
+    const api = new HttpLocalApi(origin, 'other-bearer', async () => {throw new Error('must not send');});
+    await assert.rejects(prepareSetupClaimHandoff(api, f.expected, {...f.binding, origin}, f.ports));
+  }
+  // A LAN or DNS http address passes the address rule; this fixture has no route or signed proof for it, so it still stops before any request.
+  for (const origin of ['http://192.168.1.20:32400', 'http://tower.local:32400'])
+    await assert.rejects(prepareSetupClaimHandoff(new HttpLocalApi(origin, 'other-bearer', async () => {throw new Error('must not send');}), f.expected, {...f.binding, origin}, f.ports));
   assert.equal(f.sent.length, 0); assert.equal(f.bound.length, 0);
 });
 

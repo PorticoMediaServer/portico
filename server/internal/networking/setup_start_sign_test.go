@@ -80,9 +80,9 @@ func TestProtectedSetupStartSignsOnlyFullCurrentPendingSetup(t *testing.T) {
 		"different generation":    func(s *claimweb.SetupStart) { s.LocalGeneration++ },
 		"different original hash": func(s *claimweb.SetupStart) { s.ClaimHash = s.CodeChallenge },
 		"different callback":      func(s *claimweb.SetupStart) { s.Address = "https://other.example" },
-		"network HTTP":            func(s *claimweb.SetupStart) { s.Address = "http://server.example" },
+		"public IP over HTTP":     func(s *claimweb.SetupStart) { s.Address = "http://198.51.100.7:32400" },
 		"different purpose":       func(s *claimweb.SetupStart) { s.Purpose = "switch" },
-		"extended start":          func(s *claimweb.SetupStart) { s.ExpiresAt = s.IssuedAt.Add(6 * time.Minute) },
+		"extended start":          func(s *claimweb.SetupStart) { s.ExpiresAt = s.IssuedAt.Add(31 * time.Minute) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			bad := start

@@ -108,7 +108,9 @@ func TestAccountSetupRestartCannotReissueBootstrapAndClaimGuardRevokes(t *testin
 	if _, e = os.Stat(restarted.setupPath); !errors.Is(e, os.ErrNotExist) {
 		t.Fatal("restart exposed another bootstrap", e)
 	}
-	if _, e = restarted.BrowserSetupToken(context.Background()); !errors.Is(e, ErrConflict) {
+	// A live pending setup refuses honestly (setup_in_progress) and discloses nothing.
+	var progress *SetupInProgressError
+	if secret, e := restarted.BrowserSetupToken(context.Background()); secret != "" || !errors.As(e, &progress) {
 		t.Fatal("public bootstrap disclosed pending secret", e)
 	}
 	pending, proof, e := restarted.SetupClaimAuthority(context.Background(), string(token))

@@ -23,6 +23,8 @@ import {ServicesHomePage} from './HomePage';
 import {RegisteredSignInPage} from './SignInPage';
 import type {SignInCapture} from './sign-in';
 import type {HostedOwnerClaimCapture} from './owner-claim';
+import {hostedClaimExpired} from './owner-pending';
+import {claimStartView} from './claim-start';
 import {OwnerApprovalPage} from './OwnerApprovalPage';
 import {SetupApprovalPage} from './SetupApprovalPage';
 import {HostedSetupApproval} from '../screens/setup/HostedSetupApproval';
@@ -97,6 +99,7 @@ function ServicesRoot() {
     ? <StateView title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}
       primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => { void bootstrap.start(); }}} />
     : providerFailure && session ? <ServicesAuthStage variant="state"><ServicesHeading>{t('auth.welcomeHome')}</ServicesHeading><ServicesNotice tone="error">{providerFailure === 'unknown' ? t('web.link.invalid') : t('services.provider.stopped', {provider: t(providerFailure === 'apple' ? 'accounts.provider.apple' : 'accounts.provider.google')})}</ServicesNotice><ServicesActions><Button variant="primary" onClick={() => location.assign(location.pathname === '/account' ? '/account?tab=security' : '/')}>{t('action.continue')}</Button></ServicesActions></ServicesAuthStage>
+    : state.invalidOwner === 'expired' ? <SetupExpired />
     : invalidContinuation || state.invalidSignIn || state.invalidOwner ? <InvalidLink />
     : state.signIn && location.pathname === '/' ? <RegisteredSignInPage account={account} pending={state.signIn} providerFailure={providerFailure} />
     : <Outlet />}</DocumentBootReady></ProviderFailureContext.Provider>;
@@ -155,16 +158,19 @@ function InvalidLink() {
     <ServicesActions><Button onClick={() => goTo('/')}>{t('web.link.backToPortico')}</Button></ServicesActions></ServicesAuthStage></DocumentBootReady>;
 }
 export {InvalidLink as ServicesInvalidLink};
+function SetupExpired() {
+  const {t} = servicesI18n();
+  return <DocumentBootReady><ServicesAuthStage variant="reset"><ServicesHeading>{t('auth.welcomeHome')}</ServicesHeading><ServicesNotice>{t('web.claim.setupExpired')}</ServicesNotice>
+    <ServicesActions><Button onClick={() => goTo('/')}>{t('web.link.backToPortico')}</Button></ServicesActions></ServicesAuthStage></DocumentBootReady>;
+}
 function ClaimStart() {
   const {account, bootstrap} = root.useRouteContext<ServicesRouter>(), {session} = useAccount();
-  const [authenticating, setAuthenticating] = useState(() => !session);
-  useEffect(() => {if (!session) setAuthenticating(true);}, [session]);
   const {t} = servicesI18n();
-  if (bootstrap.getSnapshot().ownerPending) {
-    if (!session || authenticating) return <ServicesAuthForm account={account} heading={t('auth.welcomeHome')} lead={t('web.claim.signInFirst')}
-      onSignedIn={() => setAuthenticating(false)} />;
-    return <ClaimApprovalRoute account={account} bootstrap={bootstrap} />;
-  }
+  // Signing in from the verification email in another tab puts the session here too: carry on to
+  // the approval page, which still shows the account and waits for an explicit Approve.
+  const view = claimStartView({ownerPending: Boolean(bootstrap.getSnapshot().ownerPending), signedIn: Boolean(session)});
+  if (view === 'form') return <ServicesAuthForm account={account} heading={t('auth.welcomeHome')} lead={t('web.claim.signInFirst')} onSignedIn={() => {}} />;
+  if (view === 'approval') return <ClaimApprovalRoute account={account} bootstrap={bootstrap} />;
   return <ServicesAuthStage variant="reset"><ServicesHeading>{t('web.claim.titleGeneric')}</ServicesHeading><ServicesNotice tone="info">{t('web.claim.openFromServer')}</ServicesNotice>
     <ServicesActions><Button onClick={() => goTo('/')}>{t('web.claim.backToPortico')}</Button></ServicesActions></ServicesAuthStage>;
 }
@@ -177,11 +183,14 @@ type ApprovalOpening={scope:string;account:ServicesAccount;bootstrap:ServicesBoo
 type ApprovalShown=
  | Readonly<{state:'lookup';opening:ApprovalOpening;attempt:number}>
  | Readonly<{state:'purpose';opening:ApprovalOpening;attempt:number;purpose:ApprovalPurpose}>
- | Readonly<{state:'invalid';opening:ApprovalOpening;attempt:number}>
+ | Readonly<{state:'invalid';opening:ApprovalOpening;attempt:number;expired?:true}>
  | Readonly<{state:'error';opening:ApprovalOpening;attempt:number;error:unknown;retryAt:number}>;
 /** Only a capability answer names a terminal link; transport/auth/other replies do not. */
 const approvalTerminal=(error:unknown)=>{const code=(error as {code?:unknown})?.code;
- return typeof code==='string'&&['invalid_return','invalid','expired','cancelled'].includes(code);};
+ return typeof code==='string'&&['invalid_return','invalid','expired','cancelled','claim_expired'].includes(code);};
+/** A well-formed setup request that ran out of time, never the generic incomplete link. */
+const approvalExpired=(error:unknown)=>hostedClaimExpired(error);
+const terminal=(target:ApprovalOpening,attempt:number,error:unknown):ApprovalShown=>({state:'invalid',opening:target,attempt,...(approvalExpired(error)?{expired:true as const}:{})});
 /** The exact finite Retry-After deadline, never shortened; an unusable hint fails closed. */
 const approvalDeadline=(error:unknown)=>{
  const value=(error as {retryAfterSeconds?:unknown})?.retryAfterSeconds;
@@ -250,14 +259,14 @@ function ClaimApprovalRoute({account,bootstrap}:{account:ServicesAccount;bootstr
    finish();
    // The parent no longer owns this claim opening; it is being replaced, not failed.
    if((error as {code?:unknown})?.code==='claim_stale')return;
-   settle(approvalTerminal(error)?{state:'invalid',opening:target,attempt:own}:{state:'error',opening:target,attempt:own,error,retryAt:0});
+   settle(approvalTerminal(error)?terminal(target,own,error):{state:'error',opening:target,attempt:own,error,retryAt:0});
    return;
   }
   void result.then(purpose=>{finish();settle({state:'purpose',opening:target,attempt:own,purpose});},error=>{
    finish();
    if(controller.signal.aborted)return;
    if((error as {status?:unknown})?.status===401){reconcile(error);return;}
-   settle(approvalTerminal(error)?{state:'invalid',opening:target,attempt:own}:{state:'error',opening:target,attempt:own,error,retryAt:approvalDeadline(error)});
+   settle(approvalTerminal(error)?terminal(target,own,error):{state:'error',opening:target,attempt:own,error,retryAt:approvalDeadline(error)});
   });
  };
   // The opening keeps this commit's session identity and launcher; a later re-render's
@@ -298,7 +307,7 @@ function ClaimApprovalRoute({account,bootstrap}:{account:ServicesAccount;bootstr
  },[deadline]);
  const live=shown&&shown.opening.alive&&opening.current===shown.opening&&shown.opening.account===account&&shown.opening.bootstrap===bootstrap&&shown.opening.scope===scope?shown:undefined;
  if(!live||live.state==='lookup')return <ServicesAuthStage><></></ServicesAuthStage>;
- if(live.state==='invalid')return <InvalidLink/>;
+ if(live.state==='invalid')return live.expired?<SetupExpired/>:<InvalidLink/>;
  if(live.state==='purpose')return live.purpose==='setup'?<SetupApprovalPage account={account} bootstrap={bootstrap} Review={HostedSetupApproval}/>:<OwnerApprovalPage account={account} bootstrap={bootstrap}/>;
  const seconds=Number.isFinite(live.retryAt)?Math.max(0,Math.ceil((live.retryAt-clock)/1000)):Number.POSITIVE_INFINITY;
  const blocked=seconds>0;

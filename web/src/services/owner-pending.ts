@@ -14,8 +14,14 @@ import {checkedHostedOwnerClaimLink, reviewHostedOwnerClaim, decideHostedOwnerCl
  * Keep this handle private; presentation uses authenticated review facts. */
 export type HostedOwnerPending = Readonly<{version: 1; kind: 'owner-approval'; attemptId: string; capturedAt: number; deadline: number; request: HostedOwnerClaimLink}>;
 export type HostedOwnerPendingStore = Pick<SecurePendingStorage<HostedOwnerPending>, 'assertAvailable' | 'read' | 'change'>;
-const lifetime = 300000;
+// The captured code's local budget. Setup with a Portico Account has 30 minutes end to end; the
+// authenticated review always shortens it to the server's own expiry, so a switch (5 minutes
+// on the server) never outlives its real window.
+const lifetime = 1_800_000;
 const invalid = () => new ApiError(400, 'invalid_return', 'invalid_return', false);
+/** A well-formed capture whose local budget ran out, kept apart from a malformed one. */
+const expired = () => new ApiError(410, 'claim_expired', 'claim_expired', false);
+export const hostedClaimExpired = (error: unknown) => (error as {code?: unknown} | null)?.code === 'claim_expired';
 const changed = () => new ApiError(409, 'cancelled', 'cancelled', false);
 function same(a: HostedOwnerPending | undefined, b: HostedOwnerPending) {
   return a?.version === 1 && a.kind === 'owner-approval' && a.attemptId === b.attemptId && a.capturedAt === b.capturedAt && a.request?.hostedOrigin === b.request.hostedOrigin &&
@@ -23,7 +29,8 @@ function same(a: HostedOwnerPending | undefined, b: HostedOwnerPending) {
 }
 function checked(value: HostedOwnerPending, origin: string, now: number): HostedOwnerPending {
   if (!Number.isSafeInteger(now) || value?.version !== 1 || value.kind !== 'owner-approval' || !Number.isSafeInteger(value.capturedAt) ||
-      value.capturedAt > now || !Number.isSafeInteger(value.deadline) || value.deadline <= now || value.deadline > value.capturedAt + lifetime) throw invalid();
+      value.capturedAt > now || !Number.isSafeInteger(value.deadline) || value.deadline > value.capturedAt + lifetime) throw invalid();
+  if (value.deadline <= now) throw expired();
   routeBytes(value.attemptId, 32);
   return Object.freeze({version: 1, kind: 'owner-approval', attemptId: value.attemptId, capturedAt: value.capturedAt, deadline: value.deadline,
     request: checkedHostedOwnerClaimLink(value.request, origin)});
@@ -148,6 +155,7 @@ export async function hostedApprovalPurpose(account: ServicesAccount, store: Hos
   signal.throwIfAborted();await current(store,pending);signal.throwIfAborted();
   const claim=decodeServerClaimLookupResponse(raw);
   if(claim.code!==pending.request.code)throw invalid();
+  if(claim.purpose==='setup'&&(claim.status==='expired'||Date.parse(claim.expiresAt)<=Date.now()))throw expired();
   if(claim.purpose==='setup'&&claim.transitionMode===undefined&&claim.setupTransactionId&&claim.ownerTransactionId===undefined)return 'setup';
   if(claim.purpose==='switch'&&claim.ownerTransactionId&&claim.setupTransactionId===undefined)return 'switch';
   throw invalid();

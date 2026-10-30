@@ -51,7 +51,7 @@ func NetworkingClaimAuthorizer(id *identity.Service, origins []string, policies 
 			pending, proof, setupErr := id.SetupClaimAuthority(r.Context(), secret)
 			if setupErr == nil {
 				resume, _ := json.Marshal(claimResume{SetupOperationID: pending.RequestID, SetupRevision: pending.Revision, SetupProof: proof})
-				actor := networking.ClaimRequestOwner{Owner: networking.LocalOwner{SetupOperationID: pending.RequestID, Epoch: pending.Revision}, WebOrigin: d.ownerSwitchWebOrigin(r), SetupStart: &networking.SetupStartAuthority{RequestID: pending.RequestID, Revision: pending.Revision, CaptureTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed) error {
+				actor := networking.ClaimRequestOwner{Owner: networking.LocalOwner{SetupOperationID: pending.RequestID, Epoch: pending.Revision}, WebOrigin: d.setupWebOrigin(r), SetupStart: &networking.SetupStartAuthority{RequestID: pending.RequestID, Revision: pending.Revision, CaptureTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed) error {
 					return networkingOwnerStartError(id.CaptureSetupClaimTx(ctx, tx, pending, proof, original, start, audience))
 				}, RenewTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed) error {
 					return networkingOwnerStartError(id.RenewSetupClaimTx(ctx, tx, pending, proof, original, start, audience))
@@ -150,6 +150,27 @@ func (d Dependencies) ownerSwitchWebOrigin(r *http.Request) string {
 	}
 	peer, ok := networkpolicy.Peer(r)
 	if u.Scheme == "http" && u.Hostname() == "localhost" && ok && peer.IsLoopback() {
+		return origin
+	}
+	return ""
+}
+
+// setupWebOrigin is the original address a first-run setup claim starts from and returns
+// to (S1/S3/S5): the exact HTTPS origin on a secure transport, or plain HTTP from a local
+// source to an address this server admits for setup (claimweb.SetupStartAddress).
+func (d Dependencies) setupWebOrigin(r *http.Request) string {
+	origin := networkpolicy.Origin(r, d.trustedProxyPrefixes(r.Context()))
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return ""
+	}
+	if supplied := r.Header.Get("Origin"); supplied != "" && supplied != origin {
+		return ""
+	}
+	if u.Scheme == "https" && d.secureTransport(r) && d.browserSetupAuthorityAllowed(r) {
+		return origin
+	}
+	if u.Scheme == "http" && d.setupSourceAllowed(r) && d.browserSetupAuthorityAllowed(r) && claimweb.SetupStartAddress(origin) {
 		return origin
 	}
 	return ""

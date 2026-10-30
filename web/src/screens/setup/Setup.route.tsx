@@ -22,7 +22,7 @@ function SetupRoute() {
     const origin = location.origin;
     const lifetime = new BrowserSetupComposition(browserAccountOrigin(import.meta.env, location), undefined, undefined, current);
     const base = createBrowserSetupPorts({origin: () => origin, draft: browserSetupDraft, acceptLocal: lifetime.acceptLocal,
-      continueHosted: lifetime.continueHosted, resumeHosted: lifetime.resumeHosted, addLibrary: lifetime.addLibrary, libraryFolders: lifetime.libraryFolders,
+      continueHosted: lifetime.continueHosted, resumeHosted: lifetime.resumeHosted, discardStaleDraft: lifetime.discardStaleDraft, addLibrary: lifetime.addLibrary, libraryFolders: lifetime.libraryFolders,
       complete: () => {if (current()) void router.navigate({to: '/', replace: true});}});
     const ports: SetupPorts = {...base, connect: async signal => {
       if (!current()) throw new DOMException('Setup opening changed', 'AbortError');

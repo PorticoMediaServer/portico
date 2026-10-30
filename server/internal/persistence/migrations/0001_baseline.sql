@@ -9344,7 +9344,7 @@ CREATE TABLE identity_setup_completions(
  claim_hash TEXT NOT NULL CHECK(length(claim_hash)=43),claim_payload BLOB NOT NULL CHECK(length(claim_payload) BETWEEN 1 AND 8192),claim_signature BLOB NOT NULL CHECK(length(claim_signature)=64),
  start_payload BLOB NOT NULL CHECK(length(start_payload) BETWEEN 1 AND 8192),start_signature BLOB NOT NULL CHECK(length(start_signature)=64),
  state_hash TEXT NOT NULL,code_challenge TEXT NOT NULL CHECK(length(code_challenge)=43),installation_id TEXT NOT NULL,server_challenge_hash TEXT NOT NULL,
- created_ms INTEGER NOT NULL,expires_ms INTEGER NOT NULL CHECK(expires_ms>created_ms AND expires_ms<=created_ms+300000),
+ created_ms INTEGER NOT NULL,expires_ms INTEGER NOT NULL CHECK(expires_ms>created_ms AND expires_ms<=created_ms+1800000),
  installed_ms INTEGER NOT NULL DEFAULT 0,completed_ms INTEGER NOT NULL DEFAULT 0,consumed_ms INTEGER NOT NULL DEFAULT 0,
  attempt_id TEXT NOT NULL DEFAULT '',transaction_id TEXT NOT NULL DEFAULT ''
 ) STRICT;

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SetupFlow, type SetupPorts, type SetupServer} from '../src/screens/setup/setup-flow.ts';
 import {defaultSetupServerName, localPasswordValid, setupErrorMessage, validLocalUsername} from '../src/screens/setup/setup-model.ts';
-import {SetupStageFailure} from '../src/platform/setup-failure.ts';
+import {SetupStageFailure, addressSetupFailure, notLocalSourceFailure} from '../src/platform/setup-failure.ts';
 import type {SetupDraft} from '@core/setup-onboarding.ts';
 
 function session(serverId = 'server-1') {
@@ -12,7 +12,7 @@ function session(serverId = 'server-1') {
     viewer: {accountId: 'owner-account', profileId: 'main-profile', serverId, authority: 'local', role: 'owner'}};
 }
 
-function fixture(input: Readonly<{draft?: boolean; resume?: unknown; hosted?: () => Promise<void>; add?: (value: unknown) => Promise<void>; admittedOwner?: boolean; setupRequired?: boolean}> = {}) {
+function fixture(input: Readonly<{draft?: boolean; resume?: unknown; hosted?: () => Promise<void>; add?: (value: unknown) => Promise<void>; admittedOwner?: boolean; setupRequired?: boolean; discardStale?: () => Promise<boolean>}> = {}) {
   const calls: {name: string; value?: unknown}[] = [], completions: number[] = [];
   let requests = 0;
   const server: SetupServer = {
@@ -34,6 +34,7 @@ function fixture(input: Readonly<{draft?: boolean; resume?: unknown; hosted?: ()
     addLibrary: input.add ?? (async value => {calls.push({name: 'addLibrary', value});}),
     complete: () => {completions.push(1);},
     hostname: () => 'demo.getportico.tv',
+    ...(input.discardStale ? {discardStaleDraft: input.discardStale} : {}),
   };
   return {flow: new SetupFlow(ports), calls, completions, requests: () => requests, accepted: () => accepted, server};
 }
@@ -189,4 +190,64 @@ test('a recovery callback cannot publish the local form after replacing its orig
     assert.equal(f.flow.getSnapshot().phase, 'error'); assert.equal(f.flow.getSnapshot().mode, 'hosted');
     assert.equal(draft?.setupToken, 'foreign-proof'); assert.equal(f.requests(), 0);
   } finally {f.flow.dispose();}
+});
+
+const notLocalLine = 'Setup has to start from a device on the same network as this server. Open this page from there, or use a claim token.';
+test('a setup_source_not_local refusal shows the one honest line, with no retry to dead-end on', async () => {
+  const refusal = new SetupStageFailure('browser-start', Object.assign(new Error('forbidden'), {status: 403, code: 'setup_source_not_local'}));
+  assert.equal(setupErrorMessage(refusal), notLocalLine);
+  assert.equal(setupErrorMessage(Object.assign(new Error('forbidden'), {status: 403, code: 'setup_source_not_local'})), notLocalLine);
+  assert.equal(addressSetupFailure(refusal), false);
+  assert.equal(notLocalSourceFailure(refusal), true);
+  const f = fixture({hosted: async () => {throw refusal;}});
+  try {
+    await f.flow.start(); await f.flow.submitHosted();
+    const state = f.flow.getSnapshot();
+    assert.equal(state.phase, 'error'); assert.equal(state.error, notLocalLine);
+    assert.equal(state.failure, refusal); assert.equal(refusal.retry, undefined); assert.equal(refusal.useLocal, undefined);
+  } finally {f.flow.dispose();}
+});
+test('a not-local refusal on a local setup keeps the form and says the same line', async () => {
+  const f = fixture();
+  (f.server.api as {request: unknown}).request = async () => {throw Object.assign(new Error('forbidden'), {status: 403, code: 'setup_source_not_local'});};
+  try {
+    await f.flow.start(); f.flow.setMode('local'); f.flow.setUsername('owner'); f.flow.setPassword('a long enough password 1'); f.flow.setConfirm('a long enough password 1');
+    await f.flow.submitLocal();
+    assert.equal(f.flow.getSnapshot().error, notLocalLine);
+  } finally {f.flow.dispose();}
+});
+
+test('a saved draft whose attempt expired unapproved is dropped for the start form and a quiet line, never a failure', async () => {
+  const f = fixture({draft: true, discardStale: async () => true});
+  try {
+    await f.flow.start();
+    const state = f.flow.getSnapshot();
+    assert.equal(state.phase, 'form'); assert.equal(state.earlierExpired, true); assert.equal(state.error, undefined); assert.equal(state.failure, undefined);
+    assert.equal(f.accepted(), 0); assert.equal(f.requests(), 0, 'no resume request for a dead draft');
+  } finally {f.flow.dispose();}
+});
+test('a saved draft that is still live resumes as before', async () => {
+  const f = fixture({draft: true, discardStale: async () => false});
+  try {
+    await f.flow.start();
+    const state = f.flow.getSnapshot();
+    assert.equal(state.phase, 'library'); assert.equal(state.earlierExpired, undefined); assert.equal(f.accepted(), 1);
+  } finally {f.flow.dispose();}
+});
+test('setup_in_progress says so honestly with a local time, and Try again just connects again', async () => {
+  const refusal = () => new SetupStageFailure('browser-start', Object.assign(new Error('another browser'), {status: 409, code: 'setup_in_progress', retryAfterSeconds: 600}));
+  const now = Date.UTC(2030, 0, 2, 3, 4, 5), time = new Date(now + 600_000).toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'});
+  assert.equal(setupErrorMessage(refusal(), now), `Setup is already in progress in another browser. You can start over after ${time}.`);
+  assert.doesNotMatch(setupErrorMessage(refusal(), now), /changed while you were looking/);
+  assert.equal(setupErrorMessage(Object.assign(new Error('x'), {status: 409, code: 'setup_in_progress'})), 'Setup is already in progress in another browser.');
+  let attempts = 0;
+  const f = fixture();
+  const flow = new SetupFlow({...(f as never as {flow: {ports: SetupPorts}}).flow?.ports, connect: async () => {if (attempts++ === 0) throw refusal(); return f.server;},
+    acceptLocal: async () => {}, continueHosted: async () => {}, addLibrary: async () => {}, complete: () => {}, hostname: () => 'demo.getportico.tv'});
+  try {
+    await flow.start();
+    assert.equal(flow.getSnapshot().phase, 'error'); assert.match(flow.getSnapshot().error ?? '', /already in progress in another browser/);
+    await flow.retry();
+    assert.equal(attempts, 2); assert.equal(flow.getSnapshot().phase, 'form');
+  } finally {flow.dispose();}
 });

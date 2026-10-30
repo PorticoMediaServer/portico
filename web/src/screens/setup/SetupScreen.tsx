@@ -6,7 +6,7 @@ import {Button, TextField} from '../../kit/controls';
 import {AuthLoading, AuthStage} from '../../kit/accounts/AuthStage';
 import {ServicesStrength} from '../../kit/accounts/ServicesAuth';
 import {Icon} from '../../kit/Icon';
-import {addressSetupFailure, unavailableSetupFailure} from '../../platform/setup-failure.ts';
+import {addressSetupFailure, notLocalSourceFailure, setupInProgressFailure, unavailableSetupFailure} from '../../platform/setup-failure.ts';
 import {SetupFlow, type SetupPorts, type SetupSnapshot} from './setup-flow';
 import {libraryKindDescription, localPasswordValid, setupLibraryKinds, setupNameValid, setupSteps, validLocalUsername} from './setup-model';
 import styles from './setup.module.css';
@@ -34,13 +34,16 @@ function SetupBody({flow}: {flow: SetupFlow}) {
   const preparing = state.phase === 'loading' || state.phase === 'waiting';
   // The panel belongs to the exact failure this render shows, never a later one.
   const errorFailure = state.phase === 'error' ? state.failure : undefined;
+  const notLocal = state.phase === 'error' && (notLocalSourceFailure(errorFailure) || notLocalSourceFailure(state.connectError));
   const addressFailure = errorFailure && addressSetupFailure(errorFailure) ? errorFailure : undefined;
   const servicesFailure = errorFailure && unavailableSetupFailure(errorFailure) ? errorFailure : undefined;
   const steps = setupSteps({serverName: state.serverName, mode: state.mode, phase: state.phase === 'library' ? 'library' : 'form', local});
   return <div className={styles.host}>
     {state.phase === 'library' ? <FirstLibrary flow={flow} state={state}/> : <AuthStage legal={false} shape={preparing ? 'round' : 'side'} layout={preparing ? 'center' : 'column'} contentClassName={preparing ? styles.loadingContent : state.phase === 'form' ? styles.content : styles.contentLibrary}>
       {preparing && <AuthLoading>{t('web.setup.preparing')}</AuthLoading>}
-      {state.phase === 'error' && (addressFailure ? <>
+      {state.phase === 'error' && (notLocal ? <>
+        <p className={styles.error} role="alert"><Icon name="i-warn" size={20}/>{t('web.setup.notLocalSource')}</p>
+      </> : addressFailure ? <>
         <p className={styles.error} role="alert"><Icon name="i-warn" size={20}/>{t('web.setup.notOnNetwork')}</p>
         <div className={styles.field}><TextField variant="auth" label={t('web.general.serverName')} value={state.name || state.serverName} readOnly/></div>
         <Button variant="primary" size="hero" disabled>{t('accounts.signIn.handoff')}</Button>
@@ -52,6 +55,10 @@ function SetupBody({flow}: {flow: SetupFlow}) {
           {servicesFailure.useLocal && <Button variant="glass" size="hero" disabled={state.busy}
             onClick={() => void flow.useLocalFailure(servicesFailure)}>{t('web.setup.localSignIn')}</Button>}
         </div>
+      </> : setupInProgressFailure(errorFailure) || setupInProgressFailure(state.connectError) ? <>
+        <h1>{t('web.setup.welcome')}</h1>
+        {state.error && <p className={styles.error} role="alert"><Icon name="i-clock" size={20}/>{state.error}</p>}
+        <Button variant="primary" size="hero" loading={state.busy} disabled={state.busy} onClick={() => void flow.retry()}>{t('action.tryAgain')}</Button>
       </> : errorFailure ? <>
         <h1>{t('web.setup.welcome')}</h1>
         {state.error && <p className={styles.error} role="alert"><Icon name="i-warn" size={20}/>{state.error}</p>}
@@ -80,6 +87,7 @@ function SetupForm({flow, state, local}: {flow: SetupFlow; state: SetupSnapshot;
   return <form onSubmit={event => {event.preventDefault(); submit();}}>
     <h1 className={styles.one}>{t('web.setup.welcome')}</h1>
     <p className={styles.lede}>{t('web.setup.welcomeLede')}</p>
+    {state.earlierExpired && <p className={styles.quiet}>{t('web.setup.earlierExpired')}</p>}
     <div className={styles.field}><TextField variant="auth" autoFocus label={t('web.general.serverName')} value={state.name} maxLength={80} required
       description={t('web.setup.serverNameHelp')} onChange={event => flow.setName(event.currentTarget.value)} disabled={state.busy}/></div>
     <div className={styles.legend}>{t('web.setup.howSignIn')}</div>

@@ -13,7 +13,7 @@ import {SetupApprovalFlow, type SetupApprovalSnapshot} from './setup-approval-fl
  * facts and explicit actions, never a claim code, token or protected journal. */
 export type SetupApprovalViewProps = Readonly<{
   phase: SetupApprovalSnapshot['phase']; serverName: string; address: string; accountName: string; requestedAt: string;
-  approved: boolean; installed?: boolean; busy: boolean; error?: unknown; onApprove: () => void; onDeny: () => void; onReturn: () => void;
+  approved: boolean; installed?: boolean; slow?: boolean; busy: boolean; error?: unknown; onApprove: () => void; onDeny: () => void; onReturn: () => void;
 }>;
 const empty: SetupApprovalSnapshot = Object.freeze({phase: 'loading', busy: false});
 const emptySnapshot = () => empty;
@@ -50,7 +50,7 @@ export function SetupApprovalPage({account, bootstrap, Review}: {account: Servic
   }
   const display=state.display, requested=Date.now()-Date.parse(display.requestedAt)<45000?t('services.claim.justNow'):servicesRelativeTime(servicesI18n(),display.requestedAt);
   return <Review phase={state.phase} serverName={display.name} address={new URL(display.address).host} accountName={display.accountName}
-    requestedAt={requested} approved={state.approved === true} installed={state.installed === true} busy={state.busy || state.phase === 'returning'}
+    requestedAt={requested} approved={state.approved === true} installed={state.installed === true} slow={state.slow === true} busy={state.busy || state.phase === 'returning'}
     error={error} onApprove={() => {void flow?.decide('approve');}} onDeny={() => {void flow?.decide('deny');}}
     onReturn={() => {if(state.approved)void flow?.complete();else flow?.returnReviewed();}} />;
 }

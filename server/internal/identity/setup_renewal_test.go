@@ -19,7 +19,7 @@ import (
 
 func (f setupContinuationFixture) expireStart(t *testing.T) {
 	t.Helper()
-	if _, err := f.db.Exec(`UPDATE identity_setup_completions SET created_ms=created_ms-1200000,expires_ms=expires_ms-1200000`); err != nil {
+	if _, err := f.db.Exec(`UPDATE identity_setup_completions SET created_ms=created_ms-2400000,expires_ms=expires_ms-2400000`); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -34,7 +34,7 @@ func (f setupContinuationFixture) renewal(t *testing.T, change func(*claimweb.Re
 	t.Helper()
 	now := time.Now().UTC()
 	claim := f.claim
-	claim.IssuedAt, claim.ExpiresAt = now, now.Add(10*time.Minute)
+	claim.IssuedAt, claim.ExpiresAt = now, now.Add(claimweb.SetupStartLifetime)
 	start := f.start
 	verifier := identity.Token()
 	pkce := sha256.Sum256([]byte(verifier))

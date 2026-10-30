@@ -29,6 +29,7 @@ function build(react) {
     const OwnerApprovalPage = modules.OwnerApprovalPage;
     const HostedSetupApproval = modules.HostedSetupApproval;
     const servicesI18n = modules.servicesI18n;
+    const hostedClaimExpired = modules.hostedClaimExpired;
     ${compiled.code}
     return ClaimApprovalRoute;
   `)({
@@ -36,6 +37,7 @@ function build(react) {
     InvalidLink: 'InvalidLink', ServicesAuthStage: 'Stage', ServicesHeading: 'Heading', ServicesLead: 'Lead',
     ServicesActions: 'Actions', Button: 'Button', SetupApprovalPage: 'SetupApproval', OwnerApprovalPage: 'OwnerApproval',
     HostedSetupApproval: 'HostedSetupApproval', servicesI18n: () => ({t: labeller}),
+    hostedClaimExpired: error => error?.code === 'claim_expired',
   });
 }
 

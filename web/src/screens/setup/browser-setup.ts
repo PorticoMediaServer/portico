@@ -13,6 +13,7 @@ export type BrowserSetupPortsInput = Readonly<{
   acceptLocal: SetupPorts['acceptLocal'];
   continueHosted: SetupPorts['continueHosted'];
   resumeHosted?: SetupPorts['resumeHosted'];
+  discardStaleDraft?: SetupPorts['discardStaleDraft'];
   /** The composition binds this to the admitted owner's authenticated API. */
   addLibrary: SetupPorts['addLibrary'];
   libraryFolders?: SetupPorts['libraryFolders'];
@@ -43,6 +44,7 @@ export function createBrowserSetupPorts(input: BrowserSetupPortsInput): SetupPor
     acceptLocal: input.acceptLocal,
     continueHosted: input.continueHosted,
     ...(input.resumeHosted ? {resumeHosted: input.resumeHosted} : {}),
+    ...(input.discardStaleDraft ? {discardStaleDraft: input.discardStaleDraft} : {}),
     addLibrary: input.addLibrary,
     ...(input.libraryFolders ? {libraryFolders: input.libraryFolders} : {}),
     complete: input.complete,

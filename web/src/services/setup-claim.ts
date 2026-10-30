@@ -1,6 +1,8 @@
 import {ApiError} from '@core/index.ts';
 import {currentUTCTimestamp} from '@core/local-session.ts';
 import {routeBytes, routeOrigin} from '@core/route-identity.ts';
+import {setupAddressAllowed} from '@core/setup-address.ts';
+import {SETUP_CLAIM_LIFETIME_MS} from '@core/setup-claim-attempt.ts';
 import {decodeServerClaimLookupResponse, decodeServerClaimApproveCodeResponse, decodeServerClaimDenyResponse, decodeServerReturnCompleteResponse} from '../../../packages/contracts/src/hosted/decoders.ts';
 import {routePath, encodedRoutePath} from '../../../packages/contracts/src/hosted/routes.ts';
 import {accountIdentity, currentAccountWork, type AccountIdentity, type ServicesAccount} from './session';
@@ -23,10 +25,8 @@ function claimCode(value: string) {
   routeBytes(value.slice(6), 32);
   return value;
 }
-function ownerOrigin(value: string) {
-  if (routeOrigin(value) !== value) throw invalid();
-  const url = new URL(value);
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && url.hostname === 'localhost')) throw invalid();
+function setupOrigin(value: string) {
+  if (!setupAddressAllowed(value)) throw invalid();
   return value;
 }
 function fresh(review: Pick<HostedSetupClaimReview, 'expiresAt'>, now = Date.now()) {
@@ -79,10 +79,10 @@ async function lookup(account: ServicesAccount, request: HostedSetupClaimLink, s
         claim.status !== 'pending' && claim.status !== 'approved' || claim.name !== request.nameHint || !claim.name ||
         new TextEncoder().encode(claim.name).length > 120 || !claim.serverId.startsWith('srv_') ||
         !currentUTCTimestamp(claim.requestedAt) || Date.parse(claim.requestedAt) > now + 60000 ||
-        !currentUTCTimestamp(claim.expiresAt) || Date.parse(claim.expiresAt) - now > 300000 ||
+        !currentUTCTimestamp(claim.expiresAt) || Date.parse(claim.expiresAt) - now > SETUP_CLAIM_LIFETIME_MS ||
         Date.parse(claim.expiresAt) <= Date.parse(claim.requestedAt) || claim.currentOwnerUsername !== undefined || claim.previousOwnerRole !== undefined) throw invalid();
     routeBytes(claim.serverId.slice(4), 32);
-    ownerOrigin(claim.address);
+    setupOrigin(claim.address);
     if (claim.otherPeopleCount !== undefined) throw invalid();
     // Setup has no return registration; `setupInstalled` is strictly true, only on approval.
     if (claim.returnRegistration !== undefined || claim.setupInstalled !== undefined && (claim.setupInstalled !== true || claim.status !== 'approved')) throw invalid();
@@ -128,7 +128,7 @@ export async function decideHostedSetupClaim(account: ServicesAccount, review: H
  * substitute that registration, a URL hint or an arbitrary return parameter. */
 export function validateHostedSetupReturn(location: string, review: Pick<HostedSetupClaimReview, 'address' | 'transactionId'>) {
   if (!identifier(review.transactionId)) throw invalid();
-  const origin = ownerOrigin(review.address);
+  const origin = setupOrigin(review.address);
   if (location !== origin + '/auth/portico-return#transaction=' + encodeURIComponent(review.transactionId)) throw invalid();
   return location;
 }
