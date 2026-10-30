@@ -16,7 +16,7 @@ import (
 func TestCandidateAndGuideStatementsSeek(t *testing.T) {
 	f := openFixture(t)
 	at := time.Date(2026, 9, 23, 15, 0, 0, 0, time.UTC)
-	filter := json.RawMessage(`{"field":"year","operator":"equals","value":1985}`)
+	filter := json.RawMessage(`{"variant":"predicate","field":"year","operator":"equals","value":1985}`)
 	rules := map[string]Rule{
 		"by title":       {Query: Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}}},
 		"episode order":  {Query: Query{LibraryIDs: []string{"tv"}, Kinds: []string{"episode"}, Order: "episode", ShowIDs: []string{"s1", "s2"}}},

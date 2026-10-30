@@ -214,14 +214,22 @@ func readyHTTPFacetFixture(t *testing.T, path string, call httpFacetFixtureCall,
 
 func validateHTTPFixtureSimpleFacet(raw []byte, field string) (catalog.SimpleFacetPage, error) {
 	var page catalog.SimpleFacetPage
-	if issues := (apispec.Document{}).ValidateJSON(facetSchema[catalog.SimpleFacetPage](), raw); len(issues) != 0 {
+	if issues := (apispec.Document{}).ValidateJSON(windowSchema(), raw); len(issues) != 0 {
 		return page, fmt.Errorf("SIMPLE ready schema: %v", issues)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&page); err != nil {
+	var tagged struct {
+		Variant string `json:"variant"`
+		catalog.SimpleFacetPage
+	}
+	if err := decoder.Decode(&tagged); err != nil {
 		return page, err
 	}
+	if tagged.Variant != "window" {
+		return page, fmt.Errorf("SIMPLE ready variant %q", tagged.Variant)
+	}
+	page = tagged.SimpleFacetPage
 	w := page.Window
 	if page.Field != field || page.Revision == "" || w.Basis != page.Revision || w.QueryID == "" || w.Returned != len(page.Values) || w.Returned > w.Limit || page.Total < int64(w.Returned) || page.TotalIsLowerBound {
 		return page, fmt.Errorf("SIMPLE ready disclosure/window mismatch: %+v", page)
@@ -259,7 +267,7 @@ func isHTTPFixtureFacetPath(method, path string) bool {
 }
 
 func TestGoldenSimpleFacetProjection(t *testing.T) {
-	raw := []byte(`{"kind":"simple-keyset","field":"genre","revision":"7","total":2,"totalIsLowerBound":false,"values":[{"value":"Drama","label":"Drama","count":3,"countIsLowerBound":false},{"value":"Action","label":"Action","count":1,"countIsLowerBound":false}],"window":{"queryId":"private_handle","basis":"7","limit":200,"returned":2,"reload":"opaque_anchor"}}`)
+	raw := []byte(`{"variant":"window","kind":"simple-keyset","field":"genre","revision":"7","total":2,"totalIsLowerBound":false,"values":[{"value":"Drama","label":"Drama","count":3,"countIsLowerBound":false},{"value":"Action","label":"Action","count":1,"countIsLowerBound":false}],"window":{"queryId":"private_handle","basis":"7","limit":200,"returned":2,"reload":"opaque_anchor"}}`)
 	projected, err := projectGoldenSimpleFacet(raw, "genre")
 	if err != nil {
 		t.Fatal(err)
@@ -304,7 +312,7 @@ func TestGoldenSimpleFacetProjection(t *testing.T) {
 	}
 	// A legitimate empty result remains exact, rather than being manufactured
 	// from one of the pending/error/malformed payloads above.
-	empty := []byte(`{"kind":"simple-keyset","field":"genre","revision":"7","total":0,"totalIsLowerBound":false,"values":[],"window":{"queryId":"private_handle","basis":"7","limit":200,"returned":0}}`)
+	empty := []byte(`{"variant":"window","kind":"simple-keyset","field":"genre","revision":"7","total":0,"totalIsLowerBound":false,"values":[],"window":{"queryId":"private_handle","basis":"7","limit":200,"returned":0}}`)
 	projected, err = projectGoldenSimpleFacet(empty, "genre")
 	if err != nil {
 		t.Fatal(err)

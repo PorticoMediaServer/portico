@@ -64,7 +64,7 @@ test('the handheld Library module self-registers real actions and a captured rec
       return {serverId: 'server', viewerFence: 'actual-viewer', revision: 1, resources: [], nextCursor: ''};
     }}};
   const module = create(context);
-  const definition = {libraryId: 'actual', pivot: 'movies', query: {field: 'favorite', operator: 'equals', value: true}, sort: [{field: 'title', direction: 'asc'}], presentation: 'grid'};
+  const definition = {libraryId: 'actual', pivot: 'movies', query: {variant: 'predicate', field: 'favorite', operator: 'equals', value: true}, sort: [{field: 'title', direction: 'asc'}], presentation: 'grid'};
   const source = {phase: 'ready', library: {id: 'actual'}, tab: {}, discover: {appended: []}, defaultSort: {field: 'title', direction: 'asc'}};
   let captured = 0;
   const destination = {getSnapshot: () => source, captureSavedView: () => {captured++; return definition;}};

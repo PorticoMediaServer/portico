@@ -190,7 +190,7 @@ func TestReadingBrowsePreparationRouteContracts(t *testing.T) {
 	if len(defs) != 2 || defs[0].ID != "get_library_reading_browse_query" || defs[1].ID != "delete_library_reading_browse_query" {
 		t.Fatal(defs)
 	}
-	if _, e = apikit.Generate(defs); e != nil {
+	if _, e = apikit.GenerateWith(defs, apikit.Options{GrandfatheredUnionTags: GrandfatheredUnionTags}); e != nil {
 		t.Fatal(e)
 	}
 	pendingShape := readingBrowseQueryResponse{}.JSONSchemaForStatus(202)
@@ -200,6 +200,7 @@ func TestReadingBrowsePreparationRouteContracts(t *testing.T) {
 	}
 	shape := readingBrowseQueryResponse{}.JSONSchemaForStatus(200)
 	want, _ := apikit.Schema(reflect.TypeFor[catalog.BrowseResult]())
+	want = withVariantTag(want, "ready")
 	a, _ := json.Marshal(shape)
 	b, _ := json.Marshal(want)
 	if !bytes.Equal(a, b) {

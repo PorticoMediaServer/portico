@@ -48,7 +48,7 @@ test('SSE greetings, control and invalid frames do not forgive repeated stream f
 
 test('a newly delivered application event forgives preceding short stream failures',async()=>{
  const c=timers();let streams=0,polls=0;
- const events=new EventsClient({http:{send:()=>{polls++;return held();}},openStream:async(_cursor,event)=>{if(++streams===2)event({data:JSON.stringify({id:'one',type:'session.updated'})});},random:()=>0.5,setTimer:c.setTimer,clearTimer:c.clearTimer});
+ const events=new EventsClient({http:{send:()=>{polls++;return held();}},openStream:async(_cursor,event)=>{if(++streams===2)event({data:JSON.stringify({variant:'change',id:'one',type:'session.updated'})});},random:()=>0.5,setTimer:c.setTimer,clearTimer:c.clearTimer});
  try{
   events.start();await settle();c.fire();await settle();c.fire();await settle();
   assert.equal(streams,3);assert.equal(polls,0);
@@ -69,14 +69,14 @@ test('a late poll response from a stopped run cannot publish events or cursors i
  const events=new EventsClient({http:{send:()=>++calls===1?new Promise(r=>{resolve=r;}):held()}});
  let delivered=0;events.on('session.updated',()=>delivered++);
  events.start();await settle();events.stop();events.start();await settle();
- resolve({status:200,headers:{},body:{events:[{id:'old',type:'session.updated'}],nextAfter:'old'}});await settle();
+ resolve({status:200,headers:{},body:{events:[{variant:'change',id:'old',type:'session.updated'}],nextAfter:'old'}});await settle();
  assert.equal(delivered,0);assert.equal(events.getStatus().cursor,undefined);assert.equal(events.getStatus().connected,false);assert.equal(events.getStatus().mode,'poll');events.stop();
 });
 
 test('a retired SSE callback and cleanup cannot overwrite the restarted connection status',async()=>{
  const runs:{event:(raw:RawStreamEvent)=>void;resolve:()=>void}[]=[];
  const events=new EventsClient({http:{send:held},openStream:(_cursor,event)=>new Promise(resolve=>{runs.push({event,resolve});})});
- const emit=(run:number,id:string)=>runs[run].event({data:JSON.stringify({id,type:'session.updated'})});
+ const emit=(run:number,id:string)=>runs[run].event({data:JSON.stringify({variant:'change',id,type:'session.updated'})});
  const seen:string[]=[];events.on('session.updated',e=>seen.push(e.id));
  events.start();events.stop();events.start();emit(1,'new');emit(0,'old');runs[0].resolve();await settle();
  assert.deepEqual(seen,['new']);assert.equal(events.getStatus().cursor,'new');assert.equal(events.getStatus().connected,true);events.stop();runs[1].resolve();
@@ -84,7 +84,7 @@ test('a retired SSE callback and cleanup cannot overwrite the restarted connecti
 
 test('a zero-delay stream.closed envelope cannot cause an immediate reconnect loop',async()=>{
  const c=timers();let streams=0;
- const events=new EventsClient({http:{send:held},openStream:async(_cursor,event)=>{streams++;event({data:JSON.stringify({id:'close',type:'stream.closed',data:{reconnectAfterMs:0}})});},random:()=>0,setTimer:c.setTimer,clearTimer:c.clearTimer});
+ const events=new EventsClient({http:{send:held},openStream:async(_cursor,event)=>{streams++;event({data:JSON.stringify({variant:'change',id:'close',type:'stream.closed',data:{reconnectAfterMs:0}})});},random:()=>0,setTimer:c.setTimer,clearTimer:c.clearTimer});
  events.start();await settle();assert.equal(streams,1);assert.equal([...c.pending.values()][0].ms,1000);events.stop();
 });
 
@@ -101,7 +101,7 @@ test('a wait the server asked for is spread between clients and never shortened'
   events.start();await settle();assert.equal([...c.pending.values()][0].ms,delay);events.stop();
  }
  for(const [random,delay] of [[0,5000],[1,6250]]){
-  const c=timers();const events=new EventsClient({http:{send:held},openStream:async(_cursor,event)=>{event({data:JSON.stringify({id:'close',type:'stream.closed',data:{reconnectAfterMs:5000}})});},random:()=>random,setTimer:c.setTimer,clearTimer:c.clearTimer});
+  const c=timers();const events=new EventsClient({http:{send:held},openStream:async(_cursor,event)=>{event({data:JSON.stringify({variant:'change',id:'close',type:'stream.closed',data:{reconnectAfterMs:5000}})});},random:()=>random,setTimer:c.setTimer,clearTimer:c.clearTimer});
   events.start();await settle();assert.equal([...c.pending.values()][0].ms,delay);events.stop();
  }
 });

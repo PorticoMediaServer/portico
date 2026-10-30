@@ -23,7 +23,7 @@ function capabilitiesPayload(changes: Record<string, unknown> = {}): any {
       {id: 'title', labelKey: 'sort.title', directions: ['asc', 'desc'], defaultDirection: 'asc', expensive: false, applicableKinds: ['movie']},
       {id: 'year', labelKey: 'sort.year', directions: ['asc', 'desc'], defaultDirection: 'desc', expensive: false, applicableKinds: ['movie']},
     ],
-    quickFilters: [{id: 'favorites', labelKey: 'filter.favorites', query: {field: 'favorite', operator: 'equals', value: true}}],
+    quickFilters: [{id: 'favorites', labelKey: 'filter.favorites', query: {variant:'predicate',field: 'favorite', operator: 'equals', value: true}}],
     queryLimits: {maximumDepth: 5, maximumClauses: 40, maximumBytes: 65536, maximumSorts: 3, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 1800000},
     ...changes,
   };
@@ -33,7 +33,7 @@ const capabilities: BrowseCapabilities = parseBrowseCapabilities(capabilitiesPay
 function resultPayload(changes: Record<string, unknown> = {}): any {
   return {
     pivot: 'movies',
-    applied: {query: {field: 'genre', operator: 'contains', value: 'Action'}, sort: [{field: 'title', direction: 'asc'}], seek: null},
+    applied: {query: {variant:'predicate',field: 'genre', operator: 'contains', value: 'Action'}, sort: [{field: 'title', direction: 'asc'}], seek: null},
     entries: [{id: 'm1', kind: 'movie', title: 'Alpha', navigation: {view: 'item', entityId: 'm1'}}],
     pageInfo: {start: 0, total: 3, revision: 'browse_abc', hasMore: true, nextCursor: 'cursor'},
     positionIndex: [{key: '#', index: 0}, {key: 'A', index: 1}],
@@ -76,7 +76,7 @@ test('a filter, sort, pivot or quick filter this app cannot read is not offered 
       {id: 'unsure', labelKey: 'library.unsure'},
       {labelKey: 'no id'},
     ],
-    quickFilters: [{id: 'favorites', labelKey: 'filter.favorites', query: {field: 'favorite', operator: 'equals', value: true}}, {id: 'future', labelKey: 'k', query: {field: 'mood', operator: 'resembles', value: 'calm'}}],
+    quickFilters: [{id: 'favorites', labelKey: 'filter.favorites', query: {variant:'predicate',field: 'favorite', operator: 'equals', value: true}}, {id: 'future', labelKey: 'k', query: {variant:'predicate',field: 'mood', operator: 'resembles', value: 'calm'}}],
   }));
   assert.deepEqual(parsed.fields.map(f => f.id), ['title', 'someOperators', 'hints']);
   assert.equal(parsed.fields[0].labelKey, 'k', 'a repeated id keeps its first appearance');
@@ -95,7 +95,7 @@ test('browse pages parse position index and page info; identity, what was applie
   assert.equal(page.pageInfo.total, 3);
   assert.deepEqual([...page.positionIndex], [{key: '#', index: 0}, {key: 'A', index: 1}]);
   assert.equal(page.applied.sort[0].field, 'title');
-  assert.throws(() => parseBrowseResult(resultPayload({applied: {query: {field: 'genre', operator: 'nonsense', value: 'x'}, sort: [], seek: null}})), {code:'invalid_browse'});
+  assert.throws(() => parseBrowseResult(resultPayload({applied: {query: {variant:'predicate',field: 'genre', operator: 'nonsense', value: 'x'}, sort: [], seek: null}})), {code:'invalid_browse'});
   assert.throws(() => parseBrowseResult(resultPayload({pivot: ''})), {code:'invalid_browse'});
   assert.throws(() => parseBrowseResult(resultPayload({pageInfo: {start: 0, total: 3, revision: '', hasMore: true, nextCursor: 'cursor'}})), {code:'invalid_browse'});
   assert.throws(() => parseBrowseResult(resultPayload({pageInfo: {start: 0, total: 3, revision: 'r', hasMore: true, nextCursor: 7}})), {code:'invalid_browse'});
@@ -185,20 +185,20 @@ test('facet pages keep the values they can read; the field asked for and the bou
 });
 
 test('queries are validated against the published capabilities before they are sent', () => {
-  validateBrowseQuery(capabilities, {field: 'year', operator: 'between', value: [1990, 1999]});
+  validateBrowseQuery(capabilities, {variant:'predicate',field: 'year', operator: 'between', value: [1990, 1999]});
   for (const [node, field] of [
-    [{field: 'studio', operator: 'equals', value: 'x'}, 'query.field'],
-    [{field: 'title', operator: 'at-least', value: 'x'}, 'query.operator'],
-    [{field: 'year', operator: 'equals', value: 'x'}, 'query.value'],
-    [{field: 'playState', operator: 'equals', value: 'halfway'}, 'query.value'],
-    [{field: 'favorite', operator: 'equals', value: 'yes'}, 'query.value'],
-    [{field: 'year', operator: 'between', value: [1]}, 'query.value'],
-    [{field: 'year', operator: 'between', value: 1990}, 'query.value'],
+    [{variant:'predicate',field: 'studio', operator: 'equals', value: 'x'}, 'query.field'],
+    [{variant:'predicate',field: 'title', operator: 'at-least', value: 'x'}, 'query.operator'],
+    [{variant:'predicate',field: 'year', operator: 'equals', value: 'x'}, 'query.value'],
+    [{variant:'predicate',field: 'playState', operator: 'equals', value: 'halfway'}, 'query.value'],
+    [{variant:'predicate',field: 'favorite', operator: 'equals', value: 'yes'}, 'query.value'],
+    [{variant:'predicate',field: 'year', operator: 'between', value: [1]}, 'query.value'],
+    [{variant:'predicate',field: 'year', operator: 'between', value: 1990}, 'query.value'],
   ] as const) {
     assert.throws(() => validateBrowseQuery(capabilities, node as any), (e: unknown) => e instanceof BrowseQueryError && e.field === field);
   }
-  let deep: any = {field: 'title', operator: 'equals', value: 'x'};
-  for (let level = 0; level < 6; level += 1) deep = {not: deep};
+  let deep: any = {variant:'predicate',field: 'title', operator: 'equals', value: 'x'};
+  for (let level = 0; level < 6; level += 1) deep = {variant:'group',not: deep};
   assert.throws(() => validateBrowseQuery(capabilities, deep), (e: unknown) => e instanceof BrowseQueryError && e.field.startsWith('query.not'));
 });
 
@@ -210,7 +210,7 @@ test('the builder produces a request the server contract accepts', () => {
     .limit(25)
     .seek('d')
     .build();
-  assert.deepEqual(body, {pivot: 'movies', query: {all: [{field: 'genre', operator: 'contains', value: 'Action'}, {field: 'favorite', operator: 'equals', value: true}]}, sort: [{field: 'title', direction: 'asc'}], limit: 25, seek: {prefix: 'd'}});
+  assert.deepEqual(body, {pivot: 'movies', query: {variant:'group',all: [{variant:'predicate',field: 'genre', operator: 'contains', value: 'Action'}, {variant:'predicate',field: 'favorite', operator: 'equals', value: true}]}, sort: [{field: 'title', direction: 'asc'}], limit: 25, seek: {prefix: 'd'}});
   assert.throws(() => new BrowseQueryBuilder(capabilities, 'discover'), (e: unknown) => e instanceof BrowseQueryError);
   assert.throws(() => new BrowseQueryBuilder(capabilities, 'songs'), (e: unknown) => e instanceof BrowseQueryError);
   assert.throws(() => new BrowseQueryBuilder(capabilities).limit(500), (e: unknown) => e instanceof BrowseQueryError && e.field === 'limit');
@@ -270,7 +270,7 @@ test('a container scope keeps the full sort set and adds its membership to filte
  raw.surfaces=[{id:'container-titles',endpoint:'/v1/libraries/{id}/browse',membershipField:'memberOf',sorts:['title','year'],filters:['memberOf','year'],paging:'keyset'}];
  const parsed=parseBrowseCapabilities(raw);
  const body=browseWithin(parsed,'container-titles','container').where('year','at-least',2000).sort('year','desc').build();
- assert.deepEqual(body.query,{all:[{field:'memberOf',operator:'equals',value:'container'},{field:'year',operator:'at-least',value:2000}]});
+ assert.deepEqual(body.query,{variant:'group',all:[{variant:'predicate',field:'memberOf',operator:'equals',value:'container'},{variant:'predicate',field:'year',operator:'at-least',value:2000}]});
  assert.deepEqual(body.sort,[{field:'year',direction:'desc'}]);
  assert.throws(()=>browseWithin(parsed,'person-titles','person'),BrowseQueryError);
 });
@@ -297,14 +297,14 @@ test('a total counted only to the threshold is open-ended until the last page', 
 });
 
 test('a list across libraries names its group for its filter counts', () => {
-  assert.deepEqual(facetGroupOf([{field: 'list', operator: 'equals', value: 'pl1'}, {field: 'genre', operator: 'equals', value: 'Drama'}]), {group: 'list', value: 'pl1'});
-  assert.deepEqual(facetGroupOf([{field: 'favorite', operator: 'equals', value: true}]), {group: 'favorite', value: ''});
-  assert.equal(facetGroupOf([{field: 'genre', operator: 'equals', value: 'Drama'}]), undefined);
+  assert.deepEqual(facetGroupOf([{variant:'predicate',field: 'list', operator: 'equals', value: 'pl1'}, {variant:'predicate',field: 'genre', operator: 'equals', value: 'Drama'}]), {group: 'list', value: 'pl1'});
+  assert.deepEqual(facetGroupOf([{variant:'predicate',field: 'favorite', operator: 'equals', value: true}]), {group: 'favorite', value: ''});
+  assert.equal(facetGroupOf([{variant:'predicate',field: 'genre', operator: 'equals', value: 'Drama'}]), undefined);
 });
 
 test('CB-1/2/3/5/6: contextual facets, batch counts, owner sort and remembered totals stay honest', async () => {
  const {browseContextFacetsPath,browseCountsRequest,parseBrowseCounts,browseCountsPath,BrowseTotalsMemory}=await import('../src/browse.ts');
- const query={all:[{field:'year',operator:'at-least' as const,value:2000},{field:'genre',operator:'contains' as const,value:'Drama'}]};
+ const query={variant:'group',all:[{variant:'predicate',field:'year',operator:'at-least' as const,value:2000},{variant:'predicate',field:'genre',operator:'contains' as const,value:'Drama'}]};
  const url=new URL(browseContextFacetsPath('lib','genre','movies',query,'com',10),'https://private.invalid');
  assert.equal(url.pathname,'/v1/libraries/lib/facets');
  assert.deepEqual(JSON.parse(url.searchParams.get('query')!),query);
@@ -360,7 +360,7 @@ test('public music Unmatched navigation follows actual capabilities for member, 
  assert.equal(canBrowseMusicUnmatched(caps),true);
  for(const caller of ['member','owner','tv']){
   const tabs=libraryTabs('music',{owner:caller==='owner',unmatched:canBrowseMusicUnmatched(caps)});const tab=tabs.find(t=>t.id==='unmatched')!;
-  assert.equal(tab.pivot,'albums');assert.deepEqual(tab.fixedFilter,[{field:'match',operator:'equals',value:'unmatched'}]);assert.equal(browsePath(caps.library.id),'/v1/libraries/music/browse');
+  assert.equal(tab.pivot,'albums');assert.deepEqual(tab.fixedFilter,[{variant:'predicate',field:'match',operator:'equals',value:'unmatched'}]);assert.equal(browsePath(caps.library.id),'/v1/libraries/music/browse');
  }
  const local={...caps,fields:caps.fields.filter(f=>f.id!=='match'),pivots:caps.pivots.map(p=>({...p,filters:[]}))};
  for(const unavailable of [undefined,local])for(const owner of [false,true])assert.equal(libraryTabs('music',{owner,unmatched:canBrowseMusicUnmatched(unavailable)}).some(t=>t.id==='unmatched'),false);

@@ -40,12 +40,13 @@ func (c SavedReadingGroupCard) MarshalJSON() ([]byte, error) {
 	}
 	if c.Hidden {
 		return json.Marshal(struct {
+			Variant  string `json:"variant"`
 			ID       string `json:"id"`
 			Kind     string `json:"kind"`
 			Hidden   bool   `json:"hidden"`
 			Revision int64  `json:"revision"`
 			Remove   bool   `json:"removeMyList"`
-		}{c.ID, c.Kind, true, c.Revision, c.RemoveMyList})
+		}{"hidden", c.ID, c.Kind, true, c.Revision, c.RemoveMyList})
 	}
 	if c.ReadingGroup == nil || c.Navigation == nil || c.Count == nil || *c.Count < 1 || *c.Count > 9007199254740991 || c.Title == "" || c.LibraryID == "" {
 		return nil, fmt.Errorf("invalid visible Reading group card")
@@ -67,7 +68,11 @@ func (c SavedReadingGroupCard) MarshalJSON() ([]byte, error) {
 		return nil, fmt.Errorf("invalid Reading group pivot")
 	}
 	type plain SavedReadingGroupCard
-	return json.Marshal(plain(c))
+	// R-09b: the visible card is tagged too; the hidden one above says "hidden".
+	return json.Marshal(struct {
+		Variant string `json:"variant"`
+		plain
+	}{"visible", plain(c)})
 }
 
 func (SavedReadingGroupCard) JSONSchema() map[string]any {
@@ -78,15 +83,19 @@ func (SavedReadingGroupCard) JSONSchema() map[string]any {
 	common := func(hidden bool) map[string]any {
 		return map[string]any{"id": text(1, 128), "kind": map[string]any{"type": "string", "enum": []string{"reading_group"}}, "hidden": map[string]any{"type": "boolean", "enum": []bool{hidden}}, "revision": map[string]any{"type": "integer", "minimum": 1, "maximum": 9007199254740991}, "removeMyList": map[string]any{"type": "boolean"}}
 	}
-	hidden := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"id", "kind", "hidden", "revision", "removeMyList"}, "properties": common(true)}
+	tag := func(value string) map[string]any { return map[string]any{"type": "string", "const": value} }
+	hiddenProperties := common(true)
+	hiddenProperties["variant"] = tag("hidden")
+	hidden := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"variant", "id", "kind", "hidden", "revision", "removeMyList"}, "properties": hiddenProperties}
 	properties := common(false)
+	properties["variant"] = tag("visible")
 	properties["libraryId"] = text(1, 128)
 	properties["readingGroup"] = map[string]any{"type": "object", "additionalProperties": false, "required": []string{"groupKind", "seriesId"}, "properties": map[string]any{"groupKind": (ReadingSavedGroupKind("")).JSONSchema(), "seriesId": series}}
 	properties["title"] = text(1, 4096)
 	properties["count"] = map[string]any{"type": "integer", "minimum": 1, "maximum": 9007199254740991}
 	properties["posterUrl"] = text(1, 4096)
 	properties["navigation"] = map[string]any{"type": "object", "additionalProperties": false, "required": []string{"view", "entityId"}, "properties": map[string]any{"view": map[string]any{"type": "string", "enum": []string{"series"}}, "entityId": series, "pivot": map[string]any{"type": "string", "enum": []string{"magazines", "newspapers"}}}}
-	visible := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"id", "kind", "hidden", "revision", "removeMyList", "libraryId", "readingGroup", "title", "count", "navigation"}, "properties": properties}
+	visible := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"variant", "id", "kind", "hidden", "revision", "removeMyList", "libraryId", "readingGroup", "title", "count", "navigation"}, "properties": properties}
 	return map[string]any{"oneOf": []any{hidden, visible}}
 }
 

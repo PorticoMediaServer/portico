@@ -20,6 +20,7 @@ const BrowseSelectionRetryAfterMs = 1000
 // ordinary page and on the selection-only poll resource.
 type BrowseSelectionPreparing struct {
 	basis        string
+	Variant      string `json:"variant"`
 	Kind         string `json:"kind"`
 	State        string `json:"state"`
 	QueryID      string `json:"queryId"`
@@ -41,7 +42,8 @@ func (BrowseSelectionUnavailable) JSONSchema() map[string]any {
 func (p BrowseSelectionPreparing) CapturedBasis() string { return p.basis }
 
 func (BrowseSelectionPreparing) JSONSchema() map[string]any {
-	return map[string]any{"type": "object", "additionalProperties": false, "required": []string{"kind", "state", "queryId", "retryAfterMs"}, "properties": map[string]any{
+	return map[string]any{"type": "object", "additionalProperties": false, "required": []string{"variant", "kind", "state", "queryId", "retryAfterMs"}, "properties": map[string]any{
+		"variant":      map[string]any{"type": "string", "const": "preparing"},
 		"kind":         map[string]any{"type": "string", "enum": []string{"browse-selection-preparing"}},
 		"state":        map[string]any{"type": "string", "enum": []string{"preparing"}},
 		"queryId":      map[string]any{"type": "string", "minLength": 1, "maxLength": 128},
@@ -307,7 +309,7 @@ func (s *Service) SubmitBrowseSelectionPreparation(request BrowseRequest, viewer
 }
 
 func selectionPreparationPending(queryID string) BrowseSelectionPreparing {
-	return BrowseSelectionPreparing{Kind: "browse-selection-preparing", State: "preparing", QueryID: queryID, RetryAfterMs: BrowseSelectionRetryAfterMs}
+	return BrowseSelectionPreparing{Variant: "preparing", Kind: "browse-selection-preparing", State: "preparing", QueryID: queryID, RetryAfterMs: BrowseSelectionRetryAfterMs}
 }
 
 // BrowseSelectionPreparationResult owns a delivery reservation through response

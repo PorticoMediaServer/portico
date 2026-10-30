@@ -14,19 +14,19 @@ export const channelConditionKey=()=>`channel-condition-${++sequence}`;
 export const isChannelConditionGroup=(item:ChannelConditionItem):item is ChannelConditionGroup=>'conditions'in item;
 function conditionNode(condition:ChannelCondition):BrowseNode|undefined{
   if(!condition.predicates.length)return;
-  const node:BrowseNode=condition.predicates.length===1?condition.predicates[0]!:{all:condition.predicates};
-  return condition.not?{not:node}:node;
+  const node:BrowseNode=condition.predicates.length===1?condition.predicates[0]!:{variant:'group' as const,all:condition.predicates};
+  return condition.not?{variant:'group' as const,not:node}:node;
 }
 export function channelConditionNode(conditions:ChannelConditions):BrowseNode|undefined{
   if(conditions.opaque)return conditions.opaque;
   const nodes=conditions.items.map(item=>{
     if(!isChannelConditionGroup(item))return conditionNode(item);
     const inner=item.conditions.map(conditionNode).filter((node):node is BrowseNode=>!!node);if(!inner.length)return;
-    const node:BrowseNode=item.mode==='all'?{all:inner}:{any:inner};return item.not?{not:node}:node;
+    const node:BrowseNode=item.mode==='all'?{variant:'group' as const,all:inner}:{variant:'group' as const,any:inner};return item.not?{variant:'group' as const,not:node}:node;
   }).filter((node):node is BrowseNode=>!!node);
   if(!nodes.length)return;
   if(nodes.length===1&&conditions.mode==='all')return nodes[0];
-  return conditions.mode==='all'?{all:nodes}:{any:nodes};
+  return conditions.mode==='all'?{variant:'group' as const,all:nodes}:{variant:'group' as const,any:nodes};
 }
 function conditionOf(input:BrowseNode):ChannelCondition|undefined{
   let node=input,not=false;if('not'in node){not=true;node=node.not;}
@@ -54,11 +54,11 @@ export function readChannelConditions(node?:BrowseNode):ChannelConditions{
  * template cannot accidentally broaden it to every title in its libraries. */
 export function channelConditionsWithLegacy(query:Pick<LibraryChannelQuery,'filter'|'genres'|'yearFrom'|'yearThrough'>):ChannelConditions{
   const extra:BrowseNode[]=[];
-  if(query.genres?.length)extra.push({field:'genre',operator:'contains-any',value:[...query.genres]});
+  if(query.genres?.length)extra.push({variant:'predicate' as const,field:'genre',operator:'contains-any',value:[...query.genres]});
   const from=query.yearFrom||0,through=query.yearThrough||0;
-  if(from&&through)extra.push({field:'year',operator:'between',value:[from,through]});
-  else if(from)extra.push({field:'year',operator:'at-least',value:from});else if(through)extra.push({field:'year',operator:'at-most',value:through});
-  return readChannelConditions(extra.length?{all:[...(query.filter?[query.filter]:[]),...extra]}:query.filter);
+  if(from&&through)extra.push({variant:'predicate' as const,field:'year',operator:'between',value:[from,through]});
+  else if(from)extra.push({variant:'predicate' as const,field:'year',operator:'at-least',value:from});else if(through)extra.push({variant:'predicate' as const,field:'year',operator:'at-most',value:through});
+  return readChannelConditions(extra.length?{variant:'group' as const,all:[...(query.filter?[query.filter]:[]),...extra]}:query.filter);
 }
 export function applyChannelConditions(config:LibraryChannelConfig,conditions:ChannelConditions):LibraryChannelConfig{
   const rule=config.rules.find(value=>value.id===config.defaultRuleId);if(!rule)throw new Error('missing_channel_default_rule');

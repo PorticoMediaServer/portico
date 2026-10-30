@@ -1640,5 +1640,5 @@ func (d Dependencies) itemReadHandler(w http.ResponseWriter, r *http.Request) {
 	if item.FileInfoOpening != "" && conditional(w, r, responseTag("item", item.ID, item.FileInfoOpening)) {
 		return
 	}
-	write(w, 200, item)
+	write(w, 200, polledFileInfoDocument(r, "item", item))
 }

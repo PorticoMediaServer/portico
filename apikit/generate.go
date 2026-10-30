@@ -271,6 +271,15 @@ type Options struct {
 	Errors []apierror.Definition
 	// WireSchemas adds bounds published by the service owning a wire type.
 	WireSchemas map[reflect.Type]map[string]any
+	// PendingTaggedUnions lists routes whose response unions still lack a
+	// required const discriminator (O-159 R-09b migration; ends empty).
+	PendingTaggedUnions map[string]bool
+	// GrandfatheredUnionTags keeps a pre-R-09b domain tag ("route path" → tag);
+	// every other response union is tagged by variant.
+	GrandfatheredUnionTags map[string]string
+	// RequireGrandfatheredUse fails generation on a grandfathered entry that
+	// matches no union. Set only by the full generator, not route subsets.
+	RequireGrandfatheredUse bool
 	// Components gives reusable wire types descriptive names in OpenAPI.
 	Components map[string]reflect.Type
 	// ServiceAccessRules lists access labels this service authenticates itself,
@@ -312,6 +321,7 @@ func GenerateWith(definitions []Definition, options Options) (Artifacts, error) 
 	contractTypes.WriteString("export type RouteContracts = {\n")
 	anyJSON := false
 	nullable := false
+	grandfatherUsed := map[string]bool{}
 	for _, d := range definitions {
 		// Generation must refuse incomplete metadata even when a caller supplies
 		// definitions directly rather than going through Registry registration.
@@ -339,6 +349,9 @@ func GenerateWith(definitions []Definition, options Options) (Artifacts, error) 
 		fmt.Fprintf(&decoders, "export function decode%sResponse(input: unknown): types.%sResponse { return decode(%q, input) as types.%sResponse; }\n", name, name, name+"Response", name)
 		fmt.Fprintf(&contractTypes, "%q: { request: %sRequest; response: %sResponse };\n", d.ID, name, name)
 		schemas[name+"Request"] = request
+		if err := discriminateResponse(d.ID, response, options.PendingTaggedUnions, options.GrandfatheredUnionTags, grandfatherUsed); err != nil {
+			return Artifacts{}, err
+		}
 		schemas[name+"Response"] = response
 		ts.WriteString("export type " + name + "Request = " + tsType(request) + ";\n")
 		ts.WriteString("export type " + name + "Response = " + tsType(response) + ";\n")
@@ -430,6 +443,11 @@ func GenerateWith(definitions []Definition, options Options) (Artifacts, error) 
 		}
 		paths[d.Path].(map[string]any)[strings.ToLower(d.Method)] = operation
 		routes = append(routes, d.Metadata)
+	}
+	for key := range options.GrandfatheredUnionTags {
+		if options.RequireGrandfatheredUse && !grandfatherUsed[key] {
+			return Artifacts{}, fmt.Errorf("grandfathered union tag %q matches no response union; remove it", key)
+		}
 	}
 	components := map[string]any{}
 	for name, schema := range schemas {
@@ -684,11 +702,22 @@ func tsType(s map[string]any) string {
 	for _, key := range []string{"anyOf", "oneOf"} {
 		if alternatives, ok := s[key].([]any); ok {
 			types := make([]string, 0, len(alternatives))
+			tag, tagged := s["x-discriminator"].(string)
 			for _, alternative := range alternatives {
-				types = append(types, tsType(alternative.(map[string]any)))
+				rendered := tsType(alternative.(map[string]any))
+				// A tagged alternative carries its tag as a literal, so consumers narrow on it.
+				if value, ok := singleTag(alternative.(map[string]any), tag); tagged && ok {
+					rendered = fmt.Sprintf("(%s & { %q: %s })", rendered, tag, value)
+				}
+				types = append(types, rendered)
 			}
 			if len(types) == 0 {
 				return "never"
+			}
+			// O-159 R-09b: a response tag this client does not know reads as an
+			// unknown variant, so every consumer has to say what it does with one.
+			if tag, ok := s["x-discriminator"].(string); ok {
+				types = append(types, fmt.Sprintf("{ readonly unknownVariant: true; readonly %q: string }", tag))
 			}
 			return strings.Join(types, " | ")
 		}

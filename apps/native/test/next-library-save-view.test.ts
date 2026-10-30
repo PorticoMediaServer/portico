@@ -4,7 +4,7 @@ import {NativeLibrarySaveView} from '../src-next/screens/library/save-view.ts';
 import type {SavedApi} from '../../../packages/client-core/src/saved.ts';
 
 const scope = {serverId: 'server', viewerId: JSON.stringify(['local', 'account', 'profile'])};
-const definition = {libraryId: 'actual-movies', pivot: 'movies', query: {field: 'favorite', operator: 'equals', value: true}, sort: [{field: 'title', direction: 'asc'}], presentation: 'grid'} as const;
+const definition = {libraryId: 'actual-movies', pivot: 'movies', query: {variant: 'predicate', field: 'favorite', operator: 'equals', value: true}, sort: [{field: 'title', direction: 'asc'}], presentation: 'grid'} as const;
 const directory = () => ({serverId: 'server', viewerFence: 'actual-viewer', revision: 1, resources: [], nextCursor: ''});
 const operationId = '12345678-1234-4123-8123-123456789abc';
 

@@ -8,7 +8,7 @@ const artwork = (id: string, role: 'backdrop' | 'poster') => ({kind: 'item', id,
 const genre = (value: string, count: number, backdrop = true, covers = 2) => ({value, label: value, count,
   ...(backdrop ? {backdrop: artwork(value + '-backdrop', 'backdrop')} : {}),
   covers: Array.from({length: covers}, (_, index) => artwork(value + '-cover-' + index, 'poster'))});
-const page = (genres: readonly unknown[], nextCursor?: string, revision = 'genre-only-opaque') => ({queryId:'genre_query', revision, genres, ...(nextCursor ? {nextCursor} : {})});
+const page = (genres: readonly unknown[], nextCursor?: string, revision = 'genre-only-opaque') => ({variant:'ready', queryId:'genre_query', revision, genres, ...(nextCursor ? {nextCursor} : {})});
 function deferred<T>() {let resolve!: (value: T) => void;const promise = new Promise<T>(done => {resolve = done;});return {promise, resolve};}
 function setup(handler: (path: string, signal?: AbortSignal) => Promise<unknown>, slot: SearchGenreSlot = 'backdrop', limit = 2) {
   let current = true, requests = 0;
@@ -86,7 +86,7 @@ test('only the current actual facet can capture the canonical video-title browse
   const owner = setup(async () => ({...page([genre('actual-value', 10)]), hasGenres: true}));
   try {
     await owner.controller.load();const actual = owner.controller.getSnapshot().genres[0];
-    assert.deepEqual(owner.controller.browseTarget(actual), {libraryId: '*', pivot: 'video-titles', query: {field: 'genre', operator: 'equals', value: 'actual-value'}, sort: [{field: 'title', direction: 'asc'}]});
+    assert.deepEqual(owner.controller.browseTarget(actual), {libraryId: '*', pivot: 'video-titles', query: {variant:'predicate',field: 'genre', operator: 'equals', value: 'actual-value'}, sort: [{field: 'title', direction: 'asc'}]});
     assert.throws(() => owner.controller.browseTarget({...actual}), {name: 'AbortError'});
     owner.controller.cancel();assert.throws(() => owner.controller.browseTarget(actual), {name: 'AbortError'});
   } finally {owner.controller.dispose();}

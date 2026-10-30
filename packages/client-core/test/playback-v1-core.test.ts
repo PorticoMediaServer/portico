@@ -355,7 +355,7 @@ test('events: one stream, prefix subscriptions, reconnect from the cursor after 
   server.publish('queue.updated', {kind: 'queue', id: 'q1'}, '4'); // while disconnected
   await c.advance(1000);
   assert.deepEqual(seen, ['queue.updated#1', 'session.updated#2', 'queue.updated#4'], 'resumed from the cursor; the closed marker is not an event');
-  events.deliver({id: '4', type: 'queue.updated'});
+  events.deliver({variant: 'change', id: '4', type: 'queue.updated'});
   assert.equal(seen.length, 3, 'deduplicated by id');
   events.stop();
 });

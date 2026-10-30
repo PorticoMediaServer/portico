@@ -46,8 +46,8 @@ const DATE_FIELDS = ['dateAdded', 'releaseDate', 'lastPlayedAt'] as const;
 const readySchemas = schemas.BrowseLibraryResponse.anyOf.filter((shape): shape is Extract<typeof shape, {properties: {applied: unknown}}> => 'applied' in shape.properties);
 assert.equal(readySchemas.length, 1, 'the contract has exactly one ready page branch');
 const nodeSchema = readySchemas[0].properties.applied.properties.query;
-const relative = nodeSchema.oneOf.find((shape): shape is Extract<typeof shape, {properties: {field: {enum: unknown}}}> => 'enum' in shape.properties.field);
-const general = nodeSchema.oneOf.find((shape): shape is Exclude<typeof shape, {properties: {field: {enum: unknown}}}> => !('enum' in shape.properties.field));
+const relative = nodeSchema.oneOf.find((shape): shape is Extract<typeof shape, {properties: {variant: {const: 'relative'}}}> => 'variant' in shape.properties && shape.properties.variant.const === 'relative');
+const general = nodeSchema.oneOf.find((shape): shape is Extract<typeof shape, {properties: {variant: {const: 'predicate'}}}> => 'variant' in shape.properties && shape.properties.variant.const === 'predicate');
 assert.ok(relative, 'the ready query has a relative date predicate');
 assert.ok(general, 'the ready query has a general predicate/group branch');
 
@@ -73,7 +73,7 @@ function capabilities(maximumDepth = 5): BrowseCapabilities {
 /** A page the generated contract accepts, carrying the applied query under test. */
 type ReadyBrowsePage = Extract<BrowseLibraryResponse, {applied: unknown}>;
 function page(query: BrowseNode | null): ReadyBrowsePage {
-  return {pivot: 'movies', applied: {query: query as ReadyBrowsePage['applied']['query'], sort: [{field: 'title', direction: 'asc'}]}, entries: [], pageInfo: {start: 0, total: 0, totalIsLowerBound: false, revision: 'revision-1', hasMore: false, nextCursor: '', durationMs: 0, durationIsLowerBound: false}, positionIndex: []};
+  return {variant: 'ready', pivot: 'movies', applied: {query: query as ReadyBrowsePage['applied']['query'], sort: [{field: 'title', direction: 'asc'}]}, entries: [], pageInfo: {start: 0, total: 0, totalIsLowerBound: false, revision: 'revision-1', hasMore: false, nextCursor: '', durationMs: 0, durationIsLowerBound: false}, positionIndex: []};
 }
 
 const queryError = (path: string) => (error: unknown) => error instanceof BrowseQueryError && error.code === 'invalid_query' && error.field === path;
@@ -89,17 +89,17 @@ const vocabulary = {
   ],
   sorts: [{id: 'added', labelKey: 'sort.added', directions: ['asc', 'desc'], defaultDirection: 'desc', applicableKinds: ['movie']}],
   quickFilters: [
-    {id: 'recent', labelKey: 'filter.quick.recent', query: {field: 'dateAdded', operator: OPERATOR, value: 30}},
-    {id: 'invented', labelKey: 'filter.quick.invented', query: {field: 'dateAdded', operator: 'within-last-weeks', value: 4}},
+    {id: 'recent', labelKey: 'filter.quick.recent', query: {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30}},
+    {id: 'invented', labelKey: 'filter.quick.invented', query: {variant:'predicate',field: 'dateAdded', operator: 'within-last-weeks', value: 4}},
   ],
   queryLimits: {maximumDepth: 5, maximumClauses: 40, maximumBytes: 65536, maximumSorts: 3, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 10000},
 };
 
 test('ready pages carry applied queries and preparing replies stay in their typed protocol branch', () => {
-  const ready = decodeBrowseLibraryResponse(page({field: 'dateAdded', operator: OPERATOR, value: 30}));
+  const ready = decodeBrowseLibraryResponse(page({variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30}));
   assert.ok('applied' in ready, 'a ready response exposes the applied query');
-  assert.deepEqual(parseBrowseResult(ready).applied.query, {field: 'dateAdded', operator: OPERATOR, value: 30});
-  const pending = {state: 'preparing', kind: 'reading-browse-preparing', queryId: 'query-1', retryAfterMs: 25} satisfies Exclude<BrowseLibraryResponse, ReadyBrowsePage>;
+  assert.deepEqual(parseBrowseResult(ready).applied.query, {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30});
+  const pending = {variant: 'preparing', state: 'preparing', kind: 'reading-browse-preparing', queryId: 'query-1', retryAfterMs: 25} satisfies Exclude<BrowseLibraryResponse, ReadyBrowsePage>;
   const preparing = decodeBrowseLibraryResponse(pending);
   assert.ok('state' in preparing, 'a preparing response exposes its poll state');
   assert.deepEqual({...preparing}, pending);
@@ -119,7 +119,7 @@ test('the published relative window is exactly the three date fields, in whole d
   const generalOperators: readonly string[] = general.properties.operator.enum;
   assert.equal(generalOperators.includes(OPERATOR), false);
   for (const field of DATE_FIELDS) for (const value of [1, 7, 30, 90, 365, 36500]) {
-    const node = {field, operator: OPERATOR, value};
+    const node = {variant: 'relative', field, operator: OPERATOR, value};
     assert.deepEqual(parseBrowseNode(node), node, `${field} ${value} is read exactly`);
     assert.doesNotThrow(() => validateBrowseQuery(capabilities(), node as BrowseNode), `${field} ${value} is offered`);
     assert.doesNotThrow(() => decodeBrowseLibraryResponse(page(node as BrowseNode)), `${field} ${value} is published`);
@@ -129,7 +129,7 @@ test('the published relative window is exactly the three date fields, in whole d
 
 test('a day count outside 1–36500 is refused by the contract, the structural parser and the send guard', () => {
   for (const value of [0, -1, 36501, 1.5, '30', null, true, [], {}, NaN, Infinity]) {
-    const node = {field: 'dateAdded', operator: OPERATOR, value};
+    const node = {variant:'relative',field: 'dateAdded', operator: OPERATOR, value};
     assert.throws(() => parseBrowseNode(node), {code: 'invalid_browse'}, `parse ${String(value)}`);
     assert.throws(() => decodeBrowseLibraryResponse(page(node as never)), /Invalid contract value/, `decode ${String(value)}`);
     assert.throws(() => validateBrowseQuery(capabilities(), node as never), queryError('query.value'), `validate ${String(value)}`);
@@ -137,7 +137,7 @@ test('a day count outside 1–36500 is refused by the contract, the structural p
 });
 
 test('a relative window on a non-date field is refused by the contract and the capability check, and admitted structurally', () => {
-  const node: BrowseNode = {field: 'year', operator: OPERATOR, value: 30};
+  const node: BrowseNode = {variant:'relative',field: 'year', operator: OPERATOR, value: 30};
   // 1. The generated contract cannot express it at all: the relative shape enumerates
   //    date fields and the general shape's operator list leaves the relative one out.
   assert.throws(() => decodeBrowseLibraryResponse(page(node as never)), /Invalid contract value/);
@@ -156,48 +156,48 @@ test('a relative window on a non-date field is refused by the contract and the c
 });
 
 test('nested groups keep relative windows exact, refuse a non-date field at its own path, and stay within the published depth', () => {
-  const node: BrowseNode = {all: [
-    {field: 'dateAdded', operator: OPERATOR, value: 30},
-    {any: [{field: 'releaseDate', operator: OPERATOR, value: 7}, {not: {field: 'lastPlayedAt', operator: OPERATOR, value: 90}}]},
+  const node: BrowseNode = {variant:'group',all: [
+    {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30},
+    {variant:'group',any: [{variant:'relative',field: 'releaseDate', operator: OPERATOR, value: 7}, {variant:'group',not: {variant:'relative',field: 'lastPlayedAt', operator: OPERATOR, value: 90}}]},
   ]};
   assert.deepEqual(parseBrowseNode(node), node);
   assert.deepEqual(parseBrowseResult(page(node)).applied.query, node);
   assert.doesNotThrow(() => validateBrowseQuery(capabilities(), node));
   assert.doesNotThrow(() => decodeBrowseLibraryResponse(page(node)));
   // A non-date window is refused wherever it sits, with that node's path.
-  assert.throws(() => validateBrowseQuery(capabilities(), {all: [{field: 'dateAdded', operator: OPERATOR, value: 30}, {field: 'year', operator: OPERATOR, value: 30}]}), queryError('query.all[1].operator'));
+  assert.throws(() => validateBrowseQuery(capabilities(), {variant:'group',all: [{variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30}, {variant:'relative',field: 'year', operator: OPERATOR, value: 30}]}), queryError('query.all[1].operator'));
   // Six levels parse structurally but exceed the published depth of five: the
   // structural bound and the executable bound are separate numbers.
-  let deep: BrowseNode = {field: 'dateAdded', operator: OPERATOR, value: 30};
-  for (let level = 0; level < 6; level++) deep = {all: [deep]};
+  let deep: BrowseNode = {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30};
+  for (let level = 0; level < 6; level++) deep = {variant:'group',all: [deep]};
   assert.doesNotThrow(() => parseBrowseNode(deep));
   assert.throws(() => validateBrowseQuery(capabilities(), deep), /Nest at most 5 levels\./);
 });
 
 test('the applied query is echoed exactly, and no relative operator beyond the published one exists', () => {
-  const absolute: BrowseNode = {field: 'dateAdded', operator: 'at-least', value: '2026-09-23'};
-  const relative30: BrowseNode = {field: 'dateAdded', operator: OPERATOR, value: 30};
-  const result = parseBrowseResult(page({all: [relative30, absolute]}));
-  assert.deepEqual(result.applied.query, {all: [relative30, absolute]});
+  const absolute: BrowseNode = {variant:'predicate',field: 'dateAdded', operator: 'at-least', value: '2026-09-23'};
+  const relative30: BrowseNode = {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30};
+  const result = parseBrowseResult(page({variant:'group',all: [relative30, absolute]}));
+  assert.deepEqual(result.applied.query, {variant:'group',all: [relative30, absolute]});
   assert.equal(Object.isFrozen(result.applied.query), true);
   assert.equal(parseBrowseResult(page(null)).applied.query, null);
   for (const operator of ['within-last-weeks', 'within-last-months', 'last-days', 'in-the-last-days']) {
-    assert.throws(() => parseBrowseNode({field: 'dateAdded', operator, value: 4}), {code: 'invalid_browse'});
+    assert.throws(() => parseBrowseNode({variant:'predicate',field: 'dateAdded', operator, value: 4}), {code: 'invalid_browse'});
   }
 });
 
 test('absolute date predicates are unchanged by the relative window work', () => {
   const nodes = [
-    {field: 'dateAdded', operator: 'at-least', value: '2026-09-23'},
-    {field: 'releaseDate', operator: 'between', value: ['2020-01-01', '2020-12-31']},
-    {field: 'lastPlayedAt', operator: 'is-missing', value: null},
+    {variant:'predicate',field: 'dateAdded', operator: 'at-least', value: '2026-09-23'},
+    {variant:'predicate',field: 'releaseDate', operator: 'between', value: ['2020-01-01', '2020-12-31']},
+    {variant:'predicate',field: 'lastPlayedAt', operator: 'is-missing', value: null},
   ];
   for (const node of nodes) {
     assert.deepEqual(parseBrowseNode(node), node);
     assert.doesNotThrow(() => validateBrowseQuery(capabilities(), node as BrowseNode));
     assert.deepEqual(parseBrowseResult(page(node as BrowseNode)).applied.query, node);
     // An old absolute predicate and a new relative one live in one group unchanged.
-    assert.doesNotThrow(() => decodeBrowseLibraryResponse(page({all: [node as BrowseNode, {field: 'dateAdded', operator: OPERATOR, value: 30}]})));
+    assert.doesNotThrow(() => decodeBrowseLibraryResponse(page({variant:'group',all: [node as BrowseNode, {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30}]})));
   }
 });
 
@@ -206,7 +206,7 @@ test('every operator the published predicate shape can express is structurally r
   const presence = new Set(['is-present', 'is-missing']);
   for (const operator of general.properties.operator.enum) {
     const value = presence.has(operator) ? null : list.has(operator) ? (operator === 'between' ? ['a', 'b'] : ['a']) : 'a';
-    assert.doesNotThrow(() => parseBrowseNode({field: 'title', operator, value}), `${operator} is not read`);
+    assert.doesNotThrow(() => parseBrowseNode({variant:'predicate',field: 'title', operator, value}), `${operator} is not read`);
   }
 });
 
@@ -217,26 +217,26 @@ test('the published vocabulary keeps the relative operator and drops only what t
   // A quick filter carrying a relative window is offered with its query intact; one the
   // grammar cannot read is left out alone and the rest of the vocabulary stays.
   assert.deepEqual(caps.quickFilters.map(filter => filter.id), ['recent']);
-  assert.deepEqual(caps.quickFilters[0].query, {field: 'dateAdded', operator: OPERATOR, value: 30});
+  assert.deepEqual(caps.quickFilters[0].query, {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30});
   // Choosing that filter sends exactly what was published.
-  assert.deepEqual(new BrowseQueryBuilder(caps, 'movies').quickFilter('recent').build(), {pivot: 'movies', query: {field: 'dateAdded', operator: OPERATOR, value: 30}});
+  assert.deepEqual(new BrowseQueryBuilder(caps, 'movies').quickFilter('recent').build(), {pivot: 'movies', query: {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30}});
 });
 
 test('a See all destination keeps the relative window, and one that cannot be read is left out alone', () => {
   const sort = [{field: 'added', direction: 'desc'}];
-  const relative = parseContentSeeAll({pivot: 'movies', sort, query: {field: 'releaseDate', operator: OPERATOR, value: 90}});
-  assert.deepEqual(relative?.query, {field: 'releaseDate', operator: OPERATOR, value: 90});
+  const relative = parseContentSeeAll({pivot: 'movies', sort, query: {variant:'relative',field: 'releaseDate', operator: OPERATOR, value: 90}});
+  assert.deepEqual(relative?.query, {variant:'relative',field: 'releaseDate', operator: OPERATOR, value: 90});
   assert.deepEqual(relative?.sort, sort);
   // An operator this app cannot read takes the destination only, never the section or row.
-  assert.equal(parseContentSeeAll({pivot: 'movies', sort, query: {field: 'releaseDate', operator: 'within-last-weeks', value: 4}}), undefined);
+  assert.equal(parseContentSeeAll({pivot: 'movies', sort, query: {variant:'predicate',field: 'releaseDate', operator: 'within-last-weeks', value: 4}}), undefined);
   // A Home row's See all is the same canonical destination, read by the same rules.
-  const home = validateHomeSeeAll({type: 'library', libraryId: 'library', pivot: 'movies', sort, query: {field: 'dateAdded', operator: OPERATOR, value: 7}}) as {query?: unknown};
-  assert.deepEqual(home.query, {field: 'dateAdded', operator: OPERATOR, value: 7});
-  assert.throws(() => validateHomeSeeAll({type: 'library', libraryId: 'library', pivot: 'movies', sort, query: {field: 'dateAdded', operator: 'within-last-weeks', value: 4}}));
+  const home = validateHomeSeeAll({type: 'library', libraryId: 'library', pivot: 'movies', sort, query: {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 7}}) as {query?: unknown};
+  assert.deepEqual(home.query, {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 7});
+  assert.throws(() => validateHomeSeeAll({type: 'library', libraryId: 'library', pivot: 'movies', sort, query: {variant:'predicate',field: 'dateAdded', operator: 'within-last-weeks', value: 4}}));
 });
 
 test('a counts or facets request carries the relative window unchanged, never a date computed from the clock', t => {
-  const node: BrowseNode = {field: 'dateAdded', operator: OPERATOR, value: 30};
+  const node: BrowseNode = {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30};
   assert.deepEqual(browseCountsRequest('movies', [{id: 'recent', query: node}]).queries[0]?.query, node);
   const facets = browseContextFacetsPath('library', 'genre', 'movies', node);
   assert.deepEqual(JSON.parse(new URLSearchParams(facets.slice(facets.indexOf('?') + 1)).get('query') as string), node);
@@ -253,7 +253,7 @@ test('a counts or facets request carries the relative window unchanged, never a 
 });
 
 test('a saved view is transport for the query it stores, and rendering withholds what it cannot build', async () => {
-  const forbidden = {field: 'year', operator: OPERATOR, value: 30};
+  const forbidden = {variant:'relative',field: 'year', operator: OPERATOR, value: 30};
   const definition = {libraryId: 'library', pivot: 'movies', query: forbidden, sort: [{field: 'added', direction: 'desc'}], presentation: 'grid'};
   const writes: any[] = [];
   const directory = () => ({serverId: 'server', viewerFence: 'fence', revision: 1, nextCursor: '', resources: [{serverId: 'server', viewerFence: 'fence', id: 'year-window', kind: 'view', name: 'Year', summary: '', visibility: 'private', revision: 1, role: 'owner', entryCount: 0, actions: ['pin', 'update', 'delete'], status: 'ready', invalidComponents: [], pinned: false, pinRevision: 0, shares: [], definition}]});
@@ -278,9 +278,9 @@ test('a saved view is transport for the query it stores, and rendering withholds
 });
 
 test('a nested applied query is echoed without a capability cross-check, and the capability check stops at the first offending node with its path', () => {
-  const nested = {all: [
-    {field: 'dateAdded', operator: OPERATOR, value: 30},
-    {any: [{field: 'year', operator: OPERATOR, value: 7}]},
+  const nested = {variant:'group',all: [
+    {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30},
+    {variant:'group',any: [{variant:'relative',field: 'year', operator: OPERATOR, value: 7}]},
   ]};
   // Reading a page is structural: the applied query is kept exactly, including a window on
   // a field the capabilities do not offer. The consumer that holds both the page and the
@@ -290,9 +290,9 @@ test('a nested applied query is echoed without a capability cross-check, and the
   // The capability check names the nested node, at its own path, and stops there.
   assert.throws(() => validateBrowseQuery(capabilities(), nested as BrowseNode), queryError('query.all[1].any[0].operator'));
   // A field the vocabulary does not publish at all is refused at its own path in its own tree.
-  const unpublished = {all: [{any: [{not: {field: 'mood', operator: 'equals', value: 'calm'}}]}]};
+  const unpublished = {variant:'group',all: [{variant:'group',any: [{variant:'group',not: {variant:'predicate',field: 'mood', operator: 'equals', value: 'calm'}}]}]};
   assert.throws(() => validateBrowseQuery(capabilities(), unpublished as BrowseNode), queryError('query.all[0].any[0].not.field'));
   // The consistent reading of the same shape passes, so the paths above name the node only.
-  const consistent = {all: [{field: 'dateAdded', operator: OPERATOR, value: 30}, {any: [{field: 'releaseDate', operator: OPERATOR, value: 90}]}]};
+  const consistent = {variant:'group',all: [{variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30}, {variant:'group',any: [{variant:'relative',field: 'releaseDate', operator: OPERATOR, value: 90}]}]};
   assert.doesNotThrow(() => validateBrowseQuery(capabilities(), consistent as BrowseNode));
 });

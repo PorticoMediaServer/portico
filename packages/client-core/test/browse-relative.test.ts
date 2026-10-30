@@ -25,12 +25,12 @@ test('relative values are bounded whole day counts on both parsing and query val
     queryLimits: {maximumDepth: 5, maximumClauses: 40, maximumBytes: 8192, maximumSorts: 3, defaultLimit: 50, maximumLimit: 200, cursorTtlMs: 60000},
   };
   for (const value of [1, 7, 30, 36500]) {
-    const node = parseBrowseNode({field: 'dateAdded', operator: 'within-last-days', value});
-    assert.deepEqual(node, {field: 'dateAdded', operator: 'within-last-days', value});
+    const node = parseBrowseNode({variant: 'relative', field: 'dateAdded', operator: 'within-last-days', value});
+    assert.deepEqual(node, {variant: 'relative', field: 'dateAdded', operator: 'within-last-days', value});
     assert.doesNotThrow(() => validateBrowseQuery(capabilities, node));
   }
   for (const value of [undefined, null, '30', 0, -1, 36501, 1.5, Infinity, true, [], {}]) {
-    const node = {field: 'dateAdded', operator: 'within-last-days', value};
+    const node = {variant: 'relative', field: 'dateAdded', operator: 'within-last-days', value};
     assert.throws(() => parseBrowseNode(node));
     assert.throws(() => validateBrowseQuery(capabilities, node as never));
   }

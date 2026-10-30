@@ -5,7 +5,7 @@ import type {FileInfoOpening} from '../../../../packages/client-core/src/file-in
 export const opening: FileInfoOpening = {token: 'o1', scope: {serverId: 'server', viewerId: 'viewer'}, target: {libraryId: 'library', itemId: 'movie'}, revision: {catalog: 2, viewer: 3}};
 const fence = {serverId: 'server', libraryId: 'library', itemId: 'movie', viewerFence: 'viewer'};
 export const envelope = (kind: string, queryId: string, over: Record<string, unknown> = {}, window: Record<string, unknown> = {}) => ({
-  scope: fence, detail: {scope: fence, revision: opening.revision}, basis: 'b1', kind, window: {queryId, limit: 40, returned: 1, ...window}, ...over});
+  scope: fence, detail: {scope: fence, revision: opening.revision}, basis: 'b1', variant: kind.replace(/^file-info-/, ''), kind, window: {queryId, limit: 40, returned: 1, ...window}, ...over});
 export const viewerSurface = {fileCount: 3, eligibleFileCount: 3, groupCount: 2, canSplit: false, hasDiscColumns: false};
 export const ownerSurface = {...viewerSurface, canSplit: true, manage: {delete: true, split: true, merge: true}};
 export const groupRow = (ordinal: number, over: Record<string, unknown> = {}) => ({id: `g${ordinal}`, headOccurrence: `occ-g${ordinal}`, ordinal, memberCount: 1, container: 'mkv',

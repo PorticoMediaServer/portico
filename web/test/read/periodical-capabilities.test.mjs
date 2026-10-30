@@ -176,7 +176,7 @@ test('the sibling facet receives the raw API port and reads its wire envelope', 
   assert.equal(call.method, 'GET');
   assert.equal(call.options.signal.aborted, false);
   assert.ok(call.options.signal instanceof AbortSignal);
-  const body = {field: 'author', total: 1, totalIsLowerBound: false, values: [{value: 'Ursula K. Le Guin', label: 'Ursula K. Le Guin', count: 2, countIsLowerBound: true}]};
+  const body = {variant: 'page', field: 'author', total: 1, totalIsLowerBound: false, values: [{value: 'Ursula K. Le Guin', label: 'Ursula K. Le Guin', count: 2, countIsLowerBound: true}]};
   call.resolve({status: 200, headers: {}, body});
   const page = await work;
   assert.deepEqual(page.values, body.values);

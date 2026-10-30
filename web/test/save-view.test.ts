@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {PersonalSavedService, type SavedDefinition} from '@core/personal-saved.ts';
 import {saveViewDraft} from '../src/screens/browse/save-view.ts';
 
-const definition: SavedDefinition = {libraryId: 'movies', pivot: 'movies', query: {field: 'playState', operator: 'equals', value: 'unplayed'}, sort: [{field: 'added', direction: 'desc'}], presentation: 'grid'};
+const definition: SavedDefinition = {libraryId: 'movies', pivot: 'movies', query: {variant:'predicate',field: 'playState', operator: 'equals', value: 'unplayed'}, sort: [{field: 'added', direction: 'desc'}], presentation: 'grid'};
 const directory = () => ({serverId: 'server', viewerFence: 'saved-only', revision: 1, resources: [], nextCursor: ''});
 test('lost create response retries the original operation/definition without reselecting or issuing a duplicate', async () => {
   const writes: unknown[] = [];

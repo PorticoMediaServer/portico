@@ -34,14 +34,14 @@ import (
 func FuzzBrowseExpression(f *testing.F) {
 	for _, seed := range []string{
 		`{}`,
-		`{"all":[]}`,
-		`{"any":[{"field":"year","is":2020}]}`,
-		`{"not":{"field":"title","contains":"x"}}`,
+		`{"variant":"group","all":[]}`,
+		`{"variant":"group","any":[{"field":"year","is":2020}]}`,
+		`{"variant":"group","not":{"field":"title","contains":"x"}}`,
 		`{"field":"year","between":[1900,2000]}`,
 		`{"field":"genre","in":["a","b"]}`,
 		strings.Repeat(`{"not":`, 500) + `{}` + strings.Repeat(`}`, 500),
-		strings.Repeat(`{"all":[`, 200) + `{}` + strings.Repeat(`]}`, 200),
-		`{"all":[{"any":[{"not":{"field":"","is":null}}]}]}`,
+		strings.Repeat(`{"variant":"group","all":[`, 200) + `{}` + strings.Repeat(`]}`, 200),
+		`{"variant":"group","all":[{"variant":"group","any":[{"variant":"group","not":{"field":"","is":null}}]}]}`,
 		`{"field":"year","is":1e400}`,
 		"{\"field\":\"\\u0000\",\"contains\":\"\\uffff\"}",
 	} {

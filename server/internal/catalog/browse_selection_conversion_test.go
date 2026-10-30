@@ -102,7 +102,7 @@ func TestPreparedLocalConversionUsesCompleteIDsAndLiveBasis(t *testing.T) {
 			t.Fatalf("incomplete explicit conversion %+v", page.PageInfo)
 		}
 		changed := original.Selector.Query
-		changed.Filter = json.RawMessage(`{"field":"search","operator":"contains","value":"b"}`)
+		changed.Filter = json.RawMessage(`{"variant":"predicate","field":"search","operator":"contains","value":"b"}`)
 		if bad, e := read.ResolvePreparedBrowseSelection(metadataViewer, changed, revision); e == nil {
 			bad.Release()
 			t.Fatal("changed query borrowed the count proof")

@@ -4,7 +4,7 @@ import {entryDestination, librarySearch, searchQuery, seeAllDestination} from '.
 import {homeFixtures as f} from '../../packages/i18n/src/catalog/en-US/next/dev/home-fixtures.ts';
 
 test('See all keeps the actual compound filter, ordered sorts and target identity', () => {
-  const query = {all: [{field: 'genre', operator: 'contains' as const, value: f.genre}, {not: {field: 'watched', operator: 'equals' as const, value: true}}]};
+  const query = {variant:'group',all: [{variant:'predicate',field: 'genre', operator: 'contains' as const, value: f.genre}, {variant:'group',not: {variant:'predicate',field: 'watched', operator: 'equals' as const, value: true}}]};
   const target = {type: 'library' as const, libraryId: 'library', pivot: 'movies', query, sort: [{field: 'title', direction: 'asc' as const}]};
   const route = seeAllDestination(target);
   assert.deepEqual(route, {to: '/library/$libraryId', params: {libraryId: 'library'}, search: {pivot: 'movies', query, sort: target.sort}});

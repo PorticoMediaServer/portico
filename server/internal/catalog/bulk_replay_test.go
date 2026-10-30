@@ -96,7 +96,7 @@ func TestBulkLocalSearchReplayActions(t *testing.T) {
 					args.CollectionID = target
 				}
 			}
-			q := replayTestQuery(t, s, v, `{"field":"search","operator":"contains","value":"ep"}`)
+			q := replayTestQuery(t, s, v, `{"variant":"predicate","field":"search","operator":"contains","value":"ep"}`)
 			q.Sort = []BrowseSortSelection{{Field: "title", Direction: "desc"}}
 			request := JobRequest{OperationID: "local-replay-" + command, Command: command, Selector: JobSelector{Query: &q}, Args: args}
 			job, err := s.CreateBulkJob(context.Background(), p, v, request, scheduler, access)
@@ -202,7 +202,7 @@ func TestBulkLocalSearchReplayRollbackAndEOFDrift(t *testing.T) {
 	c.Exec(`INSERT INTO replay_capture_gate VALUES(1)`)
 	c.Exec(`CREATE TRIGGER refuse_replay_capture BEFORE INSERT ON personal_job_items WHEN (SELECT enabled FROM replay_capture_gate)=1 BEGIN SELECT RAISE(ABORT,'replay commit refused'); END`)
 	yes := true
-	q := replayTestQuery(t, s, v, `{"field":"search","operator":"contains","value":"ep"}`)
+	q := replayTestQuery(t, s, v, `{"variant":"predicate","field":"search","operator":"contains","value":"ep"}`)
 	job, err := s.CreateBulkJob(context.Background(), p, v, JobRequest{OperationID: "capture-rollback", Command: "personal-state", Selector: JobSelector{Query: &q}, Args: JobPersonalArgs{Favorite: &yes}}, scheduler, access)
 	if err != nil {
 		t.Fatal(err)
@@ -292,7 +292,7 @@ func TestBulkLocalSearchReplayRejectedTailAndPreparing(t *testing.T) {
 	dbwork.RegisterForegroundProbe("bulk-replay-test", demand.Load)
 	defer dbwork.RegisterForegroundProbe("bulk-replay-test", nil)
 	yes := true
-	q := replayTestQuery(t, s, v, `{"field":"search","operator":"contains","value":"ep00000"}`)
+	q := replayTestQuery(t, s, v, `{"variant":"predicate","field":"search","operator":"contains","value":"ep00000"}`)
 	job, err := s.CreateBulkJob(context.Background(), p, v, JobRequest{OperationID: "rejected-tail", Command: "personal-state", Selector: JobSelector{Query: &q}, Args: JobPersonalArgs{Favorite: &yes}}, scheduler, access)
 	if err != nil {
 		t.Fatal(err)
@@ -342,7 +342,7 @@ func TestBulkReplaySortKeyMatchesExistingCommand(t *testing.T) {
 		}
 	}
 	for _, sorts := range selections {
-		q := JobQuery{LibraryID: "lib", Pivot: "episodes", Filter: json.RawMessage(`{"field":"search","operator":"contains","value":"ep"}`), Sort: sorts}
+		q := JobQuery{LibraryID: "lib", Pivot: "episodes", Filter: json.RawMessage(`{"variant":"predicate","field":"search","operator":"contains","value":"ep"}`), Sort: sorts}
 		oracle := q
 		oracle.Filter = nil
 		if err := dbwork.WithReadSnapshot(context.Background(), s.db, func(ctx context.Context) error {
@@ -372,7 +372,7 @@ func TestBulkLocalSearchPlaylistGroupOrderAdmission(t *testing.T) {
 	}
 	s, _, p, v, _, _, names := bulkFixture(t, 2)
 	replayTestStore(t, s)
-	filter := fmt.Sprintf(`{"all":[{"field":"memberOf","operator":"equals","value":%q},{"field":"search","operator":"contains","value":"averylongprefix"}]}`, names["show"].Public)
+	filter := fmt.Sprintf(`{"variant":"group","all":[{"variant":"predicate","field":"memberOf","operator":"equals","value":%q},{"variant":"predicate","field":"search","operator":"contains","value":"averylongprefix"}]}`, names["show"].Public)
 	q := replayTestQuery(t, s, v, filter)
 	q.Sort = []BrowseSortSelection{{Field: "groupOrder", Direction: "asc"}}
 	if err := dbwork.WithReadSnapshot(context.Background(), s.db, func(ctx context.Context) error {
@@ -396,7 +396,7 @@ func TestBulkLocalSearchPlaylistGroupOrderAdmission(t *testing.T) {
 func TestBulkReplayForYouKeepsExistingCommandOrder(t *testing.T) {
 	_, s, names := browseFixture(t)
 	v := Viewer{Profile: "p", Fence: "f", Libraries: []string{"a"}}
-	q := JobQuery{LibraryID: "a", Pivot: "movies", Sort: []BrowseSortSelection{{Field: "forYou", Direction: "desc"}}, Filter: json.RawMessage(`{"field":"search","operator":"contains","value":"a"}`)}
+	q := JobQuery{LibraryID: "a", Pivot: "movies", Sort: []BrowseSortSelection{{Field: "forYou", Direction: "desc"}}, Filter: json.RawMessage(`{"variant":"predicate","field":"search","operator":"contains","value":"a"}`)}
 	oracle := q
 	oracle.Filter = nil
 	if err := dbwork.WithReadSnapshot(context.Background(), s.db, func(ctx context.Context) error {

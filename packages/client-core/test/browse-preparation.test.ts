@@ -18,14 +18,14 @@ test('official generated preparation operation IDs are installed', () => {
 const signal = () => new AbortController().signal;
 const tick = async () => {for (let n = 0; n < 20; n++) await Promise.resolve();};
 const ready = (body: unknown, headers: Record<string, string> = {}): PreparationResponse => ({status: 200, headers, body});
-const pending = (kind: string, id = 'query-1', retryAfterMs = 0): PreparationResponse => ({status: 202, headers: {}, body: {kind: `${kind}-preparing`, state: 'preparing', queryId: id, retryAfterMs}});
+const pending = (kind: string, id = 'query-1', retryAfterMs = 0): PreparationResponse => ({status: 202, headers: {}, body: {variant: kind === 'reading-facet' ? 'reading-preparing' : 'preparing', kind: `${kind}-preparing`, state: 'preparing', queryId: id, retryAfterMs}});
 function clock() {
   let now = 0;
   const timers = new Map<number, {at: number; callback: () => void}>(); let sequence = 0;
   const runtime: PreparationRuntime = {now: () => now, random: () => 0, setTimeout: (callback, delay) => {const id = ++sequence; timers.set(id, {at: now + delay, callback}); return id;}, clearTimeout: id => {timers.delete(id as number);}};
   return {runtime, timers, async advance(ms: number) {now += ms; for (const [id, timer] of timers) if (timer.at <= now) {timers.delete(id); timer.callback();} await tick();}};
 }
-const facet = {field: 'author', total: 1, values: [{value: 'Author', label: 'Author', count: 3}]};
+const facet = {variant: 'page', field: 'author', total: 1, values: [{value: 'Author', label: 'Author', count: 3}]};
 const path = '/v1/libraries/lib/facets?field=author&pivot=books&limit=100';
 const pivot = {id: 'books', labelKey: 'library.books', entityKinds: ['book'], defaultSort: [{field: 'title', direction: 'asc'}], supportedViews: ['grid'], browsable: true, paging: 'offset'};
 const caps = parseBrowseCapabilities({library: {id: 'lib', name: 'Books', kind: 'book', defaultView: 'discover'}, pivots: [pivot], resolvedPivot: pivot,
@@ -107,7 +107,7 @@ test('later pages never install a whole descriptor while the original aggregate 
 });
 for (const changed of [{catalogRevision: 'other'}, {selector: {query: {libraryId: 'other', pivot: 'books', sort: query.sorts}}},
   {selector: {query: {libraryId: 'lib', pivot: 'movies', sort: query.sorts}}}, {selector: {query: {libraryId: 'lib', pivot: 'books', sort: [{field: 'title', direction: 'desc'}]}}},
-  {selector: {query: {libraryId: 'lib', pivot: 'books', filter: {field: 'title', operator: 'equals', value: 'other'}, sort: query.sorts}}}]) {
+  {selector: {query: {libraryId: 'lib', pivot: 'books', filter: {variant:'predicate',field: 'title', operator: 'equals', value: 'other'}, sort: query.sorts}}}]) {
   test(`prepared selection refuses changed original page basis: ${JSON.stringify(changed)}`, async () => {
     const time = clock(); let stale = false;
     const s = session(async (_target, method) => method === 'POST' ? ready(page(0, {wholeSelectionPreparing: pending('browse-selection').body})) : ready(whole(changed)), {preparationRuntime: time.runtime, onStale: () => {stale = true;}});

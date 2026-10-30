@@ -45,7 +45,7 @@ export function createAudiobookBindings(context: ScreenContext, input: Audiobook
     // book-applicable and offer equals, never merely present because the other link was.
     const descriptor = filterFact.capabilities.fields.find(value => value.id === field);
     if (!descriptor || !descriptor.applicableKinds.includes('book') || !descriptor.operators.includes('equals')) throw new DOMException('Book filter unavailable', 'AbortError');
-    const query = Object.freeze({field, operator: 'equals' as const, value: name});
+    const query = Object.freeze({variant: 'predicate' as const, field, operator: 'equals' as const, value: name});
     validateBrowseQuery(filterFact.capabilities, query);
     open({libraryId: target.libraryId, pivot: 'books', query});
     current(page);

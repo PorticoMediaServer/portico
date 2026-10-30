@@ -85,7 +85,7 @@ func TestBrowseRoutesPublishAndExecuteTheVocabulary(t *testing.T) {
 		t.Fatalf("capabilities %s", w.Body.String())
 	}
 
-	w = request("POST", "/v1/libraries/a/browse", `{"pivot":"movies","query":{"field":"genre","operator":"contains","value":"Action"},"sort":[{"field":"title","direction":"asc"}],"limit":10}`)
+	w = request("POST", "/v1/libraries/a/browse", `{"pivot":"movies","query":{"variant":"predicate","field":"genre","operator":"contains","value":"Action"},"sort":[{"field":"title","direction":"asc"}],"limit":10}`)
 	if w.Code != 200 {
 		t.Fatalf("browse %d %s", w.Code, w.Body.String())
 	}
@@ -99,7 +99,7 @@ func TestBrowseRoutesPublishAndExecuteTheVocabulary(t *testing.T) {
 		t.Fatalf("pageInfo %s", w.Body.String())
 	}
 
-	w = request("POST", "/v1/libraries/a/browse", `{"query":{"field":"nonsense","operator":"equals","value":"x"}}`)
+	w = request("POST", "/v1/libraries/a/browse", `{"query":{"variant":"predicate","field":"nonsense","operator":"equals","value":"x"}}`)
 	if w.Code != 400 || !strings.Contains(w.Body.String(), `"field":"query.field"`) {
 		t.Fatalf("validation %d %s", w.Code, w.Body.String())
 	}
@@ -129,11 +129,11 @@ func TestBrowseRoutesPublishAndExecuteTheVocabulary(t *testing.T) {
 		t.Fatalf("decade facet %v %s", e, w.Body.String())
 	}
 	chosen, _ := json.Marshal([]any{decades.Values[0].Value})
-	w = request("POST", "/v1/libraries/a/browse", `{"pivot":"movies","query":{"field":"decade","operator":"in","value":`+string(chosen)+`},"limit":10}`)
+	w = request("POST", "/v1/libraries/a/browse", `{"pivot":"movies","query":{"variant":"predicate","field":"decade","operator":"in","value":`+string(chosen)+`},"limit":10}`)
 	if w.Code != 200 || len(decodeBody(w)["entries"].([]any)) != 1 {
 		t.Fatalf("browse by a facet decade %s: %d %s", chosen, w.Code, w.Body.String())
 	}
-	w = request("POST", "/v1/libraries/a/browse", `{"pivot":"movies","query":{"field":"decade","operator":"equals","value":"nineties"},"limit":10}`)
+	w = request("POST", "/v1/libraries/a/browse", `{"pivot":"movies","query":{"variant":"predicate","field":"decade","operator":"equals","value":"nineties"},"limit":10}`)
 	if w.Code != 400 || !strings.Contains(w.Body.String(), "must be numeric") {
 		t.Fatalf("non-numeric decade %d %s", w.Code, w.Body.String())
 	}

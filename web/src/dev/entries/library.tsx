@@ -41,10 +41,10 @@ const dated = ['movie', 'collection'];
 const kindOf = (id: string): 'movie' | 'collection' => id === 'collections' ? 'collection' : 'movie';
 
 /* ---------- what the frame's states ask the library for ---------- */
-const predicate = (field: string, operator: string, value: unknown): BrowseNode => Object.freeze({field, operator, value}) as BrowseNode;
+const predicate = (field: string, operator: string, value: unknown): BrowseNode => Object.freeze({variant: 'predicate', field, operator, value}) as BrowseNode;
 const animated = predicate('genre', 'contains-any', ['Animation']);
-const animated2010s = Object.freeze({all: Object.freeze([animated, predicate('decade', 'equals', 2010)])});
-const horror2010s = Object.freeze({all: Object.freeze([predicate('genre', 'contains-any', ['Horror']), predicate('decade', 'equals', 2010)])});
+const animated2010s = Object.freeze({variant: 'group', all: Object.freeze([animated, predicate('decade', 'equals', 2010)])});
+const horror2010s = Object.freeze({variant: 'group', all: Object.freeze([predicate('genre', 'contains-any', ['Horror']), predicate('decade', 'equals', 2010)])});
 const newestFirst: readonly BrowseSortSelection[] = Object.freeze([Object.freeze({field: 'year', direction: 'desc' as const})]);
 
 /** The route this specimen's state opens; the router validates it like any other arrival. */
@@ -104,13 +104,13 @@ const sortRows = [
 const sorts = sortRows.map(row => Object.freeze({...row, directions: ['asc', 'desc'], expensive: row.id === 'forYou', seeded: row.id === 'random',
   requiresGroup: false, applicableKinds: allKinds}));
 const quickFilters = Object.freeze([
-  {id: 'unwatched', labelKey: 'filter.unwatched', query: {field: 'playState', operator: 'equals', value: 'unplayed'}},
-  {id: 'in-progress', labelKey: 'filter.inProgress', query: {field: 'playState', operator: 'equals', value: 'in-progress'}},
-  {id: 'favorites', labelKey: 'filter.favorites', query: {field: 'favorite', operator: 'equals', value: true}},
-  {id: 'watchlist', labelKey: 'filter.watchlist', query: {field: 'watchlisted', operator: 'equals', value: true}},
-  {id: 'watched', labelKey: 'filter.watched', query: {field: 'playState', operator: 'equals', value: 'played'}},
-  {id: 'available', labelKey: 'filter.available', query: {field: 'availability', operator: 'equals', value: 'available'}},
-  {id: 'missing', labelKey: 'filter.missing', query: {field: 'availability', operator: 'equals', value: 'unavailable'}},
+  {id: 'unwatched', labelKey: 'filter.unwatched', query: {variant: 'predicate', field: 'playState', operator: 'equals', value: 'unplayed'}},
+  {id: 'in-progress', labelKey: 'filter.inProgress', query: {variant: 'predicate', field: 'playState', operator: 'equals', value: 'in-progress'}},
+  {id: 'favorites', labelKey: 'filter.favorites', query: {variant: 'predicate', field: 'favorite', operator: 'equals', value: true}},
+  {id: 'watchlist', labelKey: 'filter.watchlist', query: {variant: 'predicate', field: 'watchlisted', operator: 'equals', value: true}},
+  {id: 'watched', labelKey: 'filter.watched', query: {variant: 'predicate', field: 'playState', operator: 'equals', value: 'played'}},
+  {id: 'available', labelKey: 'filter.available', query: {variant: 'predicate', field: 'availability', operator: 'equals', value: 'available'}},
+  {id: 'missing', labelKey: 'filter.missing', query: {variant: 'predicate', field: 'availability', operator: 'equals', value: 'unavailable'}},
 ].map(value => Object.freeze(value)));
 const pivotRows = [
   {id: 'discover', labelKey: 'library.tab.discover', entityKinds: ['movie'], supportedViews: ['rail'], browsable: false, paging: 'keyset', defaultSort: [{field: 'title', direction: 'asc'}]},

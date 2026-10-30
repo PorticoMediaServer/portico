@@ -69,6 +69,8 @@ import type {QueueController} from './queue-controller.ts';
 import {readLyricsResponse} from "./lyrics-http.ts";
 import {readBoundedJson} from './bounded-json.ts';
 import {parseLocalSession} from './local-session.ts';
+import {setupResultBody} from './setup-result.ts';
+import {unreadableServerResponse} from './server-messages.ts';
 import {parseLibraryList} from './library-list.ts';
 import {installationHeaders,issuesCredentials,provesIdentity} from './installation.ts';
 import {AudioSelection,emptyAudio,type AudioPlan,type AudioBinding,type AudioSelectionSnapshot} from './audio-selection.ts';
@@ -970,7 +972,7 @@ export class HttpLocalApi {
       username,
       password,
       name,
-    })).then(value=>parseLocalSession(value,{authority:'local'}));
+    })).then(value=>{const {tag,body}=setupResultBody(value);if(tag!=='session')throw new Error(unreadableServerResponse);return parseLocalSession(body,{authority:'local'});});
   }
   me(signal?: AbortSignal) {
     return this.request<{ viewer: Viewer }>(routePath("get_me"), "GET", undefined, signal);

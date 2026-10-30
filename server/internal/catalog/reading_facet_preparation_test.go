@@ -110,7 +110,7 @@ func TestReadingFacetPreparationRelativeInstantAndQuantumDrift(t *testing.T) {
 	request := FacetRequest{Library: "reading", Field: "author", Limit: 1, Query: &BrowseNode{Field: "dateAdded", Operator: "within-last-days", Value: float64(1)}}
 	// Reuse the oracle's parser-supported relative node rather than silently
 	// changing validation; this checks both canonical instant and revision fence.
-	request.Query, err = ParseBrowseQuery(json.RawMessage(`{"field":"dateAdded","operator":"within-last-days","value":1}`), "query")
+	request.Query, err = ParseBrowseQuery(json.RawMessage(`{"variant":"relative","field":"dateAdded","operator":"within-last-days","value":1}`), "query")
 	if err != nil {
 		t.Fatal(err)
 	}

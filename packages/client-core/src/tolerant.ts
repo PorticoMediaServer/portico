@@ -105,3 +105,15 @@ export function firstOfEach<T>(document: string, part: string, rows: readonly T[
   if (kept.length !== rows.length) noteSkipped(document, part, rows.length - kept.length);
   return kept;
 }
+
+/** A union document whose `variant` this app has no name for comes from a newer server. It is not
+ * guessed at, and it is not called broken: reading it fails with `unsupported_version`, which the
+ * error presentation turns into "update the app". A body with no variant is left to the caller. */
+export function refuseUnknownVariant(body: unknown, known: readonly string[]): void {
+  if (typeof body === 'object' && body !== null && !Array.isArray(body)) {
+    const variant = (body as Record<string, unknown>).variant;
+    if (typeof variant === 'string' && !known.includes(variant)) {
+      throw Object.assign(new Error('This needs a newer version of the app.'), {code: 'unsupported_version'});
+    }
+  }
+}

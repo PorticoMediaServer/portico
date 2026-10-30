@@ -12,7 +12,7 @@ import (
 // clamps to the last row). Nothing is refused for being deep.
 func TestBrowseAdHocCountsAreExactAndRangesUnbounded(t *testing.T) {
 	_, s, _ := browseFixture(t)
-	query, err := ParseBrowseQuery(json.RawMessage(`{"field":"year","operator":"at-least","value":0}`), "query")
+	query, err := ParseBrowseQuery(json.RawMessage(`{"variant":"predicate","field":"year","operator":"at-least","value":0}`), "query")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestBrowseAdHocCountsAreExactAndRangesUnbounded(t *testing.T) {
 
 func TestBrowseAdHocPagesWithFilteredTitleAnchors(t *testing.T) {
 	_, s, names := browseFixture(t)
-	query, err := ParseBrowseQuery(json.RawMessage(`{"field":"year","operator":"at-least","value":0}`), "query")
+	query, err := ParseBrowseQuery(json.RawMessage(`{"variant":"predicate","field":"year","operator":"at-least","value":0}`), "query")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestBrowseAdHocSeekUsesFilteredTitleRanking(t *testing.T) {
 
 func TestBrowseAdHocTreatsAnAnchorAsAPositionHint(t *testing.T) {
 	_, s, _ := browseFixture(t)
-	query, err := ParseBrowseQuery(json.RawMessage(`{"field":"year","operator":"at-least","value":0}`), "query")
+	query, err := ParseBrowseQuery(json.RawMessage(`{"variant":"predicate","field":"year","operator":"at-least","value":0}`), "query")
 	if err != nil {
 		t.Fatal(err)
 	}

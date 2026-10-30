@@ -96,7 +96,7 @@ function contextFixture() {
 }
 
 const destination = (id: string) => ({getSnapshot: () => ({library: {id}})} as any);
-const draft = {predicates: [{field: 'genre', operator: 'contains-any', value: ['Action']}], sort: {field: 'title', direction: 'asc'}} as any;
+const draft = {predicates: [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Action']}], sort: {field: 'title', direction: 'asc'}} as any;
 
 const screenStubs = (host: any, naming: any) => ({
   react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../../packages/i18n/src': {defaultI18n},

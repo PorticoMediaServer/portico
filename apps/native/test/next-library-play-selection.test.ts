@@ -118,7 +118,7 @@ test('applied query retirement aborts genuine pending grant reads and never regi
   const f = await fixture(); await f.load(); const binding = f.create(), collection = f.source.getSnapshot().collection!;
   f.hold(); const pending = binding.prepareWindow('actual-first-page', 0, [collection.itemAt(0)!]);
   const rejected = assert.rejects(pending, {name: 'AbortError'}); await tick();
-  f.source.setQuery([{field: 'favorite', operator: 'equals', value: true}], {field: 'title', direction: 'asc'});
+  f.source.setQuery([{variant: 'predicate', field: 'favorite', operator: 'equals', value: true}], {field: 'title', direction: 'asc'});
   assert.ok(f.detailReads.every(read => read.signal?.aborted));
   for (const read of f.detailReads) read.finish();
   await rejected; assert.equal(binding.model.getSnapshot().registeredWindowCount, 0); assert.equal(binding.model.getSnapshot().summary.count, 0);

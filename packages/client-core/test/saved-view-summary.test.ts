@@ -11,7 +11,7 @@ const field = (id: string, type: string, operators: readonly string[]) => ({id, 
 const caps = parseBrowseCapabilities({library: {id: 'actual-library', name: 'Movies', kind: 'movie', defaultView: 'browse'},
   pivots: [{id: 'movies', labelKey: 'library.movies', entityKinds: ['movie'], defaultSort: [{field: 'title', direction: 'asc'}], supportedViews: ['grid', 'list'], browsable: true}],
   fields: [field('genre', 'identity-set', ['contains-any', 'in']), field('year', 'number', ['between', 'at-least']), field('decade', 'number', ['equals', 'in']), field('playState', 'enum', ['equals']), field('durationMs', 'number', ['at-most', 'at-least', 'between']), field('communityRating', 'number', ['at-least']), field('dateAdded', 'date', ['at-least', 'within-last-days']), field('releaseDate', 'date', ['within-last-days']), field('lastPlayedAt', 'date', ['within-last-days'])],
-  quickFilters: [{id: 'unwatched', labelKey: 'filter.unwatched', query: {field: 'playState', operator: 'equals', value: 'unplayed'}}, {id: 'in-progress', labelKey: 'filter.inProgress', query: {field: 'playState', operator: 'equals', value: 'in-progress'}}],
+  quickFilters: [{id: 'unwatched', labelKey: 'filter.unwatched', query: {variant:'predicate',field: 'playState', operator: 'equals', value: 'unplayed'}}, {id: 'in-progress', labelKey: 'filter.inProgress', query: {variant:'predicate',field: 'playState', operator: 'equals', value: 'in-progress'}}],
   sorts: ['title', 'added', 'duration', 'communityRating', 'lastPlayed'].map(id => ({id, labelKey: `sort.${id}`, directions: ['asc', 'desc'], defaultDirection: 'asc', applicableKinds: ['movie']})),
   queryLimits: {maximumDepth: 5, maximumClauses: 40, maximumBytes: 65536, maximumSorts: 3, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 10000}});
 const node = (field: string, operator: 'equals' | 'contains-any' | 'in' | 'at-most' | 'at-least' | 'between' | 'within-last-days', value: string | number | readonly (string | number)[]): BrowseNode => ({field, operator, value});
@@ -20,7 +20,7 @@ const definition = (query: BrowseNode | null, field = 'title', direction: 'asc' 
 test('§38 six drawn Saved tile summaries and conditions-only TV names are exact', t => {
   t.mock.timers.enable({apis: ['Date'], now: new Date('2026-10-23T12:00:00Z')});
   const vectors = [
-    [definition({all: [node('playState', 'equals', 'unplayed'), node('year', 'between', [1990, 1999]), node('genre', 'contains-any', ['Action'])]}, 'added', 'desc'), 'Genre Action, Year 1990s, Unwatched. Newest first.', 'Genre Action, Year 1990s, Unwatched'],
+    [definition({variant:'group',all: [node('playState', 'equals', 'unplayed'), node('year', 'between', [1990, 1999]), node('genre', 'contains-any', ['Action'])]}, 'added', 'desc'), 'Genre Action, Year 1990s, Unwatched. Newest first.', 'Genre Action, Year 1990s, Unwatched'],
     [definition(node('durationMs', 'at-most', 5400000), 'duration'), 'Length under 90 minutes. Shortest first.', 'Length under 90 minutes'],
     [definition(node('playState', 'equals', 'unplayed')), 'Unwatched. Title A to Z.', 'Unwatched'],
     [definition(node('communityRating', 'at-least', 8), 'communityRating', 'desc'), 'Rating 8 and up. Highest first.', 'Rating 8 and up'],
@@ -38,7 +38,7 @@ test('§38 six drawn Saved tile summaries and conditions-only TV names are exact
 test('out-of-toolbar grammar, absent fields/operators and wrong library/pivot never expose wire text', () => {
   const leaf = node('genre', 'contains-any', ['Action']);
   const bad: SavedDefinition[] = [
-    definition({any: [leaf, node('year', 'at-least', 2000)]}), definition({not: leaf}), definition({all: [{all: [leaf]}]}), definition({all: []}),
+    definition({variant:'group',any: [leaf, node('year', 'at-least', 2000)]}), definition({variant:'group',not: leaf}), definition({variant:'group',all: [{variant:'group',all: [leaf]}]}), definition({variant:'group',all: []}),
     definition(node('unknown-wire-field', 'equals', 'secret-wire-value')), definition(node('genre', 'between', ['A', 'Z'])),
     {...definition(leaf), libraryId: 'other-library'}, {...definition(leaf), pivot: 'other-pivot'},
     {...definition(leaf), sort: [{field: 'unknown-sort', direction: 'asc'}]},
@@ -75,7 +75,7 @@ test('only current date presets claim last-N-days; old saved absolute boundaries
 
 test('length ranges and unknown preset operators retain the shared chip grammar', () => {
   assert.equal(savedViewSummary(definition(node('durationMs', 'between', [3600000, 5400000])), caps, defaultI18n)?.conditions, 'Length 60–90 minutes');
-  assert.equal(savedViewSummary(definition({all: [node('durationMs', 'at-least', 3600000), node('durationMs', 'at-most', 5400000)]}), caps, defaultI18n)?.conditions, 'Length 60–90 minutes');
+  assert.equal(savedViewSummary(definition({variant:'group',all: [node('durationMs', 'at-least', 3600000), node('durationMs', 'at-most', 5400000)]}), caps, defaultI18n)?.conditions, 'Length 60–90 minutes');
   assert.equal(savedViewSummary(definition(node('durationMs', 'at-least', 7200000)), caps, defaultI18n)?.conditions, 'Length over 120 minutes');
   assert.equal(savedViewSummary(definition(node('year', 'at-least', 2000)), caps, defaultI18n)?.conditions, 'Year 2000 and up');
 });
@@ -87,7 +87,7 @@ test('one shared stable field ordering feeds both toolbar models, retaining whol
   for (const model of [toolbarModel(caps, 'movie', predicates, sort), browseToolbarModel(caps, 'movie', predicates, sort, {t: defaultI18n.t, locale: 'en-US'})]) {
     assert.deepEqual(model.applied.map(value => 'field' in value ? value.field : ''), ['genre', 'year', 'year']);
   }
-  const unranked = [{field: 'unranked-one', operator: 'equals', value: 1}, {all: [node('genre', 'contains-any', ['Action'])]}, {field: 'unranked-two', operator: 'equals', value: 2}];
+  const unranked = [{variant:'predicate',field: 'unranked-one', operator: 'equals', value: 1}, {variant:'group',all: [node('genre', 'contains-any', ['Action'])]}, {variant:'predicate',field: 'unranked-two', operator: 'equals', value: 2}];
   assert.deepEqual(orderToolbarPredicates(unranked), unranked);
 });
 

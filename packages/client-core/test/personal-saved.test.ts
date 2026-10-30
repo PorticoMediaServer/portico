@@ -179,7 +179,7 @@ test('an already-cancelled Saved quiet read dispatches no request',async()=>{
 });
 
 test('capturing and reopening a saved view preserves relative dates verbatim', async () => {
- const definition={libraryId:'library',pivot:'movies',query:{field:'dateAdded',operator:'within-last-days',value:30},sort:[{field:'added',direction:'desc'}],presentation:'grid'} as const;
+ const definition={libraryId:'library',pivot:'movies',query:{variant:'relative',field:'dateAdded',operator:'within-last-days',value:30},sort:[{field:'added',direction:'desc'}],presentation:'grid'} as const;
  let stored:any;const writes:any[]=[];
  const s=setup(async(p,m,b)=>{
   if(m!=='GET'){writes.push(b);stored=structuredClone(b.definition);return {serverId:'server',viewerFence:'fence',receipt:{operationId:b.operationId,resourceId:'recent',revision:1,deleted:false}};}
@@ -197,7 +197,7 @@ test('capturing and reopening a saved view preserves relative dates verbatim', a
 });
 
 test('a saved view keeps the relative date operator verbatim through capture and reopen',async()=>{
- const definition={libraryId:'library',pivot:'movies',query:{all:[{field:'dateAdded',operator:'within-last-days',value:30}]},sort:[{field:'added',direction:'desc'}],presentation:'grid'};
+ const definition={libraryId:'library',pivot:'movies',query:{variant:'group',all:[{variant:'relative',field:'dateAdded',operator:'within-last-days',value:30}]},sort:[{field:'added',direction:'desc'}],presentation:'grid'};
  let written:any;
  const s=setup(async(p,m,b)=>{if(m==='GET')return p.includes('/content')?content(resource({id:'query',kind:'view',definition,actions:['pin','update','delete']})):directory([resource({id:'query',kind:'view',definition})]);written=b;return {serverId:'server',viewerFence:'fence',receipt:{operationId:b.operationId,resourceId:'query',revision:2,deleted:false}};});
  await s.select({view:'views'});

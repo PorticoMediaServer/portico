@@ -205,13 +205,13 @@ const sortRows: readonly Readonly<{id: string; labelKey: string; defaultDirectio
 const sorts = sortRows.map(({id, labelKey, defaultDirection, seeded, requiresGroup, kinds}) => Object.freeze({id, labelKey, directions: ['asc', 'desc'],
   defaultDirection, expensive: false, seeded: seeded === true, requiresGroup: requiresGroup === true, applicableKinds: kinds ?? allKinds}));
 const quickFilters = Object.freeze([
-  {id: 'in-progress', labelKey: 'filter.inProgress', query: {field: 'playState', operator: 'equals', value: 'in-progress'}},
-  {id: 'unwatched', labelKey: 'filter.unwatched', query: {field: 'playState', operator: 'equals', value: 'unplayed'}},
-  {id: 'watched', labelKey: 'filter.watched', query: {field: 'playState', operator: 'equals', value: 'played'}},
-  {id: 'favorites', labelKey: 'filter.favorites', query: {field: 'favorite', operator: 'equals', value: true}},
-  {id: 'watchlist', labelKey: 'filter.watchlist', query: {field: 'watchlisted', operator: 'equals', value: true}},
-  {id: 'available', labelKey: 'filter.available', query: {field: 'availability', operator: 'equals', value: 'available'}},
-  {id: 'missing', labelKey: 'filter.missing', query: {field: 'availability', operator: 'equals', value: 'unavailable'}},
+  {id: 'in-progress', labelKey: 'filter.inProgress', query: {variant: 'predicate', field: 'playState', operator: 'equals', value: 'in-progress'}},
+  {id: 'unwatched', labelKey: 'filter.unwatched', query: {variant: 'predicate', field: 'playState', operator: 'equals', value: 'unplayed'}},
+  {id: 'watched', labelKey: 'filter.watched', query: {variant: 'predicate', field: 'playState', operator: 'equals', value: 'played'}},
+  {id: 'favorites', labelKey: 'filter.favorites', query: {variant: 'predicate', field: 'favorite', operator: 'equals', value: true}},
+  {id: 'watchlist', labelKey: 'filter.watchlist', query: {variant: 'predicate', field: 'watchlisted', operator: 'equals', value: true}},
+  {id: 'available', labelKey: 'filter.available', query: {variant: 'predicate', field: 'availability', operator: 'equals', value: 'available'}},
+  {id: 'missing', labelKey: 'filter.missing', query: {variant: 'predicate', field: 'availability', operator: 'equals', value: 'unavailable'}},
 ].map(value => Object.freeze(value)));
 const filterIds = fields.map(field => field.id);
 const pivot = Object.freeze({id: 'titles', labelKey: 'library.titles', entityKinds: ['movie', 'show', 'album', 'book'],

@@ -1,6 +1,6 @@
 import type {Library} from '../../../../../packages/client-core/src';
 import type {SavedDefinition} from '../../../../../packages/client-core/src/personal-saved';
-import {BrowseTotalsMemory, browseCapabilitiesPath, parseBrowseCapabilities, type BrowseCapabilities, type BrowseNode, type BrowseRememberedTotal, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from '../../../../../packages/client-core/src/browse';
+import {BrowseTotalsMemory, browseCapabilitiesPath, completeBrowseNode, parseBrowseCapabilities, type BrowseCapabilities, type BrowseNode, type BrowseRememberedTotal, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from '../../../../../packages/client-core/src/browse';
 import {BrowseSession, browseSessionBuilder, type BrowseSessionQuery} from '../../../../../packages/client-core/src/browse-session';
 import {createWindowedCollection, type WindowedCollection} from '../../../../../packages/client-core/src/collections/windowed';
 import {isStaleAnswer} from '../../../../../packages/client-core/src/freshness-actions';
@@ -153,7 +153,7 @@ export class NativeLibraryDestination {
         ? tab.defaultSort : pivot.defaultSort[0];
       if (!sort) throw new Error('native_library_sort_required');
       if (this.options.initial && !this.initialOffered && !this.initialApplied) throw new Error('native_library_view_pivot_unavailable');
-      const fixed = (tab.fixedFilter ?? []).map(value => ({...value})) as readonly BrowseNode[];
+      const fixed = (tab.fixedFilter ?? []).map(value => completeBrowseNode({...value}) as BrowseNode);
       let predicates = retryQuery?.predicates ?? fixed, chosenSort = retryQuery?.sort ?? sort;
       if (this.options.initial && this.initialOffered && !this.initialApplied) {
         const definition = this.options.initial.definition;

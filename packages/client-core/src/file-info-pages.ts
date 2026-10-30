@@ -2,6 +2,15 @@ import {parseDiscMediaFacts, type DiscMediaFacts} from './disc-media-facts.ts';
 import type {DetailScope, DetailTarget, FileInfoDiscTitle, TitleFile} from './detail.ts';
 import {FileInfoWindowError, type FileInfoWindowFacts} from './file-info-windows.ts';
 import type {PreparationResponse, PreparingRead} from './read-preparation.ts';
+import {requireTag} from './needs-newer-app.ts';
+
+/** The required const `variant` of every get_file_info_query alternative (R-09b). A tag outside it is a newer
+ * server (`NeedsNewerAppError`); one inside it that this lane did not ask for is an invalid window. */
+const FILE_INFO_VARIANTS = ['detail', 'item', 'files', 'groups', 'members', 'tracks', 'head-tracks', 'sources', 'disc-titles', 'preparing'] as const;
+const variantOf = (kind: string) => kind.replace(/^file-info-/, '');
+function requireVariant(raw: unknown, expected: string, response?: PreparationResponse): void {
+  if (requireTag(raw, 'variant', FILE_INFO_VARIANTS, () => invalid(response)) !== expected) invalid(response);
+}
 
 /** The accepted Detail a FileInfo opening was made from, and its opaque `fileInfoOpening`.
  * Every lane echoes that Detail unchanged; a window carrying another revision belongs to
@@ -93,6 +102,7 @@ function sameDetail(value: unknown, opening: FileInfoOpening): boolean {
 }
 /** The common envelope: this server, item and audience, the opening's own Detail, the lane's kind. */
 function envelope(raw: unknown, opening: FileInfoOpening, kind: string, response?: PreparationResponse): Record<string, unknown> & Basis {
+  requireVariant(raw, variantOf(kind), response);
   if (!obj(raw) || raw.kind !== kind || !scoped(raw.scope, opening) || !sameDetail(raw.detail, opening) || !opaque(raw.basis)) invalid(response);
   return Object.assign({}, raw, {basis: raw.basis, window: windowFacts(raw.window, raw.basis, response)});
 }
@@ -250,6 +260,7 @@ export function parseFileInfoDiscPage(raw: unknown, opening: FileInfoOpening, at
 /** P2-29 amendment: `detail` may be absent only on the opening preparation, before any Detail
  * was accepted for the item (`opening`); every later preparation echoes the original Detail. */
 export function parseFileInfoPreparing(raw: unknown, opening: FileInfoOpening, response?: PreparationResponse, detailMayBeAbsent = false): PreparingRead {
+  requireVariant(raw, 'preparing', response);
   if (!obj(raw) || raw.kind !== 'file-info-preparing' || raw.state !== 'preparing' || !opaque(raw.queryId) || !count(raw.retryAfterMs)
     || !(raw.detail === undefined && detailMayBeAbsent || sameDetail(raw.detail, opening))) invalid(response);
   return Object.freeze({queryId: raw.queryId, retryAfterMs: raw.retryAfterMs});

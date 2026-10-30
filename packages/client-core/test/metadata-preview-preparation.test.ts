@@ -8,8 +8,8 @@ import type {PreparationResponse, PreparationRuntime} from '../src/read-preparat
 const tick = async () => {for (let i = 0; i < 25; i++) await Promise.resolve();};
 const request = {targets: [{kind: 'item' as const, contentKind: 'movie', id: 'one', libraryId: 'lib'}]};
 const path = '/v1/metadata/bulk/preview', poll = `${path}-queries/private-1`;
-const pending = (extras = {}): PreparationResponse => ({status: 202, headers: {Location: poll, 'Retry-After': '2'}, body: {kind: 'metadata-preview-preparing', state: 'preparing', queryId: 'private-1', retryAfterMs: 1000, ...extras}});
-const ready = (body: unknown = {ready: true}): PreparationResponse => ({status: 200, headers: {}, body});
+const pending = (extras = {}): PreparationResponse => ({status: 202, headers: {Location: poll, 'Retry-After': '2'}, body: {variant: 'preparing', kind: 'metadata-preview-preparing', state: 'preparing', queryId: 'private-1', retryAfterMs: 1000, ...extras}});
+const ready = (body: unknown = {variant: 'ready', ready: true}): PreparationResponse => ({status: 200, headers: {}, body});
 function clock() {
   let now = 0, sequence = 0; const timers = new Map<number, {at: number; fn(): void}>();
   const runtime: PreparationRuntime = {now: () => now, random: () => 0, setTimeout(fn, delay) {const id = ++sequence; timers.set(id, {at: now + delay, fn}); return id;}, clearTimeout(id) {timers.delete(id as number);}};
@@ -20,11 +20,11 @@ const rawPort = (raw: (path: string, method: string, options?: any) => Promise<P
 // The <=200 proof-bearing query path privately converts its selection to CAS
 // targets. Those targets and the conversion revision are never its public DTO.
 const smallQuery = {selector: {query: {libraryId: 'lib', pivot: 'movies', selectionBasis: 'c'.repeat(64),
-  filter: {field: 'year' as const, operator: 'at-least' as const, value: 1900}, sort: [{field: 'title' as const, direction: 'asc' as const}]}},
+  filter: {variant: 'predicate' as const, field: 'year' as const, operator: 'at-least' as const, value: 1900}, sort: [{field: 'title' as const, direction: 'asc' as const}]}},
   expected: {catalogRevision: 'original-query-revision'}} as const;
 function smallQueryReady(field: unknown) {
   const spec = {field: 'year', label: 'Year', group: 'numbers', type: 'integer', bulk: true};
-  return {serverId: 'server', viewerFence: 'a'.repeat(64), kind: 'item', contentKind: 'movie', total: 70,
+  return {variant: 'ready', serverId: 'server', viewerFence: 'a'.repeat(64), kind: 'item', contentKind: 'movie', total: 70,
     selectionRevision: smallQuery.expected.catalogRevision, schema: [spec], singleItemFields: [spec], excludedFields: [],
     fields: {year: field}, targets: []};
 }
@@ -99,7 +99,7 @@ test('metadata POST/poll uses actual status and headers, immutable input and no 
   await tick(); assert.equal(parsed, 0); assert.deepEqual(statuses, [202]); assert.equal(calls[0].method, 'POST');
   assert.equal(calls[0].options.body.targets[0].id, 'one'); assert.ok(Object.isFrozen(calls[0].options.body.targets));
   await time.advance(2000); assert.equal(calls.length, 1); await time.advance(1);
-  assert.deepEqual(await work, {ready: true}); assert.equal(parsed, 1);
+  assert.deepEqual(await work, {variant: 'ready', ready: true}); assert.equal(parsed, 1);
   assert.deepEqual(calls.map(call => [call.target, call.method]), [[path, 'POST'], [poll, 'GET'], [poll, 'DELETE']]);
   assert.equal(calls[2].options.singleAttempt, true); assert.equal(calls[2].options.signal, undefined);
 });
@@ -127,13 +127,13 @@ test('terminal typed capacity errors are surfaced without polling or retry', asy
 test('raw status does not turn a successful status with pending body into ready', async () => {
   await assert.rejects(readMetadataPreview(rawPort(async () => ({...pending(), status: 200})), request, body => {
     if ((body as any).state === 'preparing') throw Error('invalid ready'); return body;
-  }, {}), /invalid ready/);
+  }, {}), /invalid ready|invalid_ready_handle/);
 });
 test('body-only compatibility accepts only the explicit typed pending envelope', async () => {
   const time = clock(), calls: string[] = [];
-  const api: HomeApi = {request: async <T>(target: string, method = 'GET') => {calls.push(`${method} ${target}`); return (method === 'POST' ? pending().body : {ready: true}) as T;}};
+  const api: HomeApi = {request: async <T>(target: string, method = 'GET') => {calls.push(`${method} ${target}`); return (method === 'POST' ? pending().body : {variant: 'ready', ready: true}) as T;}};
   const work = readMetadataPreview(api, request, body => body, {runtime: time.runtime}); await tick(); await time.advance(1001);
-  assert.deepEqual(await work, {ready: true}); assert.deepEqual(calls, [`POST ${path}`, `GET ${poll}`, `DELETE ${poll}`]);
+  assert.deepEqual(await work, {variant: 'ready', ready: true}); assert.deepEqual(calls, [`POST ${path}`, `GET ${poll}`, `DELETE ${poll}`]);
   await assert.rejects(readMetadataPreview({request: async <T>() => ({...pending().body as object, kind: 'browse-selection-preparing'}) as T}, request, body => body, {}), {code: 'invalid_preparing'});
 });
 
@@ -167,4 +167,11 @@ test('metadata pending handle or Location substitution is rejected and releases 
     assert.equal(calls.filter(call => call === `DELETE ${poll}`).length, 1);
     assert.ok(!calls.some(call => call.includes('another') || call.includes('/unrelated')));
   }
+});
+
+test('a preview variant this app does not know says the app needs updating, and never throws a parser error', async () => {
+  const unknown: PreparationResponse = {status: 200, headers: {}, body: {variant: 'staged', total: 1}};
+  await assert.rejects(readMetadataPreview(rawPort(async () => unknown), request, () => { throw new Error('parser must not run'); }, {}), {code: 'unsupported_version'});
+  const pendingUnknown: PreparationResponse = {status: 202, headers: {Location: poll, 'Retry-After': '2'}, body: {variant: 'queued', queryId: 'private-1'}};
+  await assert.rejects(readMetadataPreview(rawPort(async () => pendingUnknown), request, body => body, {}), {code: 'unsupported_version'});
 });

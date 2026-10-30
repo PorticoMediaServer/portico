@@ -381,7 +381,7 @@ func (d Dependencies) accessRoutes(mux *http.ServeMux) {
 				}
 				return
 			}
-			writeAuth(w, r, 201, out)
+			writeAuth(w, r, 201, porticoAcceptanceBody(out))
 			return
 		}
 		hash, e := access.HashPassword(body.Password)
@@ -394,8 +394,18 @@ func (d Dependencies) accessRoutes(mux *http.ServeMux) {
 			accessFailure(w, e)
 			return
 		}
-		write(w, 201, out)
+		write(w, 201, taggedBody{"variant", "accepted", out})
 	})
+}
+
+// porticoAcceptanceBody tags a Portico Account acceptance as a signed-in session
+// or a second-factor challenge.
+func porticoAcceptanceBody(out identity.DirectSignIn) taggedBody {
+	kind := "signed-in"
+	if out.Challenge != nil {
+		kind = "challenge"
+	}
+	return taggedBody{"variant", kind, out}
 }
 
 // The live caller and target tiers are re-read in the transaction performing the operation.
@@ -484,12 +494,14 @@ type invitationChallenge struct {
 
 func (InvitationAcceptanceResponse) JSONSchema() map[string]any {
 	variants := []reflect.Type{reflect.TypeFor[access.AcceptanceResult](), reflect.TypeFor[invitationSignedIn](), reflect.TypeFor[invitationChallenge]()}
+	kinds := []string{"accepted", "signed-in", "challenge"}
 	shapes := make([]any, 0, len(variants))
-	for _, typ := range variants {
+	for i, typ := range variants {
 		shape, e := apikit.Schema(typ)
 		if e != nil {
 			panic(e)
 		}
+		withTag(shape, "variant", kinds[i])
 		if typ == reflect.TypeFor[invitationChallenge]() {
 			// These producers marshal a zero snapshot, including nil slices.
 			// Keep those fields explicit without allowing null in signed-in data.

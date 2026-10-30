@@ -351,7 +351,7 @@ func TestFileInfoWindowsPreparingHeadersAndSchema(t *testing.T) {
 		t.Fatal(issues)
 	}
 	// A lane carrier always echoes the original Detail; the schema says so.
-	withoutDetail, _ := json.Marshal(catalog.FileInfoPreparing{Kind: "file-info-preparing", State: "preparing", QueryID: queryID, RetryAfterMs: 1501})
+	withoutDetail, _ := json.Marshal(fileInfoKindVariant{catalog.FileInfoPreparing{Kind: "file-info-preparing", State: "preparing", QueryID: queryID, RetryAfterMs: 1501}})
 	if issues := (apispec.Document{}).ValidateJSON(fileInfoFilesResponse{}.JSONSchemaForStatus(202), withoutDetail); len(issues) == 0 {
 		t.Fatal("lane preparing schema accepted a missing original Detail")
 	}

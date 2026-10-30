@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"github.com/PorticoMediaServer/portico/server/internal/apiwire"
 	"reflect"
@@ -30,19 +31,18 @@ func (v Item) MarshalJSON() ([]byte, error) {
 	return json.Marshal(object)
 }
 func (Item) JSONSchema() map[string]any {
-	normal := apiwire.DurationSchema(reflect.TypeFor[itemWire](), map[string]string{"duration": "durationMs", "progressSeconds": "progressMs"})
-	exceptional := apiwire.DurationSchema(reflect.TypeFor[itemWire](), map[string]string{"duration": "durationMs", "progressSeconds": "progressMs"})
-	properties := exceptional["properties"].(map[string]any)
-	delete(properties, "durationMs")
-	properties["durationState"] = map[string]any{"type": "string", "enum": []string{"unrepresentable"}}
+	schema := apiwire.DurationSchema(reflect.TypeFor[itemWire](), map[string]string{"duration": "durationMs", "progressSeconds": "progressMs"})
+	// One object: durationMs is present when representable, otherwise absent
+	// beside durationState "unrepresentable".
+	schema["properties"].(map[string]any)["durationState"] = map[string]any{"type": "string", "enum": []string{"unrepresentable"}}
 	required := []string{}
-	for _, key := range exceptional["required"].([]string) {
+	for _, key := range schema["required"].([]string) {
 		if key != "durationMs" {
 			required = append(required, key)
 		}
 	}
-	exceptional["required"] = append(required, "durationState")
-	return map[string]any{"anyOf": []any{normal, exceptional}}
+	schema["required"] = required
+	return schema
 }
 
 type contentEntryWire ContentEntry
@@ -162,6 +162,20 @@ func (PlaySummary) JSONSchema() map[string]any {
 }
 
 func (v *Item) UnmarshalJSON(raw []byte) error {
+	// An item read is tagged variant "item" (R-09b); a Go reader of that reply
+	// accepts its own tag and nothing else in its place.
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &object); err == nil {
+		if tag, ok := object["variant"]; ok {
+			if string(tag) != `"item"` {
+				return fmt.Errorf("item variant %s", tag)
+			}
+			delete(object, "variant")
+			if raw, err = json.Marshal(object); err != nil {
+				return err
+			}
+		}
+	}
 	return apiwire.UnmarshalDurations(raw, (*itemWire)(v), map[string]string{"duration": "durationMs", "progressSeconds": "progressMs"})
 }
 

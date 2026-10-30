@@ -23,7 +23,7 @@ func browseSelectionQueryRestrictionCheck(method string) func(*testing.T) {
 		hidden := f.c.Movie(f.c.Handle("movies"), "/hidden-query.mkv", "Film hidden by profile", 2020)
 		f.c.Attributes(hidden.ID, "label", "selection-private")
 		f.c.Drain()
-		body := map[string]any{"pivot": "movies", "limit": 20, "range": map[string]any{"start": 0}, "query": map[string]any{"field": "search", "operator": "contains", "value": "f"}}
+		body := map[string]any{"pivot": "movies", "limit": 20, "range": map[string]any{"start": 0}, "query": map[string]any{"variant": "predicate", "field": "search", "operator": "contains", "value": "f"}}
 		var page catalog.BrowseResult
 		w := f.request("POST", "/v1/libraries/movies/browse", nil, body)
 		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &page) != nil || len(page.Entries) != 2 {

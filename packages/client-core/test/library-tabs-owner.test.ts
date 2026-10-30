@@ -34,7 +34,7 @@ test('non-owner Music keeps its public unmatched browse unchanged', () => {
   const publicUnmatched = publicTabs.at(-1)!;
   assert.equal(publicUnmatched.shows, 'titles');
   assert.equal(publicUnmatched.pivot, 'albums');
-  assert.deepEqual(publicUnmatched.fixedFilter, [{field: 'match', operator: 'equals', value: 'unmatched'}]);
+  assert.deepEqual(publicUnmatched.fixedFilter, [{variant: 'predicate', field: 'match', operator: 'equals', value: 'unmatched'}]);
   const withoutCapability = libraryTabs('music');
   assert.equal(withoutCapability.some(tab => tab.id === 'unmatched'), false);
   assert.equal(libraryTabs('movie', {unmatched: true}).some(tab => tab.id === 'unmatched'), false);

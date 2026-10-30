@@ -99,7 +99,7 @@ async function serverIdentity(){
 }
 const me=await serverIdentity(),impostor=await serverIdentity();
 
-const signIn={authority:'local',serverId:me.id,account:{id:'acc-local',username:'member',primaryProfileId:'p1',role:'member',revision:1,disabled:false,allowedLibraries:[],hostedAccountId:'acc_hosted'},profiles:[{id:'p1',name:'Member',primary:true,position:0,art:'blue',revision:1,pinRevision:1,pinRequired:false}],canManage:true, capabilities: {manageAccount:true,managePeople:false,manageServer:false,manageSignIn:false},
+const signIn={variant:'signed-in',authority:'local',serverId:me.id,account:{id:'acc-local',username:'member',primaryProfileId:'p1',role:'member',revision:1,disabled:false,allowedLibraries:[],hostedAccountId:'acc_hosted'},profiles:[{id:'p1',name:'Member',primary:true,position:0,art:'blue',revision:1,pinRevision:1,pinRequired:false}],canManage:true, capabilities: {manageAccount:true,managePeople:false,manageServer:false,manageSignIn:false},
  session:{accessToken:'a'.repeat(43),refreshToken:'r'.repeat(43),deviceId:'d',installationId:'i'.repeat(22),expiresAt:'2099-01-01T00:00:00Z',viewer:{accountId:'acc-local',profileId:'p1',serverId:me.id,authority:'local',role:'member'},sessionFamilyId:'f',tokenGeneration:'1',authorizationHorizon:'2099-01-01T00:00:00Z'}};
 
 const challenge='k'.repeat(32);
@@ -224,4 +224,25 @@ test('a refresh refused as session_migrated is recognised for silent re-admissio
  assert.equal(isSessionMigrated(new SessionRefreshError('session_migrated','moved',true)),true);
  assert.equal(isSessionMigrated(new SessionRefreshError('refresh_refused','ended',true)),false);
  assert.equal(isAccessRefused(new SessionRefreshError('session_migrated','moved',true)),false);
+});
+
+test('an invitation acceptance is read by its variant: an unknown one needs a newer app, a missing one is unreadable',async()=>{
+ const {NeedsNewerAppError}=await import('../src/needs-newer-app.ts');
+ const hosted={request:async<T,>()=>assertionBody as T};
+ const code='c'.repeat(43);
+ await assert.rejects(acceptPorticoInvitation(hosted,origin(),fakeServer([],{...signIn,variant:'review'}),me.id,code),(e:any)=>e instanceof NeedsNewerAppError&&e.tag==='review');
+ const {variant:_v,...untagged}=signIn;
+ await assert.rejects(acceptPorticoInvitation(hosted,origin(),fakeServer([],untagged),me.id,code),(e:any)=>!(e instanceof NeedsNewerAppError));
+ assert.equal((await acceptPorticoInvitation(hosted,origin(),fakeServer([],signIn),me.id,code)).kind,'signed-in');
+});
+
+test('a tagged sign-in names its variant: unknown needs a newer app, a mismatch is unreadable',async()=>{
+ const {NeedsNewerAppError}=await import('../src/needs-newer-app.ts');
+ const {parseTaggedSignIn}=await import('../src/profile-management.ts');
+ const known=['password-change','owner-session'];
+ assert.throws(()=>parseTaggedSignIn({...signIn,variant:'review'},known,()=>true),(e:any)=>e instanceof NeedsNewerAppError&&e.tag==='review');
+ assert.throws(()=>parseTaggedSignIn({...signIn,variant:'owner-session'},known,()=>false),(e:any)=>!(e instanceof NeedsNewerAppError));
+ const {variant:_v,...untagged}=signIn;
+ assert.throws(()=>parseTaggedSignIn(untagged,known,()=>true),(e:any)=>!(e instanceof NeedsNewerAppError));
+ assert.equal(parseTaggedSignIn({...signIn,variant:'password-change'},known,(tag,out)=>tag==='password-change'&&out.kind==='signed-in').kind,'signed-in');
 });

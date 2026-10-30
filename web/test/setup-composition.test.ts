@@ -37,7 +37,7 @@ async function fixture(t: TestContext) {
     if(path==='/v1/libraries')return {id:'actual-library',name:'Movies',kind:'movie',defaultView:'grid',pinned:false};
     if(path==='/v1/libraries/actual-library/scans')return {};
     if(path==='/v1/setup/resume')throw new ApiError(404,'not_found','not_found',false);
-    if(path==='/v1/setup'){initializes++;return {serverId:pin.serverId,requestId:draft!.requestId,authMode:'hosted',claimRequired:true,revision:'1'};}
+    if(path==='/v1/setup'){initializes++;return {variant:'claim-required',serverId:pin.serverId,requestId:draft!.requestId,authMode:'hosted',claimRequired:true,revision:'1'};}
     throw new Error('unexpected setup request '+path);
   }) as HttpLocalApi['request'];
   const target:SetupTarget={server:{id:pin.serverId,name:'Actual server',version:'1',signIn:'local',move:null,setupRequired:true,hostedConfigured:true,hostedAttached:false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []},api,pin,draft:store,dispose:()=>{}};

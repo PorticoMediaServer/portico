@@ -39,7 +39,7 @@ async function fixture(destination: 'adopt' | 'server-origin' = 'adopt',short=fa
       const signature = new Uint8Array(await crypto.subtle.sign('Ed25519', keys.privateKey, payload)); if (invalidProof) signature[0] ^= 1;
       return {challenge, proof: {payload: routeBase64(payload), signature: routeBase64(signature)}};
     }
-    if (path === '/v1/access/invitations/accept') {assert.deepEqual(Object.keys(body as object).sort(), short?['porticoIdentity','shortCode']:['code','porticoIdentity']); if(short)assert.equal((body as {shortCode:string}).shortCode,'0123456789ABCDEF');else assert.equal((body as {code: string}).code, code); if (grantGate) await grantGate; return grant();}
+    if (path === '/v1/access/invitations/accept') {assert.deepEqual(Object.keys(body as object).sort(), short?['porticoIdentity','shortCode']:['code','porticoIdentity']); if(short)assert.equal((body as {shortCode:string}).shortCode,'0123456789ABCDEF');else assert.equal((body as {code: string}).code, code); if (grantGate) await grantGate; return {variant: 'signed-in', ...grant()};}
     throw new Error('Unexpected request: ' + path);
   }) as HttpLocalApi['request'];
   const account = {origin: hostedOrigin, accountId, isCurrent: () => current, request: (async (path: string, method: string, body: unknown) => {

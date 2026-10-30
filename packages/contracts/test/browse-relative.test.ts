@@ -16,7 +16,7 @@ const readyShapes = responseShapes.filter((shape): shape is ReadyShape => 'appli
 const preparingShapes = responseShapes.filter((shape): shape is PreparingShape => !('applied' in shape.properties));
 assert.equal(readyShapes.length, 1, 'the contract has exactly one ready page branch');
 assert.equal(preparingShapes.length, 1, 'the contract has exactly one preparing branch');
-assert.deepEqual(Object.keys(preparingShapes[0].properties).sort(), ['kind', 'queryId', 'retryAfterMs', 'state'], 'the preparing branch carries only its poll state');
+assert.deepEqual(Object.keys(preparingShapes[0].properties).sort(), ['kind', 'queryId', 'retryAfterMs', 'state', 'variant'], 'the preparing branch carries only its poll state');
 
 // Use the actual generated browse node schema in the production runtime.
 const nodeSchema = readyShapes[0].properties.applied.properties.query;
@@ -35,13 +35,13 @@ test('published relative browse predicate advertises date fields and whole day l
  assert.deepEqual(relative.properties.value,{type:'integer',minimum:1,maximum:36500});
  const api=await decoder();
  for(const field of relative.properties.field.enum)for(const value of [1,30,36500]) {
-  const node={field,operator:'within-last-days',value};assert.deepEqual({...api.decode('BrowseNode',node)},node);
+  const node={variant:'relative',field,operator:'within-last-days',value};assert.deepEqual({...api.decode('BrowseNode',node)},node);
  }
- for(const value of [null,'30',true,[],{},0,-1,36501,1.5,NaN,Infinity])assert.throws(()=>api.decode('BrowseNode',{field:'dateAdded',operator:'within-last-days',value}));
- assert.throws(()=>api.decode('BrowseNode',{field:'dateAdded',operator:'within-last-days'}));
- assert.throws(()=>api.decode('BrowseNode',{field:'year',operator:'within-last-days',value:30}));
- assert.throws(()=>api.decode('BrowseNode',{field:'dateAdded',operator:'within-last-days',value:30,at:'2026-10-24T00:00:00Z'}));
- assert.throws(()=>api.decode('BrowseNode',{field:'dateAdded',operator:'within-last-days',value:30,all:[]}));
- assert.doesNotThrow(()=>api.decode('BrowseNode',{field:'dateAdded',operator:'at-least',value:'2026-09-23'}));
- assert.doesNotThrow(()=>api.decode('BrowseNode',{all:[{field:'dateAdded',operator:'at-least',value:'2026-09-23'}]}));
+ for(const value of [null,'30',true,[],{},0,-1,36501,1.5,NaN,Infinity])assert.throws(()=>api.decode('BrowseNode',{variant:'relative',field:'dateAdded',operator:'within-last-days',value}));
+ assert.throws(()=>api.decode('BrowseNode',{variant:'relative',field:'dateAdded',operator:'within-last-days'}));
+ assert.throws(()=>api.decode('BrowseNode',{variant:'relative',field:'year',operator:'within-last-days',value:30}));
+ assert.throws(()=>api.decode('BrowseNode',{variant:'relative',field:'dateAdded',operator:'within-last-days',value:30,at:'2026-10-24T00:00:00Z'}));
+ assert.throws(()=>api.decode('BrowseNode',{variant:'relative',field:'dateAdded',operator:'within-last-days',value:30,all:[]}));
+ assert.doesNotThrow(()=>api.decode('BrowseNode',{variant:'predicate',field:'dateAdded',operator:'at-least',value:'2026-09-23'}));
+ assert.doesNotThrow(()=>api.decode('BrowseNode',{variant:'group',all:[{variant:'predicate',field:'dateAdded',operator:'at-least',value:'2026-09-23'}]}));
 });

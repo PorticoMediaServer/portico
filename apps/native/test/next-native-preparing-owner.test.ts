@@ -4,7 +4,7 @@ import type {LocalSession} from '../../../packages/client-core/src/index';
 import {parseStartPreparation} from '../../../packages/client-core/src/playback-v1/sessions';
 import {captureNativePreparingOwner} from '../src-next/platform/playback/preparing-owner';
 
-const sessionBody = () => ({id: 'original_session', revision: '1', kind: 'vod', role: 'local', state: 'paused', itemId: 'movie',
+const sessionBody = () => ({variant: 'session', id: 'original_session', revision: '1', kind: 'vod', role: 'local', state: 'paused', itemId: 'movie',
   lease: {expiresAt: '2099-01-01T00:00:00Z', reportEveryMs: 10_000},
   presentation: {generation: 1, mode: 'stream', engine: 'native', url: '/v1/media/grant-original_session/1/master.m3u8', startPositionMs: 0,
     quality: {mode: 'original'}, subtitles: [], decision: {video: {action: 'copy', reasons: []}, audio: {action: 'copy', reasons: []}}}});

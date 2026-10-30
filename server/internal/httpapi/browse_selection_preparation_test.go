@@ -226,7 +226,7 @@ func TestBrowseSelectionQueryHTTPBasisDriftAndPrivateSession(t *testing.T) {
 }
 
 func TestBrowseSelectionQueryStatusContracts(t *testing.T) {
-	raw := []byte(`{"kind":"browse-selection-preparing","state":"preparing","queryId":"id","retryAfterMs":1000}`)
+	raw := []byte(`{"variant":"preparing","kind":"browse-selection-preparing","state":"preparing","queryId":"id","retryAfterMs":1000}`)
 	shape := (browseSelectionQueryResponse{}).JSONSchemaForStatus(202)
 	encoded, err := json.Marshal(shape)
 	if err != nil {
@@ -468,7 +468,7 @@ func TestBrowseSelectionLocalSearchPreparesExactSelection(t *testing.T) {
 	f.d.PrepareBrowseSelections = true
 	f.h = New(f.d)
 	for _, sort := range []string{"title", "forYou"} {
-		body := map[string]any{"pivot": "movies", "limit": 1, "range": map[string]any{"start": 0}, "query": map[string]any{"field": "search", "operator": "contains", "value": "f"}, "sort": []map[string]string{{"field": sort, "direction": "desc"}}}
+		body := map[string]any{"pivot": "movies", "limit": 1, "range": map[string]any{"start": 0}, "query": map[string]any{"variant": "predicate", "field": "search", "operator": "contains", "value": "f"}, "sort": []map[string]string{{"field": sort, "direction": "desc"}}}
 		w := f.request("POST", "/v1/libraries/movies/browse", nil, body)
 		var page catalog.BrowseResult
 		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &page) != nil || len(page.Entries) != 1 || page.WholeSelectionPreparing == nil || page.WholeSelection != nil || page.WholeSelectionUnavailable != nil {

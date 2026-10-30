@@ -20,11 +20,19 @@ type SetupResult struct {
 	Pending *PendingAccountSetup
 }
 
+// The two results are told apart by a required const variant: "session" is a
+// signed-in owner, "claim-required" a resumable Portico Account setup.
 func (r SetupResult) MarshalJSON() ([]byte, error) {
 	if r.Pending != nil {
-		return json.Marshal(r.Pending)
+		return json.Marshal(struct {
+			Variant string `json:"variant"`
+			*PendingAccountSetup
+		}{"claim-required", r.Pending})
 	}
-	return json.Marshal(r.Envelope)
+	return json.Marshal(struct {
+		Variant string `json:"variant"`
+		Envelope
+	}{"session", r.Envelope})
 }
 func (SetupResult) JSONSchema() map[string]any {
 	local, e := apikit.Schema(reflect.TypeFor[Envelope]())
@@ -38,7 +46,13 @@ func (SetupResult) JSONSchema() map[string]any {
 	props := pending["properties"].(map[string]any)
 	props["authMode"].(map[string]any)["enum"] = []string{"hosted"}
 	props["claimRequired"].(map[string]any)["const"] = true
-	return map[string]any{"oneOf": []any{local, pending}}
+	return map[string]any{"oneOf": []any{setupVariant(local, "session"), setupVariant(pending, "claim-required")}}
+}
+
+func setupVariant(shape map[string]any, variant string) map[string]any {
+	shape["properties"].(map[string]any)["variant"] = map[string]any{"type": "string", "const": variant}
+	shape["required"] = append(shape["required"].([]string), "variant")
+	return shape
 }
 
 func (OwnerResetLocation) JSONSchema() map[string]any {

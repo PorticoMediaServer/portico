@@ -46,11 +46,11 @@ async function harness(fixture={}){
   if(path==='/v1/playback/sessions'&&options.method==='POST'){
    if(fixture.startWait){fixture.startCalled?.();await fixture.startWait;}
    if(fixture.ambiguous&&!failed){failed=true;throw new Error('lost response')}
-   if(fixture.preparingReal){fixture.preparingReal=false;const value=sessionFor(body,body.startPositionMs);return reply({...value,retryAfterMs:500,lease:{...value.lease,expiresAt:'2099-01-01T00:00:00Z'},presentation:{...value.presentation,engine:'native'}},202);}
-   if(fixture.preparingResponses?.length){const next=fixture.preparingResponses.shift();return reply(typeof next==='function'?next(sessionFor(body,body.startPositionMs)):next,202);}
+   if(fixture.preparingReal){fixture.preparingReal=false;const value=sessionFor(body,body.startPositionMs);return reply({variant:'session',...value,retryAfterMs:500,lease:{...value.lease,expiresAt:'2099-01-01T00:00:00Z'},presentation:{...value.presentation,engine:'native'}},202);}
+   if(fixture.preparingResponses?.length){const next=fixture.preparingResponses.shift();return reply(typeof next==='function'?next({variant:'session',...sessionFor(body,body.startPositionMs)}):next,202);}
    if(fixture.prepareTerminal)return reply({error:{code:'preparation_failed'}},409);
-   if(preparing){preparing=false;return reply({retryAfterMs:500},202);}
-   const accepted=reply(sessionFor(body,body.startPositionMs),201);
+   if(preparing){preparing=false;return reply({variant:'wait',retryAfterMs:500},202);}
+   const accepted=reply({variant:'session',...sessionFor(body,body.startPositionMs)},201);
    if(fixture.retireAfterAccepted){const stream=accepted.body;Object.defineProperty(accepted,'body',{value:{getReader(){const reader=stream.getReader();return {read:()=>reader.read(),releaseLock(){reader.releaseLock();queueMicrotask(()=>queueMicrotask(()=>fixture.retireAfterAccepted()));}}}}});}
    return accepted;
   }
@@ -770,7 +770,7 @@ test('private status reports the actual controller/occurrence and targeted Stop 
 });
 
 test('preparation continues past the old receiver deadline with the same start request',async()=>{
- const clock={now:0}, h=await harness({clock,preparingResponses:Array.from({length:13},()=>({retryAfterMs:10000}))});
+ const clock={now:0}, h=await harness({clock,preparingResponses:Array.from({length:13},()=>({variant:'wait',retryAfterMs:10000}))});
  await h.receiver.redeem('ABCD');const start=h.receiver.startPlayback('movie');await settle0();
  for(let i=0;i<13;i++){clock.now+=10000;const timer=[...h.timers].find(([,v])=>v.ms===10000);assert(timer);h.fire(timer[0]);await settle0();}
  await start;const starts=h.calls.filter(c=>c.url.endsWith('/v1/playback/sessions')&&c.method==='POST');
@@ -779,7 +779,7 @@ test('preparation continues past the old receiver deadline with the same start r
 });
 
 test('malformed preparation does not retry',async()=>{
- for(const bad of [{},{retryAfterMs:0},{retryAfterMs:10001},{retryAfterMs:1.5},{retryAfterMs:1,extra:true}]){
+ for(const bad of [{},{retryAfterMs:500},{variant:'wait',retryAfterMs:0},{variant:'wait',retryAfterMs:10001},{variant:'wait',retryAfterMs:1.5},{variant:'resumed',retryAfterMs:500}]){
   const h=await harness({preparingResponses:[bad]});await h.receiver.redeem('ABCD');
   await assert.rejects(h.receiver.startPlayback('movie'),/invalid_preparation/);
   assert.equal(h.calls.filter(c=>c.url.endsWith('/v1/playback/sessions')&&c.method==='POST').length,1);assert.equal(h.loads.length,0);
@@ -813,7 +813,7 @@ test('first controller-check 401 refuses the old command and permits a fresh com
 });
 
 test('a disconnected controller cannot retry an old preparing start',async()=>{
- const h=await harness({preparingResponses:[{retryAfterMs:500},{retryAfterMs:500}]});h.senders.push({senderId:'phone'});
+ const h=await harness({preparingResponses:[{variant:'wait',retryAfterMs:500},{variant:'wait',retryAfterMs:500}]});h.senders.push({senderId:'phone'});
  await h.message('phone',{type:'pair',code:'ABCD',origin:''});
  await h.message('phone',{type:'load',itemId:'movie',startSeconds:0,requestId:'pending-load'});
  const wait=[...h.timers].find(([,timer])=>timer.ms===500);assert(wait);
@@ -832,13 +832,13 @@ test('renewal acknowledgement from a disconnected SDK connection cannot enable c
 });
 
 test('server preparation terminal refusal stops the original retry loop',async()=>{
- const h=await harness({preparingResponses:[{retryAfterMs:500}],prepareTerminal:true});await h.receiver.redeem('ABCD');
+ const h=await harness({preparingResponses:[{variant:'wait',retryAfterMs:500}],prepareTerminal:true});await h.receiver.redeem('ABCD');
  const start=h.receiver.startPlayback('movie');await settle0();const wait=[...h.timers].find(([,timer])=>timer.ms===500);assert(wait);h.fire(wait[0]);
  await assert.rejects(start,/preparation_failed/);assert.equal(h.calls.filter(c=>c.url.endsWith('/v1/playback/sessions')&&c.method==='POST').length,2);assert.equal(h.loads.length,0);
 });
 
 test('browser preparation does not borrow a replacement receiver credential',async()=>{
- const h=await harness({preparingResponses:[{retryAfterMs:500},{retryAfterMs:500}]});await h.receiver.redeem('ABCD');
+ const h=await harness({preparingResponses:[{variant:'wait',retryAfterMs:500},{variant:'wait',retryAfterMs:500}]});await h.receiver.redeem('ABCD');
  const start=h.receiver.startPlayback('movie');await settle0();const wait=[...h.timers].find(([,timer])=>timer.ms===500);assert(wait);
  await h.receiver.reconnect();h.fire(wait[0]);await assert.rejects(start,/receiver_replaced/);
  assert.equal(h.calls.filter(c=>c.url.endsWith('/v1/playback/sessions')&&c.method==='POST').length,1);assert.equal(h.loads.length,0);
@@ -854,7 +854,7 @@ test('real preparing resource is cleaned with its original bearer when its contr
 test('late real 202 after retirement cleans the captured resource; retry-only owns none',async()=>{
  for(const real of [true,false]){
   let release,called;const reached=new Promise(r=>{called=r}),wait=new Promise(r=>{release=r});
-  const h=await harness({startWait:wait,startCalled:called,...(real?{preparingReal:true}:{preparingResponses:[{retryAfterMs:500}]})});h.senders.push('phone');
+  const h=await harness({startWait:wait,startCalled:called,...(real?{preparingReal:true}:{preparingResponses:[{variant:'wait',retryAfterMs:500}]})});h.senders.push('phone');
   await h.message('phone',{type:'pair',code:'ABCD',origin:''});await h.message('phone',{type:'load',itemId:'movie',requestId:'late'});await reached;
   h.ctxEvents.disconnect({senderId:'phone'});release();await settle0();
   const cleanup=h.calls.filter(x=>x.method==='DELETE'&&x.url.endsWith('/v1/playback/sessions/ps_1'));assert.equal(cleanup.length,real?1:0);assert.equal(h.loads.length,0);
@@ -902,10 +902,12 @@ test('real 202 requires the authoritative preparation session domain',async()=>{
   session=>({...valid(session),role:'unknown-role'}),
   session=>{const value=valid(session);value.presentation.mode='unknown-mode';return value},
   session=>{const value=valid(session);value.presentation.engine='unknown-engine';return value},
-  session=>{const value=valid(session);value.presentation.decision={};return value},
   session=>{const value=valid(session);value.presentation.decision={video:{action:'copy',reasons:[42]}};return value},
-  session=>{const value=valid(session);value.lease.unexpected=true;return value},
-  ()=>({retryAfterMs:500,id:'partial-resource'})
+  // R-09b: an empty decision and an added lease member are a newer server's shape, read open.
+  // A reply without its tag, or with a session's tag but no session, is still refused.
+  session=>{const value=valid(session);delete value.variant;return value},
+  ()=>({retryAfterMs:500,id:'partial-resource'}),
+  ()=>({variant:'session',retryAfterMs:500})
  ];
  for(const response of bad){
   const h=await harness({preparingResponses:[response]});await h.receiver.redeem('ABCD');
@@ -929,10 +931,13 @@ test('canonical decoder admits real playing/paused 202 without granting completi
  }
 });
 
-test('canonical nested schema closure rejects extra fields before cleanup authority',async()=>{
+// R-09b: responses read open. A preparation carrying members a newer server added, at any depth,
+// is the same accepted preparation: the receiver waits its retry and never loads or cleans up early.
+test('a preparation with members a newer server added is read open and waits its retry',async()=>{
  for(const mutate of [s=>{s.presentation.unexpected=true},s=>{s.presentation.decision.video.unexpected=true},s=>{s.lease.unexpected=true}]){
   const h=await harness({preparingResponses:[session=>{const s={...session,retryAfterMs:500};mutate(s);return s}]});await h.receiver.redeem('ABCD');
-  await assert.rejects(h.receiver.startPlayback('movie'),/invalid_preparation/);
+  h.receiver.startPlayback('movie').catch(()=>{});await settle0();
+  assert([...h.timers].some(([,t])=>t.ms===500),'the accepted preparation waits its retry');
   assert.equal(h.loads.length,0);assert(!h.calls.some(x=>x.method==='DELETE'&&x.url.includes('/v1/playback/sessions/')));
  }
 });
@@ -963,7 +968,7 @@ test('composed sender/receiver retains genuine original 202 preparation beyond 1
    clock.now=end;await settle0();
   };
   let onMessage,onEnd;
-  const fixture={clock,schedule,cancel,senderEvent:(_id,body)=>onMessage?.(body),preparingResponses:Array.from({length:18},()=>session=>resource==='real'?({...session,retryAfterMs:10000}):({retryAfterMs:10000})),prepareTerminal:outcome==='terminal'};
+  const fixture={clock,schedule,cancel,senderEvent:(_id,body)=>onMessage?.(body),preparingResponses:Array.from({length:18},()=>session=>resource==='real'?({...session,retryAfterMs:10000}):({variant:'wait',retryAfterMs:10000})),prepareTerminal:outcome==='terminal'};
   const h=await harness(fixture);h.senders.push('phone');
   const commands=[],saved=new Map();
   const transport={deviceName:'TV',deviceId:'sdk-tv',send:async command=>{commands.push(command);await h.message('phone',command)},onMessage:fn=>{onMessage=fn;return()=>{if(onMessage===fn)onMessage=undefined}},onSessionEnd:fn=>{onEnd=fn;return()=>{if(onEnd===fn)onEnd=undefined}},end:()=>{}};
@@ -1220,7 +1225,7 @@ test('receiver restart with no local history reconciles original Stop receipt wi
   }finally{h.ctxEvents.shutdown();}
  }
 });
-for(const patch of [{operation:'stop_account_playback'},{targetId:'other-session'},{generation:2},{status:'partial'},{status:'applied',positionStatus:'policy_rejected'},{positionStatus:'not_renderer'},{positionStatus:'invented'},{extra:'not a tiny receipt'}])test('no-history Stop rejects mismatched/review receipt '+JSON.stringify(patch),async()=>{
+for(const patch of [{operation:'stop_account_playback'},{targetId:'other-session'},{generation:2},{status:'partial'},{status:'applied',positionStatus:'policy_rejected'},{positionStatus:'not_renderer'},{positionStatus:'invented'}])test('no-history Stop rejects mismatched/review receipt '+JSON.stringify(patch),async()=>{
  const key='p251_'+Date.now()+'_'+'e'.repeat(32),target={controller:{bindingId:'cct_current',controllerGeneration:1,connectionGeneration:1},occurrence:{sessionId:'ps_1',generation:1,itemId:'movie'}};
  const receipt={key,operation:'stop_playback_session',status:'applied',targetId:'ps_1',generation:1,positionStatus:'applied',committedMs:Date.now(),expiresMs:Date.now()+2592000000,...patch};
  const h=await harness({receiptLookup:()=>Response.json(receipt)});try{await h.message('phone',{type:'pair',code:'ABC123',origin:'https://server.test'});await h.message('phone',{type:'stop',target,requestId:key});assert(!h.sent.some(x=>x.body.type==='stopped'));assert(h.sent.some(x=>x.body.type==='control-failed'));assert(!h.calls.some(x=>x.method==='DELETE'));}finally{h.ctxEvents.shutdown();}

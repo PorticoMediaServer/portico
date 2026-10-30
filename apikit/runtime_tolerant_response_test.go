@@ -58,7 +58,8 @@ assert.throws(()=>open({...base,mode:'teleport'}),'an unknown required enum valu
 assert.throws(()=>open({...base,id:''}));
 assert.throws(()=>open({...base,pinned:'yes'}),'a malformed optional primitive is refused');
 assert.throws(()=>open({...base,items:[{id:'',format:'epub'}]}),'a malformed item is refused, not dropped');
-assert.throws(()=>open({...base,added:true}),'a closed object stays closed');
+assert.equal('added' in open({...base,added:true}),false,'a closed response object ignores an added field (R-09b)');
+assert.throws(()=>decode('ShelfRequest',{...base,added:true}),'requests stay closed');
 assert.throws(()=>open({...base,required:[{id:'r',format:'djvu'}]}),'dropping below minItems is refused');`
 	if err := os.WriteFile(filepath.Join(dir, "check.mjs"), []byte(script), 0600); err != nil {
 		t.Fatal(err)

@@ -21,11 +21,16 @@ test('mix cards expose one exact name source and real repeated cover samples', (
   assert.doesNotThrow(() => read([{...card, nameSource: {kind: 'artist', artistId: 'artist'}}]));
   assert.doesNotThrow(() => read([]));
   for (const nameSource of [
-    {}, {kind: 'other'}, {kind: 'style', tag: 'classical', model: 'model'},
-    {...card.nameSource, version: null}, {...card.nameSource, tag: ''},
-    {...card.nameSource, artistId: 'artist'}, {kind: 'artist'},
-    {kind: 'artist', artistId: ''}, {kind: 'artist', artistId: 'artist', tag: 'classical'},
+    {}, {kind: 'style', tag: 'classical', model: 'model'},
+    {...card.nameSource, version: null}, {...card.nameSource, tag: ''}, {kind: 'artist'},
+    {kind: 'artist', artistId: ''},
   ]) assert.throws(() => read([{...card, nameSource}]));
+  // Responses are open: members foreign to the chosen variant are dropped, and an unknown kind
+  // decodes to the typed unknown variant rather than a throw.
+  const nameSourceOf = (nameSource: unknown) => ((read([{...card, nameSource}]) as any).data.mixes[0].nameSource);
+  assert.deepEqual({...nameSourceOf({...card.nameSource, artistId: 'artist'})}, card.nameSource);
+  assert.deepEqual({...nameSourceOf({kind: 'artist', artistId: 'artist', tag: 'classical'})}, {kind: 'artist', artistId: 'artist'});
+  assert.deepEqual({...nameSourceOf({kind: 'other', x: 1})}, {kind: 'other', unknownVariant: true});
 });
 
 test('mix cards bound their public summaries and never accept song keys or cluster internals', () => {
@@ -33,8 +38,10 @@ test('mix cards bound their public summaries and never accept song keys or clust
     {id: ''}, {tint: 'blue'}, {covers: [cover, cover]},
     {covers: [cover, cover, cover, cover]}, {artists: [card.artists[0], card.artists[0], card.artists[0]]},
     {songCount: 0}, {songCount: 201}, {songCount: 1.5},
-    {keys: ['private-song']}, {tracks: []}, {cluster: 'private'}, {name: 'Invented display name'},
   ]) assert.throws(() => read([{...card, ...patch}]));
+  // Private members a newer or hostile server might add never reach the decoded card.
+  const decoded = (read([{...card, keys: ['private-song'], tracks: [], cluster: 'private', name: 'Invented display name'}]) as any).data.mixes[0];
+  for (const key of ['keys', 'tracks', 'cluster', 'name']) assert.equal(key in decoded, false, key);
   const shape = schemas.GetMusicMixesResponse.properties.data.properties.mixes.items;
   assert.equal(shape.additionalProperties, false);
   for (const key of ['keys', 'tracks', 'cluster', 'name']) assert.equal(key in shape.properties, false);

@@ -44,9 +44,9 @@ test('the opener sends the resume header, reads events and treats heartbeats as 
   assert.equal(asked.Accept, 'text/event-stream');
   s.send('retry: 1000\n\n');
   await tick();
-  s.send('id: 42\nevent: library.changed\ndata: {"id":"42","type":"library.changed"}\n\n');
+  s.send('id: 42\nevent: library.changed\ndata: {"variant":"change","id":"42","type":"library.changed"}\n\n');
   await tick();
-  assert.deepEqual(seen, [{id: '42', event: 'library.changed', data: '{"id":"42","type":"library.changed"}'}]);
+  assert.deepEqual(seen, [{id: '42', event: 'library.changed', data: '{"variant":"change","id":"42","type":"library.changed"}'}]);
   // Heartbeat comments keep the stream alive well past the quiet limit.
   for (let i = 0; i < 5; i++) { await timers.advance(4000); s.send(': keep-alive\n\n'); await tick(); }
   s.end();
@@ -100,7 +100,7 @@ test('the feed runs while the app is in front, stops a little after it leaves, a
   const stop = runEventFeed(events, hub, {...timers, visible: () => visible, onVisibility: fn => { visibility.add(fn); return () => { visibility.delete(fn); }; }, busy: () => busy, graceMs: 30_000});
   await tick();
   assert.equal(events.getStatus().mode, 'stream');
-  live!.onEvent({id: '7', data: JSON.stringify({id: '7', type: 'library.changed', resource: {kind: 'library', id: 'films'}})});
+  live!.onEvent({id: '7', data: JSON.stringify({variant: 'change', id: '7', type: 'library.changed', resource: {kind: 'library', id: 'films'}})});
   assert.equal(events.getStatus().cursor, '7');
   // Out of sight: documents stop reading at once, the feed is held for the grace period and then stopped.
   visible = false; for (const fn of visibility) fn();
@@ -172,8 +172,8 @@ test('two windows of one browser share one stream; the second takes over from th
   await tick();
   assert.equal(opened.length, 1, 'only the first window opens a stream');
   assert.ok(aliveB > 0, 'the second window is told the stream is alive');
-  opened[0]!.emit({id: '1', data: '{"id":"1","type":"x"}'});
-  opened[0]!.emit({id: '2', data: '{"id":"2","type":"x"}'});
+  opened[0]!.emit({id: '1', data: '{"variant":"change","id":"1","type":"x"}'});
+  opened[0]!.emit({id: '2', data: '{"variant":"change","id":"2","type":"x"}'});
   await tick();
   assert.deepEqual(seenA, ['1', '2']);
   assert.deepEqual(seenB, ['1', '2'], 'the second window hears every event');
@@ -184,7 +184,7 @@ test('two windows of one browser share one stream; the second takes over from th
   // The second window now holds the stream itself, from the last event it heard, so the server replays anything in between.
   assert.equal(opened.length, 2);
   assert.deepEqual([opened[1]!.tab, opened[1]!.from], ['b', '2']);
-  opened[1]!.emit({id: '3', data: '{"id":"3","type":"x"}'});
+  opened[1]!.emit({id: '3', data: '{"variant":"change","id":"3","type":"x"}'});
   assert.deepEqual(seenB, ['1', '2', '3']);
   stopB.abort();
   await bRun;
@@ -252,11 +252,11 @@ test('a follower joining after missed events resyncs its documents without movin
  let emit!:(event:RawStreamEvent)=>void;
  const real:StreamOpener=(_last,onEvent,signal)=>new Promise<void>(resolve=>{emit=onEvent;signal.addEventListener('abort',()=>resolve(),{once:true});});
  const a=sharedStreamOpener('feed',real,b.tab())('1',()=>{},stopA.signal);await tick();
- emit({id:'2',data:JSON.stringify({id:'2',type:'library.changed'})});await tick();
+ emit({id:'2',data:JSON.stringify({variant:'change',id:'2',type:'library.changed'})});await tick();
  const events=new EventsClient({cursor:'1',http:{send:async()=>{throw new Error('unexpected poll');}},openStream:sharedStreamOpener('feed',real,b.tab())});
  let resyncs=0;events.onResync(()=>resyncs++);events.start();await tick();
  try {assert.equal(resyncs,1);assert.equal(events.getStatus().cursor,'1','a local invalidation is not a received server event');
-  emit({id:'3',data:JSON.stringify({id:'3',type:'library.changed'})});await tick();assert.equal(events.getStatus().cursor,'3');
+  emit({id:'3',data:JSON.stringify({variant:'change',id:'3',type:'library.changed'})});await tick();assert.equal(events.getStatus().cursor,'3');
  }finally{events.stop();stopA.abort();stopB.abort();await a;await tick();}
 });
 

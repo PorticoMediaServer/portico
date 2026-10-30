@@ -6,7 +6,7 @@ import {ContractError} from '../src/playback-v1/types.ts';
 import {PlaybackApiError, type V1Http, type V1Request} from '../src/playback-v1/http.ts';
 
 // Regression coverage for the actual start wire and supplied clock.
-const real = () => ({id: 'original_session', revision: '1', kind: 'vod', role: 'local', state: 'paused', itemId: 'movie',
+const real = () => ({variant: 'session', id: 'original_session', revision: '1', kind: 'vod', role: 'local', state: 'paused', itemId: 'movie',
   lease: {expiresAt: '2030-01-01T00:00:00Z', reportEveryMs: 10_000},
   presentation: {generation: 1, mode: 'stream', engine: 'native', url: '/v1/media/original.m3u8', startPositionMs: 0,
     quality: {mode: 'original'}, subtitles: [], decision: {video: {action: 'copy', reasons: []}, audio: {action: 'copy', reasons: []}}}});
@@ -31,11 +31,14 @@ function clock() {
 }
 
 test('Root67 declared retry-only bounds never fabricate a session', () => {
-  for (const retryAfterMs of [1, 500, 10_000]) assert.deepEqual(parseStartPreparation({retryAfterMs}), {retryAfterMs});
+  for (const retryAfterMs of [1, 500, 10_000]) assert.deepEqual(parseStartPreparation({variant: 'wait', retryAfterMs}), {retryAfterMs});
   for (const retryAfterMs of [undefined, null, 0, -1, 1.5, 10_001, NaN, Infinity, -Infinity, '500'])
-    assert.throws(() => parseStartPreparation({retryAfterMs}), ContractError);
+    assert.throws(() => parseStartPreparation({variant: 'wait', retryAfterMs}), ContractError);
   for (const field of ['id', 'presentation', 'lease', 'unknown']) for (const value of [null, undefined, 'invented'])
-    assert.throws(() => parseStartPreparation({retryAfterMs: 500, [field]: value}), ContractError);
+    // R-09b: the tag decides. A wait with members a newer server added is still only a wait.
+    assert.equal(parseStartPreparation({variant: 'wait', retryAfterMs: 500, [field]: value}).session, undefined);
+  assert.throws(() => parseStartPreparation({retryAfterMs: 500}), ContractError, 'an untagged reply is refused');
+  assert.throws(() => parseStartPreparation({variant: 'resumed', retryAfterMs: 500}), ContractError, 'an unknown tag is a start this app cannot follow');
 });
 
 test('Root67 genuine session-backed preparation is the official immutable view, not a playable Session', () => {
@@ -62,7 +65,7 @@ test('Root67 replays only the original deep wire body, key, signal and callback'
   }};
   const http: V1Http = {send: async request => {
     requests.push(request);
-    return requests.length <= 2 ? reply({retryAfterMs: 500}) : reply({...real(), queue: {queueId: 'queue', entryId: 'entry'}}, 201);
+    return requests.length <= 2 ? reply({variant: 'wait', retryAfterMs: 500}) : reply({...real(), queue: {queueId: 'queue', entryId: 'entry'}}, 201);
   }};
   const pending = new SessionsClient(http, c.timers).start(target, options, 'original_key_0000001', extra);
   await settle(); c.fire(); await settle(); c.fire(); await pending;
@@ -78,7 +81,7 @@ test('Root67 replays only the original deep wire body, key, signal and callback'
 
 test('Root67 callback retirement before installing a timer has zero continuation and no invented cleanup', async () => {
   const c = clock(), caller = new AbortController(); let calls = 0, abandoned = 0;
-  const pending = new SessionsClient({send: async () => {calls++; return reply({retryAfterMs: 500});}}, c.timers)
+  const pending = new SessionsClient({send: async () => {calls++; return reply({variant: 'wait', retryAfterMs: 500});}}, c.timers)
     .start({itemId: 'movie'}, {}, 'original_key_0000002', {signal: caller.signal,
       onPreparing: () => caller.abort(), capturePreparing: () => () => {abandoned++;}});
   await assert.rejects(pending, {name: 'AbortError'});
@@ -95,7 +98,7 @@ test('Root67 waiting abort clears its timer and removes its own abort listener',
   signal.removeEventListener = ((type: string, fn: EventListenerOrEventListenerObject, options?: EventListenerOptions | boolean) => {
     if (type === 'abort') listeners--; remove(type, fn, options);
   }) as typeof signal.removeEventListener;
-  const pending = new SessionsClient({send: async () => {calls++; return reply({retryAfterMs: 500});}}, c.timers)
+  const pending = new SessionsClient({send: async () => {calls++; return reply({variant: 'wait', retryAfterMs: 500});}}, c.timers)
     .start({itemId: 'movie'}, {}, 'original_key_0000003', {signal});
   await settle(); assert.equal(listeners, 1); assert.equal(c.jobs.size, 1);
   caller.abort(); await assert.rejects(pending, {name: 'AbortError'});
@@ -104,7 +107,7 @@ test('Root67 waiting abort clears its timer and removes its own abort listener',
 
 test('Root67 an original currentness guard cannot borrow a later opening after waiting', async () => {
   const c = clock(); let current = true, calls = 0;
-  const pending = new SessionsClient({send: async () => {calls++; return reply({retryAfterMs: 500});}}, c.timers)
+  const pending = new SessionsClient({send: async () => {calls++; return reply({variant: 'wait', retryAfterMs: 500});}}, c.timers)
     .start({itemId: 'movie'}, {}, 'original_key_0000004', {isCurrent: () => current});
   await settle(); current = false; c.fire();
   await assert.rejects(pending, {name: 'AbortError'});
@@ -122,7 +125,7 @@ test('Root67 invalid timing cannot poison the budget or fall back to a header', 
 
 test('Root69 a valid 202 keeps retrying beyond the retired 120000ms client budget', async () => {
   const c = clock(); let calls = 0; const notices: StartPreparation[] = [];
-  const pending = new SessionsClient({send: async () => {calls++; return calls <= 15 ? reply({retryAfterMs: 10_000}) : reply(real(), 201);}}, c.timers)
+  const pending = new SessionsClient({send: async () => {calls++; return calls <= 15 ? reply({variant: 'wait', retryAfterMs: 10_000}) : reply(real(), 201);}}, c.timers)
     .start({itemId: 'movie'}, {}, 'original_key_0000006', {onPreparing: (_ms, notice) => {notices.push(notice);}});
   for (let i = 0; i < 15; i++) {await settle(); assert.equal(c.jobs.size, 1); c.fire();}
   const session = await pending;
@@ -207,7 +210,7 @@ test('Root67 the original preparation receipt cannot reacquire a successor known
 test('Root67 synchronous timer completion still clears the installed handle', async () => {
   const cleared: unknown[] = []; let calls = 0;
   const timers: Timers = {now: () => 0, setTimer: fn => {fn(); return 'own_timer';}, clearTimer: timer => {cleared.push(timer);}};
-  const session = await new SessionsClient({send: async () => ++calls === 1 ? reply({retryAfterMs: 500}) : reply(real(), 201)}, timers)
+  const session = await new SessionsClient({send: async () => ++calls === 1 ? reply({variant: 'wait', retryAfterMs: 500}) : reply(real(), 201)}, timers)
     .start({itemId: 'movie'}, {}, 'original_key_0000015');
   assert.equal(session.id, 'original_session'); assert.deepEqual(cleared, ['own_timer']); assert.equal(calls, 2);
 });
@@ -245,7 +248,7 @@ test('Root67 controller keeps the original paused intent through preparation pub
   const c = clock(), engine = player(), options: {state: 'paused' | 'playing'} = {state: 'paused'};
   let calls = 0;
   const controller = new PlaybackSessionController({timers: c.timers, player: engine.port, key: () => 'original_key_0000019',
-    http: {send: async () => ++calls === 1 ? reply({retryAfterMs: 500}) : reply(real(), 201)}});
+    http: {send: async () => ++calls === 1 ? reply({variant: 'wait', retryAfterMs: 500}) : reply(real(), 201)}});
   const off = controller.subscribe(() => {if (controller.getSnapshot().phase === 'preparing') options.state = 'playing';});
   try {
     const pending = controller.start({itemId: 'movie'}, options);
@@ -317,7 +320,7 @@ test('Root69 a terminal reply is never replayed as preparation', async () => {
 
 test('Root69 caller retirement during a past-budget wait clears its timer and sends nothing new', async () => {
   const c = clock(), caller = new AbortController(); let calls = 0;
-  const pending = new SessionsClient({send: async () => {calls++; return reply({retryAfterMs: 10_000});}}, c.timers)
+  const pending = new SessionsClient({send: async () => {calls++; return reply({variant: 'wait', retryAfterMs: 10_000});}}, c.timers)
     .start({itemId: 'movie'}, {}, 'original_key_0000025', {signal: caller.signal});
   for (let i = 0; i < 13; i++) {await settle(); c.fire();}
   await settle(); assert.equal(c.jobs.size, 1);
@@ -334,7 +337,7 @@ test('Root69 ordinary item, channel and queue starts replay only their own origi
   ];
   for (const {target, offered} of cases) {
     const c = clock(), requests: V1Request[] = [];
-    const http: V1Http = {send: async request => {requests.push(request); return requests.length <= 2 ? reply({retryAfterMs: 1_000}) : reply(offered, 201);}};
+    const http: V1Http = {send: async request => {requests.push(request); return requests.length <= 2 ? reply({variant: 'wait', retryAfterMs: 1_000}) : reply(offered, 201);}};
     const pending = new SessionsClient(http, c.timers).start(target, {}, 'original_key_0000026');
     await settle(); c.fire(); await settle(); c.fire();
     const session = await pending;
@@ -359,7 +362,7 @@ test('Root69 a real-session 202 past the old budget keeps one original ownership
 test('Root69 the controller exposes real preparation before any session exists', async () => {
   const c = clock(), engine = player(); let calls = 0;
   const controller = new PlaybackSessionController({timers: c.timers, player: engine.port, key: () => 'original_key_0000028',
-    http: {send: async () => ++calls === 1 ? reply({retryAfterMs: 500}) : reply(real(), 201)}});
+    http: {send: async () => ++calls === 1 ? reply({variant: 'wait', retryAfterMs: 500}) : reply(real(), 201)}});
   try {
     const pending = controller.start({itemId: 'movie'});
     await settle();
@@ -377,7 +380,7 @@ test('Root69 the controller exposes real preparation before any session exists',
 
 test('Root69 repeated accepted retries keep preparation current until a terminal reply clears it', async () => {
   const c = clock(), engine = player(); let calls = 0;
-  const http: V1Http = {send: async () => ++calls === 1 ? reply({retryAfterMs: 500}) : calls === 2 ? reply({retryAfterMs: 2_000}) : {status: 400, headers: {}, body: {error: {code: 'terminal'}}}};
+  const http: V1Http = {send: async () => ++calls === 1 ? reply({variant: 'wait', retryAfterMs: 500}) : calls === 2 ? reply({variant: 'wait', retryAfterMs: 2_000}) : {status: 400, headers: {}, body: {error: {code: 'terminal'}}}};
   const controller = new PlaybackSessionController({timers: c.timers, player: engine.port, key: () => 'original_key_0000029', http});
   try {
     const pending = controller.start({itemId: 'movie'});
@@ -394,7 +397,7 @@ test('Root69 repeated accepted retries keep preparation current until a terminal
 test('Root69 detaching a waiting start clears its preparation', async () => {
   const c = clock(), engine = player();
   const controller = new PlaybackSessionController({timers: c.timers, player: engine.port, key: () => 'original_key_0000030',
-    http: {send: async () => reply({retryAfterMs: 500})}});
+    http: {send: async () => reply({variant: 'wait', retryAfterMs: 500})}});
   try {
     const pending = controller.start({itemId: 'movie'});
     await settle();
@@ -411,7 +414,7 @@ test('Root69 a retired older start cannot publish preparation over its successor
   const c = clock(), engine = player(); let calls = 0;
   const controller = new PlaybackSessionController({timers: c.timers, player: engine.port, key: () => `original_key_00000${31 + calls}`,
     http: {send: async request => {calls++; const itemId = (request.body as {itemId: string}).itemId;
-      return itemId === 'old' ? reply({retryAfterMs: 500}) : reply({...real(), itemId: 'new'}, 201);}}});
+      return itemId === 'old' ? reply({variant: 'wait', retryAfterMs: 500}) : reply({...real(), itemId: 'new'}, 201);}}});
   try {
     const oldStart = controller.start({itemId: 'old'});
     await settle();
@@ -429,7 +432,7 @@ test('Root69 a retired older start cannot publish preparation over its successor
 test('Root69 the controller forwards each preparation notice to its original caller', async () => {
   const c = clock(), engine = player(); let calls = 0; const waits: number[] = [], notices: StartPreparation[] = [];
   const controller = new PlaybackSessionController({timers: c.timers, player: engine.port, key: () => 'original_key_0000032',
-    http: {send: async () => ++calls === 1 ? reply({retryAfterMs: 500}) : reply(real(), 201)}});
+    http: {send: async () => ++calls === 1 ? reply({variant: 'wait', retryAfterMs: 500}) : reply(real(), 201)}});
   try {
     const pending = controller.start({itemId: 'movie'}, {}, undefined, {onPreparing: (wait, notice) => {waits.push(wait); notices.push(notice);}});
     await settle(); c.fire(); await pending;
@@ -488,4 +491,16 @@ test('R-09: a newer start with unknown enum values is still read', async () => {
   const required: any = newer();
   required.presentation.mode = 'teleport';
   assert.throws(() => parseStartPreparation(required), ContractError);
+});
+
+// R-09b: a newer server of the same major adds members at the top and inside nested objects of
+// the tagged start reply; the 1.0 client still reads the session it was given.
+test('R-09b: a tagged start with members a newer server added is still read', () => {
+  const body: any = {...real(), retryAfterMs: 500, addedAtTop: {since: '1.1'}};
+  body.presentation = {...body.presentation, addedNested: true, decision: {...body.presentation.decision, addedDeeper: [1]}};
+  body.lease = {...body.lease, addedInLease: 'x'};
+  const parsed = parseStartPreparation(body);
+  assert.equal(parsed.session?.id, 'original_session');
+  assert.equal(parsed.retryAfterMs, 500);
+  assert.equal(parseStartPreparation({variant: 'wait', retryAfterMs: 700, addedAtTop: true}).retryAfterMs, 700);
 });

@@ -17,7 +17,7 @@ func TestCapacityJSONPublishesOnlySequencing(t *testing.T) {
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		t.Fatal(err)
 	}
-	if len(fields) != 3 || string(fields["id"]) != `"123"` || string(fields["type"]) != `"capacity.changed"` || string(fields["at"]) != `"2026-10-25T20:00:00Z"` {
+	if len(fields) != 4 || string(fields["variant"]) != `"capacity"` || string(fields["id"]) != `"123"` || string(fields["type"]) != `"capacity.changed"` || string(fields["at"]) != `"2026-10-25T20:00:00Z"` {
 		t.Fatalf("capacity envelope includes non-sequencing fields: %s", raw)
 	}
 }
@@ -28,7 +28,7 @@ func TestOrdinaryEventJSONKeepsExistingFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"id":"123","type":"session.updated","at":"2026-10-25T20:00:00Z","resource":{"kind":"session","id":"session"},"revision":"3","data":{"state":"ended"}}`
+	want := `{"variant":"change","id":"123","type":"session.updated","at":"2026-10-25T20:00:00Z","resource":{"kind":"session","id":"session"},"revision":"3","data":{"state":"ended"}}`
 	if string(raw) != want {
 		t.Fatalf("ordinary event serialization changed: %s", raw)
 	}

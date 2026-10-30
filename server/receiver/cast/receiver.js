@@ -963,9 +963,11 @@
         value=PorticoCastContracts.decodeStartPlaybackSessionResponse(result.body);
         if(result.status===202&&(!Number.isSafeInteger(value.retryAfterMs)||value.retryAfterMs<1||value.retryAfterMs>10000))throw new Error('invalid_retry');
         if(result.status===201&&Object.prototype.hasOwnProperty.call(value,'retryAfterMs'))throw new Error('unexpected_retry');
-        if(!Object.prototype.hasOwnProperty.call(value,'id')){
+        // R-09b: the server's tag names the reply; a tag this receiver does not know is not followed.
+        if(value.unknownVariant)throw new Error('unknown_variant');
+        if(value.variant==='wait'){
           if(result.status!==202)throw new Error('missing_session');
-          return; // Only the decoder's closed retry-only branch reaches here.
+          return; // Retry-only: no session, no resource and no cleanup witness.
         }
         if(!/^[A-Za-z0-9._:-]{1,128}$/.test(value.id)||!Number.isSafeInteger(value.presentation.generation)||value.presentation.generation<1||
           (body.queue?(!value.queue||value.queue.queueId!==body.queue.queueId||value.queue.entryId!==body.queue.entryId):value.itemId!==body.itemId))throw new Error('start_binding_changed');

@@ -14,7 +14,7 @@ function payload(opts: {
   const startId = opts.start;
   return {
     pivot: 'movies',
-    applied: {query: {field: 'genre', operator: 'contains', value: 'Action'}, sort: [{field: 'title', direction: 'asc'}], seek: null},
+    applied: {query: {variant:'predicate',field: 'genre', operator: 'contains', value: 'Action'}, sort: [{field: 'title', direction: 'asc'}], seek: null},
     entries: Array.from({length: count}, (_, i) => entry(`e${startId + i}`)),
     pageInfo: {
       start: opts.start, total: opts.total, revision: 'rev', hasMore: opts.hasMore,

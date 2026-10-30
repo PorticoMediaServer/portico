@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseBrowseResult, parseWholeSelection} from '../src/browse.ts';
 
-const filter = {field: 'year', operator: 'at-least', value: 2000};
+const filter = {variant:'predicate',field: 'year', operator: 'at-least', value: 2000};
 const sort = [{field: 'title', direction: 'asc'}];
 const capabilityCounts = {play: 48000, queue: 48000, playlist: 48000, myList: 48000, watched: 48000, collection: 48000, favorite: 48000, download: 0, edit: 48000, refresh: 48000, delete: 48000};
 const descriptor = {
@@ -22,7 +22,7 @@ const page = (whole: unknown, over: Record<string, unknown> = {}) => ({
 });
 
 test('the exact whole-view aggregate parses and rides on the page it describes', () => {
-  const whole = parseWholeSelection(descriptor, {revision: 'r1', pivot: 'movies', query: {field: 'year', operator: 'at-least', value: 2000}, sort: [{field: 'title', direction: 'asc'}]});
+  const whole = parseWholeSelection(descriptor, {revision: 'r1', pivot: 'movies', query: {variant:'predicate',field: 'year', operator: 'at-least', value: 2000}, sort: [{field: 'title', direction: 'asc'}]});
   assert.equal(whole?.libraryId, 'movies');
   assert.equal(whole?.catalogRevision, 'r1');
   assert.equal(whole?.total, 48000);
@@ -41,7 +41,7 @@ test('a descriptor for another revision, pivot, predicate or ordering is refused
   for (const over of [
     {pageInfo: {start: 0, total: 48000, totalIsLowerBound: false, revision: 'r2', hasMore: false, nextCursor: ''}},
     {pivot: 'episodes'},
-    {applied: {query: {field: 'year', operator: 'at-least', value: 2010}, sort, seek: null}},
+    {applied: {query: {variant:'predicate',field: 'year', operator: 'at-least', value: 2010}, sort, seek: null}},
     {applied: {query: filter, sort: [{field: 'year', direction: 'desc'}], seek: null}},
     {applied: {query: null, sort, seek: null}},
   ]) {
@@ -75,7 +75,7 @@ test('counts must partition one closed kind and one library', () => {
 });
 
 test('a malformed filter or sort drops only the descriptor, never the page', () => {
-  const badFilter = {...descriptor, selector: {query: {...descriptor.selector.query, filter: {field: 'year', operator: 'sideways', value: 1}}}};
+  const badFilter = {...descriptor, selector: {query: {...descriptor.selector.query, filter: {variant:'predicate',field: 'year', operator: 'sideways', value: 1}}}};
   assert.equal(parseWholeSelection(badFilter), undefined);
   const badSort = {...descriptor, selector: {query: {...descriptor.selector.query, sort: [{field: 'title', direction: 'sideways'}]}}};
   assert.equal(parseWholeSelection(badSort), undefined);

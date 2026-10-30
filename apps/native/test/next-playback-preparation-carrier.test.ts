@@ -11,7 +11,7 @@ test('queue host forwards original sixth-context preparation notice before any S
   const requests: V1Request[] = [], notices: StartPreparation[] = [];
   const http: V1Http = {async send(request) {
     requests.push(request);
-    return requests.length === 1 ? {status: 202, headers: {}, body: {retryAfterMs: 1}}
+    return requests.length === 1 ? {status: 202, headers: {}, body: {variant: 'wait', retryAfterMs: 1}}
       : {status: 409, headers: {}, body: {error: {code: 'request_expired', message: 'Original operation expired.'}}};
   }};
   const path = new NativePlayback({http, timers});

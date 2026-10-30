@@ -3,6 +3,7 @@ import type {HomeApi} from '../home.ts';
 import type {LibraryContentApi} from '../library-content.ts';
 import {browsePreparationError} from '../browse-preparation.ts';
 import {readPreparation, PreparationProtocolError, type PreparationResponse, type PreparationRuntime, type PreparingRead} from '../read-preparation.ts';
+import {refuseUnknownVariant} from '../tolerant.ts';
 import type {BulkMetadataPreviewRequest} from './metadata-preview.ts';
 
 export type MetadataPreviewLifetime = Readonly<{
@@ -11,10 +12,12 @@ export type MetadataPreviewLifetime = Readonly<{
   onPreparing?(pending: PreparingRead): void;
   runtime?: Partial<PreparationRuntime>;
 }>;
+const previewVariants = ['ready', 'preparing'] as const;
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 export function parseMetadataPreviewPreparing(body: unknown, response?: PreparationResponse): PreparingRead {
-  if (!object(body) || body.kind !== 'metadata-preview-preparing' || body.state !== 'preparing'
+  refuseUnknownVariant(body, previewVariants);
+  if (!object(body) || body.variant !== 'preparing' || body.kind !== 'metadata-preview-preparing' || body.state !== 'preparing'
     || typeof body.queryId !== 'string' || !/^[A-Za-z0-9._~-]{1,128}$/.test(body.queryId) || ['.', '..'].includes(body.queryId)
     || body.retryAfterMs !== 1000) throw new PreparationProtocolError('invalid_preparing', response);
   return Object.freeze({queryId: body.queryId, retryAfterMs: body.retryAfterMs});
@@ -44,7 +47,11 @@ export async function readMetadataPreview<Ready>(api: HomeApi, request: BulkMeta
     paths: {initial: () => path, refresh: () => path,
       poll: queryId => routePath('get_metadata_bulk_preview_query', {queryId}),
       cancel: queryId => routePath('delete_metadata_bulk_preview_query', {queryId})},
-    parseReady: body => parser(body, captured), parsePreparing: parseMetadataPreviewPreparing,
+    parseReady: body => {
+      refuseUnknownVariant(body, previewVariants);
+      if (!object(body) || body.variant !== 'ready') throw new PreparationProtocolError('invalid_ready_handle');
+      return parser(body, captured);
+    }, parsePreparing: parseMetadataPreviewPreparing,
     errorFromResponse: browsePreparationError, signal: lifetime.signal,
     isCurrent: lifetime.isCurrent ?? (() => !lifetime.signal?.aborted),
     onPreparing: lifetime.onPreparing, runtime: lifetime.runtime,

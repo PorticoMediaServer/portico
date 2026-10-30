@@ -13,7 +13,7 @@ function payload(start: number, total = 50_000, revision = 'revision-one') {
  pageInfo: {start, total, totalIsLowerBound: false, revision, hasMore: start + 60 < total, nextCursor: ''}, positionIndex: [{key: 'Z', index: 49_980}]};
 }
 test('Save view requires a real filter or sort change, not merely loaded capabilities', async () => {
- const predicate = {field: 'watched', operator: 'equals' as const, value: false};
+ const predicate = {variant:'predicate',field: 'watched', operator: 'equals' as const, value: false};
  const scoped = {...caps, fields: [{id: 'watched', labelKey: 'watched', type: 'boolean', operators: ['equals'], controlHint: 'toggle', applicableKinds: ['movie']}]};
  let current = true;
  const controller = new BrowseController({async request<T>(path: string, _method?: string, body?: unknown) {
@@ -38,7 +38,7 @@ test('Save view retains a changed secondary sort even when the first sort is the
  try {await controller.load();assert.equal(controller.canSaveView(), true);} finally {controller.dispose();}
 });
 test('linked predicates and all server sorts survive paging and filter edits', async () => {
- const predicate = {field: 'watched', operator: 'equals' as const, value: false};
+ const predicate = {variant:'predicate',field: 'watched', operator: 'equals' as const, value: false};
  const sort = [{field: 'title', direction: 'asc' as const}, {field: 'year', direction: 'desc' as const}];
  const scoped = {...caps, fields: [{id: 'watched', labelKey: 'watched', type: 'boolean', operators: ['equals'], controlHint: 'toggle', applicableKinds: ['movie']}],
   sorts: [...caps.sorts, {id: 'year', labelKey: 'sort.year', directions: ['asc', 'desc'], defaultDirection: 'desc', applicableKinds: ['movie']}]};
@@ -138,7 +138,7 @@ test('stale continuation closes old actions until explicit refresh and never dro
 });
 
 test('captured source and applied predicates cannot change through caller-owned draft objects', async () => {
- const value = ['Action'], predicate = {field: 'genre', operator: 'in' as const, value};
+ const value = ['Action'], predicate = {variant:'predicate',field: 'genre', operator: 'in' as const, value};
  const source = {libraryId: 'lib', pivot: 'movies', predicates: [predicate]};
  const scoped = {...caps, fields: [{id: 'genre', labelKey: 'genre', type: 'enum', operators: ['in'], controlHint: 'facet-multi-select', applicableKinds: ['movie']}]};
  let current = true;
@@ -146,9 +146,9 @@ test('captured source and applied predicates cannot change through caller-owned 
  try {
   value.push('Comedy');source.libraryId = 'other-library';
   await controller.load();await settle();
-  assert.equal(controller.source.libraryId, 'lib');assert.deepEqual(controller.query().query, {field: 'genre', operator: 'in', value: ['Action']});
-  const staged = {field: 'genre', operator: 'in' as const, value: ['Drama']};controller.setQuery([staged]);staged.value.push('Horror');await settle();
-  assert.deepEqual(controller.query().query, {field: 'genre', operator: 'in', value: ['Drama']});
+  assert.equal(controller.source.libraryId, 'lib');assert.deepEqual(controller.query().query, {variant:'predicate',field: 'genre', operator: 'in', value: ['Action']});
+  const staged = {variant:'predicate',field: 'genre', operator: 'in' as const, value: ['Drama']};controller.setQuery([staged]);staged.value.push('Horror');await settle();
+  assert.deepEqual(controller.query().query, {variant:'predicate',field: 'genre', operator: 'in', value: ['Drama']});
   const entry = controller.collection.itemAt(0)!.entry;assert(controller.contains(entry));current = false;assert.equal(controller.contains(entry), false);
  } finally {controller.dispose();}
 });
@@ -171,7 +171,7 @@ test('Retry after a revision change obtains a fresh source window rather than re
  } finally {controller.dispose();}
 });
 test('Home display pages, facet queries and batch counts keep the immutable source membership', async () => {
- const membership = {field: 'homeRow', operator: 'equals' as const, value: 'continue'};
+ const membership = {variant:'predicate',field: 'homeRow', operator: 'equals' as const, value: 'continue'};
  const scopedCaps = {...caps, library: {id: '', kind: '', name: ''}, fields: [
   {id: 'homeRow', labelKey: 'browse.field.homeRow', type: 'identity-set', operators: ['equals'], controlHint: 'text', applicableKinds: ['movie']},
   {id: 'library', labelKey: 'browse.field.library', type: 'enum', operators: ['in'], controlHint: 'facet-multi-select', applicableKinds: ['movie'], facetSource: {endpoint: '/ignored', field: 'library'}}],
@@ -193,8 +193,8 @@ test('Home display pages, facet queries and batch counts keep the immutable sour
  } finally {controller.dispose();}
 });
 test('type counts are one server batch with exact lower bounds, never sums of library facets', async () => {
- const membership = {field: 'homeRow', operator: 'equals' as const, value: 'continue'};
- const type = {field: 'library', operator: 'in' as const, value: ['one', 'two']};
+ const membership = {variant:'predicate',field: 'homeRow', operator: 'equals' as const, value: 'continue'};
+ const type = {variant:'predicate',field: 'library', operator: 'in' as const, value: ['one', 'two']};
  const scoped = {...caps, fields: [
   {id: 'homeRow', labelKey: 'homeRow', type: 'identity-set', operators: ['equals'], controlHint: 'text', applicableKinds: ['movie']},
   {id: 'library', labelKey: 'library', type: 'enum', operators: ['in'], controlHint: 'facet-multi-select', applicableKinds: ['movie']}],
@@ -209,7 +209,7 @@ test('type counts are one server batch with exact lower bounds, never sums of li
   await controller.load();await settle();
   const result = await controller.counts([{id: 'all', predicates: []}, {id: 'movie', predicates: [type]}], new AbortController().signal);
   assert.equal(counts.length, 1);
-  assert.deepEqual((counts[0] as {queries: unknown}).queries, [{id: 'all', query: membership}, {id: 'movie', query: {all: [membership, type]}}]);
+  assert.deepEqual((counts[0] as {queries: unknown}).queries, [{id: 'all', query: membership}, {id: 'movie', query: {variant:'group',all: [membership, type]}}]);
   assert.deepEqual(result.map(count => [count.total, count.totalIsLowerBound]), [[10_007, false], [10_000, true]]);
  } finally {controller.dispose();}
 });
@@ -254,7 +254,7 @@ test('query input capture cannot re-enter and replace the query accepted in its 
  }}, {libraryId: 'lib', pivot: 'movies'}, () => true);
  try {
   await controller.load();await settle();const original = controller.getSnapshot();
-  const input = {field: 'genre', operator: 'in' as const, get value() {
+  const input = {variant:'predicate',field: 'genre', operator: 'in' as const, get value() {
    controller.setQuery([], {field: 'title', direction: 'desc'}, original);return ['Drama'];
   }};
   assert.equal(controller.setQuery([input], undefined, original), false);
@@ -269,7 +269,7 @@ test('retiring the original browse opening refuses a query before inspecting its
   {libraryId: 'lib', pivot: 'movies'}, () => live);
  try {
   await controller.load();await settle();const original = controller.getSnapshot();live = false;
-  const input = {field: 'genre', operator: 'in' as const, get value() {reads++;return ['Drama'];}};
+  const input = {variant:'predicate',field: 'genre', operator: 'in' as const, get value() {reads++;return ['Drama'];}};
   assert.equal(controller.setQuery([input], undefined, original), false);assert.equal(reads, 0);
  } finally {controller.dispose();}
 });
@@ -338,7 +338,7 @@ test('a first page refused as stale while a library imports is read once more, a
  } finally {controller.dispose();}
 });
 test('P2-74 E-web-02: after the list re-reads under a press, the same title is found in the fresh list', async () => {
- const predicate = {field: 'watched', operator: 'equals' as const, value: false};
+ const predicate = {variant:'predicate',field: 'watched', operator: 'equals' as const, value: false};
  const scoped = {...caps, fields: [{id: 'watched', labelKey: 'watched', type: 'boolean', operators: ['equals'], controlHint: 'toggle', applicableKinds: ['movie']}]};
  const controller = new BrowseController({async request<T>(path: string, _method?: string, body?: unknown) {
   return (path.includes('capabilities') ? scoped : payload((body as {range: {start: number}}).range.start, 3)) as T;

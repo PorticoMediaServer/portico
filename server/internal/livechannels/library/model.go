@@ -116,13 +116,13 @@ func Normalize(c Config) (Config, error) {
 			for j, g := range q.Genres {
 				values[j] = g
 			}
-			extra = append(extra, map[string]any{"field": "genre", "operator": "contains-any", "value": values})
+			extra = append(extra, map[string]any{"variant": "predicate", "field": "genre", "operator": "contains-any", "value": values})
 		}
 		if q.YearFrom > 0 {
-			extra = append(extra, map[string]any{"field": "year", "operator": "at-least", "value": q.YearFrom})
+			extra = append(extra, map[string]any{"variant": "predicate", "field": "year", "operator": "at-least", "value": q.YearFrom})
 		}
 		if q.YearThrough > 0 {
-			extra = append(extra, map[string]any{"field": "year", "operator": "at-most", "value": q.YearThrough})
+			extra = append(extra, map[string]any{"variant": "predicate", "field": "year", "operator": "at-most", "value": q.YearThrough})
 		}
 		if len(extra) == 0 {
 			continue
@@ -138,7 +138,7 @@ func Normalize(c Config) (Config, error) {
 		for _, v := range extra {
 			all = append(all, v)
 		}
-		var node any = map[string]any{"all": all}
+		var node any = map[string]any{"variant": "group", "all": all}
 		if len(all) == 1 {
 			node = all[0]
 		}

@@ -2918,7 +2918,7 @@ test('WEB002 actual capacity wait and preparation retain until the original star
     f.runtime.onRetention(()=>changes.push(f.runtime.retainsMedia()));
     f.intercept(async(request,response)=>request.method==='POST'&&request.path===(mode==='capacity'?'/v1/queues':'/v1/playback/sessions')
       ? mode==='capacity'?{status:429,headers:{'Retry-After':'1'},body:{error:{code:'conversion_capacity',retry:'same_request'}}}
-        :{status:202,headers:{},body:{retryAfterMs:1000}}:response);
+        :{status:202,headers:{},body:{variant:'wait',retryAfterMs:1000}}:response);
     const pending=f.runtime.cataloguePlayback().playSegments([{source:{items:{ids:['movie']}}}],{signal:caller.signal,isCurrent:()=>true,...(mode==='preparation'?{startSeconds:0}:{})});
     const rejected=assert.rejects(pending);await settle();const state=f.runtime.getSnapshot();
     assert.equal(f.runtime.retainsMedia(),true);assert.equal(state.session,undefined);
@@ -2953,7 +2953,7 @@ test('WEB002 EACH five same-authority hints preserve actual media owners in all 
     }else if(['item-preflight','options-preflight','version-preflight','preparing','capacity'].includes(state)){
       f.intercept(async(request,response)=>{
         if(state==='capacity'&&request.method==='POST'&&request.path==='/v1/queues')return {status:429,headers:{'Retry-After':'1'},body:{error:{code:'conversion_capacity',retry:'same_request'}}};
-        if(state==='preparing'&&request.method==='POST'&&request.path==='/v1/playback/sessions')return {status:202,headers:{},body:{retryAfterMs:1000}};
+        if(state==='preparing'&&request.method==='POST'&&request.path==='/v1/playback/sessions')return {status:202,headers:{},body:{variant:'wait',retryAfterMs:1000}};
         if((state==='item-preflight'&&request.path==='/v1/items/movie')||(['options-preflight','version-preflight'].includes(state)&&request.path==='/v1/items/movie/playback-options'))await gate.hold();
         return response;
       });

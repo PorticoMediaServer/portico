@@ -20,7 +20,7 @@ function emitter() {
 }
 function target() {
   return {mode: 'query', context: {}, queryId: 'exact-query', selector: {query: {libraryId: 'library', pivot: 'movies', selectionBasis: basis,
-    filter: {field: 'year', operator: 'at-least', value: 2000}, sort: [{field: 'title', direction: 'asc'}]}},
+    filter: {variant: 'predicate', field: 'year', operator: 'at-least', value: 2000}, sort: [{field: 'title', direction: 'asc'}]}},
   expected: {catalogRevision: 'browse_' + 'b'.repeat(64)}, total, sourceTotal: total,
   refinement: {kind: null, excludedItems: []}, summary: {count: total, types: [{kind: 'movie', count: total}],
     library: {kind: 'single', libraryId: 'library'}, every: {delete: true, download: true}}};

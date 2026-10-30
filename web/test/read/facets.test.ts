@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {authorPredicate, loadFacetPage, type FacetRequest} from '../../src/screens/read/facets.ts';
 
-const page = (values: unknown[]) => ({field: 'author', total: values.length, totalIsLowerBound: false, values});
+const page = (values: unknown[]) => ({variant: 'page', field: 'author', total: values.length, totalIsLowerBound: false, values});
 
 test('an author facet page keeps the server value, its long label and its count', async () => {
   let requested = '';
@@ -25,7 +25,7 @@ test('an author facet page keeps the server value, its long label and its count'
 
 test('a series facet page carries the server-issued opaque series id', async () => {
   const seriesId = 'a'.repeat(43);
-  const values = await loadFacetPage(async () => ({field: 'series', total: 1, totalIsLowerBound: false, values: [{value: 'Dune', label: 'Dune', count: 6, seriesId}]}),
+  const values = await loadFacetPage(async () => ({variant: 'page', field: 'series', total: 1, totalIsLowerBound: false, values: [{value: 'Dune', label: 'Dune', count: 6, seriesId}]}),
     {libraryId: 'lib-reading', field: 'series', pivot: 'comics'}, new AbortController().signal);
   assert.equal(values.values[0]!.seriesId, seriesId);
   assert.equal(values.values[0]!.value, 'Dune');
@@ -45,7 +45,7 @@ test('the page refuses a bad request before it reaches the server', async () => 
 });
 
 test('an author value filters browse by the accepted attribution string', () => {
-  assert.deepEqual(authorPredicate('Ursula K. Le Guin'), {field: 'author', operator: 'equals', value: 'Ursula K. Le Guin'});
+  assert.deepEqual(authorPredicate('Ursula K. Le Guin'), {variant:'predicate',field: 'author', operator: 'equals', value: 'Ursula K. Le Guin'});
   assert.throws(() => authorPredicate(''), /invalid_request/);
 });
 

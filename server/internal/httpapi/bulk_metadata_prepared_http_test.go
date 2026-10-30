@@ -430,7 +430,7 @@ func TestBulkMetadataPreparedHTTPGeneral201StreamsWithoutForegroundCensus(t *tes
 func TestBulkMetadataPreparedHTTPUnprovedLocalSearchCannotFallThrough(t *testing.T) {
 	f, _, _ := preparedMetadataFixture(t, 1)
 	in := catalog.BulkMetadataPreviewRequest{Selector: &catalog.JobSelector{Query: &catalog.JobQuery{
-		LibraryID: "movies", Pivot: "movies", Filter: json.RawMessage(`{"field":"search","operator":"contains","value":"f"}`),
+		LibraryID: "movies", Pivot: "movies", Filter: json.RawMessage(`{"variant":"predicate","field":"search","operator":"contains","value":"f"}`),
 	}}, Expected: &catalog.JobExpected{CatalogRevision: "unproved-original-revision"}}
 	raw, err := json.Marshal(in)
 	if err != nil {
@@ -469,7 +469,7 @@ func TestBulkMetadataPreparedHTTPBasisRevisionAndAuthority(t *testing.T) {
 			case "missing-revision":
 				expected.CatalogRevision = ""
 			case "query":
-				query.Filter = json.RawMessage(`{"field":"search","operator":"contains","value":"z"}`)
+				query.Filter = json.RawMessage(`{"variant":"predicate","field":"search","operator":"contains","value":"z"}`)
 			case "basis":
 				query.SelectionBasis = strings.Repeat("0", 64)
 			}

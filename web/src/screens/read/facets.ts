@@ -42,5 +42,5 @@ export async function loadFacetPage(request: FacetRequest, options: FacetPageOpt
  */
 export function authorPredicate(value: string): BrowseNode {
   if (!value) throw new Error('invalid_request');
-  return {field: 'author', operator: 'equals', value};
+  return {variant: 'predicate', field: 'author', operator: 'equals', value};
 }

@@ -9,7 +9,7 @@ const revision = `browse_${'a'.repeat(64)}`, basis = 'b'.repeat(64);
 const context: BrowseSelectionContext = {scope: {serverId: 's', authority: 'local', accountId: 'a', profileId: 'p', viewId: 'v'}, revision: {pageRevision: revision}};
 const unavailableActions = {play: 'unsupported-sort', queue: 'unsupported-sort', metadataPreview: 'preview-limit'} as const;
 function wire(total = 201, restrictions: unknown = unavailableActions) {
-  return {selector: {query: {libraryId: 'lib', pivot: 'movies', selectionBasis: basis, filter: {field: 'search', operator: 'contains', value: 'a'}, sort: [{field: 'title', direction: 'asc'}]}},
+  return {selector: {query: {libraryId: 'lib', pivot: 'movies', selectionBasis: basis, filter: {variant:'predicate',field: 'search', operator: 'contains', value: 'a'}, sort: [{field: 'title', direction: 'asc'}]}},
     catalogRevision: revision, total, unavailableActions: restrictions,
     types: [{kind: 'movie', count: total, libraries: [{libraryId: 'lib', count: total}], capabilityCounts: {play: total, queue: total, playlist: total, myList: total, watched: total, collection: total, favorite: total, download: total, edit: total, refresh: total, delete: total}}]};
 }

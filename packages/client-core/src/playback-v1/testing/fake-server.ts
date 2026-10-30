@@ -21,7 +21,7 @@ import {qualityLadder} from '../quality.ts';
 
 export type FakeResponse = Readonly<{status: number; headers: Readonly<Record<string, string>>; body?: unknown}>;
 export type FakeRequest = Readonly<{method: string; path: string; headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>;
-export type FakeEvent = {id: string; type: string; at: string; resource?: {kind: string; id: string}; revision?: string; data?: unknown};
+export type FakeEvent = {variant: 'change'; id: string; type: string; at: string; resource?: {kind: string; id: string}; revision?: string; data?: unknown};
 
 type Session = {
   id: string; revision: number; state: 'playing' | 'paused'; kind: 'vod' | 'audio' | 'channel'; itemId: string; versionId: string;
@@ -141,7 +141,7 @@ export class FakePlaybackServer {
   }
   /** Publish an event (tests may also publish their own). */
   publish(type: string, resource?: {kind: string; id: string}, revision?: string, data?: unknown): FakeEvent {
-    const e: FakeEvent = {id: String(++this.eventSeq), type, at: new Date(this.now()).toISOString(), ...(resource ? {resource} : {}), ...(revision ? {revision} : {}), ...(data !== undefined ? {data} : {})};
+    const e: FakeEvent = {variant: 'change', id: String(++this.eventSeq), type, at: new Date(this.now()).toISOString(), ...(resource ? {resource} : {}), ...(revision ? {revision} : {}), ...(data !== undefined ? {data} : {})};
     this.events.push(e);
     if (this.events.length > this.o.ring) this.events.shift();
     for (const w of [...this.waiters]) w();
@@ -161,7 +161,7 @@ export class FakePlaybackServer {
       for (const e of this.since(lastEventId)) send(e);
       const handle = {
         push: send,
-        close: (after: number) => { send({id: String(++this.eventSeq), type: 'stream.closed', at: new Date(this.now()).toISOString(), data: {reconnectAfterMs: after}}); },
+        close: (after: number) => { send({variant: 'change', id: String(++this.eventSeq), type: 'stream.closed', at: new Date(this.now()).toISOString(), data: {reconnectAfterMs: after}}); },
         fail: (status: number) => { this.streams.delete(handle); reject(Object.assign(new Error('stream failed'), {status})); },
       };
       this.streams.add(handle);
@@ -173,7 +173,7 @@ export class FakePlaybackServer {
     if (after === undefined) return [];
     const n = Number(after);
     const oldest = this.events[0] ? Number(this.events[0].id) : this.eventSeq + 1;
-    if (Number.isFinite(n) && n < oldest - 1) return [{id: String(this.eventSeq), type: 'stream.resync', at: new Date(this.now()).toISOString()}];
+    if (Number.isFinite(n) && n < oldest - 1) return [{variant: 'change', id: String(this.eventSeq), type: 'stream.resync', at: new Date(this.now()).toISOString()}];
     return this.events.filter(e => Number(e.id) > n);
   }
 
@@ -357,7 +357,7 @@ export class FakePlaybackServer {
     const prior = this.keys.get(key);
     if (prior) {
       if (prior.body !== canonical) return this.error(422, 'idempotency_key_reused');
-      if (prior.rounds > 0) { prior.rounds--; return {status: 202, headers: {'Retry-After': '1'}, body: {retryAfterMs: 500}}; }
+      if (prior.rounds > 0) { prior.rounds--; return {status: 202, headers: {'Retry-After': '1'}, body: {variant: 'wait', retryAfterMs: 500}}; }
       if (prior.status === 202) return this.start2(key, body, prior);
       return {status: prior.status, headers: {'Idempotent-Replayed': 'true'}, body: prior.response};
     }
@@ -366,7 +366,7 @@ export class FakePlaybackServer {
     const rounds = this.o.prepareRounds?.(body) ?? 0;
     const record = {body: canonical, status: 202, response: undefined as unknown, rounds};
     this.keys.set(key, record);
-    if (rounds > 0) { record.rounds--; return {status: 202, headers: {'Retry-After': '1'}, body: {retryAfterMs: 500}}; }
+    if (rounds > 0) { record.rounds--; return {status: 202, headers: {'Retry-After': '1'}, body: {variant: 'wait', retryAfterMs: 500}}; }
     return this.start2(key, body, record);
   }
 

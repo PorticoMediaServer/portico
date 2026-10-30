@@ -33,7 +33,7 @@ test('genre browse reads the canonical across pivot and bounded sparse windows w
     assert.equal(calls[0].path, '/v1/browse-capabilities?pivot=video-titles');
     const initial = calls.find(call => call.body)!;
     assert.equal(initial.path, '/v1/browse'); assert.equal(initial.body?.pivot, 'video-titles');
-    assert.deepEqual(initial.body?.query, {field: 'genre', operator: 'equals', value: 'actual-genre-value'});
+    assert.deepEqual(initial.body?.query, {variant: 'predicate', field: 'genre', operator: 'equals', value: 'actual-genre-value'});
     assert.equal(source.getSnapshot().revision, 'actual-opaque-token');
     const collection = source.getSnapshot().collection!; collection.ensureRange(100_000, 100_001); await tick();
     assert.ok(collection.residentItems().length <= 240); assert.equal(collection.getSnapshot().total, 5_000_000);

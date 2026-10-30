@@ -7,7 +7,7 @@ import {routePath} from '../../contracts/src/route-paths.ts';
 
 const basis = 'a'.repeat(64);
 const input: SelectionActionInput = {action: 'delete', selector: {query: {libraryId: 'library', pivot: 'movies', selectionBasis: basis,
-  filter: {field: 'year', operator: 'at-least', value: 2000}, sort: [{field: 'title', direction: 'asc'}]}},
+  filter: {variant:'predicate',field: 'year', operator: 'at-least', value: 2000}, sort: [{field: 'title', direction: 'asc'}]}},
   expected: {catalogRevision: 'browse_' + 'b'.repeat(64)}, options: {deleteFiles: true}};
 const ready = {kind: 'selection-action-preview', preparationId: 'prep', action: 'delete', basis, total: 48_000,
   files: 48_000, bytes: 100_000, bytesKnown: true, confirmation: '48000', confirmationKind: 'count',
@@ -34,7 +34,7 @@ test('selection action input rejects unsupported pivots, absent basis, refinemen
     {...input, selector: {...input.selector, exclude: ['extra']}},
     {...input, selector: {query: {...input.selector.query, excludedItems: []}}},
     {...input, options: {...input.options, deviceId: 'device'}},
-    {...input, selector: {query: {...input.selector.query, filter: {all: [], ignored: true}}}},
+    {...input, selector: {query: {...input.selector.query, filter: {variant:'group',all: [], ignored: true}}}},
     {...input, selector: {query: {...input.selector.query, sort: [{field: 'title', direction: 'asc', seed: 2}]}}},
   ]) assert.throws(() => selectionActionInput(raw));
   assert.equal(selectionActionInput({...input, action: 'download', options: {deviceId: 'device', quality: 'original'}}).action, 'download');

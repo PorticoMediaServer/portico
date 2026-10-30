@@ -406,7 +406,7 @@ func applyAggregateCardFacts(entry map[string]any, library, libraryKind, aggrega
 		view = "releases"
 		destination = map[string]any{
 			"pivot": "albums",
-			"query": map[string]any{"field": "genre", "operator": "equals", "value": value},
+			"query": map[string]any{"variant": "predicate", "field": "genre", "operator": "equals", "value": value},
 			"sort":  []any{map[string]any{"field": "title", "direction": "asc"}},
 		}
 	}
@@ -533,7 +533,7 @@ func TestGoldenAggregateCardFactsBoundaries(t *testing.T) {
 	albumDestination := func(value string) map[string]any {
 		return map[string]any{
 			"pivot": "albums",
-			"query": map[string]any{"field": "genre", "operator": "equals", "value": value},
+			"query": map[string]any{"variant": "predicate", "field": "genre", "operator": "equals", "value": value},
 			"sort":  []any{map[string]any{"field": "title", "direction": "asc"}},
 		}
 	}

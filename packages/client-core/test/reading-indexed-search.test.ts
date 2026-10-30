@@ -36,7 +36,8 @@ test('options, anchor, IDs, cover, duplicate positions, archive paths and UTF-16
   assert.throws(() => parseReadingIndexedSearchPage(page({hits: [hit({excerpt: '\uD83D'})]})), /invalid_reading_indexed_search/);
   assert.throws(() => parseReadingIndexedSearchPage(page({next: 'x'.repeat(513)})), /invalid_reading_indexed_search/);
   assert.throws(() => parseReadingIndexedSearchPage(page({next: ''})), /invalid_reading_indexed_search/);
-  assert.throws(() => parseReadingIndexedSearchPage(page({extra: true})), /invalid_reading_indexed_search/);
+  // R-09b: responses read open; an added member is ignored.
+  assert.doesNotThrow(() => parseReadingIndexedSearchPage(page({extra: true})));
 });
 
 test('the shared query validator keeps literal words and refuses non-searchable text', () => {

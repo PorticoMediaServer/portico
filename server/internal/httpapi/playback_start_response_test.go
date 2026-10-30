@@ -14,12 +14,15 @@ import (
 )
 
 func TestPlaybackStartMinimalWaitHasNoSessionAndIs202Only(t *testing.T) {
-	response := playbackStartResponse{RetryAfterMs: 500}
+	response, err := startPreparedResponse(playbackv1.PreparedStart{Preparing: true, RetryAfterMs: 500})
+	if err != nil {
+		t.Fatal(err)
+	}
 	raw, err := json.Marshal(response)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(raw) != `{"retryAfterMs":500}` {
+	if string(raw) != `{"variant":"wait","retryAfterMs":500}` {
 		t.Fatalf("private preparation fabricated session fields: %s", raw)
 	}
 	validator := apispec.Document{}
@@ -80,7 +83,7 @@ func TestPlaybackStartWrapperKeepsActualSessionJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	after, err := json.Marshal(out)
-	if err != nil || string(before) != string(after) {
+	if err != nil || string(tagged(before)) != string(after) {
 		t.Fatalf("real session JSON changed: %v\n%s\n%s", err, before, after)
 	}
 	validator := apispec.Document{}
@@ -90,6 +93,7 @@ func TestPlaybackStartWrapperKeepsActualSessionJSON(t *testing.T) {
 			v.RetryAfterMs = 500
 		}
 		raw, _ := json.Marshal(v)
+		raw = tagged(raw)
 		projected, err := startPreparedResponse(playbackv1.PreparedStart{Session: &v, Preparing: status == 202, RetryAfterMs: v.RetryAfterMs})
 		if err != nil {
 			t.Fatalf("real session projection status %d: %v", status, err)
@@ -142,6 +146,9 @@ func TestPlaybackStartCanonicalSchemaValidatesCompleteActualResource(t *testing.
 		if err != nil {
 			t.Fatal(err)
 		}
+		if _, isMap := value.(map[string]any); !isMap {
+			raw = tagged(raw)
+		}
 		issues := validator.ValidateJSON((playbackStartResponse{}).JSONSchemaForStatus(status), raw)
 		if (len(issues) == 0) != want {
 			t.Fatalf("status %d valid=%v: %v\n%s", status, want, issues, raw)
@@ -154,7 +161,10 @@ func TestPlaybackStartCanonicalSchemaValidatesCompleteActualResource(t *testing.
 		pending.State = state
 		pending.RetryAfterMs = 500
 		check(202, pending, true)
-		check(201, pending, false)
+		// A completed start never carries a wait; the server refuses to send one.
+		if _, err := startSessionResponse(pending, false); err == nil {
+			t.Fatal("a 201 session carried a preparation wait")
+		}
 	}
 	ended := real
 	ended.State = "ended"
@@ -166,6 +176,7 @@ func TestPlaybackStartCanonicalSchemaValidatesCompleteActualResource(t *testing.
 	pending := real
 	pending.RetryAfterMs = 500
 	raw, _ := json.Marshal(pending)
+	raw = tagged(raw)
 	copyValue := func() map[string]any {
 		var value map[string]any
 		if err := json.Unmarshal(raw, &value); err != nil {
@@ -175,36 +186,39 @@ func TestPlaybackStartCanonicalSchemaValidatesCompleteActualResource(t *testing.
 	}
 	nested := func(v map[string]any, key string) map[string]any { return v[key].(map[string]any) }
 	for name, mutate := range map[string]func(map[string]any){
-		"root closure":         func(v map[string]any) { v["unexpected"] = true },
-		"lease closure":        func(v map[string]any) { nested(v, "lease")["unexpected"] = true },
-		"presentation closure": func(v map[string]any) { nested(v, "presentation")["unexpected"] = true },
-		"decision closure":     func(v map[string]any) { nested(nested(v, "presentation"), "decision")["unexpected"] = true },
-		"nested stream closure": func(v map[string]any) {
-			nested(nested(nested(v, "presentation"), "decision"), "video")["unexpected"] = true
-		},
-		"required":            func(v map[string]any) { delete(v, "lease") },
-		"null required":       func(v map[string]any) { v["presentation"] = nil },
-		"wrong type":          func(v map[string]any) { v["id"] = 2 },
-		"kind":                func(v map[string]any) { v["kind"] = "other" },
-		"role":                func(v map[string]any) { v["role"] = "other" },
-		"projected state":     func(v map[string]any) { v["state"] = "preparing" },
-		"engine":              func(v map[string]any) { nested(v, "presentation")["engine"] = "other" },
-		"empty native engine": func(v map[string]any) { nested(v, "presentation")["engine"] = "" },
-		"mode":                func(v map[string]any) { nested(v, "presentation")["mode"] = "other" },
-		"negative position":   func(v map[string]any) { nested(v, "presentation")["startPositionMs"] = -1 },
-		"zero generation":     func(v map[string]any) { nested(v, "presentation")["generation"] = 0 },
-		"lease date":          func(v map[string]any) { nested(v, "lease")["expiresAt"] = "not-a-time" },
-		"lease offset":        func(v map[string]any) { nested(v, "lease")["expiresAt"] = "2026-10-27T01:02:03+00:00" },
-		"lease precision":     func(v map[string]any) { nested(v, "lease")["expiresAt"] = "2026-10-27T01:02:03.1234567890Z" },
-		"negative interval":   func(v map[string]any) { nested(v, "lease")["reportEveryMs"] = -1 },
-		"zero interval":       func(v map[string]any) { nested(v, "lease")["reportEveryMs"] = 0 },
-		"end contamination":   func(v map[string]any) { v["end"] = map[string]any{"reason": "stopped"} },
-		"retry missing":       func(v map[string]any) { delete(v, "retryAfterMs") },
-		"retry null":          func(v map[string]any) { v["retryAfterMs"] = nil },
-		"retry bounds":        func(v map[string]any) { v["retryAfterMs"] = 10001 },
-		"empty decision":      func(v map[string]any) { nested(v, "presentation")["decision"] = map[string]any{} },
+		"untagged":          func(v map[string]any) { delete(v, "variant") },
+		"unknown tag":       func(v map[string]any) { v["variant"] = "other" },
+		"required":          func(v map[string]any) { delete(v, "lease") },
+		"null required":     func(v map[string]any) { v["presentation"] = nil },
+		"wrong type":        func(v map[string]any) { v["id"] = 2 },
+		"kind":              func(v map[string]any) { v["kind"] = "other" },
+		"role":              func(v map[string]any) { v["role"] = "other" },
+		"projected state":   func(v map[string]any) { v["state"] = "preparing" },
+		"engine":            func(v map[string]any) { nested(v, "presentation")["engine"] = "other" },
+		"mode":              func(v map[string]any) { nested(v, "presentation")["mode"] = "other" },
+		"negative position": func(v map[string]any) { nested(v, "presentation")["startPositionMs"] = -1 },
+		"lease date":        func(v map[string]any) { nested(v, "lease")["expiresAt"] = "not-a-time" },
+		"lease offset":      func(v map[string]any) { nested(v, "lease")["expiresAt"] = "2026-10-27T01:02:03+00:00" },
+		"lease precision":   func(v map[string]any) { nested(v, "lease")["expiresAt"] = "2026-10-27T01:02:03.1234567890Z" },
+		"negative interval": func(v map[string]any) { nested(v, "lease")["reportEveryMs"] = -1 },
+		"zero interval":     func(v map[string]any) { nested(v, "lease")["reportEveryMs"] = 0 },
+		"retry missing":     func(v map[string]any) { delete(v, "retryAfterMs") },
+		"retry null":        func(v map[string]any) { v["retryAfterMs"] = nil },
+		"retry bounds":      func(v map[string]any) { v["retryAfterMs"] = 10001 },
 	} {
 		t.Run(name, func(t *testing.T) { value := copyValue(); mutate(value); check(202, value, false) })
+	}
+	// R-09b: responses are read open. A newer server's added members, at any
+	// depth, are ignored rather than refused; the session invariants (a native
+	// engine, a generation, no end while preparing) are the server's own and
+	// startSessionResponse refuses to send anything else.
+	for name, mutate := range map[string]func(map[string]any){
+		"root addition":         func(v map[string]any) { v["unexpected"] = true },
+		"lease addition":        func(v map[string]any) { nested(v, "lease")["unexpected"] = true },
+		"presentation addition": func(v map[string]any) { nested(v, "presentation")["unexpected"] = true },
+		"decision addition":     func(v map[string]any) { nested(nested(v, "presentation"), "decision")["unexpected"] = true },
+	} {
+		t.Run(name, func(t *testing.T) { value := copyValue(); mutate(value); check(202, value, true) })
 	}
 	for _, date := range []string{"2026-10-27T01:02:03Z", "2026-10-27T01:02:03.1Z", "2026-10-27T01:02:03.123456789Z"} {
 		value := copyValue()
@@ -224,4 +238,9 @@ func TestPlaybackStartCanonicalSchemaValidatesCompleteActualResource(t *testing.
 	nulled := copyValue()
 	nulled["observedPlayback"] = nil
 	check(202, nulled, false)
+}
+
+// tagged is a session body as the start route sends it: the session tag first.
+func tagged(raw []byte) []byte {
+	return append([]byte(`{"variant":"session",`), raw[1:]...)
 }

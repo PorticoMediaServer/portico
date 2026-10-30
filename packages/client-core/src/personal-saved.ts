@@ -145,13 +145,13 @@ export function isPersonalSavedRoute(route:SavedRoute|null):boolean{return !!rou
 /** The definition names an existing authorized library and canonical browse semantics. */
 export function makeSavedDefinition(libraryId:string,titlePrefix='',presentation:'grid'|'list'='grid',sort:string='title',direction:'asc'|'desc'='asc',categoryId='',pivot='movies'):SavedDefinition{
  const predicates:BrowseNode[]=[];
- if(titlePrefix.trim())predicates.push({field:'title',operator:'starts-with',value:titlePrefix});
+ if(titlePrefix.trim())predicates.push({variant:'predicate',field:'title',operator:'starts-with',value:titlePrefix});
  if(categoryId){
   const [field,value]=categoryId.split(':');
   if(!field||!value)bad();
-  predicates.push(field==='decade'||field==='year'?{field,operator:'equals',value:Number(value)}:{field,operator:'contains',value});
+  predicates.push(field==='decade'||field==='year'?{variant:'predicate',field,operator:'equals',value:Number(value)}:{variant:'predicate',field,operator:'contains',value});
  }
- const query=predicates.length===0?null:predicates.length===1?predicates[0]:{all:predicates};
+ const query=predicates.length===0?null:predicates.length===1?predicates[0]:{variant:'group',all:predicates};
  return definition({libraryId,pivot,query,sort:[{field:sort,direction}],presentation});
 }
 /** Reads back the two flat controls the simple saved-view editor writes. A saved

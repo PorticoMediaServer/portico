@@ -4,6 +4,7 @@ import type {BrowseRequestBody} from './browse.ts';
 import type {LibraryContentApi} from './library-content.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {ApiError, errorFieldPath, retryAfterSecondsFrom} from './index.ts';
+import {refuseUnknownVariant} from './tolerant.ts';
 import {readPreparation, type PreparationRequestPort, type PreparationResponse, type PreparationRuntime} from './read-preparation.ts';
 
 export type SearchGenreArt = Readonly<{kind: 'item' | 'show'; id: string; path: string}>;
@@ -12,12 +13,12 @@ export type SearchGenre = Readonly<{
   backdrop?: SearchGenreArt; covers: readonly SearchGenreArt[];
 }>;
 type GenreReadyWire = Exclude<Extract<RouteResponse<'get_search_genres'>, {genres: unknown}>, {kind: unknown}>;
-export type SearchGenrePage = Readonly<Omit<GenreReadyWire, 'genres'> & {genres: readonly SearchGenre[]}>;
+export type SearchGenrePage = Readonly<Omit<GenreReadyWire, 'genres' | 'variant'> & {genres: readonly SearchGenre[]}>;
 export type SearchGenreRequest = Readonly<{limit?: number; cursor?: string; preview?: '' | 'backdrop' | 'covers'}>;
-export type SearchGenrePreparing = Readonly<{kind: 'genre-preparing'; state: 'preparing'; queryId: string; retryAfterMs: number}>;
+export type SearchGenrePreparing = Readonly<{variant?: 'preparing'; kind: 'genre-preparing'; state: 'preparing'; queryId: string; retryAfterMs: number}>;
 /** Cold fallback is unknown, not a definitive empty directory/preview. No anchors/HasGenres. */
 export type SearchGenreFallbackPage = Readonly<{
-  kind: 'genre-fallback'; queryId: string; revision: 'preparing'; genres: readonly [];
+  variant: 'fallback'; kind: 'genre-fallback'; queryId: string; revision: 'preparing'; genres: readonly [];
   hasGenresKnown: false; totalIsLowerBound: true; preparation: SearchGenrePreparing;
 }>;
 export type SearchGenreApi = LibraryContentApi & Partial<PreparationRequestPort>;
@@ -40,6 +41,7 @@ export type SearchGenreReadOptions = Readonly<{
   onReanchor?: (response: PreparationResponse) => void;
 }>;
 
+const genreVariants = ['ready', 'fallback', 'preparing'] as const;
 const object = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const text = (value: unknown, max: number): value is string => typeof value === 'string' && value.length > 0 && value.length <= max && !/[\x00-\x1f\x7f]/.test(value);
 const opaqueId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{1,512}$/.test(value);
@@ -66,7 +68,7 @@ function art(value: unknown, role: 'backdrop' | 'poster'): SearchGenreArt {
  * Each surface applies only its drawn art requirement and prefix length. */
 export function parseSearchGenres(input: unknown): SearchGenrePage {
   // Null optional slots are rejected before the generated decoder can treat them as absent.
-  if (!object(input) || !opaqueId(input.queryId) || typeof input.revision !== 'string' || input.revision.length === 0
+  if (!object(input) || input.variant !== 'ready' || !opaqueId(input.queryId) || typeof input.revision !== 'string' || input.revision.length === 0
       || input.hasGenres !== undefined && typeof input.hasGenres !== 'boolean'
       || input.kind !== undefined || input.state !== undefined || input.retryAfterMs !== undefined
       || !Array.isArray(input.genres) || input.genres.length > 50
@@ -74,7 +76,7 @@ export function parseSearchGenres(input: unknown): SearchGenrePage {
   for (const key of ['nextCursor', 'previousCursor', 'reloadCursor'] as const) if (input[key] !== undefined && !cursor(input[key])) invalid();
   if (input.hasGenres === false && input.genres.length > 0) invalid();
   let raw: GenreReadyWire;
-  try { const decoded = decodeGetSearchGenresResponse(input); if (!('genres' in decoded) || 'kind' in decoded) invalid(); raw = decoded; } catch { invalid(); }
+  try { const decoded = decodeGetSearchGenresResponse(input); if (!('genres' in decoded) || 'kind' in decoded || decoded.variant !== 'ready') invalid(); raw = decoded; } catch { invalid(); }
   const seen = new Set<string>();
   const genres = raw.genres.map(genre => {
     if (!object(genre) || typeof genre.value !== 'string' || genre.value.length === 0 || typeof genre.label !== 'string'
@@ -94,24 +96,25 @@ export function parseSearchGenres(input: unknown): SearchGenrePage {
     ...(raw.reloadCursor !== undefined ? {reloadCursor: raw.reloadCursor} : {})});
 }
 
-export function parseSearchGenrePreparing(input: unknown, response?: PreparationResponse): SearchGenrePreparing {
-  if (!object(input) || Object.keys(input).some(key => !['kind', 'state', 'queryId', 'retryAfterMs'].includes(key))
+export function parseSearchGenrePreparing(input: unknown, response?: PreparationResponse, tagged = true): SearchGenrePreparing {
+  if (!object(input) || Object.keys(input).some(key => !['variant', 'kind', 'state', 'queryId', 'retryAfterMs'].includes(key))
+      || tagged && input.variant !== 'preparing' || !tagged && input.variant !== undefined
       || input.kind !== 'genre-preparing' || input.state !== 'preparing' || !opaqueId(input.queryId)
       || !safeCount(input.retryAfterMs) || input.retryAfterMs < 1) invalid(response);
-  try { const decoded = decodeGetGenreQueryResponse(input); if (!('state' in decoded)) invalid(response); } catch { invalid(response); }
-  return Object.freeze({kind: 'genre-preparing', state: 'preparing', queryId: input.queryId, retryAfterMs: input.retryAfterMs});
+  try { const decoded = decodeGetGenreQueryResponse(tagged ? input : {variant: 'preparing', ...input}); if (!('state' in decoded)) invalid(response); } catch { invalid(response); }
+  return Object.freeze({...(tagged ? {variant: 'preparing' as const} : {}), kind: 'genre-preparing', state: 'preparing', queryId: input.queryId, retryAfterMs: input.retryAfterMs});
 }
 
 /** The new fallback DTO is intentionally stricter than a ready page: unknown presence,
  * explicit lower-bound status, empty rows, no mutable-staging continuation anchors. */
 export function parseSearchGenreFallback(input: unknown, response?: PreparationResponse): SearchGenreFallbackPage {
   if (!object(input) || Object.keys(input).some(key => ![
-    'kind', 'queryId', 'revision', 'genres', 'hasGenresKnown', 'totalIsLowerBound', 'preparation',
-  ].includes(key)) || input.kind !== 'genre-fallback' || !opaqueId(input.queryId) || input.revision !== 'preparing'
+    'variant', 'kind', 'queryId', 'revision', 'genres', 'hasGenresKnown', 'totalIsLowerBound', 'preparation',
+  ].includes(key)) || input.variant !== 'fallback' || input.kind !== 'genre-fallback' || !opaqueId(input.queryId) || input.revision !== 'preparing'
       || !Array.isArray(input.genres) || input.genres.length !== 0 || input.hasGenresKnown !== false || input.totalIsLowerBound !== true) invalid(response);
-  const preparation = parseSearchGenrePreparing(input.preparation, response);
+  const preparation = parseSearchGenrePreparing(input.preparation, response, false);
   if (preparation.queryId !== input.queryId) invalid(response);
-  return Object.freeze({kind: 'genre-fallback', queryId: input.queryId, revision: 'preparing',
+  return Object.freeze({variant: 'fallback' as const, kind: 'genre-fallback', queryId: input.queryId, revision: 'preparing',
     genres: Object.freeze([]) as readonly [], hasGenresKnown: false, totalIsLowerBound: true, preparation});
 }
 
@@ -249,12 +252,14 @@ async function executeGenreRead(api: SearchGenreApi, descriptor: SearchGenreRequ
         poll: id => path('poll', id), cancel: id => path('cancel', id),
       },
       readyQueryId: (body, response) => {
+        refuseUnknownVariant(body, genreVariants);
         if (!object(body) || !opaqueId(body.queryId)) invalid(response);
         releasePredecessor(); return body.queryId;
       },
-      parsePreparing: (body, response) => { const pending = parseSearchGenrePreparing(body, response); releasePredecessor(); return pending; },
+      parsePreparing: (body, response) => { refuseUnknownVariant(body, genreVariants); const pending = parseSearchGenrePreparing(body, response); releasePredecessor(); return pending; },
       parseIntermediateReady: (body, response) => {
-        if (!object(body) || body.kind !== 'genre-fallback') return undefined;
+        refuseUnknownVariant(body, genreVariants);
+        if (!object(body) || body.variant !== 'fallback') return undefined;
         const fallback = parseSearchGenreFallback(body, response);
         return {pending: fallback.preparation, value: fallback};
       },
@@ -263,6 +268,7 @@ async function executeGenreRead(api: SearchGenreApi, descriptor: SearchGenreRequ
         onFallback?.(fallback, response);
       },
       parseReady: (body, response) => {
+        refuseUnknownVariant(body, genreVariants);
         let page: SearchGenrePage;
         try { page = parseSearchGenres(body); } catch { invalid(response); }
         if (page.genres.length > (descriptor.limit ?? 50)) invalid(response);
@@ -274,7 +280,7 @@ async function executeGenreRead(api: SearchGenreApi, descriptor: SearchGenreRequ
         return page;
       },
       retainOnReady: !descriptor.preview, signal: controller.signal, isCurrent,
-      runtime, onPreparing: (pending, response) => onPreparing?.(Object.freeze({kind: 'genre-preparing', state: 'preparing', ...pending}), response),
+      runtime, onPreparing: (pending, response) => onPreparing?.(Object.freeze({variant: 'preparing' as const, kind: 'genre-preparing', state: 'preparing', ...pending}), response),
       errorFromResponse: errorFromResponse ?? (response => genreError(response, runtime?.now?.() ?? Date.now())),
     });
     try { current(signal, isCurrent); } catch (error) { result.release(); throw error; }
@@ -298,6 +304,6 @@ export const searchGenreBrowsePivot = 'video-titles';
 export function searchGenreBrowseRequest(value: string): BrowseRequestBody {
   if (typeof value !== 'string' || value.length === 0) throw new Error('Invalid genre value.');
   return Object.freeze({pivot: searchGenreBrowsePivot,
-    query: Object.freeze({field: 'genre', operator: 'equals', value}),
+    query: Object.freeze({variant: 'predicate' as const, field: 'genre', operator: 'equals' as const, value}),
     sort: Object.freeze([Object.freeze({field: 'title', direction: 'asc' as const})])});
 }

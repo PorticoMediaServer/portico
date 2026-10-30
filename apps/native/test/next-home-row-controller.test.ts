@@ -45,7 +45,7 @@ test('See all preserves requested Continue membership, actual episode display id
     assert.deepEqual(f.controller.collection.itemAt(0), {membershipId: 'show-membership', entry: row.entries[0]});
     const page = f.calls.find(call => call.path === '/v1/browse')!.body;
     assert.equal(page.homeRowDisplay, 'continue'); assert.equal(page.limit, 60);
-    assert.deepEqual(page.query.all[0], {field: 'homeRow', operator: 'equals', value: 'continue'});
+    assert.deepEqual(page.query.all[0], {variant: 'predicate', field: 'homeRow', operator: 'equals', value: 'continue'});
     assert.equal(page.sort[0].field, 'groupOrder');
     assert.equal(f.controller.wholeGroup()?.pivot, 'items', 'real episode kinds choose the canonical items queue selector');
   } finally {f.controller.dispose();}
@@ -57,12 +57,12 @@ test('sort, filters and kind chips keep the immutable row and use actual authori
     await f.controller.load(); assert.ifError(f.controller.getSnapshot().error);
     assert.equal(f.controller.selectKind('invented-library-kind'), false);
     f.controller.selectKind('tv');
-    f.controller.setFilters([{field: 'playState', operator: 'equals', value: 'in-progress'}]);
+    f.controller.setFilters([{variant: 'predicate', field: 'playState', operator: 'equals', value: 'in-progress'}]);
     f.controller.setSort({field: 'title', direction: 'asc'});
     const source = f.controller.wholeGroup()!;
-    assert.deepEqual(source.query, {all: [{field: 'homeRow', operator: 'equals', value: 'continue'}, {field: 'playState', operator: 'equals', value: 'in-progress'}, {field: 'library', operator: 'in', value: ['shows']}]});
+    assert.deepEqual(source.query, {variant: 'group', all: [{variant: 'predicate', field: 'homeRow', operator: 'equals', value: 'continue'}, {variant: 'predicate', field: 'playState', operator: 'equals', value: 'in-progress'}, {variant: 'predicate', field: 'library', operator: 'in', value: ['shows']}]});
     assert.deepEqual(source.sort, [{field: 'title', direction: 'asc'}]);
-    assert.throws(() => f.controller.setFilters([{field: 'not-offered', operator: 'equals', value: true}]));
+    assert.throws(() => f.controller.setFilters([{variant: 'predicate', field: 'not-offered', operator: 'equals', value: true}]));
   } finally {f.controller.dispose();}
 });
 
@@ -80,12 +80,12 @@ test('filter preview counts the real draft while leaving the retained grid uncha
   try {
     await f.controller.load(); f.controller.collection.ensureRange(0, 0); await settle();
     const item = f.controller.collection.itemAt(0), before = f.calls.length;
-    const draft = [{field: 'playState' as const, operator: 'equals' as const, value: 'in-progress'}];
+    const draft = [{variant: 'predicate' as const, field: 'playState' as const, operator: 'equals' as const, value: 'in-progress'}];
     const counts = await f.controller.previewCounts(draft);
     assert.equal(counts[0].total, 87);
     const requests = f.calls.slice(before);
     assert.equal(requests.every(call => call.path === '/v1/browse/counts'), true);
-    assert.deepEqual(requests[0].body.queries[0].query, {all: [{field: 'homeRow', operator: 'equals', value: 'continue'}, ...draft]});
+    assert.deepEqual(requests[0].body.queries[0].query, {variant: 'group', all: [{variant: 'predicate', field: 'homeRow', operator: 'equals', value: 'continue'}, ...draft]});
     assert.deepEqual(f.controller.getSnapshot().filters, []);
     assert.strictEqual(f.controller.collection.itemAt(0), item, 'closing a draft needs no scroll or collection restoration');
     f.controller.setFilters(draft);

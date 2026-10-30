@@ -20,7 +20,7 @@ function fixture(input: Readonly<{draft?: boolean; resume?: unknown; hosted?: ()
     ...(input.admittedOwner ? {admittedOwner: true as const} : {}),
     api: {getRouteConnection: () => ({pin: {serverId: 'server-1'}}), request: async (path: string) => {requests++; calls.push({name: 'request', value: path});
       if (path.includes('setup/browser')) throw Object.assign(new Error('not allowed from this address'), {status: 401});
-      return input.resume ?? session();}} as never,
+      return input.resume ?? {variant: 'session', ...session()};}} as never,
     pin: {serverId: 'server-1', publicKey: 'x', fingerprint: 'y'} as never,
     draft: {read: async () => input.draft ? {version: 1, serverId: 'server-1', requestId: '11111111-2222-4333-8444-555555555555', setupToken: 'token', name: 'Portico demo', authMode: 'local'} : undefined,
       change: async () => {}} as never,
@@ -84,7 +84,7 @@ test('a refused setup authorization shows the drawn network copy and clears the 
 });
 
 test('an interrupted local setup resumes its protected draft and admits the owner before the first library', async () => {
-  const f = fixture({draft: true, resume: session()});
+  const f = fixture({draft: true, resume: {variant: 'session', ...session()}});
   try {
     await f.flow.start();
     assert.equal(f.accepted(), 1);
@@ -94,7 +94,7 @@ test('an interrupted local setup resumes its protected draft and admits the owne
 });
 
 test('the first library sends the drawn kind, name and path, and Skip completes without a write', async () => {
-  const f = fixture({draft: true, resume: session()});
+  const f = fixture({draft: true, resume: {variant: 'session', ...session()}});
   try {
     await f.flow.start();
     f.flow.setKind('tv'); f.flow.setLibraryName('Shows'); f.flow.setPath('/srv/media/TV');
@@ -102,7 +102,7 @@ test('the first library sends the drawn kind, name and path, and Skip completes 
     assert.deepEqual(f.calls.find(call => call.name === 'addLibrary')?.value, {kind: 'tv', name: 'Shows', path: '/srv/media/TV'});
     assert.equal(f.completions.length, 1);
   } finally {f.flow.dispose();}
-  const skip = fixture({draft: true, resume: session()});
+  const skip = fixture({draft: true, resume: {variant: 'session', ...session()}});
   try {
     await skip.flow.start(); skip.flow.skip();
     assert.equal(skip.completions.length, 1);
@@ -152,8 +152,8 @@ for (const replace of [false, true]) test(`local recovery ${replace ? 'refuses a
   const requests: {path: string; body: unknown}[] = [];
   f.server.api.request = (async (path: string, _method: string, body: unknown) => {
     requests.push({path, body});
-    if (path === '/v1/setup/resume') return {serverId: 'server-1', requestId: draft!.requestId, claimRequired: true, authMode: 'hosted', revision: '1'};
-    if (path === '/v1/setup') return session();
+    if (path === '/v1/setup/resume') return {variant: 'claim-required', serverId: 'server-1', requestId: draft!.requestId, claimRequired: true, authMode: 'hosted', revision: '1'};
+    if (path === '/v1/setup') return {variant: 'session', ...session()};
     throw new Error('No new browser setup proof may be requested.');
   }) as SetupServer['api']['request'];
   try {

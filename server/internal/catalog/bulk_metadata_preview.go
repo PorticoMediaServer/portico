@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -115,9 +114,7 @@ func (s *Service) bulkMetadataSelectionTx(ctx context.Context, tx *sql.Tx, v Vie
 	}
 	var node *BrowseNode
 	if len(q.Filter) > 0 {
-		decoder := json.NewDecoder(bytes.NewReader(q.Filter))
-		decoder.DisallowUnknownFields()
-		if err = decoder.Decode(&node); err != nil {
+		if node, err = ParseBrowseQuery(q.Filter, "filter"); err != nil {
 			return out, jobInvalid("invalid preview filter")
 		}
 	}

@@ -3,8 +3,10 @@ import {routePath} from '../../contracts/src/route-paths.ts';
 import {ApiError} from './index.ts';
 import {browsePath, parseBrowseFacets, parseBrowseResult, parseWholeSelection, type BrowseFacetPage, type BrowseResult, type BrowseWholeSelection, type WholeSelectionPage} from './browse.ts';
 import type {LibraryContentApi} from './library-content.ts';
+import {refuseUnknownVariant} from './tolerant.ts';
 import {readPreparation, PreparationProtocolError, type PreparationResponse, type PreparingRead, type PreparationRuntime} from './read-preparation.ts';
 
+const preparationVariants = ['ready', 'page', 'preparing', 'reading-preparing'] as const;
 type Domain = 'reading-facet' | 'reading-browse' | 'browse-selection';
 function capture<T>(value: T): T {
   const freeze = (v: unknown): void => {if (object(v) || Array.isArray(v)) {Object.values(v).forEach(freeze); Object.freeze(v);}};
@@ -26,7 +28,8 @@ function legacyReady(body: unknown): unknown {
 
 /** A handle from another domain is never usable. */
 export function parseBrowsePreparing(body: unknown, domain: Domain, response?: PreparationResponse): PreparingRead {
-  if (!object(body) || body.kind !== `${domain}-preparing` || body.state !== 'preparing'
+  refuseUnknownVariant(body, preparationVariants);
+  if (!object(body) || body.variant !== (domain === 'reading-facet' ? 'reading-preparing' : 'preparing') || body.kind !== `${domain}-preparing` || body.state !== 'preparing'
     || typeof body.queryId !== 'string' || !/^[A-Za-z0-9._~-]{1,512}$/.test(body.queryId) || ['.', '..'].includes(body.queryId)
     || !Number.isSafeInteger(body.retryAfterMs) || (body.retryAfterMs as number) < 0) {
     throw new PreparationProtocolError('invalid_preparing', response);
@@ -68,6 +71,7 @@ export async function readBrowsePage(api: LibraryContentApi, libraryId: string, 
   const path = browsePath(libraryId);
   if (!api.requestRaw) {
     current(lifetime); const value = await api.request(path, 'POST', captured, lifetime.signal); current(lifetime);
+    refuseUnknownVariant(value, preparationVariants);
     return {page: parseBrowseResult(legacyReady(value))};
   }
   const raw = api.requestRaw.bind(api);
@@ -78,7 +82,7 @@ export async function readBrowsePage(api: LibraryContentApi, libraryId: string, 
     })}, descriptor: libraryId,
     paths: {initial: () => path, refresh: () => {reanchor = true; return path;},
       poll: id => queryPath('reading-browse', libraryId, id), cancel: id => queryPath('reading-browse', libraryId, id, true)},
-    parseReady: parseBrowseResult, parsePreparing: (value, response) => parseBrowsePreparing(value, 'reading-browse', response),
+    parseReady: value => {refuseUnknownVariant(value, preparationVariants); return parseBrowseResult(value);}, parsePreparing: (value, response) => parseBrowsePreparing(value, 'reading-browse', response),
     errorFromResponse: browsePreparationError, ...lifetime});
   return {page: result.value, response: result.response};
 }
@@ -87,12 +91,13 @@ export async function readBrowsePage(api: LibraryContentApi, libraryId: string, 
 export async function readReadingFacet(api: LibraryContentApi, libraryId: string, path: string, field: string, lifetime: Lifetime): Promise<BrowseFacetPage> {
   if (!api.requestRaw) {
     current(lifetime); const value = await api.request(path, 'GET', undefined, lifetime.signal); current(lifetime);
-    return parseBrowseFacets(legacyReady(value), field);
+    refuseUnknownVariant(value, preparationVariants);
+    return parseBrowseFacets(legacyReady(value), field, 'page');
   }
   const result = await readPreparation({api: {requestRaw: api.requestRaw.bind(api)}, descriptor: Object.freeze({libraryId, path, field}),
     paths: {initial: d => d.path, refresh: d => d.path,
       poll: (id, d) => queryPath('reading-facet', d.libraryId, id), cancel: (id, d) => queryPath('reading-facet', d.libraryId, id, true)},
-    parseReady: value => parseBrowseFacets(value, field), parsePreparing: (value, response) => parseBrowsePreparing(value, 'reading-facet', response),
+    parseReady: value => {refuseUnknownVariant(value, preparationVariants); return parseBrowseFacets(value, field, 'page');}, parsePreparing: (value, response) => parseBrowsePreparing(value, 'reading-facet', response),
     errorFromResponse: browsePreparationError, ...lifetime});
   return result.value;
 }
@@ -133,6 +138,7 @@ export async function readBrowseSelection(api: LibraryContentApi, libraryId: str
       // Re-read the captured page once; its exact original basis must still match.
       refresh: () => refreshPath, poll: id => queryPath('browse-selection', libraryId, id), cancel: id => queryPath('browse-selection', libraryId, id, true)},
     parseReady: (value, metadata) => {
+      refuseUnknownVariant(value, preparationVariants);
       const whole = parsePreparedBrowseSelection(value, libraryId, basis, metadata);
       if (!object(body) || JSON.stringify(body.query ?? null) !== JSON.stringify(basis.query) || JSON.stringify(body.sort ?? []) !== JSON.stringify(basis.sort)) {
         throw Object.assign(new Error('browse-selection-query-changed'), {code: 'stale_continuation', response: metadata});

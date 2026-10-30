@@ -13,7 +13,9 @@ export const readingOfflineRefreshLimit = 50;
 type Result = PostReadingOfflineProgressReadResponse['results'][number];
 export type ReadingOfflineRefreshCurrent = Extract<Result, {itemId: string}>;
 export type ReadingOfflineRefreshResult = Readonly<{receiptId: string; outcome: 'current'; itemId: string; sourceId: string; sourceRevision: string; progress: ReadingOfflineRefreshCurrent['progress']}>
-  | Readonly<{receiptId: string; outcome: 'refused'; code: 'receipt_rejected' | 'source_unavailable'}>;
+  | Readonly<{receiptId: string; outcome: 'refused'; code: 'receipt_rejected' | 'source_unavailable'}>
+  /** O-159 R-09b: an outcome a newer server names that this client does not know. Keep the receipt and ask again later. */
+  | Readonly<{receiptId: string; outcome: 'unknown'}>;
 
 function invalid(): never {throw Object.assign(new Error('invalid_offline_refresh'), {code: 'invalid_document'});}
 
@@ -24,6 +26,7 @@ export function parseReadingOfflineRefresh(raw: unknown, sent: readonly Readonly
   if (decoded.results.length !== sent.length) invalid();
   return Object.freeze(decoded.results.map((result, i): ReadingOfflineRefreshResult => {
     const expected = sent[i]!;
+    if ('unknownVariant' in result) return Object.freeze({receiptId: expected.receiptId, outcome: 'unknown'});
     if (result.receiptId !== expected.receiptId) invalid();
     if (result.outcome === 'refused' && 'code' in result) {
       if (result.code !== 'receipt_rejected' && result.code !== 'source_unavailable') invalid();
