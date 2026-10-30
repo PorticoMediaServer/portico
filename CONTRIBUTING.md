@@ -2,7 +2,7 @@
 
 Thanks for wanting to help. Before you put time into something, here's how this works.
 
-Portico tries to do fewer things and do them really well. It isn't meant to be a pile of options and plugins. I'm the only maintainer, and I make the calls on design, scope, architecture, releases and branding. That means a change can be well built and still not be right for Portico, and I may say no to it.
+Portico is opinionated on purpose. It does a lot, but every feature is chosen and designed to fit one curated experience, not added as another option or plugin. I'm the only maintainer, and I make the calls on design, scope, architecture, releases and branding. That means a change can be well built and still not be right for Portico, and I may say no to it.
 
 ## What's welcome
 
