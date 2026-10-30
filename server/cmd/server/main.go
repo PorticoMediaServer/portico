@@ -6,15 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
-	"net"
-	"net/http"
-	"net/netip"
-	"os"
-	"os/exec"
-	"os/signal"
-	"path/filepath"
 	adminops "github.com/PorticoMediaServer/portico/server/internal/administration"
 	"github.com/PorticoMediaServer/portico/server/internal/archive7z"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
@@ -30,6 +21,15 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/enrichment"
 	"github.com/PorticoMediaServer/portico/server/internal/rcloneprogram"
 	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"net/netip"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
 	"runtime"
 
 	"github.com/PorticoMediaServer/portico/server/internal/decoder"
@@ -246,7 +246,11 @@ func logSetupBlock(port int, loopback bool) {
 		log.Printf("Open http://localhost:%d to set up Portico.", port)
 	}
 }
-func run() (runErr error) {
+func run() error {
+	return runWithInstanceLock(acquireInstanceLock)
+}
+
+func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr error) {
 	setupHosts, setupHostsErr := httpapi.ParseSetupHosts(os.Getenv("PORTICO_SETUP_HOSTS"))
 	if setupHostsErr != nil {
 		return setupHostsErr
@@ -357,20 +361,19 @@ func run() (runErr error) {
 	// anything opens the database or the journal, so a second instance never
 	// writes a byte.
 	doneInstance := reporter.step("instance", "Take the single-instance lock")
-	instance, lockErr := acquireInstanceLock(storagepaths.Path(state, "server.lock"))
+	instance, lockErr := takeLock(storagepaths.Path(state, "server.lock"))
 	if errors.Is(lockErr, errInstanceLockHeld) {
 		doneInstance(lockErr)
 		return fmt.Errorf("another Portico server is already using %s", state)
 	}
 	if lockErr != nil {
-		// Unsupported locking, or a filesystem that answered in a way we cannot
-		// interpret: say so once and carry on unguarded rather than refuse to run.
-		log.Printf("warn: Single-instance lock unavailable on %s (%v); run only one server against this state directory", state, lockErr)
-	} else {
-		defer instance.Close()
+		failure := &instanceLockFailure{state: state, cause: lockErr}
+		doneInstance(failure)
+		return failure
 	}
+	defer instance.Close()
 	doneInstance(nil)
-	if e = resetStartupWork(layout, lockErr == nil); e != nil {
+	if e = resetStartupWork(layout, true); e != nil {
 		return e
 	}
 	if e = layout.ActivateTemp(); e != nil {
@@ -382,26 +385,17 @@ func run() (runErr error) {
 	// copy moves into place, and verification runs the ordinary migrations. A
 	// failure moves the pre-restore copy back and the server still starts.
 	doneRestore := reporter.step("restore", "Apply a staged restore")
-	if lockErr != nil {
-		// Without the instance lock another server may be running on this state
-		// folder: moving its database would pull it out from under that server.
-		// A staged restore waits for a start that holds the lock.
-		if _, err := os.Stat(storagepaths.Path(state, backup.RestoreStagedDir)); err == nil {
-			log.Printf("A staged restore is waiting: it applies on a start that holds the single-instance lock")
+	if err := backup.CleanupPartials(state); err != nil {
+		log.Printf("warn: Backup staging cleanup: %v", err)
+	}
+	if err := backup.ApplyStaged(context.Background(), state, verifyRestoredState(state)); err != nil {
+		if backup.RestoreUnresolved(state) {
+			// Files may already have moved: starting now could serve a
+			// half-restored folder or a new empty database. Nothing has been
+			// deleted, and the next start resumes the restore.
+			return fmt.Errorf("A restore didn't finish (%v). Portico won't start on a half-restored state folder; nothing has been deleted, and the previous data is kept under %s. Fix the cause (for example free disk space or folder permissions), then start Portico again: it resumes the restore.", err, storagepaths.Path(state, backup.BackupsDir))
 		}
-	} else {
-		if err := backup.CleanupPartials(state); err != nil {
-			log.Printf("warn: Backup staging cleanup: %v", err)
-		}
-		if err := backup.ApplyStaged(context.Background(), state, verifyRestoredState(state)); err != nil {
-			if backup.RestoreUnresolved(state) {
-				// Files may already have moved: starting now could serve a
-				// half-restored folder or a new empty database. Nothing has been
-				// deleted, and the next start resumes the restore.
-				return fmt.Errorf("A restore didn't finish (%v). Portico won't start on a half-restored state folder; nothing has been deleted, and the previous data is kept under %s. Fix the cause (for example free disk space or folder permissions), then start Portico again: it resumes the restore.", err, storagepaths.Path(state, backup.BackupsDir))
-			}
-			log.Printf("warn: Staged restore did not apply (%v); continuing on the current state", err)
-		}
+		log.Printf("warn: Staged restore did not apply (%v); continuing on the current state", err)
 	}
 	doneRestore(nil)
 	// A staged restore may replace an invalid current config. Validate the
@@ -413,9 +407,7 @@ func run() (runErr error) {
 	// Every FFmpeg and ffprobe this server starts goes through mediaexec. Now
 	// that this process owns the state directory, stop what a crashed previous
 	// run left encoding (BE-MEDIA-06) and turn on the limits and the ledger.
-	// Without the lock another server may still be running on this state
-	// directory, so its live jobs are not orphans: configure without the kill.
-	if reaped, mediaErr := mediaexec.Configure(mediaexec.Options{StateDir: state, SkipOrphanKill: lockErr != nil, Libraries: append(filepath.SplitList(os.Getenv("PORTICO_DECODER_LIBRARIES")), filepath.SplitList(os.Getenv("PORTICO_LINEAR_DECODER_LIBRARIES"))...)}); mediaErr != nil {
+	if reaped, mediaErr := mediaexec.Configure(mediaexec.Options{StateDir: state, Libraries: append(filepath.SplitList(os.Getenv("PORTICO_DECODER_LIBRARIES")), filepath.SplitList(os.Getenv("PORTICO_LINEAR_DECODER_LIBRARIES"))...)}); mediaErr != nil {
 		log.Printf("warn: Media process limits and the orphan ledger are unavailable (%v); media still runs sandboxed where the platform allows", mediaErr)
 	} else if reaped > 0 {
 		log.Printf("Stopped %d media process group(s) a previous run of this server left running", reaped)
@@ -1280,7 +1272,7 @@ func run() (runErr error) {
 	}
 
 	backupService.SetRestartFunc(requestRestart)
-	backupService.SetRestoreAvailable(lockErr == nil)
+	backupService.SetRestoreAvailable(true)
 	outboundWebhooks := startWebhooks(ctx, db, ident, backupService, adminOperations, console)
 	// The backup schedule: every five minutes a window holding the backup
 	// task may start one scheduled backup, then prune to the keep count.

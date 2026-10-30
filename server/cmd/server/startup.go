@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"html/template"
 	"log"
 	"net"
@@ -176,7 +177,8 @@ func runDeferredMaintenance(ctx context.Context, db *sql.DB) {
 
 // Recovery never opens the database, writes state, or offers an unauthenticated
 // repair button. Public replies contain an actionable category, not log errors
-// that may include media paths, URLs or credentials.
+// that may include media paths, URLs or credentials. The lock-specific
+// diagnostic intentionally includes the state-folder path and locking error.
 type startupRecovery struct{ Title, Phase, Advice, Recovery, AdviceID string }
 
 var recoveryPage = template.Must(template.New("recovery").Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{.Title}}</title><body><main><h1>{{.Title}}</h1><p>{{.Phase}}</p><p>{{.Advice}}</p><p>{{.Recovery}}</p></main></body></html>`))
@@ -190,8 +192,11 @@ func (s *startupReporter) fail(err error) {
 		}
 	}
 	adviceID := "server.startup.storage"
+	var lockFailure *instanceLockFailure
 	text := strings.ToLower(err.Error())
 	switch {
+	case errors.As(err, &lockFailure):
+		adviceID = "server.startup.locking"
 	case strings.Contains(text, "earlier pre-release"), strings.Contains(text, "migration"), strings.Contains(text, "schema"):
 		adviceID = "server.startup.version"
 	case strings.Contains(text, "permission"), strings.Contains(text, "access denied"):
@@ -202,7 +207,11 @@ func (s *startupReporter) fail(err error) {
 		adviceID = "server.startup.instance"
 	}
 	s.mu.Lock()
-	s.failure = &startupRecovery{Title: startupCopy["server.startup.failed"], Phase: phase, Advice: startupCopy[adviceID], Recovery: startupCopy["server.startup.recovery"], AdviceID: adviceID}
+	advice := startupCopy[adviceID]
+	if lockFailure != nil {
+		advice = lockFailure.Error()
+	}
+	s.failure = &startupRecovery{Title: startupCopy["server.startup.failed"], Phase: phase, Advice: advice, Recovery: startupCopy["server.startup.recovery"], AdviceID: adviceID}
 	s.mu.Unlock()
 }
 func (s *startupRecovery) ServeHTTP(w http.ResponseWriter, r *http.Request) {

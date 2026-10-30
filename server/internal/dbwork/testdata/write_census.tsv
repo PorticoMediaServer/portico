@@ -109,8 +109,8 @@ internal/catalog/scalebench/trickle.go	exerciseTrickle	WithWriteTx	ClassBackgrou
 internal/catalog/search_history.go	(*Service).ClearSearchHistory	ExecWrite	ClassFrom(s.Context(), dbwork.ClassInteractive)	-
 internal/catalog/search_history.go	(*Service).DeleteSearchHistory	ExecWrite	ClassFrom(s.Context(), dbwork.ClassInteractive)	-
 internal/catalog/search_history.go	(*Service).RecordSearch	ExecWrite	ClassFrom(s.Context(), dbwork.ClassInteractive)	-	×2
-internal/catalog/separate_folder_background.go	(*Service).separateFolderBackground	WithWriteTx	ClassBackgroundMedia	dbwork.DefaultPlan(dbwork.ClassInteractive)
-internal/catalog/separate_folder_command.go	(*Service).runSeparateFolder	WithWriteTx	ClassFrom(ctx, dbwork.ClassInteractive)	dbwork.DefaultPlan(dbwork.ClassInteractive)
+internal/catalog/separate_folder_admission.go	(*Service).runSeparateFolder	WithWriteTx	ClassFrom(ctx, dbwork.ClassInteractive)	dbwork.DefaultPlan(dbwork.ClassInteractive)
+internal/catalog/separate_folder_background.go	(*Service).separateFolderBackground	WithWriteTx	ClassBackgroundMedia	dbwork.DefaultPlan(dbwork.ClassInteractive)	×2
 internal/catalog/show_settings.go	(*Service).SetShowSettings	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	-
 internal/catalog/title_merge.go	(*Service).MergeTitles	WithWriteTx	ClassFrom(ctx, dbwork.ClassInteractive)	-
 internal/catalog/title_tombstones.go	(*Service).DismissRemovedTitle	WithWriteTx	ClassInteractive	-
@@ -676,8 +676,8 @@ plan	internal/catalog/inventory.go	(*Service).CommitInventoryPage	inventoryPages
 plan	internal/catalog/inventory.go	(*Service).CommitInventoryPages	inventoryPagesPlan
 plan	internal/catalog/inventory.go	(*Service).commitInventoryAnalysisApplied	audioFilePublicationPlan
 plan	internal/catalog/inventory_local_refresh.go	(*Service).commitInventoryLocalRefreshApplied	audioFilePublicationPlan
+plan	internal/catalog/separate_folder_admission.go	(*Service).runSeparateFolder	dbwork.DefaultPlan(dbwork.ClassInteractive)
 plan	internal/catalog/separate_folder_background.go	(*Service).separateFolderBackground	dbwork.DefaultPlan(dbwork.ClassInteractive)
-plan	internal/catalog/separate_folder_command.go	(*Service).runSeparateFolder	dbwork.DefaultPlan(dbwork.ClassInteractive)
 plan	internal/catalog/separate_folder_command.go	SeparateFolderCommandStepTx	dbwork.DefaultPlan(dbwork.ClassInteractive)
 plan	internal/compactcatalog/derive.go	(*Worker).Step	DrainPlan
 plan	internal/compactcatalog/derive.go	(*Worker).Step	derivationUnitPlan

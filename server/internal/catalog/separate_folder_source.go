@@ -124,3 +124,27 @@ func separateFolderAdmissionWindowTx(ctx context.Context, tx *sql.Tx, container 
 	}
 	return ErrAdminQuery
 }
+
+// Retained terminal receipts may identify an original only while both exact
+// entity lifetimes remain live. Never reconstruct an original after receipt GC.
+func separateFolderReceiptLiveTx(ctx context.Context, tx *sql.Tx, m compactcatalog.EntityMutation) error {
+	for _, want := range []struct {
+		id                               int64
+		public, incarnation, publication string
+	}{
+		{m.Subject, m.Public, m.Incarnation, m.PublicationIncarnation},
+		{m.TargetSubject, m.TargetPublic, m.TargetIncarnation, m.TargetPublicationIncarnation},
+	} {
+		var public, incarnation, publication string
+		var library int64
+		var kind compactcatalog.Kind
+		err := tx.QueryRowContext(ctx, `SELECT pid(e.public_id),e.library_id,e.kind,COALESCE(ah.incarnation,sh.incarnation,''),COALESCE(ph.incarnation,'') FROM catalog_entities e LEFT JOIN mb_album_heads ah ON ah.album_id=e.id LEFT JOIN mb_song_heads sh ON sh.item_id=e.id LEFT JOIN metadata_publication_heads ph ON ph.item_id=e.id WHERE e.id=? AND e.retired=0`, want.id).Scan(&public, &library, &kind, &incarnation, &publication)
+		if err != nil {
+			return err
+		}
+		if public != want.public || library != m.Library || kind != m.Kind || incarnation != want.incarnation || publication != want.publication {
+			return compactcatalog.ErrMutationStale
+		}
+	}
+	return nil
+}

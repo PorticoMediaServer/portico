@@ -10,4 +10,5 @@ var startupCopy = map[string]string{
 	"server.startup.permissions": "Give the service account permission to read and write the state folder, then restart Portico.",
 	"server.startup.space":       "Free space on the drive holding the state folder, then restart Portico.",
 	"server.startup.instance":    "Stop the other Portico service using this state folder, then restart this service.",
+	"server.startup.locking":     instanceLockStorageAdvice,
 }

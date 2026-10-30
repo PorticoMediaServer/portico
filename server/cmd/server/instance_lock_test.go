@@ -44,3 +44,41 @@ func TestInstanceLockRefusesASecondHolderAndReleasesOnClose(t *testing.T) {
 		t.Fatalf("the lock file should survive: %v", err)
 	}
 }
+
+func TestInstanceLockRejectsUnavailableAndSilentLocking(t *testing.T) {
+	for _, silent := range []bool{false, true} {
+		t.Run(map[bool]string{false: "unavailable", true: "silent success"}[silent], func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "server.lock")
+			calls := 0
+			lock, err := acquireInstanceLockWith(path, func(*os.File) error {
+				calls++
+				if silent {
+					return nil
+				}
+				return errInstanceLockUnsupported
+			})
+			if lock != nil || !errors.Is(err, errInstanceLockUnsupported) {
+				t.Fatalf("unsupported lock accepted: lock=%v error=%v", lock, err)
+			}
+			want := 1
+			if silent {
+				want = 2
+			}
+			if calls != want {
+				t.Fatalf("lock used %d file descriptions, want %d", calls, want)
+			}
+			// Refusal closes both descriptions; an ordinary later acquisition
+			// must not inherit a stale exclusive lock from the failed attempt.
+			actual, err := acquireInstanceLock(path)
+			if errors.Is(err, errInstanceLockUnsupported) {
+				t.Skipf("real filesystem lacks locking: %v", err)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := actual.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
