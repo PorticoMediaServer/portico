@@ -321,6 +321,11 @@ func (s *Service) Run(ctx context.Context) error {
 		worked, err := s.step(ctx)
 		s.mu.Unlock()
 		if err != nil {
+			// Cancellation may roll a transaction back before its final SQL
+			// operation returns. Preserve the owner's cancellation in that case.
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
 			return err
 		}
 		if worked {
