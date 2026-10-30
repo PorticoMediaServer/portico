@@ -732,6 +732,47 @@ func TestJournalCloseReleasesCaptureAndRunStops(t *testing.T) {
 	}
 }
 
+func TestJournalRunReportsCancellationInsteadOfRolledBackTransaction(t *testing.T) {
+	for _, cancelled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cancelled=%t", cancelled), func(t *testing.T) {
+			db := journalOpen(t, filepath.Join(t.TempDir(), "journal.db"), true)
+			initial := New(db, nil, journalAuth, journalApply(db))
+			a := journalAcceptance("shutdown", journalRecords(1, 25))
+			if _, err := initial.Accept(context.Background(), *a); err != nil {
+				t.Fatal(err)
+			}
+			if err := initial.Close(); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			s := New(db, nil, journalAuth, journalApply(db))
+			defer s.Close()
+			called := false
+			s.OnTerminal = func(context.Context, *sql.Tx, identity.Principal, Job, Options) error {
+				called = true
+				if cancelled {
+					cancel()
+				}
+				// Model the SQL boundary observed when cancellation has already
+				// rolled the transaction back. An active owner must still see it.
+				return sql.ErrTxDone
+			}
+			err := s.Run(ctx)
+			if !called {
+				t.Fatal("restart did not reach the terminal transaction")
+			}
+			want := error(sql.ErrTxDone)
+			if cancelled {
+				want = context.Canceled
+			}
+			if !errors.Is(err, want) {
+				t.Fatalf("Run returned %v, want %v", err, want)
+			}
+		})
+	}
+}
+
 func TestJournalAdmissionReservesBeforeFactoryAndReleasesFailures(t *testing.T) {
 	for _, mode := range []string{"reserve", "factory", "source-bytes", "check"} {
 		t.Run(mode, func(t *testing.T) {
