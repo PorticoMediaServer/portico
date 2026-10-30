@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"os/exec"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -269,6 +269,13 @@ func (h *HLS) downgradeCopyPlan(ctx context.Context, id string, plan *DeliveryPl
 	}
 	// The presentation is already playing in one engine; its re-plan stays there.
 	client := capabilityDocumentFor(ctx, tx, p).Profile(plan.Engine)
+	if plan.AirPlay {
+		// The receiver has its own capabilities, independently of the page that
+		// owns it. A copy fallback must retain the same receiver contract.
+		client = BaselineClientProfile()
+		client.Transports = []ClientTransport{{Transport: TransportHLSTS, Containers: []string{"mpegts"}, Video: []string{"h264"}, Audio: []string{"aac"}}}
+		client.SubtitleRendering = []string{SubtitleText}
+	}
 	excluded := map[DeliveryStrategy]RouteRejection{}
 	for route, rejection := range failures[client.Engine] {
 		excluded[route] = rejection
@@ -319,6 +326,10 @@ func (h *HLS) downgradeCopyPlan(ctx context.Context, id string, plan *DeliveryPl
 		if next.VideoAction != "convert" {
 			return nil, ErrIncompatible
 		}
+	}
+	next.AirPlay = plan.AirPlay
+	if plan.AirPlay {
+		next.Renditions = nil
 	}
 	next.SourceSize, next.SourceModifiedNS, next.FactsRevision = plan.SourceSize, plan.SourceModifiedNS, plan.FactsRevision
 	next.BurnIn = plan.BurnIn
