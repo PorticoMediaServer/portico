@@ -360,12 +360,32 @@ func TestSupervisorRepeatedUserDisplacementPreservesOwnerFIFO(t *testing.T) {
 	}
 	assertSupervisorPool(t, g, WriterQueueCapacity, 1)
 	results := make(chan admissionResult, 2)
+	userHolds := []chan struct{}{make(chan struct{}), make(chan struct{})}
+	t.Cleanup(func() {
+		for _, hold := range userHolds {
+			close(hold)
+		}
+	})
 	for i := 0; i < 2; i++ {
-		queueTicket(t, g, ClassInteractive, "user", fmt.Sprintf("user/%d", i), closedChannel(), results)
+		queueTicket(t, g, ClassInteractive, "user", fmt.Sprintf("user/%d", i), userHolds[i], results)
 	}
 	assertSupervisorPool(t, g, WriterQueueCapacity-2, 3)
 	block()
 	for i := 0; i < 2; i++ {
+		// Observe the holder before letting it release. queueTicket reports its
+		// result after release, when the next holder can already be scheduled.
+		served := -1
+		select {
+		case userHolds[0] <- struct{}{}:
+			served = 0
+		case userHolds[1] <- struct{}{}:
+			served = 1
+		case <-time.After(5 * time.Second):
+			t.Fatalf("user/%d did not acquire", i)
+		}
+		if served != i {
+			t.Fatalf("admitted user/%d, want user/%d", served, i)
+		}
 		expectResult(t, results, fmt.Sprintf("user/%d", i))
 	}
 	for i := 0; i < WriterQueueCapacity-2; i++ {
