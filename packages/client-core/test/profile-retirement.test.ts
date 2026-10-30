@@ -151,12 +151,15 @@ test('a delete answer that arrives after the abort is never published as progres
  assert.deepEqual(statuses,[]);assert.equal(calls.length,1);
 });
 
-test('a retirement that is still running is waited for, not abandoned, until the viewer retires',async()=>{
+test('a retirement that is still running is waited for, not abandoned, until the viewer retires',{timeout:5000},async()=>{
  const calls:Call[]=[];
  const controller=new AbortController();
  const client=new ManagedProfilesClient({request:async<T>(path:string,method?:string)=>{calls.push({path,method});return retirement('removing') as T;}},scope);
- const task=client.delete(preview,{signal:controller.signal,intervalMs:1});
- setTimeout(()=>controller.abort(),20);
+ const task=client.delete(preview,{signal:controller.signal,intervalMs:1,onStatus:()=>{
+  // Retire the viewer only after progress crosses the original assertion's
+  // boundary; loaded runners need not execute ten timers within 20ms.
+  if(calls.length>10)controller.abort();
+ }});
  await assert.rejects(task,{name:'AbortError'});
  assert.ok(calls.length>10,'still checking after any fixed short wait would have passed');
 });
