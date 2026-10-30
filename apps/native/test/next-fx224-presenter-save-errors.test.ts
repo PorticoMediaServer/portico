@@ -286,7 +286,10 @@ test('a really unmounted General page refuses its captured retry', async t => {
   const beforeUnmount = f.app.requests.length;
   press(f.app, unmountedRetry);
   await f.settle();
-  assert.equal(f.app.requests.length, beforeUnmount, 'the unmounted page never dispatches through its retired form group');
+  const requestsAfterRetry = f.app.requests.slice(beforeUnmount)
+    .map((request: any) => ({method: request.method, path: request.path}));
+  assert.equal(f.app.requests.length, beforeUnmount,
+    `the unmounted page never dispatches through its retired form group; requests after retry: ${JSON.stringify(requestsAfterRetry)}`);
 });
 
 test('a retired original bootstrap authority refuses its captured retry', async t => {
