@@ -13,10 +13,12 @@ package catalog
 //	finalize -> touch both containers and publish "separated"
 //
 // A quantum is exactly one gated writer transaction. It either retires claims
-// for the original child (through the approved phasedpurge units, at most one
+// for a split child (through the approved phasedpurge units, at most one
 // changed unit or 24 effects) or publishes one file (SeparateFolderFileTx).
 // Claims are never re-pointed: the retirement ends them truthfully and the
-// file move carries no download/prepared-media rows. The new container and
+// file move carries no download/prepared-media rows. Whole-child reparenting
+// preserves claims because the item and asset identities remain unchanged.
+// The new container and
 // every new child are KeepApart, so automatic provider adoption cannot join
 // them back.
 //
@@ -25,11 +27,11 @@ package catalog
 // last raw link PK considered inside that child. No result list is retained.
 // The shared retirement cursor is the approved catalog_purge_jobs row for the
 // exact child mutation: its plan_digest binds the compiled units and its TEXT
-// cursor carries the engine's full Unit/Verify cursor across restart. A purge
-// job for a separate child is never a retained-title capture; the retention
-// selector must exclude mode='separate' (reported seam).
+// cursor carries the engine's full Unit/Verify cursor across restart. This
+// cursor store carries no retained-title capture contract.
 //
-// No schema is added. The catalogue may not import downloads or preparedmedia
+// The baseline adds the minimal retirement cursor store. The catalogue may
+// not import downloads or preparedmedia
 // (downloads imports playback which imports catalog). The retirement hooks
 // therefore arrive as explicit function fields, normally attached to the
 // request context by the composition root. A command that actually finds a
@@ -38,19 +40,13 @@ package catalog
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
-	"github.com/PorticoMediaServer/portico/server/internal/identity"
-	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/phasedpurge"
 )
 
@@ -89,11 +85,6 @@ var (
 	// ErrSeparateFolderCursor is a malformed or forged command cursor. The
 	// command is left visibly blocked rather than reinterpreted.
 	ErrSeparateFolderCursor = errors.New("separate folder: command cursor is not one this plan produced")
-
-	// ErrSeparateFolderIncomplete means finalize still sees a folder file but no
-	// file unit can move it (its asset/object is no longer available under the
-	// accepted source). The command does not claim a partial split succeeded.
-	ErrSeparateFolderIncomplete = errors.New("separate folder: a folder file is no longer available under the accepted source")
 )
 
 // SeparateFolderHooks are the existing owner operations the retirement units
@@ -218,244 +209,6 @@ func SeparateFolderCommandStepTx(ctx context.Context, tx *sql.Tx, ref compactcat
 		return compactcatalog.MutationStep{}, err
 	}
 	return SeparateFolderCoordinator{Hooks: SeparateFolderCoordinatorHooks{Retirement: separateFolderHooksFrom(ctx)}}.Step(ctx, tx, ref)
-}
-
-// runSeparateFolder is the service seam. It performs bounded quanta of the one
-// actual command and returns the separated container's public id only after
-// finalize. A retry resumes the same mutation and returns the same id.
-//
-// Every quantum runs under the default interactive plan (160 rows). The old
-// command used the title-removal plan because it moved the whole folder at
-// once; per-file units must prove the unchanged interactive bound.
-func (s *Service) runSeparateFolder(ctx context.Context, library, object, revision string, authorize func(*sql.Tx) error) (string, error) {
-	if s == nil || s.db == nil || authorize == nil || library == "" || object == "" || revision == "" {
-		return "", ErrAdminQuery
-	}
-	ctx = dbwork.WithPlan(ctx, dbwork.DefaultPlan(dbwork.ClassInteractive))
-	retirement := separateFolderHooksFrom(ctx)
-	if !retirement.complete() {
-		retirement = s.SeparateFolderRetirement
-	}
-	coordinator := SeparateFolderCoordinator{Hooks: SeparateFolderCoordinatorHooks{Authorize: authorize, Retirement: retirement}}
-	var ref compactcatalog.MutationRef
-	for i := 0; i < separateFolderForegroundQuanta; i++ {
-		var (
-			step   compactcatalog.MutationStep
-			public string
-			done   bool
-		)
-		err := dbwork.WithWriteTx(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassInteractive), func(tx *sql.Tx) error {
-			if err := authorize(tx); err != nil {
-				return err
-			}
-			if ref.ID == "" {
-				next, separated, complete, e := separateFolderAdmitTx(ctx, tx, library, object, revision)
-				if e != nil {
-					return e
-				}
-				ref = next
-				if complete {
-					public, done = separated, true
-					return nil
-				}
-				step = compactcatalog.PendingMutationStep()
-				return nil
-			}
-			next, e := coordinator.Step(ctx, tx, ref)
-			if e != nil {
-				return e
-			}
-			step = next
-			if step.Complete {
-				if step.Outcome != "separated" {
-					return compactcatalog.ErrMutationStale
-				}
-				public, e = separateFolderPublicTx(ctx, tx, ref)
-				if e != nil {
-					return e
-				}
-				done = true
-			}
-			return nil
-		})
-		if err != nil {
-			return "", err
-		}
-		if done {
-			return public, nil
-		}
-		if !step.Progressed {
-			return "", ErrSeparateFolderPending
-		}
-		dbwork.Yield(ctx)
-	}
-	// The command is still active. Its cursor is committed; the next call
-	// resumes it. This is not a completed split.
-	return "", ErrSeparateFolderPending
-}
-
-// separateFolderAdmitTx creates the container and the actual command, or
-// resumes the one already admitted for this folder. It returns the separated
-// public id only when the command already finished and no original folder file
-// remains.
-func separateFolderAdmitTx(ctx context.Context, tx *sql.Tx, library, object, revision string) (compactcatalog.MutationRef, string, bool, error) {
-	var zero compactcatalog.MutationRef
-	handle, err := compactcatalog.LibraryTx(ctx, tx, library)
-	if err != nil {
-		return zero, "", false, err
-	}
-	var source, directory, asset string
-	if err = tx.QueryRowContext(ctx, `SELECT source_id,directory_path,asset_id FROM inventory_objects WHERE id=? AND retired=0`, object).Scan(&source, &directory, &asset); err != nil {
-		return zero, "", false, err
-	}
-	if source == "" || directory == "" {
-		return zero, "", false, ErrAdminQuery
-	}
-	owner, err := separateFolderAcceptedOwnerTx(ctx, tx, separateFolderOwner(library, source, directory))
-	if err != nil {
-		return zero, "", false, err
-	}
-	// Read one raw latest owner key. Terminal/status/object checks happen
-	// after LIMIT; a long terminal prefix cannot turn a retry into a scan.
-	var latest compactcatalog.MutationRef
-	var lastOwnerGeneration int64
-	err = tx.QueryRowContext(ctx, separateFolderLatestOwnerSQL, owner).Scan(&latest.ID, &latest.Generation, &lastOwnerGeneration)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return zero, "", false, err
-	}
-	if err == nil {
-		held, readErr := compactcatalog.ReadEntityMutationTx(ctx, tx, latest)
-		if readErr != nil {
-			return zero, "", false, readErr
-		}
-		if held.Parent != "" || held.Mode != "separate" || held.SplitSourceID != source || held.SplitDirectory != directory {
-			return zero, "", false, compactcatalog.ErrMutationStale
-		}
-		if held.Status != "terminal" {
-			if held.SplitObjectID != object || held.SplitObjectRevision != revision {
-				return zero, "", false, compactcatalog.ErrMutationStale
-			}
-			return latest, "", false, nil
-		}
-		if held.Outcome != "separated" {
-			return zero, "", false, identity.ErrForbidden
-		}
-		if held.SplitObjectID == object && held.SplitObjectRevision == revision {
-			public, readErr := separateFolderPublicTx(ctx, tx, latest)
-			if readErr != nil {
-				return zero, "", false, readErr
-			}
-			return zero, public, true, nil
-		}
-	}
-	var objectRevision string
-	if err = tx.QueryRowContext(ctx, `SELECT revision FROM inventory_objects WHERE id=? AND retired=0`, object).Scan(&objectRevision); err != nil {
-		return zero, "", false, err
-	}
-	if objectRevision != revision {
-		return zero, "", false, compactcatalog.ErrMutationStale
-	}
-	var item int64
-	var kind compactcatalog.Kind
-	if err = tx.QueryRowContext(ctx, `SELECT e.id,e.kind FROM catalog_assets a JOIN catalog_asset_links l INDEXED BY catalog_asset_links_asset ON l.asset_id=a.id JOIN catalog_entities e ON e.id=l.entity_id
- WHERE a.token=? AND e.library_id=? AND e.kind IN(?,?) ORDER BY e.id LIMIT 1`, asset, handle, int(compactcatalog.Track), int(compactcatalog.Part)).Scan(&item, &kind); err != nil {
-		return zero, "", false, err
-	}
-	table, parentColumn, containerKind := "catalog_songs", "album_id", compactcatalog.Album
-	if kind == compactcatalog.Part {
-		table, parentColumn, containerKind = "catalog_book_files", "book_id", compactcatalog.Book
-	}
-	var container, grandparent int64
-	var title string
-	var year int
-	if err = tx.QueryRowContext(ctx, `SELECT c.id,COALESCE(c.parent_id,0),c.title,c.year FROM `+table+` x JOIN catalog_entities c ON c.id=x.`+parentColumn+` WHERE x.entity_id=?`, item).Scan(&container, &grandparent, &title, &year); err != nil {
-		return zero, "", false, err
-	}
-	witness, err := separateFolderSourceTx(ctx, tx, source)
-	if err != nil {
-		return zero, "", false, err
-	}
-	if err := separateFolderAdmissionWindowTx(ctx, tx, container, containerKind, source, witness.Incarnation, directory); err != nil {
-		return zero, "", false, err
-	}
-	root, err := compactcatalog.LibraryRootTx(ctx, tx, handle)
-	if err != nil {
-		return zero, "", false, err
-	}
-	key := compactcatalog.ItemKey(root, source+"/"+directory, 0) + "#separate"
-	separate, _, err := compactcatalog.EnsureEntityTx(ctx, tx, compactcatalog.Entity{Library: handle, Kind: containerKind, Parent: grandparent, Key: key, Title: title, Year: year})
-	if err != nil {
-		return zero, "", false, err
-	}
-	facts := map[string]any{}
-	if containerKind == compactcatalog.Album {
-		var artist int64
-		var localKey, edition string
-		if err = tx.QueryRowContext(ctx, `SELECT artist_id,local_key,edition_key FROM catalog_albums WHERE entity_id=?`, container).Scan(&artist, &localKey, &edition); err != nil {
-			return zero, "", false, err
-		}
-		facts = map[string]any{"artist_id": artist, "local_key": localKey + "#separate", "edition_key": edition}
-	} else {
-		var bookLibrary int64
-		var localKey, author, narrator string
-		if err = tx.QueryRowContext(ctx, `SELECT library_id,local_key,author,narrator FROM catalog_books WHERE entity_id=?`, container).Scan(&bookLibrary, &localKey, &author, &narrator); err != nil {
-			return zero, "", false, err
-		}
-		facts = map[string]any{"library_id": bookLibrary, "local_key": localKey + "#separate", "author": author, "narrator": narrator}
-	}
-	if err = compactcatalog.SetFactsTx(ctx, tx, separate, facts); err != nil {
-		return zero, "", false, err
-	}
-	if err = KeepApartTx(ctx, tx, separate); err != nil {
-		return zero, "", false, err
-	}
-	if err = compactcatalog.TouchEntityTx(ctx, tx, separate); err != nil {
-		return zero, "", false, err
-	}
-	if lastOwnerGeneration == int64(^uint64(0)>>1) {
-		return zero, "", false, ErrSeparateFolderCursor
-	}
-	generation := lastOwnerGeneration + 1
-	accepted, err := json.Marshal(witness)
-	if err != nil {
-		return zero, "", false, err
-	}
-	ref, err := compactcatalog.BeginEntityMutationTx(ctx, tx, compactcatalog.MutationIntent{
-		Entity: container, Target: separate,
-		OwnerKind: "separate", OwnerID: owner, OwnerGeneration: generation, Mode: "separate", AcceptedRevision: string(accepted),
-		SplitSourceID: source, SplitDirectory: directory, SplitObjectID: object, SplitObjectRevision: revision,
-	})
-	if err != nil {
-		return zero, "", false, err
-	}
-	if err = compactcatalog.SetMutationPhaseTx(ctx, tx, ref, "children"); err != nil {
-		return zero, "", false, err
-	}
-	if strings.HasPrefix(owner, separateActorPrefix) {
-		if err := enqueueCatalogMutationTx(ctx, tx, ref); err != nil {
-			return zero, "", false, err
-		}
-		binding, _, err := separateFolderDecodeActor(owner)
-		if err != nil {
-			return zero, "", false, err
-		}
-		actor := operations.Hash(identity.PersonalKey(identity.Viewer{Authority: "local", AccountID: binding.Account, ProfileID: binding.Profile}))
-		if _, err := tx.ExecContext(ctx, `UPDATE console_operations SET actor=? WHERE id=? AND kind=? AND resource=?`, actor, "cm-"+ref.ID, catalogMutationKind, ref.ID); err != nil {
-			return zero, "", false, err
-		}
-	}
-	return ref, "", false, nil
-}
-
-// separateFolderOwner is the stable command identity of one accepted folder in
-// one library. The object/revision that admitted it are immutable evidence, not
-// part of the identity: another file in the same folder resumes the command.
-func separateFolderOwner(library, source, directory string) string {
-	h := sha256.New()
-	for _, part := range []string{library, source, directory} {
-		fmt.Fprintf(h, "%d:%s|", len(part), part)
-	}
-	return "folder:" + hex.EncodeToString(h.Sum(nil))
 }
 
 func separateFolderPublicTx(ctx context.Context, tx *sql.Tx, ref compactcatalog.MutationRef) (string, error) {
@@ -716,20 +469,18 @@ func (c SeparateFolderCoordinator) childStep(ctx context.Context, tx *sql.Tx, m 
 	if !held {
 		return compactcatalog.MutationStep{}, compactcatalog.ErrMutationStale
 	}
-	claims, err := separateFolderClaimsExistTx(ctx, tx, child.Entity)
+	var movedAsset string
+	if err = tx.QueryRowContext(ctx, `SELECT token FROM catalog_assets WHERE id=?`, child.CurrentKey).Scan(&movedAsset); err != nil {
+		return compactcatalog.MutationStep{}, err
+	}
+	claims, err := separateFolderClaimsExistTx(ctx, tx, child.Entity, movedAsset)
 	if err != nil {
 		return compactcatalog.MutationStep{}, err
 	}
 	switch child.Phase {
 	case "admitted":
-		if claims && !c.Hooks.Retirement.complete() {
-			return compactcatalog.MutationStep{}, ErrSeparateFolderHooks
-		}
-		phase := "children"
-		if claims {
-			phase = "drain"
-		}
-		return compactcatalog.PendingMutationStep(), compactcatalog.SetMutationPhaseTx(ctx, tx, ref, phase)
+		// Complete the raw whole-versus-split proof before considering claims.
+		return compactcatalog.PendingMutationStep(), compactcatalog.SetMutationPhaseTx(ctx, tx, ref, "children")
 	case "drain":
 		// Once admitted, the shared engine owns completion, including Verify.
 		// An empty live-claim probe cannot skip its persisted final proof.
@@ -738,11 +489,11 @@ func (c SeparateFolderCoordinator) childStep(ctx context.Context, tx *sql.Tx, m 
 		}
 		plan, err := SeparateFolderRetirementUnits(child.Entity, SeparateFolderRetirementHooks{
 			CancelJob: c.Hooks.Retirement.CancelJob, Interrupt: c.Hooks.Retirement.Interrupt, RevokeReceipt: c.Hooks.Retirement.RevokeReceipt,
-		})
+		}, movedAsset)
 		if err != nil {
 			return compactcatalog.MutationStep{}, err
 		}
-		digest := SeparateFolderRetirementPlanDigest(child.Entity)
+		digest := SeparateFolderRetirementPlanDigest(child.Entity, movedAsset)
 		cursor, err := separateFolderRetirementCursorTx(ctx, tx, child, digest, plan)
 		if err != nil {
 			return compactcatalog.MutationStep{}, err
@@ -758,7 +509,7 @@ func (c SeparateFolderCoordinator) childStep(ctx context.Context, tx *sql.Tx, m 
 				if e := separateFolderDropRetirementJobTx(ctx, tx, ref); e != nil {
 					return e
 				}
-				_, e := tx.ExecContext(ctx, `UPDATE catalog_entity_mutations SET phase='children',cursor=0 WHERE mutation_id=? AND generation=? AND status='active' AND phase='drain' AND current_child IS NULL`, ref.ID, ref.Generation)
+				_, e := tx.ExecContext(ctx, `UPDATE catalog_entity_mutations SET phase='finalize' WHERE mutation_id=? AND generation=? AND status='active' AND phase='drain' AND current_child IS NULL`, ref.ID, ref.Generation)
 				return e
 			},
 		}
@@ -771,15 +522,6 @@ func (c SeparateFolderCoordinator) childStep(ctx context.Context, tx *sql.Tx, m 
 		}
 		return compactcatalog.PendingMutationStep(), nil
 	case "children":
-		if claims {
-			// A producer admitted a claim after the retirement drain. Do not
-			// move the file behind a live claim: drain again first. The purge
-			// job was deleted at the previous finalize and is recreated empty.
-			if !c.Hooks.Retirement.complete() {
-				return compactcatalog.MutationStep{}, ErrSeparateFolderHooks
-			}
-			return compactcatalog.PendingMutationStep(), compactcatalog.SetMutationPhaseTx(ctx, tx, ref, "drain")
-		}
 		var asset int64
 		var token string
 		err := tx.QueryRowContext(ctx, `SELECT l.asset_id,a.token FROM catalog_asset_links l JOIN catalog_assets a ON a.id=l.asset_id WHERE l.entity_id=? AND l.asset_id>? ORDER BY l.asset_id LIMIT 1`, child.Entity, child.Cursor).Scan(&asset, &token)
@@ -801,8 +543,11 @@ func (c SeparateFolderCoordinator) childStep(ctx context.Context, tx *sql.Tx, m 
 		_, err = tx.ExecContext(ctx, `UPDATE catalog_entity_mutations SET phase=?,cursor=? WHERE mutation_id=? AND generation=? AND phase='children'`, phase, asset, child.Ref.ID, child.Ref.Generation)
 		return compactcatalog.PendingMutationStep(), err
 	case "finalize":
-		if claims {
-			return compactcatalog.MutationStep{}, compactcatalog.ErrEntityMutating
+		if child.Cursor != 0 && claims {
+			if !c.Hooks.Retirement.complete() {
+				return compactcatalog.MutationStep{}, ErrSeparateFolderHooks
+			}
+			return compactcatalog.PendingMutationStep(), compactcatalog.SetMutationPhaseTx(ctx, tx, ref, "drain")
 		}
 		return c.fileStep(ctx, tx, m, child)
 	}
@@ -879,16 +624,12 @@ func separateFolderDropRetirementJobTx(ctx context.Context, tx *sql.Tx, ref comp
 // separateFolderClaimsExistTx uses the same literal state filters and approved
 // retirement indexes as the compiled units. It decides only whether a child
 // has anything this command must retire; it selects no candidate.
-func separateFolderClaimsExistTx(ctx context.Context, tx *sql.Tx, item int64) (bool, error) {
+func separateFolderClaimsExistTx(ctx context.Context, tx *sql.Tx, item int64, asset string) (bool, error) {
 	var found bool
 	err := tx.QueryRowContext(ctx, `SELECT
- EXISTS(SELECT 1 FROM prepared_media_jobs INDEXED BY prepared_media_retirement_jobs WHERE item_id=?1 AND state IN('queued','running','cancelling'))
- OR EXISTS(SELECT 1 FROM prepared_media_versions INDEXED BY prepared_media_item_versions WHERE item_id=?1 AND state='published')
- OR EXISTS(SELECT 1 FROM download_grants INDEXED BY download_grants_retirement WHERE item_id=?1 AND revoked=0)
- OR EXISTS(SELECT 1 FROM download_receipts INDEXED BY download_receipts_retirement WHERE item_id=?1 AND revoked_ms=0)
- OR EXISTS(SELECT 1 FROM download_preparations INDEXED BY download_preparations_retirement WHERE item_id=?1 AND state IN('queued','running','ready','paused','failed'))
- OR EXISTS(SELECT 1 FROM download_request_items INDEXED BY download_request_items_retirement WHERE item_id=?1 AND reason='')
- OR EXISTS(SELECT 1 FROM download_requests INDEXED BY download_requests_retirement WHERE target_id=?1 AND state='capturing')`, item).Scan(&found)
+ EXISTS(SELECT 1 FROM prepared_media_jobs INDEXED BY separate_asset_jobs WHERE item_id=?1 AND asset_id=?2 AND state IN('queued','running','cancelling'))
+ OR EXISTS(SELECT 1 FROM prepared_media_versions INDEXED BY separate_asset_versions WHERE item_id=?1 AND asset_id=?2 AND state='published')
+ OR EXISTS(SELECT 1 FROM download_preparations INDEXED BY separate_asset_preparations WHERE item_id=?1 AND source_asset_id=?2 AND separate_retired=0)`, item, asset).Scan(&found)
 	return found, err
 }
 
@@ -990,8 +731,10 @@ func (c SeparateFolderCoordinator) finalizeStep(ctx context.Context, tx *sql.Tx,
 	if m.Phase != "finalize" {
 		return compactcatalog.MutationStep{}, ErrSeparateFolderCursor
 	}
-	// The prior raw pass persisted exhaustion while actual custody fenced all
-	// source/attachment producers. Recheck that witness, not a fresh tree scan.
+	// The prior raw pass persisted exhaustion. This finalizer does not rescan
+	// behind the frontier: later-added files there stay on the original container.
+	// A fresh object/revision request is needed for a later pass; retrying the
+	// accepted terminal request returns its cached separated result.
 	if err := separateFolderSourceCurrentTx(ctx, tx, m); err != nil {
 		return compactcatalog.MutationStep{}, err
 	}

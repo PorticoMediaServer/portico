@@ -6,12 +6,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/recordingaccess"
 )
+
+var errSeparateFolderAccountMoving = fmt.Errorf("%w: separate folder actor account moving", identity.ErrMoveWaiting)
 
 const separateActorPrefix = "separate-local-v1:"
 
@@ -88,7 +91,7 @@ func (a separateFolderActor) authorizeTx(ctx context.Context, tx *sql.Tx, librar
 	if err != nil {
 		return p, err
 	}
-	if membership != a.Membership || lifetime != a.Lifetime || disabled || deleted || !primary || primaryProfile != a.Profile || moving || !identity.Grants(a.Tier, identity.TierAdmin) || !identity.Grants(p.Role, identity.TierAdmin) {
+	if membership != a.Membership || lifetime != a.Lifetime || disabled || deleted || !primary || primaryProfile != a.Profile || !identity.Grants(a.Tier, identity.TierAdmin) || !identity.Grants(p.Role, identity.TierAdmin) {
 		return p, identity.ErrForbidden
 	}
 	// As on the management route, a current owner retains the administrative
@@ -97,6 +100,9 @@ func (a separateFolderActor) authorizeTx(ctx context.Context, tx *sql.Tx, librar
 		if err := (recordingaccess.Policy{}).AllowedTxContext(ctx, p, library, tx); err != nil {
 			return p, err
 		}
+	}
+	if moving {
+		return p, errSeparateFolderAccountMoving
 	}
 	return p, nil
 }

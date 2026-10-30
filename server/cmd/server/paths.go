@@ -3,9 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"log"
 	"os"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 )
 
 func startupLayout() (storagepaths.Layout, error) {
@@ -28,7 +28,8 @@ func startupMounts() []storagepaths.Mount {
 }
 
 // Deleting stale work requires the same exclusive ownership as staged restore.
-// Unsupported filesystem locking retains the existing warn-and-continue start.
+// Startup now refuses without the lock; the defensive guard also protects
+// callers that have not established exclusive ownership.
 func resetStartupWork(layout storagepaths.Layout, ownsLock bool) error {
 	if !ownsLock {
 		return nil

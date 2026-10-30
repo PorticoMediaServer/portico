@@ -183,8 +183,7 @@ CREATE TABLE retained_title_state(
  unit INTEGER NOT NULL DEFAULT 0,
  completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN(0,1)),
  progress_at TEXT NOT NULL DEFAULT '',
- retained_ms INTEGER NOT NULL,
- capture_mutation_id TEXT REFERENCES catalog_entity_mutations(mutation_id) ON DELETE RESTRICT) STRICT;
+ retained_ms INTEGER NOT NULL) STRICT;
 CREATE INDEX retained_title_state_profile ON retained_title_state(profile_id,retained_ms,id);
 CREATE TABLE retained_title_state_counts(
  profile_id TEXT PRIMARY KEY,
@@ -3317,6 +3316,7 @@ CREATE TABLE download_receipt_keys(
  private_key BLOB NOT NULL, public_key BLOB NOT NULL,
  created_ms INTEGER NOT NULL, retired_ms INTEGER NOT NULL DEFAULT 0) STRICT;
 CREATE TABLE download_preparations(
+ separate_retired INTEGER NOT NULL DEFAULT 0 CHECK(separate_retired IN(0,1)),
  id TEXT PRIMARY KEY,
  publication_json TEXT NOT NULL DEFAULT '' CHECK(publication_json='' OR CASE WHEN json_valid(publication_json) THEN COALESCE(
  length(CAST(publication_json AS BLOB))<=2097152 AND json_type(publication_json)='object'
@@ -14561,63 +14561,14 @@ WHEN NOT EXISTS(SELECT 1 FROM catalog_asset_links INDEXED BY catalog_asset_links
  ON CONFLICT(domain,entity_id) DO UPDATE SET revision=revision+1;
 END;
 
--- Private retained-state capture custody used as the SeparateFolder
--- retirement cursor store. The capture arm belongs to the retained-state
--- cohort; this baseline only carries the objects the catalogue command reads.
-CREATE UNIQUE INDEX retained_title_state_capture
- ON retained_title_state(capture_mutation_id,profile_id)
- WHERE capture_mutation_id IS NOT NULL;
-
+-- SeparateFolder's durable shared-engine cursor; no retained-state capture contract.
 CREATE TABLE catalog_purge_jobs(
  mutation_id TEXT PRIMARY KEY REFERENCES catalog_entity_mutations(mutation_id) ON DELETE RESTRICT,
  generation INTEGER NOT NULL CHECK(generation>0),
  plan_digest TEXT NOT NULL CHECK(length(plan_digest)=64),
  cursor TEXT NOT NULL DEFAULT '' CHECK(length(CAST(cursor AS BLOB))<=512),
- owner_after TEXT NOT NULL DEFAULT '',
- owner_value TEXT NOT NULL DEFAULT '',
- capture_arm INTEGER NOT NULL DEFAULT 0 CHECK(capture_arm BETWEEN 0 AND 7),
- source_after INTEGER NOT NULL DEFAULT 0,
- state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN('pending','running','blocked')),
- attempt INTEGER NOT NULL DEFAULT 0 CHECK(attempt>=0),
- next_attempt_ms INTEGER NOT NULL DEFAULT 0 CHECK(next_attempt_ms>=0),
- reason TEXT NOT NULL DEFAULT '' CHECK(length(reason)<=128),
- owner_started INTEGER NOT NULL DEFAULT 0 CHECK(owner_started IN(0,1)),
- current_state_id INTEGER UNIQUE REFERENCES retained_title_state(id) ON DELETE SET NULL,
- reading_arm TEXT NOT NULL DEFAULT 'current'
-  CHECK(reading_arm IN('current','retained','complete')),
- reading_started INTEGER NOT NULL DEFAULT 0 CHECK(reading_started IN(0,1)),
- reading_asset_after INTEGER NOT NULL DEFAULT 0,
- reading_state_after INTEGER NOT NULL DEFAULT 0,
- reading_source_after TEXT NOT NULL DEFAULT '',
- identity_after INTEGER NOT NULL DEFAULT 0 CHECK(identity_after BETWEEN 0 AND 12),
- local_account TEXT NOT NULL DEFAULT '',
- local_profile TEXT NOT NULL DEFAULT '',
- local_membership_incarnation TEXT NOT NULL DEFAULT '',
- local_profile_lifetime TEXT NOT NULL DEFAULT '',
- CHECK((local_account='' AND local_profile='' AND local_membership_incarnation=''
-        AND local_profile_lifetime='')
-  OR (local_account<>'' AND local_profile<>''
-      AND length(local_membership_incarnation)=32
-      AND local_membership_incarnation NOT GLOB '*[^0-9a-f]*'
-      AND length(local_profile_lifetime)=32
-      AND local_profile_lifetime NOT GLOB '*[^0-9a-f]*'))) STRICT;
-
-CREATE INDEX catalog_purge_due ON catalog_purge_jobs(state,next_attempt_ms,mutation_id);
-
-CREATE INDEX catalog_purge_jobs_local_binding ON catalog_purge_jobs(
- local_account,local_profile,local_membership_incarnation,local_profile_lifetime,mutation_id);
-
-CREATE INDEX catalog_purge_jobs_owner_value ON catalog_purge_jobs(owner_value,mutation_id);
-
-CREATE TABLE catalog_purge_identities(
- mutation_id TEXT NOT NULL REFERENCES catalog_purge_jobs(mutation_id) ON DELETE RESTRICT,
- ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 1 AND 12),
- identity TEXT NOT NULL,
- mapping_captured INTEGER NOT NULL DEFAULT 0 CHECK(mapping_captured IN(0,1)),
- previous_state_id INTEGER,
- PRIMARY KEY(mutation_id,ordinal),
- UNIQUE(mutation_id,identity)
-) WITHOUT ROWID, STRICT;
+ state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN('pending','running','blocked'))
+) STRICT;
 
 -- Existing actual folder separation: private intent only, never query results.
 CREATE TRIGGER catalog_mutation_split_intent_immutable
@@ -14631,3 +14582,32 @@ CREATE INDEX download_receipts_retirement ON download_receipts(item_id,id) WHERE
 CREATE INDEX download_preparations_retirement ON download_preparations(item_id,state,id);
 CREATE INDEX download_request_items_retirement ON download_request_items(item_id,request_id,ordinal) WHERE reason='';
 CREATE INDEX download_requests_retirement ON download_requests(target_id,id) WHERE state='capturing';
+
+-- SeparateFolder asset debt: a marked preparation has no matching live child.
+CREATE INDEX separate_asset_jobs ON prepared_media_jobs(item_id,asset_id,state,id);
+CREATE INDEX separate_asset_versions ON prepared_media_versions(item_id,asset_id,created_ms) WHERE state='published';
+CREATE INDEX separate_asset_preparations ON download_preparations(item_id,source_asset_id,id) WHERE separate_retired=0;
+CREATE INDEX separate_preparation_grants ON download_grants(preparation_id,item_id,hash) WHERE revoked=0;
+CREATE INDEX separate_preparation_receipts ON download_receipts(preparation_id,item_id,id) WHERE revoked_ms=0;
+CREATE INDEX separate_preparation_requests ON download_request_items(preparation_id,item_id,request_id,ordinal) WHERE reason='';
+CREATE TRIGGER separate_preparation_reopen AFTER UPDATE OF state,item_id,source_asset_id ON download_preparations
+ WHEN OLD.separate_retired=1 AND NEW.separate_retired=1 AND (NEW.item_id<>OLD.item_id OR NEW.source_asset_id<>OLD.source_asset_id OR (NEW.state<>OLD.state AND NEW.state IN('queued','running','ready','paused','failed')))
+ BEGIN UPDATE download_preparations SET separate_retired=0 WHERE id=NEW.id AND separate_retired=1; END;
+CREATE TRIGGER separate_download_grants_insert AFTER INSERT ON download_grants
+ WHEN NEW.revoked=0 AND EXISTS(SELECT 1 FROM download_preparations WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1)
+ BEGIN UPDATE download_preparations SET separate_retired=0 WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1; END;
+CREATE TRIGGER separate_download_grants_update AFTER UPDATE OF revoked,preparation_id,item_id ON download_grants
+ WHEN NEW.revoked=0 AND EXISTS(SELECT 1 FROM download_preparations WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1)
+ BEGIN UPDATE download_preparations SET separate_retired=0 WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1; END;
+CREATE TRIGGER separate_download_receipts_insert AFTER INSERT ON download_receipts
+ WHEN NEW.revoked_ms=0 AND EXISTS(SELECT 1 FROM download_preparations WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1)
+ BEGIN UPDATE download_preparations SET separate_retired=0 WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1; END;
+CREATE TRIGGER separate_download_receipts_update AFTER UPDATE OF revoked_ms,preparation_id,item_id ON download_receipts
+ WHEN NEW.revoked_ms=0 AND EXISTS(SELECT 1 FROM download_preparations WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1)
+ BEGIN UPDATE download_preparations SET separate_retired=0 WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1; END;
+CREATE TRIGGER separate_download_request_items_insert AFTER INSERT ON download_request_items
+ WHEN NEW.reason='' AND EXISTS(SELECT 1 FROM download_preparations WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1)
+ BEGIN UPDATE download_preparations SET separate_retired=0 WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1; END;
+CREATE TRIGGER separate_download_request_items_update AFTER UPDATE OF reason,preparation_id,item_id ON download_request_items
+ WHEN NEW.reason='' AND EXISTS(SELECT 1 FROM download_preparations WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1)
+ BEGIN UPDATE download_preparations SET separate_retired=0 WHERE id=NEW.preparation_id AND item_id=NEW.item_id AND separate_retired=1; END;

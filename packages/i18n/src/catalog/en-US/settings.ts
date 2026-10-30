@@ -684,6 +684,7 @@ export const settingsMessages = {
   "server.startup.permissions": "Give the service account permission to read and write the state folder, then restart Portico.",
   "server.startup.space": "Free space on the drive holding the state folder, then restart Portico.",
   "server.startup.instance": "Stop the other Portico service using this state folder, then restart this service.",
+  "server.startup.locking": "Portico's state folder must be on storage with working file locks: a local disk or a Docker volume. Media libraries can stay on network storage. Two servers must never share one state folder, including from different machines.",
   'settings.server.pauseBackground': 'Pause background work for an hour',
   'settings.server.resumeBackground': 'Resume background work',
   'settings.server.backgroundPausedUntil': 'Background work is paused until {time}.',

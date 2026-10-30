@@ -20,7 +20,7 @@ func lockInstanceFile(file *os.File) error {
 		return errInstanceLockHeld
 	case errors.Is(err, syscall.ENOTSUP), errors.Is(err, syscall.EOPNOTSUPP), errors.Is(err, syscall.ENOLCK), errors.Is(err, syscall.EINVAL), errors.Is(err, syscall.ENOSYS):
 		// A bind-mounted state directory on some network filesystems answers this
-		// way. Refusing to start would be worse than running unguarded.
+		// way. Startup refuses before opening state on unsupported storage.
 		return errInstanceLockUnsupported
 	default:
 		return err

@@ -43,7 +43,8 @@ var ErrSeparateFolderFileProjection = errors.New("separate folder: book reparent
 // writer. Any error requires the caller to roll back tx, including Before's
 // writes. Unlink, link and the rescan owner decision share this transaction.
 // Download/prepared-media claims and personal state are deliberately untouched;
-// the parent retires old claims asynchronously under its same actual command.
+// the parent retires split-file claims under its same actual command. A whole
+// reparent preserves claims because the item and asset identities are unchanged.
 func SeparateFolderFileTx(ctx context.Context, tx *sql.Tx, req SeparateFolderFileRequest) (SeparateFolderFileResult, error) {
 	zero := SeparateFolderFileResult{}
 	if tx == nil || req.Before == nil || req.Library == "" || req.Object == "" || req.Revision == "" || req.Source == "" || req.SourceGeneration <= 0 || req.SourceIncarnation == "" || req.AssetPath == "" || req.OldContainer <= 0 || req.NewContainer <= 0 || req.Child <= 0 || req.Asset <= 0 || req.OldContainer == req.NewContainer {

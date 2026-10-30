@@ -14,7 +14,7 @@ import (
 
 // Updating the pre-release schema means directly editing the baseline and this
 // expected digest. Existing state must then be reset, never upgraded.
-const schemaSourceDigest = "e0af8458aae3f8b2d5c48774d3a9b4af26eabc44f466b05205533c5220645807"
+const schemaSourceDigest = "b5a8b1e7289091a64ce8ec087fb4e2af7c8ad4c331ab4176ce728acf5e2a1be0"
 
 func TestSchemaBaselineDigest(t *testing.T) {
 	if BaselineDigest() != schemaSourceDigest {
@@ -170,5 +170,39 @@ func TestFreshBaselineIncludesSegmentAndGatedSchema(t *testing.T) {
 	}
 	if err = VerifySeededRows(context.Background(), db); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSeparateFolderMinimalCursorSchema(t *testing.T) {
+	db, err := OpenFresh(freshDatabaseCopy(t, t.TempDir(), "cursor.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	rows, err := db.Query(`SELECT name FROM pragma_table_info('catalog_purge_jobs') ORDER BY name`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var columns []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		columns = append(columns, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	rows.Close()
+	if got := strings.Join(columns, ","); got != "cursor,generation,mutation_id,plan_digest,state" {
+		t.Fatalf("cursor contract: %s", got)
+	}
+	var n int
+	if err := db.QueryRow(`SELECT count(*) FROM sqlite_schema WHERE name IN('catalog_purge_identities','catalog_purge_due','catalog_purge_jobs_local_binding','catalog_purge_jobs_owner_value','retained_title_state_capture')`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("foreign cohort schema: %d %v", n, err)
+	}
+	if err := db.QueryRow(`SELECT count(*) FROM pragma_table_info('retained_title_state') WHERE name='capture_mutation_id'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("foreign capture column: %d %v", n, err)
 	}
 }

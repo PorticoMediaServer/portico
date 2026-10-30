@@ -67,8 +67,8 @@ func newSeparateFolderRetirementFixture(t *testing.T) *separateFolderRetirementF
 		f.m, err = compactcatalog.ReadEntityMutationTx(ctx, tx, ref)
 		return err
 	})
-	f.digest = SeparateFolderRetirementPlanDigest(item.ID)
-	plan, err := SeparateFolderRetirementUnits(item.ID, f.hooks())
+	f.digest = SeparateFolderRetirementPlanDigest(item.ID, item.Token)
+	plan, err := SeparateFolderRetirementUnits(item.ID, f.hooks(), item.Token)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func (f *separateFolderRetirementFixture) drive(t *testing.T, max int) int {
 		}
 		// Restart at every unit boundary: a freshly compiled plan must accept
 		// the cursor this turn made durable.
-		fresh, err := SeparateFolderRetirementUnits(f.item.ID, f.hooks())
+		fresh, err := SeparateFolderRetirementUnits(f.item.ID, f.hooks(), f.item.Token)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -378,41 +378,44 @@ func (f *separateFolderRetirementFixture) seedClaims(t *testing.T) {
  ('request-3',0,?,''),
  ('request-3',1,?,''),
  ('request-sibling',0,?,'')`, item.ID, item.ID, item.ID, sibling.ID, sibling.ID)
+	c.Exec(`UPDATE download_preparations SET source_asset_id=? WHERE id='prep-live'`, item.Token)
+	c.Exec(`UPDATE download_preparations SET source_asset_id=? WHERE id='prep-sibling'`, sibling.Token)
+	c.Exec(`UPDATE download_request_items SET preparation_id='prep-live' WHERE item_id=?`, item.ID)
 }
 
 func TestSeparateFolderRetirementUnitsRefuseMissingHooks(t *testing.T) {
-	if _, err := SeparateFolderRetirementUnits(0, SeparateFolderRetirementHooks{}); !errors.Is(err, errSeparateFolderRetirementHooks) {
+	if _, err := SeparateFolderRetirementUnits(0, SeparateFolderRetirementHooks{}, "asset"); !errors.Is(err, errSeparateFolderRetirementScope) {
 		t.Fatalf("missing hooks/item was accepted: %v", err)
 	}
 	f := newSeparateFolderRetirementFixture(t)
 	if _, err := SeparateFolderRetirementUnits(f.item.ID, SeparateFolderRetirementHooks{
 		CancelJob: func(context.Context, *sql.Tx, string) error { return nil },
 		Interrupt: func(string) {},
-	}); !errors.Is(err, errSeparateFolderRetirementHooks) {
+	}, f.item.Token); !errors.Is(err, errSeparateFolderRetirementHooks) {
 		t.Fatalf("missing receipt hook was accepted: %v", err)
 	}
-	if f.digest == SeparateFolderRetirementPlanDigest(f.sibling.ID) {
+	if f.digest == SeparateFolderRetirementPlanDigest(f.sibling.ID, f.sibling.Token) {
 		t.Fatal("plan digest is not bound to the exact original item")
+	}
+	if _, err := SeparateFolderRetirementUnits(f.item.ID, f.hooks(), ""); !errors.Is(err, errSeparateFolderRetirementScope) {
+		t.Fatal("empty moved-asset scope was accepted", err)
 	}
 }
 
 func TestSeparateFolderRetirementHeadsUseTheirInstalledIndex(t *testing.T) {
 	c := catalogtest.Open(t)
-	heads := []struct {
-		name, index, query string
-	}{
-		{"prepared-job-cancel", "prepared_media_retirement_jobs", separateFolderJobCancelHeadSQL},
-		{"prepared-job-quiesce", "prepared_media_retirement_jobs", separateFolderJobQuiesceHeadSQL},
-		{"prepared-version-retire", "prepared_media_item_versions", separateFolderVersionHeadSQL},
-		{"download-grant-retire", "download_grants_retirement", separateFolderGrantHeadSQL},
-		{"download-receipt-retire", "download_receipts_retirement", separateFolderReceiptHeadSQL},
-		{"download-preparation-retire", "download_preparations_retirement", separateFolderPreparationHeadSQL},
-		{"request-item-retire", "download_request_items_retirement", separateFolderRequestItemHeadSQL},
-		{"request-target-retire", "download_requests_retirement", separateFolderRequestTargetHeadSQL},
+	heads := []struct{ name, index, query string }{
+		{"cancel", "separate_asset_jobs", separateFolderJobCancelHeadSQL},
+		{"quiesce", "separate_asset_jobs", separateFolderJobQuiesceHeadSQL},
+		{"version", "separate_asset_versions", separateFolderVersionHeadSQL},
+		{"preparation", "separate_asset_preparations", separateAssetPreparationHead},
+		{"grant", "separate_preparation_grants", separateAssetGrantHead},
+		{"receipt", "separate_preparation_receipts", separateAssetReceiptHead},
+		{"request", "separate_preparation_requests", separateAssetRequestHead},
 	}
 	for _, head := range heads {
 		t.Run(head.name, func(t *testing.T) {
-			plan := retirementExplain(t, c, head.query, int64(1))
+			plan := retirementExplain(t, c, head.query, int64(1), "asset")
 			if !strings.Contains(plan, "SEARCH") || !strings.Contains(plan, head.index) ||
 				strings.Contains(plan, "TEMP B-TREE") || strings.Contains(plan, "SCAN ") {
 				t.Fatalf("head is not a bounded prefix seek:\n%s", plan)
@@ -512,7 +515,7 @@ func TestSeparateFolderRetirementEndsOnlyOriginalClaimsOnePointPerTurn(t *testin
 	if n := retirementInt(t, f.c, `SELECT count(*) FROM download_request_items WHERE request_id='request-3' AND ordinal=1 AND item_id=? AND reason=''`, f.sibling.ID); n != 1 {
 		t.Fatalf("request child of another item was cascaded: %d", n)
 	}
-	if n := retirementInt(t, f.c, `SELECT count(*) FROM download_requests WHERE target_id=? AND state='failed' AND error_code='source_changed'`, f.item.ID); n != 3 {
+	if n := retirementInt(t, f.c, `SELECT count(*) FROM download_requests WHERE target_id=? AND state='capturing' AND error_code=''`, f.item.ID); n != 3 {
 		t.Fatalf("capturing targets failed=%d", n)
 	}
 	if got := retirementText(t, f.c, `SELECT state FROM download_requests WHERE id='request-sibling'`); got != "capturing" {
@@ -603,13 +606,14 @@ func TestSeparateFolderRetirementYieldsWhileCancelling(t *testing.T) {
 	}
 }
 
-func TestSeparateFolderPreparationPointWriteLeavesGrants(t *testing.T) {
+func TestSeparateFolderPreparationGroupDrainsGrantBeforeMark(t *testing.T) {
 	f := newSeparateFolderRetirementFixture(t)
 	c := f.c
 	c.Exec(`INSERT INTO download_preparations(id,profile_key,authority,account_id,profile_id,item_id,library_id,quality,origin,state,hash_state,created_ms,updated_ms)
  VALUES('prep-live','profile','local','account','profile',?,'books','original','item','ready',X'00',1,2)`, f.item.ID)
 	c.Exec(`INSERT INTO download_grants(hash,preparation_id,profile_key,item_id,issued_ms,expires_ms,revoked) VALUES('grant-live','prep-live','profile',?,1,99,0)`, f.item.ID)
-	unit := retirementUnit(t, f.plan, "download-preparation-retire")
+	c.Exec(`UPDATE download_preparations SET source_asset_id=? WHERE id='prep-live'`, f.item.Token)
+	unit := retirementUnit(t, f.plan, "asset-preparation-drain")
 	ctx := context.Background()
 	var outcome phasedpurge.Outcome
 	if err := dbwork.WithWriteTx(ctx, c.DB, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
@@ -622,42 +626,42 @@ func TestSeparateFolderPreparationPointWriteLeavesGrants(t *testing.T) {
 	if !outcome.Changed {
 		t.Fatal("preparation head was not a point write")
 	}
-	if n := retirementInt(t, c, `SELECT revoked FROM download_grants WHERE hash='grant-live'`); n != 0 {
-		t.Fatalf("preparation unit bulk-revoked a grant: %d", n)
+	if n := retirementInt(t, c, `SELECT revoked FROM download_grants WHERE hash='grant-live'`); n != 1 {
+		t.Fatalf("preparation group did not revoke the exact grant: %d", n)
 	}
-	if got := retirementText(t, c, `SELECT state FROM download_preparations WHERE id='prep-live'`); got != "unavailable" {
+	if got := retirementText(t, c, `SELECT state FROM download_preparations WHERE id='prep-live'`); got != "ready" {
 		t.Fatalf("preparation state=%q", got)
 	}
-	if n := retirementInt(t, c, `SELECT count(*) FROM download_preparations WHERE id='prep-live' AND reason='source_changed' AND hash_state IS NULL`); n != 1 {
-		t.Fatalf("preparation point write incomplete: %d", n)
+	if n := retirementInt(t, c, `SELECT count(*) FROM download_preparations WHERE id='prep-live' AND reason='' AND hash_state IS NOT NULL`); n != 1 {
+		t.Fatalf("preparation was marked before its grant drained: %d", n)
 	}
 }
 
-func TestSeparateFolderTargetRetirementKeepsIndexAndChildItems(t *testing.T) {
+func TestSeparateFolderBareTargetPreservesIntentAndChildren(t *testing.T) {
 	f := newSeparateFolderRetirementFixture(t)
 	c := f.c
 	c.Exec(`INSERT INTO download_requests(id,profile_key,operation_id,request_hash,principal,device_id,target_kind,target_id,quality,episodes,keep_next,selection_fence,state,created_ms,updated_ms)
  VALUES('request-target','profile','op-target','hash','{}','device','item',?,'original','all',0,'fence','capturing',1,2)`, f.item.ID)
 	c.Exec(`INSERT INTO download_request_items(request_id,ordinal,item_id,reason) VALUES
  ('request-target',0,?,''),('request-target',1,?,'')`, f.item.ID, f.sibling.ID)
-	unit := retirementUnit(t, f.plan, "request-target-retire")
+	unit := retirementUnit(t, f.plan, "asset-preparation-drain")
 	ctx := context.Background()
 	if err := dbwork.WithWriteTx(ctx, c.DB, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
 		outcome, err := unit.Run(ctx, tx, nil)
 		if err != nil {
 			return err
 		}
-		if !outcome.Changed {
-			t.Fatal("capturing target was not a point write")
+		if !outcome.Drained {
+			t.Fatal("bare target created asset debt")
 		}
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if got := retirementText(t, c, `SELECT state FROM download_requests WHERE id='request-target'`); got != "failed" {
+	if got := retirementText(t, c, `SELECT state FROM download_requests WHERE id='request-target'`); got != "capturing" {
 		t.Fatalf("target request state=%q", got)
 	}
-	if got := retirementText(t, c, `SELECT error_code FROM download_requests WHERE id='request-target'`); got != "source_changed" {
+	if got := retirementText(t, c, `SELECT error_code FROM download_requests WHERE id='request-target'`); got != "" {
 		t.Fatalf("target request error=%q", got)
 	}
 	if n := retirementInt(t, c, `SELECT count(*) FROM download_request_items WHERE request_id='request-target' AND reason=''`); n != 2 {
@@ -685,3 +689,42 @@ func TestSeparateFolderTargetRetirementKeepsIndexAndChildItems(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Old literals remain solely as index negative controls, never compiled into production.
+const (
+	separateFolderGrantHeadSQL = `SELECT hash FROM download_grants INDEXED BY download_grants_retirement
+ WHERE item_id=? AND revoked=0 ORDER BY hash LIMIT 1`
+	separateFolderGrantRetireSQL = `UPDATE download_grants SET revoked=1 WHERE hash=? AND revoked=0`
+	separateFolderGrantProbeSQL  = `SELECT EXISTS(SELECT 1 FROM download_grants INDEXED BY download_grants_retirement
+ WHERE item_id=? AND revoked=0)`
+
+	separateFolderReceiptHeadSQL = `SELECT id FROM download_receipts INDEXED BY download_receipts_retirement
+ WHERE item_id=? AND revoked_ms=0 ORDER BY id LIMIT 1`
+	separateFolderReceiptProbeSQL = `SELECT EXISTS(SELECT 1 FROM download_receipts INDEXED BY download_receipts_retirement
+ WHERE item_id=? AND revoked_ms=0)`
+
+	separateFolderPreparationHeadSQL = `SELECT id FROM download_preparations INDEXED BY download_preparations_retirement
+ WHERE item_id=? AND state IN('queued','running','ready','paused','failed') LIMIT 1`
+	// This is the existing endClaim state/reason/hash/revision transition as a
+	// point write. endClaim's unbounded UPDATE download_grants is intentionally
+	// absent: unit 4 already drained grants for this exact item.
+	separateFolderPreparationRetireSQL = `UPDATE download_preparations
+ SET state='unavailable',reason='source_changed',hash_state=NULL,revision=revision+1,updated_ms=?
+ WHERE id=? AND state IN('queued','running','ready','paused','failed')`
+	separateFolderPreparationProbeSQL = `SELECT EXISTS(SELECT 1 FROM download_preparations INDEXED BY download_preparations_retirement
+ WHERE item_id=? AND state IN('queued','running','ready','paused','failed'))`
+
+	separateFolderRequestItemHeadSQL = `SELECT request_id,ordinal FROM download_request_items INDEXED BY download_request_items_retirement
+ WHERE item_id=? AND reason='' ORDER BY request_id,ordinal LIMIT 1`
+	separateFolderRequestItemRetireSQL = `UPDATE download_request_items SET reason='source_changed'
+ WHERE request_id=? AND ordinal=? AND reason=''`
+	separateFolderRequestItemProbeSQL = `SELECT EXISTS(SELECT 1 FROM download_request_items INDEXED BY download_request_items_retirement
+ WHERE item_id=? AND reason='')`
+
+	separateFolderRequestTargetHeadSQL = `SELECT id FROM download_requests INDEXED BY download_requests_retirement
+ WHERE target_id=? AND state='capturing' ORDER BY id LIMIT 1`
+	separateFolderRequestTargetRetireSQL = `UPDATE download_requests SET state='failed',error_code='source_changed',updated_ms=?
+ WHERE id=? AND state='capturing'`
+	separateFolderRequestTargetProbeSQL = `SELECT EXISTS(SELECT 1 FROM download_requests INDEXED BY download_requests_retirement
+ WHERE target_id=? AND state='capturing')`
+)

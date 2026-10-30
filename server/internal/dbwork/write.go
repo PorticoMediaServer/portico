@@ -509,6 +509,11 @@ func ExecWrite(ctx context.Context, db *sql.DB, class Class, query string, args 
 	}
 	_ = conn.Raw(func(inner any) error { meter.end(inner); return nil })
 	_ = conn.Close()
+	// Publish while still holding the gate: the next writer must observe
+	// every successful changing autocommit in its consistency fence.
+	if err == nil && after != before {
+		publications.Add(1)
+	}
 	release()
 	if err != nil {
 		return result, noteAdmittedFailure(class, err)
@@ -520,7 +525,6 @@ func ExecWrite(ctx context.Context, db *sql.DB, class Class, query string, args 
 		// An autocommit statement that changed rows is a committed gated
 		// write like any transaction: caches and response validators keyed on
 		// Publications must see it (PERF-12).
-		publications.Add(1)
 		noteCommitProgress(ctx)
 		noteCommitSite()
 		notifyCommit(changes)

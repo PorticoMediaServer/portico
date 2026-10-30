@@ -345,8 +345,8 @@ func TestSeparateFolderBackgroundReopenResumesSameActor(t *testing.T) {
 	// The last folder file is still ahead of the cursor, so its real claim is
 	// retired only after the reopen.
 	claimed := f.songs[len(f.songs)-1]
-	f.c.Exec(`INSERT INTO download_preparations(id,profile_key,authority,account_id,profile_id,item_id,library_id,quality,origin,state,created_ms,updated_ms)
- VALUES('prep-reopen','p','owner','account','p',?,'music','original','item','queued',1,1)`, claimed)
+	f.c.Exec(`INSERT INTO download_preparations(id,profile_key,authority,account_id,profile_id,item_id,library_id,quality,origin,state,source_asset_id,created_ms,updated_ms)
+ VALUES('prep-reopen','p','owner','account','p',?,'music','original','item','queued',?,1,1)`, claimed, f.tokens[len(f.tokens)-1])
 	f.c.Exec(`INSERT INTO download_grants(hash,preparation_id,profile_key,item_id,issued_ms,expires_ms)
  VALUES('grant-reopen','prep-reopen','p',?,1,9999999999999)`, claimed)
 

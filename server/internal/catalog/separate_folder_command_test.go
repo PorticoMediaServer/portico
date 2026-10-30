@@ -144,6 +144,7 @@ func TestSeparateFolderCommandRetiresOriginalClaimsBeforeMovingTheFile(t *testin
 	}
 	f.c.Exec(`INSERT INTO download_preparations(id,profile_key,authority,account_id,profile_id,item_id,library_id,quality,origin,state,created_ms,updated_ms)
  VALUES('prep-1','p','owner','account','p',?, 'music','original','item','queued',1,1)`, item)
+	f.c.Exec(`UPDATE download_preparations SET source_asset_id=? WHERE id IN('prep-1','late-prep')`, f.tokens[0])
 	f.c.Exec(`INSERT INTO download_grants(hash,preparation_id,profile_key,item_id,issued_ms,expires_ms)
  VALUES('grant-1','prep-1','p',?,1,9999999999999)`, item)
 	h := &separateFolderRetirementFixture{c: f.c, now: 1_700_000_000_000}
@@ -206,6 +207,7 @@ func TestSeparateFolderCommandRefusesMissingClaimHooks(t *testing.T) {
 	}
 	f.c.Exec(`INSERT INTO download_preparations(id,profile_key,authority,account_id,profile_id,item_id,library_id,quality,origin,state,created_ms,updated_ms)
  VALUES('prep-1','p','owner','account','p',?, 'music','original','item','queued',1,1)`, item)
+	f.c.Exec(`UPDATE download_preparations SET source_asset_id=? WHERE id IN('prep-1','late-prep')`, f.tokens[0])
 	f.c.Exec(`INSERT INTO download_grants(hash,preparation_id,profile_key,item_id,issued_ms,expires_ms)
  VALUES('grant-1','prep-1','p',?,1,9999999999999)`, item)
 	s := New(f.c.DB)
@@ -229,6 +231,9 @@ func TestSeparateFolderCommandRefusesMissingClaimHooks(t *testing.T) {
 // has finished the units but is still verifying must survive a restart with its
 // Verify ordinal, and a plan digest that is not this compiled plan must block.
 func TestSeparateFolderCommandRetirementCursorKeepsVerifyAndPlanDigest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("full tier: measured normal parent 2.54s")
+	}
 	c := catalogtest.Open(t)
 	library := c.Library("books", "Books", "audiobook", "/books")
 	book := c.Book(library, "Cursor", "Author")
@@ -255,11 +260,11 @@ func TestSeparateFolderCommandRetirementCursorKeepsVerifyAndPlanDigest(t *testin
 		CancelJob:     func(context.Context, *sql.Tx, string) error { return nil },
 		Interrupt:     func(string) {},
 		RevokeReceipt: func(context.Context, *sql.Tx, string) error { return nil },
-	})
+	}, part.Token)
 	if err != nil {
 		t.Fatal(err)
 	}
-	digest := SeparateFolderRetirementPlanDigest(item)
+	digest := SeparateFolderRetirementPlanDigest(item, part.Token)
 	c.Write(func(ctx context.Context, tx *sql.Tx) error {
 		cursor, err := separateFolderRetirementCursorTx(ctx, tx, child, digest, plan)
 		if err != nil {
@@ -277,6 +282,12 @@ func TestSeparateFolderCommandRetirementCursorKeepsVerifyAndPlanDigest(t *testin
 		}
 		if cursor.Unit != len(plan) || cursor.Verify != 3 {
 			return fmt.Errorf("retirement cursor lost Verify: %+v", cursor)
+		}
+		return nil
+	})
+	c.Write(func(ctx context.Context, tx *sql.Tx) error {
+		if _, err := separateFolderRetirementCursorTx(ctx, tx, child, SeparateFolderRetirementPlanDigest(item, "cross-asset"), plan); !errors.Is(err, ErrSeparateFolderCursor) {
+			return fmt.Errorf("cross-asset cursor accepted: %v", err)
 		}
 		return nil
 	})
@@ -327,4 +338,131 @@ func TestSeparateFolderAcceptedUnavailableRawObjectIsRefused(t *testing.T) {
 	if got := rows(t, f.c, `SELECT count(*) FROM catalog_asset_links`); got != asset {
 		t.Fatalf("refusal changed links: %d -> %d", original, got)
 	}
+}
+
+func TestSeparateFolderWholeMovePreservesClaims(t *testing.T) {
+	f := newSeparateFolderCommandFixture(t, 2)
+	f.c.Exec(`DELETE FROM catalog_asset_links WHERE asset_id IN(SELECT id FROM catalog_assets WHERE path='/music/flac/01.flac')`)
+	var item int64
+	if err := f.c.DB.QueryRow(`SELECT entity_id FROM catalog_asset_links WHERE asset_id=(SELECT id FROM catalog_assets WHERE token=?)`, f.tokens[0]).Scan(&item); err != nil {
+		t.Fatal(err)
+	}
+	f.c.Exec(`INSERT INTO download_preparations(id,profile_key,authority,account_id,profile_id,item_id,library_id,quality,origin,state,created_ms,updated_ms) VALUES('whole-prep','p','owner','account','p',?,'music','original','item','queued',1,1)`, item)
+	f.c.Exec(`INSERT INTO download_grants(hash,preparation_id,profile_key,item_id,issued_ms,expires_ms) VALUES('whole-grant','whole-prep','p',?,1,9999999999999)`, item)
+	// No retirement hooks are needed for an unchanged item and asset identity.
+	public, err := New(f.c.DB).SeparateFolder(context.Background(), "music", f.objects[0], "r1", func(*sql.Tx) error { return nil })
+	if err != nil || public == "" {
+		t.Fatalf("whole move: %q %v", public, err)
+	}
+	if n := rows(t, f.c, `SELECT count(*) FROM download_preparations WHERE id='whole-prep' AND item_id=? AND state='queued' AND revision=1 AND updated_ms=1`, item); n != 1 {
+		t.Fatal("whole preparation changed")
+	}
+	if n := rows(t, f.c, `SELECT count(*) FROM download_grants WHERE hash='whole-grant' AND item_id=? AND revoked=0`, item); n != 1 {
+		t.Fatal("whole grant changed")
+	}
+}
+
+func TestSeparateFolderLateFinalizeClaimReturnsToDrain(t *testing.T) {
+	f := newSeparateFolderCommandFixture(t, 1)
+	ctx := context.Background()
+	ref := separateFolderCommandAdmitFixture(t, f, f.objects[0])
+	h := (&separateFolderRetirementFixture{c: f.c, now: 1700000000000}).hooks()
+	co := SeparateFolderCoordinator{Hooks: SeparateFolderCoordinatorHooks{Authorize: func(*sql.Tx) error { return nil }, Retirement: SeparateFolderHooks{CancelJob: h.CancelJob, Interrupt: h.Interrupt, RevokeReceipt: h.RevokeReceipt}}}
+	inserted, done := false, false
+	for turn := 0; turn < 100; turn++ {
+		var item int64
+		err := f.c.DB.QueryRow(`SELECT c.entity_id FROM catalog_entity_mutations r JOIN catalog_entity_mutations c ON c.mutation_id=r.current_child WHERE r.mutation_id=? AND c.phase='finalize'`, ref.ID).Scan(&item)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			t.Fatal(err)
+		}
+		if err == nil && !inserted {
+			// This commits between the scan's final turn and the file-move turn.
+			f.c.Exec(`INSERT INTO download_preparations(id,profile_key,authority,account_id,profile_id,item_id,library_id,quality,origin,state,created_ms,updated_ms) VALUES('late-prep','p','owner','account','p',?,'music','original','item','queued',1,1)`, item)
+			f.c.Exec(`UPDATE download_preparations SET source_asset_id=? WHERE id IN('prep-1','late-prep')`, f.tokens[0])
+			inserted = true
+		}
+		f.c.Write(func(_ context.Context, tx *sql.Tx) error {
+			step, err := co.Step(ctx, tx, ref)
+			done = step.Outcome == "separated"
+			return err
+		})
+		if done {
+			break
+		}
+	}
+	if !inserted || !done {
+		t.Fatalf("inserted=%v done=%v", inserted, done)
+	}
+	if n := rows(t, f.c, `SELECT count(*) FROM download_preparations WHERE id='late-prep' AND state='unavailable' AND reason='source_changed'`); n != 1 {
+		t.Fatal("late claim not drained")
+	}
+}
+
+// Inventory observations can arrive independently of the catalog attachment
+// writers' RequireEntityAcquirableTx checks. Exercise a late observation of an
+// already attached file, behind the completed root frontier.
+func TestSeparateFolderLaterObservationNeedsFreshRequest(t *testing.T) {
+	f := newSeparateFolderCommandFixture(t, 2)
+	ref := separateFolderCommandAdmitFixture(t, f, f.objects[0])
+	co := SeparateFolderCoordinator{Hooks: SeparateFolderCoordinatorHooks{Authorize: func(*sql.Tx) error { return nil }}}
+	ready := false
+	for turn := 0; turn < 100; turn++ {
+		var phase string
+		if err := f.c.DB.QueryRow(`SELECT phase FROM catalog_entity_mutations WHERE mutation_id=?`, ref.ID).Scan(&phase); err != nil {
+			t.Fatal(err)
+		}
+		if phase == "finalize" {
+			ready = true
+			break
+		}
+		f.c.Write(func(ctx context.Context, tx *sql.Tx) error { _, err := co.Step(ctx, tx, ref); return err })
+	}
+	if !ready {
+		t.Fatal("root did not reach finalize")
+	}
+	var token string
+	var original int64
+	if err := f.c.DB.QueryRow(`SELECT a.token,l.entity_id FROM catalog_assets a JOIN catalog_asset_links l ON l.asset_id=a.id WHERE a.path='/music/flac/01.flac'`).Scan(&token, &original); err != nil {
+		t.Fatal(err)
+	}
+	late := "late-observation"
+	f.c.Exec(`INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,revision,evidence_json,size,modified_ns,directory_path) VALUES(?,?,?,(SELECT incarnation FROM library_sources WHERE id=?),'mp3/later.flac','r1','{}',1000,1,'mp3')`, late, f.source, token, f.source)
+	f.c.Write(func(ctx context.Context, tx *sql.Tx) error {
+		step, err := co.Step(ctx, tx, ref)
+		if err == nil && step.Outcome != "separated" {
+			return fmt.Errorf("finalize: %+v", step)
+		}
+		return err
+	})
+	cached, err := New(f.c.DB).SeparateFolder(context.Background(), "music", f.objects[0], "r1", func(*sql.Tx) error { return nil })
+	if err != nil || cached == "" {
+		t.Fatalf("cached request: %q %v", cached, err)
+	}
+	if n := rows(t, f.c, `SELECT count(*) FROM catalog_songs WHERE entity_id=? AND album_id=?`, original, f.album); n != 1 {
+		t.Fatal("late observation moved behind completed frontier")
+	}
+	fresh, err := New(f.c.DB).SeparateFolder(context.Background(), "music", late, "r1", func(*sql.Tx) error { return nil })
+	if err != nil || fresh != cached {
+		t.Fatalf("fresh request: %q want %q: %v", fresh, cached, err)
+	}
+	if n := rows(t, f.c, `SELECT count(*) FROM catalog_songs WHERE entity_id=? AND album_id=?`, original, f.c.ID(fresh)); n != 1 {
+		t.Fatal("fresh request did not separate later file")
+	}
+}
+
+// Admission now carries the real request-local read proof into its writer.
+// Construct it before acquiring the fixture writer rather than bypassing it.
+func separateFolderCommandAdmitFixture(t *testing.T, f separateFolderCommandFixture, object string) compactcatalog.MutationRef {
+	t.Helper()
+	proof, err := New(f.c.DB).separateFolderProof(context.Background(), "music", object, "r1", func(*sql.Tx) error { return nil })
+	if err != nil {
+		t.Fatal("read admission proof", err)
+	}
+	var ref compactcatalog.MutationRef
+	f.c.Write(func(ctx context.Context, tx *sql.Tx) error {
+		var err error
+		ref, _, _, err = separateFolderAdmitTx(context.WithValue(ctx, separateFolderProofKey{}, proof), tx, "music", object, "r1")
+		return err
+	})
+	return ref
 }
