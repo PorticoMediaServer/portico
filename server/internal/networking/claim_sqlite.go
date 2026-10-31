@@ -882,6 +882,51 @@ func (s *SQLiteStore) SetInstallationHooks(ready func(context.Context, *sql.Tx, 
 // WithdrawReplacement is a deny-only local withdrawal before any finalization
 // can have started. The independent old installed tuple is never changed. A
 // finalizing/retrieving ambiguity must use the exact remote cancellation path.
+// WithdrawSetupClaim ends a first-run setup's own claim on this server once Portico
+// Services closed it unapproved (denied, or its window passed): setupflow's
+// hosted_denied, awaiting approval back to started. The claim is cancelled and no
+// longer active and its signed start ends; the setup request stays, so Continue
+// prepares a new claim with a new request on Portico Services. Nothing here reaches
+// Portico Services. It reports whether it withdrew anything.
+func (s *SQLiteStore) WithdrawSetupClaim(ctx context.Context, expected Intent) (bool, error) {
+	gated, e := s.tx(ctx)
+	if e != nil {
+		return false, e
+	}
+	defer gated.Rollback()
+	tx := gated.Tx()
+	id, e := readIdentity(ctx, tx)
+	if e != nil {
+		return false, e
+	}
+	if id.installed.Valid || !id.active.Valid || id.active.String != expected.OperationID {
+		return false, nil
+	}
+	v, e := loadIntentTx(ctx, tx, expected.OperationID)
+	if e != nil {
+		return false, e
+	}
+	// Only the unapproved claim exactly as this watch knew it.
+	if v.Purpose != "setup" || v.Stage != Prepared || v.ApprovalRevision != 0 || v.Revision != expected.Revision {
+		return false, nil
+	}
+	for _, q := range []struct {
+		query string
+		args  []any
+	}{
+		{`DELETE FROM networking_claim_cancellations WHERE operation_id=? AND state='pending'`, []any{v.OperationID}},
+		{`UPDATE networking_claim_intents SET stage='cancelled',revision=revision+1 WHERE operation_id=? AND stage='prepared' AND approval_revision=0`, []any{v.OperationID}},
+		{`UPDATE networking_claim_identity SET active_operation_id=NULL,pending_operation_id=CASE WHEN pending_operation_id=? THEN NULL ELSE pending_operation_id END WHERE singleton=1 AND active_operation_id=? AND installed_operation_id IS NULL`, []any{v.OperationID, v.OperationID}},
+		{`UPDATE identity_setup_completions SET phase='cancelled' WHERE operation_id=? AND phase='prepared'`, []any{v.OperationID}},
+		{`DELETE FROM networking_web_claims WHERE operation_id=?`, []any{v.OperationID}},
+	} {
+		if _, e = tx.ExecContext(ctx, q.query, q.args...); e != nil {
+			return false, e
+		}
+	}
+	return true, commitClaimTx(ctx, gated.Commit)
+}
+
 func (s *SQLiteStore) WithdrawReplacement(ctx context.Context, expected Intent) (Intent, bool, error) {
 	gated, e := s.tx(ctx)
 	if e != nil {
