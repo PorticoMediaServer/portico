@@ -212,7 +212,12 @@ def js_static(plan,component):
     execute(['npm','run','build'],ROOT/'packages/contracts')
     for group in item['static_roots']:
         pkg=json.loads((ROOT/group/'package.json').read_text()); scripts=pkg.get('scripts',{})
-        if (ROOT/group/'tsconfig.json').exists(): execute(['npx','--no-install','tsc','--noEmit'],ROOT/group)
+        if group=='web':
+            # The build includes tsc. Produce one bundle in the existing static
+            # job and inspect the exact shipped output, without another build.
+            execute(['npm','run','build'],ROOT/group)
+            execute(['node',str(ROOT/'scripts/check-no-external-fonts.mjs'),'--dist',str(ROOT/'web/dist')])
+        elif (ROOT/group/'tsconfig.json').exists(): execute(['npx','--no-install','tsc','--noEmit'],ROOT/group)
         for name in ['lint:boundary','lint:hooks','lint:strings','lint:design','lint:routes','tokens']:
             if name in scripts: execute(['npm','run',name],ROOT/group)
     if component=='apps/desktop': execute(['npm','run','test:rust'],ROOT/component)

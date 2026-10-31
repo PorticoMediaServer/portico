@@ -67,6 +67,19 @@ class Allocation(unittest.TestCase):
                 js_static({'js': extend_selection([{'component': 'website', 'files': []}], {})}, 'website')
                 self.assertEqual(execute.call_args.args[0], ['npm', 'run', 'check'])
 
+    def test_web_build_replaces_duplicate_tsc_and_checks_that_bundle(self):
+        p={'js':extend_selection([{'component':'web','files':['web/test/a.test.ts']}],{})}
+        with patch('run.execute') as execute:
+            js_static(p,'web')
+            calls=[c.args for c in execute.call_args_list]
+            self.assertEqual(sum(c[0]==['npm','run','build'] and c[1]==ROOT/'web' for c in calls),1)
+            self.assertFalse(any(c[0][:3]==['npx','--no-install','tsc'] for c in calls))
+            check=next(i for i,c in enumerate(calls) if c[0][:2]==['node',str(ROOT/'scripts/check-no-external-fonts.mjs')])
+            build=next(i for i,c in enumerate(calls) if c[0]==['npm','run','build'] and c[1]==ROOT/'web')
+            self.assertGreater(check,build)
+            self.assertEqual(calls[check][0][-2:],['--dist',str(ROOT/'web/dist')])
+
+
     def test_desktop_rust_remains_once(self):
         p={'js':extend_selection([{'component':'apps/desktop','files':['apps/desktop/test/a.test.ts']}],{})}
         with patch('run.execute') as execute:
