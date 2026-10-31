@@ -141,6 +141,8 @@ function categorize(f: Facts, deviceOnline: boolean | undefined): ErrorCategory 
     if (/(^|_)busy$|_capacity(_|$)|^server_busy$|_occupied$/.test(c)) return 'busy';
     if (/_not_found$/.test(c)) return 'not-found';
     if (/_invalid_input$|^invalid_(address|administration_input|request_id|selection)$/.test(c)) return 'invalid-input';
+    // A 400 or 422 is the request refused, whatever its code says: never an unreadable reply.
+    if ((f.status === 400 || f.status === 422) && /^invalid_|_invalid$/.test(c)) return 'invalid-input';
     if (/^invalid_|_invalid$|_manifest_invalid$/.test(c)) return 'invalid-response';
     if (/_unavailable$|^unavailable$|_unsupported$|^unsupported_/.test(c)) return 'unavailable';
     if (/_timeout$|_timed_out$/.test(c)) return 'timeout';
