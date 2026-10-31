@@ -47,3 +47,9 @@ On shared build hosts, use the project's heavy-job lock for builds and hold a
 separate slot for the Windows VM's entire powered lifetime. No install is implied
 by construction; the receipt lists installation, sealed startup and OS signing as
 unexercised. A Windows x64 VM does not qualify ARM64 execution.
+
+The manual `compiler_probe: intel-mac-gmp` mode runs the reviewed Intel-only
+GMP PIC assembly, upstream `make check`, and the unchanged Nettle `pkcs1-conv`
+link on an Intel Mac. It skips installer jobs and retains only dependency
+evidence/source for seven days. Passing that probe does not qualify an engine
+or installer. Intel Mac remains an engine/compiler target only.
