@@ -47,7 +47,7 @@ function rig(options: {local?: SetupLocal; reads?: SetupServerRead[]; handlers?:
     calls.push({name, args, context: name === 'navigate' ? undefined : args[args.length - 1] as SetupPortContext});
     return Promise.resolve().then(() => handlers[name]!(...args));
   };
-  const ports = {store, readState: port('readState'), start: port('start'), initializeHosted: port('initializeHosted'), initializeLocal: port('initializeLocal'),
+  const ports = {store, readState: async (context: SetupPortContext) => ({server: await port('readState')(context), local: await store.read()}), start: port('start'), initializeHosted: port('initializeHosted'), initializeLocal: port('initializeLocal'),
     requestApproval: port('requestApproval'), approveInApp: port('approveInApp'), abandon: port('abandon'), retryDelivery: port('retryDelivery'),
     exchange: port('exchange'), renew: port('renew'), adoptOwner: port('adoptOwner'), addLibrary: port('addLibrary'),
     navigate: (url: string) => {calls.push({name: 'navigate', args: [url]}); handlers.navigate!(url);}} as unknown as SetupPorts;

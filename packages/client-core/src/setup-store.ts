@@ -14,6 +14,8 @@ export type SetupAttempt = Readonly<{
   version: 2; serverId: string; requestId: string; attemptId: string; origin: string; hostedOrigin: string;
   installationId: string; state: string; verifier: string; codeChallenge: string; createdAt: number; expiresAt: string;
   handoff?: SetupClaimHandoff;
+  /** Portico Services' page for this approval, kept with the handoff: where the person returns to press Return. */
+  approvalUrl?: string;
 }>;
 
 /** What `read()` of a store returns. `unreadable` is set when any stored bytes were malformed or from an older version. */
@@ -59,9 +61,10 @@ export function parseSetupAttempt(raw: unknown): SetupAttempt | Unreadable {
       || !text(raw.installationId) || !text(raw.state) || !text(raw.verifier) || !text(raw.codeChallenge) || !stamp(raw.createdAt) || !text(raw.expiresAt)) return unreadable;
     const base = {version: 2 as const, serverId: raw.serverId, requestId: raw.requestId, attemptId: raw.attemptId, origin: raw.origin, hostedOrigin: raw.hostedOrigin,
       installationId: raw.installationId, state: raw.state, verifier: raw.verifier, codeChallenge: raw.codeChallenge, createdAt: raw.createdAt, expiresAt: raw.expiresAt};
-    if (raw.handoff === undefined) return Object.freeze(base);
+    if (raw.handoff === undefined) return raw.approvalUrl === undefined ? Object.freeze(base) : unreadable;
     const handoff = handoffOf(raw.handoff);
-    return handoff ? Object.freeze({...base, handoff}) : unreadable;
+    if (!handoff || raw.approvalUrl !== undefined && !text(raw.approvalUrl)) return unreadable;
+    return Object.freeze({...base, handoff, ...(raw.approvalUrl !== undefined ? {approvalUrl: raw.approvalUrl} : {})});
   } catch {
     return unreadable;
   }
