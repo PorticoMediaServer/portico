@@ -203,6 +203,46 @@ func (d Dependencies) inventoryRoutes(mux *http.ServeMux) {
 		}
 		w.WriteHeader(204)
 	})
+	// separate-folder: this file's folder is an album or book of its own. It has
+	// its own contract, so its answers (including in-progress and revision
+	// conflicts) are declared and its client path is generated.
+	d.httpHandle(mux, "POST /v1/admin/libraries/{id}/inventory/{object}/separate-folder", func(w http.ResponseWriter, r *http.Request) {
+		p, e := d.libraryAdministrationRead(r, r.PathValue("id"))
+		if e != nil {
+			failure(w, e)
+			return
+		}
+		var body struct {
+			Revision string `json:"revision"`
+		}
+		if e = decodeLegacyRevision(w, r, &body); e != nil {
+			failure(w, e)
+			return
+		}
+		authorize := func(tx *sql.Tx) error { return d.libraryAdministrationAuthorize(r.Context(), tx, p, r.PathValue("id")) }
+		container, e := d.Catalog.SeparateFolder(catalog.WithSeparateFolderActor(r.Context(), p), r.PathValue("id"), r.PathValue("object"), body.Revision, authorize)
+		if e == nil {
+			write(w, 200, map[string]any{"itemId": container})
+			return
+		}
+		// The bounded command is still admitted and progressing, so this call
+		// reached no finalize and has no id to report. That is honest
+		// backpressure, not a fault: answer with the existing
+		// request_in_progress policy and its retry delay. Genuine faults,
+		// authorization refusals and revision conflicts keep their own
+		// statuses.
+		if errors.Is(e, catalog.ErrSeparateFolderPending) {
+			policyErrors.Write(w, w.Header().Get("X-Request-Id"), &apierror.Error{Code: "request_in_progress", RetryAfterSeconds: 2, Cause: e})
+			return
+		}
+		// A stale folder binding is the same revision conflict every other
+		// revision-fenced change reports, not a fault.
+		if errors.Is(e, compactcatalog.ErrMutationStale) {
+			policyError(w, "revision_mismatch")
+			return
+		}
+		failure(w, e)
+	})
 	d.httpHandle(mux, "POST /v1/admin/libraries/{id}/inventory/{object}/{action}", func(w http.ResponseWriter, r *http.Request) {
 		p, e := d.libraryAdministrationRead(r, r.PathValue("id"))
 		if e != nil {
@@ -223,29 +263,6 @@ func (d Dependencies) inventoryRoutes(mux *http.ServeMux) {
 		switch r.PathValue("action") {
 		case "associate":
 			e = d.Catalog.AssociateInventoryVersion(r.Context(), r.PathValue("id"), r.PathValue("object"), body.Revision, body.ItemID, authorize)
-		case "separate-folder":
-			// separate-folder: this file's folder is an album or book of its own.
-			var container string
-			if container, e = d.Catalog.SeparateFolder(catalog.WithSeparateFolderActor(r.Context(), p), r.PathValue("id"), r.PathValue("object"), body.Revision, authorize); e == nil {
-				write(w, 200, map[string]any{"itemId": container})
-				return
-			}
-			// The bounded command is still admitted and progressing, so this call
-			// reached no finalize and has no id to report. That is honest
-			// backpressure, not a fault: answer with the existing
-			// request_in_progress policy and its retry delay. Genuine faults,
-			// authorization refusals and revision conflicts keep their own
-			// statuses.
-			if errors.Is(e, catalog.ErrSeparateFolderPending) {
-				policyErrors.Write(w, w.Header().Get("X-Request-Id"), &apierror.Error{Code: "request_in_progress", RetryAfterSeconds: 2, Cause: e})
-				return
-			}
-			// A stale folder binding is the same revision conflict every other
-			// revision-fenced change reports, not a fault.
-			if errors.Is(e, compactcatalog.ErrMutationStale) {
-				policyError(w, "revision_mismatch")
-				return
-			}
 		case "separate":
 			var item string
 			if item, e = d.Catalog.SeparateInventoryVersion(r.Context(), r.PathValue("id"), r.PathValue("object"), body.Revision, authorize); e == nil {

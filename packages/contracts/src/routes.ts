@@ -31215,6 +31215,36 @@ export const routes = [
   },
   {
     "audience": "Clients",
+    "id": "post_admin_libraries_id_inventory_object_separate_folder",
+    "method": "POST",
+    "path": "/v1/admin/libraries/{id}/inventory/{object}/separate-folder",
+    "summary": "Make a file's folder its own album or book",
+    "access": "admin_scope",
+    "adminScope": "libraries",
+    "requires": "library",
+    "lane": "default",
+    "cost": "constant",
+    "bodyLimit": 65536,
+    "errors": [
+      "invalid_request",
+      "unauthorized",
+      "not_permitted",
+      "not_found",
+      "revision_mismatch",
+      "request_in_progress",
+      "internal",
+      "database_busy",
+      "writer_capacity"
+    ],
+    "status": 200,
+    "successStatuses": [
+      200
+    ],
+    "http": true,
+    "admission": "admin-heavy"
+  },
+  {
+    "audience": "Clients",
     "id": "post_admin_libraries_id_sonic_analysis_retry",
     "method": "POST",
     "path": "/v1/admin/libraries/{id}/sonic-analysis/retry",

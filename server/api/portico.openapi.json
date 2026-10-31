@@ -245360,6 +245360,28 @@
         ],
         "type": "object"
       },
+      "PostAdminLibrariesIdInventoryObjectSeparateFolderRequest": {
+        "properties": {
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "type": "object"
+      },
+      "PostAdminLibrariesIdInventoryObjectSeparateFolderResponse": {
+        "properties": {
+          "itemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
       "PostAdminLibrariesIdSonicAnalysisRetryRequest": {
         "properties": {},
         "type": "object"
@@ -421955,6 +421977,119 @@
           "database_busy"
         ],
         "x-lane": "default",
+        "x-scope": "library"
+      }
+    },
+    "/v1/admin/libraries/{id}/inventory/{object}/separate-folder": {
+      "post": {
+        "operationId": "post_admin_libraries_id_inventory_object_separate_folder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "object",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "revision"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "itemId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "itemId"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request refused or unavailable"
+          }
+        },
+        "summary": "Make a file's folder its own album or book",
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "admin_scope",
+        "x-admission": "admin-heavy",
+        "x-audience": "Clients",
+        "x-cost": "constant",
+        "x-error-codes": [
+          "invalid_request",
+          "unauthorized",
+          "not_permitted",
+          "not_found",
+          "revision_mismatch",
+          "request_in_progress",
+          "internal",
+          "database_busy",
+          "writer_capacity"
+        ],
+        "x-lane": "default",
+        "x-max-body-bytes": 65536,
         "x-scope": "library"
       }
     },

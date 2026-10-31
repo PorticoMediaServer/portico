@@ -223237,6 +223237,28 @@ export const schemas = {
     ],
     "type": "object"
   },
+  "PostAdminLibrariesIdInventoryObjectSeparateFolderRequest": {
+    "properties": {
+      "revision": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "revision"
+    ],
+    "type": "object"
+  },
+  "PostAdminLibrariesIdInventoryObjectSeparateFolderResponse": {
+    "properties": {
+      "itemId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "itemId"
+    ],
+    "type": "object"
+  },
   "PostAdminLibrariesIdSonicAnalysisRetryRequest": {
     "properties": {},
     "required": [],
