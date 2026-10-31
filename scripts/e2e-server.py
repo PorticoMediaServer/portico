@@ -216,8 +216,8 @@ class Exercise:
         (self.directory/'credentials.json').write_text(json.dumps({'owner':self.password}))
         out=a.post('/v1/setup',{'setupToken':bootstrap['setupToken'],'username':'owner','password':self.password,'name':'Local test','authMode':'local','interactive':True},(201,))
         a.token=out['accessToken']
-        state=a.get('/v1/setup/state')
-        a.post('/v1/setup/finish',{'revision':state['revision']})
+        if a.get('/v1/setup/state').get('status')!='complete':
+            raise RuntimeError('local setup did not complete')
         signed=a.post('/v1/direct/sign-in',{'username':'owner','password':self.password})
         a.token=signed['session']['accessToken']
         self.owner=signed

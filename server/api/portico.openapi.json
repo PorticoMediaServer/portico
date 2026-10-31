@@ -182995,32 +182995,411 @@
       },
       "GetSetupStateResponse": {
         "properties": {
-          "authMode": {
-            "type": "string"
+          "retryAfterSeconds": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
           },
-          "claimInstalled": {
-            "type": "boolean"
+          "setup": {
+            "oneOf": [
+              {
+                "properties": {
+                  "cancelling": {
+                    "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "properties": {
+                      "localGeneration": {
+                        "type": "string"
+                      },
+                      "operationId": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "operationId",
+                      "localGeneration",
+                      "revision"
+                    ],
+                    "type": "object"
+                  },
+                  "renewable": {
+                    "type": "boolean"
+                  },
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  },
+                  "variant": {
+                    "const": "started",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "variant",
+                  "requestId",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "cancelling": {
+                    "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "properties": {
+                      "localGeneration": {
+                        "type": "string"
+                      },
+                      "operationId": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "operationId",
+                      "localGeneration",
+                      "revision"
+                    ],
+                    "type": "object"
+                  },
+                  "renewable": {
+                    "type": "boolean"
+                  },
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  },
+                  "variant": {
+                    "const": "awaiting_approval",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "variant",
+                  "requestId",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "cancelling": {
+                    "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "properties": {
+                      "localGeneration": {
+                        "type": "string"
+                      },
+                      "operationId": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "operationId",
+                      "localGeneration",
+                      "revision"
+                    ],
+                    "type": "object"
+                  },
+                  "renewable": {
+                    "type": "boolean"
+                  },
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  },
+                  "variant": {
+                    "const": "expired",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "variant",
+                  "requestId",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "cancelling": {
+                    "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "properties": {
+                      "localGeneration": {
+                        "type": "string"
+                      },
+                      "operationId": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "operationId",
+                      "localGeneration",
+                      "revision"
+                    ],
+                    "type": "object"
+                  },
+                  "renewable": {
+                    "type": "boolean"
+                  },
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  },
+                  "variant": {
+                    "const": "approved",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "variant",
+                  "requestId",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "cancelling": {
+                    "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "properties": {
+                      "localGeneration": {
+                        "type": "string"
+                      },
+                      "operationId": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "operationId",
+                      "localGeneration",
+                      "revision"
+                    ],
+                    "type": "object"
+                  },
+                  "renewable": {
+                    "type": "boolean"
+                  },
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  },
+                  "variant": {
+                    "const": "finishing",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "variant",
+                  "requestId",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "cancelling": {
+                    "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "properties": {
+                      "localGeneration": {
+                        "type": "string"
+                      },
+                      "operationId": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "operationId",
+                      "localGeneration",
+                      "revision"
+                    ],
+                    "type": "object"
+                  },
+                  "renewable": {
+                    "type": "boolean"
+                  },
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  },
+                  "variant": {
+                    "const": "exhausted",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "variant",
+                  "requestId",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "cancelling": {
+                    "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "properties": {
+                      "localGeneration": {
+                        "type": "string"
+                      },
+                      "operationId": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "operationId",
+                      "localGeneration",
+                      "revision"
+                    ],
+                    "type": "object"
+                  },
+                  "renewable": {
+                    "type": "boolean"
+                  },
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  },
+                  "variant": {
+                    "const": "installed",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "variant",
+                  "requestId",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "cancelling": {
+                    "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "properties": {
+                      "localGeneration": {
+                        "type": "string"
+                      },
+                      "operationId": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "operationId",
+                      "localGeneration",
+                      "revision"
+                    ],
+                    "type": "object"
+                  },
+                  "renewable": {
+                    "type": "boolean"
+                  },
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  },
+                  "variant": {
+                    "const": "installed_lapsed",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "variant",
+                  "requestId",
+                  "revision"
+                ],
+                "type": "object"
+              }
+            ],
+            "x-discriminator": "variant"
           },
-          "phase": {
-            "type": "string"
-          },
-          "ready": {
-            "type": "boolean"
-          },
-          "revision": {
-            "type": "string"
-          },
-          "sessionLabel": {
+          "status": {
+            "enum": [
+              "ready",
+              "in_progress",
+              "complete"
+            ],
             "type": "string"
           }
         },
         "required": [
-          "authMode",
-          "phase",
-          "ready",
-          "claimInstalled",
-          "revision",
-          "sessionLabel"
+          "status"
         ],
         "type": "object"
       },
@@ -269934,48 +270313,6 @@
           "profiles",
           "canManage",
           "capabilities"
-        ],
-        "type": "object"
-      },
-      "PostSetupFinishRequest": {
-        "properties": {
-          "revision": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "revision"
-        ],
-        "type": "object"
-      },
-      "PostSetupFinishResponse": {
-        "properties": {
-          "authMode": {
-            "type": "string"
-          },
-          "claimInstalled": {
-            "type": "boolean"
-          },
-          "phase": {
-            "type": "string"
-          },
-          "ready": {
-            "type": "boolean"
-          },
-          "revision": {
-            "type": "string"
-          },
-          "sessionLabel": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "authMode",
-          "phase",
-          "ready",
-          "claimInstalled",
-          "revision",
-          "sessionLabel"
         ],
         "type": "object"
       },
@@ -728439,119 +728776,6 @@
         "x-scope": "session"
       }
     },
-    "/v1/setup/finish": {
-      "post": {
-        "operationId": "post_setup_finish",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "revision": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "revision"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "authMode": {
-                      "type": "string"
-                    },
-                    "claimInstalled": {
-                      "type": "boolean"
-                    },
-                    "phase": {
-                      "type": "string"
-                    },
-                    "ready": {
-                      "type": "boolean"
-                    },
-                    "revision": {
-                      "type": "string"
-                    },
-                    "sessionLabel": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "authMode",
-                    "phase",
-                    "ready",
-                    "claimInstalled",
-                    "revision",
-                    "sessionLabel"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "error": {
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Request refused or unavailable"
-          }
-        },
-        "summary": "Run setup finish",
-        "tags": [
-          "Clients"
-        ],
-        "x-access": "owner",
-        "x-admission": "auth",
-        "x-audience": "Clients",
-        "x-cost": "constant",
-        "x-error-codes": [
-          "invalid_request",
-          "unauthorized",
-          "not_permitted",
-          "not_found",
-          "internal",
-          "database_busy",
-          "writer_capacity"
-        ],
-        "x-lane": "security",
-        "x-max-body-bytes": 65536,
-        "x-scope": "session"
-      }
-    },
     "/v1/setup/resume": {
       "post": {
         "operationId": "post_setup_resume",
@@ -728774,32 +728998,411 @@
               "application/json": {
                 "schema": {
                   "properties": {
-                    "authMode": {
-                      "type": "string"
+                    "retryAfterSeconds": {
+                      "maximum": 9007199254740991,
+                      "minimum": 1,
+                      "type": "integer"
                     },
-                    "claimInstalled": {
-                      "type": "boolean"
+                    "setup": {
+                      "oneOf": [
+                        {
+                          "properties": {
+                            "cancelling": {
+                              "type": "boolean"
+                            },
+                            "expiresAt": {
+                              "type": "string"
+                            },
+                            "operation": {
+                              "properties": {
+                                "localGeneration": {
+                                  "type": "string"
+                                },
+                                "operationId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "operationId",
+                                "localGeneration",
+                                "revision"
+                              ],
+                              "type": "object"
+                            },
+                            "renewable": {
+                              "type": "boolean"
+                            },
+                            "requestId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "string"
+                            },
+                            "variant": {
+                              "const": "started",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "variant",
+                            "requestId",
+                            "revision"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "cancelling": {
+                              "type": "boolean"
+                            },
+                            "expiresAt": {
+                              "type": "string"
+                            },
+                            "operation": {
+                              "properties": {
+                                "localGeneration": {
+                                  "type": "string"
+                                },
+                                "operationId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "operationId",
+                                "localGeneration",
+                                "revision"
+                              ],
+                              "type": "object"
+                            },
+                            "renewable": {
+                              "type": "boolean"
+                            },
+                            "requestId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "string"
+                            },
+                            "variant": {
+                              "const": "awaiting_approval",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "variant",
+                            "requestId",
+                            "revision"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "cancelling": {
+                              "type": "boolean"
+                            },
+                            "expiresAt": {
+                              "type": "string"
+                            },
+                            "operation": {
+                              "properties": {
+                                "localGeneration": {
+                                  "type": "string"
+                                },
+                                "operationId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "operationId",
+                                "localGeneration",
+                                "revision"
+                              ],
+                              "type": "object"
+                            },
+                            "renewable": {
+                              "type": "boolean"
+                            },
+                            "requestId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "string"
+                            },
+                            "variant": {
+                              "const": "expired",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "variant",
+                            "requestId",
+                            "revision"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "cancelling": {
+                              "type": "boolean"
+                            },
+                            "expiresAt": {
+                              "type": "string"
+                            },
+                            "operation": {
+                              "properties": {
+                                "localGeneration": {
+                                  "type": "string"
+                                },
+                                "operationId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "operationId",
+                                "localGeneration",
+                                "revision"
+                              ],
+                              "type": "object"
+                            },
+                            "renewable": {
+                              "type": "boolean"
+                            },
+                            "requestId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "string"
+                            },
+                            "variant": {
+                              "const": "approved",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "variant",
+                            "requestId",
+                            "revision"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "cancelling": {
+                              "type": "boolean"
+                            },
+                            "expiresAt": {
+                              "type": "string"
+                            },
+                            "operation": {
+                              "properties": {
+                                "localGeneration": {
+                                  "type": "string"
+                                },
+                                "operationId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "operationId",
+                                "localGeneration",
+                                "revision"
+                              ],
+                              "type": "object"
+                            },
+                            "renewable": {
+                              "type": "boolean"
+                            },
+                            "requestId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "string"
+                            },
+                            "variant": {
+                              "const": "finishing",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "variant",
+                            "requestId",
+                            "revision"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "cancelling": {
+                              "type": "boolean"
+                            },
+                            "expiresAt": {
+                              "type": "string"
+                            },
+                            "operation": {
+                              "properties": {
+                                "localGeneration": {
+                                  "type": "string"
+                                },
+                                "operationId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "operationId",
+                                "localGeneration",
+                                "revision"
+                              ],
+                              "type": "object"
+                            },
+                            "renewable": {
+                              "type": "boolean"
+                            },
+                            "requestId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "string"
+                            },
+                            "variant": {
+                              "const": "exhausted",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "variant",
+                            "requestId",
+                            "revision"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "cancelling": {
+                              "type": "boolean"
+                            },
+                            "expiresAt": {
+                              "type": "string"
+                            },
+                            "operation": {
+                              "properties": {
+                                "localGeneration": {
+                                  "type": "string"
+                                },
+                                "operationId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "operationId",
+                                "localGeneration",
+                                "revision"
+                              ],
+                              "type": "object"
+                            },
+                            "renewable": {
+                              "type": "boolean"
+                            },
+                            "requestId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "string"
+                            },
+                            "variant": {
+                              "const": "installed",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "variant",
+                            "requestId",
+                            "revision"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "cancelling": {
+                              "type": "boolean"
+                            },
+                            "expiresAt": {
+                              "type": "string"
+                            },
+                            "operation": {
+                              "properties": {
+                                "localGeneration": {
+                                  "type": "string"
+                                },
+                                "operationId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "operationId",
+                                "localGeneration",
+                                "revision"
+                              ],
+                              "type": "object"
+                            },
+                            "renewable": {
+                              "type": "boolean"
+                            },
+                            "requestId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "string"
+                            },
+                            "variant": {
+                              "const": "installed_lapsed",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "variant",
+                            "requestId",
+                            "revision"
+                          ],
+                          "type": "object"
+                        }
+                      ],
+                      "x-discriminator": "variant"
                     },
-                    "phase": {
-                      "type": "string"
-                    },
-                    "ready": {
-                      "type": "boolean"
-                    },
-                    "revision": {
-                      "type": "string"
-                    },
-                    "sessionLabel": {
+                    "status": {
+                      "enum": [
+                        "ready",
+                        "in_progress",
+                        "complete"
+                      ],
                       "type": "string"
                     }
                   },
                   "required": [
-                    "authMode",
-                    "phase",
-                    "ready",
-                    "claimInstalled",
-                    "revision",
-                    "sessionLabel"
+                    "status"
                   ],
                   "type": "object"
                 }
@@ -728838,19 +729441,18 @@
             "description": "Request refused or unavailable"
           }
         },
-        "summary": "Read setup state",
+        "summary": "Read first-run setup's state",
         "tags": [
           "Clients"
         ],
-        "x-access": "owner",
+        "x-access": "public",
         "x-admission": "default",
         "x-audience": "Clients",
         "x-cost": "constant",
         "x-error-codes": [
-          "invalid_request",
           "unauthorized",
-          "not_permitted",
-          "not_found",
+          "rate_limited",
+          "setup_source_not_local",
           "internal",
           "database_busy"
         ],

@@ -99,7 +99,7 @@ func TestLaunchAdminLibraryVisibilityAndManagement(t *testing.T) {
 		t.Fatalf("admin library settings: %d %s", w.Code, w.Body.String())
 	}
 	// These operations still require the security owner, even with library access.
-	for _, path := range []string{"/v1/admin/maintenance/settings", "/v1/admin/connectivity/policy", "/v1/setup/state", "/v1/admin/backups", "/v1/admin/metadata/settings"} {
+	for _, path := range []string{"/v1/admin/maintenance/settings", "/v1/admin/connectivity/policy", "/v1/admin/backups", "/v1/admin/metadata/settings"} {
 		if w = f.call("GET", path, f.admin, ""); w.Code != 403 {
 			t.Fatalf("admin owner-only %s: %d %s", path, w.Code, w.Body.String())
 		}

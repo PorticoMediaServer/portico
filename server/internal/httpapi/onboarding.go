@@ -69,44 +69,7 @@ func (d Dependencies) onboardingRoutes(mux *http.ServeMux) {
 		}
 		writeAuth(w, r, 200, out)
 	})
-	d.httpHandle(mux, "GET /v1/setup/state", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
-		p, e := d.localOwner(r)
-		if e != nil {
-			failure(w, e)
-			return
-		}
-		out, e := d.Identity.Onboarding(r.Context(), p)
-		if e != nil {
-			failure(w, e)
-			return
-		}
-		write(w, 200, out)
-	})
-	for _, action := range []string{"finish"} {
-		d.httpHandle(mux, "POST /v1/setup/"+action, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Cache-Control", "no-store")
-			p, e := d.localOwner(r)
-			if e != nil {
-				failure(w, e)
-				return
-			}
-			var q struct {
-				Revision int64 `json:"revision,string"`
-			}
-			if e = decode(w, r, &q); e != nil {
-				failure(w, e)
-				return
-			}
-			var out identity.OnboardingState
-			out, e = d.Identity.FinishSetup(r.Context(), p, q.Revision)
-			if e != nil {
-				failure(w, e)
-				return
-			}
-			write(w, 200, out)
-		})
-	}
+	d.httpHandle(mux, "GET /v1/setup/state", d.serveSetupState)
 	d.httpHandle(mux, "POST /v1/quick-connect", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)

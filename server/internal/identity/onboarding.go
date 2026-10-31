@@ -28,14 +28,6 @@ type SetupOptions struct {
 	AuthMode    string `json:"authMode,omitempty"`
 	Interactive bool   `json:"interactive,omitempty"`
 }
-type OnboardingState struct {
-	AuthMode       string `json:"authMode"`
-	Phase          string `json:"phase"`
-	Ready          bool   `json:"ready"`
-	ClaimInstalled bool   `json:"claimInstalled"`
-	Revision       int64  `json:"revision,string"`
-	SessionLabel   string `json:"sessionLabel"`
-}
 
 func setupOperationID() string {
 	raw := make([]byte, 16)
@@ -229,77 +221,6 @@ func (s *Service) resumeSetup(ctx context.Context, id, secret, requestHash strin
 		return SetupResult{}, e
 	}
 	return SetupResult{Envelope: out}, gated2.Commit()
-}
-
-func (s *Service) Onboarding(ctx context.Context, p Principal) (OnboardingState, error) {
-	if p.Authority != "local" || p.Role != "owner" {
-		return OnboardingState{}, ErrForbidden
-	}
-	gated4, e := dbwork.BeginSnapshot(ctx, s.db)
-	if e != nil {
-		return OnboardingState{}, e
-	}
-	tx := gated4.Tx()
-	defer gated4.Rollback()
-	if _, e = s.SessionFamilyTx(ctx, tx, p); e != nil {
-		return OnboardingState{}, e
-	}
-	out, e := s.onboardingTx(ctx, tx, p)
-	if e != nil {
-		return out, e
-	}
-	return out, gated4.Commit()
-}
-func (s *Service) onboardingTx(ctx context.Context, tx *sql.Tx, p Principal) (OnboardingState, error) {
-	out := OnboardingState{AuthMode: "local", Ready: true, Phase: "ready", SessionLabel: "This Server"}
-	e := tx.QueryRowContext(ctx, `SELECT auth_mode,ready,revision FROM onboarding_state_v1 WHERE singleton=1`).Scan(&out.AuthMode, &out.Ready, &out.Revision)
-	if e != nil && !errors.Is(e, sql.ErrNoRows) {
-		return out, e
-	}
-	if s.SetupClaimReadyTx != nil {
-		out.ClaimInstalled, e = s.SetupClaimReadyTx(ctx, tx)
-		if e != nil {
-			return out, e
-		}
-	}
-	if out.AuthMode == "hosted" && !out.Ready {
-		out.Phase = "waiting_for_web"
-		if out.ClaimInstalled {
-			out.Ready = true
-			out.Phase = "ready"
-		}
-	}
-	return out, nil
-}
-func (s *Service) FinishSetup(ctx context.Context, p Principal, expected int64) (OnboardingState, error) {
-	gated5, e := dbwork.Begin(ctx, s.db, dbwork.ClassSecurityFence)
-	if e != nil {
-		return OnboardingState{}, e
-	}
-	tx := gated5.Tx()
-	defer gated5.Rollback()
-	if _, e = s.SessionFamilyTx(ctx, tx, p); e != nil {
-		return OnboardingState{}, e
-	}
-	out, e := s.onboardingTx(ctx, tx, p)
-	if e != nil {
-		return out, e
-	}
-	if p.Authority != "local" || p.Role != "owner" || out.Revision != expected {
-		return out, ErrConflict
-	}
-	if out.AuthMode == "hosted" && !out.ClaimInstalled {
-		return out, errors.New("Complete the current account claim before finishing setup")
-	}
-	if !out.Ready {
-		if _, e = tx.ExecContext(ctx, `UPDATE onboarding_state_v1 SET ready=1,revision=revision+1,receipt_until=MIN(receipt_until,?) WHERE singleton=1 AND revision=?`, time.Now().Unix()+300, expected); e != nil {
-			return out, e
-		}
-		out.Ready = true
-		out.Phase = "ready"
-		out.Revision++
-	}
-	return out, gated5.Commit()
 }
 
 // BrowserSetupToken is only exposed by the origin-checked first-run route.

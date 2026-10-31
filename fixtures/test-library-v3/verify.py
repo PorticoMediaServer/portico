@@ -394,7 +394,7 @@ def main(argv=None):
         system = owner.read("/v1/system")
         report["server"] = {key: system.get(key) for key in ("id", "version", "commit")}
         setup = owner.read("/v1/setup/state")
-        check("setup-ready", setup.get("ready") is True, setup.get("phase"))
+        check("setup-ready", setup.get("status") == "complete", setup.get("status"))
 
         # Libraries, scans and canonical counts ---------------------------
         libraries = items(owner.read("/v1/libraries"))

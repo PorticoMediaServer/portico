@@ -207,8 +207,8 @@ def bootstrap(base, username, password, name):
     api.token = session["accessToken"]
     api.installation = session.get("installationId") or api.installation
     state = api.request("GET", "/v1/setup/state", expect=(200,))
-    if not state.get("ready"):
-        api.request("POST", "/v1/setup/finish", {"revision": state["revision"]}, expect=(200,))
+    if state.get("status") != "complete":
+        raise RuntimeError("local setup did not complete")
     return api
 
 

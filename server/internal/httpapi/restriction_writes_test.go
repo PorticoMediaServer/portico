@@ -591,7 +591,6 @@ func restrictionWriteRoutes() map[string]writeRoute {
 		"POST /v1/quick-connect/cancel":                      writeExempt(reasonSignIn),
 		"POST /v1/quick-connect/token":                       writeExempt(reasonSignIn),
 		"POST /v1/saved-resources":                           writeExempt(reasonOwnObject),
-		"POST /v1/setup/finish":                              writeExempt(reasonSignIn),
 		"POST /v1/shows/{id}/metadata/screen/retry":          writeExempt("owner-only metadata/analysis/preparation mutation; member refused (manual_metadata_test, musicbrainz_test and analysis owner checks)"),
 		"POST /v1/shows/{id}/metadata/screen/search":         writeExempt("owner-only metadata/analysis/preparation mutation; member refused (manual_metadata_test, musicbrainz_test and analysis owner checks)"),
 		"POST /v1/storage/mounts":                            writeExempt("owner-only storage configuration; no member catalogue mutation (mounts_test and owner checks in router.go)"),
