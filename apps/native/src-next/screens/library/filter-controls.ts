@@ -1,4 +1,4 @@
-import {browseFields, completeBrowseNode, parseBrowseNode, type BrowseCapabilities, type BrowseFieldCapability, type BrowseNode, type BrowseOperator, type BrowseScalar} from '../../../../../packages/client-core/src/browse';
+import {browseCondition, browseFields, browseNot, completeBrowseNode, parseBrowseNode, type BrowseCapabilities, type BrowseFieldCapability, type BrowseNode, type BrowseOperator, type BrowseScalar} from '../../../../../packages/client-core/src/browse';
 import {activeRangePreset, browseValueLabel, fieldSelectionSummary, filterControlOf, filterValuesField, orderFilterValues, rangePresets} from '../../../../../packages/client-core/src/presentation/browse-toolbar';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {FilterFieldState, FilterFieldValue} from '../../kit/browse';
@@ -49,7 +49,7 @@ export function libraryFilterField(field: BrowseFieldCapability, predicates: rea
 export function libraryFilterChange(capabilities: BrowseCapabilities, field: BrowseFieldCapability, predicates: readonly BrowseNode[], value: FilterFieldValue, fixed: readonly BrowseNode[], now: Date): readonly BrowseNode[] {
   const ids = targets(field), retained = predicates.filter(node => !belongs(node, ids) || fixed.some(base => same(base, node)));
   const add: BrowseNode[] = [];
-  const condition = (id: string, operator: BrowseOperator, next: BrowseScalar | readonly BrowseScalar[] | null): BrowseNode => ({variant: operator === 'within-last-days' ? 'relative' : 'predicate', field: id, operator, value: next});
+  const condition = (id: string, operator: BrowseOperator, next: BrowseScalar | readonly BrowseScalar[] | null): BrowseNode => browseCondition(id, operator, next);
   if (value.kind === 'values') {
     const target = filterValuesField(field), offered = capabilities.fields.find(candidate => candidate.id === target.field);
     if (!offered) throw new Error('native_library_filter_field_not_offered');
@@ -57,9 +57,9 @@ export function libraryFilterChange(capabilities: BrowseCapabilities, field: Bro
     const operator = target.operator as BrowseOperator;
     if (value.included.length) {
       const node = condition(target.field, value.mode === 'all' && offered.operators.includes('contains-all') ? 'contains-all' : operator, cast(value.included));
-      add.push(value.mode === 'none' ? {variant: 'group', not: node} : node);
+      add.push(value.mode === 'none' ? browseNot(node) : node);
     }
-    if (value.excluded.length) add.push({variant: 'group', not: condition(target.field, operator, cast(value.excluded))});
+    if (value.excluded.length) add.push(browseNot(condition(target.field, operator, cast(value.excluded))));
   } else if (value.kind === 'range') {
     const preset = rangePresets(field, now).find(candidate => candidate.id === value.value);
     if (value.value !== null && !preset) throw new Error('native_library_filter_range_not_offered');

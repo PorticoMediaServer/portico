@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {parseBrowseNode, parseBrowseCapabilities, completeBrowseNode, parseBrowseResult} from '../src/browse.ts';
+import {parseBrowseNode, parseBrowseCapabilities, completeBrowseNode, parseBrowseResult, browseCondition, browseNot} from '../src/browse.ts';
 import {parseSimpleFacetPage, parseSimpleFacetPreparing} from '../src/facet-windows.ts';
 import {readSearchGenres, parseSearchGenres} from '../src/search-genres.ts';
 import {readReadingFacet} from '../src/browse-preparation.ts';
@@ -37,6 +37,20 @@ test('browse expression: an applied query of an unknown variant says the app nee
     pageInfo: {start: 0, total: 0, totalIsLowerBound: false, revision: 'r', hasMore: false, nextCursor: '', durationMs: 0, durationIsLowerBound: false}, positionIndex: []});
   assert.equal(parseBrowseResult(page({variant: 'predicate', field: 'genre', operator: 'equals', value: 'Drama'})).applied.query?.variant, 'predicate');
   assert.throws(() => parseBrowseResult(page({variant: 'range'})), unsupported);
+});
+
+test('browse expression: the condition builders tag exactly as completeBrowseNode does', () => {
+  const predicate = browseCondition('genre', 'equals', 'Drama');
+  const list = browseCondition('genre', 'contains-any', ['Drama', 'Comedy']);
+  const relative = browseCondition('dateAdded', 'within-last-days', 7);
+  assert.deepEqual(predicate, completeBrowseNode({field: 'genre', operator: 'equals', value: 'Drama'}));
+  assert.deepEqual(list, completeBrowseNode({field: 'genre', operator: 'contains-any', value: ['Drama', 'Comedy']}));
+  assert.deepEqual(relative, completeBrowseNode({field: 'dateAdded', operator: 'within-last-days', value: 7}));
+  assert.equal(predicate.variant, 'predicate');
+  assert.equal(relative.variant, 'relative');
+  assert.deepEqual(browseNot(predicate), completeBrowseNode({not: {field: 'genre', operator: 'equals', value: 'Drama'}}));
+  assert.deepEqual(browseNot(relative), completeBrowseNode({not: {field: 'dateAdded', operator: 'within-last-days', value: 7}}));
+  for (const node of [predicate, list, relative, browseNot(predicate), browseNot(relative)]) assert.deepEqual(parseBrowseNode(node), node);
 });
 
 const genreReady = {variant: 'ready', queryId: 'genre_1', revision: 'r', genres: [{value: 'Drama', label: 'Drama', count: 2, covers: []}]};
