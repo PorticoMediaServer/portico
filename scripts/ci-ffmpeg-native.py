@@ -208,7 +208,9 @@ def prepare_recipe(recipe):
             # above still overrides this default within the same job ceiling.
             # Host TMPDIR is not inherited by Docker build stages. Shaderc's
             # checked staging recipe requires a writable container-local path.
-            text = re.sub(r'(?m)^(FROM .+)$', r'\1\nENV MAKEFLAGS=-j1 CARGO_BUILD_JOBS=2 CMAKE_BUILD_PARALLEL_LEVEL=2 RAYON_NUM_THREADS=2 TMPDIR=/var/tmp/portico-ci\nRUN mkdir -p "$TMPDIR"', text)
+            # download.sh uses the runner UID, not root: use normal sticky
+            # temporary-directory permissions inside the disposable image.
+            text = re.sub(r'(?m)^(FROM .+)$', r'\1\nENV MAKEFLAGS=-j1 CARGO_BUILD_JOBS=2 CMAKE_BUILD_PARALLEL_LEVEL=2 RAYON_NUM_THREADS=2 TMPDIR=/var/tmp/portico-ci\nRUN mkdir -p "$TMPDIR" && chmod 1777 "$TMPDIR"', text)
         if p.name == 'download.sh':
             text = text.replace('docker run ', 'docker run --cpus 2 --memory 4g --memory-swap 4g ')
         p.write_text(text)

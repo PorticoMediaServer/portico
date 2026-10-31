@@ -9,6 +9,7 @@ import io
 import tarfile
 import os
 import subprocess
+import stat
 
 spec = importlib.util.spec_from_file_location('native', Path(__file__).with_name('ci-ffmpeg-native.py'))
 n = importlib.util.module_from_spec(spec)
@@ -159,7 +160,13 @@ class TransferTests(unittest.TestCase):
             for stage in stages:
                 lines = stage.splitlines()
                 self.assertIn('TMPDIR=/var/tmp/portico-ci', lines[1].split())
-                self.assertEqual(lines[2], 'RUN mkdir -p "$TMPDIR"')
+                # Exercise the exact creation command on test-owned scratch.
+                # The pinned downloader runs as the hosted runner UID, while
+                # Docker image setup runs as root. Both need a normal sticky
+                # temp directory, without changing any host-global path.
+                scratch = root / ('scratch-' + str(stages.index(stage)))
+                subprocess.run(['sh', '-ec', lines[2][4:]], env=dict(os.environ, TMPDIR=str(scratch)), check=True)
+                self.assertEqual(stat.S_IMODE(scratch.stat().st_mode), 0o1777)
                 self.assertTrue(lines[3].startswith('RUN compile-'))
 
 
