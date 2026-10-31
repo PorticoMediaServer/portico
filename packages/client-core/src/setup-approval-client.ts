@@ -14,8 +14,8 @@ export type SetupApprovalStart = Omit<SetupStartExpectation, 'operationId' | 'lo
 export type SetupApprovalPorts = Readonly<{
   /** Re-read the setup record and attempt and refuse a successor; called after every await. */
   assertCurrent: () => Promise<void>;
-  /** Bind the verified handoff to this same attempt (compare-and-swap). A refused write must not navigate. */
-  bind: (handoff: SetupClaimHandoff) => Promise<void>;
+  /** Bind the verified handoff and its approval link to this same attempt (compare-and-swap). A refused write must not navigate. */
+  bind: (handoff: SetupClaimHandoff, approvalUrl: string) => Promise<void>;
 }>;
 type Api = Pick<HttpLocalApi, 'baseUrl' | 'request' | 'getRouteConnection'>;
 const invalid = () => new CodedError('invalid_return', 'This setup continuation no longer matches its captured operation.');
@@ -57,7 +57,7 @@ export async function requestSetupApproval(api: Api, start: SetupApprovalStart, 
   await current();
   const fresh = () => {const time = now(); if (!Number.isSafeInteger(time) || time >= Date.parse(handoff.expiresAt)) throw invalid();};
   fresh();
-  await ports.bind(handoff);
+  await ports.bind(handoff, approvalURL);
   await current();
   fresh();
   return Object.freeze({handoff, approvalUrl: approvalURL});

@@ -19,6 +19,8 @@ type Of<K extends SetupInput['kind']> = Extract<SetupInput, {kind: K}>;
 export type SetupPortContext = Readonly<{signal: AbortSignal; intentId: string}>;
 /** Handed to the one effect that needs them and held in memory only until that effect succeeds or the person leaves. */
 export type SetupCredentials = Readonly<{username: string; password: string}>;
+/** The first library, as entered: a folder path, or folders picked from the owner's own listing. */
+export type SetupLibrary = Readonly<{kind: string; name: string; path: string; folders?: readonly string[]}>;
 
 /** What a read of the server says. The port pairs if needed and asks with the record's token (none when there is no record). */
 export type SetupServerRead = Readonly<{kind: 'state'; state: SetupReading; ownerSessionHeld?: boolean}> | Of<'tokenRefused' | 'notLocalSource' | 'alreadyComplete'>;
@@ -47,7 +49,7 @@ export interface SetupPorts {
   /** S7. */
   renew(context: SetupPortContext): Promise<Of<'renewDone' | 'tokenRefused'>>;
   adoptOwner(context: SetupPortContext): Promise<Of<'ownerAdopted' | 'alreadyComplete'>>;
-  addLibrary(context: SetupPortContext): Promise<Of<'libraryAdded'>>;
+  addLibrary(library: SetupLibrary, context: SetupPortContext): Promise<Of<'libraryAdded'>>;
   /** Leave for Hosted. Fire and forget: a throw is logged and ignored. */
   navigate(url: string): void;
 }
@@ -82,7 +84,8 @@ export interface SetupController {
   /** Try again. After a failure or an unconfirmed action it keeps the same intentId. */
   retry(): void;
   approveInApp(): void;
-  addLibrary(): void;
+  /** The library goes to the add-library port call and is kept only until it succeeds or the person leaves. */
+  addLibrary(library: SetupLibrary): void;
   skip(): void;
   /** Reads run only while foregrounded; going back to the foreground resumes a read that was held. */
   setForeground(foreground: boolean): void;
@@ -121,7 +124,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
   const scheduler = options.scheduler ?? systemScheduler, wallNow = options.wallNow ?? Date.now, random = options.random ?? Math.random;
   const life = new AbortController();
   let view: SetupView = initialSetupView, foreground = options.foreground !== false, disposed = false;
-  let credentials: SetupCredentials | undefined;
+  let credentials: SetupCredentials | undefined, library: SetupLibrary | undefined;
   // The ids this controller last saw in the store: what a retire expects, so another tab's successor is never removed.
   let known: {requestId?: string; attemptId?: string} = {};
   let readWait: AbortController | undefined, readDueAt: number | undefined, readDeferred = false;
@@ -137,6 +140,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
     const step = stepSetup(view, input, wallNow());
     setView(step.view);
     if (view.kind !== 'starting' && view.kind !== 'failed') credentials = undefined;
+    if (view.kind !== 'library' && view.kind !== 'failed') library = undefined;
     return step.effects;
   };
 
@@ -225,7 +229,12 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
       case 'exchange': return ports.exchange(context);
       case 'renew': return written(ports.renew(context));
       case 'adopt-owner': return ports.adoptOwner(context);
-      case 'add-library': return ports.addLibrary(context);
+      case 'add-library': {
+        if (!library) return failureOf(effect, {code: 'library_missing', retryable: false});
+        const result = await ports.addLibrary(library, context);
+        library = undefined;
+        return result;
+      }
       default: return undefined;
     }
   }
@@ -340,7 +349,11 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
       } else intent({kind: 'retry'});
     },
     approveInApp: () => intent({kind: 'approveInApp'}),
-    addLibrary: () => intent({kind: 'addLibrary'}),
+    addLibrary(input) {
+      if (disposed || working(user)) return;
+      library = Object.freeze({kind: input.kind, name: input.name, path: input.path, ...(input.folders ? {folders: Object.freeze([...input.folders])} : {})});
+      intent({kind: 'addLibrary'});
+    },
     skip: () => direct({kind: 'skip'}),
     setForeground(next) {
       if (disposed || foreground === next) return;
@@ -358,7 +371,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
         () => user.action.dispose(),
         () => system.action.dispose(),
         () => life.abort(),
-        () => {credentials = undefined; listeners.clear();},
+        () => {credentials = library = undefined; listeners.clear();},
       ]);
     },
   };
