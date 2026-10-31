@@ -60,6 +60,9 @@ function tabId(): string {
   return tab;
 }
 
+/** This tab's attempt, whichever server it is for: what a Return to this tab can finish. */
+export const browserAttemptSlot = () => setupBrowserPending<unknown>('portico.setup.attempt.v2:' + tabId());
+
 export function browserSetupStore(serverId: string): BrowserSetupStore {
-  return new BrowserSetupStore(serverId, {record: setupBrowserPending<unknown>('portico.setup.record.v2:' + serverId), attempt: setupBrowserPending<unknown>('portico.setup.attempt.v2:' + tabId())});
+  return new BrowserSetupStore(serverId, {record: setupBrowserPending<unknown>('portico.setup.record.v2:' + serverId), attempt: browserAttemptSlot()});
 }
