@@ -243,10 +243,10 @@ const cases: readonly Case[] = [
     state: {kind: 'choosingServer'}, advances: true},
   {name: 'row 29: the last server → signedOut', row: 29, from: snap(ready(), {pending: 'signOut'}), event: {type: 'signedOut', remaining: 0},
     state: {kind: 'signedOut'}, advances: true},
-  {name: 'row 30: sign out of the Portico Account → fence, account sign-out, pending signOut', row: 30,
-    from: snap(ready()), event: {type: 'signOutAccount'}, state: {kind: 'ready'}, effects: [fence, {kind: 'signOutAccount'}], pending: 'signOut'},
+  {name: 'row 30: sign out of the Portico Account → fence, account sign-out, pending signOutAccount', row: 30,
+    from: snap(ready()), event: {type: 'signOutAccount'}, state: {kind: 'ready'}, effects: [fence, {kind: 'signOutAccount'}], pending: 'signOutAccount'},
   {name: 'row 30: also from the server list', row: 30,
-    from: snap({kind: 'choosingServer'}), event: {type: 'signOutAccount'}, state: {kind: 'choosingServer'}, effects: [fence, {kind: 'signOutAccount'}], pending: 'signOut'},
+    from: snap({kind: 'choosingServer'}), event: {type: 'signOutAccount'}, state: {kind: 'choosingServer'}, effects: [fence, {kind: 'signOutAccount'}], pending: 'signOutAccount'},
   {name: 'row 31: forget (identityFailed) → clear marker and forget the server; pending forget', row: 31,
     from: snap(identityFailed()), event: {type: 'forget'}, state: {kind: 'identityFailed'},
     effects: [clear(), {kind: 'forgetServer', serverId: 's1'}], pending: 'forget'},
@@ -626,4 +626,41 @@ test('no pair ever reports row 22 (Forgot PIN runs outside the reducer)', () => 
 test('every documented row 0–36 (except 22) is exercised by a table case', () => {
   const seen = new Set<number>([...cases.map(c => c.row), 36]);
   for (const row of DOCUMENTED_ROWS) assert.ok(seen.has(row), `row ${row} has a test`);
+});
+
+// ---- review fixes (lead, 31 Oct) -------------------------------------------------------------
+
+test('a non-result event during a pending action keeps it pending, so its result still lands', () => {
+  const gated = nextLifecycle(snap(entering({reason: 'pick', profile: MAIN}), {pending: 'pin'}), {type: 'otherProfiles'});
+  assert.equal(gated?.snapshot.pending, 'pin');
+  const landed = nextLifecycle(gated!.snapshot, {type: 'selected', facts: {viewer: viewer('main', 'f2'), remembered: true}});
+  assert.equal(landed?.snapshot.state.kind, 'ready');
+  assert.equal(landed?.snapshot.pending, undefined);
+});
+
+test('a change of sign-in drops a pending action (its result has nothing left to apply to)', () => {
+  const ended = nextLifecycle(snap(entering({reason: 'pick', profile: MAIN}), {pending: 'pin'}), {type: 'signInEnded', username: 'justin'});
+  assert.equal(ended?.snapshot.state.kind, 'signInEnded');
+  assert.equal(ended?.snapshot.pending, undefined);
+});
+
+test('a PIN rejection without a server floor clears the previous wait', () => {
+  const next = nextLifecycle(snap(entering({waitUntil: 123}), {pending: 'pin'}), {type: 'pinRejected'});
+  const s = next!.snapshot.state;
+  assert.equal(s.kind, 'enteringPin');
+  assert.equal(s.kind === 'enteringPin' ? s.waitUntil : 'x', undefined);
+});
+
+test('sign-out works from identityFailed and signInEnded through the held sign-in', () => {
+  for (const state of [{...identityFailed(), held: held()}, {...signInEnded(), held: held()}]) {
+    const next = nextLifecycle(snap(state), {type: 'signOutServer', removeDownloads: false});
+    assert.equal(next?.row, 29);
+    assert.ok(next?.effects.some(effect => effect.kind === 'signOutServer' && effect.familyId === 'f1'));
+  }
+});
+
+test('account sign-out completes on its own row', () => {
+  const next = nextLifecycle(snap(ready(), {pending: 'signOutAccount'}), {type: 'signedOut', remaining: 1});
+  assert.equal(next?.row, 30);
+  assert.equal(next?.snapshot.state.kind, 'choosingServer');
 });
