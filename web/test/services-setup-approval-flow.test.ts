@@ -213,6 +213,56 @@ test('the page ends at the claim expiry on the scheduler, and dispose, expiry an
   }
 });
 
+const lasting = (f: ReturnType<typeof fixture>) => Object.assign(f.review, {expiresAt: new Date(Date.now() + 600_000).toISOString()});
+const slowNow = () => ({variant: 'finishing', slow: true, approvedAt: new Date(Date.now() - 130_000).toISOString(), serverSeenAt: new Date().toISOString()});
+
+test('a server that never finishes is looked up once at Hosted\'s slow threshold, never earlier, and the page then says so', async () => {
+  const f = fixture(); lasting(f); await f.flow.start(); await f.flow.decide('approve');
+  assert.equal(f.lookups(), 1); phaseOf(f, 'approved', slowNow());
+  await f.scheduler.advance(121_999); assert.equal(f.lookups(), 1);
+  await f.scheduler.advance(1); assert.equal(f.lookups(), 2);
+  const {phase, slow, busy} = f.flow.getSnapshot();
+  assert.deepEqual({phase, slow, busy}, {phase: 'approved', slow: true, busy: false});
+  assert.equal(f.scheduler.pending(), 1, 'only the expiry is left'); assert.equal(f.completeCalls(), 0); assert.deepEqual(f.navigations, []);
+  f.flow.dispose();
+});
+
+test('the slow lookup counts from Hosted\'s approval time, asks at most twice, and an installed answer only offers Return', async () => {
+  const f = fixture(); lasting(f); f.completion(async () => undefined as never);
+  phaseOf(f, 'approved', {variant: 'approved', approvedAt: new Date(Date.now() - 100_000).toISOString()});
+  await f.flow.start(); await f.flow.complete(); assert.equal(f.lookups(), 2); assert.equal(f.flow.getSnapshot().phase, 'finishing');
+  await f.scheduler.advance(21_999); assert.equal(f.lookups(), 2);
+  // Hosted's clock disagrees and it is not slow yet: one more look 30 s later, then none.
+  await f.scheduler.advance(1); assert.equal(f.lookups(), 3); assert.equal(f.flow.getSnapshot().slow, undefined);
+  await f.scheduler.advance(30_000); assert.equal(f.lookups(), 4);
+  await f.scheduler.advance(300_000); assert.equal(f.lookups(), 4, 'never polls');
+  f.flow.dispose();
+  const g = fixture(); lasting(g); await g.flow.start(); await g.flow.decide('approve');
+  phaseOf(g, 'approved', {variant: 'installed'}, true);
+  await g.scheduler.advance(122_000);
+  assert.equal(g.flow.getSnapshot().installed, true); assert.deepEqual(g.navigations, []); assert.equal(g.completeCalls(), 0);
+  g.flow.dispose();
+});
+
+test('already slow, a press in flight, a 429 hold or an error each keep the slow lookup from adding calls', async () => {
+  const f = fixture(); lasting(f); phaseOf(f, 'approved', slowNow());
+  await f.flow.start(); assert.equal(f.flow.getSnapshot().slow, true);
+  await f.scheduler.advance(300_000); assert.equal(f.lookups(), 1); f.flow.dispose();
+  // A press in flight at the threshold: the timed look waits for it, then asks once.
+  const g = fixture(); lasting(g); await g.flow.start(); await g.flow.decide('approve');
+  let finish!: (location: string | undefined) => void;
+  g.completion(() => new Promise(resolve => {finish = resolve;}));
+  await g.scheduler.advance(121_000); const pressed = g.flow.complete();
+  await g.scheduler.advance(5_000); assert.equal(g.lookups(), 2, 'only the press');
+  phaseOf(g, 'approved', slowNow()); finish(undefined); await pressed;
+  assert.equal(g.flow.getSnapshot().slow, true); await g.scheduler.advance(60_000); assert.equal(g.lookups(), 2); g.flow.dispose();
+  // A 429 or an error drops the timed look; Try again is the way on.
+  const h = fixture(); lasting(h); await h.flow.start(); await h.flow.decide('approve');
+  h.completion(async () => {throw new ApiError(429, 'rate_limited', 'rate_limited', true, 200);});
+  await h.flow.complete(); assert.equal(h.lookups(), 2);
+  await h.scheduler.advance(300_000); assert.equal(h.lookups(), 2); assert.equal(h.flow.getSnapshot().phase, 'error'); h.flow.dispose();
+});
+
 test('in-flight completion refusal settles with its error and keeps the retry', async () => {
   const f = fixture(); await f.flow.start(); await f.flow.decide('approve');
   let refuse!: (error: Error) => void;

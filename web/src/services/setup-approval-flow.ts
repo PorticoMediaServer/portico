@@ -23,6 +23,9 @@ function knownPhase(review: HostedSetupClaimReview) {
 /** Hosted's own reading: two minutes or more since the approval with no install. The page then says it is taking
  * longer, whether or not the server has been in touch since (it may be trying and failing). */
 const slowWording = (phase: HostedSetupClaimPhase | undefined) => phase?.slow === true;
+/** Hosted reads an approval as slow from two minutes after it. The page asks once just past that, and once more if the
+ * clocks disagreed; never more, so this is not polling. */
+const SLOW_AFTER_MS = 122_000, SLOW_RECHECK_MS = 30_000, SLOW_CHECKS = 2;
 const rateLimited = (error: unknown) => {
   const value = error as {status?: unknown; code?: unknown} | null;
   return value?.status === 429 || value?.code === 'rate_limited';
@@ -39,6 +42,8 @@ export class SetupApprovalFlow {
   private identity?: AccountIdentity;
   private lifetime?: AbortController;
   private holding?: AbortController;
+  private slowCheck?: AbortController;
+  private slowChecks = 0;
   constructor(private readonly account: ServicesAccount, private readonly controller: Controller,
     private readonly navigate: (location: string) => void, private readonly now = Date.now, private readonly scheduler: Scheduler = systemScheduler) {}
   readonly getSnapshot = () => this.state;
@@ -69,7 +74,40 @@ export class SetupApprovalFlow {
     };
     count().catch(() => {});
   }
-  private stopTimers() {this.lifetime?.abort(); this.holding?.abort(); this.lifetime = this.holding = undefined;}
+  /** Nothing else would ask Hosted while a server never finishes, so the page looks up once when Hosted would call it
+   * slow, through the same lookup as opening the page. Never inside a 429 hold or while another call runs. */
+  private watchSlow(approvedAt: string | undefined) {
+    this.slowCheck?.abort(); this.slowCheck = undefined;
+    if (!this.state.approved || this.state.installed || this.state.slow || this.slowChecks >= SLOW_CHECKS) return;
+    const at = approvedAt === undefined ? this.now() : Date.parse(approvedAt);
+    if (!Number.isFinite(at)) return;
+    const delay = this.slowChecks === 0 ? Math.min(SLOW_AFTER_MS, Math.max(0, at + SLOW_AFTER_MS - this.now())) : SLOW_RECHECK_MS;
+    this.armSlow(delay, approvedAt);
+  }
+  private armSlow(delay: number, approvedAt: string | undefined) {
+    const check = this.slowCheck = new AbortController();
+    wait(delay, {signal: check.signal, scheduler: this.scheduler}).then(() => {
+      if (this.slowCheck !== check) return;
+      this.slowCheck = undefined;
+      if (this.state.busy || this.state.retryIn !== undefined) {this.armSlow(1000, approvedAt); return;}
+      if (!this.state.approved || !['approved', 'finishing'].includes(this.state.phase)) return;
+      this.slowChecks++;
+      return this.lookUp(this.state.phase as 'approved' | 'finishing');
+    }, () => {});
+  }
+  private lookUp(phase: 'approved' | 'finishing') {
+    return this.run(async (generation, identity) => {
+      const review = await this.controller.review();
+      this.current(generation, identity);
+      if (!sameAccount(review.identity, identity) || review.status !== 'approved') throw changed();
+      knownPhase(review);
+      this.review = review;
+      this.publish({phase, busy: false, approved: true, display: this.state.display, ...(review.installed ? {installed: true as const} : {}),
+        ...(!review.installed && slowWording(review.phase) ? {slow: true as const} : {})});
+      this.watchSlow(review.phase?.approvedAt);
+    });
+  }
+  private stopTimers() {this.lifetime?.abort(); this.holding?.abort(); this.slowCheck?.abort(); this.lifetime = this.holding = this.slowCheck = undefined;}
   private current(generation: number, identity: AccountIdentity) {
     if (this.disposed || this.epoch !== generation) throw changed();
     const session = this.account.service.getSnapshot().session;
@@ -89,6 +127,8 @@ export class SetupApprovalFlow {
     try {this.current(generation, identity); await work(generation, identity);}
     catch (error) {
       if (!this.disposed && generation === this.epoch) {
+        // An error has its own Try again; the slow reading waits for a lookup that answers.
+        this.slowCheck?.abort(); this.slowCheck = undefined;
         this.publish({...this.state, phase: 'error', busy: false, error});
         const floor = rateLimited(error) ? serverFloorFrom(error)?.retryAfterMs : undefined;
         if (floor) this.holdFor(floor);
@@ -111,6 +151,7 @@ export class SetupApprovalFlow {
       this.publish({phase: approved ? 'approved' : 'review', busy: false, ...(approved ? {approved: true as const} : {}), ...(approved && review.installed ? {installed: true as const} : {}),
         ...(approved && !review.installed && slowWording(review.phase) ? {slow: true as const} : {}), display});
       this.watchExpiry(review.expiresAt);
+      if (approved) this.watchSlow(review.phase?.approvedAt);
     });
   }
   async decide(decision: 'approve' | 'deny') {
@@ -126,6 +167,7 @@ export class SetupApprovalFlow {
         this.publish({phase: 'denied', busy: false, display: this.state.display});
       } else {
         this.publish({phase: 'approved', busy: false, approved: true, display: this.state.display});
+        this.watchSlow(undefined);
       }
     });
   }
@@ -160,12 +202,13 @@ export class SetupApprovalFlow {
         this.review = review;
         this.publish({phase: 'finishing', busy: false, approved: true, display: this.state.display, ...(review.installed ? {installed: true as const} : {}),
           ...(!review.installed && slowWording(review.phase) ? {slow: true as const} : {})});
+        this.watchSlow(review.phase?.approvedAt);
         return;
       }
       const location = done.location;
       // The protected controller already performs the final authenticated check
       // before spending this attempt. Do not add fallible I/O after that spend.
-      this.lifetime?.abort();
+      this.lifetime?.abort(); this.slowCheck?.abort();
       this.publish({phase: 'returning', busy: false, approved: true, display: this.state.display});
       this.current(generation, identity);
       this.navigate(location);
