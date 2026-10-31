@@ -35,6 +35,7 @@ import {freshnessFor, type FreshnessRuntime} from '../platform/freshness';
 import {authenticatedArtwork, type ShellArtwork} from './artwork';
 import type {ShellBindings} from './bindings';
 import type {ShellIdentity} from './Shell';
+import {admitServer, forgetTabServer, tabAdmits} from '../platform/tab-session-gate';
 
 export type ShellFacts = Readonly<{identity: ShellIdentity; preferences: PreferenceSnapshot; serverName: string}>;
 export type ShellAssemblyContext = Readonly<{
@@ -71,7 +72,9 @@ export type LaunchUnreachable = Readonly<{
   nextRetryAt: number;
   retrying: boolean;
 }>;
-export type ShellBootstrapSnapshot = Readonly<{phase: 'restoring' | 'signed-out' | 'ready' | 'error' | 'unreachable'; binding?: ShellBindings; context?: ShellAssemblyContext; entry?: boolean; error?: unknown; unreachable?: LaunchUnreachable;
+/** `choose-profile`: this tab may not open the saved profile unasked (not remembered here, several
+ *  profiles or a PIN, or its PIN changed elsewhere); Who's watching comes first. */
+export type ShellBootstrapSnapshot = Readonly<{phase: 'restoring' | 'signed-out' | 'ready' | 'error' | 'unreachable' | 'choose-profile'; binding?: ShellBindings; context?: ShellAssemblyContext; entry?: boolean; error?: unknown; unreachable?: LaunchUnreachable;
   startedAt?: number; waiting?: Readonly<{serverName?: string}>}>;
 
 /** The saved address without credentials or paths; display only. */
@@ -222,6 +225,11 @@ export class ShellBootstrap {
     const current = () => this.epoch === epoch && !controller.signal.aborted;
     const task = this.restore(epoch, controller.signal, current).then(() => { if (current()) this.clearWait(); }).catch(error => {
       if (!current()) return;
+      // A PIN changed elsewhere (profile_pin_reentry): this tab asks for it again, never signs out.
+      if ((error as {code?: unknown} | null)?.code === 'profile_pin_reentry') {
+        if (this.launch?.serverId) forgetTabServer(this.launch.serverId);
+        this.clearWait(); this.fence(); this.publish({phase: 'choose-profile'}); return;
+      }
       if (serverIsStarting(error)) {this.waitAfterFailure(error, 'starting');return;}
       const category = this.transportError === error ? launchFailure(error, globalThis.navigator?.onLine) : 'other';
       if (category !== 'other') { this.waitAfterFailure(error, category); return; }
@@ -340,6 +348,18 @@ export class ShellBootstrap {
     const {api} = restored;
     let session = selectedViewerRecord(api.baseUrl, restored.session).session;
     if (session.viewer.role === 'account') { this.publish({phase: 'signed-out'}); api.getRouteConnection()?.dispose(); return; }
+    // Launch gate (C-DESIGN §2): a profile remembered in this tab, or already opened in this page
+    // load, opens; so does an account's only profile with no PIN. Otherwise Who's watching first.
+    const held = {serverId: session.viewer.serverId, familyId: session.sessionFamilyId, profileId: session.viewer.profileId};
+    if (!tabAdmits(held)) {
+      let direct: DirectSnapshot;
+      try {direct = parseDirectSnapshot(await api.request(routePath('get_direct_account'), 'GET', undefined, signal), {authority: 'local', accountId: session.viewer.accountId, serverId: session.viewer.serverId});}
+      catch (error) {api.getRouteConnection()?.dispose(); throw error;}
+      const only = direct.profiles.length === 1 && direct.profiles[0]!.id === held.profileId && !direct.profiles[0]!.pinRequired;
+      if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}
+      if (!only) {api.getRouteConnection()?.dispose(); this.clearWait(); this.publish({phase: 'choose-profile'}); return;}
+    }
+    admitServer(held.serverId);
     const mutations = mountBrowserUserMutations(api, session);
     trackBrowserConnection(api);
     const cleanups: (() => void)[] = [() => {api.setUserMutationSession(undefined); mutations.dispose();}];
