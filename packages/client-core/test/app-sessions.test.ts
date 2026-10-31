@@ -160,3 +160,19 @@ test('a cancelled admission restores the previous entry with its marker', async 
   await adapter.change(current => current?.selectionId === candidate.selectionId ? previous : current);
   assert.deepEqual((await store.read()).servers[0].remembered, {...marker, familyId: 'family-a'});
 });
+
+// C-DESIGN §3 (lead review, 31 Oct): when the saved sign-ins can't be read, the lifecycle shows an
+// honest error, and nothing on the way to a new sign-in may replace or erase the intact record.
+test('an unreadable saved record is never overwritten or erased by a new sign-in, a marker or a sign-out', async () => {
+  const unreadable = {version: 1, revision: 4, servers: [{signIn: 'local', connection: {version: '9', from: 'a later app'}}]};
+  let raw: unknown = structuredClone(unreadable);
+  const port = {read: async () => structuredClone(raw), change: async (update: (value: any) => any) => {const next = update(structuredClone(raw)); raw = structuredClone(next);}} as unknown as AppSessionStorage;
+  const store = new AppSessionStore(port);
+  await assert.rejects(store.read(), (error: {code?: string}) => error.code === 'invalid_saved_connection');
+  const fresh = entry('fresh');
+  await assert.rejects(store.connectionStorage('fresh', {signIn: 'local', expectedRevision: 4}).change(() => fresh.connection));
+  await assert.rejects(store.setRemembered('a', 'family-a', {profileId: 'profile-a', expiresAt: '2099-01-01T00:00:00Z'}));
+  await assert.rejects(store.signOutServer('a', 'family-a'));
+  await assert.rejects(store.select('a'));
+  assert.deepEqual(raw, unreadable, 'the record is exactly as it was');
+});

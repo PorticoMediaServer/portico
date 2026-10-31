@@ -104,7 +104,8 @@ export function LifecycleProfileGate() {
   if (theme.isTV) return <TVProfilePINForm profile={option(profile)} code={code} onCodeChange={setCode} busy={busy} error={status}
     {...(state.canRemember ? {remember: {checked: remember, onChange: setRemember}} : {})}
     hints={busy ? wait : undefined} onSubmit={send} onBack={back} onForgotPIN={() => {if (!busy) {setCode(''); setForgot(true);}}}/>;
-  return <StateLayout testID="lifecycle-profile-pin" title={t('profile.pinTitle', {name: profile.name})} avoidKeyboard
+  // A profile is always named; only an account that couldn't be read falls back to the plain title.
+  return <StateLayout testID="lifecycle-profile-pin" title={profile.name ? t('profile.pinTitle', {name: profile.name}) : t('auth.enterProfilePin')} avoidKeyboard
     beforeActions={<View style={{alignSelf: 'stretch'}}>
       <PhonePINEntry value={code} onChange={setCode} onComplete={send} busy={busy} error={!!state.rejected}/>
       {status}
