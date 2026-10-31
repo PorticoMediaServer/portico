@@ -818,6 +818,7 @@ func restrictionWriteRoutes() map[string]writeRoute {
 		"POST /v1/direct/password/reset":                    writeExempt(reasonSignIn),
 		"POST /v1/direct/members/{id}/reset-code":           writeExempt("authorized local member password reset; no catalogue ids"),
 		"POST /v1/setup/resume":                             writeExempt(reasonSignIn),
+		"POST /v1/setup/retry":                              writeExempt(reasonSignIn),
 		"POST /v1/hosted/wake":                              writeExempt(reasonNetworking),
 		"POST /v1/direct/members":                           writeExempt("owner member management (admin_access_test); no catalogue ids"),
 		"PATCH /v1/direct/members/{id}":                     writeExempt("owner member management (admin_access_test); no catalogue ids"),
