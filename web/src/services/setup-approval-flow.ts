@@ -1,6 +1,7 @@
 import {ApiError} from '@core/index.ts';
+import {serverFloorFrom, systemScheduler, wait, type Scheduler} from '@core/timer.ts';
 import {accountIdentity, currentAccountWork, sameAccount, type AccountIdentity, type ServicesAccount} from './session';
-import type {HostedSetupClaimReview} from './setup-claim';
+import type {HostedSetupClaimPhase, HostedSetupClaimReview} from './setup-claim';
 import type {scopedHostedSetupClaim} from './setup-pending';
 
 type Controller = ReturnType<typeof scopedHostedSetupClaim>;
@@ -10,17 +11,25 @@ export type SetupApprovalDisplay = Readonly<{
 export type SetupApprovalSnapshot = Readonly<{
   phase: 'loading' | 'review' | 'approved' | 'finishing' | 'denied' | 'returning' | 'error' | 'expired';
   busy: boolean; approved?: true; /** Hosted reports the claim installed: only then is Return offered. */ installed?: true; display?: SetupApprovalDisplay; error?: unknown;
-  /** Still finishing well after Approve: the page says so honestly, with what to check. */ slow?: true;
+  /** Hosted says it is still finishing well after Approve with no word from the server: the page says so, with what to check. */ slow?: true;
+  /** Seconds until a refused (429) lookup may be tried again; Try again is held until then. */ retryIn?: number;
 }>;
 const changed = () => new ApiError(409, 'claim_stale', 'claim_stale', false);
-/** The server retries finishing quickly for about two minutes, then keeps trying slowly. */
-export const FINISHING_SLOW_MS = 2 * 60_000;
-
-export type SetupApprovalTiming = Readonly<{
-  monotonicNow?: () => number;
-  setTimeout?: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
-  clearTimeout?: (timer: ReturnType<typeof setTimeout>) => void;
-}>;
+const KNOWN_PHASES = new Set(['review', 'approved', 'finishing', 'installed']);
+/** A phase this page does not know reads as stale, never as a guess about the claim. */
+function knownPhase(review: HostedSetupClaimReview) {
+  if (review.phase && !KNOWN_PHASES.has(review.phase.variant)) throw changed();
+}
+/** Slow counts only while Hosted has heard nothing from the server since the approval. */
+function slowWording(phase: HostedSetupClaimPhase | undefined) {
+  if (!phase?.slow) return false;
+  const seen = Date.parse(phase.serverSeenAt ?? ''), approved = Date.parse(phase.approvedAt ?? '');
+  return !(seen >= approved);
+}
+const rateLimited = (error: unknown) => {
+  const value = error as {status?: unknown; code?: unknown} | null;
+  return value?.status === 429 || value?.code === 'rate_limited';
+};
 
 /** View lifecycle over the one existing protected setup controller. No cookie,
  * credential, journal or claim code is copied into this public snapshot. */
@@ -31,73 +40,39 @@ export class SetupApprovalFlow {
   private disposed = false;
   private review?: HostedSetupClaimReview;
   private identity?: AccountIdentity;
-  private approvedAt?: number;
-  private timer?: ReturnType<typeof setTimeout>;
-  private timerTicket = 0;
-  private stopAccount?: () => void;
-  private clockRetired = false;
-  private readonly monotonicNow: () => number;
-  private readonly schedule: NonNullable<SetupApprovalTiming['setTimeout']>;
-  private readonly cancel: NonNullable<SetupApprovalTiming['clearTimeout']>;
+  private lifetime?: AbortController;
+  private holding?: AbortController;
   constructor(private readonly account: ServicesAccount, private readonly controller: Controller,
-    private readonly navigate: (location: string) => void, private readonly now = Date.now, timing: SetupApprovalTiming = {}) {
-    this.monotonicNow = timing.monotonicNow ?? (() => performance.now());
-    this.schedule = timing.setTimeout ?? ((callback, delay) => setTimeout(callback, delay));
-    this.cancel = timing.clearTimeout ?? (timer => clearTimeout(timer));
-  }
+    private readonly navigate: (location: string) => void, private readonly now = Date.now, private readonly scheduler: Scheduler = systemScheduler) {}
   readonly getSnapshot = () => this.state;
   readonly subscribe = (listener: () => void) => {this.listeners.add(listener); return () => this.listeners.delete(listener);};
   private publish(state: SetupApprovalSnapshot) {
     if (this.disposed) return;
     this.state = Object.freeze(state); this.listeners.forEach(listener => listener());
-    this.syncClock();
   }
-  private stopClock() {
-    ++this.timerTicket;
-    if (this.timer !== undefined) this.cancel(this.timer);
-    this.timer = undefined;
-    const stop = this.stopAccount; this.stopAccount = undefined; stop?.();
+  /** The page ends at the claim's own expiry, on the monotonic clock. */
+  private watchExpiry(expiresAt: string) {
+    this.lifetime?.abort();
+    const lifetime = this.lifetime = new AbortController();
+    wait(Math.max(0, Date.parse(expiresAt) - this.now()), {signal: lifetime.signal, scheduler: this.scheduler}).then(() => this.expire(), () => {});
   }
-  private clockAuthority() {
-    const session = this.account.service.getSnapshot().session;
-    if (!session?.familyId || !this.identity || !sameAccount(accountIdentity(session), this.identity) ||
-      !this.review || !sameAccount(this.review.identity, this.identity) ||
-      !Number.isFinite(Date.parse(this.review.expiresAt)) || Date.parse(this.review.expiresAt) <= this.now()) {
-      this.clockRetired = true;
-      this.stopClock();
-      return false;
-    }
-    return true;
+  /** Honest wait after a 429: counts down the server's Retry-After, never shortened,
+   * and nothing looks up again until it has passed. */
+  private holdFor(ms: number) {
+    this.holding?.abort();
+    const holding = this.holding = new AbortController(), end = this.scheduler.now() + ms;
+    const count = async () => {
+      for (let left = ms; left > 0; left = end - this.scheduler.now()) {
+        this.publish({...this.state, retryIn: Math.ceil(left / 1000)});
+        await wait(Math.min(left, 1000), {signal: holding.signal, scheduler: this.scheduler});
+      }
+      this.holding = undefined;
+      const {retryIn: _held, ...rest} = this.state;
+      this.publish(rest);
+    };
+    count().catch(() => {});
   }
-  private clockEligible() {
-    return !this.disposed && !this.clockRetired && this.state.approved && !this.state.slow &&
-      ['approved', 'finishing', 'error'].includes(this.state.phase) &&
-      (!this.state.installed || this.state.phase === 'finishing');
-  }
-  private elapsedSlow() {
-    return this.approvedAt !== undefined && this.monotonicNow() - this.approvedAt >= FINISHING_SLOW_MS;
-  }
-  private syncClock() {
-    if (!this.clockEligible()) {this.stopClock(); return;}
-    if (!this.clockAuthority()) return;
-    this.approvedAt ??= this.monotonicNow();
-    this.stopAccount ??= this.account.service.subscribe(() => {this.clockAuthority();});
-    if (this.timer !== undefined) return;
-    const ticket = ++this.timerTicket;
-    // Expiry uses wall time; the display deadline uses only monotonic elapsed time.
-    const delay = Math.max(0, Math.ceil(Math.min(
-      FINISHING_SLOW_MS - (this.monotonicNow() - this.approvedAt),
-      Date.parse(this.review!.expiresAt) - this.now())));
-    this.timer = this.schedule(() => {
-      if (ticket !== this.timerTicket || !this.clockEligible()) return;
-      this.timer = undefined;
-      if (!this.clockAuthority()) return;
-      if (!this.elapsedSlow()) {this.syncClock(); return;}
-      this.stopClock();
-      // Display only: leave the action epoch and any completion in flight intact.
-      this.publish({...this.state, slow: true});
-    }, delay);
-  }
+  private stopTimers() {this.lifetime?.abort(); this.holding?.abort(); this.lifetime = this.holding = undefined;}
   private current(generation: number, identity: AccountIdentity) {
     if (this.disposed || this.epoch !== generation) throw changed();
     const session = this.account.service.getSnapshot().session;
@@ -106,7 +81,7 @@ export class SetupApprovalFlow {
     return session;
   }
   private async run(work: (generation: number, identity: AccountIdentity) => Promise<void>) {
-    if (this.disposed || this.state.busy || this.state.phase === 'expired' || this.state.phase === 'denied' || this.state.phase === 'returning') return;
+    if (this.disposed || this.state.busy || this.state.retryIn !== undefined || this.state.phase === 'expired' || this.state.phase === 'denied' || this.state.phase === 'returning') return;
     const session = this.account.service.getSnapshot().session;
     if (!session) {this.publish({phase: 'error', busy: false, error: changed()}); return;}
     let identity: AccountIdentity;
@@ -116,7 +91,11 @@ export class SetupApprovalFlow {
     this.publish({...this.state, busy: true, error: undefined});
     try {this.current(generation, identity); await work(generation, identity);}
     catch (error) {
-      if (!this.disposed && generation === this.epoch) this.publish({...this.state, phase: 'error', busy: false, error});
+      if (!this.disposed && generation === this.epoch) {
+        this.publish({...this.state, phase: 'error', busy: false, error});
+        const floor = rateLimited(error) ? serverFloorFrom(error)?.retryAfterMs : undefined;
+        if (floor) this.holdFor(floor);
+      }
     } finally {
       if (!this.disposed && generation === this.epoch && this.state.busy) this.publish({...this.state, busy: false});
     }
@@ -126,11 +105,15 @@ export class SetupApprovalFlow {
       const review = await this.controller.review();
       const session = this.current(generation, identity);
       if (!sameAccount(review.identity, identity) || !Number.isFinite(Date.parse(review.expiresAt)) || Date.parse(review.expiresAt) <= this.now()) throw changed();
+      knownPhase(review);
       this.identity = identity; this.review = review;
       const display = Object.freeze({name: review.name, address: review.address,
         accountName: session.account.displayName || session.account.username,
         requestedAt: review.requestedAt, expiresAt: review.expiresAt});
-      this.publish({...(this.state.slow ? {slow: true as const} : {}), phase: review.status === 'approved' ? 'approved' : 'review', busy: false, ...(review.status === 'approved' ? {approved: true as const} : {}), ...(review.status === 'approved' && review.installed ? {installed: true as const} : {}), display});
+      const approved = review.status === 'approved';
+      this.publish({phase: approved ? 'approved' : 'review', busy: false, ...(approved ? {approved: true as const} : {}), ...(approved && review.installed ? {installed: true as const} : {}),
+        ...(approved && !review.installed && slowWording(review.phase) ? {slow: true as const} : {}), display});
+      this.watchExpiry(review.expiresAt);
     });
   }
   async decide(decision: 'approve' | 'deny') {
@@ -145,7 +128,6 @@ export class SetupApprovalFlow {
         this.current(generation, identity);
         this.publish({phase: 'denied', busy: false, display: this.state.display});
       } else {
-        this.approvedAt ??= this.monotonicNow();
         this.publish({phase: 'approved', busy: false, approved: true, display: this.state.display});
       }
     });
@@ -170,22 +152,23 @@ export class SetupApprovalFlow {
   async complete() {
     if (!this.state.approved || !['approved', 'finishing', 'error'].includes(this.state.phase) || !this.review) return;
     return this.run(async (generation, identity) => {
-      const location = await this.controller.complete();
+      const done = await this.controller.complete();
       this.current(generation, identity);
-      // Not finished yet: never a silent no-op. One lookup refreshes the Return offer, and the
-      // page says the server is finishing, with the same Return to try again.
-      if (!location) {
-        const review = await this.controller.review();
-        this.current(generation, identity);
+      // Not finished yet: never a silent no-op. The same lookup says how far along it is, and
+      // the page says the server is finishing, with the same Return to try again.
+      if (!done.location) {
+        const review = done.review;
+        if (!review) throw changed();
+        knownPhase(review);
         this.review = review;
-        const installed = review.status === 'approved' && review.installed;
-        this.approvedAt ??= this.monotonicNow();
-        const slow = this.elapsedSlow();
-        this.publish({...this.state, phase: 'finishing', busy: false, ...(installed ? {installed: true as const} : {}), ...(slow ? {slow: true as const} : {})});
+        this.publish({phase: 'finishing', busy: false, approved: true, display: this.state.display, ...(review.installed ? {installed: true as const} : {}),
+          ...(!review.installed && slowWording(review.phase) ? {slow: true as const} : {})});
         return;
       }
+      const location = done.location;
       // The protected controller already performs the final authenticated check
       // before spending this attempt. Do not add fallible I/O after that spend.
+      this.lifetime?.abort();
       this.publish({phase: 'returning', busy: false, approved: true, display: this.state.display});
       this.current(generation, identity);
       this.navigate(location);
@@ -193,13 +176,13 @@ export class SetupApprovalFlow {
   }
   expire() {
     if (this.disposed) return;
-    this.clockRetired = true; this.stopClock();
+    this.stopTimers();
     ++this.epoch; this.review = undefined; this.controller.dispose();
     this.publish({phase: 'expired', busy: false});
   }
   dispose() {
     if (this.disposed) return;
-    this.disposed = true; this.stopClock(); ++this.epoch; this.review = undefined; this.identity = undefined;
+    this.disposed = true; this.stopTimers(); ++this.epoch; this.review = undefined; this.identity = undefined;
     this.controller.dispose(); this.listeners.clear();
   }
 }
