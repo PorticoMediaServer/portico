@@ -22,12 +22,14 @@ export type SetupCredentials = Readonly<{username: string; password: string}>;
 
 /** What a read of the server says. The port pairs if needed and asks with the record's token (none when there is no record). */
 export type SetupServerRead = Readonly<{kind: 'state'; state: SetupReading; ownerSessionHeld?: boolean}> | Of<'tokenRefused' | 'notLocalSource' | 'alreadyComplete'>;
+/** A read and the records it was made with: the port reads the store after pairing, since a store can be per server. */
+export type SetupRead = Readonly<{server: SetupServerRead; local: SetupLocal}>;
 
 /** Each port returns the reducer's own result input, or throws; a throw becomes `effectFailed` / `readFailed` with a data-only error.
  * Ports that write records (start, initialize, request approval, renew) write through `store`, and the controller re-reads it after. */
 export interface SetupPorts {
   readonly store: SetupStore;
-  readState(local: SetupLocal, context: SetupPortContext): Promise<SetupServerRead>;
+  readState(context: SetupPortContext): Promise<SetupRead>;
   /** S1. */
   start(context: SetupPortContext): Promise<Of<'startDone' | 'notLocalSource' | 'addressNotAllowed' | 'setupInProgress' | 'alreadyComplete' | 'tokenRefused'>>;
   /** S4. */
@@ -178,10 +180,9 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
 
   // ---- the effects ---------------------------------------------------------------------------------------------------------
   async function readServer(context: SetupPortContext): Promise<SetupInput | undefined> {
-    const local = await store.read();
-    remember(local);
-    const result = await ports.readState(local, context);
+    const {server: result, local} = await ports.readState(context);
     if (context.signal.aborted) return undefined;
+    remember(local);
     if (local.unreadable) releaseQuietly('setup diagnostic', () => options.diagnostic?.('setup_record_unreadable'));
     if (result.kind !== 'state') {
       if (local.unreadable) {await retireQuietly('record'); await retireQuietly('attempt');}
