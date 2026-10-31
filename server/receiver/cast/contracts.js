@@ -128901,11 +128901,7 @@ var PorticoCastContracts = (function(exports) {
 					"x-discriminator": "variant"
 				},
 				"status": {
-					"enum": [
-						"ready",
-						"in_progress",
-						"complete"
-					],
+					"description": "Open: ready, in_progress or complete today. Read any other value as unknown.",
 					"type": "string"
 				}
 			},
@@ -177999,6 +177995,295 @@ var PorticoCastContracts = (function(exports) {
 			],
 			"type": "object"
 		},
+		"PostSetupAbandonRequest": {
+			"properties": {
+				"requestId": { "type": "string" },
+				"revision": { "type": "string" },
+				"setupToken": { "type": "string" }
+			},
+			"required": [
+				"requestId",
+				"revision",
+				"setupToken"
+			],
+			"type": "object"
+		},
+		"PostSetupAbandonResponse": {
+			"properties": {
+				"retryAfterSeconds": {
+					"maximum": 9007199254740991,
+					"minimum": 1,
+					"type": "integer"
+				},
+				"setup": {
+					"oneOf": [
+						{
+							"properties": {
+								"cancelling": { "type": "boolean" },
+								"expiresAt": { "type": "string" },
+								"operation": {
+									"properties": {
+										"localGeneration": { "type": "string" },
+										"operationId": { "type": "string" },
+										"revision": { "type": "string" }
+									},
+									"required": [
+										"operationId",
+										"localGeneration",
+										"revision"
+									],
+									"type": "object"
+								},
+								"renewable": { "type": "boolean" },
+								"requestId": { "type": "string" },
+								"revision": { "type": "string" },
+								"variant": {
+									"const": "started",
+									"type": "string"
+								}
+							},
+							"required": [
+								"variant",
+								"requestId",
+								"revision"
+							],
+							"type": "object"
+						},
+						{
+							"properties": {
+								"cancelling": { "type": "boolean" },
+								"expiresAt": { "type": "string" },
+								"operation": {
+									"properties": {
+										"localGeneration": { "type": "string" },
+										"operationId": { "type": "string" },
+										"revision": { "type": "string" }
+									},
+									"required": [
+										"operationId",
+										"localGeneration",
+										"revision"
+									],
+									"type": "object"
+								},
+								"renewable": { "type": "boolean" },
+								"requestId": { "type": "string" },
+								"revision": { "type": "string" },
+								"variant": {
+									"const": "awaiting_approval",
+									"type": "string"
+								}
+							},
+							"required": [
+								"variant",
+								"requestId",
+								"revision"
+							],
+							"type": "object"
+						},
+						{
+							"properties": {
+								"cancelling": { "type": "boolean" },
+								"expiresAt": { "type": "string" },
+								"operation": {
+									"properties": {
+										"localGeneration": { "type": "string" },
+										"operationId": { "type": "string" },
+										"revision": { "type": "string" }
+									},
+									"required": [
+										"operationId",
+										"localGeneration",
+										"revision"
+									],
+									"type": "object"
+								},
+								"renewable": { "type": "boolean" },
+								"requestId": { "type": "string" },
+								"revision": { "type": "string" },
+								"variant": {
+									"const": "expired",
+									"type": "string"
+								}
+							},
+							"required": [
+								"variant",
+								"requestId",
+								"revision"
+							],
+							"type": "object"
+						},
+						{
+							"properties": {
+								"cancelling": { "type": "boolean" },
+								"expiresAt": { "type": "string" },
+								"operation": {
+									"properties": {
+										"localGeneration": { "type": "string" },
+										"operationId": { "type": "string" },
+										"revision": { "type": "string" }
+									},
+									"required": [
+										"operationId",
+										"localGeneration",
+										"revision"
+									],
+									"type": "object"
+								},
+								"renewable": { "type": "boolean" },
+								"requestId": { "type": "string" },
+								"revision": { "type": "string" },
+								"variant": {
+									"const": "approved",
+									"type": "string"
+								}
+							},
+							"required": [
+								"variant",
+								"requestId",
+								"revision"
+							],
+							"type": "object"
+						},
+						{
+							"properties": {
+								"cancelling": { "type": "boolean" },
+								"expiresAt": { "type": "string" },
+								"operation": {
+									"properties": {
+										"localGeneration": { "type": "string" },
+										"operationId": { "type": "string" },
+										"revision": { "type": "string" }
+									},
+									"required": [
+										"operationId",
+										"localGeneration",
+										"revision"
+									],
+									"type": "object"
+								},
+								"renewable": { "type": "boolean" },
+								"requestId": { "type": "string" },
+								"revision": { "type": "string" },
+								"variant": {
+									"const": "finishing",
+									"type": "string"
+								}
+							},
+							"required": [
+								"variant",
+								"requestId",
+								"revision"
+							],
+							"type": "object"
+						},
+						{
+							"properties": {
+								"cancelling": { "type": "boolean" },
+								"expiresAt": { "type": "string" },
+								"operation": {
+									"properties": {
+										"localGeneration": { "type": "string" },
+										"operationId": { "type": "string" },
+										"revision": { "type": "string" }
+									},
+									"required": [
+										"operationId",
+										"localGeneration",
+										"revision"
+									],
+									"type": "object"
+								},
+								"renewable": { "type": "boolean" },
+								"requestId": { "type": "string" },
+								"revision": { "type": "string" },
+								"variant": {
+									"const": "exhausted",
+									"type": "string"
+								}
+							},
+							"required": [
+								"variant",
+								"requestId",
+								"revision"
+							],
+							"type": "object"
+						},
+						{
+							"properties": {
+								"cancelling": { "type": "boolean" },
+								"expiresAt": { "type": "string" },
+								"operation": {
+									"properties": {
+										"localGeneration": { "type": "string" },
+										"operationId": { "type": "string" },
+										"revision": { "type": "string" }
+									},
+									"required": [
+										"operationId",
+										"localGeneration",
+										"revision"
+									],
+									"type": "object"
+								},
+								"renewable": { "type": "boolean" },
+								"requestId": { "type": "string" },
+								"revision": { "type": "string" },
+								"variant": {
+									"const": "installed",
+									"type": "string"
+								}
+							},
+							"required": [
+								"variant",
+								"requestId",
+								"revision"
+							],
+							"type": "object"
+						},
+						{
+							"properties": {
+								"cancelling": { "type": "boolean" },
+								"expiresAt": { "type": "string" },
+								"operation": {
+									"properties": {
+										"localGeneration": { "type": "string" },
+										"operationId": { "type": "string" },
+										"revision": { "type": "string" }
+									},
+									"required": [
+										"operationId",
+										"localGeneration",
+										"revision"
+									],
+									"type": "object"
+								},
+								"renewable": { "type": "boolean" },
+								"requestId": { "type": "string" },
+								"revision": { "type": "string" },
+								"variant": {
+									"const": "installed_lapsed",
+									"type": "string"
+								}
+							},
+							"required": [
+								"variant",
+								"requestId",
+								"revision"
+							],
+							"type": "object"
+						}
+					],
+					"x-discriminator": "variant"
+				},
+				"status": {
+					"description": "Open: ready, in_progress or complete today. Read any other value as unknown.",
+					"type": "string"
+				}
+			},
+			"required": ["status"],
+			"type": "object"
+		},
 		"PostSetupAccountCompleteRequest": {
 			"properties": {
 				"porticoIdentity": {
@@ -207094,6 +207379,7 @@ var PorticoCastContracts = (function(exports) {
 		"post_reading_sessions": "/v1/reading/sessions",
 		"post_reading_sessions_sessionId_file_save": "/v1/reading/sessions/{sessionId}/file-save",
 		"post_saved_resources": "/v1/saved-resources",
+		"post_setup_abandon": "/v1/setup/abandon",
 		"post_setup_account_complete": "/v1/setup/account/complete",
 		"post_setup_resume": "/v1/setup/resume",
 		"post_shows_id_metadata_screen_retry": "/v1/shows/{id}/metadata/screen/retry",

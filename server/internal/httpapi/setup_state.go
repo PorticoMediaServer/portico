@@ -65,7 +65,8 @@ func (SetupDetail) JSONSchema() map[string]any {
 	return map[string]any{"oneOf": alternatives}
 }
 
-// JSONSchema bounds status to its three values.
+// JSONSchema keeps status an open string (O-159): a newer server's value must not
+// stop an older app reading the rest. Today's values are ready, in_progress and complete.
 func (SetupStateResponse) JSONSchema() map[string]any {
 	type response SetupStateResponse
 	shape, err := apikit.Schema(reflect.TypeFor[response]())
@@ -73,9 +74,51 @@ func (SetupStateResponse) JSONSchema() map[string]any {
 		panic(err)
 	}
 	props := shape["properties"].(map[string]any)
-	props["status"].(map[string]any)["enum"] = []string{string(setupflow.CoarseReady), string(setupflow.CoarseInProgress), string(setupflow.CoarseComplete)}
+	props["status"].(map[string]any)["description"] = "Open: ready, in_progress or complete today. Read any other value as unknown."
 	props["retryAfterSeconds"].(map[string]any)["minimum"] = 1
 	return shape
+}
+
+// SetupAbandonRequest is Back from the caller's own unapproved Portico Account setup.
+type SetupAbandonRequest struct {
+	RequestID  string `json:"requestId"`
+	Revision   int64  `json:"revision,string"`
+	SetupToken string `json:"setupToken"`
+}
+
+// serveSetupAbandon is POST /v1/setup/abandon (setupflow S8): the server returns to the
+// start of setup, retiring the unapproved claim here alone and stopping its wait;
+// nothing is sent to Portico Services. After approval it answers setup_state_changed.
+// A replay after success answers the open server.
+func (d Dependencies) serveSetupAbandon(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if !d.setupRequestAllowed(r) {
+		failure(w, identity.ErrUnauthorized)
+		return
+	}
+	if !d.setupSourceAllowed(r) {
+		policyErrors.Write(w, w.Header().Get("X-Request-Id"), errSetupSourceNotLocal)
+		return
+	}
+	var q SetupAbandonRequest
+	if e := decode(w, r, &q); e != nil {
+		failure(w, e)
+		return
+	}
+	state, err := d.Identity.AbandonSetup(r.Context(), q.RequestID, q.SetupToken, q.Revision, d.Networking.StopSetupWatch)
+	if errors.Is(err, identity.ErrUnauthorized) {
+		if limit := d.Identity.SetupLimit(r.Context(), d.setupPeerSubject(r), "abandon", 20); limit != nil {
+			setupFailure(w, limit)
+			return
+		}
+		failure(w, err)
+		return
+	}
+	if err != nil {
+		writeSetupError(w, err)
+		return
+	}
+	write(w, 200, setupStateResponse(state, false, time.Now()))
 }
 
 func setupStateResponse(state setupflow.State, own bool, now time.Time) SetupStateResponse {

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"github.com/PorticoMediaServer/portico/server/internal/setupflow"
 	"context"
 	"errors"
 	"github.com/PorticoMediaServer/portico/apikit"
@@ -88,7 +89,7 @@ func (d Dependencies) serveSetup(w http.ResponseWriter, r *http.Request) {
 	}
 	result, e := d.Identity.SetupWithOptions(r.Context(), body, d.privateSetupPeer(r))
 	if e != nil {
-		failure(w, e)
+		writeSetupError(w, e)
 		return
 	}
 	writeAuth(w, r, 201, result)
@@ -147,7 +148,7 @@ func (d Dependencies) setupStart(ctx context.Context, r *http.Request, bucket st
 }
 
 func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
-	err := apikit.RegisterRaw(registry, apikit.RawRoute[identity.SetupOptions, identity.SetupResult]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneAuth, ID: "setup_server", Method: "POST", Path: "/v1/setup", Summary: "Create the first owner", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 201, BodyLimit: 65536, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "internal"}}, Serve: d.serveSetup})
+	err := apikit.RegisterRaw(registry, apikit.RawRoute[identity.SetupOptions, identity.SetupResult]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneAuth, ID: "setup_server", Method: "POST", Path: "/v1/setup", Summary: "Create the first owner", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 201, BodyLimit: 65536, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_in_progress", "setup_portico_mode", "internal"}}, Serve: d.serveSetup})
 	if err != nil {
 		return err
 	}
@@ -160,6 +161,10 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 	if err != nil {
 		return err
 	}
+	err = apikit.RegisterRaw(registry, apikit.RawRoute[SetupAbandonRequest, SetupStateResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneAuth, ID: "post_setup_abandon", Method: "POST", Path: "/v1/setup/abandon", Summary: "Go back to the start of an unapproved Portico Account setup", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_state_changed", "setup_source_not_local", "internal"}}, Serve: d.serveSetupAbandon})
+	if err != nil {
+		return err
+	}
 	// First run from the Portico app on a phone or tablet that found a server nobody has set up.
 	return apikit.Register(registry, apikit.Route[struct{}, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "start_app_setup", Method: "POST", Path: "/v1/setup/app", Summary: "Start first-run setup from an app", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_in_progress", "setup_source_not_local", "internal"}}, Handler: func(ctx context.Context, r *http.Request, _ struct{}) (BrowserSetupResponse, error) {
 		if !d.appSetupRequest(r) {
@@ -169,9 +174,25 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 	}})
 }
 
+// writeSetupError answers a setup refusal with its own code, and anything else as usual.
+func writeSetupError(w http.ResponseWriter, err error) {
+	var progress *identity.SetupInProgressError
+	if errors.Is(err, identity.ErrConflict) || errors.Is(err, identity.ErrPorticoSetup) || errors.Is(err, setupflow.ErrStateChanged) || errors.As(err, &progress) {
+		policyErrors.Write(w, w.Header().Get("X-Request-Id"), setupTransportError(err))
+		return
+	}
+	failure(w, err)
+}
+
 func setupTransportError(err error) error {
 	if errors.Is(err, identity.ErrConflict) {
 		return &apierror.Error{Code: "setup_already_complete"}
+	}
+	if errors.Is(err, identity.ErrPorticoSetup) {
+		return &apierror.Error{Code: "setup_portico_mode"}
+	}
+	if errors.Is(err, setupflow.ErrStateChanged) {
+		return &apierror.Error{Code: "setup_state_changed"}
 	}
 	var progress *identity.SetupInProgressError
 	if errors.As(err, &progress) {
@@ -191,5 +212,7 @@ func setupTransportError(err error) error {
 func connectionErrorDefinitions() []apierror.Definition {
 	return []apierror.Definition{{Code: "setup_already_complete", Status: 409, Message: "This server is already set up.", Retry: apierror.Never},
 		{Code: "setup_in_progress", Status: 409, Message: "Setup is already in progress in another browser.", Retry: apierror.SameRequest},
-		{Code: "setup_source_not_local", Status: 403, Message: "Setup has to start from a device on the same network as this server.", Retry: apierror.Never}}
+		{Code: "setup_source_not_local", Status: 403, Message: "Setup has to start from a device on the same network as this server.", Retry: apierror.Never},
+		{Code: "setup_portico_mode", Status: 409, Message: "This server is being set up for a Portico Account. Go back to the start of setup to choose local sign-in.", Retry: apierror.Never},
+		{Code: "setup_state_changed", Status: 409, Message: "Setup moved on. Read its state again.", Retry: apierror.Never}}
 }

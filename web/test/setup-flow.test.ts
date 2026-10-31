@@ -139,57 +139,12 @@ test('the setup values keep the drawn boundary rules', () => {
   assert.doesNotMatch(setupErrorMessage({status: 403}), /could not be authorized at this address/);
 });
 
-// Auth1d source vectors. The server refuses browser-start while onboarding is
-// pending, so an accepted recovery must use its original protected continuation.
-for (const replace of [false, true]) test(`local recovery ${replace ? 'refuses a replaced draft' : 'uses the captured setup proof without browser-start'}`, async () => {
-  let draft: SetupDraft | undefined;
-  const failure = new SetupStageFailure('claim', {code: 'claim_unavailable', status: 503}, undefined, async () => {});
-  const f = fixture({hosted: async () => {
-    draft = {version: 1, serverId: 'server-1', requestId: '11111111-2222-4333-8444-555555555555', setupToken: 'original-private-proof', name: 'Portico demo', authMode: 'hosted'};
-    throw failure;
-  }});
-  f.server.draft.read = async () => draft;
-  f.server.draft.change = async update => {draft = update(draft);};
-  const requests: {path: string; body: unknown}[] = [];
-  f.server.api.request = (async (path: string, _method: string, body: unknown) => {
-    requests.push({path, body});
-    if (path === '/v1/setup/resume') return {variant: 'claim-required', serverId: 'server-1', requestId: draft!.requestId, claimRequired: true, authMode: 'hosted', revision: '1'};
-    if (path === '/v1/setup') return {variant: 'session', ...session()};
-    throw new Error('No new browser setup proof may be requested.');
-  }) as SetupServer['api']['request'];
-  try {
-    await f.flow.start(); await f.flow.submitHosted();
-    assert.equal(f.flow.getSnapshot().failure, failure);
-    await f.flow.useLocalFailure(failure);
-    assert.equal(f.flow.getSnapshot().phase, 'form');
-    if (replace) draft = {...draft!, requestId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'};
-    const original = draft;
-    f.flow.setUsername('owner'); f.flow.setPassword('a long enough password 1'); f.flow.setConfirm('a long enough password 1');
-    await f.flow.submitLocal();
-    assert.equal(requests.some(value => value.path === '/v1/setup/browser'), false);
-    if (replace) {assert.equal(requests.length, 0); assert.equal(draft, original); assert.equal(f.accepted(), 0);}
-    else {
-      assert.deepEqual(requests.map(value => value.path), ['/v1/setup/resume', '/v1/setup']);
-      assert.equal((requests[1].body as {setupToken: string}).setupToken, 'original-private-proof');
-      assert.equal((requests[1].body as {requestId: string}).requestId, original!.requestId);
-      assert.equal(f.flow.getSnapshot().phase, 'library'); assert.equal(f.accepted(), 1);
-    }
-  } finally {f.flow.dispose();}
-});
-
-test('a recovery callback cannot publish the local form after replacing its original proof', async () => {
-  let draft: SetupDraft | undefined;
-  const failure = new SetupStageFailure('claim', {code: 'claim_unavailable', status: 503}, undefined, async () => {draft = {...draft!, setupToken: 'foreign-proof'};});
-  const f = fixture({hosted: async () => {
-    draft = {version: 1, serverId: 'server-1', requestId: '11111111-2222-4333-8444-555555555555', setupToken: 'original-proof', name: 'Portico demo', authMode: 'hosted'};
-    throw failure;
-  }});
-  f.server.draft.read = async () => draft;
-  try {
-    await f.flow.start(); await f.flow.submitHosted(); await f.flow.useLocalFailure(failure);
-    assert.equal(f.flow.getSnapshot().phase, 'error'); assert.equal(f.flow.getSnapshot().mode, 'hosted');
-    assert.equal(draft?.setupToken, 'foreign-proof'); assert.equal(f.requests(), 0);
-  } finally {f.flow.dispose();}
+// A Portico Account setup never falls back to local (Justin, 31 Oct): no failure carries
+// a switch to local sign-in, and the flow has no way to make one.
+test('no setup failure offers local sign-in', () => {
+  const failure = new SetupStageFailure('claim', {code: 'claim_unavailable', status: 503}, async () => {});
+  assert.equal('useLocal' in failure, false);
+  assert.equal('useLocalFailure' in new SetupFlow({} as SetupPorts), false);
 });
 
 const notLocalLine = 'Setup has to start from a device on the same network as this server. Open this page from there, or use a claim token.';
@@ -204,7 +159,7 @@ test('a setup_source_not_local refusal shows the one honest line, with no retry 
     await f.flow.start(); await f.flow.submitHosted();
     const state = f.flow.getSnapshot();
     assert.equal(state.phase, 'error'); assert.equal(state.error, notLocalLine);
-    assert.equal(state.failure, refusal); assert.equal(refusal.retry, undefined); assert.equal(refusal.useLocal, undefined);
+    assert.equal(state.failure, refusal); assert.equal(refusal.retry, undefined);
   } finally {f.flow.dispose();}
 });
 test('a not-local refusal on a local setup keeps the form and says the same line', async () => {

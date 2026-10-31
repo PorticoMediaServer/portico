@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"sync/atomic"
 	"github.com/PorticoMediaServer/portico/server/internal/claimweb"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
@@ -95,6 +96,9 @@ func (h *ClaimHandler) beginWebClaim(ctx context.Context, v Intent, address stri
 type webClaimWatch struct {
 	done   chan struct{}
 	answer []byte
+	// stop ends the wait without asking Portico Services anything more (StopSetupWatch).
+	stop    context.CancelFunc
+	stopped atomic.Bool
 }
 
 // awaitWebClaim holds the page's request open until the watch has an answer:
@@ -176,8 +180,10 @@ func (h *ClaimHandler) watchWebClaim(ctx context.Context, expected ClaimExpected
 	if _, ok := h.transport.(*HTTPTransport); !ok {
 		return nil, stepFailure("hosted transport", ErrUnavailable)
 	}
-	watch := &webClaimWatch{done: make(chan struct{})}
+	stopCtx, stop := context.WithCancel(context.Background())
+	watch := &webClaimWatch{done: make(chan struct{}), stop: stop}
 	if current, loaded := h.webWatches.LoadOrStore(expected.OperationID, watch); loaded {
+		stop()
 		return current.(*webClaimWatch), nil
 	}
 	if resume != "" {
@@ -194,6 +200,11 @@ func (h *ClaimHandler) watchWebClaim(ctx context.Context, expected ClaimExpected
 				watch.answer = webClaimAnswer("approval_closed")
 			}
 			close(watch.done)
+			if watch.stopped.Load() {
+				// Abandoned on this server: nothing further is asked of Portico Services.
+				h.webWatches.CompareAndDelete(expected.OperationID, watch)
+				return
+			}
 			if !decided {
 				// Hosted could not be asked (or the stream broke): the next wait asks again.
 				h.webWatches.CompareAndDelete(expected.OperationID, watch)
@@ -204,7 +215,8 @@ func (h *ClaimHandler) watchWebClaim(ctx context.Context, expected ClaimExpected
 			// the request's own expiry a new web approval starts a new watch.
 			time.AfterFunc(time.Until(local.ExpiresAt)+time.Minute, func() { h.webWatches.CompareAndDelete(expected.OperationID, watch) })
 		}()
-		watch.answer, decided = h.runWebClaimWatch(expected, guard, local, resume)
+		defer stop()
+		watch.answer, decided = h.runWebClaimWatch(stopCtx, expected, guard, local, resume)
 	})
 	return watch, nil
 }
@@ -265,8 +277,8 @@ func webClaimAnswer(state string) []byte {
 // runWebClaimWatch waits on Hosted's decision stream for one signed web claim
 // and, when it is approved, installs the claim and wakes the certificate and
 // remote-access work at once.
-func (h *ClaimHandler) runWebClaimWatch(expected ClaimExpected, guard ClaimRequestGuard, local localWebClaim, resume string) ([]byte, bool) {
-	ctx, cancel := context.WithDeadline(context.Background(), local.ExpiresAt)
+func (h *ClaimHandler) runWebClaimWatch(parent context.Context, expected ClaimExpected, guard ClaimRequestGuard, local localWebClaim, resume string) ([]byte, bool) {
+	ctx, cancel := context.WithDeadline(parent, local.ExpiresAt)
 	defer cancel()
 	withdraw := func() {
 		cleanup, stop := context.WithTimeout(context.Background(), time.Second*8)
@@ -276,7 +288,7 @@ func (h *ClaimHandler) runWebClaimWatch(expected ClaimExpected, guard ClaimReque
 		}
 	}
 	defer func() {
-		if !time.Now().Before(local.ExpiresAt) {
+		if parent.Err() == nil && !time.Now().Before(local.ExpiresAt) {
 			withdraw()
 		}
 	}()
@@ -457,4 +469,21 @@ func (h *ClaimHandler) afterWebClaimInstalled(ctx context.Context, next Intent, 
 		}
 	}
 	return nil
+}
+
+// StopSetupWatch ends any wait on a setup claim that was abandoned on this server
+// (setupflow S8). The wait closes its open request to Portico Services and asks it
+// nothing more: no withdrawal, no recovery. The claim is already cancelled locally, so
+// a restart does not wait on it again.
+func (h *ClaimHandler) StopSetupWatch(operationID string) {
+	if h == nil {
+		return
+	}
+	if current, ok := h.webWatches.Load(operationID); ok {
+		watch := current.(*webClaimWatch)
+		watch.stopped.Store(true)
+		if watch.stop != nil {
+			watch.stop()
+		}
+	}
 }

@@ -133,17 +133,13 @@ export class BrowserSetupComposition {
   private hostedFailure(held: HostedOpening, stage: SetupFailureStage, error: unknown): SetupStageFailure {
     const token = {}, recovery = held.recovery;
     held.failure = token;
-    const run = async (local: boolean) => {
+    const run = async () => {
       this.hostedCurrent(held);
       if (held.busy || held.failure !== token) throw changed();
       held.busy = true; held.failure = undefined;
       try {
         await this.assertHosted(held);
-        if (local) {
-          if (!recovery) throw changed();
-          await recovery.useLocal(); await this.assertHosted(held);
-          this.retireHosted();
-        } else if (recovery) {
+        if (recovery) {
           const url = await recovery.retry(); await this.assertHosted(held);
           this.navigate(url); this.handoffDelivered = true;
         } else await this.prepareHosted(held);
@@ -152,7 +148,7 @@ export class BrowserSetupComposition {
         throw next instanceof SetupStageFailure ? next : this.hostedFailure(held, stage, next);
       } finally {held.busy = false;}
     };
-    return new SetupStageFailure(stage, error, () => run(false), recovery ? () => run(true) : undefined);
+    return new SetupStageFailure(stage, error, run);
   }
   private async prepareHosted(held: HostedOpening): Promise<void> {
     let stage: SetupFailureStage = held.setup ? 'claim' : 'browser-start';

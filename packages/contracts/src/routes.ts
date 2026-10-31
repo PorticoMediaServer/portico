@@ -34885,6 +34885,30 @@ export const routes = [
   },
   {
     "audience": "Clients",
+    "id": "post_setup_abandon",
+    "method": "POST",
+    "path": "/v1/setup/abandon",
+    "summary": "Go back to the start of an unapproved Portico Account setup",
+    "access": "public",
+    "requires": "session",
+    "lane": "security",
+    "cost": "constant",
+    "bodyLimit": 4096,
+    "errors": [
+      "unauthorized",
+      "invalid_request",
+      "rate_limited",
+      "setup_state_changed",
+      "setup_source_not_local",
+      "internal",
+      "database_busy",
+      "writer_capacity"
+    ],
+    "status": 200,
+    "admission": "auth"
+  },
+  {
+    "audience": "Clients",
     "id": "post_setup_account_complete",
     "method": "POST",
     "path": "/v1/setup/account/complete",
@@ -38595,6 +38619,8 @@ export const routes = [
       "invalid_request",
       "rate_limited",
       "setup_already_complete",
+      "setup_in_progress",
+      "setup_portico_mode",
       "internal",
       "database_busy",
       "writer_capacity"

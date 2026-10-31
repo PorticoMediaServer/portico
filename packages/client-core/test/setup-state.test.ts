@@ -23,8 +23,11 @@ test('a phase this app doesn\'t know is unknown, never a guess', () => {
   assert.equal(state.setup, 'unknown');
 });
 
+test('a status this app doesn\'t know is unknown, never a throw', () => {
+  assert.deepEqual(parseSetupState({status: 'paused', retryAfterSeconds: 5}), {status: 'unknown', retryAfterSeconds: 5});
+});
+
 test('a document that doesn\'t match the contract is refused', () => {
-  assert.throws(() => parseSetupState({status: 'maybe'}));
   assert.throws(() => parseSetupState({}));
   assert.throws(() => parseSetupState({status: 'in_progress', setup: {variant: 'started'}}));
 });

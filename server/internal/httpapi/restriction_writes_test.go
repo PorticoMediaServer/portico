@@ -812,6 +812,7 @@ func restrictionWriteRoutes() map[string]writeRoute {
 		"POST /v1/auth/move/local":                          writeExempt("one-use code creates only the captured account's local sign-in; no catalogue lookup"),
 		"POST /v1/auth/move/portico":                        writeExempt("signed identity links only the captured Waiting account; no catalogue lookup"),
 		"POST /v1/setup/account/complete":                   writeExempt(reasonSignIn),
+		"POST /v1/setup/abandon":                            writeExempt(reasonSignIn),
 		"POST /v1/auth/owner-reset/request":                 writeExempt(reasonSignIn),
 		"POST /v1/auth/owner-reset/verify":                  writeExempt(reasonSignIn),
 		"POST /v1/direct/password/reset":                    writeExempt(reasonSignIn),

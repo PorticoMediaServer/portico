@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,12 @@ import (
 const setupStateRequest = "44444444-4444-4444-8444-444444444444"
 
 func setupStateFixture(t *testing.T) (http.Handler, *identity.Service, func(peer, origin, token string) (int, SetupStateResponse, string)) {
+	t.Helper()
+	h, id, read, _ := setupStateFixtureDB(t)
+	return h, id, read
+}
+
+func setupStateFixtureDB(t *testing.T) (http.Handler, *identity.Service, func(peer, origin, token string) (int, SetupStateResponse, string), *sql.DB) {
 	t.Helper()
 	root := t.TempDir()
 	db, err := persistence.Open(filepath.Join(root, "db"))
@@ -55,7 +62,7 @@ func setupStateFixture(t *testing.T) (http.Handler, *identity.Service, func(peer
 		}
 		return w.Code, out, w.Body.String()
 	}
-	return h, id, read
+	return h, id, read, db
 }
 
 func TestSetupStateTellsAnyoneOnlyTheCoarseStatus(t *testing.T) {
@@ -181,5 +188,101 @@ func TestSetupStateOfACompletedServerIsCompleteWhoeverAsks(t *testing.T) {
 		if code, out, body := read("127.0.0.1:5000", "", bearer); code != 200 || out.Status != "complete" || out.Setup != nil {
 			t.Fatalf("completed with token %q: %d %s", bearer, code, body)
 		}
+	}
+}
+
+func setupPost(h http.Handler, path, origin, peer string, body any) *httptest.ResponseRecorder {
+	raw, _ := json.Marshal(body)
+	r := httptest.NewRequest("POST", "http://127.0.0.1:32500"+path, bytes.NewReader(raw))
+	r.RemoteAddr = peer
+	if origin != "" {
+		r.Header.Set("Origin", origin)
+	}
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	return w
+}
+
+// Back from an unapproved Portico Account setup; then local is a fresh choice. Before
+// Back, the server refuses a local owner on that setup outright.
+func TestSetupAbandonThenLocalAndNeverLocalOnAPorticoSetup(t *testing.T) {
+	h, id, read := setupStateFixture(t)
+	ctx := context.Background()
+	token, err := id.BrowserSetupToken(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = id.SetupWithOptions(ctx, identity.SetupOptions{RequestID: setupStateRequest, SetupToken: token, Name: "Family server", AuthMode: "hosted"}, true); err != nil {
+		t.Fatal(err)
+	}
+	const self = "http://127.0.0.1:32500"
+	local := map[string]any{"requestId": setupStateRequest, "setupToken": token, "username": "owner", "password": "A-long-local-password", "name": "My media", "authMode": "local", "interactive": true}
+	if w := setupPost(h, "/v1/setup", self, "127.0.0.1:5000", local); w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), `"setup_portico_mode"`) {
+		t.Fatalf("local owner on a Portico Account setup: %d %s", w.Code, w.Body.String())
+	}
+	delete(local, "requestId")
+	if w := setupPost(h, "/v1/setup", self, "127.0.0.1:5000", local); w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), `"setup_portico_mode"`) {
+		t.Fatalf("local owner with a new request: %d %s", w.Code, w.Body.String())
+	}
+
+	back := map[string]any{"requestId": setupStateRequest, "revision": "1", "setupToken": token}
+	for _, tc := range []struct{ origin, peer string }{{"https://web.getportico.tv", "127.0.0.1:5000"}, {"http://evil.example", "127.0.0.1:5000"}} {
+		if w := setupPost(h, "/v1/setup/abandon", tc.origin, tc.peer, back); w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden {
+			t.Fatalf("Back from %s: %d %s", tc.origin, w.Code, w.Body.String())
+		}
+	}
+	if w := setupPost(h, "/v1/setup/abandon", "", "198.51.100.8:5000", back); w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), `"setup_source_not_local"`) {
+		t.Fatalf("Back from a public source: %d %s", w.Code, w.Body.String())
+	}
+	wrong := map[string]any{"requestId": setupStateRequest, "revision": "1", "setupToken": strings.Repeat("D", 43)}
+	if w := setupPost(h, "/v1/setup/abandon", self, "127.0.0.1:5000", wrong); w.Code != http.StatusUnauthorized {
+		t.Fatalf("Back with another token: %d %s", w.Code, w.Body.String())
+	}
+	for range 2 { // the second is a replay of a lost answer
+		w := setupPost(h, "/v1/setup/abandon", self, "127.0.0.1:5000", back)
+		var out SetupStateResponse
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil || out.Status != "ready" || out.Setup != nil {
+			t.Fatalf("Back: %d %s", w.Code, w.Body.String())
+		}
+	}
+	if code, out, body := read("127.0.0.1:5000", "", ""); code != 200 || out.Status != "ready" {
+		t.Fatalf("after Back: %d %s", code, body)
+	}
+	w := setupPost(h, "/v1/setup/browser", self, "127.0.0.1:5000", map[string]any{})
+	var start BrowserSetupResponse
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &start) != nil || start.SetupToken == token {
+		t.Fatalf("fresh start after Back: %d %s", w.Code, w.Body.String())
+	}
+	local["setupToken"] = start.SetupToken
+	if w = setupPost(h, "/v1/setup", self, "127.0.0.1:5000", local); w.Code != 201 {
+		t.Fatalf("local after Back: %d %s", w.Code, w.Body.String())
+	}
+}
+
+// Once Portico Services has approved, Back is refused and setup stays as it was.
+func TestSetupAbandonAfterApprovalIsRefused(t *testing.T) {
+	h, id, read, db := setupStateFixtureDB(t)
+	ctx := context.Background()
+	token, err := id.BrowserSetupToken(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = id.SetupWithOptions(ctx, identity.SetupOptions{RequestID: setupStateRequest, SetupToken: token, Name: "Family server", AuthMode: "hosted"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`INSERT INTO networking_server_identities(server_id,public_key,key_incarnation,created_at) SELECT 'srv_Wl4E3ID18LNZFgw_Gjc3R0liIOV67Gd2vD54Ubw6OAY',X'000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f','setup-state-test','2026-10-31T00:00:00Z' WHERE NOT EXISTS(SELECT 1 FROM networking_server_identities);
+ INSERT INTO networking_claim_intents(operation_id,server_id,account_id,public_key,local_generation,revision,stage,owner_id,owner_profile_id,owner_epoch,setup_operation_id,created_at,updated_at,purpose,approval_revision)
+ SELECT 'op_setup',server_id,'acct_owner',public_key,0,1,'approved','','',1,?,'2026-10-31T00:00:00Z','2026-10-31T00:00:00Z','setup',1 FROM networking_server_identities LIMIT 1;
+ INSERT INTO networking_claim_identity(singleton,server_id,public_key,reset_generation) SELECT 1,server_id,public_key,0 FROM networking_server_identities LIMIT 1 ON CONFLICT(singleton) DO NOTHING;
+ UPDATE networking_claim_identity SET active_operation_id='op_setup' WHERE singleton=1`, setupStateRequest); err != nil {
+		t.Fatal(err)
+	}
+	back := map[string]any{"requestId": setupStateRequest, "revision": "1", "setupToken": token}
+	if w := setupPost(h, "/v1/setup/abandon", "http://127.0.0.1:32500", "127.0.0.1:5000", back); w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), `"setup_state_changed"`) {
+		t.Fatalf("Back after approval: %d %s", w.Code, w.Body.String())
+	}
+	if code, out, body := read("127.0.0.1:5000", "", token); code != 200 || out.Setup == nil || out.Setup.Variant != "approved" {
+		t.Fatalf("approved setup after a refused Back: %d %s", code, body)
 	}
 }

@@ -229,9 +229,9 @@ func TestApprovedAndFinishingSetupsAreInProgressAndExhaustedWhenNothingDelivers(
 		if got := f.derive(gone); got.Phase != setupflow.Exhausted || got.Delivery != nil {
 			t.Errorf("%s: untracked by a live lookup got %+v", c.stage, got)
 		}
-		// Today's start says in progress, with no moment to start over at.
+		// A start says in progress, with no moment to start over at.
 		var progress *identity.SetupInProgressError
-		if err := f.startOutcome(); c.stage != "installed" && (!errors.As(err, &progress) || !progress.Until.IsZero()) {
+		if err := f.startOutcome(); !errors.As(err, &progress) || !progress.Until.IsZero() {
 			t.Errorf("%s: start %v", c.stage, err)
 		}
 	}
@@ -269,9 +269,10 @@ func TestAnInstalledSetupReadsItsOwnerAdmissionWindow(t *testing.T) {
 		if got.Phase != c.want || got.Renewable != c.renewable || !got.ExpiresAt.Equal(c.expires) {
 			t.Errorf("%s: got %+v, want %s renewable=%v until %v", c.name, got, c.want, c.renewable, c.expires)
 		}
-		// Characterized: today's start answers ErrConflict (setup_already_complete) for an
-		// installed setup; S3 in B-DESIGN.md makes it setup_in_progress at B2.
-		if err := f.startOutcome(); !errors.Is(err, identity.ErrConflict) {
+		// S3: an installed setup is in progress, never "already set up", and has no time
+		// at which another device could start over.
+		var progress *identity.SetupInProgressError
+		if err := f.startOutcome(); !errors.As(err, &progress) || !progress.Until.IsZero() {
 			t.Errorf("%s: start %v", c.name, err)
 		}
 	}
@@ -320,6 +321,12 @@ func TestRowsThatDescribeNoPhaseAreInconsistent(t *testing.T) {
 			f.hosted()
 			f.claim("prepared", "account-unbound", 0, 0)
 			f.exec(`UPDATE networking_claim_intents SET setup_operation_id='99999999-2222-4333-8444-555555555555'`)
+		},
+		"installed pointer on a prepared claim": func(f *fixture) {
+			f.hosted()
+			f.claim("prepared", "account-unbound", 0, 0)
+			f.age(time.Hour)
+			f.exec(`UPDATE networking_claim_identity SET installed_operation_id=?`, op)
 		},
 		"settled start without a claim": func(f *fixture) {
 			f.hosted()
