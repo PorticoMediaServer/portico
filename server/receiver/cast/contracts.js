@@ -33790,6 +33790,7 @@ var PorticoCastContracts = (function(exports) {
 					"type": "object"
 				},
 				"custodyPending": { "type": "boolean" },
+				"managePinRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
 						"properties": {
@@ -33833,6 +33834,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"twoStepSetupRequired": { "type": "boolean" }
 			},
@@ -33842,7 +33844,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -156887,6 +156890,7 @@ var PorticoCastContracts = (function(exports) {
 					"type": "object"
 				},
 				"custodyPending": { "type": "boolean" },
+				"managePinRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
 						"properties": {
@@ -156930,6 +156934,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"twoStepSetupRequired": { "type": "boolean" }
 			},
@@ -156939,7 +156944,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -158452,6 +158458,7 @@ var PorticoCastContracts = (function(exports) {
 						"custodyPending": { "type": "boolean" },
 						"deviceId": { "type": "string" },
 						"installationId": { "type": "string" },
+						"managePinRequired": { "type": "boolean" },
 						"passwordChangeRequired": { "type": "boolean" },
 						"profiles": {
 							"items": {
@@ -158496,6 +158503,7 @@ var PorticoCastContracts = (function(exports) {
 							},
 							"type": "array"
 						},
+						"rememberProfiles": { "type": "boolean" },
 						"serverId": { "type": "string" },
 						"session": {
 							"properties": {
@@ -158558,6 +158566,7 @@ var PorticoCastContracts = (function(exports) {
 						"profiles",
 						"canManage",
 						"capabilities",
+						"rememberProfiles",
 						"session",
 						"variant"
 					],
@@ -158619,7 +158628,9 @@ var PorticoCastContracts = (function(exports) {
 							"type": "object"
 						},
 						"custodyPending": { "type": "boolean" },
+						"managePinRequired": { "type": "boolean" },
 						"profiles": { "type": "null" },
+						"rememberProfiles": { "type": "boolean" },
 						"serverId": { "type": "string" },
 						"twoStepSetupRequired": { "type": "boolean" },
 						"variant": {
@@ -158634,6 +158645,7 @@ var PorticoCastContracts = (function(exports) {
 						"profiles",
 						"canManage",
 						"capabilities",
+						"rememberProfiles",
 						"challenge",
 						"variant"
 					],
@@ -160672,6 +160684,16 @@ var PorticoCastContracts = (function(exports) {
 			"type": "object"
 		},
 		"PostAdminLibrariesIdInventoryObjectActionResponse": {
+			"properties": { "itemId": { "type": "string" } },
+			"required": ["itemId"],
+			"type": "object"
+		},
+		"PostAdminLibrariesIdInventoryObjectSeparateFolderRequest": {
+			"properties": { "revision": { "type": "string" } },
+			"required": ["revision"],
+			"type": "object"
+		},
+		"PostAdminLibrariesIdInventoryObjectSeparateFolderResponse": {
 			"properties": { "itemId": { "type": "string" } },
 			"required": ["itemId"],
 			"type": "object"
@@ -164300,6 +164322,7 @@ var PorticoCastContracts = (function(exports) {
 				"custodyPending": { "type": "boolean" },
 				"deviceId": { "type": "string" },
 				"installationId": { "type": "string" },
+				"managePinRequired": { "type": "boolean" },
 				"passwordChangeRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
@@ -164344,6 +164367,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"resetFileOwnerSession": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"session": {
@@ -164402,7 +164426,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -164540,6 +164565,7 @@ var PorticoCastContracts = (function(exports) {
 				"custodyPending": { "type": "boolean" },
 				"deviceId": { "type": "string" },
 				"installationId": { "type": "string" },
+				"managePinRequired": { "type": "boolean" },
 				"passwordChangeRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
@@ -164584,6 +164610,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"resetFileOwnerSession": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"session": {
@@ -164642,7 +164669,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -164745,6 +164773,7 @@ var PorticoCastContracts = (function(exports) {
 					"custodyPending": { "type": "boolean" },
 					"deviceId": { "type": "string" },
 					"installationId": { "type": "string" },
+					"managePinRequired": { "type": "boolean" },
 					"passwordChangeRequired": {
 						"const": true,
 						"type": "boolean"
@@ -164792,6 +164821,7 @@ var PorticoCastContracts = (function(exports) {
 						},
 						"type": "array"
 					},
+					"rememberProfiles": { "type": "boolean" },
 					"resetFileOwnerSession": {
 						"const": false,
 						"type": "boolean"
@@ -164864,6 +164894,7 @@ var PorticoCastContracts = (function(exports) {
 					"profiles",
 					"canManage",
 					"capabilities",
+					"rememberProfiles",
 					"session",
 					"passwordChangeRequired",
 					"variant"
@@ -164922,6 +164953,7 @@ var PorticoCastContracts = (function(exports) {
 					"custodyPending": { "type": "boolean" },
 					"deviceId": { "type": "string" },
 					"installationId": { "type": "string" },
+					"managePinRequired": { "type": "boolean" },
 					"passwordChangeRequired": {
 						"const": false,
 						"type": "boolean"
@@ -164969,6 +165001,7 @@ var PorticoCastContracts = (function(exports) {
 						},
 						"type": "array"
 					},
+					"rememberProfiles": { "type": "boolean" },
 					"resetFileOwnerSession": {
 						"const": true,
 						"type": "boolean"
@@ -165041,6 +165074,7 @@ var PorticoCastContracts = (function(exports) {
 					"profiles",
 					"canManage",
 					"capabilities",
+					"rememberProfiles",
 					"session",
 					"resetFileOwnerSession",
 					"variant"
@@ -165242,6 +165276,7 @@ var PorticoCastContracts = (function(exports) {
 				"custodyPending": { "type": "boolean" },
 				"deviceId": { "type": "string" },
 				"installationId": { "type": "string" },
+				"managePinRequired": { "type": "boolean" },
 				"passwordChangeRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
@@ -165286,6 +165321,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"resetFileOwnerSession": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"session": {
@@ -165344,7 +165380,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -165531,6 +165568,7 @@ var PorticoCastContracts = (function(exports) {
 				"custodyPending": { "type": "boolean" },
 				"deviceId": { "type": "string" },
 				"installationId": { "type": "string" },
+				"managePinRequired": { "type": "boolean" },
 				"passwordChangeRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
@@ -165575,6 +165613,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"resetFileOwnerSession": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"session": {
@@ -165633,7 +165672,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -165742,6 +165782,7 @@ var PorticoCastContracts = (function(exports) {
 				"custodyPending": { "type": "boolean" },
 				"deviceId": { "type": "string" },
 				"installationId": { "type": "string" },
+				"managePinRequired": { "type": "boolean" },
 				"passwordChangeRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
@@ -165786,6 +165827,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"resetFileOwnerSession": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"session": {
@@ -165844,7 +165886,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -166398,6 +166441,7 @@ var PorticoCastContracts = (function(exports) {
 				"custodyPending": { "type": "boolean" },
 				"deviceId": { "type": "string" },
 				"installationId": { "type": "string" },
+				"managePinRequired": { "type": "boolean" },
 				"passwordChangeRequired": {
 					"const": true,
 					"type": "boolean"
@@ -166445,6 +166489,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"resetFileOwnerSession": {
 					"const": false,
 					"type": "boolean"
@@ -166513,6 +166558,7 @@ var PorticoCastContracts = (function(exports) {
 				"profiles",
 				"canManage",
 				"capabilities",
+				"rememberProfiles",
 				"session",
 				"passwordChangeRequired"
 			],
@@ -166600,6 +166646,7 @@ var PorticoCastContracts = (function(exports) {
 					"type": "object"
 				},
 				"custodyPending": { "type": "boolean" },
+				"managePinRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
 						"properties": {
@@ -166643,6 +166690,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"twoStepSetupRequired": { "type": "boolean" }
 			},
@@ -166652,7 +166700,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -166702,19 +166751,22 @@ var PorticoCastContracts = (function(exports) {
 			"properties": {
 				"installationId": { "type": "string" },
 				"pin": { "type": "string" },
-				"trust": { "type": "boolean" },
-				"trustToken": { "type": "string" }
+				"remember": { "type": "boolean" }
 			},
 			"required": [
 				"pin",
 				"installationId",
-				"trustToken",
-				"trust"
+				"remember"
 			],
 			"type": "object"
 		},
 		"PostDirectProfilesIdSelectResponse": {
 			"properties": {
+				"remembered": {
+					"properties": { "expiresAt": { "type": "string" } },
+					"required": ["expiresAt"],
+					"type": "object"
+				},
 				"session": {
 					"properties": {
 						"accessToken": { "type": "string" },
@@ -166760,45 +166812,6 @@ var PorticoCastContracts = (function(exports) {
 						"sessionFamilyId",
 						"tokenGeneration",
 						"authorizationHorizon"
-					],
-					"type": "object"
-				},
-				"trustedSelection": {
-					"properties": {
-						"accountId": { "type": "string" },
-						"authority": { "type": "string" },
-						"expiresAt": { "type": "string" },
-						"installationId": { "type": "string" },
-						"membershipRevision": {
-							"maximum": 9007199254740991,
-							"minimum": -9007199254740991,
-							"type": "integer"
-						},
-						"pinRevision": {
-							"maximum": 9007199254740991,
-							"minimum": -9007199254740991,
-							"type": "integer"
-						},
-						"profileId": { "type": "string" },
-						"profileRevision": {
-							"maximum": 9007199254740991,
-							"minimum": -9007199254740991,
-							"type": "integer"
-						},
-						"serverId": { "type": "string" },
-						"token": { "type": "string" }
-					},
-					"required": [
-						"authority",
-						"token",
-						"expiresAt",
-						"installationId",
-						"serverId",
-						"accountId",
-						"profileId",
-						"pinRevision",
-						"profileRevision",
-						"membershipRevision"
 					],
 					"type": "object"
 				}
@@ -166865,6 +166878,7 @@ var PorticoCastContracts = (function(exports) {
 					"type": "object"
 				},
 				"custodyPending": { "type": "boolean" },
+				"managePinRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
 						"properties": {
@@ -166908,6 +166922,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"twoStepSetupRequired": { "type": "boolean" }
 			},
@@ -166917,7 +166932,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -167178,6 +167194,7 @@ var PorticoCastContracts = (function(exports) {
 				"custodyPending": { "type": "boolean" },
 				"deviceId": { "type": "string" },
 				"installationId": { "type": "string" },
+				"managePinRequired": { "type": "boolean" },
 				"passwordChangeRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
@@ -167222,6 +167239,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"resetFileOwnerSession": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"session": {
@@ -167280,7 +167298,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -178631,6 +178650,7 @@ var PorticoCastContracts = (function(exports) {
 				"custodyPending": { "type": "boolean" },
 				"deviceId": { "type": "string" },
 				"installationId": { "type": "string" },
+				"managePinRequired": { "type": "boolean" },
 				"passwordChangeRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
@@ -178675,6 +178695,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"resetFileOwnerSession": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"session": {
@@ -178733,7 +178754,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -179497,6 +179519,7 @@ var PorticoCastContracts = (function(exports) {
 						"custodyPending": { "type": "boolean" },
 						"deviceId": { "type": "string" },
 						"installationId": { "type": "string" },
+						"managePinRequired": { "type": "boolean" },
 						"passwordChangeRequired": { "type": "boolean" },
 						"profiles": {
 							"items": {
@@ -179541,6 +179564,7 @@ var PorticoCastContracts = (function(exports) {
 							},
 							"type": "array"
 						},
+						"rememberProfiles": { "type": "boolean" },
 						"resetFileOwnerSession": { "type": "boolean" },
 						"serverId": { "type": "string" },
 						"session": {
@@ -179599,7 +179623,8 @@ var PorticoCastContracts = (function(exports) {
 						"account",
 						"profiles",
 						"canManage",
-						"capabilities"
+						"capabilities",
+						"rememberProfiles"
 					],
 					"type": "object"
 				}
@@ -186136,6 +186161,7 @@ var PorticoCastContracts = (function(exports) {
 					"type": "object"
 				},
 				"custodyPending": { "type": "boolean" },
+				"managePinRequired": { "type": "boolean" },
 				"profiles": {
 					"items": {
 						"properties": {
@@ -186179,6 +186205,7 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"type": "array"
 				},
+				"rememberProfiles": { "type": "boolean" },
 				"serverId": { "type": "string" },
 				"twoStepSetupRequired": { "type": "boolean" }
 			},
@@ -186188,7 +186215,8 @@ var PorticoCastContracts = (function(exports) {
 				"account",
 				"profiles",
 				"canManage",
-				"capabilities"
+				"capabilities",
+				"rememberProfiles"
 			],
 			"type": "object"
 		},
@@ -207861,6 +207889,7 @@ var PorticoCastContracts = (function(exports) {
 		"post_admin_feedback_reports_id_status": "/v1/admin/feedback/reports/{id}/status",
 		"post_admin_ingestion_jobs_id_action": "/v1/admin/ingestion/jobs/{id}/{action}",
 		"post_admin_libraries_id_inventory_object_action": "/v1/admin/libraries/{id}/inventory/{object}/{action}",
+		"post_admin_libraries_id_inventory_object_separate_folder": "/v1/admin/libraries/{id}/inventory/{object}/separate-folder",
 		"post_admin_libraries_id_sonic_analysis_retry": "/v1/admin/libraries/{id}/sonic-analysis/retry",
 		"post_admin_libraries_id_sources": "/v1/admin/libraries/{id}/sources",
 		"post_admin_libraries_id_sources_source_check": "/v1/admin/libraries/{id}/sources/{source}/check",
@@ -208194,6 +208223,40 @@ var PorticoCastContracts = (function(exports) {
 		"update_webhook": "/v1/admin/webhooks/{id}",
 		"validate_integration_subtitles": "/v1/integrations/items/{id}/subtitles/refresh"
 	}));
+	//#endregion
+	//#region packages/client-core/src/timer.ts
+	let lastWall = 0;
+	const monotonicNow = () => {
+		const performance = globalThis.performance;
+		if (typeof performance?.now === "function") return performance.now();
+		lastWall = Math.max(lastWall, Date.now());
+		return lastWall;
+	};
+	Object.freeze({
+		now: monotonicNow,
+		setTimeout: (callback, delayMs) => {
+			const handle = globalThis.setTimeout(callback, delayMs);
+			handle?.unref?.();
+			return handle;
+		},
+		clearTimeout: (handle) => globalThis.clearTimeout(handle)
+	});
+	/** RFC 9110 Retry-After (delay-seconds or an HTTP-date) as milliseconds from now; undefined when
+	* absent, malformed or already past. Wall time is read only here; waiting uses the monotonic clock. */
+	function parseRetryAfter(value, wallNowMs = Date.now()) {
+		if (typeof value !== "string") return void 0;
+		const trimmed = value.trim();
+		if (!trimmed) return void 0;
+		if (/^\d+$/.test(trimmed)) {
+			const seconds = Number(trimmed);
+			return Number.isSafeInteger(seconds) && seconds > 0 ? seconds * 1e3 : void 0;
+		}
+		if (!/[a-z]/i.test(trimmed)) return void 0;
+		const at = Date.parse(trimmed);
+		if (!Number.isFinite(at)) return void 0;
+		const ms = at - wallNowMs;
+		return ms > 0 ? Math.ceil(ms / 1e3) * 1e3 : void 0;
+	}
 	const leaseMs = 3e4;
 	const leaseRenewMs = 1e4;
 	const pollMs = 1e3;
@@ -208392,15 +208455,10 @@ var PorticoCastContracts = (function(exports) {
 		}
 	}
 	function userMutationRetryAfterMs(value, now = Date.now()) {
-		if (!value) return 0;
-		const trimmed = value.trim();
-		if (/^[0-9]+$/.test(trimmed)) {
-			const n = Number(trimmed);
-			return Number.isFinite(n) ? Math.min(n * 1e3, Number.MAX_SAFE_INTEGER - now) : Number.MAX_SAFE_INTEGER - now;
-		}
-		const date = Date.parse(trimmed);
-		return Number.isFinite(date) ? Math.max(0, date - now) : 0;
+		const cap = Number.MAX_SAFE_INTEGER - now, ms = parseRetryAfter(value, now);
+		return ms !== void 0 ? Math.min(ms, cap) : value && /^\s*\d*[1-9]\d*\s*$/.test(value) ? cap : 0;
 	}
+	const retryFloorOf = (response, now) => userMutationRetryAfterMs(header(response, "retry-after"), now);
 	function header(response, name) {
 		return Object.entries(response.headers).find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1];
 	}
@@ -208934,7 +208992,7 @@ var PorticoCastContracts = (function(exports) {
 				if (entry.attempts > 1 || entry.requiresReentry) {
 					const lookup = await this.options.transport.lookup(entry, signal);
 					if (this.stopped) return;
-					retryFloor = userMutationRetryAfterMs(header(lookup, "retry-after"), this.now());
+					retryFloor = retryFloorOf(lookup, this.now());
 					if (lookup.status >= 200 && lookup.status < 300) {
 						await this.complete(entry, receivedUserMutationReceipt(lookup.body, entry), void 0, signal);
 						return;
@@ -208949,13 +209007,13 @@ var PorticoCastContracts = (function(exports) {
 				if (!scope || !sameUserMutationScope(scope, entry.scope)) throw new UserMutationError("mutation_scope_changed", entry.key);
 				const response = await this.options.transport.send(entry, signal);
 				if (this.stopped) return;
-				retryFloor = userMutationRetryAfterMs(header(response, "retry-after"), this.now());
+				retryFloor = retryFloorOf(response, this.now());
 				if (response.status >= 200 && response.status < 300) {
 					const live = this.options.scope();
 					if (!live || !sameUserMutationScope(live, entry.scope)) throw new UserMutationError("mutation_scope_changed", entry.key);
 					const lookup = await this.options.transport.lookup(entry, signal);
 					if (this.stopped) return;
-					retryFloor = Math.max(retryFloor, userMutationRetryAfterMs(header(lookup, "retry-after"), this.now()));
+					retryFloor = Math.max(retryFloor, retryFloorOf(lookup, this.now()));
 					if (lookup.status >= 200 && lookup.status < 300) {
 						await this.complete(entry, receivedUserMutationReceipt(lookup.body, entry), response, signal);
 						return;
