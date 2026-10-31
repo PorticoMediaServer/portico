@@ -1,6 +1,8 @@
 import {routeBase64,routeBytes,routeOrigin,serverPin,webRouteCrypto,type RouteCrypto,type ServerPin} from './route-identity.ts';
 import {currentUTCTimestamp} from './local-session.ts';
 import {CodedError} from './server-messages.ts';
+import {compareSessionAuthority} from './session-authority.ts';
+import type {LocalSession} from './index.ts';
 
 export type SecuritySigned=Readonly<{payload:string;signature:string}>;
 export type CredentialSecurityPurpose='password_set_or_change'|'email_change'|'mfa_enroll'|'mfa_disable'|'recovery_codes';
@@ -74,4 +76,20 @@ export async function verifySecurityConfirmation(raw:unknown,pin:ServerPin,conte
  if(!Number.isSafeInteger(now)||issued>now+60000||expires<=now||expires<=issued||expires-issued>60000||value.contextDigest!==routeBase64(await crypto.sha256(routeBytes(context.payload,undefined,6144)))||value.codeDigest!==routeBase64(await crypto.sha256(new TextEncoder().encode(returned.code))))throw invalid();
  if(!await crypto.verify(routeBytes(pin.publicKey,32),routeBytes(signed.signature,64),bytes))throw invalid();
  return signed;
+}
+
+/** Whether the server session a Security return was opened under still holds: the same sign-in (server,
+ * account, profile, family, device and installation, with the same family horizon). A routine refresh in
+ * the same family keeps it, and the return then carries the refreshed token; it never refreshes on its
+ * own. Another family, another sign-in, an older token or a moved horizon ends the return. */
+export function securityReturnSessionHolds(held:LocalSession,live:LocalSession):boolean{
+ const change=compareSessionAuthority(held,live);
+ return (change==='same'||change==='rotated')&&JSON.stringify(held.viewer)===JSON.stringify(live.viewer)&&held.deviceId===live.deviceId&&held.installationId===live.installationId&&
+  Date.parse(held.authorizationHorizon)===Date.parse(live.authorizationHorizon);
+}
+/** The latest a Security return may finish: five minutes after it opens, never past the Portico Account
+ * session that opened it, nor the server family's horizon. The server token's own expiry is no limit:
+ * a refresh replaces it inside the same family. */
+export function securityReturnDeadline(now:number,accountExpiresAt:string,serverHorizon?:string):number{
+ return Math.min(now+300_000,Date.parse(accountExpiresAt),serverHorizon===undefined?Infinity:Date.parse(serverHorizon));
 }

@@ -102,7 +102,8 @@ export function parseSecurityJournal(raw: unknown, allowExpired = false): Securi
     if (!Number.isSafeInteger(v.revision) || Number(v.revision) < 0 || typeof v.selectionId !== 'string' || !/^[-_A-Za-z0-9]{32}$/.test(v.selectionId) || !object(v.pin) || !object(v.session) || Object.hasOwn(v.session, 'refreshToken')) invalid();
     exactKeys(v.pin, ['serverId', 'publicKey', 'fingerprint']);
     const local = parseLocalSession(v.session, {}, {stored: allowExpired});
-    if (local.viewer.authority !== 'local' || local.viewer.serverId !== v.pin.serverId || Date.parse(expiresAt) > Math.min(Date.parse(local.expiresAt), Date.parse(local.authorizationHorizon))) invalid();
+    // The server family's horizon bounds the return; its token's expiry does not (a refresh replaces it).
+    if (local.viewer.authority !== 'local' || local.viewer.serverId !== v.pin.serverId || Date.parse(expiresAt) > Date.parse(local.authorizationHorizon)) invalid();
     const pin = {serverId: id(v.pin.serverId, 1), publicKey: nonce(v.pin.publicKey), fingerprint: nonce(v.pin.fingerprint)};
     server = {revision: Number(v.revision), selectionId: v.selectionId, pin, session: local};
   } else if (a.server !== undefined) invalid();

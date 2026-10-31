@@ -3,7 +3,7 @@ import {HostedAccountClient, type AccountScope, type RecentProof, type SecurityS
 import type {HostedSession, LocalSession} from '@core/index.ts';
 import {restoreExactNativeSession} from '@core/server-connections.ts';
 import {routeBase64, routeBytes, webRouteCrypto} from '@core/route-identity.ts';
-import {parseSecuritySigned, parseSecurityReturnCode, securityReturnEntry, verifySecurityConfirmation, verifySecurityContext, type CredentialSecurityPurpose, type SecurityPrepare} from '@core/security-return.ts';
+import {parseSecuritySigned, parseSecurityReturnCode, securityReturnDeadline, securityReturnEntry, securityReturnSessionHolds, verifySecurityConfirmation, verifySecurityContext, type CredentialSecurityPurpose, type SecurityPrepare} from '@core/security-return.ts';
 import {accountSecurityRequest, accountSecurityUIURL} from './account-security-policy';
 import {BrowserAccountApi} from './account';
 import {browserAppSessions, browserConnectionEnvironment} from './server-connections';
@@ -34,7 +34,9 @@ async function originalServer(pending: AccountSecurityPending, signal?: AbortSig
   checkDeadline(original);
   const sessions = browserAppSessions(), current = await sessions.read();
   const entry = current.servers.find(v => v.connection.pin.serverId === expected.pin.serverId), connection = entry?.connection;
-  if (current.revision !== expected.revision || current.selectedServerId !== expected.pin.serverId || entry?.signIn !== 'portico' || !connection || connection.selectionId !== expected.selectionId || connection.hosted?.origin !== original.hostedOrigin || connection.hosted.accountId !== original.session.account.id || connection.pin.serverId !== expected.pin.serverId || connection.pin.publicKey !== expected.pin.publicKey || connection.pin.fingerprint !== expected.pin.fingerprint || connection.pendingRefresh) ended();
+  // Bound to the sign-in, not one token (docs/ENGINEERING-RULES.md): a refresh in the same family
+  // keeps the return and its refreshed token carries it. The return itself never refreshes.
+  if (current.selectedServerId !== expected.pin.serverId || entry?.signIn !== 'portico' || !connection || connection.selectionId !== expected.selectionId || !securityReturnSessionHolds(expected.session, connection.session) || connection.hosted?.origin !== original.hostedOrigin || connection.hosted.accountId !== original.session.account.id || connection.pin.serverId !== expected.pin.serverId || connection.pin.publicKey !== expected.pin.publicKey || connection.pin.fingerprint !== expected.pin.fingerprint || connection.pendingRefresh) ended();
   const pageOrigin = pending.prepare?.origin;
   if (!pageOrigin || pageOrigin !== location.origin || !pageOrigin.startsWith('https://')) ended();
   const environment = browserConnectionEnvironment(expected.pin.serverId), storage = environment.storage;
@@ -49,16 +51,21 @@ async function originalServer(pending: AccountSecurityPending, signal?: AbortSig
     if (beforeRead) await beforeRead();signal?.throwIfAborted();
     return response;
   };
+  // The stored session the return carries: the captured one, or its refresh in the same family.
+  const holds = (actual: Awaited<ReturnType<typeof storage.read>>) => !!actual && actual.selectionId === expected.selectionId && actual.pin.serverId === expected.pin.serverId && securityReturnSessionHolds(expected.session, actual.session);
+  const live = await storage.read();
+  if (!live || !holds(live)) ended();
   const restored = await restoreExactNativeSession({...environment, fetcher: scopedFetch, discover: undefined, storage: {
     read: async () => {
       const actual = await storage.read();
-      if (!actual || actual.selectionId !== expected.selectionId || actual.pin.serverId !== expected.pin.serverId || actual.session.accessToken !== expected.session.accessToken || actual.session.tokenGeneration !== expected.session.tokenGeneration) ended();
+      if (!actual || !holds(actual)) ended();
       return {...actual, logicalOrigin: pageOrigin, routes: {paired: [pageOrigin]}};
     },
     change: async () => ended(),
-  }}, expected.session);
+  }}, live.session);
   signal?.throwIfAborted();
-  if (!restored || (await sessions.read()).revision !== expected.revision) ended();
+  const after = await sessions.read(), still = after.servers.find(v => v.connection.pin.serverId === expected.pin.serverId)?.connection;
+  if (!restored || after.selectedServerId !== expected.pin.serverId || !still || still.selectionId !== expected.selectionId || !securityReturnSessionHolds(expected.session, still.session)) ended();
   checkDeadline(original);
   return restored.api;
 }
@@ -80,13 +87,13 @@ export async function captureAccountSecurity(input: {
   assertCurrent();
   const coordinator = securityCoordinatorStamp(hostedOrigin), now = Date.now();
   let server: OriginalSecurityAccount['server'];
-  let expiry = Math.min(now + 300000, Date.parse(captured.expiresAt));
+  let expiry = securityReturnDeadline(now, captured.expiresAt);
   if (originalServerScope) {
     const record = await browserAppSessions().read(); assertCurrent();
     const selected = record.servers.find(v => v.connection.pin.serverId === record.selectedServerId), connection = selected?.connection;
     if (!connection || record.selectedServerId !== originalServerScope.serverId || connection.pin.serverId !== originalServerScope.serverId || connection.session.viewer.serverId !== originalServerScope.serverId || connection.session.sessionFamilyId !== originalServerScope.familyId || selected?.signIn !== 'portico' || !connection.selectionId || connection.pendingRefresh || connection.hosted?.origin !== hostedOrigin || connection.hosted.accountId !== expectedIdentity.accountId || connection.session.viewer.authority !== 'local' || connection.session.viewer.accountId !== originalServerScope.accountId || connection.session.viewer.profileId !== originalServerScope.profileId) ended();
     server = {revision: record.revision, selectionId: connection.selectionId, pin: {...connection.pin}, session: noRefresh(connection.session)};
-    expiry = Math.min(expiry, Date.parse(server.session.expiresAt), Date.parse(server.session.authorizationHorizon));
+    expiry = securityReturnDeadline(now, captured.expiresAt, server.session.authorizationHorizon);
   }
   const original: OriginalSecurityAccount = {version: 1, kind: server ? 'server-account' : 'hosted-account', hostedOrigin, session: captured, coordinator, state,
     openingId: crypto.randomUUID(), taskId: crypto.randomUUID(), requestId: crypto.randomUUID(), intent: {purpose, target, operationId: crypto.randomUUID()}, provider: {...provider, revision: provider.revision}, createdAt: new Date(now).toISOString(), expiresAt: new Date(expiry).toISOString(), ...(server ? {server} : {})};
@@ -174,7 +181,7 @@ export class OriginalProviderSecurity {
     if (this.original.server) {
       const expected = this.original.server, selected = await browserAppSessions().read();
       const entry = selected.servers.find(v => v.connection.pin.serverId === expected.pin.serverId), record = entry?.connection;
-      if (selected.revision !== expected.revision || selected.selectedServerId !== expected.pin.serverId || entry?.signIn !== 'portico' || !record || record.selectionId !== expected.selectionId || record.pendingRefresh || record.hosted?.origin !== this.original.hostedOrigin || record.hosted.accountId !== this.original.session.account.id || record.pin.publicKey !== expected.pin.publicKey || record.pin.fingerprint !== expected.pin.fingerprint || record.session.accessToken !== expected.session.accessToken || record.session.tokenGeneration !== expected.session.tokenGeneration || record.session.sessionFamilyId !== expected.session.sessionFamilyId || JSON.stringify(record.session.viewer) !== JSON.stringify(expected.session.viewer) || record.session.expiresAt !== expected.session.expiresAt || record.session.authorizationHorizon !== expected.session.authorizationHorizon) ended();
+      if (selected.selectedServerId !== expected.pin.serverId || entry?.signIn !== 'portico' || !record || record.selectionId !== expected.selectionId || record.pendingRefresh || record.hosted?.origin !== this.original.hostedOrigin || record.hosted.accountId !== this.original.session.account.id || record.pin.publicKey !== expected.pin.publicKey || record.pin.fingerprint !== expected.pin.fingerprint || !securityReturnSessionHolds(expected.session, record.session)) ended();
     }
     if (!this.current()) ended();checkDeadline(this.original);signal?.throwIfAborted();
   }

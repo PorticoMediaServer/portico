@@ -105,9 +105,15 @@ test('a real key-derived server DTO parses', async () => {
   assert.equal(parsed && 'original' in parsed ? parsed.original.server?.pin.serverId : undefined, serverId);
 });
 
-test('a refresh credential, a pin/viewer mismatch, an access deadline or a horizon refuses', async () => {
+test('a refresh credential, a pin/viewer mismatch or a horizon refuses', async () => {
   for (const variant of [serverFixture({refresh: true}), serverFixture({viewer: 'srv_other'}),
-    serverFixture({access: iso(60000)}), serverFixture({access: iso(60000), horizon: iso(60000)})]) {
+    serverFixture({access: iso(60000), horizon: iso(60000)})]) {
     await assert.rejects(journalOf(variant).read());
   }
+});
+
+// Bound to the sign-in, not its token: a server token ending before the return is replaced by a refresh.
+test('a server token that ends before the return does not refuse it', async () => {
+  const parsed = await journalOf(serverFixture({access: iso(60000)})).read();
+  assert.equal(parsed && 'original' in parsed ? parsed.original.server?.pin.serverId : undefined, serverId);
 });
