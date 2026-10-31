@@ -223,6 +223,7 @@ internal/identity/local_owner_create.go	(*Service).TransferDirectOwnershipToNewA
 internal/identity/member_devices.go	(*Service).SignOutMemberDevices	WithWriteTx	ClassSecurityFence	-
 internal/identity/member_erasure.go	(*Service).DeleteDirectMember	Begin	ClassSecurityFence	-
 internal/identity/migrate_sealed.go	(*Service).migrateSealedToPlain	Begin	ClassSecurityFence	-
+internal/identity/onboarding.go	(*Service).AbandonSetup	Begin	ClassSecurityFence	-
 internal/identity/onboarding.go	(*Service).CompleteAccountSetup	WithWriteTx	ClassSecurityFence	-
 internal/identity/onboarding.go	(*Service).SetupWithOptions	Begin	ClassSecurityFence	-
 internal/identity/onboarding.go	(*Service).supersedeStaleSetup	Begin	ClassSecurityFence	-

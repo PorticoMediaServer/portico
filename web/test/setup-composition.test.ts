@@ -147,20 +147,3 @@ for(const replacement of ['selection','opening'] as const) test('a staged '+repl
  assert.equal(f.calls.length,before);assert.equal(claims,1);assert.deepEqual(f.draft(),draft);
 });
 
-test('local recovery cannot borrow a replacement selection and receives the original abort',async t=>{
- const f=await fixture(t);f.hosted();let local=0;let capturedSignal:AbortSignal|undefined;
- const composition=new BrowserSetupComposition('https://accounts.example',()=>assert.fail('unexpected navigation'),{...f.ports,claim:()=>({
-  prepare:async(_api,_origin,opening)=>{
-   assert.ok(opening);capturedSignal=opening.signal;
-   opening.capture(Object.freeze({retry:async()=>{throw new Error('not used');},useLocal:async()=>{local++;}}));
-   throw new ApiError(503,'claim_unavailable','unavailable',true);
-  },cancel:async()=>{},
- })});t.after(()=>composition.dispose());
- await composition.connect(async()=>f.target,new AbortController().signal);
- let failure:unknown;
- try {await composition.continueHosted(f.target,{name:'Original name'});} catch(error) {failure=error;}
- assert.ok(failure instanceof SetupStageFailure);assert.ok(failure.useLocal);assert.ok(capturedSignal);
- f.replaceSelection();const before=f.calls.length;
- await assert.rejects(failure.useLocal());assert.equal(local,0);assert.equal(f.calls.length,before);
- composition.dispose();assert.equal(capturedSignal.aborted,true);
-});

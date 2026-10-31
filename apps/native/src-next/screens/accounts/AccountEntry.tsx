@@ -1039,14 +1039,14 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   if (stage === 'setup-ended') {
     const source = operation.current;
     const current = () => !!source && operation.current === source && lifetime.current && stageRef.current === 'setup-ended';
-    const restart = async (local: boolean) => {
+    // Start again returns to the choice of kind; nothing here steers towards local sign-in (Justin, 31 Oct).
+    const restart = async () => {
       if (!current() || !source) return;
       await source.setup.restartEndedSetup();
-      if (current()) {setSetupApprovalURL(undefined); setSetupMode(local ? 'local' : 'hosted'); setStage(local ? 'setup-local' : 'setup-choice');}
+      if (current()) {setSetupApprovalURL(undefined); setSetupMode('hosted'); setStage('setup-choice');}
     };
     return layout(t('accounts.setup.declinedTitle', {server: server!.name}), t(setupEndedReason === 'declined' ? 'accounts.setup.declinedBody' : 'accounts.setup.endedBody'),
-      undefined, action('restart-setup', t('accounts.setup.startAgain'), () => restart(false)),
-      <Button variant="glass" disabled={busy} onPress={() => {if (current()) void run(() => restart(true));}}>{t('accounts.setup.useLocalInstead')}</Button>);
+      undefined, action('restart-setup', t('accounts.setup.startAgain'), restart));
   }
   if (stage === 'setup-hosted') return layout(t('web.claim.title', {server: server!.name}), t('accounts.setup.waiting'), undefined,
     action('setup-resume', t('action.continue'), () => finishSetupOpening(setupHostedOpening)),

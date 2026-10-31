@@ -7,16 +7,20 @@ export const setupPhases = ['started', 'awaiting_approval', 'expired', 'approved
 export type SetupPhase = typeof setupPhases[number];
 
 export type SetupOperation = Readonly<{operationId: string; localGeneration: string; revision: string}>;
+/** The server applying an approval it was given: since the approval, failed tries, the next one. */
+export type SetupDelivery = Readonly<{attempts: number; slow: boolean; since?: string; nextRetryAt?: string}>;
 export type OwnSetup = Readonly<{
   phase: SetupPhase; requestId: string; revision: string;
   /** Wall-clock end of the approval window (started, awaiting approval) or the owner admission window (installed). */
   expiresAt?: string;
   operation?: SetupOperation; cancelling: boolean; renewable: boolean;
+  delivery?: SetupDelivery;
 }>;
 /** Anyone sees `status`; `setup` is present only for the token of the Portico Account setup in progress.
  * `setup: 'unknown'` is a phase this app doesn't know: a newer server, shown honestly, never guessed at. */
 export type SetupState = Readonly<{
-  status: 'ready' | 'in_progress' | 'complete';
+  /** `unknown` is a status from a newer server: shown as "needs a newer app", never guessed at. */
+  status: 'ready' | 'in_progress' | 'complete' | 'unknown';
   retryAfterSeconds?: number;
   setup?: OwnSetup | 'unknown';
 }>;
@@ -28,8 +32,7 @@ export async function readSetupState(api: Pick<HttpLocalApi, 'request'>, signal?
 
 export function parseSetupState(raw: unknown): SetupState {
   const decoded = decodeGetSetupStateResponse(raw);
-  const status = decoded.status;
-  if (status !== 'ready' && status !== 'in_progress' && status !== 'complete') throw new Error('Unreadable setup state.');
+  const status: SetupState['status'] = decoded.status === 'ready' || decoded.status === 'in_progress' || decoded.status === 'complete' ? decoded.status : 'unknown';
   const out: {status: SetupState['status']; retryAfterSeconds?: number; setup?: OwnSetup | 'unknown'} = {status};
   if (typeof decoded.retryAfterSeconds === 'number') out.retryAfterSeconds = decoded.retryAfterSeconds;
   const setup = decoded.setup;
@@ -38,6 +41,8 @@ export function parseSetupState(raw: unknown): SetupState {
     else out.setup = Object.freeze({phase: setup.variant as SetupPhase, requestId: setup.requestId, revision: setup.revision,
       ...(setup.expiresAt ? {expiresAt: setup.expiresAt} : {}),
       ...(setup.operation ? {operation: Object.freeze({operationId: setup.operation.operationId, localGeneration: setup.operation.localGeneration, revision: setup.operation.revision})} : {}),
+      ...(setup.delivery ? {delivery: Object.freeze({attempts: setup.delivery.attempts, slow: setup.delivery.slow,
+        ...(setup.delivery.since ? {since: setup.delivery.since} : {}), ...(setup.delivery.nextRetryAt ? {nextRetryAt: setup.delivery.nextRetryAt} : {})})} : {}),
       cancelling: setup.cancelling === true, renewable: setup.renewable === true});
   }
   return Object.freeze(out);

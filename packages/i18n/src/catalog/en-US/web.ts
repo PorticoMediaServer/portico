@@ -2225,7 +2225,7 @@ export const webMessages = {
   'web.setup.recommended': 'Recommended',
   'web.setup.localAccounts': 'Keep accounts on this server',
   'web.setup.localBody': 'Works without the internet. You’ll manage every sign-in yourself.',
-  'web.setup.servicesUnavailableBody': 'This server can’t be connected right now. Try again in a moment, or use local sign-in and switch to Portico Accounts later.',
+  'web.setup.servicesUnavailableBody': 'This server can’t be connected right now. Try again in a moment.',
   'web.setup.notOnNetwork': 'Setup could not be authorized at this address. Open the server using its IP address, or allow this hostname in the server configuration.',
   'web.setup.notLocalSource': 'Setup has to start from a device on the same network as this server. Open this page from there, or use a claim token.',
   'web.setup.inProgress': 'Setup is already in progress in another browser. You can start over after {time}.',

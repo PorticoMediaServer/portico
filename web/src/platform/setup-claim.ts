@@ -31,7 +31,7 @@ type Completion = Readonly<{api: HttpLocalApi; result: Extract<DirectSignIn, {ki
 const invalid = () => new CodedError('invalid_return', 'This setup continuation is no longer available.');
 const cancelled = () => new CodedError('cancelled', 'The pending setup or server selection changed.');
 const same = (a: Pending | undefined, b: Pending) => !!a && JSON.stringify(a) === JSON.stringify(b);
-export type SetupClaimRecovery = Readonly<{retry: () => Promise<string>; useLocal: () => Promise<void>}>;
+export type SetupClaimRecovery = Readonly<{retry: () => Promise<string>}>;
 export type PrepareOpening = Readonly<{setup: PendingAccountSetup; signal: AbortSignal; assertOriginal: () => Promise<void>; isCurrent: () => boolean;
   capture: (receipt: SetupClaimRecovery) => void}>;
 type RecoveryReceipt = Readonly<{origin: string; pin: ServerPin; installationId: string; selectionRevision: number;
@@ -154,8 +154,7 @@ export class BrowserSetupClaim {
         const receipt: RecoveryReceipt = Object.freeze({origin, pin: Object.freeze({...route.pin}), installationId: this.ports.installationId(),
           selectionRevision: selection.revision, draft: Object.freeze({...draft}), setupRevision: resumed.revision,
           ...(pending ? {pending: copyPending(pending)} : {}), ...(identity ? {identity: Object.freeze({...identity})} : {})});
-        opening.capture(Object.freeze({retry: () => this.prepareOriginal(api, hostedOrigin, opening, receipt),
-          useLocal: () => this.recoverOriginalLocal(api, receipt, opening)}));
+        opening.capture(Object.freeze({retry: () => this.prepareOriginal(api, hostedOrigin, opening, receipt)}));
       };
       if (pending && (pending.origin !== origin || pending.hostedOrigin !== hostedOrigin || !sameServerPin(pending.pin, route.pin) ||
         pending.setupRequestId !== resumed.requestId || pending.setupRevision !== resumed.revision)) throw invalid();
@@ -246,7 +245,7 @@ export class BrowserSetupClaim {
       }, {signal: operation.signal, now: () => this.now(), ...(renewal ? {renewal: true as const} : {})});
     } finally {this.busy = false;}
   }
-  /** `retrying` alone may meet its own lapsed record (to renew or restart it); Use local never does. */
+  /** `retrying` may meet its own lapsed record (to renew or restart it). */
   private async assertRecovery(api: HttpLocalApi, receipt: RecoveryReceipt, operation: {signal: AbortSignal; current: () => boolean}, opening?: PrepareOpening, retrying = false) {
     const live = () => {
       const route = api.getRouteConnection();
@@ -263,56 +262,6 @@ export class BrowserSetupClaim {
     const selection = await this.ports.sessions.read(); live();
     if (selection.revision !== receipt.selectionRevision) throw cancelled();
     await opening?.assertOriginal(); live();
-  }
-  /** Unlike cancel(), this is a server operation. Its target is captured during
-   * prepare/resume, never acquired by reading the latest operation on click. */
-  private async recoverOriginalLocal(api: HttpLocalApi, receipt: RecoveryReceipt, opening: PrepareOpening): Promise<void> {
-    const owned = this.operation(), signal = AbortSignal.any([owned.signal, opening.signal]);
-    const operation = {signal, current: () => owned.current() && !signal.aborted && opening.isCurrent()};
-    const current = () => this.assertRecovery(api, receipt, operation, opening);
-    const captured = new HttpLocalApi(receipt.origin, receipt.draft.setupToken), route = api.getRouteConnection();
-    if (!route) {this.busy = false; throw cancelled();} captured.useRoutes(route);
-    const resume = async () => {
-      await current();
-      const setup = await resumeServerSetup(captured, {read: async () => receipt.draft, change: async () => {throw cancelled();}}, operation.signal);
-      await current();
-      if (!('claimRequired' in setup) || setup.serverId !== receipt.pin.serverId || setup.requestId !== receipt.draft.requestId || setup.revision !== receipt.setupRevision) throw cancelled();
-    };
-    const read = async () => {await current(); const status = parseClaimStatus(await captured.request(routePath('get_networking_claim'), 'GET', undefined, operation.signal), receipt.pin); await current(); return status;};
-    try {
-      await resume();
-      const status = await read(), expected = receipt.pending?.expected;
-      let absenceGeneration: string;
-      if (expected) {
-        const approval = status.approvalRequest;
-        if (status.state !== 'prepared' || status.installationAcknowledged || status.accountId !== 'account-unbound' || !equal(status.operation, expected) ||
-          status.identity.localGeneration !== expected.localGeneration || !status.actions.includes('cancel') || !approval || approval.purpose !== 'setup' ||
-          approval.operationId !== expected.operationId || approval.localGeneration !== expected.localGeneration || approval.currentOwnerAccountId !== '' ||
-          approval.previousOwnerRole !== '' || approval.returnRegistrationId !== '') throw cancelled();
-        await current();
-        const result = parseClaimStatus(await captured.request(routePath('post_networking_claim_cancel'), 'POST', {expected}, operation.signal), receipt.pin);
-        await current();
-        absenceGeneration = (BigInt(expected.localGeneration) + 1n).toString();
-        // CancelAcknowledged clears the active pointer and advances the reset
-        // generation. A pending/ambiguous response is not completed recovery.
-        if (!absentClaim(result) || result.identity.localGeneration !== absenceGeneration) throw cancelled();
-      } else {
-        if (!absentClaim(status) || receipt.identity && !equal(status.identity, receipt.identity)) throw cancelled();
-        absenceGeneration = status.identity.localGeneration;
-      }
-      await resume();
-      const after = await read();
-      if (!absentClaim(after) || after.identity.localGeneration !== absenceGeneration) throw cancelled();
-      await current();
-      // Keep the original setup proof. Retire only this exact browser record
-      // after positive server evidence; cancel() remains browser-only cleanup.
-      await this.ports.journal.change(old => {if (!operation.current() || !equal(old, receipt.pending)) throw cancelled(); return undefined;});
-      if (!operation.current()) throw cancelled();
-      await opening.assertOriginal();
-      if (receipt.pending) await this.current(receipt.pending, operation, false);
-      if (!operation.current()) throw cancelled();
-      if (this.attemptId === receipt.pending?.attemptId) this.attemptId = undefined;
-    } finally {this.busy = false;}
   }
   async pendingReturn() {
     this.ports.journal.assertAvailable(); const record = await this.ports.journal.read();

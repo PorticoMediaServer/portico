@@ -1,6 +1,10 @@
 package setupflow
 
-import "errors"
+import (
+	"context"
+	"errors"
+	"time"
+)
 
 // Event is something that may move setup between phases: a caller's request or
 // something the server observes (time passing, Portico Services answering).
@@ -87,7 +91,9 @@ var table = map[Event][]edge{
 	EventDeliveryTransient: {{Approved, Approved}, {Finishing, Finishing}},
 	EventDeliveryStopped:   {{Approved, Exhausted}, {Finishing, Exhausted}},
 	EventRetry:             {{Exhausted, Finishing}},
-	EventDeliveryRefused:   {{Approved, Expired}, {Finishing, Expired}, {Exhausted, Expired}},
+	// S16: a final refusal withdraws the claim. Until Portico Services acknowledges the
+	// withdrawal, setup reads started and cancelling; Back retires it here at once.
+	EventDeliveryRefused: {{Approved, Started}, {Finishing, Started}, {Exhausted, Started}},
 	// S17–S19
 	EventInstalled:             {{Finishing, Installed}},
 	EventExchange:              {{Installed, Completed}},
@@ -113,4 +119,16 @@ func Next(from Phase, event Event) (Phase, error) {
 		return from, ErrPorticoSetup
 	}
 	return from, ErrStateChanged
+}
+
+// Require derives setup in the caller's transaction and checks that event applies.
+// It returns the state it found and the phase the event moves setup to; on a
+// refusal the state is still returned, so callers can say when to try again.
+func Require(ctx context.Context, q Querier, now time.Time, delivery DeliveryLookup, event Event) (State, Phase, error) {
+	state, err := Derive(ctx, q, now, delivery)
+	if err != nil {
+		return State{}, "", err
+	}
+	to, err := Next(state.Phase, event)
+	return state, to, err
 }

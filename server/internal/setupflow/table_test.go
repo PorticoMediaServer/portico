@@ -35,9 +35,9 @@ finishing delivery_transient finishing
 approved delivery_stopped exhausted
 finishing delivery_stopped exhausted
 exhausted retry finishing
-approved delivery_refused expired
-finishing delivery_refused expired
-exhausted delivery_refused expired
+approved delivery_refused started
+finishing delivery_refused started
+exhausted delivery_refused started
 finishing installed installed
 installed exchange completed
 installed admission_window_passed installed_lapsed
