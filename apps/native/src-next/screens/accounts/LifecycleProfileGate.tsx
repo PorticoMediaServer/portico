@@ -102,6 +102,7 @@ export function LifecycleProfileGate() {
   if (theme.isTV && forgot && connection) return <TVForgotPINHandoff profileName={profile.name}
     url={new URL('/settings/profile', routeOrigin(connection.api.baseUrl)).href} body="next.auth.tv.forgotPINBody" onBack={back}/>;
   if (theme.isTV) return <TVProfilePINForm profile={option(profile)} code={code} onCodeChange={setCode} busy={busy} error={status}
+    {...(state.canRemember ? {remember: {checked: remember, onChange: setRemember}} : {})}
     hints={busy ? wait : undefined} onSubmit={send} onBack={back} onForgotPIN={() => {if (!busy) {setCode(''); setForgot(true);}}}/>;
   return <StateLayout testID="lifecycle-profile-pin" title={t('profile.pinTitle', {name: profile.name})} avoidKeyboard
     beforeActions={<View style={{alignSelf: 'stretch'}}>

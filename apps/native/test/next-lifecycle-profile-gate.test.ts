@@ -15,7 +15,7 @@ const server = {serverId: 's1', name: 'Portico demo', signIn: 'local' as const};
 const viewer = (profileId: string, familyId: string) => ({accountId: 'a1', profileId, role: 'owner', familyId});
 const profiles = [{id: 'main', name: 'Demo', primary: true, pinRequired: false}, {id: 'alex', name: 'Alex', primary: false, pinRequired: true}];
 
-async function gate(rememberProfiles: boolean) {
+async function gate(rememberProfiles: boolean, isTV = false) {
   const selects: SelectInput[] = [];
   const ports = {
     readRecords: async () => ({outcome: 'ok' as const, servers: 1, held: {server, viewer: viewer('main', 'f1'), remembered: false, profilePinRequired: false}}),
@@ -33,7 +33,7 @@ async function gate(rememberProfiles: boolean) {
     react: {...React, default: React},
     'react-native': {BackHandler: {addEventListener: () => ({remove() {}})}, Text: 'Text', View: 'View'},
     '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/artwork': {ProfilePicker: 'Picker'},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
+    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': {useTheme: () => createTheme({isTV, width: isTV ? 1920 : 390})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/errors': {presentError},
     '../../../../../packages/client-core/src': {HttpHostedApi: class {}}, '../../../../../packages/client-core/src/route-identity': {routeOrigin: (v: string) => v},
     '../../shell/StartupBoot': {BootWaitLine: 'Wait'}, '../../tv/auth': {TVForgotPINHandoff: 'TVForgot', TVProfilePINForm: 'TVPIN', TVWhosWatching: 'TVWho'},
@@ -91,4 +91,20 @@ test('the current no-PIN profile opens without a request', async () => {
     assert.equal(g.selects.length, 0);
     assert.equal(g.lifecycle.getSnapshot().state.kind, 'ready');
   } finally {await g.host.unmount(); g.lifecycle.dispose();}
+});
+
+test('on TV the PIN form carries Remember this profile on this device exactly when the server allows remembering', async () => {
+  for (const allowed of [true, false]) {
+    const g = await gate(allowed, true);
+    try {
+      const picker = nodes(g.tree().props.children).find(node => node.type === 'Picker');
+      await act(async () => {picker.props.onSelect('alex'); await settle();});
+      await g.host.rerender();
+      assert.equal(g.tree().type, 'TVPIN');
+      assert.equal(!!g.tree().props.remember, allowed);
+      if (allowed) {await act(() => g.tree().props.remember.onChange(true)); await g.host.rerender();}
+      await act(async () => {g.tree().props.onSubmit('1234'); await settle();});
+      assert.equal(g.selects[0]?.remember, allowed);
+    } finally {await g.host.unmount(); g.lifecycle.dispose();}
+  }
 });
