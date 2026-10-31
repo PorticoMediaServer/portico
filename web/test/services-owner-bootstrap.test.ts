@@ -63,3 +63,15 @@ test('disposal during protected read prevents cookie work and late publication',
   const f=fixture();let resolve!:(value:undefined)=>void;f.store.read=()=>new Promise(done=>{resolve=done;});const boot=f.boot(),flight=boot.start();
   const before=boot.getSnapshot();boot.dispose();resolve(undefined);await flight;assert.equal(boot.getSnapshot(),before);assert.equal(f.calls.includes('cookie'),false);
 });
+test('after the provider round trip, /claim restores the same claim from this tab and a signed-in person sees Approve',async()=>{
+  const {claimStartView}=await import('../src/services/claim-start.ts');
+  const f=fixture(),before=f.boot({request});await before.start();assert.equal(before.getSnapshot().ownerPending,true);
+  const attempt=f.saved?.attemptId;before.dispose();
+  // The callback page sends a login back to /claim (providerReturnPath), which boots with no capture.
+  const after=f.boot();await after.start();
+  assert.equal(after.getSnapshot().ownerPending,true,'restored from the tab store, not the URL');
+  assert.equal(f.saved?.attemptId,attempt,'the same attempt and local budget');
+  assert.equal(claimStartView({ownerPending:true,signedIn:true}),'approval','signed in: the approval page with Approve');
+  assert.equal(claimStartView({ownerPending:true,signedIn:false}),'form','not yet signed in: the sign-in form on the claim, as for password sign-up');
+  after.dispose();
+});

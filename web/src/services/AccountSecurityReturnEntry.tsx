@@ -12,6 +12,7 @@ import {ServicesNotice} from '../kit/accounts/ServicesAuth';
 import {OriginalAccountSecurityWorkspace} from './OriginalAccountSecurityWorkspace';
 import {credentialTaskTitle} from './ProviderSecurityStartDialog';
 import {servicesI18n} from './i18n';
+import {hostedOwnerPendingStore, providerReturnPath} from './owner-pending';
 import {beginHostedSecurityBridge, finishHostedSecurityBridge, cancelHostedSecurityBridge, type HostedSecurityArrival} from './account-security-return';
 
 export type AccountSecurityEntry = Readonly<{kind: 'server'; captured: CapturedPorticoReturn} | {kind: 'hosted'; captured: HostedSecurityArrival}>;
@@ -83,10 +84,12 @@ export function AccountSecurityReturnEntry({arrival}: {arrival: AccountSecurityE
           // Security original can never fall through to either grant consumer.
           const tx = await originalSecurityClient(location.origin).transaction(captured.transactionId, signal);
           if (!tx || tx.securityReturn || tx.mode === 'reauthenticate') throw invalid();
+          // A sign-in or sign-up that began on a server's claim goes back to that claim.
+          const resume = tx.mode === 'login' ? await providerReturnPath(hostedOwnerPendingStore, location.origin) : undefined;
           if (current(original)) {
             // Login callbacks share Hosted's /account callback URL with Security,
-            // but resume the original sign-in/start root. Only linking stays here.
-            if (tx.mode === 'login') history.replaceState(null, '', '/');
+            // but resume the original sign-in/start root (or the claim). Only linking stays here.
+            if (resume) history.replaceState(null, '', resume);
             setOrdinary(tx.mode === 'link' ? {identityTransaction: captured.transactionId} : {providerReturn: true});
           }
         }
