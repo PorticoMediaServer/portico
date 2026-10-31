@@ -3,36 +3,28 @@ import {test} from 'node:test';
 import {SetupApprovalFlow} from '../src/services/setup-approval-flow.ts';
 import type {ServicesAccount} from '../src/services/session.ts';
 import type {HostedSetupClaimReview} from '../src/services/setup-claim.ts';
+import {ApiError} from '@core/index.ts';
+import {createManualScheduler} from '@core/timer.ts';
 
 function fixture() {
   let session = {account: {id: 'original-account', username: 'owner', displayName: 'Owner'}, familyId: 'original-family', accessToken: 'fixture-access'};
-  let monotonic = 0;
   const accountListeners = new Set<() => void>();
-  const timers = new Map<number, {callback: () => void; delay: number}>();
-  let nextTimer = 0, reviewCalls = 0;
-  let now = Date.now(), rejectDecision = false, completeCalls = 0, disposed = false, accountReadsClosed = false;
+  const scheduler = createManualScheduler();
+  let lookups = 0, now = Date.now(), rejectDecision = false, completeCalls = 0, disposed = false, accountReadsClosed = false;
   const navigations: string[] = [], decisions: string[] = [];
   let completion = async () => 'https://original.example/auth/portico-return#transaction=original-transaction';
+  let reviewing = async () => {};
   const account = {service: {getSnapshot: () => ({session}), subscribe: (listener: () => void) => {accountListeners.add(listener); return () => accountListeners.delete(listener);}, synchronize: async () => {if (accountReadsClosed) throw new Error('account read unavailable');}, accessSession: async () => session}} as unknown as ServicesAccount;
   const review = {identity: {accountId: session.account.id, familyId: session.familyId}, name: 'Original server', address: 'https://original.example',
     requestedAt: new Date(now - 1000).toISOString(), expiresAt: new Date(now + 120000).toISOString(), status: 'pending'} as HostedSetupClaimReview;
-  const controller = {review: async () => {reviewCalls++; return review;}, decide: async (decision: string) => {decisions.push(decision); if (rejectDecision) throw new Error('decision unavailable');},
-    complete: async () => {completeCalls++; return completion();}, dispose: () => {disposed = true;}} as unknown as ConstructorParameters<typeof SetupApprovalFlow>[1];
-  const flow = new SetupApprovalFlow(account, controller, location => navigations.push(location), () => now, {
-    monotonicNow: () => monotonic,
-    setTimeout: (callback, delay) => {const id = ++nextTimer; timers.set(id, {callback, delay}); return id as unknown as ReturnType<typeof setTimeout>;},
-    clearTimeout: id => {timers.delete(id as unknown as number);},
-  });
-  return {flow, review, navigations, decisions, completion: (work: typeof completion) => {completion = work;},
+  // Each controller call that reaches Hosted is one lookup: review, and complete (which hands its lookup back).
+  const controller = {review: async () => {lookups++; await reviewing(); return review;}, decide: async (decision: string) => {decisions.push(decision); if (rejectDecision) throw new Error('decision unavailable');},
+    complete: async () => {completeCalls++; lookups++; const location = await completion(); return location ? {location} : {review};}, dispose: () => {disposed = true;}} as unknown as ConstructorParameters<typeof SetupApprovalFlow>[1];
+  const flow = new SetupApprovalFlow(account, controller, location => navigations.push(location), () => now, scheduler);
+  return {flow, review, navigations, decisions, scheduler, completion: (work: typeof completion) => {completion = work;}, reviewing: (work: typeof reviewing) => {reviewing = work;},
     rejectDecision: () => {rejectDecision = true;}, replaceFamily: () => {session = {...session, familyId: 'successor-family'}; accountListeners.forEach(listener => listener());},
     closeAccountReads: () => {accountReadsClosed = true;},
-    expireClock: () => {now += 180000;}, advance: (ms: number) => {now += ms; monotonic += ms;},
-    wall: (ms: number) => {now += ms;}, tick: (ms: number) => {monotonic += ms;},
-    timers, subscribers: () => accountListeners.size, reviewCalls: () => reviewCalls,
-    fire: () => {const entry = timers.entries().next().value; assert.ok(entry); timers.delete(entry[0]); entry[1].callback();},
-    refresh: () => {session = {...session, accessToken: 'refreshed'}; accountListeners.forEach(listener => listener());},
-    restoreFamily: () => {session = {...session, familyId: 'original-family'}; accountListeners.forEach(listener => listener());},
-    absentFamily: () => {session = {...session, familyId: ''}; accountListeners.forEach(listener => listener());}, completeCalls: () => completeCalls, disposed: () => disposed};
+    expireClock: () => {now += 180000;}, lookups: () => lookups, completeCalls: () => completeCalls, disposed: () => disposed};
 }
 
 test('confirmed approval retries the same protected completion after refusal without a public-address bypass', async () => {
@@ -109,150 +101,125 @@ test('Return is offered only once Hosted reports the approved claim installed', 
   assert.equal(h.flow.getSnapshot().installed, undefined); h.flow.dispose();
 });
 
-// A slow or failing Portico Services keeps the server finishing after Approve. Try again
-// keeps looking it up, and past two minutes the page says so honestly (the rig's d2).
-test('finishing long after Approve is marked slow; shortly after it is not', async () => {
-  const f = fixture();
-  (f.review as {expiresAt: string}).expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
-  await f.flow.start(); await f.flow.decide('approve');
-  f.completion(async () => undefined as unknown as string);
-  f.advance(30_000); await f.flow.complete();
-  assert.equal(f.flow.getSnapshot().phase, 'finishing'); assert.equal(f.flow.getSnapshot().slow, undefined);
-  f.advance(150_000); await f.flow.complete();
-  assert.equal(f.flow.getSnapshot().phase, 'finishing'); assert.equal(f.flow.getSnapshot().slow, true);
-  f.completion(async () => 'https://original.example/auth/portico-return#transaction=original-transaction');
-  await f.flow.complete();
-  assert.deepEqual(f.navigations, ['https://original.example/auth/portico-return#transaction=original-transaction']);
-  f.flow.dispose();
+const RETURN = 'https://original.example/auth/portico-return#transaction=original-transaction';
+const phaseOf = (f: ReturnType<typeof fixture>, status: 'pending' | 'approved', phase?: object, installed = false) => Object.assign(f.review, {status, installed, phase});
+
+test('each press of Try again is exactly one lookup, and Return goes ahead once installed', async () => {
+  const f = fixture(); await f.flow.start(); await f.flow.decide('approve');
+  assert.equal(f.lookups(), 1);
+  f.completion(async () => undefined as never);
+  await f.flow.complete(); assert.equal(f.lookups(), 2); assert.equal(f.flow.getSnapshot().phase, 'finishing');
+  await f.flow.complete(); assert.equal(f.lookups(), 3);
+  f.completion(async () => RETURN); await f.flow.complete();
+  assert.equal(f.lookups(), 4); assert.deepEqual(f.navigations, [RETURN]); f.flow.dispose();
 });
 
-function longFixture() {
-  const f = fixture();
-  Object.assign(f.review, {expiresAt: new Date(Date.now() + 30 * 60_000).toISOString()});
-  return f;
-}
-
-test('passive approval publishes only slow at the exact monotonic boundary, with or without early Return', async () => {
-  for (const earlyReturn of [false, true]) {
-    const f = longFixture(); await f.flow.start(); await f.flow.decide('approve');
-    if (earlyReturn) {f.completion(async () => undefined as never); await f.flow.complete();}
-    const before = f.flow.getSnapshot(), reads = f.reviewCalls(), calls = f.completeCalls();
-    assert.equal(f.timers.size, 1); assert.equal(f.subscribers(), 1);
-    f.tick(119999); f.fire();
-    assert.deepEqual(f.flow.getSnapshot(), before);
-    assert.equal([...f.timers.values()][0].delay, 1);
-    f.tick(1); f.fire();
-    assert.deepEqual(f.flow.getSnapshot(), {...before, slow: true});
-    assert.equal(f.timers.size, 0); assert.equal(f.subscribers(), 0);
-    assert.equal(f.reviewCalls(), reads); assert.equal(f.completeCalls(), calls);
-    assert.deepEqual(f.decisions, ['approve']); assert.deepEqual(f.navigations, []);
-    f.completion(async () => undefined as never); await f.flow.complete();
-    assert.equal(f.flow.getSnapshot().slow, true);
-    f.completion(async () => 'https://original.example/return'); await f.flow.complete();
-    assert.deepEqual(f.navigations, ['https://original.example/return']); f.flow.dispose();
-  }
-});
-
-test('restored observation seeds once, installed Return-ready never schedules', async () => {
-  for (const installed of [false, true]) {
-    const f = longFixture(); Object.assign(f.review, {status: 'approved', installed});
-    await f.flow.start();
-    assert.equal(f.timers.size, installed ? 0 : 1); assert.equal(f.subscribers(), installed ? 0 : 1);
-    if (!installed) {
-      f.tick(60000); await f.flow.start(); f.tick(60000); f.fire();
-      assert.equal(f.flow.getSnapshot().slow, true);
-    }
-    assert.deepEqual(f.decisions, []); assert.equal(f.completeCalls(), 0); assert.deepEqual(f.navigations, []);
-    f.flow.dispose(); assert.equal(f.subscribers(), 0); assert.equal(f.timers.size, 0);
-  }
-});
-
-test('wall jumps cannot accelerate elapsed display and expiry still retires the clock', async () => {
-  for (const jump of [-3600000, 300000, 3600000]) {
-    const f = longFixture(); await f.flow.start(); await f.flow.decide('approve');
-    f.wall(jump); f.fire(); assert.equal(f.flow.getSnapshot().slow, undefined);
-    if (jump === 3600000) {assert.equal(f.timers.size, 0); assert.equal(f.subscribers(), 0);}
-    else {f.tick(120000); f.fire(); assert.equal(f.flow.getSnapshot().slow, true);}
+test('each phase variant reads as its own state, slow only while the server has not been heard from', async () => {
+  const at = (ms: number) => new Date(Date.now() + ms).toISOString();
+  const cases: [string, 'pending' | 'approved', object | undefined, boolean, Record<string, unknown>][] = [
+    ['review', 'pending', {variant: 'review'}, false, {phase: 'review'}],
+    ['approved', 'approved', {variant: 'approved', approvedAt: at(-1000)}, false, {phase: 'approved', approved: true}],
+    ['finishing', 'approved', {variant: 'finishing', approvedAt: at(-1000), serverSeenAt: at(-500)}, false, {phase: 'approved', approved: true}],
+    ['installed', 'approved', {variant: 'installed'}, true, {phase: 'approved', approved: true, installed: true}],
+    ['slow, never seen', 'approved', {variant: 'approved', slow: true, approvedAt: at(-200000)}, false, {phase: 'approved', approved: true, slow: true}],
+    ['slow, seen since approval', 'approved', {variant: 'finishing', slow: true, approvedAt: at(-200000), serverSeenAt: at(-1000)}, false, {phase: 'approved', approved: true}],
+    ['slow, seen before approval', 'approved', {variant: 'finishing', slow: true, approvedAt: at(-1000), serverSeenAt: at(-200000)}, false, {phase: 'approved', approved: true, slow: true}],
+    ['slow, seen but approval unknown', 'approved', {variant: 'finishing', slow: true, serverSeenAt: at(-1000)}, false, {phase: 'approved', approved: true, slow: true}],
+  ];
+  for (const [name, status, phase, installed, expected] of cases) {
+    const f = fixture(); phaseOf(f, status, phase, installed); await f.flow.start();
+    const {phase: shown, approved, installed: ready, slow} = f.flow.getSnapshot();
+    assert.deepEqual({phase: shown, approved, installed: ready, slow}, {phase: undefined, approved: undefined, installed: undefined, slow: undefined, ...expected}, name);
     f.flow.dispose();
   }
 });
 
-test('early callbacks rearm rounded-up remaining time with just one timeout', async () => {
-  const f = longFixture(); await f.flow.start(); await f.flow.decide('approve');
-  f.tick(0.25); f.fire(); assert.equal(f.timers.size, 1);
-  assert.equal([...f.timers.values()][0].delay, 120000);
-  f.tick(119999.75); f.fire(); assert.equal(f.flow.getSnapshot().slow, true); f.flow.dispose();
+test('Try again carries the slow reading from the same lookup, and clears it once the server is heard from', async () => {
+  const f = fixture(); phaseOf(f, 'approved', {variant: 'approved', slow: true, approvedAt: new Date(Date.now() - 200000).toISOString()});
+  await f.flow.start(); f.completion(async () => undefined as never);
+  await f.flow.complete(); assert.equal(f.flow.getSnapshot().phase, 'finishing'); assert.equal(f.flow.getSnapshot().slow, true);
+  phaseOf(f, 'approved', {variant: 'finishing', slow: true, approvedAt: new Date(Date.now() - 200000).toISOString(), serverSeenAt: new Date().toISOString()});
+  await f.flow.complete(); assert.equal(f.flow.getSnapshot().slow, undefined); assert.equal(f.lookups(), 3);
+  f.flow.dispose();
 });
 
-test('same-family refresh preserves deadline; foreign or absent family retires permanently', async () => {
-  for (const mode of ['refresh', 'replace', 'absent'] as const) {
-    const f = longFixture(); await f.flow.start(); await f.flow.decide('approve');
-    const late = [...f.timers.values()][0].callback;
-    f.tick(60000);
-    if (mode === 'refresh') f.refresh();
-    else {if (mode === 'replace') f.replaceFamily(); else f.absentFamily(); f.restoreFamily();}
-    f.tick(60000); if (mode === 'refresh') f.fire(); else late();
-    assert.equal(f.flow.getSnapshot().slow, mode === 'refresh' ? true : undefined);
-    assert.equal(f.timers.size, 0); assert.equal(f.subscribers(), 0);
-    assert.equal(f.completeCalls(), 0); assert.deepEqual(f.navigations, []); f.flow.dispose();
+test('an older Hosted that answers without a phase works as before', async () => {
+  const f = fixture(); await f.flow.start(); await f.flow.decide('approve');
+  f.completion(async () => undefined as never); await f.flow.complete();
+  assert.equal(f.flow.getSnapshot().phase, 'finishing'); assert.equal(f.flow.getSnapshot().slow, undefined);
+  Object.assign(f.review, {status: 'approved', installed: true}); await f.flow.complete();
+  assert.equal(f.flow.getSnapshot().installed, true); assert.equal(f.lookups(), 3);
+  f.completion(async () => RETURN); await f.flow.complete(); assert.deepEqual(f.navigations, [RETURN]); f.flow.dispose();
+});
+
+test('a phase the page does not know shows the stale error and never throws', async () => {
+  const f = fixture(); phaseOf(f, 'approved', {variant: 'quarantined', slow: true});
+  await f.flow.start();
+  assert.equal(f.flow.getSnapshot().phase, 'error'); assert.equal((f.flow.getSnapshot().error as {code?: string}).code, 'claim_stale');
+  assert.equal(f.flow.getSnapshot().display, undefined); f.flow.dispose();
+  const g = fixture(); await g.flow.start(); await g.flow.decide('approve');
+  g.completion(async () => undefined as never); phaseOf(g, 'approved', {variant: 'quarantined'});
+  await g.flow.complete();
+  assert.equal(g.flow.getSnapshot().phase, 'error'); assert.equal((g.flow.getSnapshot().error as {code?: string}).code, 'claim_stale');
+  assert.equal(g.flow.getSnapshot().approved, true); assert.equal(g.flow.getSnapshot().busy, false); assert.deepEqual(g.navigations, []);
+  // Try again still works once Hosted answers with a phase it knows.
+  g.completion(async () => RETURN); phaseOf(g, 'approved', {variant: 'installed'}, true); await g.flow.complete();
+  assert.deepEqual(g.navigations, [RETURN]); g.flow.dispose();
+});
+
+test('a 429 holds Try again until its Retry-After has passed, never earlier and never by itself retrying', async () => {
+  const f = fixture(); await f.flow.start(); await f.flow.decide('approve');
+  f.completion(async () => {throw new ApiError(429, 'rate_limited', 'rate_limited', true, 30);});
+  await f.flow.complete();
+  assert.equal(f.flow.getSnapshot().phase, 'error'); assert.equal(f.flow.getSnapshot().retryIn, 30); assert.equal(f.lookups(), 2);
+  f.completion(async () => RETURN);
+  await f.flow.complete(); assert.equal(f.lookups(), 2, 'a press during the wait is not a lookup');
+  await f.scheduler.advance(1); assert.equal(f.flow.getSnapshot().retryIn, 30);
+  await f.scheduler.advance(28_998); assert.equal(f.flow.getSnapshot().retryIn, 2);
+  await f.flow.complete(); assert.equal(f.lookups(), 2); assert.deepEqual(f.navigations, []);
+  await f.scheduler.advance(1000); assert.equal(f.flow.getSnapshot().retryIn, 1, 'one millisecond short');
+  await f.flow.complete(); assert.equal(f.lookups(), 2);
+  await f.scheduler.advance(1); assert.equal(f.flow.getSnapshot().retryIn, undefined);
+  assert.equal(f.lookups(), 2, 'nothing retries on its own'); assert.equal(f.scheduler.pending(), 1);
+  await f.flow.complete(); assert.equal(f.lookups(), 3); assert.deepEqual(f.navigations, [RETURN]); f.flow.dispose();
+});
+
+test('a 429 on the first lookup holds the next one the same way; one without Retry-After holds nothing', async () => {
+  const f = fixture(); f.reviewing(async () => {throw new ApiError(429, 'rate_limited', 'rate_limited', true, 5);});
+  await f.flow.start(); assert.equal(f.flow.getSnapshot().retryIn, 5);
+  await f.flow.start(); assert.equal(f.lookups(), 1);
+  await f.scheduler.advance(4999); await f.flow.start(); assert.equal(f.lookups(), 1);
+  f.reviewing(async () => {}); await f.scheduler.advance(1); await f.flow.start();
+  assert.equal(f.lookups(), 2); assert.equal(f.flow.getSnapshot().retryIn, undefined); assert.equal(f.flow.getSnapshot().phase, 'review'); f.flow.dispose();
+  const g = fixture(); g.reviewing(async () => {throw new ApiError(429, 'rate_limited', 'rate_limited', true);});
+  await g.flow.start(); assert.equal(g.flow.getSnapshot().retryIn, undefined); assert.equal(g.flow.getSnapshot().phase, 'error'); g.flow.dispose();
+});
+
+test('the page ends at the claim expiry on the scheduler, and dispose, expiry and return cancel every wait', async () => {
+  const f = fixture(); await f.flow.start(); assert.equal(f.scheduler.pending(), 1);
+  await f.scheduler.advance(119_999); assert.equal(f.flow.getSnapshot().phase, 'review');
+  await f.scheduler.advance(1); assert.equal(f.flow.getSnapshot().phase, 'expired'); assert.equal(f.disposed(), true); assert.equal(f.scheduler.pending(), 0);
+  for (const mode of ['dispose', 'expire', 'return', 'held'] as const) {
+    const g = fixture(); await g.flow.start(); await g.flow.decide('approve');
+    if (mode === 'held') {g.completion(async () => {throw new ApiError(429, 'rate_limited', 'rate_limited', true, 30);}); await g.flow.complete(); assert.equal(g.scheduler.pending(), 2);}
+    if (mode === 'dispose') g.flow.dispose();
+    if (mode === 'expire') g.flow.expire();
+    if (mode === 'return') {await g.flow.complete(); assert.equal(g.flow.getSnapshot().phase, 'returning');}
+    if (mode === 'held') g.flow.dispose();
+    const before = g.flow.getSnapshot(); await g.scheduler.advance(200_000);
+    assert.deepEqual(g.flow.getSnapshot(), before, mode); g.flow.dispose();
+    if (mode !== 'return') assert.equal(g.scheduler.pending(), 0, mode);
   }
 });
 
-test('dispose, expiry and successful returning cancel queued callbacks and account subscription', async () => {
-  for (const mode of ['dispose', 'expire', 'return', 'wallExpiry'] as const) {
-    const f = fixture(); await f.flow.start(); await f.flow.decide('approve');
-    const late = [...f.timers.values()][0].callback;
-    if (mode === 'dispose') f.flow.dispose();
-    if (mode === 'expire') f.flow.expire();
-    if (mode === 'return') await f.flow.complete();
-    if (mode === 'wallExpiry') {f.expireClock(); f.fire();}
-    const before = f.flow.getSnapshot(); f.tick(120000); late();
-    assert.deepEqual(f.flow.getSnapshot(), before);
-    assert.equal(f.timers.size, 0); assert.equal(f.subscribers(), 0); f.flow.dispose();
-  }
-});
-
-test('display deadline preserves in-flight busy state and epoch, then completion settles', async () => {
-  const f = longFixture(); await f.flow.start(); await f.flow.decide('approve');
-  let finish!: (location: string) => void;
-  f.completion(() => new Promise(resolve => {finish = resolve;}));
-  const pending = f.flow.complete(), before = f.flow.getSnapshot();
-  assert.equal(before.busy, true); f.tick(120000); f.fire();
-  assert.deepEqual(f.flow.getSnapshot(), {...before, slow: true});
-  finish('https://original.example/return'); await pending;
-  assert.equal(f.flow.getSnapshot().phase, 'returning'); assert.equal(f.flow.getSnapshot().busy, false);
-  assert.deepEqual(f.navigations, ['https://original.example/return']); f.flow.dispose();
-});
-
-test('reentrant disposal on approval or slow publication never rearms', async () => {
-  for (const onSlow of [false, true]) {
-    const f = longFixture(); await f.flow.start();
-    f.flow.subscribe(() => {const state = f.flow.getSnapshot(); if (onSlow ? state.slow : state.approved) f.flow.dispose();});
-    await f.flow.decide('approve'); if (onSlow) {f.tick(120000); f.fire();}
-    assert.equal(f.subscribers(), 0); assert.equal(f.timers.size, 0);
-    assert.deepEqual(f.navigations, []); assert.equal(f.completeCalls(), 0);
-  }
-});
-
-test('unapproved and denied states never acquire clock resources or passive consent', async () => {
-  const f = longFixture(); await f.flow.start();
-  f.tick(120000); assert.equal(f.timers.size, 0); assert.equal(f.subscribers(), 0);
-  assert.deepEqual(f.decisions, []); assert.equal(f.completeCalls(), 0);
-  await f.flow.decide('deny'); assert.equal(f.flow.getSnapshot().phase, 'denied');
-  assert.equal(f.timers.size, 0); assert.equal(f.subscribers(), 0);
-  assert.deepEqual(f.navigations, []); f.flow.dispose();
-});
-
-test('in-flight completion refusal settles after slow publication without losing retry', async () => {
-  const f = longFixture(); await f.flow.start(); await f.flow.decide('approve');
+test('in-flight completion refusal settles with its error and keeps the retry', async () => {
+  const f = fixture(); await f.flow.start(); await f.flow.decide('approve');
   let refuse!: (error: Error) => void;
   f.completion(() => new Promise((_resolve, reject) => {refuse = reject;}));
-  const pending = f.flow.complete(); f.tick(120000); f.fire();
-  assert.equal(f.flow.getSnapshot().busy, true);
+  const pending = f.flow.complete(); assert.equal(f.flow.getSnapshot().busy, true);
   const error = new Error('still unavailable'); refuse(error); await pending;
-  assert.equal(f.flow.getSnapshot().phase, 'error'); assert.equal(f.flow.getSnapshot().error, error);
-  assert.equal(f.flow.getSnapshot().slow, true); assert.equal(f.flow.getSnapshot().busy, false);
+  assert.equal(f.flow.getSnapshot().phase, 'error'); assert.equal(f.flow.getSnapshot().error, error); assert.equal(f.flow.getSnapshot().busy, false);
   assert.deepEqual(f.navigations, []); assert.equal(f.completeCalls(), 1);
-  f.completion(async () => 'https://original.example/return'); await f.flow.complete();
-  assert.deepEqual(f.navigations, ['https://original.example/return']); f.flow.dispose();
+  f.completion(async () => RETURN); await f.flow.complete();
+  assert.deepEqual(f.navigations, [RETURN]); f.flow.dispose();
 });

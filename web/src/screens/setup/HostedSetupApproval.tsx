@@ -3,6 +3,7 @@ import {defaultI18n} from '@i18n';
 import {AuthStage} from '../../kit/accounts/AuthStage';
 import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
+import {signInRetryClock} from '../../kit/accounts/sign-in-retry';
 import {ServicesFacts, ServicesNotice, ServicesQuiet, HostedError} from '../../kit/accounts/ServicesAuth';
 import styles from './setup.module.css';
 
@@ -19,6 +20,8 @@ export type HostedSetupApprovalProps = Readonly<{
   installed?: boolean;
   /** Still finishing long after Approve: say so, with what to check. */
   slow?: boolean;
+  /** Seconds until a refused lookup may be tried again; Return and Try again are held until then. */
+  retryIn?: number;
   busy?: boolean;
   error?: unknown;
   onApprove: () => void;
@@ -29,7 +32,7 @@ export type HostedSetupApprovalProps = Readonly<{
 /** auth2b/2c display-only. The strict Hosted lookup and decision controller are
  * Security's; this draws the review, the connected page and the shared failure
  * shape without switch wording, extra people counts or source authority. */
-export function HostedSetupApproval({phase, serverName, address, accountName, requestedAt, approved = false, installed = true, slow = false, busy = false, error, onApprove, onDeny, onReturn}: HostedSetupApprovalProps) {
+export function HostedSetupApproval({phase, serverName, address, accountName, requestedAt, approved = false, installed = true, slow = false, retryIn, busy = false, error, onApprove, onDeny, onReturn}: HostedSetupApprovalProps) {
   const steps = <div className={styles.steps} aria-label={t('web.setup.stepsLabel')}>
     <Step state="done" number={<Icon name="i-check" size={18}/>} title={t('web.setup.stepServer')} body={serverName}/>
     <Step state={approved ? 'done' : 'current'} number={approved ? <Icon name="i-check" size={18}/> : 2} title={t('web.setup.stepAccount')}
@@ -60,6 +63,7 @@ export function HostedSetupApproval({phase, serverName, address, accountName, re
       <div className={styles.btnRow}><Button variant="primary" size="hero" onClick={onReturn}>{t('web.claim.returnTo', {server: serverName})}</Button></div>
     </AuthStage>
   </div>;
+  const held = retryIn !== undefined, heldLabel = held ? t('services.signin.tryIn', {time: signInRetryClock(retryIn, defaultI18n.locale)}) : undefined;
   if (approved) return <div className={styles.host}>
     <AuthStage service contentClassName={styles.approvalContent}>
       <p className={styles.okline}><Icon name="i-okc" size={20}/>{t('web.claim.connectedTitle')}</p>
@@ -69,10 +73,10 @@ export function HostedSetupApproval({phase, serverName, address, accountName, re
       {Boolean(error) && <HostedError error={error}/>}
       {/* Not installed yet, or Return found it not ready: say so, with the same Return to try again. */}
       {installed && phase !== 'finishing'
-        ? <div className={styles.btnRow}><Button variant="primary" size="hero" autoFocus loading={busy} disabled={busy} onClick={onReturn}>{t('web.claim.returnTo', {server: serverName})}</Button></div>
+        ? <div className={styles.btnRow}><Button variant="primary" size="hero" autoFocus loading={busy} disabled={busy || held} onClick={onReturn}>{heldLabel ?? t('web.claim.returnTo', {server: serverName})}</Button></div>
         : <><p role="status">{t('web.claim.finishingOnServer')}</p>
           {slow && <ServicesNotice tone="info">{t('web.claim.finishingSlow')}</ServicesNotice>}
-          <div className={styles.btnRow}><Button variant="glass" size="hero" loading={busy} disabled={busy} onClick={onReturn}>{t('web.claim.tryAgain')}</Button></div></>}
+          <div className={styles.btnRow}><Button variant="glass" size="hero" loading={busy} disabled={busy || held} onClick={onReturn}>{heldLabel ?? t('web.claim.tryAgain')}</Button></div></>}
       <ServicesQuiet>{t('web.claim.signedInAs', {account: accountName})}</ServicesQuiet>
     </AuthStage>
     {steps}

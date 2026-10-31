@@ -14,9 +14,12 @@ export type HostedSetupClaimCapture = Readonly<{request?: HostedSetupClaimLink}>
 export type HostedSetupClaimReview = Readonly<{
   request: HostedSetupClaimLink; identity: AccountIdentity; serverId: string; name: string; address: string;
   transactionId: string; requestedAt: string; expiresAt: string; status: 'pending' | 'approved';
-  /** The claim is installed (Hosted `setupInstalled`); only then is Return offered. */
+  /** The claim is installed (Hosted `setupInstalled`, or phase `installed`); only then is Return offered. */
   installed: boolean;
+  /** Where Hosted says the claim stands, when this lookup asked. The variant is open: unknown values are kept as they came. */
+  phase?: HostedSetupClaimPhase;
 }>;
+export type HostedSetupClaimPhase = Readonly<{variant: string; slow?: true; approvedAt?: string; serverSeenAt?: string}>;
 const invalid = () => new ApiError(400, 'invalid_return', 'invalid_return', false);
 const unavailable = () => new ApiError(409, 'claim_stale', 'claim_stale', false);
 const identifier = (value: string) => /^[A-Za-z0-9_-]{1,128}$/.test(value);
@@ -47,7 +50,7 @@ function captureReview(value: HostedSetupClaimReview): HostedSetupClaimReview {
   return Object.freeze({request: captureLink(value.request), identity: Object.freeze({accountId: value.identity.accountId, familyId: value.identity.familyId}),
     serverId: value.serverId, name: value.name, address: value.address, transactionId: value.transactionId,
     requestedAt: value.requestedAt, expiresAt: value.expiresAt, status: value.status,
-    installed: value.installed === true});
+    installed: value.installed === true, ...(value.phase ? {phase: Object.freeze({...value.phase})} : {})});
 }
 
 /** Synchronous capture only: no store, session restoration or request starts. */
@@ -72,7 +75,7 @@ async function lookup(account: ServicesAccount, request: HostedSetupClaimLink, s
   claimCode(request.code); signal.throwIfAborted();
   return currentAccountWork(account, async session => {
     signal.throwIfAborted();
-    const raw = await account.api.send(routePath('server_claim_lookup'), 'POST', {code: request.code}, signal, session.accessToken);
+    const raw = await account.api.send(routePath('server_claim_lookup'), 'POST', {code: request.code, phase: true}, signal, session.accessToken);
     signal.throwIfAborted();
     const claim = decodeServerClaimLookupResponse(raw), now = Date.now();
     if (claim.code !== request.code || claim.transitionMode !== undefined || claim.purpose !== 'setup' || claim.ownerTransactionId !== undefined || !claim.setupTransactionId || !identifier(claim.setupTransactionId) ||
@@ -85,11 +88,14 @@ async function lookup(account: ServicesAccount, request: HostedSetupClaimLink, s
     setupOrigin(claim.address);
     if (claim.otherPeopleCount !== undefined) throw invalid();
     // Setup has no return registration; `setupInstalled` is strictly true, only on approval.
-    if (claim.returnRegistration !== undefined || claim.setupInstalled !== undefined && (claim.setupInstalled !== true || claim.status !== 'approved')) throw invalid();
+    const installed = claim.setupInstalled === true || claim.phase?.variant === 'installed';
+    if (claim.returnRegistration !== undefined || claim.setupInstalled !== undefined && claim.setupInstalled !== true || installed && claim.status !== 'approved') throw invalid();
+    const {phase} = claim;
     const review: HostedSetupClaimReview = Object.freeze({request, identity: Object.freeze(accountIdentity(session)),
       serverId: claim.serverId, name: claim.name, address: claim.address, transactionId: claim.setupTransactionId,
       requestedAt: claim.requestedAt, expiresAt: claim.expiresAt, status: claim.status,
-      installed: claim.setupInstalled === true});
+      installed, ...(phase ? {phase: Object.freeze({variant: phase.variant, ...(phase.slow ? {slow: true as const} : {}),
+        ...(phase.approvedAt ? {approvedAt: phase.approvedAt} : {}), ...(phase.serverSeenAt ? {serverSeenAt: phase.serverSeenAt} : {})})} : {})});
     fresh(review, now);
     return review;
   }, expected);
@@ -133,13 +139,16 @@ export function validateHostedSetupReturn(location: string, review: Pick<HostedS
   return location;
 }
 
-/** Explicit completion only after lookup reports the claim installed.
+/** Explicit completion only after lookup reports the claim installed. The one lookup is
+ * handed to `observe`, so a not-yet-installed answer needs no second lookup.
  * No polling, ordinary Start, exchange or Server session write. */
-export async function completeHostedSetupClaim(account: ServicesAccount, review: HostedSetupClaimReview, signal: AbortSignal) {
+export async function completeHostedSetupClaim(account: ServicesAccount, review: HostedSetupClaimReview, signal: AbortSignal,
+  observe?: (current: HostedSetupClaimReview) => void) {
   review = captureReview(review);
   fresh(review);
   const current = await lookup(account, review.request, signal, review.identity);
   sameClaim(review, current);
+  observe?.(current);
   if (current.status !== 'approved' || !current.installed) return;
   const location = await currentAccountWork(account, async session => {
     signal.throwIfAborted(); fresh(current);
