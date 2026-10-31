@@ -88,20 +88,26 @@ def android_selected(paths, full=False):
     return full or any(p.startswith(('apps/native/android/','apps/native/modules/','scripts/run-android-harnesses')) or
         (p.startswith('apps/native/') and (p.endswith(('.kt','.kts','.gradle')) or 'AndroidManifest' in p or 'transport' in p.lower())) for p in paths)
 
-def go_seeds(packages, paths, full=False):
+def go_seeds(packages, paths, full=False, diagnostics=None):
     all_packages={p['ImportPath'] for p in packages}
     if full: return all_packages
     seeds=set()
     for path in paths:
         if not path.startswith(('server/','apikit/')): continue
         if path.endswith(('.md','.png','.jpg','.jpeg','.gif','.webp','.svg','.ico')): continue
-        if Path(path).name in ('go.mod','go.sum'): return all_packages
+        if Path(path).name in ('go.mod','go.sum'):
+            if diagnostics is not None: diagnostics.append(path+': Go manifest changed')
+            return all_packages
         owners=[p for p in packages if path.startswith(str(Path(p['Dir']).relative_to(ROOT))+'/')]
-        if not owners: return all_packages
+        if not owners:
+            if diagnostics is not None: diagnostics.append(path+': no build-aware owning Go package')
+            return all_packages
         owner=max(owners,key=lambda p:len(p['Dir']))
         relative=str(Path(path).relative_to(Path(owner['Dir']).relative_to(ROOT)))
         embedded=owner.get('EmbedFiles',[])+owner.get('TestEmbedFiles',[])+owner.get('XTestEmbedFiles',[])
-        if not (path.endswith('.go') or relative.startswith('testdata/') or relative in embedded): return all_packages
+        if not (path.endswith('.go') or relative.startswith('testdata/') or relative in embedded):
+            if diagnostics is not None: diagnostics.append(path+': unrecognized non-Go package input')
+            return all_packages
         seeds.add(owner['ImportPath'])
     return seeds
 
@@ -117,7 +123,7 @@ def guarded_costs(packages, durations):
     return adjusted
 
 def make_plan(paths, full=False, tier="short"):
-    selected, go = components(paths,full); inventory=[]; exemptions=[]; packages=[]; modules=[]
+    selected, go = components(paths,full); go_fallbacks=[]; inventory=[]; exemptions=[]; packages=[]; modules=[]
     tags=command(['python3','scripts/release-build-tags.py','--capability']).strip()
     if go:
         for module in ['server','apikit']:
@@ -127,7 +133,9 @@ def make_plan(paths, full=False, tier="short"):
             packages.extend(listed); modules.append(module)
         probe_seeds={p['ImportPath'] for p in packages if any(re.search(r'ffmpeg|ffprobe', (Path(p['Dir'])/f).read_text(),re.I) for field in ['GoFiles','TestGoFiles','XTestGoFiles'] for f in p.get(field,[]))}
         probe_packages=closure(packages,probe_seeds)
-        seeds = go_seeds(packages, paths, full or not any(x.startswith(('server/','apikit/')) for x in paths))
+        if full: go_fallbacks.append('explicit full inventory')
+        elif not any(x.startswith(('server/','apikit/')) for x in paths): go_fallbacks.append('cross-component/root or contracts change without Go-owned paths')
+        seeds = go_seeds(packages, paths, full or not any(x.startswith(('server/','apikit/')) for x in paths),diagnostics=go_fallbacks)
         chosen=closure(packages,seeds)
         if tier != 'short':
             chosen.update(p['ImportPath'] for p in packages if any(s in p['ImportPath'] for s in ['/httpapi','/identity','/auth','/session','/privacy']))
@@ -160,12 +168,15 @@ def make_plan(paths, full=False, tier="short"):
     inventory=[t for t in inventory if (t['package'],t['name']) not in excluded]
     cost=sum(durations.get(t['package']+'.'+t['name'],1) for t in inventory)
     bins,costs=balance(inventory,durations)
-    js=[]
+    js=[]; js_reasons={}
     from js_affected import select as affected_js
     for component in selected:
         roots=list((ROOT/'packages').iterdir()) if component=='packages' else [ROOT/component]
         files=sorted(str(f.relative_to(ROOT)) for root in roots for f in root.rglob('*') if f.is_file() and re.search(r'\.test\.(?:[cm]?js|tsx?)$',f.name) and not any(x in f.parts for x in ['node_modules','third_party','dist','build']))
-        if tier=='short' and not full and component!='website': files=affected_js(ROOT,paths,files)
+        if tier=='short' and not full and component!='website':
+            js_reasons[component]={}
+            files=affected_js(ROOT,paths,files,diagnostics=js_reasons[component])
+        else: js_reasons[component]={'mode':'full component inventory' if full or tier!='short' else 'website check'}
         if component!='website' and not files: raise ValueError('empty JS selection: '+component)
         js.append({'component':component,'files':files})
     producer_consumers = {
@@ -180,7 +191,9 @@ def make_plan(paths, full=False, tier="short"):
     assigned_keys={(t['package'],t['name']) for t in assigned}
     inventory=[t for t in inventory if (t['package'],t['name']) not in assigned_keys]
     bins,costs=balance(inventory,durations)
-    return {'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'nightly_diagnostics':diagnostics,'js_owned_producers':assigned,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
+    from explain import selection_reasons
+    why=selection_reasons(paths,full,selected,go,components,js_reasons,go_fallbacks)
+    return {'selection_diagnostics':why,'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'nightly_diagnostics':diagnostics,'js_owned_producers':assigned,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
 
 def event_tier(event, tier, full):
     if event in ['pull_request','push']:
@@ -229,6 +242,9 @@ def main():
         paths=command(['git','diff','--name-only','-z',base,head]).split('\0'); paths=[p for p in paths if p]
     plan=make_plan(paths,a.full,'merge' if a.full and a.tier=='short' else a.tier); plan.update(base=base,head=head)
     Path(a.output).write_text(json.dumps(plan,indent=2)+'\n')
+    if os.environ.get('GITHUB_STEP_SUMMARY'):
+        from explain import render_summary
+        with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write(render_summary(plan))
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'],'a') as f:
             f.write('go_matrix='+json.dumps(go_matrix(plan,event,os.environ))+'\n')
