@@ -32,7 +32,7 @@ test('O-159: a server that only speaks a newer major asks for a newer app', () =
 
 test('O-159 native wiring: every first contact negotiates before credentials, refusals have their page, About names both builds', () => {
   const signIn = source('platform/server-sign-in.ts');
-  const inspect = signIn.slice(signIn.indexOf('  inspect(address: string) {'), signIn.indexOf('  prepareSetup() {'));
+  const inspect = signIn.slice(signIn.indexOf('  inspect(address: string) {'), signIn.indexOf('  prepareOwnerReset() {'));
   assert.match(inspect, /if \(!server\) throw this\.probe\.getSnapshot\(\)\.error \?\? mismatch\(\);\n\s+\/\/[^\n]*\n\s+negotiateNativeServer\(server\);/);
   assert.doesNotMatch(signIn, /assertSameApiLevel/);
   assert.match(source('platform/server-display.ts'), /const server = parseServerSignIn\([^\n]*\n\s+\/\/[^\n]*\n\s+negotiateNativeServer\(server\);/);
