@@ -137,7 +137,7 @@ func TestClaimHTTPResultScopedSecret(t *testing.T) {
 	}
 }
 func TestClaimHTTPRejectsMalformedResponses(t *testing.T) {
-	for name, body := range map[string]string{"extra_document": exactCommit + `{}`, "unknown_field": strings.TrimSuffix(exactCommit, "}") + `,"extra":1}`, "oversize": strings.Repeat(" ", claimHTTPBound) + exactCommit, "invalid_json": "{"} {
+	for name, body := range map[string]string{"extra_document": exactCommit + `{}`, "repeated_field": strings.TrimSuffix(exactCommit, "}") + `,"serverId":"other"}`, "repeated_field_case": strings.TrimSuffix(exactCommit, "}") + `,"ServerId":"other"}`, "oversize": strings.Repeat(" ", claimHTTPBound) + exactCommit, "invalid_json": "{"} {
 		t.Run(name, func(t *testing.T) {
 			tr, v, p, _ := httpFixture(t)
 			tr.client.Transport = claimRoundTrip(func(*http.Request) (*http.Response, error) { return reply(200, body), nil })
@@ -147,6 +147,54 @@ func TestClaimHTTPRejectsMalformedResponses(t *testing.T) {
 		})
 	}
 }
+// R-09b: a field a newer Hosted adds to a claim-control response, at any
+// depth, is ignored rather than failing the claim.
+func TestClaimHTTPAcceptsFieldsANewerHostedAdds(t *testing.T) {
+	tr, v, p, _ := httpFixture(t)
+	tr.client.Transport = claimRoundTrip(func(*http.Request) (*http.Response, error) {
+		return reply(200, strings.TrimSuffix(exactCommit, "}")+`,"addedByANewerHosted":{"nested":true}}`), nil
+	})
+	if commit, e := tr.Finalize(fixtureClaimContext(t), v, p); e != nil || commit.ServerID != "server" {
+		t.Fatalf("response with an added field refused: %v", e)
+	}
+	tr.client.Transport = claimRoundTrip(func(*http.Request) (*http.Response, error) {
+		return reply(409, `{"error":{"code":"claim_stale","message":"x","retryable":false,"addedByANewerHosted":1},"addedByANewerHosted":1}`), nil
+	})
+	if _, e := tr.Finalize(fixtureClaimContext(t), v, p); e != ErrStale {
+		t.Fatalf("conflict with added fields mapped to %v", e)
+	}
+}
+
+func TestCertificateHTTPAcceptsFieldsANewerHostedAdds(t *testing.T) {
+	tr, v, _, _ := httpFixture(t)
+	v.InstallationAcknowledged = true
+	tr.client.Transport = claimRoundTrip(func(*http.Request) (*http.Response, error) {
+		return reply(200, `{"namespace":"n1","dnsName":"n1.example","issuer":"letsencrypt","addedByANewerHosted":{"nested":true}}`), nil
+	})
+	var n certificateNamespace
+	if e := tr.certificateCall(fixtureClaimContext(t), v, "namespace", "", nil, &n); e != nil || n.Namespace != "n1" || n.DNSName != "n1.example" {
+		t.Fatalf("certificate response with an added field refused: %v", e)
+	}
+	tr.client.Transport = claimRoundTrip(func(*http.Request) (*http.Response, error) {
+		return reply(200, `{"namespace":"n1","namespace":"n2"}`), nil
+	})
+	if e := tr.certificateCall(fixtureClaimContext(t), v, "namespace", "", nil, &n); e == nil {
+		t.Fatal("certificate response with a repeated key accepted")
+	}
+}
+
+func TestHostedResponsesRefuseRepeatedKeysAtAnyDepth(t *testing.T) {
+	var out map[string]any
+	for name, body := range map[string]string{"top": `{"a":1,"a":2}`, "case": `{"a":1,"A":2}`, "nested": `{"a":{"b":1,"b":2}}`, "in_array": `{"a":[{"b":1},{"b":1,"b":2}]}`, "trailing": `{"a":1} {}`, "invalid": `{"a":`} {
+		if decodeHostedResponse([]byte(body), &out) == nil {
+			t.Fatalf("%s accepted", name)
+		}
+	}
+	if e := decodeHostedResponse([]byte(`{"a":{"b":1},"b":[{"b":1},{"b":2}],"c":{"a":1}}`), &out); e != nil {
+		t.Fatalf("the same key in different objects refused: %v", e)
+	}
+}
+
 func TestClaimHTTPFailuresDoNotBecomePermanentDenial(t *testing.T) {
 	for _, code := range []int{301, 401, 403, 500, 503} {
 		t.Run(http.StatusText(code), func(t *testing.T) {

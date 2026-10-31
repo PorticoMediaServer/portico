@@ -65,6 +65,26 @@ func TestClaimApprovalRejectsSignedNoncanonicalPayload(t *testing.T) {
 		})
 	}
 }
+// Hosted's plain responses decode open (decodeHostedResponse), but a signed
+// statement never does: a field an older server ignored inside a signature
+// could carry meaning it never checked. The approval is properly signed with
+// the added field, and the verifier must still refuse it.
+func TestSignedApprovalWithAnAddedFieldIsRefusedWhileResponsesDecodeOpen(t *testing.T) {
+	raw, pub, key, now := approvalFixture(t)
+	if _, e := verifyApprovalAt(context.Background(), "https://hosted.example", trust.KeyID(pub), pub, signedApprovalFixture(raw, key), now); e != nil {
+		t.Fatalf("exact approval refused: %v", e)
+	}
+	added := strings.TrimSuffix(raw, "}") + `,"addedByANewerHosted":true}`
+	if _, e := verifyApprovalAt(context.Background(), "https://hosted.example", trust.KeyID(pub), pub, signedApprovalFixture(added, key), now); e == nil {
+		t.Fatal("signed approval with an added field accepted")
+	}
+	var plain struct {
+		Kind string `json:"kind"`
+	}
+	if e := decodeHostedResponse([]byte(added), &plain); e != nil || plain.Kind != "portico.claim.approval" {
+		t.Fatalf("the same bytes as a plain response did not decode open: %v", e)
+	}
+}
 func TestClaimApprovalGrantLifetimeAndCancellation(t *testing.T) {
 	raw, pub, key, now := approvalFixture(t)
 	for _, candidate := range []string{strings.Replace(raw, "03:05:00Z", "03:06:00Z", 1), strings.Replace(raw, "03:05:00Z", "03:01:00Z", 1), strings.Replace(raw, "03:00:00Z", "03:01:06Z", 1)} {
