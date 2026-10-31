@@ -1,4 +1,4 @@
-import type {BrowseFieldCapability, BrowseNode, BrowseOperator} from '../../../../../packages/client-core/src/browse';
+import {browseCondition, browseNot, type BrowseFieldCapability, type BrowseNode, type BrowseOperator} from '../../../../../packages/client-core/src/browse';
 import {filterValuesField, rangePresets} from '../../../../../packages/client-core/src/presentation/browse-toolbar';
 import type {FilterFieldValue, FilterValueSelection} from '../../kit/browse/types';
 
@@ -29,7 +29,7 @@ export function nativeRowFilterChange(field: BrowseFieldCapability, value: Filte
   const target = value.kind === 'values' ? filterValuesField(field) : {field: field.id};
   const rest = filters.filter(node => nativeRowFilterField(node) !== target.field);
   const next: BrowseNode[] = [];
-  const condition = (operator: BrowseOperator, input: string | boolean | readonly string[]): BrowseNode => ({variant: operator === 'within-last-days' ? 'relative' : 'predicate', field: target.field, operator, value: input});
+  const condition = (operator: BrowseOperator, input: string | boolean | readonly string[]): BrowseNode => browseCondition(target.field, operator, input);
   if (value.kind === 'toggle' || value.kind === 'choice') {
     if (value.value !== null) next.push(condition('equals', value.value));
   } else if (value.kind === 'text') {
@@ -38,13 +38,13 @@ export function nativeRowFilterChange(field: BrowseFieldCapability, value: Filte
     if (value.value !== null) {
       const preset = rangePresets(field, now).find(candidate => candidate.id === value.value);
       if (!preset) throw new Error('native_filter_preset_not_offered');
-      next.push(...preset.predicates.map((predicate): BrowseNode => ({variant: predicate.operator === 'within-last-days' ? 'relative' : 'predicate', field: predicate.field, operator: predicate.operator as BrowseOperator, value: predicate.value as string | number | boolean | null | readonly (string | number | boolean)[]})));
+      next.push(...preset.predicates.map((predicate): BrowseNode => browseCondition(predicate.field, predicate.operator as BrowseOperator, predicate.value as string | number | boolean | null | readonly (string | number | boolean)[])));
     }
   } else {
     const mode = filterValuesField(field), operator = mode.operator as BrowseOperator;
     if (value.mode === 'all' && !field.operators.includes('contains-all')) throw new Error('native_filter_mode_not_offered');
-    if (value.included.length) next.push(value.mode === 'none' ? {variant: 'group', not: condition(operator, value.included)} : condition(value.mode === 'all' ? 'contains-all' : operator, value.included));
-    if (value.excluded.length) next.push({variant: 'group', not: condition(operator, value.excluded)});
+    if (value.included.length) next.push(value.mode === 'none' ? browseNot(condition(operator, value.included)) : condition(value.mode === 'all' ? 'contains-all' : operator, value.included));
+    if (value.excluded.length) next.push(browseNot(condition(operator, value.excluded)));
   }
   return Object.freeze([...rest, ...next]);
 }
