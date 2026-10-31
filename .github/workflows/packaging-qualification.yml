@@ -1,6 +1,12 @@
 name: Installer qualification
 on:
   workflow_dispatch:
+    inputs:
+      compiler_probe:
+        description: Optional compiler-only boundary test
+        type: choice
+        options: [none, intel-mac-gmp]
+        default: none
   pull_request:
     paths:
       - '.github/workflows/packaging-qualification.yml'
@@ -26,7 +32,7 @@ env:
 jobs:
   plan:
     name: Check installer inputs and controls
-    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'workflow_dispatch' || inputs.compiler_probe != 'intel-mac-gmp')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -55,7 +61,7 @@ jobs:
           if-no-files-found: error
   controls:
     name: Native intake controls (${{ matrix.target }})
-    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'workflow_dispatch' || inputs.compiler_probe != 'intel-mac-gmp')
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -148,3 +154,36 @@ jobs:
       - name: Remove owned inputs, payloads and installers
         if: always()
         run: rm -rf "$RUNNER_TEMP/qualification" node_modules web/node_modules
+  gmp:
+    name: Intel Mac GMP compiler probe
+    if: github.repository == 'PorticoMediaServer/portico' && github.event_name == 'workflow_dispatch' && inputs.compiler_probe == 'intel-mac-gmp'
+    runs-on: macos-15-intel
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.17'
+          architecture: x64
+      - name: Run upstream GMP checks and the original Nettle link
+        run: |
+          python scripts/test-macos-gmp-pic.py
+          python scripts/qualify-macos-gmp.py --context github-actions --work "$RUNNER_TEMP/gmp-probe/work" --evidence "$RUNNER_TEMP/gmp-probe/evidence"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: intel-mac-gmp-evidence-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/gmp-probe/evidence/*
+            ${{ runner.temp }}/gmp-probe/work/packages/*.tar.*
+          retention-days: 7
+      - name: Remove owned compiler probe files
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/gmp-probe"
