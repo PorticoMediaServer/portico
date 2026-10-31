@@ -72,6 +72,9 @@ type PINRecovery = {controller: NativeProfileRecovery; profile: ManagedProfile; 
 type RequiredSetup = Readonly<{kind: 'required-setup'; requirement: 'password' | 'two-step'; serverName: string; serverOrigin: string}>;
 type Result = {kind: 'profiles'; profiles: readonly ManagedProfile[]} | {kind: 'challenge'; expiresAt: string} | {kind: 'complete'} | RequiredSetup;
 const t = defaultI18n.t;
+/** TV reached a server nobody has set up. It is set up from a phone or a browser, not here. */
+const SETUP_ELSEWHERE = 'setup_elsewhere';
+const setupElsewhereRefusal = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === SETUP_ELSEWHERE;
 type SetupHostedOpening = Readonly<{source: NativeServerSignIn; life: AbortController; owner: {live: boolean}; url?: string}>;
 type SetupResumePorts = Readonly<{opening: SetupHostedOpening; run: (work: () => Promise<void>) => void;
   finish: (opening: SetupHostedOpening | undefined) => Promise<void>; current: (opening: SetupHostedOpening | undefined) => boolean}>;
@@ -714,7 +717,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       setSetupAddress(routeOrigin(origin)); setSetupMode(value.hostedConfigured ? 'hosted' : 'local');
       setName(value.name); setUsername(''); setPassword(''); setSetupPasswordConfirm(''); setStage('setup-confirm'); return;
     }
-    if (value.setupRequired) throw Object.assign(new Error('native_setup_phone_required'), {code: 'access_refused'});
+    if (value.setupRequired) throw Object.assign(new Error('native_setup_phone_required'), {code: SETUP_ELSEWHERE});
     if (value.signIn === 'portico') {
       if (invite?.publicPreview) {
         try {
@@ -810,7 +813,12 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const codeBack = () => {if (renderedTV?.current()) back();};
   const backAction = stage !== 'welcome' || onBack ? {id: 'back', label: t('action.back'), disabled: busy, onPress: stage === 'tv' ? codeBack : back} : undefined;
   const failure = error ? presentError(error, stage === 'profile-pin' ? 'profiles' : 'sign-in') : undefined;
-  const status = failure && !failure.silent ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{failure.body}</Text> : null;
+  // A TV that reaches a server nobody has set up says where setup happens: this device cannot be
+  // the owner, and the generic refusal tells nobody what to do. The notice is drawn under the
+  // address field it belongs to, so the field keeps the focus it already holds.
+  const status = Platform.isTV && stage === 'address' && setupElsewhereRefusal(error)
+    ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{t('accounts.setup.elsewhere')}</Text>
+    : failure && !failure.silent ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{failure.body}</Text> : null;
   const directoryView = stage === 'servers' ? directoryFailure(target, error) : 'other';
   const hostedWaiting = stage === 'servers' && !!target && error instanceof HostedSignInUnavailable;
   const directoryScope = accountScope.current;
