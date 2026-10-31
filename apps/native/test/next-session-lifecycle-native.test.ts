@@ -221,6 +221,11 @@ test('classifyConnect: sign-in ended, identity codes, PIN re-entry, anything els
   for (const code of ['identity_mismatch', 'certificate_unverified', 'certificate_untrusted'])
     assert.deepEqual(identity.ports.classifyConnect(Object.assign(new Error(code), {code})), {reason: 'identity', code});
   assert.equal((identity.ports.failure('a') as {code?: string} | undefined)?.code, 'certificate_untrusted');
+  // Another owner's write (a new sign-in) makes that finding stale.
+  const stop = identity.ports.observeRecords(() => {});
+  await identity.sessions.select('a');
+  assert.equal(identity.ports.failure('a'), undefined);
+  stop();
   assert.equal(identity.ports.classifyConnect(Object.assign(new Error('x'), {code: 'timeout'})), undefined);
 
   const gated = await fixture({accountError: new core.ApiError(403, 'profile_pin_reentry', 'Enter the PIN', false)});

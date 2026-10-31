@@ -40,6 +40,7 @@ import {StartupBoot} from './StartupBoot';
 import {choosingProfile, lifecycleSettled, nativeSessionLifecycle} from '../platform/native-session-lifecycle';
 import {NativeProfileGated, nativeProfileGated} from '../platform/session-lifecycle-native';
 import {LifecycleProfileGate} from '../screens/accounts/LifecycleProfileGate';
+import type {IdentityFailureCode} from '../../../../packages/client-core/src/session-lifecycle';
 
 /** The session lifecycle wants the person to choose a profile or enter its PIN before any shell opens. */
 class NativeProfileChoice extends Error {constructor() {super('native_profile_choice'); this.name = 'NativeProfileChoice';}}
@@ -233,6 +234,9 @@ export function RestoredShell() {
         if (rootCurrent() && !signal.aborted) {homeActionDiagnostics.lifetime?.('root-authority-ended', ticket, installation);homeActionDiagnostics.error('restore-error', error);
           // A PIN changed elsewhere: the lifecycle asks for it (never a sign-in form).
           if (error instanceof NativeProfileGated) {lifecycle.report({type: 'gated'}); restored = true; recovery?.finish(); owned = undefined; publishState({phase: 'ended', error: new NativeProfileChoice()}); return;}
+          // The lifecycle leaves ready too, so Try again and a new sign-in start from what it holds.
+          if (error instanceof NativeSignInEnded) lifecycle.report({type: 'signInEnded', username: error.hint.username});
+          else if (error instanceof NativeIdentityFailure) lifecycle.report({type: 'identityFailed', code: error.code as IdentityFailureCode});
           restored = true; recovery?.finish(); owned = undefined; publishState({phase: 'ended', error}); if (rootCurrent()) fallback();}
       }});
         } catch (error) {
