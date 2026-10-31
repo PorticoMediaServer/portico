@@ -607,6 +607,6 @@
   },
   "sourceAuthority": {
     "path": "third_party/ffmpeg/source-authority.v1.json",
-    "sha256": "4ec100aa3d68374e27588131ff579b39053631c30513129d1166f80b0a8e80a2"
+    "sha256": "b18fe5233d355b158c4f59d18962484e092973437a663befd4a5ac95d2ddc554"
   }
 }
