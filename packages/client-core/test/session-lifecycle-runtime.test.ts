@@ -181,30 +181,28 @@ test('resume() from offline connects again', async () => {
   life.dispose();
 });
 
-// Suspected bug: rows 14 and 32 enter `connecting` with no `held`, and `connected` is ignored without one
-// (session-lifecycle.ts:147), so a successful retry leaves the lifecycle on the boot screen.
-test.todo('a successful retry from offline leaves connecting (reducer drops `connected` when connecting has no held sign-in)', async () => {
+// Rows 14 and 32: offline and identityFailed keep the held sign-in, so a successful retry moves on.
+test('a successful retry from offline reaches the profile picker (the held sign-in survives offline)', async () => {
   let n = 0;
   const {life} = await launched({connect: async () => {n++; if (n === 1) throw new Error('down'); return facts();}});
   assert.equal(kind(life), 'offline');
   life.resume(); await flush();
-  assert.notEqual(kind(life), 'connecting');
+  assert.equal(kind(life), 'choosingProfile');
   life.dispose();
 });
 
-test.todo('a successful retry from identityFailed leaves connecting (same cause as above, row 32)', async () => {
+test('a successful retry from identityFailed reaches the profile picker (row 32)', async () => {
   let n = 0;
   const {life} = await launched({connect: async () => {n++; if (n === 1) throw new Error('bad cert'); return facts();},
     classifyConnect: () => ({reason: 'identity', code: 'identity_mismatch'})});
   assert.equal(kind(life), 'identityFailed');
   life.resume(); await flush();
-  assert.notEqual(kind(life), 'connecting');
+  assert.equal(kind(life), 'choosingProfile');
   life.dispose();
 });
 
-// Design row 33: adoptSignedIn with continuation 'viewer' goes to ready. The reducer ignores `continuation`
-// (session-lifecycle.ts:249) and always goes through connecting + afterConnect, which shows the picker here.
-test.todo("adoptSignedIn with continuation 'viewer' ends in ready (reducer ignores continuation, row 33)", async () => {
+// Row 33: a sign-in that already chose its profile (continuation 'viewer') opens it once connected.
+test("adoptSignedIn with continuation 'viewer' ends in ready (row 33)", async () => {
   const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 0})});
   assert.equal(kind(life), 'signedOut');
   life.actions.adoptSignedIn.start(held(), 'viewer'); await flush();
@@ -495,9 +493,8 @@ test('a readRecords that throws reads as records lost', async () => {
   life.dispose();
 });
 
-// Suspected bug: the resetRecords effect (session-lifecycle-runtime.ts:184) has no catch, so a throwing port leaves
-// pending 'reset' set for good and every later "reset" command is ignored as a double submit.
-test.todo('a failed reset stays on recordsLost and fails visibly', async () => {
+// A failed reset releases its pending action, so the person can try again.
+test('a failed reset stays on recordsLost and fails visibly', async () => {
   const {life} = await launched({readRecords: async () => ({outcome: 'lost', servers: 0}), resetRecords: async () => {throw new Error('nope');}});
   life.actions.resetRecords.start(); await flush();
   assert.equal(kind(life), 'recordsLost');
@@ -663,5 +660,16 @@ test('authority() is set only while ready, and a token refresh does not move it'
   assert.equal(life.getSnapshot().generation, generation);
   life.switchProfile();
   assert.equal(life.authority(), undefined);
+  life.dispose();
+});
+
+test('the connect deadline wins even when the port ignores its signal; its late answer is dropped', async () => {
+  const scheduler = createManualScheduler(0);
+  let answer!: (value: ConnectedFacts) => void;
+  const {life} = await launched({scheduler, connect: () => new Promise(resolve => {answer = resolve;})});
+  await scheduler.advance(CONNECT_DEADLINE_MS); await flush();
+  assert.equal(kind(life), 'offline');
+  answer(facts()); await flush();
+  assert.equal(kind(life), 'offline');
   life.dispose();
 });
