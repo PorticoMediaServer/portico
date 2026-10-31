@@ -650,7 +650,7 @@ test('dispose() stops observing the record and ends every action', async () => {
   assert.equal(life.actions.pickProfile.getSnapshot().phase, 'idle');
 });
 
-test('authority() is set only while ready, and a token refresh does not move it', async () => {
+test('authority() is the shell\'s sign-in: kept while switching, gone when gated, and a token refresh does not move it', async () => {
   const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})})});
   assert.deepEqual(life.authority(), {serverId: 's1', accountId: 'a1', profileId: 'main', familyId: 'f1'});
   life.report({type: 'networkLost'}); await flush();
@@ -658,7 +658,11 @@ test('authority() is set only while ready, and a token refresh does not move it'
   const generation = life.getSnapshot().generation;
   life.report({type: 'networkLost'}); await flush();
   assert.equal(life.getSnapshot().generation, generation);
-  life.switchProfile();
+  life.switchProfile(); await flush();
+  assert.deepEqual(life.authority(), {serverId: 's1', accountId: 'a1', profileId: 'main', familyId: 'f1'});
+  life.cancelSwitch(); await flush();
+  life.report({type: 'gated'}); await flush();
+  assert.equal(kind(life), 'enteringPin');
   assert.equal(life.authority(), undefined);
   life.dispose();
 });
@@ -671,5 +675,23 @@ test('the connect deadline wins even when the port ignores its signal; its late 
   assert.equal(kind(life), 'offline');
   answer(facts()); await flush();
   assert.equal(kind(life), 'offline');
+  life.dispose();
+});
+
+test('lane A bindAuthority over the lifecycle: survives nothing but the same sign-in, ends on another', async () => {
+  const {bindAuthority} = await import('../src/session-authority.ts');
+  let listener = () => {};
+  let next: HeldSignIn | undefined;
+  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}),
+    observeRecords: l => {listener = l; return () => {};}, readHeld: async () => ({servers: 1, ...(next ? {held: next} : {})})});
+  assert.equal(kind(life), 'ready');
+  const binding = bindAuthority(life);
+  assert.equal(binding.isCurrent(), true);
+  life.switchProfile(); life.cancelSwitch(); await flush();
+  assert.equal(binding.isCurrent(), true, 'opening and cancelling the picker keeps the same sign-in');
+  next = held({viewer: viewer('kids', 'f9')});
+  listener(); await flush();
+  assert.equal(binding.isCurrent(), false);
+  assert.equal(binding.signal.aborted, true);
   life.dispose();
 });

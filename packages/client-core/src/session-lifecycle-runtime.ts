@@ -8,15 +8,10 @@ import {ApiError} from './index.ts';
 import {releaseQuietly} from './cleanup.ts';
 import {systemScheduler, serverFloorFrom, type Scheduler} from './timer.ts';
 import {createUserAction, type UserAction} from './user-action.ts';
+import type {AuthoritySource, AuthorityTuple} from './session-authority.ts';
 import {initialLifecycle, nextLifecycle, type ConnectFailure, type ConnectedFacts, type HeldSignIn, type LifecycleEffect,
   type LifecycleEvent, type LifecycleSnapshot, type SelectedFacts} from './session-lifecycle.ts';
 
-/** Who is signed in where, minus secrets. A token refresh never changes it. */
-export type AuthorityTuple = Readonly<{serverId: string; accountId: string; profileId?: string; familyId: string}>;
-export interface AuthoritySource {
-  authority(): AuthorityTuple | undefined;
-  subscribe(listener: () => void): () => void;
-}
 
 /** One line per move: codes only, never ids, names, addresses or tokens. */
 export type TransitionRecord = Readonly<{t: number; from: string; event: string; to: string; row: number | 'ignored'; generation: number}>;
@@ -111,10 +106,11 @@ export class SessionLifecycle implements AuthoritySource {
   };
   history(): readonly TransitionRecord[] {return Object.freeze([...this.ring]);}
 
-  /** Who is signed in where for the mounted shell; undefined while no profile is in use. */
-  authority(): ReturnType<AuthoritySource['authority']> {
+  /** Who is signed in where for the mounted shell; undefined while no profile is in use. While the
+   *  person is choosing a profile to switch to, the shell still runs on the current sign-in. */
+  authority(): AuthorityTuple | undefined {
     const s = this.snapshot.state;
-    if (s.kind !== 'ready') return undefined;
+    if (s.kind !== 'ready' && !((s.kind === 'choosingProfile' || s.kind === 'enteringPin') && s.switching)) return undefined;
     return Object.freeze({serverId: s.server.serverId, accountId: s.viewer.accountId, profileId: s.viewer.profileId, familyId: s.viewer.familyId});
   }
 
