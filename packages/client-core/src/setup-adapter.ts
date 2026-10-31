@@ -40,6 +40,8 @@ export type SetupAdapterDeps = Readonly<{
   store: (serverId: string) => SetupStore;
   installationId: () => string | undefined;
   navigate: (url: string) => void;
+  /** The app's own Portico Account sign-in approves this setup's claim, with no trip to Portico Services. Absent on the web. */
+  approveInApp?: (input: Readonly<{attempt: SetupAttempt; approvalUrl: string; signal: AbortSignal; current: () => Promise<void>}>) => Promise<void>;
   /** The page that opened this setup is still the one showing. */
   current?: () => boolean;
   now?: () => number;
@@ -217,7 +219,23 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
       }
     },
     requestApproval: (_navigate, context) => approval(context, false),
-    async approveInApp() {throw new CodedError('unsupported', 'Approve on Portico Services.');},
+    async approveInApp(context) {
+      if (!deps.approveInApp) throw new CodedError('unsupported', 'Approve on Portico Services.');
+      const p = await pair(context.signal), store = records(p), local = await store.read();
+      await assertPaired(p);
+      const attempt = local.attempt;
+      if (!attempt || isUnreadable(attempt) || !attempt.handoff || !attempt.approvalUrl || local.record?.requestId !== attempt.requestId) throw changed();
+      // Only while this attempt is still the one bound to this setup.
+      const current = async () => {
+        await assertPaired(p);
+        const now = await store.read();
+        await assertPaired(p);
+        if (now.attempt?.attemptId !== attempt.attemptId || now.record?.requestId !== attempt.requestId) throw changed();
+      };
+      await deps.approveInApp({attempt, approvalUrl: attempt.approvalUrl, signal: context.signal, current});
+      await current();
+      return {kind: 'approvedInApp'};
+    },
     async abandon(context) {
       const p = await pair(context.signal), record = await ownRecord(p), {requestId, revision} = ownRevision();
       if (requestId !== record.requestId) throw changed();
