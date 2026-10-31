@@ -96,6 +96,16 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
     } catch (error) {return releaseThenRethrow(error, 'setup pairing', () => pairing.dispose());}
   }
   /** An api that carries this setup's token, over the verified route. */
+  /** This run's own admission changed the selection: the pairing continues from the revision that write made, once the
+   * selected sign-in for this server is the one just admitted. Anything else is a successor and ends this run. */
+  const continueFromAdmission = async (p: Paired, family: string) => {
+    live();
+    const state = await deps.sessions().read();
+    live();
+    const entry = state.servers.find(value => value.connection.pin.serverId === state.selectedServerId);
+    if (paired !== p || installation() !== p.installationId || !entry || !sameServerPin(entry.connection.pin, p.pin) || entry.connection.session.sessionFamilyId !== family) throw changed();
+    paired = Object.freeze({...p, revision: state.revision}) as Paired;
+  };
   const tokenApi = (p: Paired, token: string) => {
     const api = new HttpLocalApi(p.api.baseUrl, token), route = p.api.getRouteConnection();
     if (!route) throw changed();
@@ -278,13 +288,13 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         return {kind: 'exchangeRefused', lapsed: true, error: {code: 'setup_attempt_lapsed', retryable: true}};
       const done = await finishSetupExchange(deps.finish.ports, {attempt, store, signal: context.signal, current: live,
         admitted: () => !life.signal.aborted && deps.installationId() === p.installationId});
-      try {await assertPaired(p);} catch (error) {
+      const family = done.result.session.sessionFamilyId;
+      try {await continueFromAdmission(p, family);} catch (error) {
         // Replaced after admission: what this run remembered goes, and its session ends.
-        const family = done.result.session.sessionFamilyId;
         return releaseThenRethrow(error, 'setup exchange', async () => {
           await deps.sessions().connectionStorage(p.pin.serverId).change(old => old?.session.sessionFamilyId === family ? undefined : old).catch(() => {});
           await done.api.request(routePath('delete_sessions_current'), 'DELETE', undefined, AbortSignal.timeout(5000)).catch(() => {});
-          done.api.getRouteConnection()?.dispose();
+          done.connection.dispose();
         });
       }
       exchanged = {api: done.api, session: done.result.session};
@@ -316,6 +326,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         const selected = await sessions.selected();
         live();
         if (!selected || selected.signIn !== 'local' || !sameServerPin(selected.connection.pin, p.pin) || selected.connection.session.sessionFamilyId !== session.sessionFamilyId) throw changed();
+        await continueFromAdmission(p, session.sessionFamilyId);
         p.api.setAccessToken(session.accessToken);
         await ownerSnapshot(p.api, session, context.signal);
         live();
