@@ -649,15 +649,20 @@ export class BrowserAccountEntry {
   if(selected?.signIn!=='portico'||!sameServerPin(selected.connection.pin,pin)||!saved||saved.sessionFamilyId!==result.session.sessionFamilyId||
     result.snapshot.serverId!==pin.serverId||result.snapshot.account.id!==saved.viewer.accountId||(['serverId','authority','accountId','profileId','role'] as const).some(key=>saved.viewer[key]!==result.session.viewer[key])){await this.discardReturn(api,result.session);throw new CodedError('cancelled','The server selection changed.');}
   this.api=api;this.session=result.session;
-  await this.restoreProfiles({pin,session:result.session,memberMove,initialSetup});
-  // The fresh setup writer may issue its single, unprotected main-profile
-  // owner directly. Do not choose a profile or promote an account-only grant.
-  const state=this.state;
-  if(initialSetup&&!this.disposed&&state.phase==='profiles'&&!state.busy&&!state.error&&this.session?.sessionFamilyId===result.session.sessionFamilyId&&
-    this.session.viewer.role==='owner'&&!result.accountScoped&&state.snapshot?.profiles.length===1&&!state.snapshot.profiles[0]!.pinRequired&&
-    state.snapshot.profiles[0]!.id===this.session.viewer.profileId&&!state.snapshot.twoStepSetupRequired){
-   this.publish({...state,phase:'ready',setupCompleted:true,setupPending:undefined});
-  }else if(initialSetup&&!this.disposed&&this.state.setupPending)this.publish({...this.state,setupPending:undefined});
+  try{
+   await this.restoreProfiles({pin,session:result.session,memberMove,initialSetup});
+   // The fresh setup writer may issue its single, unprotected main-profile
+   // owner directly. Do not choose a profile or promote an account-only grant.
+   const state=this.state;
+   if(initialSetup&&!this.disposed&&state.phase==='profiles'&&!state.busy&&!state.error&&this.session?.sessionFamilyId===result.session.sessionFamilyId&&
+     this.session.viewer.role==='owner'&&!result.accountScoped&&state.snapshot?.profiles.length===1&&!state.snapshot.profiles[0]!.pinRequired&&
+     state.snapshot.profiles[0]!.id===this.session.viewer.profileId&&!state.snapshot.twoStepSetupRequired){
+    this.publish({...state,phase:'ready',setupCompleted:true,setupPending:undefined});
+   }
+  }finally{
+   // Decided or failed, the page is never left waiting on a setup decision.
+   if(!this.disposed&&this.state.setupPending)this.publish({...this.state,setupPending:undefined});
+  }
  }
  private async registeredCompletion(completion:RegisteredCompletion,controller:RegisteredController,op:ReturnType<BrowserAccountEntry['operation']>){
   const {api,result}=completion;

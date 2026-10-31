@@ -17,7 +17,7 @@ const session = (family: string, role = 'account'): LocalSession => ({accessToke
   sessionFamilyId: family, tokenGeneration: '1', installationId: 'i'.repeat(43), expiresAt: '2099-01-01T00:00:00Z', authorizationHorizon: '2099-02-01T00:00:00Z',
   viewer: {serverId, authority: 'local', accountId: 'owner-account', profileId: 'main', role}});
 
-async function fixture(kind:'owner'|'setup'|'ambiguous'='owner', admittedSetupOwner=false) {
+async function fixture(kind:'owner'|'setup'|'ambiguous'='owner', admittedSetupOwner=false, observeFails=false) {
   let raw: AppSessionRecord | undefined, portico = false, pending = true, remembers = 0, ownerFinishes = 0, registeredFinishes = 0, cancels = 0;
   let gate: Promise<void> | undefined, release: (() => void) | undefined, pendingGate: Promise<void> | undefined, releasePending: (() => void) | undefined;
   let successor = false, mismatch = false, required = false, exchangeFailure = false, capturedAttempt = false;
@@ -69,7 +69,8 @@ async function fixture(kind:'owner'|'setup'|'ambiguous'='owner', admittedSetupOw
     remember: async () => {remembers++;}, ownerReturn: kind==='setup'?undefined:()=>owner,
     setupReturn: kind==='setup'?()=>({...owner,pendingReturn:async()=>{const p=await owner.pendingReturn();return p?{...p,kind:'setup' as const}:undefined;}}):kind==='ambiguous'?()=>({pendingReturn:async()=>({kind:'setup' as const,transactionId:'actual-setup-transaction'}),finish:async()=>{throw new Error('ambiguous setup must not finish');},cancel:async()=>{throw new Error('ambiguous setup must not cancel');}}):undefined,
     registered: () => ({controller: registered, installationId: () => 'i'.repeat(43)}),
-    observeSelection: hint => {hints.add(hint);return () => {hints.delete(hint);};},
+    // Fails only once a setup Return's pending profiles state is up: the step right after it, inside admission.
+    observeSelection: hint => {if (observeFails && entry.getSnapshot().setupPending) throw new Error('selection watch unavailable'); hints.add(hint);return () => {hints.delete(hint);};},
     retire: async (_api, value) => {retired.push(value.sessionFamilyId);},
   });
   return {entry, store, events, retired, hints, get remembers() {return remembers;}, get ownerFinishes() {return ownerFinishes;},
@@ -169,6 +170,15 @@ test('only protected setup with the real admitted sole owner can resume the firs
   assert.equal(state.setupCompleted,kind==='setup'?true:undefined);
   assert.equal(f.remembers,0);f.entry.dispose();
  }
+});
+test('a setup Return whose admission fails after the pending profiles state still leaves the page free to move on',async()=>{
+ const f=await fixture('setup',true,true);let pending=false;f.entry.subscribe(()=>{if(f.entry.getSnapshot().setupPending)pending=true;});
+ await f.entry.finishPorticoReturn(callback).catch(()=>{});
+ const state=f.entry.getSnapshot();
+ assert.equal(state.setupPending,undefined,'the page never waits on a setup decision that will not come');
+ assert.ok(pending,'the failure came after the pending profiles state');
+ assert.ok(state.error instanceof Error,'it shows the error');assert.notEqual(state.phase,'ready');assert.equal(state.setupCompleted,undefined);
+ f.entry.dispose();
 });
 test('a required two-step setup cannot be bypassed by the first-library return hint',async()=>{
  const f=await fixture('setup',true);f.requireFactor();await f.entry.finishPorticoReturn(callback);
