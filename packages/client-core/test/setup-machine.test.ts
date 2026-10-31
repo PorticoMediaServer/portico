@@ -69,6 +69,7 @@ const INPUTS: Record<string, SetupInput> = {
   'failed.exchange': {kind: 'effectFailed', effect: 'exchange', error: err()},
   'failed.renew': {kind: 'effectFailed', effect: 'renew', error: err()},
   'failed.adopt-owner': {kind: 'effectFailed', effect: 'adopt-owner', error: err()},
+  'failed.add-library': {kind: 'effectFailed', effect: 'add-library', error: err()},
 };
 
 // ---- sample views, one per distinct behaviour ------------------------------------------------------------------------------
@@ -170,7 +171,7 @@ const ALLOWED: Record<string, Record<string, string>> = {
   exhausted: {...DELIVERY, retry: '=|retry-delivery', deliveryRetried: 'finishing|schedule-read', 'failed.retry-delivery': 'failed|'},
   admitting: {exchangeDone: '=|adopt-owner', 'exchangeRefused.lapsed': 'renewing|renew', 'exchangeRefused.other': 'failed|', ownerAdopted: `library|${RETIRES}`, tokenRefused: `ended|${RETIRES}`, 'failed.exchange': 'failed|', 'failed.adopt-owner': 'failed|'},
   renewing: {renewDone: 'admitting|exchange', tokenRefused: `ended|${RETIRES}`, 'failed.renew': 'failed|'},
-  library: {addLibrary: '=|add-library', libraryAdded: 'done|', skip: 'done|'},
+  library: {addLibrary: '=|add-library', libraryAdded: 'done|', skip: 'done|', 'failed.add-library': 'failed|'},
   done: {},
   'ended.denied': {back: 'form|abandon', startAgain: 'form|abandon'},
   'ended.superseded': {back: 'form|', startAgain: 'form|'},
@@ -448,4 +449,11 @@ test('the reducer is deterministic and its answers are plain data', () => {
       assert.deepEqual(JSON.parse(JSON.stringify(a)), a, `${viewName} × ${inputName}: serialisable`);
     }
   }
+});
+
+test('a library add that fails is shown honestly: Try again repeats it, and Back re-reads the server', () => {
+  const failed = step(VIEWS.library, INPUTS['failed.add-library']);
+  assert.equal(failed.view.kind, 'failed');
+  assert.deepEqual(step(failed.view, {kind: 'retry'}), {view: VIEWS.library, effects: [{kind: 'add-library'}]});
+  assert.deepEqual(kinds(step(failed.view, {kind: 'back'}).effects), ['read-state']);
 });

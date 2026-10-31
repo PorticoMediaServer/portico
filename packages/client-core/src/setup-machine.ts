@@ -60,7 +60,7 @@ export type SetupEffect =
   | Readonly<{kind: 'cancel-pending'}>;
 export type SetupEffectKind = SetupEffect['kind'];
 /** Effects whose failure comes back as `effectFailed`. */
-export type SetupEffectName = 'start' | 'initialize' | 'request-approval' | 'approve-in-app' | 'abandon' | 'retry-delivery' | 'exchange' | 'renew' | 'adopt-owner';
+export type SetupEffectName = 'start' | 'initialize' | 'request-approval' | 'approve-in-app' | 'abandon' | 'retry-delivery' | 'exchange' | 'renew' | 'adopt-owner' | 'add-library';
 
 export type SetupInput =
   // intents
@@ -338,6 +338,7 @@ export function stepSetup(view: SetupView, input: SetupInput, now: number): Setu
     case 'unknown': return input.kind === 'retry' ? go({kind: 'connecting'}, [{kind: 'read-state'}]) : stay(view);
     case 'library':
       if (input.kind === 'addLibrary') return go(view, [{kind: 'add-library'}]);
+      if (input.kind === 'effectFailed') return input.effect === 'add-library' ? failedStep(input.error, '', 'committed', view, [{kind: 'add-library'}]) : stay(view);
       if (input.kind === 'libraryAdded' || input.kind === 'skip') return go({kind: 'done'});
       return stay(view);
     case 'refused': case 'done': return stay(view);
