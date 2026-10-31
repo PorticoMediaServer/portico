@@ -1,6 +1,9 @@
 import unittest
+import json
+import tempfile
+from pathlib import Path
 from datetime import datetime, timezone
-from timings import capacity_snapshot, concurrency_timeline, event_stats, job_timing, pages, summarize
+from timings import capacity_history, capacity_snapshot, concurrency_timeline, event_stats, job_timing, pages, summarize
 
 
 def job(status='completed', **kwargs):
@@ -58,3 +61,11 @@ class Timings(unittest.TestCase):
         self.assertEqual(sum('/attempts/2/jobs' in p for p in calls), 1)
         responses = iter([{'jobs': list(range(100))}, {'jobs': [100]}])
         self.assertEqual(len(pages('path?filter=latest', 'jobs', lambda _: next(responses))), 101)
+
+    def test_history_is_an_observed_time_series_scoped_to_repository(self):
+        samples=[dict(repository=repo,observed_from=str(i),observed_until=str(i+1),in_progress=7,queued=i)
+                 for i,repo in enumerate(['owner/repo','other/repo','owner/repo'])]
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/'capacity.jsonl';path.write_text(''.join(json.dumps(x)+'\n' for x in samples))
+            rows=capacity_history(path,'owner/repo')
+            self.assertEqual([r['queued'] for r in rows],[0,2])
