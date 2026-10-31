@@ -1,21 +1,5 @@
 {
   "version": 1,
   "status": "approved",
-  "entries": [
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/compactcatalog",
-      "test": "TestDerivedWorkerCompletesWithForegroundPressure",
-      "owner": "Portico reset lead",
-      "reason": "Nightly 41126130274: 130/130 movie rows derived but 49 dirty units remain at 15s; 11.642s post-quantum pacing. Coalescing landed; cause remains unresolved.",
-      "expires": "2026-11-05",
-      "tier": "nightly"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
-      "test": "TestReadingInitialReadyHasNoPollDelayOrHiddenHandle",
-      "owner": "Portico reset lead",
-      "reason": "Inherited pre-reset red recorded in HANDOFF-P2-59; recurred in merge-group runs 41096438241 and 41140435656 (initial browse returned 202 after about 1s). Cause unproven; CI scheduling suspected. InitialReadyGrace and all assertions remain unchanged; active fix lane.",
-      "expires": "2026-11-07"
-    }
-  ]
+  "entries": []
 }

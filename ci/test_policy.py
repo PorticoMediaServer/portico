@@ -67,10 +67,7 @@ class ActivePolicyTests(unittest.TestCase):
         self.assertNotIn('TestBulkBuildDerivesWhatIncrementalBuildDoes',excluded)
         q=policy(json.loads((ROOT/'ci/quarantine.json').read_text()),datetime.date(2026,10,29))
         names={test for pkg,test in q}
-        self.assertEqual(names, {
-            'TestDerivedWorkerCompletesWithForegroundPressure',
-            'TestReadingInitialReadyHasNoPollDelayOrHiddenHandle',
-        })
+        self.assertEqual(names, set())
         self.assertNotIn('TestMBStagingTenThousandCompleteFinalWriterHold',names)
 
 class IntegrationTests(unittest.TestCase):
