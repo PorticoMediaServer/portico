@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Bounded source/licence and raw-artifact checks, without compiling an engine."""
 import io
+import json
 from pathlib import Path
 import runpy
 import struct
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -127,6 +130,30 @@ class AssemblyTests(unittest.TestCase):
         link.symlink_to(outside)
         with self.assertRaises(ValueError):
             M['recipe_inventory'](recipe)
+
+    def test_windows_normalization_seals_the_existing_receipt_without_qualifying_it(self):
+        raw = self.root / 'raw'
+        (raw / 'bin').mkdir(parents=True)
+        (raw / 'LICENSES').mkdir()
+        for name in ('ffmpeg.exe', 'ffprobe.exe', 'portico-disc.exe'):
+            (raw / 'bin' / name).write_bytes(b'non-executable transport fixture')
+        (raw / 'portico-disc-build.json').write_text('{}')
+        (raw / 'portico-disc-LICENSE').write_text('transport fixture licence')
+        (raw / 'LICENSES/dependency.txt').write_text('transport fixture licence')
+        receipt = raw / 'source-build-receipt.json'
+        receipt.write_text('{"schemaVersion":1,"release":false,"nativeEngineChecks":false}\n')
+        source = self.root / 'corresponding-source.tar.xz'
+        source.write_bytes(b'non-source transport fixture' * 100)
+        bundle = self.root / 'bundle'
+        subprocess.run([sys.executable, ROOT / 'scripts/normalize-ffmpeg-bundle.py', raw,
+                        'windows-x64', bundle, source], check=True)
+        subprocess.run([sys.executable, ROOT / 'scripts/verify-ffmpeg-manifest.py', bundle], check=True)
+        manifest = json.loads((bundle / 'toolchain-manifest.json').read_text())
+        self.assertEqual(manifest['files']['source-build-receipt.json'], M['digest'](receipt))
+        self.assertEqual((bundle / receipt.name).read_bytes(), receipt.read_bytes())
+        (bundle / receipt.name).write_text('{"nativeEngineChecks":true}')
+        result = subprocess.run([sys.executable, ROOT / 'scripts/verify-ffmpeg-manifest.py', bundle], capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
 
     def test_raw_backslash_null_traversal_and_symlink_rejected_before_extraction(self):
         path = self.root / 'raw.zip'
