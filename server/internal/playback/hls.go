@@ -136,6 +136,9 @@ type HLS struct {
 	// execute replaces only converter execution in tests. Set before starting
 	// a session; nil uses the ordinary confined child-process executor.
 	execute func(context.Context, mediaexec.Job) (error, string)
+	// windowTeardown runs in tests as a producer exits, before its window is
+	// unregistered. Set before starting a session; nil in production.
+	windowTeardown func(id string, window *hlsWindow)
 	// producers joins every produce goroutine, so shutdown can wait for the
 	// converters it just cancelled instead of leaving them to be killed with the
 	// process and orphan their ffmpeg children.
@@ -397,6 +400,9 @@ func (h *HLS) Shutdown(ctx context.Context) error {
 
 func (h *HLS) produce(ctx context.Context, id string, from, generation int, owned *hlsWindow, entry *occurrenceEntry, ownedRun *occurrenceRun) {
 	defer func() {
+		if h.windowTeardown != nil {
+			h.windowTeardown(id, owned)
+		}
 		h.mu.Lock()
 		if h.windows[id] == owned {
 			h.removeOccurrenceLocked(id, ownedRun)
@@ -1315,12 +1321,13 @@ func (h *HLS) FileContext(ctx context.Context, grant, name string) (string, erro
 func (h *HLS) noteServed(ctx context.Context, id string, index int, cfg DeliveryConfiguration) {
 	h.noteSessionServed(id)
 	h.mu.Lock()
-	restart := false
-	if window := h.windows[id]; window != nil {
-		if index > window.served {
-			window.served = index
-		}
-		restart = window.throttled
+	// A throttled window is already being torn down: its producer was cancelled
+	// and the window is only waiting to be unregistered. Serving from it never
+	// restarts production. That would spend a second restart and re-produce
+	// segments already on disk. A throttled session resumes when a request
+	// finds its segment absent.
+	if window := h.windows[id]; window != nil && index > window.served {
+		window.served = index
 	}
 	from := h.reclaimed[id]
 	moving := h.moving[id] != nil
@@ -1342,9 +1349,6 @@ func (h *HLS) noteServed(ctx context.Context, id string, index int, cfg Delivery
 			h.reclaimed[id] = reclaimed
 		}
 		h.mu.Unlock()
-	}
-	if restart {
-		_ = h.start(ctx, id, index+1)
 	}
 }
 
