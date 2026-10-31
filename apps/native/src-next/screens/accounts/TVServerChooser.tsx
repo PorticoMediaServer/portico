@@ -21,11 +21,11 @@ export function TVServerChooser(props: {
 }) {
   return <FocusProvider><Chooser {...props}/></FocusProvider>;
 }
-/** Connect24 starts focus on the first server row; Down moves server to server, then Refresh
- * servers and Use a local server. A server's Forget sits right of its row (Right reaches it, Left
- * returns) and is not on the vertical path. Back is the remote key. A pending switch,
- * sign-out or refresh detaches every control, so the chooser asks for that
- * start again when the run ends. */
+/** Connect24 starts focus on the first server row; Down moves server to server, then down the
+ * action stack in the order on screen: Refresh servers, Use a local server, then the footer's
+ * Link a TV. A server's Forget sits right of its row (Right reaches it, Left returns) and is not
+ * on the vertical path. Back is the remote key. A pending switch, sign-out or refresh detaches
+ * every control, so the chooser asks for that start again when the run ends. */
 function Chooser({snapshot, busy, error, owner, onSelect, onSignOut, onRefresh, onAdd, certificates, footer}: {
   snapshot?: Snapshot; busy: boolean; error?: React.ReactNode; owner: boolean; onBack?: () => void;
   onSelect: (row: PhoneServerRow) => void; onSignOut: (row: PhoneServerRow) => void;
@@ -76,7 +76,7 @@ function Chooser({snapshot, busy, error, owner, onSelect, onSignOut, onRefresh, 
       </View>)}
       </FocusRegion>
       {certificates}
-      <FocusRegion id="accounts.chooser.actions" entry="refresh" edges={serverOrder.length ? {up: 'accounts.chooser.rows'} : undefined} enabled={!busy} style={{flexDirection: 'row', flexWrap: 'wrap', gap: 16}}>
+      <FocusRegion id="accounts.chooser.actions" entry="refresh" order={['refresh', 'add']} enabled={!busy} style={{flexDirection: 'column', gap: 16}}>
         <Button focusId="refresh" variant="glass" hasTVPreferredFocus={!preferred} icon="i-refresh" disabled={busy} onPress={onRefresh}>{t('accounts.servers.refresh')}</Button>
         <Button focusId="add" variant="glass" disabled={busy} onPress={onAdd}>{t('accounts.signIn.local')}</Button>
       </FocusRegion>
