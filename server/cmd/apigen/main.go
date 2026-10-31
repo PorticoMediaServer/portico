@@ -41,7 +41,7 @@ func main() {
 			fail(fmt.Errorf("development contracts require a devtrust build"))
 		}
 	}
-	artifacts, err := apikit.GenerateWith(definitions, apikit.Options{Errors: registry.ErrorDefinitions(), Components: components, WireSchemas: wire, GrandfatheredUnionTags: grandfatheredFor(definitions), RequireGrandfatheredUse: true})
+	artifacts, err := apikit.GenerateWith(definitions, apikit.Options{Errors: registry.ErrorDefinitions(), Components: components, WireSchemas: wire, GrandfatheredUnionTags: grandfatheredFor(*development, definitions, httpapi.GrandfatheredUnionTags), RequireGrandfatheredUse: true})
 	if err != nil {
 		fail(err)
 	}
@@ -124,16 +124,20 @@ func main() {
 	}
 }
 
-// grandfatheredFor keeps only the grandfathered tags of the routes being
-// generated (keyed "routeID path"). Development generation selects only the
-// /v1/dev/ routes, so requiring every production entry there would always fail.
-func grandfatheredFor(definitions []apikit.Definition) map[string]string {
+// grandfatheredFor is every grandfathered tag (keyed "routeID path") for
+// production generation, so a stale entry still fails it. Development
+// generation selects only the /v1/dev/ routes, so it keeps only their entries;
+// requiring every production entry there would always fail.
+func grandfatheredFor(development bool, definitions []apikit.Definition, tags map[string]string) map[string]string {
+	if !development {
+		return tags
+	}
 	ids := map[string]bool{}
 	for _, d := range definitions {
 		ids[d.ID] = true
 	}
 	out := map[string]string{}
-	for key, tag := range httpapi.GrandfatheredUnionTags {
+	for key, tag := range tags {
 		if id, _, ok := strings.Cut(key, " "); ok && ids[id] {
 			out[key] = tag
 		}
