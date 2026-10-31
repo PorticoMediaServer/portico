@@ -36,26 +36,30 @@ def selected_download(text):
     return text.replace(marker, "bash -c 'set -xe; for STAGE in \"$@\"; do bash \"/stages/$STAGE\"; done' -- \"$@\"")
 
 
-def libva_diagnostics(text):
-    marker = '    meson "${myconf[@]}" ..\n'
+def meson_diagnostics(text, command, label):
+    marker = '    ' + command + '\n'
     if text.count(marker) != 1:
-        raise ValueError('pinned libva Meson diagnostic boundary changed')
+        raise ValueError('pinned ' + label + ' Meson diagnostic boundary changed')
     # The file lives inside a disposable compiler container, with no CI token
     # in its environment. Preserve Meson's original failure and all checks.
-    return text.replace(marker, '''    if meson "${myconf[@]}" ..; then
+    return text.replace(marker, '''    if MESON_COMMAND; then
         :
     else
         local meson_status=$?
-        printf '%s\\n' 'BEGIN libva meson-log.txt (at most 1048576 bytes)'
+        printf '%s\\n' 'BEGIN MESON_LABEL meson-log.txt (at most 1048576 bytes)'
         if [[ -f meson-logs/meson-log.txt && ! -L meson-logs/meson-log.txt ]]; then
             head -c 1048576 -- meson-logs/meson-log.txt || :
         else
             printf '%s\\n' 'Meson log unavailable or not a regular non-symlink file'
         fi
-        printf '\\n%s\\n' 'END libva meson-log.txt'
+        printf '\\n%s\\n' 'END MESON_LABEL meson-log.txt'
         return "$meson_status"
     fi
-''')
+'''.replace('MESON_COMMAND', command).replace('MESON_LABEL', label))
+
+
+def libva_diagnostics(text):
+    return meson_diagnostics(text, 'meson "${myconf[@]}" ..', 'libva')
 
 
 def prepare_recipe(recipe, owner):
@@ -108,4 +112,10 @@ def prepare_recipe(recipe, owner):
     p.write_text(text.replace('docker run --rm', 'docker run --cpus 2 --memory 4g --memory-swap 4g --rm'))
     p = recipe / 'scripts.d/50-vaapi/50-libva.sh'
     p.write_text(libva_diagnostics(p.read_text()))
+    for relative, command, label in [
+        ('50-dav1d.sh', 'meson "${myconf[@]}" ..', 'dav1d'),
+        ('50-dvd/40-libdvdread.sh', 'meson setup "${myconf[@]}" ..', 'libdvdread'),
+    ]:
+        p = recipe / 'scripts.d' / relative
+        p.write_text(meson_diagnostics(p.read_text(), command, label))
     compiler_custody(recipe)
