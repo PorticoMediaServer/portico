@@ -18,7 +18,6 @@ awaiting_approval initialize_hosted awaiting_approval
 open initialize_local completed
 started request_approval awaiting_approval
 awaiting_approval request_approval awaiting_approval
-expired request_approval awaiting_approval
 installed_lapsed request_approval installed
 installed request_approval installed
 started abandon open

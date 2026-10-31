@@ -266,3 +266,46 @@ func (d Dependencies) serveSetupRetry(w http.ResponseWriter, r *http.Request) {
 	d.Networking.RetrySetupDelivery(state.Operation.ID)
 	write(w, 200, setupStateResponse(state, own, now))
 }
+
+// serveSetupApproval is POST /v1/setup/approval (setupflow S6, S7), authorized like the
+// setup claim routes by the setup's own token as its bearer. Only the caller's own
+// setup, started, awaiting approval or installed, may ask; an expired one goes Back and
+// starts again. Networking then prepares, signs and registers the claim under its own
+// authority, guard and setup-start capture.
+func (d Dependencies) serveSetupApproval(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if !d.setupRequestAllowed(r) {
+		failure(w, identity.ErrUnauthorized)
+		return
+	}
+	if !d.setupSourceAllowed(r) {
+		policyErrors.Write(w, w.Header().Get("X-Request-Id"), errSetupSourceNotLocal)
+		return
+	}
+	secret := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	state, own, err := d.Identity.SetupState(r.Context(), secret, time.Now(), d.setupDeliveryLookup())
+	if err == nil && !own {
+		err = identity.ErrUnauthorized
+	}
+	if errors.Is(err, identity.ErrUnauthorized) {
+		if limit := d.Identity.SetupLimit(r.Context(), d.setupPeerSubject(r), "approval", 20); limit != nil {
+			setupFailure(w, limit)
+			return
+		}
+		failure(w, err)
+		return
+	}
+	if err != nil {
+		writeSetupError(w, err)
+		return
+	}
+	if _, err = setupflow.Next(state.Phase, setupflow.EventRequestApproval); err != nil {
+		writeSetupError(w, setupflow.ErrStateChanged)
+		return
+	}
+	if d.Networking == nil {
+		failure(w, errors.New("claim unavailable"))
+		return
+	}
+	d.Networking.ServeSetupApproval(w, r)
+}

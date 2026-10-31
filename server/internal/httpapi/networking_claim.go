@@ -47,7 +47,7 @@ func NetworkingClaimAuthorizer(id *identity.Service, origins []string, policies 
 		if e != nil && (r.Method == http.MethodGet && r.URL.Path == "/v1/networking/claim" || r.Method == http.MethodPost && (r.URL.Path == "/v1/networking/claim/continue" || r.URL.Path == "/v1/networking/claim/await-approval" || r.URL.Path == "/v1/networking/claim/cancel")) {
 			p, e = id.OwnerClaimAuthority(r.Context(), secret)
 		}
-		if e != nil && (r.URL.Path == "/v1/networking/claim" || strings.HasPrefix(r.URL.Path, "/v1/networking/claim/")) {
+		if e != nil && (r.URL.Path == "/v1/networking/claim" || strings.HasPrefix(r.URL.Path, "/v1/networking/claim/") || r.URL.Path == "/v1/setup/approval") {
 			pending, proof, setupErr := id.SetupClaimAuthority(r.Context(), secret)
 			if setupErr == nil {
 				resume, _ := json.Marshal(claimResume{SetupOperationID: pending.RequestID, SetupRevision: pending.Revision, SetupProof: proof})

@@ -75,8 +75,9 @@ var table = map[Event][]edge{
 	EventInitializeHosted: {{Open, Started}, {Started, Started}, {AwaitingApproval, AwaitingApproval}},
 	// S5
 	EventInitializeLocal: {{Open, Completed}},
-	// S6, S7, and the replay of a renewed start whose Hosted call failed.
-	EventRequestApproval: {{Started, AwaitingApproval}, {AwaitingApproval, AwaitingApproval}, {Expired, AwaitingApproval},
+	// S6, S7, and the replay of a renewed start whose Hosted call failed. An expired
+	// setup goes Back (S8) and starts again instead.
+	EventRequestApproval: {{Started, AwaitingApproval}, {AwaitingApproval, AwaitingApproval},
 		{InstalledLapsed, Installed}, {Installed, Installed}},
 	// S8: Start again. A Portico Account setup never falls back to local (Justin,
 	// 31 Oct); it ends and setup begins afresh with its free choice of kind.

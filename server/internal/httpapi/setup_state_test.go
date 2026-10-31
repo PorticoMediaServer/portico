@@ -320,3 +320,51 @@ func TestSetupRetryRefusesWhatIsNotItsOwnExhaustedSetup(t *testing.T) {
 		t.Fatalf("retry from another site: %d %s", w.Code, w.Body.String())
 	}
 }
+
+// Only the caller's own setup, started, awaiting approval or installed, may ask a
+// Portico Account to approve it; anything else is refused before networking is asked.
+func TestSetupApprovalRefusesWhatIsNotItsOwnLiveSetup(t *testing.T) {
+	h, id, _, db := setupStateFixtureDB(t)
+	ctx := context.Background()
+	token, err := id.BrowserSetupToken(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = id.SetupWithOptions(ctx, identity.SetupOptions{RequestID: setupStateRequest, SetupToken: token, Name: "Family server", AuthMode: "hosted"}, true); err != nil {
+		t.Fatal(err)
+	}
+	ask := func(origin, peer, bearer string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", "http://127.0.0.1:32500/v1/setup/approval", strings.NewReader(`{"setupStart":{"state":"s","codeChallenge":"c","installationId":"i"}}`))
+		r.RemoteAddr = peer
+		if origin != "" {
+			r.Header.Set("Origin", origin)
+		}
+		r.Header.Set("Content-Type", "application/json")
+		if bearer != "" {
+			r.Header.Set("Authorization", "Bearer "+bearer)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	const self = "http://127.0.0.1:32500"
+	if w := ask(self, "127.0.0.1:5000", ""); w.Code != http.StatusUnauthorized {
+		t.Fatalf("no token: %d %s", w.Code, w.Body.String())
+	}
+	if w := ask(self, "127.0.0.1:5000", strings.Repeat("F", 43)); w.Code != http.StatusUnauthorized {
+		t.Fatalf("another token: %d %s", w.Code, w.Body.String())
+	}
+	if w := ask("", "198.51.100.8:5000", token); w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), `"setup_source_not_local"`) {
+		t.Fatalf("public source: %d %s", w.Code, w.Body.String())
+	}
+	if w := ask("https://web.getportico.tv", "127.0.0.1:5000", token); w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden {
+		t.Fatalf("another site: %d %s", w.Code, w.Body.String())
+	}
+	// Expired: Back and start again instead.
+	if _, err = db.Exec(`UPDATE onboarding_state_v1 SET receipt_until=receipt_until-3600`); err != nil {
+		t.Fatal(err)
+	}
+	if w := ask(self, "127.0.0.1:5000", token); w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), `"setup_state_changed"`) {
+		t.Fatalf("expired setup: %d %s", w.Code, w.Body.String())
+	}
+}
