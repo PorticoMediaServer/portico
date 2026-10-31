@@ -46,13 +46,16 @@ type ownerPairReply struct {
 	FinalizeRequests, ExchangeRequests int
 }
 type ownerPairBridge struct {
-	t                                     *testing.T
-	cmd                                   *exec.Cmd
-	in                                    io.WriteCloser
-	out                                   *bufio.Scanner
-	mu                                    sync.Mutex
-	afterHTTP                             func(*http.Request, ownerPairReply) error
-	approved                              chan struct{}
+	t         *testing.T
+	cmd       *exec.Cmd
+	in        io.WriteCloser
+	out       *bufio.Scanner
+	mu        sync.Mutex
+	afterHTTP func(*http.Request, ownerPairReply) error
+	approved  chan struct{}
+	// ended names an operation the test has finished with; its event watch
+	// gives up rather than occupy the serial private driver.
+	ended                                 atomic.Pointer[string]
 	Root, AccountID, OwnerToken, Audience string
 }
 
@@ -134,16 +137,6 @@ func (b *ownerPairBridge) RoundTrip(r *http.Request) (*http.Response, error) {
 	if r.URL.Scheme != "https" || r.URL.Host != "hosted.example" {
 		return nil, errors.New("unexpected pair destination")
 	}
-	if r.URL.Path == "/v1/server-claims/events" {
-		// Delay only this bounded network request until the real HTTP approval
-		// commits. The serial private driver cannot process approval behind an
-		// open event wait. No approval/status/claim bytes are fabricated here.
-		select {
-		case <-b.approved:
-		case <-r.Context().Done():
-			return nil, r.Context().Err()
-		}
-	}
 	var raw []byte
 	if r.Body != nil {
 		var err error
@@ -153,6 +146,19 @@ func (b *ownerPairBridge) RoundTrip(r *http.Request) (*http.Response, error) {
 		}
 	}
 	defer clear(raw)
+	if r.URL.Path == "/v1/server-claims/events" {
+		// Delay only this bounded network request until the real HTTP approval
+		// commits. The serial private driver cannot process approval behind an
+		// open event wait. No approval/status/claim bytes are fabricated here.
+		select {
+		case <-b.approved:
+		case <-r.Context().Done():
+			return nil, r.Context().Err()
+		}
+		if ended := b.ended.Load(); ended != nil && ownerPairEventOperation(raw) == *ended {
+			return nil, context.Canceled
+		}
+	}
 	if len(raw) > 0 && !json.Valid(raw) {
 		return nil, errors.New("invalid pair HTTP request")
 	}
@@ -168,6 +174,26 @@ func (b *ownerPairBridge) RoundTrip(r *http.Request) (*http.Response, error) {
 		payload = nil
 	}
 	return &http.Response{StatusCode: out.Status, Header: out.Headers, Body: io.NopCloser(bytes.NewReader(payload)), ContentLength: int64(len(payload)), Request: r}, nil
+}
+
+// ownerPairEventOperation reads the operation an event watch names: its body is
+// the signed claim.
+func ownerPairEventOperation(raw []byte) string {
+	var signed claimweb.Signed
+	if json.Unmarshal(raw, &signed) != nil {
+		return ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(signed.Payload)
+	if err != nil {
+		return ""
+	}
+	var claim struct {
+		OperationID string `json:"operationId"`
+	}
+	if json.Unmarshal(payload, &claim) != nil {
+		return ""
+	}
+	return claim.OperationID
 }
 
 var ownerPairDeniedReads = []struct{ id, path string }{
@@ -226,6 +252,96 @@ func TestActualOwnerContinuationLostExchangeUsesFreshOrdinaryAdmission(t *testin
 	runActualOwnerContinuation(t, "lost-owner-exchange")
 }
 
+// R-01/R-02 through the real routes: an earlier attempt reaches Hosted, the
+// owner's token rotates and the attempt expires. Ending it signs that browser
+// family out (existing policy), so the rotated token is refused; the owner
+// signs in again and a new move then starts and completes.
+func TestActualOwnerContinuationRetriesAfterAnExpiredAttemptOnARotatedToken(t *testing.T) {
+	runActualOwnerContinuation(t, "retry-after-expired-rotated")
+}
+
+// retryAfterExpiredRotatedAttempt runs the earlier attempt up to its Hosted
+// handoff, rotates the owner's token, lets the attempt expire (a controlled
+// local deadline, as in expiry-after-finalize) and lets the server's own claim
+// recovery end it with Hosted, then signs the owner in again.
+func retryAfterExpiredRotatedAttempt(t *testing.T, db *sql.DB, request func(method, path string, body any) *httptest.ResponseRecorder, requestWith func(origin, token, method, path string, body any, headers map[string]string) *httptest.ResponseRecorder, sweep func(context.Context), ended func(string), ownerToken *string, refreshToken, installation, password string) (string, string) {
+	t.Helper()
+	step := func(name string, w *httptest.ResponseRecorder, out any) {
+		t.Helper()
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), out) != nil {
+			t.Fatalf("%s: status=%d", name, w.Code)
+		}
+	}
+	var move identity.AccountMove
+	step("earlier move preview", request("POST", "/v1/admin/sign-in/move/preview", identity.MovePreviewRequest{To: identity.SignInPortico}), &move)
+	if w := request("POST", "/v1/admin/sign-in/move/confirm", identity.MoveConfirmRequest{MoveID: move.ID, ExpectedRevision: move.Revision}); w.Code != 200 {
+		t.Fatalf("earlier move confirmation status=%d", w.Code)
+	}
+	var status networking.ClaimStatus
+	step("earlier claim status", request("GET", "/v1/networking/claim", nil), &status)
+	step("earlier prepare", request("POST", "/v1/networking/claim/prepare", networking.ClaimPrepareRequest{Purpose: "switch", Expected: status.Identity}), &status)
+	if status.Operation == nil {
+		t.Fatal("earlier claim operation absent")
+	}
+	stateBytes, verifierBytes := sha256.Sum256([]byte(identity.Token())), sha256.Sum256([]byte(identity.Token()))
+	challenge := sha256.Sum256([]byte(base64.RawURLEncoding.EncodeToString(verifierBytes[:])))
+	step("earlier web approval", request("POST", "/v1/networking/claim/web-approval", networking.ClaimActionRequest{Expected: *status.Operation, OwnerStart: &networking.ClaimOwnerStartRequest{State: base64.RawURLEncoding.EncodeToString(stateBytes[:]), CodeChallenge: base64.RawURLEncoding.EncodeToString(challenge[:]), InstallationID: installation}}), &status)
+	if status.OwnerContinuation == nil || status.Operation == nil {
+		t.Fatal("earlier attempt did not reach its Hosted handoff")
+	}
+	earlier := status.Operation.OperationID
+	// A real refresh of the owner's browser family.
+	refreshed := requestWith("https://server.example", "", "POST", "/v1/auth/refresh", map[string]string{"refreshToken": refreshToken, "installationId": installation, "requestId": identity.Token()}, nil)
+	var renewed struct {
+		AccessToken string `json:"accessToken"`
+	}
+	step("refresh", refreshed, &renewed)
+	if renewed.AccessToken == "" || renewed.AccessToken == *ownerToken {
+		t.Fatal("refresh did not rotate the owner's token")
+	}
+	*ownerToken = renewed.AccessToken
+	if _, err := db.Exec(`UPDATE identity_owner_completions SET expires_ms=created_ms+1 WHERE operation_id=? AND phase='prepared'`, earlier); err != nil {
+		t.Fatal("local deadline withdrawal failed")
+	}
+	// The expired attempt is ended the way the server ends it: its claim
+	// recovery loop denies it with Hosted (the owner guard refuses an expired
+	// attempt, so the owner's own cancel can't).
+	sweeping, stopSweep := context.WithCancel(context.Background())
+	swept := make(chan struct{})
+	go func() { defer close(swept); sweep(sweeping) }()
+	defer func() { stopSweep(); <-swept }()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		var stage, phase string
+		if err := db.QueryRow(`SELECT i.stage,c.phase FROM networking_claim_intents i JOIN identity_owner_completions c ON c.operation_id=i.operation_id WHERE i.operation_id=?`, earlier).Scan(&stage, &phase); err != nil {
+			t.Fatal("earlier attempt unavailable", err)
+		}
+		if stage == "cancelled" && phase == "cancelled" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("earlier attempt did not end: stage=%s phase=%s", stage, phase)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	ended(earlier)
+	var revoked bool
+	if err := db.QueryRow(`SELECT f.revoked FROM authorization_session_families f JOIN identity_owner_completions c ON c.family_id=f.id WHERE c.operation_id=?`, earlier).Scan(&revoked); err != nil || !revoked {
+		t.Fatal("cancelling the earlier attempt did not sign its browser family out", err)
+	}
+	if w := request("POST", "/v1/admin/sign-in/move/preview", identity.MovePreviewRequest{To: identity.SignInPortico}); w.Code != 401 {
+		t.Fatalf("the rotated token outlived its revoked family: status=%d", w.Code)
+	}
+	var signedIn identity.DirectSignIn
+	// The same browser signs in again, with the device claim its web app sends.
+	browser := map[string]string{"X-Portico-Device-Name": "Owner browser", "X-Portico-Device-Platform": "web", "X-Portico-App": "portico"}
+	step("sign in again", requestWith("https://server.example", "", "POST", "/v1/direct/sign-in", map[string]string{"username": "owner", "password": password}, browser), &signedIn)
+	if signedIn.Session == nil || signedIn.Session.Viewer.Role != identity.TierOwner {
+		t.Fatal("signing in again did not give an owner session")
+	}
+	return signedIn.Session.AccessToken, signedIn.Session.SessionFamilyID
+}
+
 func runActualOwnerContinuation(t *testing.T, mode string) {
 	b := newOwnerPairBridge(t)
 	initial := b.call(map[string]string{"Action": "snapshot"})
@@ -276,7 +392,8 @@ func runActualOwnerContinuation(t *testing.T, mode string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	setup, err := id.SetupWithOptions(issuing, identity.SetupOptions{SetupToken: setupToken, AuthMode: "local", Username: "owner", Password: "Pair-" + identity.Token() + "9!", Name: "Genuine paired server"}, true)
+	password := "Pair-" + identity.Token() + "9!"
+	setup, err := id.SetupWithOptions(issuing, identity.SetupOptions{SetupToken: setupToken, AuthMode: "local", Username: "owner", Password: password, Name: "Genuine paired server"}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +443,9 @@ func runActualOwnerContinuation(t *testing.T, mode string) {
 		t.Fatal(err)
 	}
 	api := httpapi.New(httpapi.Dependencies{DB: db, Identity: id, Catalog: catalog.New(db), Hosted: control, Networking: claims, RouteIdentity: networking.NewRouteIdentityHandler(keys, runner, claims.Certificates(), nil), Console: operations.New(db), Access: httpapi.AccessArea{Access: access.New(db)}, Origins: []string{"https://server.example"}})
-	requestAt := func(origin, token, method, path string, body any) *httptest.ResponseRecorder {
+	// headers adds request headers, such as the device claim a browser sends
+	// when it signs in.
+	requestWith := func(origin, token, method, path string, body any, headers map[string]string) *httptest.ResponseRecorder {
 		t.Helper()
 		var raw []byte
 		if body != nil {
@@ -344,18 +463,30 @@ func runActualOwnerContinuation(t *testing.T, mode string) {
 			r.Header.Set("Authorization", "Bearer "+token)
 		}
 		r.Header.Set("X-Portico-Installation-Id", installation)
+		for name, value := range headers {
+			r.Header.Set(name, value)
+		}
 		w := httptest.NewRecorder()
 		api.ServeHTTP(w, r)
 		return w
 	}
+	requestAt := func(origin, token, method, path string, body any) *httptest.ResponseRecorder {
+		t.Helper()
+		return requestWith(origin, token, method, path, body, nil)
+	}
+	// The owner's browser session; the retry mode rotates it, then signs in again.
+	ownerToken, ownerFamily := setup.AccessToken, setup.SessionFamilyID
 	request := func(method, path string, body any) *httptest.ResponseRecorder {
-		return requestAt("https://server.example", setup.AccessToken, method, path, body)
+		return requestAt("https://server.example", ownerToken, method, path, body)
 	}
 	read := func(w *httptest.ResponseRecorder, out any) {
 		t.Helper()
 		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), out) != nil {
 			t.Fatalf("actual local handler failed: status=%d", w.Code)
 		}
+	}
+	if mode == "retry-after-expired-rotated" {
+		ownerToken, ownerFamily = retryAfterExpiredRotatedAttempt(t, db, request, requestWith, func(ctx context.Context) { claims.RunWebClaimRecovery(ctx, httpapi.NetworkingClaimResume(id)) }, func(op string) { b.ended.Store(&op) }, &ownerToken, setup.RefreshToken, installation, password)
 	}
 	var move identity.AccountMove
 	read(request("POST", "/v1/admin/sign-in/move/preview", identity.MovePreviewRequest{To: identity.SignInPortico}), &move)
@@ -371,10 +502,10 @@ func runActualOwnerContinuation(t *testing.T, mode string) {
 	assertInitiatingRetired := func() {
 		t.Helper()
 		var revoked bool
-		if e := db.QueryRow(`SELECT revoked FROM authorization_session_families WHERE id=?`, setup.SessionFamilyID).Scan(&revoked); e != nil || !revoked {
+		if e := db.QueryRow(`SELECT revoked FROM authorization_session_families WHERE id=?`, ownerFamily).Scan(&revoked); e != nil || !revoked {
 			t.Fatal("initiating family was not durably retired")
 		}
-		if _, e := id.AuthenticateContext(ctx, setup.AccessToken); e == nil {
+		if _, e := id.AuthenticateContext(ctx, ownerToken); e == nil {
 			t.Fatal("retired initiating family retained generic authority")
 		}
 	}
@@ -393,8 +524,10 @@ func runActualOwnerContinuation(t *testing.T, mode string) {
 		clear(armedSignature)
 		clear(cancelReceipt)
 	})
-	preinstallDenial := mode != "success" && mode != "lost-owner-exchange"
-	if mode != "success" {
+	// The retry mode's second move follows the plain success path.
+	succeeds := mode == "success" || mode == "retry-after-expired-rotated"
+	preinstallDenial := !succeeds && mode != "lost-owner-exchange"
+	if !succeeds {
 		// Install the hook before web approval starts a background watch. It
 		// observes an actual handler reply; it never fabricates approval,
 		// commit, result, credential or cancellation response bytes.
@@ -574,7 +707,7 @@ func runActualOwnerContinuation(t *testing.T, mode string) {
 	}
 	var stillLive bool
 	var grantKind string
-	if err = db.QueryRow(`SELECT NOT f.revoked,g.grant_kind FROM authorization_session_families f JOIN authorization_family_grants g ON g.family_id=f.id WHERE f.id=?`, setup.SessionFamilyID).Scan(&stillLive, &grantKind); err != nil || !stillLive || grantKind != identity.GrantOwnerClaimCompletion {
+	if err = db.QueryRow(`SELECT NOT f.revoked,g.grant_kind FROM authorization_session_families f JOIN authorization_family_grants g ON g.family_id=f.id WHERE f.id=?`, ownerFamily).Scan(&stillLive, &grantKind); err != nil || !stillLive || grantKind != identity.GrantOwnerClaimCompletion {
 		t.Fatal("installed owner continuation was not a live narrowed family")
 	}
 	for _, probe := range ownerPairDeniedReads {
