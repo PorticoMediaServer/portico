@@ -165,8 +165,8 @@ func TestSetupStartAddressIsLocalOverPlainHTTP(t *testing.T) {
 }
 
 func TestSetupLifetimeIsThirtyMinutesAndOnlyShortened(t *testing.T) {
-	if SetupLifetime() != 30*time.Minute || RequestLifetime("setup") != 30*time.Minute || RequestLifetime("switch") != 10*time.Minute {
-		t.Fatal("setup window is not thirty minutes, or other purposes changed")
+	if SetupLifetime() != 30*time.Minute || RequestLifetime("setup") != 30*time.Minute || RequestLifetime("switch") != 30*time.Minute || RequestLifetime("change-owner") != 30*time.Minute || OwnerStartLifetime != 30*time.Minute || RequestLifetime("other") != 10*time.Minute {
+		t.Fatal("a Portico Account step is not thirty minutes, or another purpose changed")
 	}
 	SetDevelopmentSetupLifetime(time.Hour)
 	if SetupLifetime() != 30*time.Minute {
