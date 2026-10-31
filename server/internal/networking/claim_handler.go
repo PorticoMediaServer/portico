@@ -80,6 +80,8 @@ type ClaimStatus struct {
 type ClaimHandler struct {
 	recoveryWake        chan struct{}
 	webWatches          sync.Map
+	// deliveries tracks applying an approval a setup claim was given (setup_delivery.go).
+	deliveries sync.Map
 	certificates        *CertificateManager
 	remote              *RemoteManager
 	store               *SQLiteStore

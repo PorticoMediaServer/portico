@@ -34990,6 +34990,30 @@ export const routes = [
   },
   {
     "audience": "Clients",
+    "id": "post_setup_retry",
+    "method": "POST",
+    "path": "/v1/setup/retry",
+    "summary": "Try again to apply the Portico Account approval of this setup",
+    "access": "public",
+    "requires": "session",
+    "lane": "security",
+    "cost": "constant",
+    "bodyLimit": 4096,
+    "errors": [
+      "unauthorized",
+      "invalid_request",
+      "rate_limited",
+      "setup_state_changed",
+      "setup_source_not_local",
+      "internal",
+      "database_busy",
+      "writer_capacity"
+    ],
+    "status": 200,
+    "admission": "auth"
+  },
+  {
+    "audience": "Clients",
     "id": "post_shows_id_metadata_screen_retry",
     "method": "POST",
     "path": "/v1/shows/{id}/metadata/screen/retry",
