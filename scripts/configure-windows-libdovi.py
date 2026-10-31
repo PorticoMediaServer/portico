@@ -119,7 +119,8 @@ ffbuild_unconfigure() { echo --disable-libdovi; }
     marker = '    make install install-doc\n'
     if text.count(marker) != 1:
         raise ValueError('pinned final notice copy hook changed')
-    build.write_text(text.replace(marker, marker + '    cp -R /opt/ffbuild/LICENSES /ffbuild/prefix/\n', 1))
+    build.write_text(text.replace(marker, marker + '    cp -R /opt/ffbuild/LICENSES /ffbuild/prefix/\n'
+        '    cp /opt/ffbuild/share/doc/ffmpeg/libdovi-build.json /ffbuild/prefix/share/doc/ffmpeg/\n', 1))
     variant = recipe / 'variants/windows-install-static.sh'
     text = variant.read_text()
     marker = '    cp "$IN"/bin/* "$OUT"/bin\n'
