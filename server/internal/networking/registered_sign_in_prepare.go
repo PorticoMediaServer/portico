@@ -15,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/PorticoMediaServer/portico/server/internal/claimweb"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/serverreturn"
 )
@@ -97,7 +98,7 @@ func (h *RouteIdentityHandler) SignRegisteredSignInPrepare(parent context.Contex
 			return e
 		}
 		now, expires := time.Now().UTC(), time.UnixMilli(expiresMS).UTC()
-		if !expires.After(now) || expires.After(now.Add(5*time.Minute)) {
+		if !expires.After(now) || expires.After(now.Add(claimweb.AccountStepLifetime)) {
 			return ErrStale
 		}
 		e = tx.QueryRowContext(ctx, `SELECT value FROM configuration WHERE key='name'`).Scan(&name)

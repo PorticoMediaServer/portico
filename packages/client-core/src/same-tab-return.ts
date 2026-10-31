@@ -1,6 +1,7 @@
 import {throwIfAborted} from './abort-lifetime.ts';
 import {routePath as hostedRoutePath,encodedRoutePath as hostedEncodedRoutePath} from '../../contracts/src/hosted/routes.ts';
 import {routePath} from '../../contracts/src/route-paths.ts';
+import {ACCOUNT_STEP_WINDOW_MS} from '../../contracts/src/account-step.ts';
 import {requestPorticoChallenge,type HostedRequestApi} from './portico-servers.ts';
 import {parseDirectSignIn} from './profile-management.ts';
 import type {HttpLocalApi,LocalSession} from './index.ts';
@@ -83,7 +84,7 @@ export async function consumeSameTabReturn(api:Pick<HttpLocalApi,'request'|'getR
  const params=new URLSearchParams(fragment.slice(1));let pending:ReturnPending|undefined;
  try{
   pending=await store.read();await store.change(()=>undefined);
-  if(url.pathname!=='/auth/portico-return'||url.search||!pending||Date.now()-pending.createdAt>5*60_000||pending.createdAt>Date.now()+60_000||api.getRouteConnection()?.pin.serverId!==pending.serverId||[...params.keys()].sort().join(',')!=='code,state,transaction'||params.getAll('state').length!==1||params.get('state')!==pending.state||!/^src_[A-Za-z0-9_-]{20,128}$/.test(params.get('code')??'')||!/^srt_[A-Za-z0-9_-]{20,128}$/.test(params.get('transaction')??''))throw new Error('This return is no longer valid. Start again.');
+  if(url.pathname!=='/auth/portico-return'||url.search||!pending||Date.now()-pending.createdAt>ACCOUNT_STEP_WINDOW_MS||pending.createdAt>Date.now()+60_000||api.getRouteConnection()?.pin.serverId!==pending.serverId||[...params.keys()].sort().join(',')!=='code,state,transaction'||params.getAll('state').length!==1||params.get('state')!==pending.state||!/^src_[A-Za-z0-9_-]{20,128}$/.test(params.get('code')??'')||!/^srt_[A-Za-z0-9_-]{20,128}$/.test(params.get('transaction')??''))throw new Error('This return is no longer valid. Start again.');
   if(!validMemberProof(pending)||pending.registrationOrigin!==undefined&&pending.registrationOrigin!==url.origin)throw new Error('This return is no longer valid. Start again.');
   if(pending.purpose==='sign-in'&&(!continuation.isCurrent||!continuation.retireLateGrant))throw new Error('Capture the server session before completing sign-in.');
   throwIfAborted(signal);if(continuation.isCurrent&&!continuation.isCurrent())throw new CodedError('cancelled','This server sign-in changed.');
