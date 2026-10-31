@@ -5,6 +5,7 @@ import {downloadEntryIdentity} from '../src-next/screens/downloads/presentation'
 import * as startupRecovery from '../src-next/shell/startup-recovery';
 import {fabricHost, React} from './helpers/fabric-host.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {restoredShellLifecycleStub} from './helpers/lifecycle-stub.mjs';
 
 type NativeNode = {type: string; props: Record<string, any>; children: NativeNode[]};
 const flatten = (nodes: NativeNode[]): NativeNode[] => nodes.flatMap(node => [node, ...flatten(node.children ?? [])]);
@@ -30,7 +31,7 @@ test(`compact ${category} recovery admits only original usable downloads: ${cond
     dispose() {live = false; for (const listener of [...listeners]) listener();}};
   const theme = {platform: 'phone', isTV: false, colors: {ink: '#000', raised: '#111', text: '#fff', textTertiary: '#888'}, type: {bodyStrong: {}, caption: {}}};
   const native = {Platform: {OS: 'ios'}, View: 'RCTView', Text: 'RCTText', AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}};
-  const {RestoredShell} = await screenModule(new URL('../src-next/shell/RestoredShell.tsx', import.meta.url), {'../screens/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../platform/negotiation': {negotiationRefusal: () => undefined}, './boot-timing': {logBootMilestone: () => {}}, './restore-trace': {restoreTrace: () => ({waiting: 'start', elapsedMs: 0, marks: []})}, '../screens/share/NativeShareLinks': {NativeShareLinks: () => null}, '../platform/share-links': {nativeShareLinks: {acquire: () => () => {}, subscribe: () => () => {}, getSnapshot: () => undefined, take: () => false}}, 
+  const {RestoredShell} = await screenModule(new URL('../src-next/shell/RestoredShell.tsx', import.meta.url), {...restoredShellLifecycleStub(), '../screens/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../platform/negotiation': {negotiationRefusal: () => undefined}, './boot-timing': {logBootMilestone: () => {}}, './restore-trace': {restoreTrace: () => ({waiting: 'start', elapsedMs: 0, marks: []})}, '../screens/share/NativeShareLinks': {NativeShareLinks: () => null}, '../platform/share-links': {nativeShareLinks: {acquire: () => () => {}, subscribe: () => () => {}, getSnapshot: () => undefined, take: () => false}}, 
     react: {...React, default: React}, 'react-native': native,
     '../kit/states': {HomeSkeleton: 'HomeSkeleton', StateView: 'StateView', StateLayout: ({beforeActions}: any) => React.createElement('StateLayout', null, beforeActions)},
     '../kit/artwork': {StandardBackdrop: 'StandardBackdrop', CoverFan: 'CoverFan'}, '../kit/controls': {Focusable: 'Focusable'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/theme': {useTheme: () => theme},

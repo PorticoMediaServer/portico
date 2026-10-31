@@ -664,3 +664,20 @@ test('account sign-out completes on its own row', () => {
   assert.equal(next?.row, 30);
   assert.equal(next?.snapshot.state.kind, 'choosingServer');
 });
+
+test('a sign-in that appears while signed out opens once connected, without a second picker', () => {
+  const appeared = nextLifecycle(snap({kind: 'signedOut'}), {type: 'envelopeChanged', servers: 1, held: held()});
+  const s = appeared!.snapshot.state;
+  assert.equal(s.kind, 'connecting');
+  assert.equal(s.kind === 'connecting' && s.admitted, true);
+  const opened = nextLifecycle(appeared!.snapshot, {type: 'connected', facts: facts()});
+  assert.equal(opened?.snapshot.state.kind, 'ready');
+});
+
+test('a sign-in that already chose its profile stays chosen through offline and a retry', () => {
+  const appeared = nextLifecycle(snap({kind: 'signedOut'}), {type: 'envelopeChanged', servers: 1, held: held()})!;
+  const down = nextLifecycle(appeared.snapshot, {type: 'connectFailed', failure: {reason: 'offline'}})!;
+  const again = nextLifecycle(down.snapshot, {type: 'retry'})!;
+  const opened = nextLifecycle(again.snapshot, {type: 'connected', facts: facts()});
+  assert.equal(opened?.snapshot.state.kind, 'ready');
+});

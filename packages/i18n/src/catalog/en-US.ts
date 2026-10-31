@@ -250,6 +250,7 @@ export const enUS = {
   'pin.progress': '{count} of {length} digits entered',
   'pin.deleteDigit': 'Delete digit',
   'pin.forgot': 'Forgot PIN?',
+  'pin.rememberOnDevice': 'Remember this profile on this device',
 
   // ── Errors (keys match presentError messageIds) ─────────────────
   'error.transportUnavailable': 'This device can’t safely send sign-in details with its current software. Use another Portico app.',

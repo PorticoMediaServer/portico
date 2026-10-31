@@ -2,7 +2,7 @@ import {ApiError, HttpLocalApi, type LocalSession} from '../../../../packages/cl
 import type {AppServerSession, AppSessionStorage, AppSessionStore} from '../../../../packages/client-core/src/app-sessions';
 import {releaseQuietly} from '../../../../packages/client-core/src/cleanup';
 import {installationIdentity} from '../../../../packages/client-core/src/installation';
-import {parseDirectSnapshot, selectDirectProfile} from '../../../../packages/client-core/src/profile-management';
+import {parseDirectSnapshot, selectDirectProfile, type DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import {rememberedFor} from '../../../../packages/client-core/src/remember-marker';
 import type {RememberedServer} from '../../../../packages/client-core/src/server-connections';
 import {restoreNativeSession} from '../../../../packages/client-core/src/server-connections';
@@ -70,10 +70,20 @@ export type NativeLifecycleDeps = Readonly<{
 /** A server connection the lifecycle opened and the shell may adopt. Released by `releaseConnection`. */
 export type NativeConnected = Readonly<{
   serverId: string; api: HttpLocalApi; session: LocalSession; installation: ReturnType<typeof beginNativeInstallation>;
+  /** What the shell would otherwise read again: the prepared installation, the held entry, its server and sign-in hint. */
+  prepared: Awaited<ReturnType<ReturnType<typeof beginNativeInstallation>['prepare']>>;
+  selected: AppServerSession; server: NativeIdentityServer; hint?: NativeSignInHint;
+  /** The account as `connect` read it: the picker's faces and art, and Forgot PIN's proof. */
+  account: DirectSnapshot;
 }>;
 export type NativeLifecyclePorts = LifecyclePorts & Readonly<{
   /** The live connection `connect` opened for this server, until it is released or the sign-in changes. */
   connection(serverId: string): NativeConnected | undefined;
+  /** Hands the live connection to the shell, which owns and disposes it from then on. */
+  adopt(serverId: string): NativeConnected | undefined;
+  /** The root lends its installation: installation generations are app-wide, so the ports must never
+   *  begin a competing one while a root holds its own (that would retire the root). */
+  lendInstallation(owner: ReturnType<typeof beginNativeInstallation> | undefined): void;
   releaseConnection(): void;
 }>;
 
@@ -101,6 +111,14 @@ const defaults = (): Omit<NativeLifecycleDeps, 'fenceShell'> => ({
   note: line => journal.note('warn', line),
 });
 
+/** The shell ended because this profile's PIN changed or its remembered devices were forgotten
+ * (profile_pin_reentry): the device asks for the PIN, never for a sign-in. */
+export class NativeProfileGated extends Error {
+  readonly code = 'profile_pin_reentry';
+  constructor() {super('native_profile_gated'); this.name = 'NativeProfileGated';}
+}
+export const nativeProfileGated = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'profile_pin_reentry';
+
 const cancelled = () => Object.assign(new Error('native_session_lifecycle_cancelled'), {name: 'AbortError', code: 'cancelled'});
 // CC-03: the server may change this account's role; it is reconciled into the session, so it is not another viewer.
 const sameViewer = (a: LocalSession, b: LocalSession): boolean => a.sessionFamilyId === b.sessionFamilyId
@@ -119,6 +137,7 @@ type ConnectContext = Readonly<{server: NativeIdentityServer; hint?: NativeSignI
 export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 'fenceShell'> & Partial<NativeLifecycleDeps>): NativeLifecyclePorts {
   const deps: NativeLifecycleDeps = {...defaults(), ...overrides};
   let connected: NativeConnected | undefined, context: ConnectContext | undefined, drainAbort: AbortController | undefined;
+  let lent: ReturnType<typeof beginNativeInstallation> | undefined;
   // Writes the ports make themselves must not wake `observeRecords`: that is for other owners.
   let ownWrites = 0;
   const own = async <T>(work: () => Promise<T>): Promise<T> => {ownWrites++; try {return await work();} finally {ownWrites--;}};
@@ -129,7 +148,7 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
     if (!held) return;
     releaseQuietly('lifecycle route', () => held.api.getRouteConnection()?.dispose());
     releaseQuietly('lifecycle token', () => held.api.setAccessToken(''));
-    releaseQuietly('lifecycle installation', () => held.installation.dispose());
+    if (held.installation !== lent) releaseQuietly('lifecycle installation', () => held.installation.dispose());
   };
 
   const holding = (entry: AppServerSession, name: string): HeldSignIn => {
@@ -156,11 +175,12 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
   const connect = async (serverId: string, signal: AbortSignal): Promise<ConnectedFacts> => {
     releaseConnection(); context = undefined;
     const check = () => {if (signal.aborted) throw cancelled();};
-    const installation = deps.beginInstallation(signal);
+    const borrowed = lent, installation = borrowed ?? deps.beginInstallation(signal);
     let api: HttpLocalApi | undefined;
     try {
       check();
-      const {saved, connection, env} = await installation.prepare(); check();
+      const prepared = await installation.prepare(); check();
+      const {saved, connection, env} = prepared;
       if (!saved.viewer) throw cancelled();
       const original = saved.viewer;
       // E-mobile-01: routes to the retired `c-…` direct names can never answer; forget them once.
@@ -192,12 +212,12 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
       const held = profiles.find(value => value.id === restored.session.viewer.profileId);
       // The last-seen PIN state is a cache for offline openings; failing to save it never fails the connection.
       if (held) await own(() => deps.sessions.setProfilePinRequired(serverId, restored.session.sessionFamilyId, held.pinRequired)).catch(() => {});
-      connected = Object.freeze({serverId, api: restored.api, session: restored.session, installation});
+      connected = Object.freeze({serverId, api: restored.api, session: restored.session, installation, prepared, selected, server, account: snapshot, ...(hint ? {hint} : {})});
       return Object.freeze({profiles, rememberProfiles: snapshot.rememberProfiles === true});
     } catch (error) {
       releaseQuietly('lifecycle failed route', () => api?.getRouteConnection()?.dispose());
       releaseQuietly('lifecycle failed token', () => api?.setAccessToken(''));
-      releaseQuietly('lifecycle failed installation', () => installation.dispose());
+      if (!borrowed) releaseQuietly('lifecycle failed installation', () => installation.dispose());
       throw error;
     }
   };
@@ -297,6 +317,12 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
 
   return Object.freeze({
     connection: (serverId: string) => connected?.serverId === serverId ? connected : undefined,
+    lendInstallation(owner) {lent = owner;},
+    adopt(serverId: string) {
+      const held = connected?.serverId === serverId ? connected : undefined;
+      if (held) connected = undefined;
+      return held;
+    },
     releaseConnection,
     async readRecords(): Promise<RecordsRead> {
       let reset: boolean;

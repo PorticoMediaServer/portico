@@ -10,6 +10,7 @@ import * as secureRecords from '../src-next/platform/secure-records';
 import * as startupRecovery from '../src-next/shell/startup-recovery';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {restoredShellLifecycleStub} from './helpers/lifecycle-stub.mjs';
 
 type Deferred = {promise: Promise<undefined>; resolve: () => void};
 
@@ -17,7 +18,7 @@ function modules(state: {
   reads: () => unknown; hints: (listener: () => void) => () => void; restores: Deferred[]; deferred: boolean;
   failure?: unknown; onFallback?: () => void;
 }) {
-  return {
+  return {...restoredShellLifecycleStub(),
     './restore-trace': {restoreTrace: () => ({waiting: 'start', elapsedMs: 0, marks: []})}, './boot-timing': {logBootMilestone: () => {}}, '../platform/negotiation': {negotiationRefusal: () => undefined}, '../screens/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'},
     react: {...React, default: React},
     '../platform/share-links': {nativeShareLinks: {acquire: () => () => {}, subscribe: () => () => {}, getSnapshot: () => undefined, take: () => false}},
