@@ -325,6 +325,8 @@ func (h *ClaimHandler) runWebClaimWatch(parent context.Context, expected ClaimEx
 	}
 	var status ClaimStatus
 	recorded := false
+	delivery := h.trackDelivery(expected.OperationID)
+	defer delivery.running.Store(false)
 	apply := func() error {
 		return h.runner.Do(ctx, func(ctx context.Context) error {
 			ctx, e := guardedClaimRequest(ctx, h.store, guard)
@@ -366,7 +368,7 @@ func (h *ClaimHandler) runWebClaimWatch(parent context.Context, expected ClaimEx
 			return ErrUnavailable
 		})
 	}
-	e = retryWebApproval(ctx, apply)
+	e = retryWebApproval(ctx, apply, delivery.failed)
 	if e != nil {
 		if errors.Is(e, ErrOwnerCollision) || errors.Is(e, ErrClaimOwnerRequired) || errors.Is(e, ErrStale) || errors.Is(e, ErrApprovalRequired) {
 			withdraw()
@@ -413,7 +415,7 @@ func (h *ClaimHandler) approvedContinuation(ctx context.Context, want ClaimExpec
 // failures (a timeout, 5xx, a dropped connection): quickly at first (1, 2, 4, 8 s, honouring
 // Retry-After) for about two minutes, then every half minute until the claim request itself
 // expires. One slow Hosted response must never leave setup stuck. A refusal is final at once.
-func retryWebApproval(ctx context.Context, apply func() error) error {
+func retryWebApproval(ctx context.Context, apply func() error, failed func(next time.Time)) error {
 	started := time.Now()
 	for attempt := 0; ; attempt++ {
 		e := apply()
@@ -423,6 +425,9 @@ func retryWebApproval(ctx context.Context, apply func() error) error {
 		next := RetryAt(time.Now(), time.Second, attempt, 3, ControlRetryAt(e))
 		if time.Since(started) > webApprovalFastRetry {
 			next = RetryAt(time.Now(), webApprovalSlowRetry, 0, 0, ControlRetryAt(e))
+		}
+		if failed != nil {
+			failed(next)
 		}
 		log.Printf("Claim approval from the web is waiting for Portico Services, trying again in %s: %v", time.Until(next).Round(time.Second), e)
 		timer := time.NewTimer(time.Until(next))

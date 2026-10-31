@@ -165,6 +165,10 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 	if err != nil {
 		return err
 	}
+	err = apikit.RegisterRaw(registry, apikit.RawRoute[SetupRetryRequest, SetupStateResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneAuth, ID: "post_setup_retry", Method: "POST", Path: "/v1/setup/retry", Summary: "Try again to apply the Portico Account approval of this setup", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_state_changed", "setup_source_not_local", "internal"}}, Serve: d.serveSetupRetry})
+	if err != nil {
+		return err
+	}
 	// First run from the Portico app on a phone or tablet that found a server nobody has set up.
 	return apikit.Register(registry, apikit.Route[struct{}, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "start_app_setup", Method: "POST", Path: "/v1/setup/app", Summary: "Start first-run setup from an app", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_in_progress", "setup_source_not_local", "internal"}}, Handler: func(ctx context.Context, r *http.Request, _ struct{}) (BrowserSetupResponse, error) {
 		if !d.appSetupRequest(r) {

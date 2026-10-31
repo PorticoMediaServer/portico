@@ -286,3 +286,37 @@ func TestSetupAbandonAfterApprovalIsRefused(t *testing.T) {
 		t.Fatalf("approved setup after a refused Back: %d %s", code, body)
 	}
 }
+
+// Try again applies only to the caller's own setup whose delivery stopped; anything
+// else is refused without touching the claim.
+func TestSetupRetryRefusesWhatIsNotItsOwnExhaustedSetup(t *testing.T) {
+	h, id, _ := setupStateFixture(t)
+	ctx := context.Background()
+	token, err := id.BrowserSetupToken(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = id.SetupWithOptions(ctx, identity.SetupOptions{RequestID: setupStateRequest, SetupToken: token, Name: "Family server", AuthMode: "hosted"}, true); err != nil {
+		t.Fatal(err)
+	}
+	const self = "http://127.0.0.1:32500"
+	retry := map[string]any{"requestId": setupStateRequest, "revision": "1", "setupToken": token}
+	// Started, not exhausted: nothing to try again.
+	if w := setupPost(h, "/v1/setup/retry", self, "127.0.0.1:5000", retry); w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), `"setup_state_changed"`) {
+		t.Fatalf("retry while started: %d %s", w.Code, w.Body.String())
+	}
+	other := map[string]any{"requestId": setupStateRequest, "revision": "1", "setupToken": strings.Repeat("E", 43)}
+	if w := setupPost(h, "/v1/setup/retry", self, "127.0.0.1:5000", other); w.Code != http.StatusUnauthorized {
+		t.Fatalf("retry with another token: %d %s", w.Code, w.Body.String())
+	}
+	wrongRequest := map[string]any{"requestId": "55555555-5555-4555-8555-555555555555", "revision": "1", "setupToken": token}
+	if w := setupPost(h, "/v1/setup/retry", self, "127.0.0.1:5000", wrongRequest); w.Code != http.StatusUnauthorized {
+		t.Fatalf("retry naming another request: %d %s", w.Code, w.Body.String())
+	}
+	if w := setupPost(h, "/v1/setup/retry", "", "198.51.100.8:5000", retry); w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), `"setup_source_not_local"`) {
+		t.Fatalf("retry from a public source: %d %s", w.Code, w.Body.String())
+	}
+	if w := setupPost(h, "/v1/setup/retry", "https://web.getportico.tv", "127.0.0.1:5000", retry); w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden {
+		t.Fatalf("retry from another site: %d %s", w.Code, w.Body.String())
+	}
+}
