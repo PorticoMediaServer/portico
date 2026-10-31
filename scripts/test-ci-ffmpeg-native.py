@@ -7,6 +7,8 @@ import unittest
 from unittest.mock import patch
 import io
 import tarfile
+import os
+import subprocess
 
 spec = importlib.util.spec_from_file_location('native', Path(__file__).with_name('ci-ffmpeg-native.py'))
 n = importlib.util.module_from_spec(spec)
@@ -120,6 +122,27 @@ class TransferTests(unittest.TestCase):
             self.assertIn('--memory 4g', (root / 'build.sh').read_text())
             self.assertIn('--cpus 2 --memory 4g', (root / 'download.sh').read_text())
             self.assertNotIn('ffbuilder', (root / 'makeimage.sh').read_text())
+
+    def test_bootstrap_make_is_serial_but_compile_can_use_two_jobs(self):
+        # Bootstrap makefiles can omit ordering edges between cleanup and
+        # generated macros. Do not add parallelism to their plain `make` calls.
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            (root / 'makeimage.sh').write_text('max-parallelism = 4\nffbuilder --driver-opt network=host\n')
+            (root / 'build.sh').write_text('docker run --rm\n')
+            (root / 'Dockerfile').write_text('FROM base\n')
+            with patch.object(n.platform, 'system', return_value='Linux'), patch.dict(n.os.environ, {'GITHUB_ACTIONS':'true','RUNNER_ENVIRONMENT':'github-hosted','GITHUB_RUN_ID':'123'}):
+                n.prepare_recipe(root)
+            line = next(x for x in (root / 'Dockerfile').read_text().splitlines() if x.startswith('ENV '))
+            env = dict(os.environ)
+            env.update(token.split('=', 1) for token in line[4:].split())
+            env.pop('MFLAGS', None)
+            env.pop('MAKELEVEL', None)
+            (root / 'Makefile').write_text('all:\n\t@echo $(MAKEFLAGS)\n')
+            def flags(*args):
+                return subprocess.check_output(['make', '--no-print-directory', *args], cwd=root, env=env, text=True).split()
+            self.assertIn('-j1', flags())
+            self.assertIn('-j2', flags('-j2'))
 
 
 if __name__ == '__main__':

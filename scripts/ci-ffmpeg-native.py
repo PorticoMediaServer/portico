@@ -203,7 +203,10 @@ def prepare_recipe(recipe):
         text = re.sub(r'(?<![\w/"-])ninja(?=\s|$)', 'ninja -j2', text) if p.suffix == '.sh' else text
         text = re.sub(r'-j\s*[0-9]+', '-j2', text)
         if p.name == 'Dockerfile':
-            text = re.sub(r'(?m)^(FROM .+)$', r'\1\nENV MAKEFLAGS=-j2 CARGO_BUILD_JOBS=2 CMAKE_BUILD_PARALLEL_LEVEL=2 RAYON_NUM_THREADS=2', text)
+            # Plain make includes libiconv's order-sensitive autogen cleanup
+            # and macro generation. Keep that serial; explicit compile -j2
+            # above still overrides this default within the same job ceiling.
+            text = re.sub(r'(?m)^(FROM .+)$', r'\1\nENV MAKEFLAGS=-j1 CARGO_BUILD_JOBS=2 CMAKE_BUILD_PARALLEL_LEVEL=2 RAYON_NUM_THREADS=2', text)
         if p.name == 'download.sh':
             text = text.replace('docker run ', 'docker run --cpus 2 --memory 4g --memory-swap 4g ')
         p.write_text(text)
