@@ -31,6 +31,11 @@ Full corresponding source and licence review precedes accepting a pin; intake
 checks the known provenance inventory and exact hashes. Intake is not native
 engine or compiler qualification.
 
+Windows source inventory follows the generated target Dockerfile: every selected
+dependency recipe and its exact command-hash source snapshot must be present.
+The complete builder tree, including scripts disabled for that target, remains
+in corresponding source; disabled stages do not require unused source downloads.
+
 Local consumption uses a copy of the exact locked Actions ZIP, with no GitHub
 environment variables. From a dedicated worktree, with on-disk scratch:
 

@@ -176,10 +176,37 @@ def extract(archive, destination):
             path.chmod(0o755 if name.startswith('bundle/bin/') else 0o644)
 
 
+def verify_windows_sources(files, source_scripts, dockerfile):
+    selected = 0
+    for line in dockerfile.splitlines():
+        if not line.startswith('RUN '):
+            continue
+        scripts = re.findall(r'--mount=src=(scripts\.d/[^,\s]+),dst=/stage\.sh(?:\s|$)', line)
+        sources = re.findall(r'--mount=src=(\.cache/downloads/[^,\s]+),dst=/cache\.tar\.xz(?:\s|$)', line)
+        if ('--mount=src=scripts.d/' in line and len(scripts) != 1) or (sources and not scripts):
+            raise ValueError('unsupported Windows dependency source mount')
+        for script in scripts:
+            script = safe_name('recipe/' + script)
+            if script not in files:
+                raise ValueError('missing selected dependency recipe: ' + script)
+            if script not in source_scripts and not sources:
+                continue  # A selected setup-only stage does not download source.
+            if len(sources) != 1:
+                raise ValueError('missing selected dependency source mount: ' + script)
+            source = safe_name('recipe/' + sources[0])
+            expected = r'recipe/\.cache/downloads/' + re.escape(PurePosixPath(script).stem) + r'_[a-f0-9]{64}\.tar\.xz'
+            if not re.fullmatch(expected, source) or source not in files:
+                raise ValueError('missing exact dependency source snapshot: ' + source)
+            selected += 1
+    if not selected:
+        raise ValueError('missing Windows dependency source inventory')
+
+
 def verify_source(path, target):
     # Inventory only: corresponding source may contain ordinary internal
     # symlinks, but no escaping links, devices or unbounded expansion.
-    names, stages, total = set(), set(), 0
+    names, files, source_scripts, total = set(), set(), set(), 0
+    dockerfile = ''
     with tarfile.open(path) as archive:
         for member in archive:
             name = safe_name(member.name)
@@ -193,22 +220,29 @@ def verify_source(path, target):
                 safe_name(member.linkname)
             elif not (member.isfile() or member.isdir()):
                 raise ValueError('special corresponding-source member')
+            if member.isfile():
+                files.add(name)
+            if member.isfile() and name == 'recipe/Dockerfile':
+                if member.size > 2 * 1024**2:
+                    raise ValueError('oversized generated dependency graph')
+                dockerfile = archive.extractfile(member).read().decode('utf-8')
             if member.isfile() and name.startswith('recipe/scripts.d/') and name.endswith('.sh'):
                 if member.size > 1024**2:
                     raise ValueError('oversized dependency recipe')
                 if re.search(rb'^SCRIPT_REPO=', archive.extractfile(member).read(), re.M):
-                    stages.add(PurePosixPath(name).stem)
+                    source_scripts.add(name)
     required = {'provenance/contract/sources.lock.json', 'provenance/contract/build-source-authority.json',
                 'provenance/scripts/build-ffmpeg.sh', 'provenance/portico-disc/LICENSE',
                 'provenance/portico-disc/portico-disc.c'}
     if not required <= names or not any('/patches/' in name for name in names):
         raise ValueError('incomplete corresponding source provenance')
     if target.startswith('windows'):
-        if not {'recipe/build.sh', 'recipe/makeimage.sh'} <= names or not stages:
+        if not {'recipe/build.sh', 'recipe/makeimage.sh', 'recipe/Dockerfile'} <= files:
             raise ValueError('missing Windows dependency source inventory')
-        for stage in stages:
-            if not any(name.startswith('recipe/.cache/downloads/' + stage + '_') and name.endswith('.tar.xz') for name in names):
-                raise ValueError('missing dependency source snapshot: ' + stage)
+        # Keep the complete upstream recipe, including disabled target scripts.
+        # Corresponding source must cover every actual generated build mount,
+        # with the exact command-hash snapshot, rather than a filename prefix.
+        verify_windows_sources(files, source_scripts, dockerfile)
     elif ('recipe/build-ffmpeg' not in names or
           not any(name.startswith('recipe/packages/') and name.endswith(('.tar.gz', '.tar.xz', '.tar.bz2')) for name in names)):
         raise ValueError('missing Mac recipe/dependency sources')
