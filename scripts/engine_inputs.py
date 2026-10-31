@@ -5,6 +5,8 @@ import re
 import subprocess
 import json
 import runpy
+import os
+import stat
 
 CONFIGURE_SCRIPTS = ('build-engine.py', 'engine_inputs.py', 'engine-recipe-adapter.py',
     'configure-ffmpeg-recipe.py', 'configure-windows-libdovi.py',
@@ -54,9 +56,34 @@ def configure_scripts(root):
 
 def consumed_dockerfile(recipe, expected_sha):
     path = recipe / 'Dockerfile'
-    if path.is_symlink() or digest(path) != expected_sha:
+    if not re.fullmatch('[a-f0-9]{64}', expected_sha) or path.is_symlink():
         raise ValueError('Dockerfile changed after build graph generation')
-    return path
+    data = path.read_bytes()
+    if hashlib.sha256(data).hexdigest() != expected_sha:
+        raise ValueError('Dockerfile changed after build graph generation')
+    # Outside recipe/: freezing must not mutate the sealed recipe-tree input.
+    # Docker receives only these verified bytes, never the mutable generator path.
+    directory = recipe.parent / '.engine-inputs'
+    if directory.is_symlink():
+        raise ValueError('frozen Dockerfile directory must not be a symlink')
+    directory.mkdir(mode=0o700, exist_ok=True)
+    frozen = directory / ('Dockerfile.' + expected_sha)
+    try:
+        fd = os.open(frozen, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o444)
+    except FileExistsError:
+        pass
+    else:
+        try:
+            with os.fdopen(fd, 'wb') as stream:
+                stream.write(data)
+                os.fchmod(stream.fileno(), 0o444)
+        except BaseException:
+            frozen.unlink()
+            raise
+    mode = frozen.lstat().st_mode
+    if not stat.S_ISREG(mode) or stat.S_IMODE(mode) != 0o444 or digest(frozen) != expected_sha:
+        raise ValueError('frozen Dockerfile changed or is not a read-only regular file')
+    return frozen
 
 
 def verify_compiler_sources(root):

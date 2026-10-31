@@ -90,11 +90,16 @@ Independent dependency failures aggregate; failed prerequisites block their
 descendants. The final compile uses the pinned recipe's exact expanded payload
 inside that graph, with a fresh output export and unchanged GPLv3 configuration.
 
-The Dockerfile is hashed after final generation and that exact file is consumed
-and checked around every build. Assembly seals its captured hash, recipe tree,
+The Dockerfile is hashed after final generation, copied to a content-addressed
+read-only file outside the recipe tree, and re-hashed. Docker consumes that copy;
+both the original and copy are checked around every build. Assembly seals its
+captured hash, recipe tree,
 configure-script hashes, source archive and engine commit. Compiler runtime
 sources/notices come from the completed image used by the build and remain
 required on cache hits. Normalization preserves the existing source-build
 receipt in the manifest. Neither construction nor intake grants native engine,
 ABI, repeat-build, installer or release acceptance; run the existing native gates
 on matching hardware before proposing any accepted engine pin.
+
+Notice collection by filename is a convenience and is not an exhaustive legal
+inventory. The complete corresponding source ships alongside the collected texts.

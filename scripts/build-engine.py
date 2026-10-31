@@ -299,12 +299,12 @@ def main():
         dockerfile = recipe / 'Dockerfile'
         dockerfile.write_text(final_cache.stages(dockerfile.read_text(), os.getuid(), os.getgid(),
                                                 lock['sourceDateEpoch']))
-        graph = stages(dockerfile.read_text())
+        dockerfile_sha = digest(dockerfile)
+        graph = stages(inputs.consumed_dockerfile(recipe, dockerfile_sha).read_text())
         report['stages'] = {n: {'state': 'pending'} for n in graph}
         atomic(state / 'report.json', report)
         # Capture the file BuildKit actually consumes, after final generation.
         # No separately regenerated Dockerfile supplies the sealed receipt.
-        dockerfile_sha = digest(recipe / 'Dockerfile')
         recipe_sha = inputs.json_digest(inputs.recipe_tree(recipe))
         report.update(dockerfileSHA256=dockerfile_sha, recipeTreeSHA256=recipe_sha,
                       configureScripts=inputs.configure_scripts(ROOT))
