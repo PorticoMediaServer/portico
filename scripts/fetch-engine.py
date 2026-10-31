@@ -145,7 +145,9 @@ def extract(archive, destination):
             raise ValueError('too many artifact members')
         entries = []
         for member in members:
-            name = safe_name(member.filename if zipped else member.name)
+            # Windows ZipInfo normalizes backslashes (and truncates NULs) in
+            # filename. Validate the original central-directory name first.
+            name = safe_name(member.orig_filename if zipped else member.name)
             directory = member.is_dir() if zipped else member.isdir()
             size = member.file_size if zipped else member.size
             mode = (member.external_attr >> 16) & 0o170000 if zipped else 0
