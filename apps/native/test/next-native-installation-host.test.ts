@@ -6,6 +6,7 @@ const id = 'installation_fixture_01234567890123456789';
 async function fixture() {
   let identity: any, sessionReads = 0, factsReads = 0;
   let readSession = async () => ({installation: id}), reread = async () => id;
+  let fromSession: Promise<{installation: string}> | undefined;
   let facts = async () => ({deviceName: 'Fixture television', appVersion: '1.0'});
   const {react} = hooks();
   const module = await screenModule(new URL('../src-next/platform/installation-host.ts', import.meta.url), {
@@ -14,8 +15,14 @@ async function fixture() {
       installationIdentity: () => identity, setInstallationIdentity: (value: any) => {identity = Object.freeze({...value});},
       validInstallationId: (value: unknown) => typeof value === 'string' && value.length >= 32 && value.length <= 128 && /^[A-Za-z0-9_-]+$/.test(value),
     },
-    './session': {readNativeSession: () => {sessionReads++; return readSession();}, nativeSelectedConnectionEnvironment: () => ({storage: {read: async () => undefined}})},
-    './profile-trust': {profileInstallation: () => reread()},
+    // One session read: secure records first, then the installation it names (readNativeSession).
+    './secure-records': {prepareSecureRecords: () => {sessionReads++; fromSession = readSession(); return fromSession.then(() => false);}},
+    './profile-trust': {profileInstallation: () => {
+      const read = fromSession; fromSession = undefined;
+      return read ? read.then(value => value.installation) : reread();
+    }},
+    './app-session-storage': {readNativeSelectedViewer: async () => undefined},
+    './server-connections': {nativeSelectedConnectionEnvironment: () => ({storage: {read: async () => undefined}})},
   });
   const begin = module.createNativeInstallationHost({platform: () => 'vega', description: (raw: any) => ({name: raw.deviceName, appVersion: raw.appVersion})});
   return {begin, identity: () => identity, counts: () => ({sessionReads, factsReads}), setRead: (read: typeof readSession) => {readSession = read;}, setFacts: (read: typeof facts) => {facts = read;}, setReread: (read: typeof reread) => {reread = read;}};

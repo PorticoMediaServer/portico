@@ -1,7 +1,16 @@
 import {NativeModules} from 'react-native';
 import {installationIdentity, setInstallationIdentity, validInstallationId, type InstallationIdentity} from '../../../../packages/client-core/src/installation';
-import {readNativeSession, nativeSelectedConnectionEnvironment} from './session';
+import {nativeSelectedConnectionEnvironment} from './server-connections';
 import {profileInstallation} from './profile-trust';
+import {readNativeSelectedViewer} from './app-session-storage';
+import {prepareSecureRecords} from './secure-records';
+
+/** Prepare secure records before reading either installation metadata or a remembered viewer. */
+export async function readNativeSession() {
+  const recovered = await prepareSecureRecords();
+  const [installation, viewer] = await Promise.all([profileInstallation(), readNativeSelectedViewer()]);
+  return {recovered, installation, viewer};
+}
 
 const invalid = () => Object.assign(new Error('invalid_installation_metadata'), {code: 'invalid_installation_metadata'});
 const cancelled = () => Object.assign(new Error('native_installation_cancelled'), {name: 'AbortError'});

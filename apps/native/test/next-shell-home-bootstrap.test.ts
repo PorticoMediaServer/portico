@@ -5,7 +5,7 @@ import {HttpLocalApi, type LocalSession} from '../../../packages/client-core/src
 import {installationIdentity, setInstallationIdentity} from '../../../packages/client-core/src/installation.ts';
 import {deviceClassHeader} from '../../../packages/client-core/src/delivery.ts';
 import {routePath} from '../../../packages/contracts/src/routes.ts';
-import {nativeNetworkFetch} from '../src-next/platform/session.ts';
+import {nativeNetworkFetch} from '../src-next/platform/server-connections.ts';
 import {nativePlaybackSettings} from '../src-next/shell/playback-settings.ts';
 import {NativeShellBootstrapServices, nativeShellDirectViewer, nativeShellPermissionDenied} from '../src-next/shell/bootstrap-services.ts';
 import {createNativeShellAccountBinding} from '../src-next/shell/account-binding.ts';

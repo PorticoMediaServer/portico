@@ -21,7 +21,7 @@ import {ambientArtworkSource} from '../../../../packages/client-core/src/artwork
 import type {HttpLocalApi, LocalSession, Library} from '../../../../packages/client-core/src';
 import {beginRestoreTrace, markRestore} from './restore-trace';
 import {noteHomeRead} from './home-read-log';
-import {readNativeSelectedViewer, trackNativeConnection} from '../platform/session';
+import {trackNativeConnection} from '../platform/server-connections';
 import {NativeProfileGated, nativeProfileGated, type NativeConnected} from '../platform/session-lifecycle-native';
 import {nativeSessionLifecycle} from '../platform/native-session-lifecycle';
 import {beginNativeInstallation} from '../platform/installation';
@@ -31,7 +31,7 @@ import {NativeQueueStore} from '../platform/queue-storage';
 import {bindNativeDeviceSettings, nativeDeviceSettings} from '../platform/device-settings';
 import {bindNativeServerPreferences} from '../platform/server-preferences';
 import {rememberNativeServerDisplay} from '../platform/server-display';
-import {nativeAppSessions} from '../platform/app-session-storage';
+import {nativeAppSessions, readNativeSelectedViewer} from '../platform/app-session-storage';
 import {nativeSignInEnded, rememberNativeSignInHint, type NativeSignInHint, type NativeSignInEnded} from '../platform/sign-in-ended';
 import {nativeIdentityFailure, nativeRouteIdentityFailure, type NativeIdentityFailure, type NativeIdentityServer} from '../platform/identity-failure';
 import {profilePictureSource} from '../platform/profile-avatars';
