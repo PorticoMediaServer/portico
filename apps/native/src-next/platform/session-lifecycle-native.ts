@@ -27,8 +27,7 @@ import {drainRevocations, revokeInBackground} from './session-revocation';
 import {nativeSignInEnded, readNativeSignInHint, type NativeSignInEnded, type NativeSignInHint} from './sign-in-ended';
 import {purgeStaleRoutes} from './stale-routes';
 
-/** Queued sign-outs start this long after a restore, never during the reads that open Home
- * (E-mobile-01). Mirrors shell/bootstrap.ts REVOCATION_DRAIN_DELAY_MS, which C2b deletes with the rest. */
+/** Queued sign-outs start this long after a restore, never during the reads that open Home (E-mobile-01). */
 export const LIFECYCLE_REVOCATION_DRAIN_DELAY_MS = 10_000;
 
 /** Everything the native ports touch on the device. Defaults wire the real modules; tests hand in fakes. */
@@ -323,6 +322,17 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
     return facts!;
   };
 
+  const drainRevocations = (serverId: string) => {
+    const held = connected, live = held?.serverId === serverId ? held.api.getRouteConnection() : undefined;
+    if (!live) return;
+    drainAbort?.abort();
+    const controller = drainAbort = new AbortController();
+    // Never blocks: the drain starts after Home has had its turn, and a release or a new connection cancels it.
+    void wait(deps.drainDelayMs, {signal: controller.signal, ...(deps.scheduler ? {scheduler: deps.scheduler} : {})})
+      .then(() => {if (!controller.signal.aborted) return deps.drainRevocations(serverId, live);})
+      .catch(() => {});
+  };
+
   const afterEnding = async (): Promise<HeldRead> => {releaseConnection(); return readHeld();};
 
   return Object.freeze({
@@ -336,6 +346,8 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
     failure: (serverId: string) => failed?.serverId === serverId ? failed.error : undefined,
     async reconnect(serverId: string, signal: AbortSignal) {
       await connect(serverId, signal);
+      // Sessions this device replaced (the pick that came before) are ended once Home has had its turn.
+      drainRevocations(serverId);
       const held = connected?.serverId === serverId ? connected : undefined;
       if (held) connected = undefined;
       return held;
@@ -386,16 +398,7 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
       if (family) await own(() => deps.sessions.setRemembered(serverId, family, undefined));
     },
     fenceShell: () => deps.fenceShell(),
-    drainRevocations(serverId: string) {
-      const held = connected, live = held?.serverId === serverId ? held.api.getRouteConnection() : undefined;
-      if (!live) return;
-      drainAbort?.abort();
-      const controller = drainAbort = new AbortController();
-      // Never blocks: the drain starts after Home has had its turn, and a release or a new connection cancels it.
-      void wait(deps.drainDelayMs, {signal: controller.signal, ...(deps.scheduler ? {scheduler: deps.scheduler} : {})})
-        .then(() => {if (!controller.signal.aborted) return deps.drainRevocations(serverId, live);})
-        .catch(() => {});
-    },
+    drainRevocations,
     // Another owner's write (a new sign-in, a sign-out) makes the last connect's finding stale.
     observeRecords: (listener: () => void) => deps.subscribeRecords(() => {if (!ownWrites) {failed = undefined; listener();}}),
     log: (record: TransitionRecord) => {deps.note(`portico_session ${JSON.stringify({t: record.t, from: record.from, event: record.event, to: record.to, row: record.row, generation: record.generation})}`);},

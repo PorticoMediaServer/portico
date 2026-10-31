@@ -18,10 +18,13 @@ test('E-mobile-01: a finished pick always restarts the live root and logs the ha
 
 test('every restore step before Home is traced, and queued sign-outs wait until after it', () => {
   const bootstrap = source('shell/bootstrap.ts');
-  for (const step of ['installation', 'sessions', 'selected', 'server-name', 'sign-in-hint', 'connection', 'viewer', 'mutations', 'first-reads', 'settings', 'bindings', 'publish'])
+  // The connection itself is the session lifecycle's (C2b): one step here, its own reads in the ports.
+  for (const step of ['installation', 'connection', 'mutations', 'first-reads', 'settings', 'bindings', 'publish'])
     assert.match(bootstrap, new RegExp(`markRestore\\('${step}'\\)`), step);
-  assert.doesNotMatch(bootstrap, /if \(liveRoute\) void drainRevocations/);
-  assert.match(bootstrap, /setTimeout\(\(\) => \{if \(!signal\.signal\.aborted\) void drainRevocations\(/);
+  // Queued sign-outs are the lifecycle's: they start after a delay, on the route it opened.
+  const ports = source('platform/session-lifecycle-native.ts');
+  assert.match(ports, /void wait\(deps\.drainDelayMs, /);
+  assert.match(ports, /await connect\(serverId, signal\);\n\s+\/\/ .*\n\s+drainRevocations\(serverId\);/);
   assert.match(source('platform/installation-host.ts'), /if \(!valid && !invalidWarned && !disposed && !signal\?\.aborted\) \{/);
 });
 
