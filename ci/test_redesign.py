@@ -60,10 +60,14 @@ class BatchExecution(unittest.TestCase):
             (root/'ci-tools/portico-server').touch()
             events=[{'Package':p,'Test':'TestA','Action':'pass'} for p in ['a','b']]+[{'Package':p,'Action':'pass'} for p in ['a','b']]
             result=SimpleNamespace(stdout='\n'.join(map(json.dumps,events)),stderr='go: downloading example dependency',returncode=0)
-            with patch('run.ROOT',root),patch('run.validate_tags'),patch('run.subprocess.run',return_value=result) as run:
+            with patch('run.ROOT',root),patch('run.validate_tags'),patch.dict('os.environ',{'PORTICO_CI_GO_PACKAGE_JOBS':'4'}),patch('run.subprocess.run',return_value=result) as run:
                 go(plan,0)
                 args=run.call_args.args[0]
                 self.assertNotIn('-run',args);self.assertIn('-p=4',args)
                 self.assertEqual(args[-2:],['a','b'])
+                with patch.dict('os.environ',{'PORTICO_CI_GO_PACKAGE_JOBS':'1'}):
+                    go(plan,0)
+                    self.assertIn('-p=1',run.call_args.args[0])
+                    self.assertEqual(run.call_args.args[0][-2:],['a','b'])
                 result.returncode=1
                 with self.assertRaises(SystemExit): go(plan,0)

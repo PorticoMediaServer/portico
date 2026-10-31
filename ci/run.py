@@ -55,7 +55,9 @@ def go(plan,index):
     allowed=policy(json.loads((ROOT/'ci/quarantine.json').read_text())); blocked=False
     out=ROOT/'ci-results'; out.mkdir(exist_ok=True)
     for module, groups, whole in batches(plan, selected):
-        args=['go','test','-json','-count=1','-p=4','-timeout=780s','-tags',plan['tags']]
+        workers=os.environ.get('PORTICO_CI_GO_PACKAGE_JOBS','4')
+        if workers not in ('1','2','4'): raise ValueError('invalid Go package worker budget')
+        args=['go','test','-json','-count=1','-p='+workers,'-timeout=780s','-tags',plan['tags']]
         if plan.get('tier')=='short': args+=['-short']
         if not whole: args+=['-run','^(?:'+'|'.join(re.escape(t['name']) for t in groups[0][1])+')$']
         args += [package for package,tests in groups]

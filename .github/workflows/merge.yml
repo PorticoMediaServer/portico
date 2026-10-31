@@ -54,6 +54,7 @@ jobs:
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
           go-version-file: server/go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
           cache-dependency-path: |
             server/go.sum
             apikit/go.sum
@@ -108,6 +109,7 @@ jobs:
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
           go-version-file: server/go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
           cache-dependency-path: '**/go.sum'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
