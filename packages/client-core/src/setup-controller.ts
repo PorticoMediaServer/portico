@@ -72,6 +72,8 @@ export type SetupControllerOptions = Readonly<{
 export interface SetupController {
   /** Frozen; the same object until the view changes. */
   getSnapshot(): SetupView;
+  /** A person's action is running (a submit, Back, Try again, adding the library); listeners hear when it changes. */
+  busy(): boolean;
   subscribe(listener: () => void): () => void;
   /** Pair, read the local record and the server, and land where the reducer's reconcile rows say. */
   start(): void;
@@ -130,10 +132,11 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
   let readWait: AbortController | undefined, readDueAt: number | undefined, readDeferred = false;
   const listeners = new Set<() => void>();
 
+  const notify = () => {for (const listener of [...listeners]) releaseQuietly('setup listener', listener);};
   const setView = (next: SetupView) => {
     if (next === view || JSON.stringify(next) === JSON.stringify(view)) return;
     view = deepFreeze(next);
-    for (const listener of [...listeners]) releaseQuietly('setup listener', listener);
+    notify();
   };
   /** One reducer step. Credentials live only while a start or its Try again can still need them. */
   const apply = (input: SetupInput): readonly SetupEffect[] => {
@@ -292,6 +295,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
     });
     lane.action.subscribe(() => {
       const {phase} = lane.action.getSnapshot();
+      if (lane === user) notify();
       if (phase === 'unconfirmed') unconfirmed(lane);
       if (lane === system && phase !== 'working' && readDeferred) {readDeferred = false; fireRead();}
     });
@@ -317,6 +321,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
 
   const controller: SetupController = {
     getSnapshot: () => view,
+    busy: () => !disposed && working(user),
     subscribe(listener: () => void) {
       if (disposed) return () => {};
       listeners.add(listener);

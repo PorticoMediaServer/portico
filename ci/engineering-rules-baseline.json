@@ -68,7 +68,6 @@
   "apps/native/src-next/platform/setup-claim.ts": 1,
   "apps/native/src-next/shell/remembered-downloads-device.ts": 2,
   "packages/client-core/src/server-connections.ts": 5,
-  "web/src/platform/setup-composition.ts": 1,
   "web/src/screens/settings/local-owner-transfer.ts": 1,
   "web/src/screens/setup/browser-setup.ts": 1
  },
