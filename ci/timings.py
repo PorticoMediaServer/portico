@@ -22,6 +22,34 @@ def api(path):
     return json.loads(subprocess.check_output(['gh', 'api', path], text=True, timeout=90))
 
 
+def parse_runner_log(raw):
+    raw=re.sub(r'\x1b\[[0-9;]*m','',raw)
+    hardware=re.search(r'(?:^|\s)runner: (\d+) cpu, (\d+) GiB(?:\s|$)',raw)
+    # Provisioner metadata lives in the header. Do not attribute a test's
+    # later application log line to the hosted runner.
+    header='\n'.join(raw.splitlines()[:120])
+    fields={name:re.search(r'(?:^|\s)'+name+r': ([A-Za-z0-9][A-Za-z0-9 ._()/:-]{0,99})$',header,re.M)
+            for name in ('Cloud','Region')}
+    return {'cores':int(hardware[1]) if hardware else None,
+            'memory_gib':int(hardware[2]) if hardware else None,
+            'cloud':fields['Cloud'][1].strip() if fields['Cloud'] else None,
+            'region':fields['Region'][1].strip() if fields['Region'] else None}
+
+
+def runner_evidence(repo,job):
+    empty={'cores':None,'memory_gib':None,'cloud':None,'region':None}
+    if not started(job): return dict(empty,log_status='not_started')
+    try:
+        result=subprocess.run(['gh','api',f"repos/{repo}/actions/jobs/{job['id']}/logs"],
+                              capture_output=True,text=True,timeout=30)
+    except subprocess.TimeoutExpired:
+        return dict(empty,log_status='unavailable_timeout')
+    if result.returncode:
+        code=re.search(r'HTTP (\d{3})',result.stderr)
+        return dict(empty,log_status='unavailable'+('_'+code[1] if code else ''))
+    return dict(parse_runner_log(result.stdout),log_status='available')
+
+
 def pages(path, key, fetch=api):
     result = []
     for page in range(1, 1001):
@@ -142,24 +170,37 @@ def concurrency_timeline(jobs, until):
     return rows
 
 
-def capacity_snapshot(repo, fetch=api):
+def capacity_snapshot(repo, fetch=api, logs=runner_evidence, cache=None):
     observed_from = datetime.now(timezone.utc).isoformat()
+    cache={} if cache is None else cache
     runs = {}
     for status in ('queued', 'in_progress', 'waiting', 'pending', 'requested'):
         for run in pages(f'repos/{repo}/actions/runs?status={status}', 'workflow_runs', fetch):
             runs[run['id']] = run
-    jobs = {}
+    jobs = {}; originals = {}
     for run in runs.values():
         for job in pages(f"repos/{repo}/actions/runs/{run['id']}/attempts/{run.get('run_attempt', 1)}/jobs", 'jobs', fetch):
-            if job['status'] != 'completed':
-                jobs[job['id']] = {'id': job['id'], 'run_id': run['id'], 'name': job['name'],
-                                  'status': job['status'], 'created_at': job.get('created_at'),
-                                  'started_at': started(job).isoformat() if started(job) else None,
-                                  'labels': job.get('labels', []), 'runner_name': job.get('runner_name')}
-    statuses = Counter(j['status'] for j in jobs.values())
+            originals[job['id']]=job
+            jobs[job['id']] = {'id': job['id'], 'run_id': run['id'], 'name': job['name'],
+                               'status': job['status'], 'created_at': job.get('created_at'),
+                               'started_at': started(job).isoformat() if started(job) else None,
+                               'labels': job.get('labels', []), 'runner_name': job.get('runner_name')}
+    statuses = Counter(j['status'] for j in jobs.values() if j['status']!='completed')
+    observed_until=datetime.now(timezone.utc).isoformat()
+    for job in jobs.values():
+        # Log downloads occur after the job-count observation.
+        if not job['started_at']:
+            evidence={'cores':None,'memory_gib':None,'cloud':None,'region':None,'log_status':'not_started'}
+        else:
+            evidence=cache.get(job['id'])
+            if evidence is None or evidence.get('log_status')!='available' or (job['status']!='completed' and evidence.get('cores') is None):
+                evidence=logs(repo,originals[job['id']])
+                if evidence['log_status']=='available': cache[job['id']]=evidence
+        job['runner']=evidence
     return {'repository': repo, 'observed_from': observed_from,
-            'observed_until': datetime.now(timezone.utc).isoformat(),
-            'scope': 'All nonterminal jobs found in active repository workflow runs; sequential API observation, not an atomic or organization-wide snapshot.',
+            'observed_until': observed_until,
+            'logs_observed_until': datetime.now(timezone.utc).isoformat(),
+            'scope': 'Counts cover nonterminal jobs in active repository workflows. Job records also retain completed siblings for available runner evidence. Sequential API observation, not atomic or organization-wide.',
             'in_progress': statuses['in_progress'],
             'queued': sum(n for state, n in statuses.items() if state != 'in_progress'),
             'statuses': dict(statuses), 'jobs': list(jobs.values())}
@@ -181,9 +222,11 @@ def display(data):
     for run in data['runs']:
         print(f"\n{run['url']} attempt {run['attempt']} {run['event']} {run['status']}/{run['conclusion']}")
         print(f"wall={run['wall_seconds']}s runner-minutes={run['runner_minutes']} latest gate dependency={run['latest_gate_dependency']}")
-        print('job | status | queue seconds | run seconds')
+        print('job | status | queue seconds | run seconds | cpu | GiB | cloud | region | logs')
         for job in run['jobs']:
-            print(f"{job['name']} | {job['status']}/{job['conclusion']} | {job['queue_seconds']} | {job['run_seconds']}")
+            runner=job.get('runner',{})
+            print(f"{job['name']} | {job['status']}/{job['conclusion']} | {job['queue_seconds']} | {job['run_seconds']} | "
+                  f"{runner.get('cores')} | {runner.get('memory_gib')} | {runner.get('cloud')} | {runner.get('region')} | {runner.get('log_status')}")
     if data.get('capacity'):
         sample = data['capacity']
         print(f"\nRepository capacity observed {sample['observed_from']} to {sample['observed_until']}: "
@@ -217,16 +260,31 @@ def main():
     for run_id in args.runs:
         run = api(f'repos/{args.repo}/actions/runs/{run_id}')
         runs[run['id']] = run
-    reports, all_jobs = [], []
+    reports, all_jobs, log_cache = [], [], {}
+    # Reuse final completed-job metadata from earlier snapshots; retry running
+    # jobs so a newly emitted hardware line is not hidden by an old header.
+    if args.snapshot and args.snapshot.exists():
+        for line in args.snapshot.read_text().splitlines():
+            prior=json.loads(line)
+            if prior.get('repository')!=args.repo: continue
+            for job in prior.get('jobs',[]):
+                evidence=job.get('runner',{})
+                if job['status']=='completed' and evidence.get('log_status')=='available':
+                    log_cache[job['id']]=evidence
     for run in sorted(runs.values(), key=lambda r: r['id']):
         jobs = pages(f"repos/{args.repo}/actions/runs/{run['id']}/attempts/{run.get('run_attempt', 1)}/jobs", 'jobs')
         all_jobs.extend(jobs)
-        reports.append(summarize(run, jobs))
+        report=summarize(run,jobs)
+        for original,row in zip(jobs,report['jobs']):
+            evidence=log_cache.get(original['id']) or runner_evidence(args.repo,original)
+            row['runner']=evidence
+            if evidence['log_status']=='available': log_cache[original['id']]=evidence
+        reports.append(report)
     data = {'repository': args.repo, 'observed_at': datetime.now(timezone.utc).isoformat(),
             'events': event_stats(reports), 'runs': reports,
             'selected_run_concurrency': concurrency_timeline(all_jobs, datetime.now(timezone.utc))}
     if args.snapshot:
-        sample = capacity_snapshot(args.repo)
+        sample = capacity_snapshot(args.repo,cache=log_cache)
         args.snapshot.parent.mkdir(parents=True, exist_ok=True)
         with args.snapshot.open('a') as stream:
             stream.write(json.dumps(sample, sort_keys=True) + '\n')
