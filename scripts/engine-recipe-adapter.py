@@ -62,6 +62,27 @@ def libva_diagnostics(text):
     return meson_diagnostics(text, 'meson "${myconf[@]}" ..', 'libva')
 
 
+def meson_wine_runtime(text):
+    if not re.search(r'(?m)^[ \t]+(?:if )?meson[ \t]', text):
+        return text
+    marker = 'ffbuild_dockerbuild() {\n'
+    if text.count(marker) != 1:
+        raise ValueError('pinned Meson build-function boundary changed')
+    # Debian Wine 10's TMPDIR fallback can free an environment pointer when
+    # /run/user/<uid> is absent (Debian #1110936). Supply its normal private
+    # runtime directory; retain TMPDIR, Wine and Meson's executable checks.
+    return text.replace(marker, marker + '''    if [[ "$TARGET" == win* ]]; then
+        local portico_wine_runtime="/run/user/$(id -u)"
+        if [[ -L "$portico_wine_runtime" ]]; then
+            printf '%s\\n' 'Wine runtime directory must not be a symlink' >&2
+            return 1
+        fi
+        install -d -m 0700 "$portico_wine_runtime" || return $?
+        [[ $(stat -c %u "$portico_wine_runtime") == "$(id -u)" ]] || return 1
+    fi
+''')
+
+
 def prepare_recipe(recipe, owner):
     # Task-local generated recipe only. Hard limits include dependency pools,
     # not just FFmpeg's final make invocation. No personal Docker state touched.
@@ -118,4 +139,6 @@ def prepare_recipe(recipe, owner):
     ]:
         p = recipe / 'scripts.d' / relative
         p.write_text(meson_diagnostics(p.read_text(), command, label))
+    for p in recipe.glob('scripts.d/**/*.sh'):
+        p.write_text(meson_wine_runtime(p.read_text()))
     compiler_custody(recipe)
