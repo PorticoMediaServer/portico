@@ -3,10 +3,12 @@
 from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 import io
+import hashlib
 import json
 from contextlib import redirect_stdout
 from pathlib import Path, PureWindowsPath
 import runpy
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -18,6 +20,24 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 M = runpy.run_path(str(ROOT / 'scripts/fetch-engine.py'))
 PLAN = runpy.run_path(str(ROOT / 'scripts/plan-packaging.py'))
+
+
+def source_receipt(path):
+    tree, scripts, dockerfile_sha = {}, {}, None
+    with tarfile.open(path) as archive:
+        for member in archive:
+            if not member.isfile():
+                continue
+            sha = hashlib.sha256(archive.extractfile(member).read()).hexdigest()
+            if member.name.startswith('recipe/'):
+                tree[member.name.removeprefix('recipe/')] = {'kind': 'file', 'sha256': sha, 'mode': member.mode & 0o777}
+            if member.name in M['WINDOWS_CONFIGURE_SCRIPTS']:
+                scripts[member.name] = sha
+            if member.name == 'recipe/Dockerfile':
+                dockerfile_sha = sha
+    return {'schemaVersion': 1, 'release': False, 'target': 'windows-x64', 'engineSourceSHA': '1' * 40,
+        'recipeTreeSHA256': M['json_digest'](tree), 'configureScripts': scripts,
+        'dockerfileSHA256': dockerfile_sha, 'sourceArchiveSHA256': M['digest'](path)}
 
 
 def fixture(root):
@@ -36,15 +56,22 @@ def fixture(root):
                      'provenance/scripts/build-ffmpeg.sh', 'provenance/portico-disc/LICENSE',
                      'provenance/portico-disc/portico-disc.c', 'provenance/contract/patches/fixture.patch',
                      'recipe/build.sh', 'recipe/makeimage.sh', 'recipe/scripts.d/10-library.sh',
-                     'recipe/.cache/downloads/10-library_' + 'a' * 64 + '.tar.xz', 'recipe/Dockerfile'):
+                     'recipe/.cache/downloads/10-library_' + 'a' * 64 + '.tar.xz', 'recipe/Dockerfile',
+                     'recipe/scripts.d/20-required.sh',
+                     'recipe/.cache/downloads/20-required_' + 'b' * 64 + '.tar.xz',
+                     *sorted(M['WINDOWS_CONFIGURE_SCRIPTS'])):
             data = b'SCRIPT_REPO=fixture\n'
             if name == 'recipe/Dockerfile':
                 data = ('FROM compiler AS base-layer\nRUN --mount=src=scripts.d/10-library.sh,dst=/stage.sh '
                         '--mount=src=.cache/downloads/10-library_' + 'a' * 64 +
+                        '.tar.xz,dst=/cache.tar.xz run_stage /stage.sh\n'
+                        'RUN --mount=src=scripts.d/20-required.sh,dst=/stage.sh '
+                        '--mount=src=.cache/downloads/20-required_' + 'b' * 64 +
                         '.tar.xz,dst=/cache.tar.xz run_stage /stage.sh\n').encode()
             info = tarfile.TarInfo(name)
             info.size = len(data)
             archive.addfile(info, io.BytesIO(data))
+    (bundle / 'source-build-receipt.json').write_text(json.dumps(source_receipt(bundle / 'corresponding-source.tar.xz')))
     files = {p.relative_to(bundle).as_posix(): M['digest'](p) for p in bundle.rglob('*') if p.is_file()}
     (bundle / 'toolchain-manifest.json').write_text(json.dumps({'schemaVersion': 1, 'licenseMode': 'gpl3',
                                                              'target': 'windows-x64', 'files': files}))
@@ -220,7 +247,7 @@ class EngineIntake(unittest.TestCase):
                     info = tarfile.TarInfo(name)
                     info.size = len(data)
                     archive.addfile(info, io.BytesIO(data))
-            M['verify_source'](path, 'windows-x64')
+            M['verify_source'](path, 'windows-x64', source_receipt(path))
         verify(entries)
         exact = 'recipe/.cache/downloads/10-library_' + 'a' * 64 + '.tar.xz'
         wrong = dict(entries)
@@ -239,6 +266,43 @@ class EngineIntake(unittest.TestCase):
         missing_mount['recipe/Dockerfile'] = b'RUN --mount=src=scripts.d/10-library.sh,dst=/stage.sh build\n'
         with self.assertRaisesRegex(ValueError, 'missing selected dependency source mount'):
             verify(missing_mount)
+
+    def test_removing_an_enabled_stage_and_its_source_cannot_rewrite_sealed_build_history(self):
+        original = self.root / 'input/bundle/corresponding-source.tar.xz'
+        receipt = source_receipt(original)
+        with tarfile.open(original) as archive:
+            entries = {m.name: archive.extractfile(m).read() for m in archive if m.isfile()}
+        removed = 'recipe/.cache/downloads/20-required_' + 'b' * 64 + '.tar.xz'
+        entries.pop(removed)
+        entries['recipe/Dockerfile'] = b'\n'.join(line for line in entries['recipe/Dockerfile'].split(b'\n')
+                                               if b'20-required' not in line)
+        # One real-looking stage remains, so the unsealed selected-mount rule
+        # alone accepts this graph. The manifest-sealed build receipt must not.
+        M['verify_windows_sources'](set(entries), {'recipe/scripts.d/10-library.sh',
+            'recipe/scripts.d/20-required.sh'}, entries['recipe/Dockerfile'].decode())
+        changed = self.root / 'omitted-source.tar.xz'
+        with tarfile.open(changed, 'w:xz') as archive:
+            for name, data in entries.items():
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                archive.addfile(info, io.BytesIO(data))
+        with self.assertRaisesRegex(ValueError, 'sealed source build receipt'):
+            M['verify_source'](changed, 'windows-x64', receipt)
+        # Updating a receipt too cannot preserve the external manifest pin.
+        bundle = self.root / 'input/bundle'
+        (bundle / 'source-build-receipt.json').write_text(json.dumps(source_receipt(changed)))
+        with self.assertRaises(subprocess.CalledProcessError):
+            M['verify_bundle'](self.root / 'input', self.pin)
+
+    def test_all_sealed_source_receipt_bindings_are_required(self):
+        source = self.root / 'input/bundle/corresponding-source.tar.xz'
+        proof = source_receipt(source)
+        for field, value in [('recipeTreeSHA256', '0' * 64), ('dockerfileSHA256', '0' * 64),
+                             ('configureScripts', {}), ('sourceArchiveSHA256', '0' * 64)]:
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'sealed source build receipt'):
+                M['verify_source'](source, 'windows-x64', dict(proof, **{field: value}))
+        with self.assertRaisesRegex(ValueError, 'sealed source build receipt'):
+            M['verify_source'](source, 'windows-x64')
 
     def test_no_engine_means_explicit_block_and_no_native_jobs(self):
         actual = json.loads((ROOT / 'third_party/ffmpeg/artifacts.lock.json').read_text())
