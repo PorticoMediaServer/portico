@@ -64,6 +64,24 @@ case "$TARGET" in
   for patch in homebridge-sourceforge-download.patch homebridge-gpl-only.patch homebridge-arm64-vpx.patch homebridge-private-python.patch homebridge-zix-build.patch homebridge-private-pkgconfig.patch; do
     if git -C "$WORK/recipe" apply --check "$ROOT/third_party/ffmpeg/patches/$patch"; then git -C "$WORK/recipe" apply "$ROOT/third_party/ffmpeg/patches/$patch"; else git -C "$WORK/recipe" apply --reverse --check "$ROOT/third_party/ffmpeg/patches/$patch"; fi
   done
+  # Reviewed PIC assembly for Intel's position-independent Nettle link. This
+  # patch is deliberately absent from the ARM recipe, including its flags.
+  if [[ "$TARGET" == macos-x64 ]]; then
+    python3 - "$ROOT/third_party/ffmpeg/sources.lock.json" "$ROOT" <<'PYGMPPATCH'
+import hashlib,json,pathlib,sys
+entry=json.load(open(sys.argv[1]))['macosRecipe']['intelGmpPicPatch']
+path=pathlib.Path(sys.argv[2])/entry['path']
+if (entry['target']!='macos-x64' or entry['path']!='third_party/ffmpeg/patches/homebridge-intel-gmp-pic.patch' or
+        path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest()!=entry['sha256']):
+    raise SystemExit('Checked Intel GMP PIC patch changed')
+PYGMPPATCH
+    gmp_patch="$ROOT/third_party/ffmpeg/patches/homebridge-intel-gmp-pic.patch"
+    if git -C "$WORK/recipe" apply --check "$gmp_patch"; then
+      git -C "$WORK/recipe" apply "$gmp_patch"
+    else
+      git -C "$WORK/recipe" apply --reverse --check "$gmp_patch"
+    fi
+  fi
   # Build tools and downloads are private to this job; never upgrade system Python.
   python3 -m venv "$WORK/python"
   "$WORK/python/bin/pip" install --disable-pip-version-check 'meson==1.7.0' 'ninja==1.11.1.4' 'setuptools==75.8.0'
