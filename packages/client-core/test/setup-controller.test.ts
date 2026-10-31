@@ -9,6 +9,7 @@ import {ApiError} from '../src/index.ts';
 
 const WALL = Date.parse('2026-10-31T00:00:00Z');
 const SECRET = 'hunter2-secret';
+const LIBRARY = {kind: 'movie', name: 'Films', path: '/media/films'};
 
 const record = (requestId = 'r1', authMode: SetupRecord['authMode'] = 'hosted'): SetupRecord =>
   ({version: 2, serverId: 's1', requestId, setupToken: 'token-1', tokenAt: 1, name: 'Den', authMode});
@@ -102,9 +103,10 @@ test('polling carries a hosted setup from waiting through the exchange to the li
   assert.deepEqual(t.calls.map(c => c.name), ['readState', 'readState', 'exchange', 'adoptOwner']);
   assert.equal(t.kind(), 'library');
   assert.deepEqual(t.store.peek(), {}, 'the record and the attempt are gone');
-  t.controller.addLibrary();
+  t.controller.addLibrary(LIBRARY);
   await t.settle();
   assert.equal(t.count('addLibrary'), 1);
+  assert.deepEqual(t.calls.find(c => c.name === 'addLibrary')!.args[0], LIBRARY, 'the library as entered goes to the port');
   assert.equal(t.kind(), 'done');
 });
 
@@ -506,7 +508,7 @@ test('a failed add-library is shown, and Try again repeats it under the same int
   await t.settle();
   t.controller.submitLocal('Den', 'alice', SECRET);
   await t.settle();
-  t.controller.addLibrary();
+  t.controller.addLibrary(LIBRARY);
   await t.settle();
   assert.equal(t.kind(), 'failed');
   t.controller.retry();
