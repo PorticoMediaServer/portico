@@ -94,6 +94,8 @@ def qualify(work, evidence, context):
                                           'scripts', 'third_party/ffmpeg'], cwd=ROOT, text=True)
         if changed:
             raise ValueError('commit source inputs before native qualification')
+        run('tools', ['bash', '-c', 'uname -a; sw_vers; xcodebuild -version; xcrun --find clang; '
+                     'clang --version; make --version; xcrun --find libtool; df -h'])
         run('authority', [sys.executable, ROOT / 'scripts/check-ffmpeg-build-inputs.py'])
         lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())['macosRecipe']
         recipe = work / 'recipe'
@@ -137,6 +139,9 @@ def qualify(work, evidence, context):
                    staticGmpSHA256=digest(work / 'workspace/lib/libgmp.a'),
                    nettleToolSHA256=digest(tool),
                    sourceArchives={p.name: digest(p) for p in (work / 'packages').glob('*.tar.*')})
+        if digest(script) != ctx['probeSHA256']:
+            ctx['passed'] = False
+            raise ValueError('GMP probe script changed while being executed')
     except Exception as error:
         ctx['failure'] = str(error)
         raise
