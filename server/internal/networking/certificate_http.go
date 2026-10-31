@@ -146,7 +146,7 @@ func (t *HTTPTransport) certificateCall(ctx context.Context, v Intent, operation
 		_ = json.Unmarshal(body, &fault)
 		return &certificateHTTPError{Status: response.StatusCode, Code: safeCertificateCode(fault.Error.Code), RetryAt: certificateRetryAt(response.Header.Get("Retry-After"))}
 	}
-	return decodeClaimJSON(body, out)
+	return decodeHostedResponse(body, out)
 }
 func sameCertificateOrder(q certificateState, mat certificateMaterial, o certificateOrder) bool {
 	v := q.Scope.Intent
