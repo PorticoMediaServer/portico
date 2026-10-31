@@ -459,12 +459,22 @@
       "third_party/ffmpeg/patches/homebridge-private-pkgconfig.patch",
       "third_party/ffmpeg/patches/homebridge-private-python.patch",
       "third_party/ffmpeg/patches/homebridge-sourceforge-download.patch",
-      "third_party/ffmpeg/patches/homebridge-zix-build.patch"
+      "third_party/ffmpeg/patches/homebridge-zix-build.patch",
+      "third_party/ffmpeg/patches/homebridge-intel-gmp-pic.patch"
     ],
     "pythonBuildTools": {
       "meson": "1.7.0",
       "ninja": "1.11.1.4",
       "setuptools": "75.8.0"
+    },
+    "intelGmpPicPatch": {
+      "path": "third_party/ffmpeg/patches/homebridge-intel-gmp-pic.patch",
+      "sha256": "52c14a17152ddf06a1658468f5d1d7cee8e277fc56effaf6696b012470b86775",
+      "target": "macos-x64",
+      "requiredChecks": [
+        "gmp-make-check",
+        "nettle-pkcs1-conv-link"
+      ]
     }
   },
   "requiredConfigure": [
