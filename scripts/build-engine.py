@@ -194,9 +194,11 @@ def main():
     images = []
     env = dict(os.environ, TMPDIR=str(scratch), PORTICO_BUILD_JOBS='2', MAKEFLAGS='-j1',
                NUMJOBS='2', CARGO_BUILD_JOBS='2', CMAKE_BUILD_PARALLEL_LEVEL='2', RAYON_NUM_THREADS='2')
-    def run(name, command, cwd=ROOT):
+    def run(name, command, cwd=ROOT, command_env=None):
         with (state / (name + '.log')).open('w') as log:
-            code = subprocess.call([str(x) for x in command], cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT)
+            code = subprocess.call([str(x) for x in command], cwd=cwd,
+                                   env=env if command_env is None else command_env,
+                                   stdout=log, stderr=subprocess.STDOUT)
         if code:
             raise RuntimeError(f'{name} exit {code}; see {state / (name + ".log")}')
     def telemetry(label):
@@ -248,8 +250,9 @@ def main():
         # buildx docker-container needs an explicit OCI context for local images.
         base_oci = scratch / 'base-oci'
         run('base-export', common + ['--output', 'type=oci,tar=false,dest=' + str(base_oci), 'images/base'], recipe)
+        compiler_env = dict(env, SOURCE_DATE_EPOCH=str(lock['sourceDateEpoch']))
         run('compiler', common + ['--load', '-t', compiler, '--build-arg', 'GH_REPO=local/' + owner + '/engine',
-            '--build-context', base + '=oci-layout://' + str(base_oci), 'images/base-win64'], recipe)
+            '--build-context', base + '=oci-layout://' + str(base_oci), 'images/base-win64'], recipe, compiler_env)
         compiler_id = subprocess.check_output(['docker', 'image', 'inspect', '-f', '{{.Id}}', compiler], text=True).strip()
         # Export from the completed, exact image, never from BuildKit's private
         # executor filesystem or an independently fetched compiler snapshot.
@@ -281,13 +284,12 @@ def main():
             'sourceInventorySHA256': report['compilerSourceInventorySHA256']})
         inputs.compiler_inputs(recipe, report)
         atomic(state / 'report.json', report)
-        # BuildKit also uses the host SOURCE_DATE_EPOCH for image config/history
-        # timestamps. Export in the completed image's original environment,
-        # before the final FFmpeg payload sets its epoch below.
+        # BuildKit uses SOURCE_DATE_EPOCH for image config/history timestamps.
+        # Both exports receive the same explicit environment as the loaded image.
         compiler_dir = scratch / 'compiler-layout'
         run('compiler-export', common + ['--build-arg', 'GH_REPO=local/' + owner + '/engine',
             '--build-context', base + '=oci-layout://' + str(base_oci),
-            '--output', 'type=oci,tar=false,dest=' + str(compiler_dir), 'images/base-win64'], recipe)
+            '--output', 'type=oci,tar=false,dest=' + str(compiler_dir), 'images/base-win64'], recipe, compiler_env)
         report['compilerContext'] = inputs.compiler_layout(compiler_dir, compiler_id)
         atomic(state / 'report.json', report)
         def publish_downloads(results):
