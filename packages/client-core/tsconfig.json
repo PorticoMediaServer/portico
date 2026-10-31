@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "include": ["src/session-lifecycle.ts", "src/session-lifecycle-runtime.ts", "src/remember-marker.ts", "src/presentation/**/*.ts", "src/licences/**/*.ts", "src/collections/**/*.ts", "src/artwork/**/*.ts", "src/cast/**/*.ts", "src/playback-v1/**/*.ts", "src/guide/**/*.ts", "src/selection-model/**/*.ts", "src/home-selection/**/*.ts", "src/admin/**/*.ts", "../design/src/**/*.ts", "../i18n/src/**/*.ts"]
+  "include": ["src/session-lifecycle.ts", "src/setup-state.ts", "src/setup-machine.ts", "src/setup-store.ts", "src/session-lifecycle-runtime.ts", "src/remember-marker.ts", "src/presentation/**/*.ts", "src/licences/**/*.ts", "src/collections/**/*.ts", "src/artwork/**/*.ts", "src/cast/**/*.ts", "src/playback-v1/**/*.ts", "src/guide/**/*.ts", "src/selection-model/**/*.ts", "src/home-selection/**/*.ts", "src/admin/**/*.ts", "../design/src/**/*.ts", "../i18n/src/**/*.ts"]
 }
