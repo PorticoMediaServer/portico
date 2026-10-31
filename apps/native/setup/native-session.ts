@@ -4,14 +4,19 @@ import {
   connectPairedServer,
   rememberNativeSession,
   forgetNativeSession,
-  parseRememberedServer,
   type ConnectionEnvironment,
+  type ServerConnectionStorage,
 } from '../../../packages/client-core/src/server-connections';
+import type {
+  AppServerSession,
+  NewServerConnection,
+} from '../../../packages/client-core/src/app-sessions';
 import {
   RouteError,
   routeBase64,
   routeBytes,
   routeOrigin,
+  sameServerPin,
   type RouteCrypto,
   type ServerPin,
 } from '../../../packages/client-core/src/route-identity';
@@ -22,11 +27,6 @@ import {
   type DirectSnapshot,
 } from '../../../packages/client-core/src/profile-management';
 import {
-  ViewerSelectionCommit,
-  selectedViewerRecord,
-  type SelectedViewerRecord,
-} from '../../../packages/client-core/src/viewer-selection';
-import {
   installationIdentity,
   setInstallationIdentity,
   validInstallationId,
@@ -35,8 +35,7 @@ import type {
   HttpLocalApi,
   LocalSession,
 } from '../../../packages/client-core/src';
-import { routePath } from '../../../packages/contracts/src/routes';
-import { NativeQueueStore } from '../src-next/platform/queue-storage';
+import { nativeAppSessions } from '../src-next/platform/app-session-storage';
 import {
   nativeProfileFetch,
   profileAPI,
@@ -76,22 +75,18 @@ const crypto: RouteCrypto = {
       routeBase64(payload),
     )),
 };
-function environment(): ConnectionEnvironment {
-  const store = new NativeQueueStore();
+/** The protected app-session record is the app's only sign-in store. A setup may
+ * publish exactly one fresh server into it, through the same per-server adapter
+ * the app signs in with; until a server is verified there is nothing to write. */
+function environment(
+  storage: () => ServerConnectionStorage,
+): ConnectionEnvironment {
   return {
     fetcher: nativeProfileFetch,
     crypto,
     storage: {
-      read: () =>
-        store.change('network.selected.v1', raw => ({
-          record: raw,
-          value: parseRememberedServer(raw),
-        })),
-      change: update =>
-        store.change('network.selected.v1', raw => ({
-          record: update(parseRememberedServer(raw)),
-          value: undefined,
-        })),
+      read: () => storage().read(),
+      change: (update, beforeCommit) => storage().change(update, beforeCommit),
     },
   };
 }
@@ -107,8 +102,13 @@ const refused = () =>
  * and starts no Home, player, refresh feed, diagnostic sink or native observers. */
 export class NativeSignInSetup {
   private readonly abort = new AbortController();
-  private readonly env = environment();
-  private readonly commit = new ViewerSelectionCommit(nativeViewerStorage);
+  private admission?: NewServerConnection;
+  private storage?: ServerConnectionStorage;
+  private readonly env = environment(() => {
+    if (!this.storage)
+      throw new Error('Verify this server before saving its sign-in.');
+    return this.storage;
+  });
   private readonly owned = new Map<string, LocalSession>();
   private readonly revocations = new Map<string, Promise<void>>();
   private address?: string;
@@ -116,12 +116,12 @@ export class NativeSignInSetup {
   private api?: HttpLocalApi;
   private snapshot?: DirectSnapshot;
   private account?: LocalSession;
-  private selected?: SelectedViewerRecord;
+  /** The family this setup published into the app-session record; it is no longer ours to revoke. */
+  private published?: string;
   private installation?: ReturnType<typeof installationIdentity>;
   private ready = false;
   private busy = false;
   private complete = false;
-  private cleanupFailed = false;
   private assertCurrent = () => {
     if (
       this.abort.signal.aborted ||
@@ -137,9 +137,14 @@ export class NativeSignInSetup {
     this.assertCurrent();
     if (!validInstallationId(id)) throw refused();
     // Product storage remains private to this ordinary flow. Never replace an
-    // existing saved viewer with this one-use fresh-installation setup adapter.
-    if ((await nativeViewerStorage.read()) || (await this.env.storage.read()))
+    // existing saved sign-in with this one-use fresh-installation setup adapter.
+    const sessions = await nativeAppSessions.read();
+    this.assertCurrent();
+    if ((await nativeViewerStorage.read()) || sessions.servers.length)
       throw new Error('A sign-in is already saved. Close setup.');
+    // Captured before the first credential: the app-session write is refused if
+    // another owner changed the record meanwhile.
+    this.admission = { signIn: 'local', expectedRevision: sessions.revision };
     const raw: unknown = await NativeModules.PorticoCapabilities.facts();
     this.assertCurrent();
     if (
@@ -199,14 +204,19 @@ export class NativeSignInSetup {
       this.api?.getRouteConnection()?.dispose();
       this.api = undefined;
       this.pin = undefined;
+      this.storage = undefined;
       this.address = routeOrigin(address.trim());
       const pin = await inspectDirectServer(
         this.address,
         this.env,
         this.abort.signal,
       );
+      const admission = this.admission;
+      if (!admission) throw new Error('Setup is not ready.');
       this.assertCurrent();
       this.pin = pin;
+      // One admission for this verified server; it also selects the entry it writes.
+      this.storage = nativeAppSessions.connectionStorage(pin.serverId, admission);
       return pin;
     });
   }
@@ -302,9 +312,9 @@ export class NativeSignInSetup {
       return await work();
     } catch (failure) {
       this.dispose();
-      // Publication transfers the selected viewer out of setup ownership.
+      // Publication transfers the sign-in out of setup ownership.
       // A late unmount during temporary account logout must not revoke it.
-      if (this.selected?.session.sessionFamilyId !== session.sessionFamilyId)
+      if (this.published !== session.sessionFamilyId)
         await this.revoke(session).catch(() => {});
       throw failure;
     }
@@ -335,6 +345,20 @@ export class NativeSignInSetup {
     )
       throw refused();
     this.assertCurrent();
+    // The server, not this setup's copy of the issued session, says which viewer the
+    // sign-in is. A different viewer is never published. The account-tier token this
+    // connection still holds reads the account, not a viewer, so the new sign-in
+    // answers as itself.
+    api.setAccessToken(session.accessToken);
+    const me = await api.me(this.abort.signal);
+    this.assertCurrent();
+    if (
+      (
+        ['authority', 'accountId', 'profileId', 'serverId', 'role'] as const
+      ).some(key => me.viewer[key] !== session.viewer[key])
+    )
+      throw refused();
+    // The app-session record is the app's sign-in store: this write is the publication.
     await rememberNativeSession(
       api,
       session,
@@ -345,36 +369,33 @@ export class NativeSignInSetup {
         installationIdentity() === this.installation,
     );
     this.assertCurrent();
-    await this.commit.commit(selectedViewerRecord(this.address, session), {
-      current: () => this.selected ?? null,
-      fence: () => {
-        this.selected = undefined;
-      },
-      assertCurrent: this.assertCurrent,
-      assertCandidateCurrent: this.assertCurrent,
-      verify: (record, signal) =>
-        profileAPI(record.serverUrl, record.session.accessToken).request(
-          routePath('get_me'),
-          'GET',
-          undefined,
-          signal,
-        ),
-      publish: record => {
-        this.selected = record;
-      },
-      revoke: record => this.revoke(record.session),
-      cleanupFailed: () => {
-        this.cleanupFailed = true;
-      },
-    });
+    // Read the publication back from the record the app opens. A store that does
+    // not hold this exact sign-in, selected, is not a publication at all.
+    let selected: AppServerSession | undefined;
+    try {
+      selected = await nativeAppSessions.selected();
+    } catch (failure) {
+      await this.revoke(session).catch(() => {});
+      throw failure;
+    }
+    const connection = api.getRouteConnection();
+    if (
+      !selected ||
+      !connection ||
+      selected.connection.pin.serverId !== session.viewer.serverId ||
+      selected.connection.session.sessionFamilyId !== session.sessionFamilyId ||
+      !sameServerPin(selected.connection.pin, connection.pin)
+    ) {
+      await this.revoke(session).catch(() => {});
+      throw refused();
+    }
+    this.published = session.sessionFamilyId;
     this.owned.delete(session.sessionFamilyId);
     // The account-tier family has a separate lifetime from the selected viewer.
     if (this.account) {
       await this.revoke(this.account);
       this.account = undefined;
     }
-    if (this.cleanupFailed)
-      throw new Error('Sign-in cleanup could not be confirmed.');
     this.assertCurrent();
     this.complete = true;
   }
