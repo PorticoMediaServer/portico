@@ -54,8 +54,9 @@ class Qualification(unittest.TestCase):
                     CONTEXT['receipt'](env, 'github-actions')
             request['head']['repo']['full_name'] = 'fork/portico'
             event.write_text(json.dumps({'pull_request': request}))
-            with self.assertRaises(ValueError):
-                CONTEXT['receipt'](env, 'github-actions')
+            with patch('subprocess.check_output', return_value='1' * 40 + '\n'):
+                with self.assertRaisesRegex(ValueError, 'same-repository'):
+                    CONTEXT['receipt'](env, 'github-actions')
 
     def test_executable_architecture(self):
         with tempfile.TemporaryDirectory() as tmp:
