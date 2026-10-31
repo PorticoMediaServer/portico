@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/wirejson"
 	"time"
 )
 
@@ -80,16 +81,13 @@ func (s *Service) ExchangeRegisteredReturn(ctx context.Context, q RegisteredRetu
 	if response.StatusCode != 200 {
 		return identity.PorticoIdentity{}, identity.ErrUnauthorized
 	}
+	// The wrapper is a plain response and reads open (R-09b); the signed
+	// assertion inside is verified exact.
 	var grant struct {
 		Assertion Signed `json:"assertion"`
 	}
-	d := json.NewDecoder(io.LimitReader(response.Body, 16385))
-	d.DisallowUnknownFields()
-	if d.Decode(&grant) != nil {
-		return identity.PorticoIdentity{}, identity.ErrUnauthorized
-	}
-	var extra any
-	if d.Decode(&extra) != io.EOF {
+	body, e := io.ReadAll(io.LimitReader(response.Body, 16385))
+	if e != nil || len(body) > 16384 || wirejson.Response(body, &grant) != nil {
 		return identity.PorticoIdentity{}, identity.ErrUnauthorized
 	}
 	return s.verifyRegisteredReturn(ctx, grant.Assertion, q)

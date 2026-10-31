@@ -12,7 +12,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"strings"
+	"github.com/PorticoMediaServer/portico/server/internal/wirejson"
 	"time"
 )
 
@@ -98,68 +98,13 @@ func commitRequest(v Intent) commitEnvelope {
 	return commitEnvelope{v.OperationID, v.ServerID, v.ClaimGeneration, v.CredentialGeneration}
 }
 
-// decodeHostedResponse reads a plain Hosted response envelope. Like the
-// generated clients (R-09b), it ignores a field a newer Hosted adds at any
-// depth. It still refuses a key named twice in one object (or twice up to
-// case, which encoding/json would read into one field), anything after the
-// document, and malformed JSON. Signed statements never come through here:
-// their verifiers decode exact.
+// decodeHostedResponse reads a plain Hosted response envelope open
+// (wirejson.Response). Signed statements never come through here.
 func decodeHostedResponse(raw []byte, out any) error {
-	if repeatsKey(raw) {
-		return ErrInvalid
-	}
-	d := json.NewDecoder(bytes.NewReader(raw))
-	if e := d.Decode(out); e != nil {
-		return ErrInvalid
-	}
-	var extra any
-	if d.Decode(&extra) != io.EOF {
+	if wirejson.Response(raw, out) != nil {
 		return ErrInvalid
 	}
 	return nil
-}
-
-// repeatsKey reports whether any object in raw names a key twice, ignoring
-// case. Invalid JSON is left for the decoder to refuse.
-func repeatsKey(raw []byte) bool {
-	type object struct {
-		keys    map[string]bool
-		wantKey bool
-	}
-	d := json.NewDecoder(bytes.NewReader(raw))
-	var open []*object // nil for an open array
-	valueDone := func() {
-		if n := len(open); n > 0 && open[n-1] != nil {
-			open[n-1].wantKey = true
-		}
-	}
-	for {
-		token, e := d.Token()
-		if e != nil {
-			return false
-		}
-		if n := len(open); n > 0 && open[n-1] != nil && open[n-1].wantKey {
-			if key, ok := token.(string); ok {
-				top, folded := open[n-1], strings.ToLower(key)
-				if top.keys[folded] {
-					return true
-				}
-				top.keys[folded], top.wantKey = true, false
-				continue
-			}
-		}
-		switch token {
-		case json.Delim('{'):
-			open = append(open, &object{keys: map[string]bool{}, wantKey: true})
-		case json.Delim('['):
-			open = append(open, nil)
-		case json.Delim('}'), json.Delim(']'):
-			open = open[:len(open)-1]
-			valueDone()
-		default:
-			valueDone()
-		}
-	}
 }
 func (t *HTTPTransport) call(ctx context.Context, path string, in, out any, secret *Secret) error {
 	return t.controlRequest(ctx, http.MethodPost, "/v1/server-claims/"+path, in, out, secret, claimHTTPBound)

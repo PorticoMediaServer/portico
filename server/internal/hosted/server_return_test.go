@@ -256,3 +256,37 @@ func TestRegisteredReturnConsumerRejectsSignedOtherServerAndAccount(t *testing.T
 		}
 	}
 }
+
+// The exchange's {assertion} wrapper is a plain Hosted response and reads open
+// (R-09b), but the signed assertion inside stays exact: a field an older server
+// would ignore inside a signature could carry meaning it never checked.
+func TestRegisteredReturnWrapperReadsOpenAndSignedAssertionStaysExact(t *testing.T) {
+	f := newClaimFixture(t)
+	ctx := context.Background()
+	installation := strings.Repeat("i", 43)
+	challenge, _, e := f.service.IssueChallenge(ctx, installation)
+	if e != nil {
+		t.Fatal(e)
+	}
+	q := RegisteredReturnExchange{Code: strings.Repeat("c", 43), TransactionID: "return_transaction", Verifier: strings.Repeat("v", 43), RegistrationID: "ret_valid_shape", InstallationID: installation, ServerChallenge: challenge, Purpose: "sign-in"}
+	now := time.Now().UTC()
+	c := serverReturnAssertion{Kind: "portico.server-return.v1", AccountID: f.installed.AccountID, Username: "verified_owner", ServerID: f.id.ID(), Challenge: challenge, Nonce: identity.Token(), IssuedAt: now, ExpiresAt: now.Add(time.Minute), Purpose: q.Purpose, InstallationID: q.InstallationID, RegistrationID: q.RegistrationID, ClaimOperationID: f.installed.OperationID, ClaimGeneration: 1, CredentialGeneration: 1}
+	sign := func(raw []byte) string {
+		signed, _ := json.Marshal(Signed{Payload: base64.RawURLEncoding.EncodeToString(raw), Signature: base64.RawURLEncoding.EncodeToString(ed25519.Sign(f.hostedKey, raw)), KeyID: "pin1", Certificate: testSigningCertificate(f.hostedKey, "pin1")})
+		return string(signed)
+	}
+	exact, _ := json.Marshal(c)
+	added := []byte(strings.TrimSuffix(string(exact), "}") + `,"addedByANewerHosted":true}`)
+	var grant string
+	f.service.client = &http.Client{Transport: returnRoundTripper(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(grant))}, nil
+	})}
+	grant = `{"assertion":` + sign(added) + `}`
+	if _, e = f.service.ExchangeRegisteredReturn(ctx, q); e == nil {
+		t.Fatal("signed assertion with an added field accepted")
+	}
+	grant = `{"assertion":` + sign(exact) + `,"addedByANewerHosted":{"nested":true}}`
+	if who, e := f.service.ExchangeRegisteredReturn(ctx, q); e != nil || who.AccountID != f.installed.AccountID {
+		t.Fatal("wrapper with an added field refused", e)
+	}
+}
