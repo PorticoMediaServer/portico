@@ -224,7 +224,6 @@ internal/identity/member_devices.go	(*Service).SignOutMemberDevices	WithWriteTx	
 internal/identity/member_erasure.go	(*Service).DeleteDirectMember	Begin	ClassSecurityFence	-
 internal/identity/migrate_sealed.go	(*Service).migrateSealedToPlain	Begin	ClassSecurityFence	-
 internal/identity/onboarding.go	(*Service).CompleteAccountSetup	WithWriteTx	ClassSecurityFence	-
-internal/identity/onboarding.go	(*Service).FinishSetup	Begin	ClassSecurityFence	-
 internal/identity/onboarding.go	(*Service).SetupWithOptions	Begin	ClassSecurityFence	-
 internal/identity/onboarding.go	(*Service).supersedeStaleSetup	Begin	ClassSecurityFence	-
 internal/identity/owner_reset_file.go	(*Service).MakeMemberResetCode	WithWriteTx	ClassSecurityFence	-

@@ -297,8 +297,8 @@ def main():
         created = setup.post('/v1/setup', {'setupToken': bootstrap['setupToken'], 'username': 'owner', 'password': password,
                                            'name': 'Flow Owner', 'authMode': 'local', 'interactive': True}, (201,))
         setup.token = created['accessToken']
-        state = setup.get('/v1/setup/state')
-        setup.post('/v1/setup/finish', {'revision': str(state['revision'])})
+        if setup.get('/v1/setup/state').get('status') != 'complete':
+            raise RuntimeError('local setup did not complete')
         signed = setup.post('/v1/direct/sign-in', {'username': 'owner', 'password': password})
         api.token = signed['session']['accessToken']
         api.call('PUT', '/v1/me/devices/current/capabilities', e2e.capabilities(), (204,))

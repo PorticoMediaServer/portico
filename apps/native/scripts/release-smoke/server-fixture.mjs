@@ -152,8 +152,7 @@ async function start() {
     });
     if (created.status !== 201) await fail(`POST /v1/setup answered ${created.status}: ${created.json?.error?.code ?? 'no error code'}`);
 
-    // The browser journey's final POST /v1/setup/finish only applies to the hosted path: a
-    // local setup is already ready when /v1/setup answers.
+    // A local setup is complete as soon as /v1/setup answers.
     const after = await api(baseUrl, 'GET', '/v1/system');
     if (after.json?.setupRequired !== false) await fail('setupRequired did not clear after setup');
 

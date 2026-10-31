@@ -21,18 +21,14 @@ async function bridge(){
  const initial=await receive();
  return {initial,request:async(path:string,method:string,body?:unknown,token?:string)=>{proc.stdin.write(JSON.stringify({Path:path,Method:method,Body:body,Token:token})+'\n');return receive()},close:async()=>{proc.stdin.end(JSON.stringify({Path:'stop'})+'\n');await new Promise<void>((resolve,reject)=>proc.once('exit',code=>code===0?resolve():reject(new Error('actual HTTP bridge failed'))));rmSync(folder,{recursive:true,force:true})}};
 }
-test('exported local setup intent and generated finish body reach actual strict route and writer',{timeout:120_000},async()=>{
+test('exported local setup intent reaches the actual strict route and writer, and setup reads complete',{timeout:120_000},async()=>{
  const b=await bridge();try{
   let token='';let request:any;
   const api=Object.create(HttpLocalApi.prototype) as HttpLocalApi;
   Object.assign(api,{request:async(path:string,method:string,body:unknown)=>{request=body;const r=await b.request(path,method,body);assert.equal(r.status,201);token=r.body.accessToken;return r.body}});
   const session=await api.setup(b.initial.setupToken,'owner','Local-long-password','Fixture');assert.equal(request.authMode,'local');assert.equal(session.viewer.authority,'local');assert.equal('recoverySaved' in request,false);
-  const state=await b.request('/v1/setup/state','GET',undefined,token);assert.equal(state.status,200);
-  const body=routeBody('post_setup_finish',{revision:state.body.revision});assert.deepEqual(Object.keys(body),['revision']);decode('PostSetupFinishRequest',body);
-  assert.equal((await b.request('/v1/setup/finish','POST',body,token)).status,200);
-  assert.equal((await b.request('/v1/setup/finish','POST',{...body,enabled:true,warningConfirmed:true},token)).status,400);
-  assert.notEqual((await b.request('/v1/setup/finish','POST',{revision:'999'},token)).status,200);
-  assert.notEqual((await b.request('/v1/setup/finish','POST',body)).status,200);
+  const state=await b.request('/v1/setup/state','GET',undefined,token);assert.equal(state.status,200);assert.equal(state.body.status,'complete');assert.equal(state.body.setup,undefined);
+  assert.equal((await b.request('/v1/setup/finish','POST',{revision:'1'},token)).status,404);
   const caps=await b.request('/v1/auth/capabilities','GET');assert.equal(caps.status,200);assert.ok(caps.body.methods.includes('password'));assert.equal(caps.body.methods.includes('hosted'),false);
  }finally{await b.close()}
 });

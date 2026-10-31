@@ -34,8 +34,7 @@ var (
 // scan cannot reconstruct them. They are listed here so the document still has
 // to carry them; keep this list in step with the loops that build them.
 var composedRoutes = []string{
-	// onboarding.go: "POST /v1/setup/" + action, "POST /v1/quick-connect/" + action.
-	"POST /v1/setup/finish",
+	// onboarding.go: "POST /v1/quick-connect/" + action.
 	"POST /v1/quick-connect/token",
 	"POST /v1/quick-connect/cancel",
 	// admin.go: "GET /v1/admin/" + kind.

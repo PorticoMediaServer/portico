@@ -117,9 +117,9 @@ func TestBrowserSetupLocalOriginAndSingleUse(t *testing.T) {
 	r.RemoteAddr = "127.0.0.1:5000"
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, r)
-	var state identity.OnboardingState
-	if err = json.Unmarshal(w.Body.Bytes(), &state); err != nil || w.Code != 200 || !state.Ready || state.Phase != "ready" || state.AuthMode != "local" {
-		t.Fatal("a local server is ready once its owner exists (no checklist), without a recovery-owner role")
+	var state SetupStateResponse
+	if err = json.Unmarshal(w.Body.Bytes(), &state); err != nil || w.Code != 200 || state.Status != "complete" || state.Setup != nil || state.RetryAfterSeconds != 0 {
+		t.Fatalf("a local server is complete once its owner exists, and an owner's token reveals nothing more: %d %s", w.Code, w.Body.String())
 	}
 	w = call("http://127.0.0.1:32500", "http://127.0.0.1:32500", "127.0.0.1:5000", "/v1/setup/browser", map[string]any{})
 	if w.Code != 409 {

@@ -43,7 +43,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         SEEN.append((self.command, self.path, dict(self.headers)))
         if self.path == "/v1/setup/state":
-            return self._reply(200, envelope({"ready": False, "revision": 3}))
+            return self._reply(200, envelope({"status": "complete"}))
         if self.path == "/v1/libraries":
             return self._reply(200, envelope({"items": [{"id": "lib1"}]}))
         if self.path == "/v1/libraries/lib1/browse-capabilities":
@@ -73,9 +73,6 @@ class Handler(BaseHTTPRequestHandler):
                 "accessToken": "token-1", "refreshToken": "refresh-1",
                 "installationId": "installation-1", "serverId": "srv-fixture",
                 "expiresAt": "2030-01-01T00:00:00Z"}}))
-        if self.path == "/v1/setup/finish":
-            assert body["revision"] == 3
-            return self._reply(200, envelope({}))
         if self.path == "/v1/libraries/lib1/browse":
             assert body["pivot"] == "movies"
             return self._reply(200, envelope({"entries": [{"id": "item1", "title": "Direct", "kind": "movie"}],

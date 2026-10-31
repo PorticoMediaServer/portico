@@ -775,7 +775,6 @@ export const routePaths = {
   "post_reading_sessions_sessionId_file_save": "/v1/reading/sessions/{sessionId}/file-save",
   "post_saved_resources": "/v1/saved-resources",
   "post_setup_account_complete": "/v1/setup/account/complete",
-  "post_setup_finish": "/v1/setup/finish",
   "post_setup_resume": "/v1/setup/resume",
   "post_shows_id_metadata_screen_retry": "/v1/shows/{id}/metadata/screen/retry",
   "post_shows_id_metadata_screen_search": "/v1/shows/{id}/metadata/screen/search",
