@@ -47,6 +47,9 @@ jobs:
       android: ${{ steps.plan.outputs.android }}
       js_matrix: ${{ steps.plan.outputs.js_matrix }}
     steps:
+      - name: Runner hardware
+        run: |
+          echo "runner: $(nproc) cpu, $(free -g | awk '/Mem:/{print $2}') GiB"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
@@ -103,6 +106,10 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     steps:
+      - name: Runner hardware
+        if: ${{ matrix.index == 0 }}
+        run: |
+          echo "runner: $(nproc) cpu, $(free -g | awk '/Mem:/{print $2}') GiB"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
@@ -131,6 +138,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
+      - name: Runner hardware
+        if: ${{ matrix.component == 'apps/native' && (matrix.index == null || matrix.index == 0) }}
+        run: |
+          echo "runner: $(nproc) cpu, $(free -g | awk '/Mem:/{print $2}') GiB"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
