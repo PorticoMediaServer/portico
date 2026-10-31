@@ -149,20 +149,20 @@ const DELIVERY: Record<string, string> = {
 };
 const AWAITING: Record<string, string> = {
   ...HELD_GONE, ...AHEAD, 'state.expired': 'ended|', 'state.started': '=|schedule-read', 'state.awaiting': '=|schedule-read', ...LIVE_POLLS,
-  back: `form|abandon`, retry: 'starting|request-approval', approveInApp: '=|approve-in-app', approvedInApp: 'finishing|schedule-read', 'failed.approve-in-app': 'failed|',
+  back: `form|cancel-pending abandon`, retry: 'starting|request-approval', approveInApp: '=|approve-in-app', approvedInApp: 'finishing|schedule-read', 'failed.approve-in-app': 'failed|',
 };
 
 const ALLOWED: Record<string, Record<string, string>> = {
   connecting: {...RECONCILE, start: '=|read-state', readFailed: 'failed|', tokenRefused: `form|${RETIRES}`, notLocalSource: 'refused|', alreadyComplete: `refused|${RETIRES}`},
   refused: {},
-  'busy.timed': {...RECONCILE, readFailed: '=|schedule-read', alreadyComplete: `refused|${RETIRES}`, back: 'form|'},
-  'busy.untimed': {...RECONCILE, readFailed: '=|schedule-read', alreadyComplete: `refused|${RETIRES}`, back: 'form|'},
+  'busy.timed': {...RECONCILE, readFailed: '=|schedule-read', alreadyComplete: `refused|${RETIRES}`, back: 'form|cancel-pending'},
+  'busy.untimed': {...RECONCILE, readFailed: '=|schedule-read', alreadyComplete: `refused|${RETIRES}`, back: 'form|cancel-pending'},
   form: {chooseKind: '=|', submitHosted: 'starting|start', submitLocal: 'starting|start', abandonRefused: 'connecting|read-state', 'failed.abandon': 'failed|'},
-  'starting.hosted.start': {startDone: '=|initialize-hosted', notLocalSource: 'refused|', addressNotAllowed: 'refused|', alreadyComplete: `refused|${RETIRES}`, setupInProgress: 'busy_elsewhere|schedule-read', 'failed.start': 'failed|'},
-  'starting.hosted.initialize': {initializeDone: '=|request-approval', 'failed.initialize': 'failed|', tokenRefused: `ended|${RETIRES}`, alreadyComplete: `refused|${RETIRES}`},
-  'starting.hosted.approval': {approvalReady: 'awaiting_approval|navigate schedule-read', 'failed.request-approval': 'failed|', tokenRefused: `ended|${RETIRES}`, alreadyComplete: `refused|${RETIRES}`},
-  'starting.hosted.approval-native': {approvalReady: 'awaiting_approval|schedule-read', 'failed.request-approval': 'failed|', tokenRefused: `ended|${RETIRES}`, alreadyComplete: `refused|${RETIRES}`},
-  'starting.local.start': {startDone: '=|initialize-local', notLocalSource: 'refused|', alreadyComplete: `refused|${RETIRES}`, setupInProgress: 'busy_elsewhere|schedule-read', 'failed.start': 'failed|'},
+  'starting.hosted.start': {back: 'form|cancel-pending', startDone: '=|initialize-hosted', notLocalSource: 'refused|', addressNotAllowed: 'refused|', alreadyComplete: `refused|${RETIRES}`, setupInProgress: 'busy_elsewhere|schedule-read', 'failed.start': 'failed|'},
+  'starting.hosted.initialize': {back: 'form|cancel-pending abandon', initializeDone: '=|request-approval', 'failed.initialize': 'failed|', tokenRefused: `ended|${RETIRES}`, alreadyComplete: `refused|${RETIRES}`},
+  'starting.hosted.approval': {back: 'form|cancel-pending abandon', approvalReady: 'awaiting_approval|navigate schedule-read', 'failed.request-approval': 'failed|', tokenRefused: `ended|${RETIRES}`, alreadyComplete: `refused|${RETIRES}`},
+  'starting.hosted.approval-native': {back: 'form|cancel-pending abandon', approvalReady: 'awaiting_approval|schedule-read', 'failed.request-approval': 'failed|', tokenRefused: `ended|${RETIRES}`, alreadyComplete: `refused|${RETIRES}`},
+  'starting.local.start': {back: 'form|cancel-pending', startDone: '=|initialize-local', notLocalSource: 'refused|', alreadyComplete: `refused|${RETIRES}`, setupInProgress: 'busy_elsewhere|schedule-read', 'failed.start': 'failed|'},
   'starting.local.initialize': {initializeDone: '=|adopt-owner', 'failed.initialize': 'failed|', alreadyComplete: `refused|${RETIRES}`},
   'starting.local.adopt': {ownerAdopted: `library|${RETIRES}`, 'failed.adopt-owner': 'failed|', alreadyComplete: `refused|${RETIRES}`},
   'awaiting.started': AWAITING,
@@ -173,12 +173,12 @@ const ALLOWED: Record<string, Record<string, string>> = {
   renewing: {renewDone: 'admitting|exchange', tokenRefused: `ended|${RETIRES}`, 'failed.renew': 'failed|'},
   library: {addLibrary: '=|add-library', libraryAdded: 'done|', skip: 'done|', 'failed.add-library': 'failed|'},
   done: {},
-  'ended.denied': {back: 'form|abandon', startAgain: 'form|abandon'},
-  'ended.superseded': {back: 'form|', startAgain: 'form|'},
-  'failed.none': {retry: 'connecting|read-state', back: 'form|'},
-  'failed.unapproved': {retry: 'starting|initialize-hosted', back: 'form|abandon'},
+  'ended.denied': {back: 'form|cancel-pending abandon', startAgain: 'form|cancel-pending abandon'},
+  'ended.superseded': {back: 'form|cancel-pending', startAgain: 'form|cancel-pending'},
+  'failed.none': {retry: 'connecting|read-state', back: 'form|cancel-pending'},
+  'failed.unapproved': {retry: 'starting|initialize-hosted', back: 'form|cancel-pending abandon'},
   'failed.committed': {retry: 'admitting|exchange', back: 'connecting|read-state'},
-  'failed.final': {back: 'form|abandon'},
+  'failed.final': {back: 'form|cancel-pending abandon'},
   unknown: {retry: 'connecting|read-state'},
 };
 
@@ -227,7 +227,7 @@ const kinds = (effects: readonly SetupEffect[]) => effects.map(e => e.kind);
 test('back from an own unapproved attempt abandons it and offers both kinds, keeping the name', () => {
   for (const view of [VIEWS['awaiting.started'], VIEWS['awaiting.live'], VIEWS['ended.denied'], VIEWS['failed.unapproved']]) {
     const out = step(view, {kind: 'back'});
-    assert.deepEqual(kinds(out.effects), ['abandon']);
+    assert.deepEqual(kinds(out.effects), ['cancel-pending', 'abandon']);
     assert.deepEqual(out.view, {kind: 'form', mode: 'choose', name: 'Den'});
   }
 });
@@ -235,7 +235,7 @@ test('back from an own unapproved attempt abandons it and offers both kinds, kee
 test('back from a held-by-nobody view abandons nothing', () => {
   for (const view of [VIEWS['busy.timed'], VIEWS['busy.untimed'], VIEWS['ended.superseded'], VIEWS['failed.none']]) {
     const out = step(view, {kind: 'back'});
-    assert.deepEqual(out.effects, []);
+    assert.deepEqual(kinds(out.effects), ['cancel-pending']);
     assert.equal(out.view.kind, 'form');
     assert.equal((out.view as {mode: string}).mode, 'choose');
   }
@@ -256,11 +256,20 @@ test('back after approval never abandons: the server refuses, so the controller 
   assert.deepEqual(kinds(step(VIEWS.form, {kind: 'abandonRefused'}).effects), ['read-state']);
 });
 
+test('back while Continue is in flight: nothing held leaves quietly, a hosted attempt the server may hold is abandoned, a local owner runs on', () => {
+  for (const name of ['starting.hosted.start', 'starting.local.start'] as const) assert.deepEqual(kinds(step(VIEWS[name], {kind: 'back'}).effects), ['cancel-pending'], name);
+  for (const name of ['starting.hosted.initialize', 'starting.hosted.approval'] as const) {
+    const out = step(VIEWS[name], {kind: 'back'});
+    assert.deepEqual([out.view.kind, kinds(out.effects)], ['form', ['cancel-pending', 'abandon']], name);
+  }
+  for (const name of ['starting.local.initialize', 'starting.local.adopt'] as const) assert.deepEqual(step(VIEWS[name], {kind: 'back'}), {view: VIEWS[name], effects: []}, name);
+});
+
 test('start again after an ended attempt is the same S8 abandon, except when the attempt was superseded', () => {
-  assert.deepEqual(kinds(step(VIEWS['ended.denied'], {kind: 'startAgain'}).effects), ['abandon']);
-  assert.deepEqual(kinds(step(VIEWS['ended.superseded'], {kind: 'startAgain'}).effects), []);
+  assert.deepEqual(kinds(step(VIEWS['ended.denied'], {kind: 'startAgain'}).effects), ['cancel-pending', 'abandon']);
+  assert.deepEqual(kinds(step(VIEWS['ended.superseded'], {kind: 'startAgain'}).effects), ['cancel-pending']);
   for (const outcome of ['expired', 'approval_lapsed', 'cancelled'] as const) {
-    assert.deepEqual(kinds(step({kind: 'ended', outcome, name: 'n'}, {kind: 'back'}).effects), ['abandon'], outcome);
+    assert.deepEqual(kinds(step({kind: 'ended', outcome, name: 'n'}, {kind: 'back'}).effects), ['cancel-pending', 'abandon'], outcome);
   }
 });
 
