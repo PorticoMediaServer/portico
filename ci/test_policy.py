@@ -1,6 +1,6 @@
 import datetime
 import unittest
-from plan import balance, closure, components, decode_stream
+from plan import ROOT, balance, closure, components, decode_stream
 from run import aggregate, classify, policy
 
 class PolicyTests(unittest.TestCase):
@@ -93,6 +93,9 @@ class IntegrationTests(unittest.TestCase):
         vets=[c for c in calls if c[0][:1]==['sh'] and 'vet-go.sh' in c[0][1]]
         self.assertEqual(len(builds),4); self.assertEqual(len(vets),4)
         self.assertEqual({c[0][4] for c in builds},{'', 'portico_rar7z,portico_cb7'})
+        generator=next(i for i,c in enumerate(calls) if c[0]==['node',str(ROOT/'scripts/cast/generate.mjs')])
+        drift=next(i for i,c in enumerate(calls) if c[0]==['git','diff','--exit-code'])
+        self.assertLess(generator,drift)
 
 class MergeGroupTests(unittest.TestCase):
     def test_merge_group_uses_event_base_head(self):

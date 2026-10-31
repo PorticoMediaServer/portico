@@ -181,6 +181,7 @@ def build(plan):
     # Development contracts (packages/contracts/src/development) come from the devtrust routes;
     # regenerate them in the same drift check so they cannot rot unnoticed.
     execute(['go','run','-tags','devtrust','./cmd/apigen','-development','-root','..'],ROOT/'server')
+    execute(['node',str(ROOT/'scripts/cast/generate.mjs')])
     execute(['git','diff','--exit-code'])
     for module in ['server','apikit']:
         for tags in ['',plan['tags']]:

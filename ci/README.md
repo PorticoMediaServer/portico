@@ -15,3 +15,5 @@ Nightly has one owner per parent. The five timing/pressure/scale parents and Gol
 `ci/package-smoke.py --package QUALIFIED_LINUX_TARBALL` installs/starts a sealed portable package and checks readiness. Packaging activation requires qualified inputs. Android Hermes boot additionally requires its qualified engine/source bundle and device harness. Never build source FFmpeg on a nightly cache miss. Release/toolchain/signing migration inputs remain in release-staged/ until independently qualified; no store acceptance is implied.
 
 The first fresh-repository dispatch uses explicit full bootstrap mode. Nightly scheduling and branch protection follow a green bootstrap; the first real PR through the queue proves the complete integration path. Source selection, raw per-test events and diagnostics are retained as small artifacts.
+
+The generated-contract drift check regenerates both apigen contract sets and the Cast receiver bundle before checking the Git diff. Its job installs the exact root lockfile and pinned Node toolchain so `scripts/cast/generate.mjs` resolves the locked web Rolldown compiler. A stale receiver bundle blocks the existing build gate.
