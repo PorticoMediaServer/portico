@@ -47550,6 +47550,9 @@
           "custodyPending": {
             "type": "boolean"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "profiles": {
             "items": {
               "properties": {
@@ -47605,6 +47608,9 @@
             },
             "type": "array"
           },
+          "rememberProfiles": {
+            "type": "boolean"
+          },
           "serverId": {
             "type": "string"
           },
@@ -47618,7 +47624,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -240094,6 +240101,9 @@
           "custodyPending": {
             "type": "boolean"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "profiles": {
             "items": {
               "properties": {
@@ -240149,6 +240159,9 @@
             },
             "type": "array"
           },
+          "rememberProfiles": {
+            "type": "boolean"
+          },
           "serverId": {
             "type": "string"
           },
@@ -240162,7 +240175,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -242248,6 +242262,9 @@
               "installationId": {
                 "type": "string"
               },
+              "managePinRequired": {
+                "type": "boolean"
+              },
               "passwordChangeRequired": {
                 "type": "boolean"
               },
@@ -242305,6 +242322,9 @@
                   "type": "object"
                 },
                 "type": "array"
+              },
+              "rememberProfiles": {
+                "type": "boolean"
               },
               "serverId": {
                 "type": "string"
@@ -242405,6 +242425,7 @@
               "profiles",
               "canManage",
               "capabilities",
+              "rememberProfiles",
               "session",
               "variant"
             ],
@@ -242505,8 +242526,14 @@
               "custodyPending": {
                 "type": "boolean"
               },
+              "managePinRequired": {
+                "type": "boolean"
+              },
               "profiles": {
                 "type": "null"
+              },
+              "rememberProfiles": {
+                "type": "boolean"
               },
               "serverId": {
                 "type": "string"
@@ -242526,6 +242553,7 @@
               "profiles",
               "canManage",
               "capabilities",
+              "rememberProfiles",
               "challenge",
               "variant"
             ],
@@ -250200,6 +250228,9 @@
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "type": "boolean"
           },
@@ -250257,6 +250288,9 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "resetFileOwnerSession": {
             "type": "boolean"
@@ -250355,7 +250389,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -250572,6 +250607,9 @@
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "type": "boolean"
           },
@@ -250629,6 +250667,9 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "resetFileOwnerSession": {
             "type": "boolean"
@@ -250727,7 +250768,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -250880,6 +250922,9 @@
               "installationId": {
                 "type": "string"
               },
+              "managePinRequired": {
+                "type": "boolean"
+              },
               "passwordChangeRequired": {
                 "const": true,
                 "type": "boolean"
@@ -250938,6 +250983,9 @@
                   "type": "object"
                 },
                 "type": "array"
+              },
+              "rememberProfiles": {
+                "type": "boolean"
               },
               "resetFileOwnerSession": {
                 "const": false,
@@ -251046,6 +251094,7 @@
               "profiles",
               "canManage",
               "capabilities",
+              "rememberProfiles",
               "session",
               "passwordChangeRequired",
               "variant"
@@ -251141,6 +251190,9 @@
               "installationId": {
                 "type": "string"
               },
+              "managePinRequired": {
+                "type": "boolean"
+              },
               "passwordChangeRequired": {
                 "const": false,
                 "type": "boolean"
@@ -251199,6 +251251,9 @@
                   "type": "object"
                 },
                 "type": "array"
+              },
+              "rememberProfiles": {
+                "type": "boolean"
               },
               "resetFileOwnerSession": {
                 "const": true,
@@ -251307,6 +251362,7 @@
               "profiles",
               "canManage",
               "capabilities",
+              "rememberProfiles",
               "session",
               "resetFileOwnerSession",
               "variant"
@@ -251578,6 +251634,9 @@
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "type": "boolean"
           },
@@ -251635,6 +251694,9 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "resetFileOwnerSession": {
             "type": "boolean"
@@ -251733,7 +251795,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -252049,6 +252112,9 @@
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "type": "boolean"
           },
@@ -252106,6 +252172,9 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "resetFileOwnerSession": {
             "type": "boolean"
@@ -252204,7 +252273,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -252385,6 +252455,9 @@
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "type": "boolean"
           },
@@ -252442,6 +252515,9 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "resetFileOwnerSession": {
             "type": "boolean"
@@ -252540,7 +252616,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -253345,6 +253422,9 @@
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "const": true,
             "type": "boolean"
@@ -253403,6 +253483,9 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "resetFileOwnerSession": {
             "const": false,
@@ -253507,6 +253590,7 @@
           "profiles",
           "canManage",
           "capabilities",
+          "rememberProfiles",
           "session",
           "passwordChangeRequired"
         ],
@@ -253643,6 +253727,9 @@
           "custodyPending": {
             "type": "boolean"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "profiles": {
             "items": {
               "properties": {
@@ -253698,6 +253785,9 @@
             },
             "type": "array"
           },
+          "rememberProfiles": {
+            "type": "boolean"
+          },
           "serverId": {
             "type": "string"
           },
@@ -253711,7 +253801,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -253783,23 +253874,30 @@
           "pin": {
             "type": "string"
           },
-          "trust": {
+          "remember": {
             "type": "boolean"
-          },
-          "trustToken": {
-            "type": "string"
           }
         },
         "required": [
           "pin",
           "installationId",
-          "trustToken",
-          "trust"
+          "remember"
         ],
         "type": "object"
       },
       "PostDirectProfilesIdSelectResponse": {
         "properties": {
+          "remembered": {
+            "properties": {
+              "expiresAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "expiresAt"
+            ],
+            "type": "object"
+          },
           "session": {
             "properties": {
               "accessToken": {
@@ -253878,59 +253976,6 @@
               "sessionFamilyId",
               "tokenGeneration",
               "authorizationHorizon"
-            ],
-            "type": "object"
-          },
-          "trustedSelection": {
-            "properties": {
-              "accountId": {
-                "type": "string"
-              },
-              "authority": {
-                "type": "string"
-              },
-              "expiresAt": {
-                "type": "string"
-              },
-              "installationId": {
-                "type": "string"
-              },
-              "membershipRevision": {
-                "maximum": 9007199254740991,
-                "minimum": -9007199254740991,
-                "type": "integer"
-              },
-              "pinRevision": {
-                "maximum": 9007199254740991,
-                "minimum": -9007199254740991,
-                "type": "integer"
-              },
-              "profileId": {
-                "type": "string"
-              },
-              "profileRevision": {
-                "maximum": 9007199254740991,
-                "minimum": -9007199254740991,
-                "type": "integer"
-              },
-              "serverId": {
-                "type": "string"
-              },
-              "token": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "authority",
-              "token",
-              "expiresAt",
-              "installationId",
-              "serverId",
-              "accountId",
-              "profileId",
-              "pinRevision",
-              "profileRevision",
-              "membershipRevision"
             ],
             "type": "object"
           }
@@ -254038,6 +254083,9 @@
           "custodyPending": {
             "type": "boolean"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "profiles": {
             "items": {
               "properties": {
@@ -254093,6 +254141,9 @@
             },
             "type": "array"
           },
+          "rememberProfiles": {
+            "type": "boolean"
+          },
           "serverId": {
             "type": "string"
           },
@@ -254106,7 +254157,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -254519,6 +254571,9 @@
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "type": "boolean"
           },
@@ -254576,6 +254631,9 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "resetFileOwnerSession": {
             "type": "boolean"
@@ -254674,7 +254732,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -270157,6 +270216,9 @@
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "type": "boolean"
           },
@@ -270214,6 +270276,9 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "resetFileOwnerSession": {
             "type": "boolean"
@@ -270312,7 +270377,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -270849,6 +270915,9 @@
               "installationId": {
                 "type": "string"
               },
+              "managePinRequired": {
+                "type": "boolean"
+              },
               "passwordChangeRequired": {
                 "type": "boolean"
               },
@@ -270906,6 +270975,9 @@
                   "type": "object"
                 },
                 "type": "array"
+              },
+              "rememberProfiles": {
+                "type": "boolean"
               },
               "resetFileOwnerSession": {
                 "type": "boolean"
@@ -271004,7 +271076,8 @@
               "account",
               "profiles",
               "canManage",
-              "capabilities"
+              "capabilities",
+              "rememberProfiles"
             ],
             "type": "object"
           }
@@ -279692,6 +279765,9 @@
           "custodyPending": {
             "type": "boolean"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "profiles": {
             "items": {
               "properties": {
@@ -279747,6 +279823,9 @@
             },
             "type": "array"
           },
+          "rememberProfiles": {
+            "type": "boolean"
+          },
           "serverId": {
             "type": "string"
           },
@@ -279760,7 +279839,8 @@
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       },
@@ -394711,6 +394791,9 @@
                         "installationId": {
                           "type": "string"
                         },
+                        "managePinRequired": {
+                          "type": "boolean"
+                        },
                         "passwordChangeRequired": {
                           "type": "boolean"
                         },
@@ -394768,6 +394851,9 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "rememberProfiles": {
+                          "type": "boolean"
                         },
                         "serverId": {
                           "type": "string"
@@ -394868,6 +394954,7 @@
                         "profiles",
                         "canManage",
                         "capabilities",
+                        "rememberProfiles",
                         "session",
                         "variant"
                       ],
@@ -394968,8 +395055,14 @@
                         "custodyPending": {
                           "type": "boolean"
                         },
+                        "managePinRequired": {
+                          "type": "boolean"
+                        },
                         "profiles": {
                           "type": "null"
+                        },
+                        "rememberProfiles": {
+                          "type": "boolean"
                         },
                         "serverId": {
                           "type": "string"
@@ -394989,6 +395082,7 @@
                         "profiles",
                         "canManage",
                         "capabilities",
+                        "rememberProfiles",
                         "challenge",
                         "variant"
                       ],
@@ -447138,6 +447232,9 @@
                         "installationId": {
                           "type": "string"
                         },
+                        "managePinRequired": {
+                          "type": "boolean"
+                        },
                         "passwordChangeRequired": {
                           "type": "boolean"
                         },
@@ -447195,6 +447292,9 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "rememberProfiles": {
+                          "type": "boolean"
                         },
                         "resetFileOwnerSession": {
                           "type": "boolean"
@@ -447293,7 +447393,8 @@
                         "account",
                         "profiles",
                         "canManage",
-                        "capabilities"
+                        "capabilities",
+                        "rememberProfiles"
                       ],
                       "type": "object"
                     }
@@ -455226,6 +455327,9 @@
                     "installationId": {
                       "type": "string"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "passwordChangeRequired": {
                       "type": "boolean"
                     },
@@ -455283,6 +455387,9 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "rememberProfiles": {
+                      "type": "boolean"
                     },
                     "resetFileOwnerSession": {
                       "type": "boolean"
@@ -455381,7 +455488,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }
@@ -455750,6 +455858,9 @@
                     "installationId": {
                       "type": "string"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "passwordChangeRequired": {
                       "type": "boolean"
                     },
@@ -455807,6 +455918,9 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "rememberProfiles": {
+                      "type": "boolean"
                     },
                     "resetFileOwnerSession": {
                       "type": "boolean"
@@ -455905,7 +456019,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }
@@ -456207,6 +456322,9 @@
                         "installationId": {
                           "type": "string"
                         },
+                        "managePinRequired": {
+                          "type": "boolean"
+                        },
                         "passwordChangeRequired": {
                           "const": true,
                           "type": "boolean"
@@ -456265,6 +456383,9 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "rememberProfiles": {
+                          "type": "boolean"
                         },
                         "resetFileOwnerSession": {
                           "const": false,
@@ -456373,6 +456494,7 @@
                         "profiles",
                         "canManage",
                         "capabilities",
+                        "rememberProfiles",
                         "session",
                         "passwordChangeRequired",
                         "variant"
@@ -456468,6 +456590,9 @@
                         "installationId": {
                           "type": "string"
                         },
+                        "managePinRequired": {
+                          "type": "boolean"
+                        },
                         "passwordChangeRequired": {
                           "const": false,
                           "type": "boolean"
@@ -456526,6 +456651,9 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "rememberProfiles": {
+                          "type": "boolean"
                         },
                         "resetFileOwnerSession": {
                           "const": true,
@@ -456634,6 +456762,7 @@
                         "profiles",
                         "canManage",
                         "capabilities",
+                        "rememberProfiles",
                         "session",
                         "resetFileOwnerSession",
                         "variant"
@@ -456988,6 +457117,9 @@
                     "installationId": {
                       "type": "string"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "passwordChangeRequired": {
                       "type": "boolean"
                     },
@@ -457045,6 +457177,9 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "rememberProfiles": {
+                      "type": "boolean"
                     },
                     "resetFileOwnerSession": {
                       "type": "boolean"
@@ -457143,7 +457278,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }
@@ -457691,6 +457827,9 @@
                     "installationId": {
                       "type": "string"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "passwordChangeRequired": {
                       "type": "boolean"
                     },
@@ -457748,6 +457887,9 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "rememberProfiles": {
+                      "type": "boolean"
                     },
                     "resetFileOwnerSession": {
                       "type": "boolean"
@@ -457846,7 +457988,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }
@@ -458242,6 +458385,9 @@
                     "installationId": {
                       "type": "string"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "passwordChangeRequired": {
                       "type": "boolean"
                     },
@@ -458299,6 +458445,9 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "rememberProfiles": {
+                      "type": "boolean"
                     },
                     "resetFileOwnerSession": {
                       "type": "boolean"
@@ -458397,7 +458546,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }
@@ -473383,6 +473533,9 @@
                     "custodyPending": {
                       "type": "boolean"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "profiles": {
                       "items": {
                         "properties": {
@@ -473438,6 +473591,9 @@
                       },
                       "type": "array"
                     },
+                    "rememberProfiles": {
+                      "type": "boolean"
+                    },
                     "serverId": {
                       "type": "string"
                     },
@@ -473451,7 +473607,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }
@@ -474947,6 +475104,9 @@
                     "installationId": {
                       "type": "string"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "passwordChangeRequired": {
                       "const": true,
                       "type": "boolean"
@@ -475005,6 +475165,9 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "rememberProfiles": {
+                      "type": "boolean"
                     },
                     "resetFileOwnerSession": {
                       "const": false,
@@ -475109,6 +475272,7 @@
                     "profiles",
                     "canManage",
                     "capabilities",
+                    "rememberProfiles",
                     "session",
                     "passwordChangeRequired"
                   ],
@@ -475561,6 +475725,9 @@
                     "custodyPending": {
                       "type": "boolean"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "profiles": {
                       "items": {
                         "properties": {
@@ -475616,6 +475783,9 @@
                       },
                       "type": "array"
                     },
+                    "rememberProfiles": {
+                      "type": "boolean"
+                    },
                     "serverId": {
                       "type": "string"
                     },
@@ -475629,7 +475799,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }
@@ -475915,6 +476086,9 @@
                     "custodyPending": {
                       "type": "boolean"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "profiles": {
                       "items": {
                         "properties": {
@@ -475970,6 +476144,9 @@
                       },
                       "type": "array"
                     },
+                    "rememberProfiles": {
+                      "type": "boolean"
+                    },
                     "serverId": {
                       "type": "string"
                     },
@@ -475983,7 +476160,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }
@@ -476320,6 +476498,9 @@
                     "custodyPending": {
                       "type": "boolean"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "profiles": {
                       "items": {
                         "properties": {
@@ -476375,6 +476556,9 @@
                       },
                       "type": "array"
                     },
+                    "rememberProfiles": {
+                      "type": "boolean"
+                    },
                     "serverId": {
                       "type": "string"
                     },
@@ -476388,7 +476572,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }
@@ -476887,6 +477072,9 @@
                     "custodyPending": {
                       "type": "boolean"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "profiles": {
                       "items": {
                         "properties": {
@@ -476942,6 +477130,9 @@
                       },
                       "type": "array"
                     },
+                    "rememberProfiles": {
+                      "type": "boolean"
+                    },
                     "serverId": {
                       "type": "string"
                     },
@@ -476955,7 +477146,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }
@@ -477466,18 +477658,14 @@
                   "pin": {
                     "type": "string"
                   },
-                  "trust": {
+                  "remember": {
                     "type": "boolean"
-                  },
-                  "trustToken": {
-                    "type": "string"
                   }
                 },
                 "required": [
                   "pin",
                   "installationId",
-                  "trustToken",
-                  "trust"
+                  "remember"
                 ],
                 "type": "object"
               }
@@ -477491,6 +477679,17 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "remembered": {
+                      "properties": {
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "expiresAt"
+                      ],
+                      "type": "object"
+                    },
                     "session": {
                       "properties": {
                         "accessToken": {
@@ -477569,59 +477768,6 @@
                         "sessionFamilyId",
                         "tokenGeneration",
                         "authorizationHorizon"
-                      ],
-                      "type": "object"
-                    },
-                    "trustedSelection": {
-                      "properties": {
-                        "accountId": {
-                          "type": "string"
-                        },
-                        "authority": {
-                          "type": "string"
-                        },
-                        "expiresAt": {
-                          "type": "string"
-                        },
-                        "installationId": {
-                          "type": "string"
-                        },
-                        "membershipRevision": {
-                          "maximum": 9007199254740991,
-                          "minimum": -9007199254740991,
-                          "type": "integer"
-                        },
-                        "pinRevision": {
-                          "maximum": 9007199254740991,
-                          "minimum": -9007199254740991,
-                          "type": "integer"
-                        },
-                        "profileId": {
-                          "type": "string"
-                        },
-                        "profileRevision": {
-                          "maximum": 9007199254740991,
-                          "minimum": -9007199254740991,
-                          "type": "integer"
-                        },
-                        "serverId": {
-                          "type": "string"
-                        },
-                        "token": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "authority",
-                        "token",
-                        "expiresAt",
-                        "installationId",
-                        "serverId",
-                        "accountId",
-                        "profileId",
-                        "pinRevision",
-                        "profileRevision",
-                        "membershipRevision"
                       ],
                       "type": "object"
                     }
@@ -478959,6 +479105,9 @@
                     "installationId": {
                       "type": "string"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "passwordChangeRequired": {
                       "type": "boolean"
                     },
@@ -479016,6 +479165,9 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "rememberProfiles": {
+                      "type": "boolean"
                     },
                     "resetFileOwnerSession": {
                       "type": "boolean"
@@ -479114,7 +479266,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }
@@ -728376,6 +728529,9 @@
                     "installationId": {
                       "type": "string"
                     },
+                    "managePinRequired": {
+                      "type": "boolean"
+                    },
                     "passwordChangeRequired": {
                       "type": "boolean"
                     },
@@ -728433,6 +728589,9 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "rememberProfiles": {
+                      "type": "boolean"
                     },
                     "resetFileOwnerSession": {
                       "type": "boolean"
@@ -728531,7 +728690,8 @@
                     "account",
                     "profiles",
                     "canManage",
-                    "capabilities"
+                    "capabilities",
+                    "rememberProfiles"
                   ],
                   "type": "object"
                 }

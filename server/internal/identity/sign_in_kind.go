@@ -80,10 +80,18 @@ type ManagementCapabilities struct {
 }
 
 func (s *Service) RequireMainProfileTx(ctx context.Context, tx *sql.Tx, p Principal) error {
-	if _, err := s.SessionFamilyTx(ctx, tx, p); err != nil {
+	family, err := s.SessionFamilyTx(ctx, tx, p)
+	if err != nil {
 		return err
 	}
-	return mainProfileTx(ctx, tx, p)
+	if p.PINGated {
+		return ErrProfilePINReentry
+	}
+	if err = mainProfileTx(ctx, tx, p); err != nil {
+		return err
+	}
+	// A remembered main profile with a PIN enters it again before it manages.
+	return s.requireManagePINTx(ctx, tx, family.ID)
 }
 
 // mainProfileTx is the profile half of RequireMainProfileTx, for a server-side

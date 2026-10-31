@@ -1,9 +1,13 @@
 import {setCredentialLock, setInstallationIdentity, validInstallationId, type InstallationIdentity} from '@core/installation.ts';
-import {browserInstallation} from './profile-trust';
 
-// The canonical profile-trust service owns this record and creates it only on first use.
-// Startup reads it directly to distinguish absence from corrupt or unwritable storage.
+// This browser's installation id, created on first use. Startup reads the record directly to
+// distinguish absence from corrupt or unwritable storage.
 const installationKey = 'portico.profile-installation.v1';
+
+/** Only the non-secret installation identifier survives in localStorage. */
+export function browserInstallation(): string {
+  try {let id = localStorage.getItem(installationKey); if (!id) {id = crypto.randomUUID(); localStorage.setItem(installationKey, id);} return id;} catch {return '';}
+}
 
 /** Pure device-description logic; no component or old UI dependency. */
 function browserDeviceName(userAgent: string): string {

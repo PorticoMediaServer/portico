@@ -570,8 +570,9 @@ func TestTypedPINRecoveryAndResetAuthorityAndContract(t *testing.T) {
 	if w := reset(path, owner.AccessToken, `"1234"`); w.Code != 200 {
 		t.Fatalf("owner PIN reset without step-up: %d %s", w.Code, w.Body.String())
 	}
-	if w := logoutHTTPRequest(h, "GET", "/v1/direct/profiles/"+childID+"/restrictions", child.Session.AccessToken); w.Code != 401 {
-		t.Fatalf("old child family survived PIN reset: %d %s", w.Code, w.Body.String())
+	// The child's device never entered the new PIN: it is asked for it again, not signed out.
+	if w := logoutHTTPRequest(h, "GET", "/v1/direct/profiles/"+childID+"/restrictions", child.Session.AccessToken); w.Code != 403 || !strings.Contains(w.Body.String(), `"profile_pin_reentry"`) {
+		t.Fatalf("old child family after a PIN reset: %d %s", w.Code, w.Body.String())
 	}
 	if w := reset(path, owner.AccessToken, `"not-a-pin"`); w.Code != 400 {
 		t.Fatalf("invalid PIN: %d %s", w.Code, w.Body.String())

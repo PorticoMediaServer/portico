@@ -175,9 +175,8 @@ func SetMemberProfileRestrictionsTx(ctx context.Context, tx *sql.Tx, account, id
 	return memberProfileTx(ctx, tx, account, id)
 }
 
-// ClearMemberProfilePINTx removes a profile's PIN. As with the person's own
-// reset, every remembered trust and viewing session that relied on the old
-// PIN ends.
+// ClearMemberProfilePINTx removes a profile's PIN. Its sign-ins carry on: with
+// no PIN there is nothing to ask for again.
 func (s *Service) ClearMemberProfilePINTx(ctx context.Context, tx *sql.Tx, account, id string, q MemberProfilePINReset) (MemberProfile, error) {
 	if !validFamilyID(id) || q.ExpectedRevision < 1 {
 		return MemberProfile{}, ErrDirectInput

@@ -7,12 +7,11 @@ import (
 	"testing"
 )
 
-// P2-59: switching to any profile is governed by the destination's own PIN.
-// Remembered trust belongs to a profile and may spare a same-profile selection
-// or a launch from an account-scoped sign-in; it never covers an actual switch
-// from a profile being viewed to another one, whether the destination is the
-// main profile or an ordinary Guest/Kids one. Every source session here is a
-// real viewing session: an account-scoped sign-in is a launch, not a source.
+// P2-59: choosing any profile is governed by the destination's own PIN.
+// Remembering a profile is the device keeping its sign-in; it never spares the
+// PIN of a choice, whether the destination is the main profile or an ordinary
+// Guest/Kids one. Every source session here is a real viewing session: an
+// account-scoped sign-in is a launch, not a source.
 
 type switchProfileKind int
 
@@ -48,8 +47,8 @@ func switchNamedProfile(t *testing.T, snapshot DirectSnapshot, name string) Dire
 
 // switchPINFixture builds three real profiles through the profile API, protects
 // only the profiles named in pins through the real edit path, and signs in again
-// so the account-scoped family sits on the main profile. A new PIN retires the
-// families on that profile, so no fixture asks for a session before this ends.
+// so the account-scoped family sits on the main profile. No fixture asks for a
+// session before the PINs are set.
 func switchPINFixture(t *testing.T, pins map[switchProfileKind]string) (*Service, *sql.DB, DirectSignIn, map[switchProfileKind]DirectProfile) {
 	t.Helper()
 	ctx := context.Background()
@@ -159,36 +158,32 @@ func TestDirectProfileSwitchRequiresTheDestinationPIN(t *testing.T) {
 			wrong := "0000"
 
 			for _, variant := range []struct {
-				name    string
-				trusted bool
-				choose  func(DirectTrust) DirectSelection
-				refused bool
+				name       string
+				remembered bool
+				choose     DirectSelection
+				refused    bool
 			}{
-				{"missingPINRefused", false, func(DirectTrust) DirectSelection { return DirectSelection{} }, true},
-				{"wrongPINRefused", false, func(DirectTrust) DirectSelection { return DirectSelection{PIN: wrong} }, true},
-				{"rememberedDestinationTrustStillNeedsThePIN", true, func(trust DirectTrust) DirectSelection {
-					return DirectSelection{TrustToken: trust.Token, InstallationID: switchInstallation}
-				}, true},
-				{"correctPINIssuesSession", false, func(DirectTrust) DirectSelection { return DirectSelection{PIN: targetPIN} }, false},
+				{"missingPINRefused", false, DirectSelection{}, true},
+				{"wrongPINRefused", false, DirectSelection{PIN: wrong}, true},
+				{"rememberedDestinationStillNeedsThePIN", true, DirectSelection{InstallationID: switchInstallation, Remember: true}, true},
+				{"correctPINIssuesSession", false, DirectSelection{PIN: targetPIN}, false},
 			} {
 				t.Run("protectedDestination/"+variant.name, func(t *testing.T) {
 					s, db, login, profiles := switchPINFixture(t, pin)
 					target := profiles[pair.to]
-					var trust DirectTrust
-					if variant.trusted {
-						// A real, live proof for this destination, obtained through
-						// the legitimate path: same-profile for Main, and the
-						// destination's own PIN for Guest/Kids.
-						seed := DirectSelection{Trust: true, InstallationID: switchInstallation, PIN: targetPIN}
+					if variant.remembered {
+						// A real, live remembered sign-in on this destination,
+						// obtained through the legitimate path: the destination's
+						// own PIN with remember.
+						seed := DirectSelection{Remember: true, InstallationID: switchInstallation, PIN: targetPIN}
 						seeded, err := s.SelectDirectProfile(ctx, login.AccountToken, target.ID, seed)
-						if err != nil || seeded.TrustedSelection == nil {
-							t.Fatalf("preparing destination trust: %+v %v", seeded.TrustedSelection, err)
+						if err != nil || seeded.Remembered == nil {
+							t.Fatalf("preparing a remembered destination: %+v %v", seeded.Remembered, err)
 						}
-						trust = *seeded.TrustedSelection
 					}
 					source, family := switchSourceSession(t, s, login, pair.from, profiles, nil)
 					before := liveFamilies(t, db)
-					result, err := s.SelectDirectProfile(ctx, source, target.ID, variant.choose(trust))
+					result, err := s.SelectDirectProfile(ctx, source, target.ID, variant.choose)
 					if variant.refused {
 						var wait *ProfilePINError
 						if !errors.Is(err, ErrProfilePIN) || !errors.As(err, &wait) {

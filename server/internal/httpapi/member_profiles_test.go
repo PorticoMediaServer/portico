@@ -121,7 +121,7 @@ func TestMemberProfileRestrictionsApplyLiveAndCarryRevisions(t *testing.T) {
 	}
 }
 
-func TestMemberProfilePINResetClearsThePINAndEndsWhatReliedOnIt(t *testing.T) {
+func TestMemberProfilePINResetClearsThePINAndKeepsTheProfilesSessions(t *testing.T) {
 	f := administrationFixtureNew(t)
 	if _, e := f.deps.DB.Exec(`UPDATE direct_profiles SET pin_hash=x'00' WHERE id='member-profile'`); e != nil {
 		t.Fatal(e)
@@ -142,9 +142,10 @@ func TestMemberProfilePINResetClearsThePINAndEndsWhatReliedOnIt(t *testing.T) {
 	if e := json.Unmarshal(w.Body.Bytes(), &out); e != nil || out.PINRequired || out.PINRevision != profile.PINRevision+1 || out.Revision != profile.Revision+1 {
 		t.Fatalf("cleared: %v %+v", e, out)
 	}
-	// The profile's sessions got there with the old PIN, so they end.
-	if _, e := f.deps.Identity.Authenticate(f.member); e == nil {
-		t.Fatal("a session on the reset profile survived")
+	// With no PIN left there is nothing to enter again: the profile's sessions
+	// carry on, neither signed out nor gated.
+	if _, e := f.deps.Identity.Authenticate(f.member); e != nil {
+		t.Fatalf("clearing the PIN ended or gated a session on the profile: %v", e)
 	}
 	if w = f.call("POST", "/v1/admin/access/members/member/profiles/member-profile/pin-reset", f.admin, reset); w.Code != 409 {
 		t.Fatalf("a replayed reset: %d %s", w.Code, w.Body)

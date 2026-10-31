@@ -212,7 +212,7 @@ func (d Dependencies) directIdentityRoutes(mux *http.ServeMux) {
 			failure(w, e)
 			return
 		}
-		if e := d.Identity.RevokeDirectTrust(r.Context(), directBearer(r), q.ProfileID, q.InstallationID); e != nil {
+		if e := d.Identity.ForgetRememberedDevices(r.Context(), directBearer(r), q.ProfileID, q.InstallationID); e != nil {
 			failure(w, e)
 			return
 		}

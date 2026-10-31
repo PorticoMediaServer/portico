@@ -111,7 +111,7 @@ func (h *Hub) Run(ctx context.Context) {
 	defer unregisterDirect()
 	// Security changes must re-authorize existing streams without idle polling.
 	security := worker.NewSignal()
-	stop := dbwork.WakeOnTableWrites(security, "authorization_session_families", "authorization_family_tokens", "accounts", "direct_memberships", "direct_profiles", "identity_devices", "libraries", "library_sources", "direct_profile_trust", "restrictions", "profile_restrictions", "restriction_outbox", "policy", "library_network_policy", "api_credentials", "hosted_profile_revisions")
+	stop := dbwork.WakeOnTableWrites(security, "authorization_session_families", "authorization_family_tokens", "accounts", "direct_memberships", "direct_profiles", "identity_devices", "libraries", "library_sources", "restrictions", "profile_restrictions", "restriction_outbox", "policy", "library_network_policy", "api_credentials", "hosted_profile_revisions")
 	defer stop()
 	supervise.Go("api.events.authority", func() {
 		for security.Wait(ctx) {

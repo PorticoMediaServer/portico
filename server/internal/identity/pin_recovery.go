@@ -105,6 +105,11 @@ func (s *Service) PINReset(ctx context.Context, bearer, profile, pin string) (Di
 	if e = s.retireProfilePINGrantsTx(ctx, tx, c.account.ID, profile); e != nil {
 		return DirectSnapshot{}, e
 	}
+	if len(hash) > 0 {
+		if e = gateProfileFamiliesTx(ctx, tx, c.account.ID, profile, c.familyID, false); e != nil {
+			return DirectSnapshot{}, e
+		}
+	}
 	out, e := s.directSnapshotTx(ctx, tx, c)
 	if e != nil {
 		return out, e
@@ -112,14 +117,13 @@ func (s *Service) PINReset(ctx context.Context, bearer, profile, pin string) (Di
 	return out, gated2.Commit()
 }
 
-// Every PIN change retires both collected credentials and approvals that have
-// not yet minted a viewing family. Other profiles and ordinary logout keep
-// their own grant lifetimes.
+// Every PIN change retires collected PIN attempts, feed tokens and approvals that
+// have not yet minted a viewing family. It signs no device out: the profile's
+// other sign-ins ask for the new PIN instead (gateProfileFamiliesTx, called by
+// the change when the profile has a PIN afterwards), and removing a PIN asks
+// nobody for anything. Other profiles keep their own grants.
 func (s *Service) retireProfilePINGrantsTx(ctx context.Context, tx *sql.Tx, account, profile string) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM direct_profile_pin_attempts WHERE profile_id=?`, profile); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM direct_profile_trust WHERE profile_id=?`, profile); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM topshelf_tokens WHERE account_id=? AND profile_id=?`, account, profile); err != nil {
@@ -128,7 +132,7 @@ func (s *Service) retireProfilePINGrantsTx(ctx context.Context, tx *sql.Tx, acco
 	if _, err := tx.ExecContext(ctx, `UPDATE quick_connect_v1 SET status='cancelled',grant_cipher=NULL,user_hash=NULL WHERE approver_id=? AND status='approved' AND json_extract(CAST(grant_cipher AS TEXT),'$.profileId')=?`, account, profile); err != nil {
 		return err
 	}
-	return s.revokeDirectTx(ctx, tx, account, profile, "")
+	return nil
 }
 
 // AuthCapabilities is the public, pre-authentication descriptor. A client reads it

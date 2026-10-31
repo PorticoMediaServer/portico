@@ -71,7 +71,6 @@ var sessionScrub = []struct{ table, statement string }{
 	{"hosted_identity_challenges", `DELETE FROM hosted_identity_challenges`},
 	{"onboarding_state_v1", `UPDATE onboarding_state_v1 SET receipt=NULL WHERE receipt IS NOT NULL`},
 	// Things a device holds instead of entering a PIN or a password again.
-	{"direct_profile_trust", `DELETE FROM direct_profile_trust`},
 	{"topshelf_tokens", `DELETE FROM topshelf_tokens`},
 	// Screens paired as Cast targets renew with their own device token.
 	{"social_cast_devices", `UPDATE social_cast_devices SET state='revoked' WHERE state IN('pending','active')`},

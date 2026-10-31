@@ -131,6 +131,9 @@ export const schemas = {
       "installationId": {
         "type": "string"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "passwordChangeRequired": {
         "type": "boolean"
       },
@@ -188,6 +191,9 @@ export const schemas = {
           "type": "object"
         },
         "type": "array"
+      },
+      "rememberProfiles": {
+        "type": "boolean"
       },
       "resetFileOwnerSession": {
         "type": "boolean"
@@ -286,7 +292,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   }

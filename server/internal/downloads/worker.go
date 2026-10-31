@@ -776,7 +776,7 @@ func watchDownloadWork(signal *worker.Signal) func() {
 		"asset_stream*", "episode_asset_boundaries", "music_virtual_tracks", "music_technical_facts",
 		"inventory_objects", "library_sources", "library_revisions", "library_network_policy",
 		"source_*", "remote_source_*", "remote_sources", "remote_scan_observations", "playback_owner_policy",
-		"server_settings", "console_settings_revision", "authorization_*", "accounts", "direct_profile_trust", "restrictions", "hosted_*", "identity_devices",
+		"server_settings", "console_settings_revision", "authorization_*", "accounts", "restrictions", "hosted_*", "identity_devices",
 		"direct_profiles", "direct_memberships", "profile_*", "playlist_shares",
 		"container_personal_state", "personal_explicit_events", "viewer_revisions", "dvr_catalog_retirements",
 	)

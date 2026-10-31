@@ -363,7 +363,6 @@ index direct_one_owner
 index direct_primary_profile
 index direct_profile_pin_attempts_last_failed
 index direct_profile_pin_attempts_lineage
-index direct_profile_trust_account
 index direct_profiles_account
 index direct_profiles_broadcast
 index download_action_claims_preparation
@@ -1236,7 +1235,6 @@ table detail_jobs
 table diagnostics_debug_window
 table direct_memberships
 table direct_profile_pin_attempts
-table direct_profile_trust
 table direct_profiles
 table download_action_claims
 table download_action_transfers
@@ -2791,7 +2789,6 @@ trigger credit_source_rows_immutable
 trigger credit_source_rows_keep
 trigger credit_source_rows_no_replace
 trigger direct_account_created
-trigger direct_account_epoch
 trigger direct_membership_disabled
 trigger direct_memberships_members_list_delete
 trigger direct_memberships_members_list_insert
