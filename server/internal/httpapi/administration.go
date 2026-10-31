@@ -41,6 +41,9 @@ func administrationFailure(w http.ResponseWriter, err error) {
 	// CD-51: a refused but valid session is 403 (or a hidden 404), never 401.
 	case errors.Is(err, identity.ErrNotVisible):
 		status, code, message = 404, "not_found", publicErrorMessage("not_found")
+	case errors.Is(err, identity.ErrProfilePINReentry), errors.Is(err, identity.ErrProfilePINManage):
+		status, code, _ = identity.Refusal(err)
+		message = err.Error()
 	case errors.Is(err, identity.ErrForbidden):
 		status, code, message = 403, "forbidden", identity.ErrForbidden.Error()
 	case errors.Is(err, errFeatureRestricted):
