@@ -107,6 +107,37 @@ class AssemblyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             M['build_proof'](report, 'windows-x64', raw, recipe, '3' * 40, '2' * 64)
 
+    def test_build_reads_a_separate_readonly_graph_even_if_original_changes_later(self):
+        recipe = self.root / 'recipe'
+        recipe.mkdir()
+        original = recipe / 'Dockerfile'
+        original.write_text('FROM compiler AS base-layer\n')
+        sha = M['digest'](original)
+        tree = M['inputs'].recipe_tree(recipe)
+        frozen = M['inputs'].consumed_dockerfile(recipe, sha)
+        self.assertNotEqual(frozen, original)
+        self.assertEqual(frozen.name, 'Dockerfile.' + sha)
+        self.assertEqual(frozen.stat().st_mode & 0o777, 0o444)
+        self.assertEqual(M['inputs'].recipe_tree(recipe), tree)
+        inode = frozen.stat().st_ino
+        self.assertEqual(M['inputs'].consumed_dockerfile(recipe, sha).stat().st_ino, inode)
+        original.write_text('changed after validation but before Docker reads --file')
+        self.assertEqual(M['digest'](frozen), sha)
+        with self.assertRaisesRegex(ValueError, 'Dockerfile changed'):
+            M['inputs'].consumed_dockerfile(recipe, sha)
+        original.write_text('FROM compiler AS base-layer\n')
+        frozen.chmod(0o644)
+        with self.assertRaisesRegex(ValueError, 'frozen Dockerfile'):
+            M['inputs'].consumed_dockerfile(recipe, sha)
+        frozen.write_text('changed cached graph')
+        frozen.chmod(0o444)
+        with self.assertRaisesRegex(ValueError, 'frozen Dockerfile'):
+            M['inputs'].consumed_dockerfile(recipe, sha)
+        frozen.unlink()
+        frozen.symlink_to(original)
+        with self.assertRaisesRegex(ValueError, 'frozen Dockerfile'):
+            M['inputs'].consumed_dockerfile(recipe, sha)
+
     def test_sealed_receipt_uses_the_exact_consumed_graph_and_matches_archive_inventory(self):
         recipe = self.root / 'recipe'
         (recipe / 'scripts.d').mkdir(parents=True)
@@ -121,7 +152,9 @@ class AssemblyTests(unittest.TestCase):
         original = 'FROM compiler AS base-layer\nRUN --mount=src=scripts.d/10-dep.sh,dst=/stage.sh --mount=src=' + snapshot + ',dst=/cache.tar.xz build\n'
         dockerfile.write_text(original)
         consumed_sha = M['digest'](dockerfile)
-        self.assertEqual(M['inputs'].consumed_dockerfile(recipe, consumed_sha), dockerfile)
+        frozen = M['inputs'].consumed_dockerfile(recipe, consumed_sha)
+        self.assertNotEqual(frozen, dockerfile)
+        self.assertEqual(M['digest'](frozen), consumed_sha)
         dockerfile.write_text('regenerated graph is not the build input')
         with self.assertRaisesRegex(ValueError, 'Dockerfile changed'):
             M['inputs'].consumed_dockerfile(recipe, consumed_sha)
