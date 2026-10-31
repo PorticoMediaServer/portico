@@ -1,5 +1,6 @@
 /// <reference path="./foliate.d.ts" />
 import {EPUB} from 'foliate-js/epub.js';
+import {releaseQuietly} from '@portico/client-core';
 import './vendor/paginator.js';
 import {fromRange, joinIndir} from 'foliate-js/epubcfi.js';
 import {ReaderError, throwIfAborted} from '../errors.ts';
@@ -75,7 +76,7 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
     const lifetime=new AbortController(),scope=abortScope([parent,lifetime.signal]),signal=scope.signal;
     let assets:Awaited<ReturnType<typeof openEpubArchive>>;
     try{throwIfAborted(signal);assets=source.resources?resourceAssets(source):await openEpubArchive(source,signal);}
-    catch(error){scope.dispose();throw error;}
+    catch(error){releaseQuietly('epub scope dispose',()=>scope.dispose());throw error;}
     let book: Book | undefined, mounted=false, disposed=false, view: ReaderView<P>|undefined;
     const byPath=new Map(assets.entries.map(e=>[e.path,e]));
     const decoder=new TextDecoder('utf-8',{fatal:true});

@@ -1,4 +1,5 @@
 import React, {useSyncExternalStore} from 'react';
+import {releaseQuietly} from '../../../../../packages/client-core/src/cleanup';
 import {shareLinkActions} from '../share/share-actions';
 import type {View} from 'react-native';
 import type {HttpLocalApi} from '../../../../../packages/client-core/src';
@@ -212,7 +213,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
       const groups = fileInfoUsesGroups(captured.entry.kind) ? session.getSnapshot().groups : session.getSnapshot().files!;
       if (!read || !current(captured)) {session.retire(); return;}
       if (groups.status === 'failed') throw groups.error;
-    } catch (error) {session.retire(); throw error;}
+    } catch (error) {releaseQuietly('watch session retire', () => session.retire()); throw error;}
     const changed = async () => {if (current(captured)) await Promise.all([...controllers.values()].filter(controller => titleKey(controller.entry) === titleKey(captured.entry)).map(async controller => {
       const state = controller.getSnapshot();
       if (state.detail?.data) await controller.detail.refresh();

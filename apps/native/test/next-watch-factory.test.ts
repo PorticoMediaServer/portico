@@ -18,6 +18,7 @@ import {groupRow, groupsPage, ownerSurface} from './helpers/file-info-windows.ts
 import {readNativePlaybackInfo} from '../src-next/screens/watch/playback-info.ts';
 import type {NativePlaybackAdapter} from '../src-next/platform/playback/types.ts';
 import {infoWords} from './helpers/playback-info.ts';
+import * as cleanup from '../../../packages/client-core/src/cleanup.ts';
 import {nativeWatchTracks} from '../src-next/screens/watch/track-identity.ts';
 import {NativeVersionChooserController} from '../src-next/screens/watch/version-destination.ts';
 import {nativeVersionChoices, nativeVersionNames} from '../src-next/screens/watch/version-options.ts';
@@ -46,7 +47,7 @@ const episodes = await screenModule(new URL('../src-next/screens/watch/EpisodePa
   '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText}, './SeasonsSheet': seasons,
   '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}});
 const {createNativeWatchScreens} = await screenModule(new URL('../src-next/screens/watch/factory.tsx', import.meta.url), {'../share/share-actions': {shareLinkActions: () => []}, 
-  react, '../../../../../packages/client-core/src/playback-v1/options': {PlaybackOptionsClient},
+  react, '../../../../../packages/client-core/src/cleanup': cleanup, '../../../../../packages/client-core/src/playback-v1/options': {PlaybackOptionsClient},
   '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http},
   '../../../../../packages/client-core/src/detail': detailStub,
   '../../../../../packages/client-core/src/continue-watching': {setContinueDismissed},

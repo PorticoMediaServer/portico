@@ -1,4 +1,5 @@
 import {throwSignalAborted as throwIfAborted} from '../abort.ts';
+import {releaseQuietlyAsync} from '@portico/client-core';
 import {abortScope} from '../abort.ts';
 import type {ReaderAdapter,ReaderDocument,ReaderLocation} from '../ports.ts';
 import {mountFixed,type FixedPreferences} from './fixed-view.ts';
@@ -119,6 +120,6 @@ export function createPdfAdapter<P extends FixedPreferences>(options:PdfOptions=
         },page(index,pageOptions){return preview(engine,index,pageOptions.width,pageOptions.signal);},
         async dispose(){if(closed)return;closed=true;for(const view of [...views])await view.dispose();views.clear();await engine.dispose();}
       };return publication;
-    }catch(error){await engine.dispose();throw error;}
+    }catch(error){await releaseQuietlyAsync('pdf engine dispose',()=>engine.dispose());throw error;}
   }};
 }

@@ -1,4 +1,5 @@
 import {throwSignalAborted as throwIfAborted} from '../abort.ts';
+import {releaseQuietly} from '@portico/client-core';
 import type {ReaderSource} from '../ports.ts';
 import {abortScope,abortReason} from '../abort.ts';
 
@@ -12,11 +13,11 @@ export async function pdfSequential(source:ReaderSource,open:PdfSequentialOpen,s
   const lifetime=new AbortController(),scope=abortScope([signal,lifetime.signal]),combined=scope.signal;
   let stream:ReadableStream<Uint8Array>;
   try{stream=await open(combined);if(combined.aborted){await stream.cancel(abortReason(combined)).catch(()=>{});throwIfAborted(combined);}}
-  catch(error){scope.dispose();throw error;}
+  catch(error){releaseQuietly('pdf sequential scope dispose',()=>scope.dispose());throw error;}
   // Fetch byte streams support BYOB: control each application allocation even
   // when the browser coalesces network packets while the PDF worker starts.
   let byob:ReadableStreamBYOBReader|undefined,plain:ReadableStreamDefaultReader<Uint8Array>|undefined;
-  try{try{byob=stream.getReader({mode:'byob'});}catch{plain=stream.getReader();}}catch(error){scope.dispose();throw error;}
+  try{try{byob=stream.getReader({mode:'byob'});}catch{plain=stream.getReader();}}catch(error){releaseQuietly('pdf sequential scope dispose',()=>scope.dispose());throw error;}
   const reader=byob??plain!;let closed=false,started=false,total=0,remainder:Uint8Array|undefined;
   const unchanged=()=>{if(source.id!==id||source.revision!==revision||source.size!==size)throw fail('pdf_invalid');};
   const close=async(reason?:unknown)=>{if(closed)return;closed=true;combined.removeEventListener('abort',abort);lifetime.abort(reason);scope.dispose();try{await reader.cancel(reason);}catch{}finally{reader.releaseLock();}};

@@ -1,4 +1,5 @@
 import type {ReaderAdapter,ReaderDocument,ReaderComicFormat} from '../ports.ts';
+import {releaseQuietly} from '@portico/client-core';
 import {mountFixed,type FixedPreferences} from '../pdf/fixed-view.ts';
 import {openComicArchive,type ComicPageProvider,type ComicPage} from './archive.ts';
 import {checkAbort,ComicInputError} from './zip.ts';
@@ -47,7 +48,7 @@ export function createComicAdapter<P extends FixedPreferences>(options:ComicAdap
           active(taskSignal);const task=abortScope([life.signal,taskSignal]),combined=task.signal;
           try {
           const page=await provider.page(index,{width:2048,signal:combined});active(combined);validatePage(page,index);
-          const bitmap=await bitmapFor(page,combined);try{active(combined);}catch(error){bitmap.close();throw error;}let released=false;
+          const bitmap=await bitmapFor(page,combined);try{active(combined);}catch(error){releaseQuietly('comic bitmap close',()=>bitmap.close());throw error;}let released=false;
           return {width:bitmap.width,height:bitmap.height,
             async mount(target,scale,renderSignal){checkAbort(renderSignal);const canvas=target.ownerDocument.createElement('canvas');
               const ratio=Math.min(target.ownerDocument.defaultView?.devicePixelRatio??1,2,8192/(bitmap.width*scale),8192/(bitmap.height*scale),Math.sqrt(16_000_000/(bitmap.width*bitmap.height*scale*scale)));
@@ -59,7 +60,7 @@ export function createComicAdapter<P extends FixedPreferences>(options:ComicAdap
           };
           }finally{task.dispose();}
         },{...mountOptions,signal:scope.signal});const view={...fixed,dispose(){scope.dispose();views.delete(view);return fixed.dispose();}};views.add(view);return view;
-        }catch(error){scope.dispose();throw error;}
+        }catch(error){releaseQuietly('comic scope dispose',()=>scope.dispose());throw error;}
       },
       async *search(_query,searchOptions){active(searchOptions.signal);},
       async page(index,pageOptions){
