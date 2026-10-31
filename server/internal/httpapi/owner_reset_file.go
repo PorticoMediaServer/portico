@@ -49,6 +49,8 @@ func (d Dependencies) ownerResetFileRoutes(mux *http.ServeMux) {
 			failure(w, e)
 			return
 		}
+		// The admitted owner is journalled; push them to Portico Services now.
+		d.Hosted.MembershipChanged()
 		writeAuth(w, r, 200, out)
 	})
 	d.httpHandle(mux, "GET /v1/auth/services-reachability", func(w http.ResponseWriter, r *http.Request) {

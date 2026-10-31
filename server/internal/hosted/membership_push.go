@@ -359,6 +359,14 @@ func (s *Service) pushMembers(ctx context.Context, v networking.Intent, q member
 	})
 }
 
+// ownerAdmitted reports whether this server has any account: false only while a
+// first-run setup's owner is still to be admitted (setupflow phases before completed).
+func (s *Service) ownerAdmitted(ctx context.Context) (bool, error) {
+	var any bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM accounts)`).Scan(&any)
+	return any, err
+}
+
 func containsString(v []string, s string) bool {
 	for _, x := range v {
 		if x == s {
@@ -374,6 +382,15 @@ func (s *Service) memberStep(ctx context.Context, v networking.Intent) (time.Tim
 	q, e := s.memberSyncState(ctx)
 	if e != nil || !q.journalPending {
 		return time.Time{}, e
+	}
+	// A Portico Account setup whose claim installed but whose owner the Return hasn't
+	// admitted yet has no accounts. Its full list would be empty, and Portico Services
+	// would drop the claim's owner from its index and refuse the Return. Nothing is
+	// pushed until the owner is admitted: admission journals the owner and wakes this
+	// step (MembershipChanged), so the first push is the full list naming them. Only a
+	// server with no accounts at all waits; owner moves and switches always have some.
+	if admitted, err := s.ownerAdmitted(ctx); err != nil || !admitted {
+		return time.Time{}, err
 	}
 	now := time.Now().UTC()
 	if now.Before(q.nextAt) {
