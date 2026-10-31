@@ -60,6 +60,14 @@ export async function restoreHostedOwnerPending(store: HostedOwnerPendingStore, 
   try {return checked(saved, origin, now);}
   catch (error) {await store.change(current => current?.attemptId === saved.attemptId ? undefined : current); throw error;}
 }
+/** Where an ordinary provider sign-in or sign-up resumes. The claim this tab started from (a
+ * setup or an owner move) stays in this tab's store across the provider round trip, so Services
+ * goes back to /claim, which restores it; anything unusable is cleared and Start opens as before.
+ * A fixed path: nothing in the URL or from the provider chooses it. */
+export async function providerReturnPath(store: () => HostedOwnerPendingStore, origin: string, now = Date.now()): Promise<'/claim' | '/'> {
+  try {return await restoreHostedOwnerPending(store(), origin, undefined, now) ? '/claim' : '/';}
+  catch {return '/';}
+}
 async function current(store: HostedOwnerPendingStore, pending: HostedOwnerPending) {
   store.assertAvailable();
   const saved = await store.read();
