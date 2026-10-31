@@ -222,7 +222,7 @@ test('awaiting approval without an app Portico Account shows the waiting screen 
   } finally {await f.host.unmount();}
 });
 
-test('Back leaves from the choice and asks the controller everywhere else', async () => {
+test('Back steps through the form as on the web: out of setup from the choice, back to the choice from the owner form, and the controller elsewhere', async () => {
   const choice = await fixture({view: view('form', {mode: 'choose', name: 'Studio'})});
   try {
     await choice.act(() => choice.layout()!.props.secondaryAction.onPress());
@@ -230,8 +230,15 @@ test('Back leaves from the choice and asks the controller everywhere else', asyn
     assert.equal(choice.fake().count('back'), 0, 'the choice hands Back to the shell instead of the controller');
   } finally {await choice.host.unmount();}
 
-  for (const state of [view('form', {mode: 'local', name: 'Studio'}),
-    view('awaiting_approval', {name: 'Studio', serverPhase: 'awaiting_approval', approvalUrl: 'https://portico.example/a', polls: 0})]) {
+  const owner = await fixture({view: view('form', {mode: 'local', name: 'Studio'})});
+  try {
+    await owner.act(() => owner.layout()!.props.secondaryAction.onPress());
+    assert.equal(owner.fake().count('chooseKind'), 1, 'the owner form goes back to the choice');
+    assert.equal(owner.fake().count('back'), 0);
+    assert.equal(owner.left.length, 0);
+  } finally {await owner.host.unmount();}
+
+  for (const state of [view('awaiting_approval', {name: 'Studio', serverPhase: 'awaiting_approval', approvalUrl: 'https://portico.example/a', polls: 0})]) {
     const f = await fixture({view: state});
     try {
       await f.act(() => f.layout()!.props.secondaryAction.onPress());
