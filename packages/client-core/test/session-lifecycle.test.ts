@@ -366,7 +366,7 @@ test("another tab's new family on the same server is followed: ready(new viewer,
   assert.equal(t.row, 34);
   assertSubset(t.snapshot.state, {kind: 'ready', viewer: viewer('kids', 'f9'), remembered: false, manageLocked: false});
   assert.ok(t.effects.every(e => e.kind === 'fenceShell'), 'only the shell fence');
-  assert.ok(!t.effects.some(e => e.kind === 'signOutServer' || e.kind === 'signOutAccount' || e.kind === 'forgetServer'));
+  assert.ok(!t.effects.some(e => ['signOutServer', 'signOutAccount', 'forgetServer'].includes(e.kind)));
   assert.equal(t.snapshot.generation, G + 1);
 });
 
