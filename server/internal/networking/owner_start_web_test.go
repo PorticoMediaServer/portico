@@ -29,6 +29,16 @@ func (fn ownerPendingRoundTrip) RoundTrip(r *http.Request) (*http.Response, erro
 // Real fresh Server stores, keys, setup, family, move and HTTPTransport meet at
 // this boundary. The response peer is controlled; this is not a Hosted DB pair.
 func TestOwnerWebPendingFollowsAtomicCaptureAndFencesLateRevocation(t *testing.T) {
+	ownerWebPending(t, 0)
+}
+
+// A start pressed shortly before the owner's family reaches its horizon ends
+// there, not a whole step later (capture would refuse it).
+func TestOwnerStartIssuedNearTheFamilyHorizonEndsAtTheHorizon(t *testing.T) {
+	ownerWebPending(t, 5*time.Minute)
+}
+
+func ownerWebPending(t *testing.T, nearHorizon time.Duration) {
 	ctx := context.Background()
 	root := t.TempDir()
 	db, err := persistence.Open(filepath.Join(root, "server.sqlite"))
@@ -110,7 +120,16 @@ func TestOwnerWebPendingFollowsAtomicCaptureAndFencesLateRevocation(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	authority := &OwnerStartAuthority{CaptureTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed) error {
+	if nearHorizon > 0 {
+		if _, err = db.ExecContext(ctx, `UPDATE authorization_session_families SET authorization_horizon=? WHERE id=?`, time.Now().UTC().Add(nearHorizon).Format(time.RFC3339), setup.Envelope.SessionFamilyID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	horizon, err := id.OwnerStartHorizon(ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authority := &OwnerStartAuthority{Horizon: horizon, CaptureTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed) error {
 		return id.CaptureOwnerClaimTx(ctx, tx, p, original, start, audience)
 	}, CaptureWithCountTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed, sign OwnerSwitchCountSign) (*claimweb.Signed, error) {
 		return id.CaptureOwnerClaimWithCountTx(ctx, tx, p, original, start, audience, identity.OwnerSwitchCountSigner(sign))
@@ -225,7 +244,11 @@ func TestOwnerWebPendingFollowsAtomicCaptureAndFencesLateRevocation(t *testing.T
 	if raw, e := base64.RawURLEncoding.DecodeString(status.OwnerContinuation.Start.Payload); e != nil || json.Unmarshal(raw, &issuedStart) != nil {
 		t.Fatal("issued start unreadable", e)
 	}
-	if issuedStart.ExpiresAt.Sub(issuedStart.IssuedAt) != claimweb.OwnerStartLifetime || !issuedStart.ExpiresAt.After(p.ExpiresAt) {
+	if nearHorizon > 0 {
+		if !issuedStart.ExpiresAt.Equal(horizon) {
+			t.Fatalf("owner start ends %v, family horizon %v", issuedStart.ExpiresAt, horizon)
+		}
+	} else if issuedStart.ExpiresAt.Sub(issuedStart.IssuedAt) != claimweb.OwnerStartLifetime || !issuedStart.ExpiresAt.After(p.ExpiresAt) {
 		t.Fatalf("owner start lasts %v (token until %v)", issuedStart.ExpiresAt.Sub(issuedStart.IssuedAt), p.ExpiresAt)
 	}
 	out := localWebClaim{Signed: *status.OwnerContinuation.Claim, OwnerStart: status.OwnerContinuation.Start, OwnerTransactionID: status.OwnerContinuation.TransactionID, URL: status.ApprovalURL, Code: status.ClaimCode, ExpiresAt: expires}
