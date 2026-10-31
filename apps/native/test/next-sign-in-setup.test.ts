@@ -166,12 +166,20 @@ test('separate setup uses genuine React form, core auth, verified route and nati
           host.name === 'TextInput' && host.props.accessibilityLabel === label,
       );
   const saved = () => app.syntheticStorage();
+  const appState = (): any => saved().appSessions;
+  const selectedSignIn = () => {
+    const state = appState();
+    return state?.servers.find(
+      (value: any) =>
+        value.connection.pin.serverId === state.selectedServerId,
+    );
+  };
   try {
     await t.test(
       'empty fields, explicit fingerprint confirmation and retryable credential/PIN failures',
       async () => {
         assert.equal(input('Server address')?.props.value, '');
-        assert.equal(saved().selected, null);
+        assert.equal(appState(), null);
         await app.fill('Server address', 'https://standard-home.test');
         await app.tapLabel('Verify server');
         assert.ok(
@@ -195,24 +203,24 @@ test('separate setup uses genuine React form, core auth, verified route and nati
         await app.fill('Password', 'incorrect');
         await app.tapLabel('Sign in');
         assert.equal(input('Password')?.props.value, '');
-        assert.equal(saved().selected, null);
+        assert.equal(appState(), null);
         await app.fill('Password', 'synthetic_password');
         await app.tapLabel('Sign in');
         assert.equal(
-          saved().selected,
+          appState(),
           null,
-          'account proof is never published as selected viewer',
+          'account proof is never published as a sign-in',
         );
         await app.tapLabel('Actual returned profile');
         assert.equal(input('Profile PIN')?.props.secureTextEntry, true);
         await app.fill('Profile PIN', '0000');
         await app.tapLabel('Continue with profile');
         assert.equal(input('Profile PIN')?.props.value, '');
-        assert.equal(saved().selected, null);
+        assert.equal(appState(), null);
       },
     );
     await t.test(
-      'profile selection commits verified viewer, keeps refresh only in connection store and ends account family',
+      'profile selection commits the verified viewer into the app-session record and ends account family',
       async () => {
         await app.fill('Profile PIN', '1234');
         await app.tapLabel('Continue with profile');
@@ -224,16 +232,20 @@ test('separate setup uses genuine React form, core auth, verified route and nati
                 host.props.accessibilityLabel === 'Sign-in setup complete',
             ),
         );
-        assert.equal(saved().selected.session.viewer.role, 'member');
-        assert.equal(saved().selected.session.sessionFamilyId, 'setup_viewer');
-        assert.equal(saved().selected.session.refreshToken, undefined);
+        const committed = selectedSignIn();
+        assert.equal(committed.connection.session.viewer.role, 'member');
         assert.equal(
-          saved().connection.session.sessionFamilyId,
+          committed.connection.session.sessionFamilyId,
           'setup_viewer',
         );
         assert.equal(
-          saved().connection.session.refreshToken,
+          committed.connection.session.refreshToken,
           'fixture_refresh_only',
+        );
+        assert.equal(
+          saved().selected,
+          null,
+          'the old selected-viewer record is no longer written',
         );
         assert.ok(
           app.receipts.some(
@@ -252,7 +264,10 @@ test('separate setup uses genuine React form, core auth, verified route and nati
         assert.equal(app.subscriptions().listeners, 0);
         assert.equal(app.subscriptions().appState, 0);
         await app.unmount();
-        assert.equal(saved().selected.session.sessionFamilyId, 'setup_viewer');
+        assert.equal(
+          selectedSignIn().connection.session.sessionFamilyId,
+          'setup_viewer',
+        );
       },
     );
     const { NativeSignInSetup } = await import('../setup/native-session.ts');
@@ -284,9 +299,10 @@ test('separate setup uses genuine React form, core auth, verified route and nati
             await setup.signIn('synthetic_user', 'synthetic_password'),
             undefined,
           );
-          assert.equal(saved().selected.session.viewer.role, 'member');
+          const committed = selectedSignIn();
+          assert.equal(committed.connection.session.viewer.role, 'member');
           assert.equal(
-            saved().connection.session.sessionFamilyId,
+            committed.connection.session.sessionFamilyId,
             'setup_viewer',
           );
         } finally {
@@ -326,7 +342,7 @@ test('separate setup uses genuine React form, core auth, verified route and nati
             }
             await app.settle();
             assert.equal(saved().selected, null);
-            assert.equal(saved().connection, null);
+            assert.equal(appState(), null);
           } finally {
             setup.dispose();
             await app.settle();
@@ -355,7 +371,7 @@ test('separate setup uses genuine React form, core auth, verified route and nati
         await rejected;
         await app.settle();
         assert.equal(saved().selected, null);
-        assert.equal(saved().connection, null);
+        assert.equal(appState(), null);
         const logouts = app.requests
           .slice(before)
           .filter(request => request.path === '/v1/sessions/current');
@@ -383,14 +399,16 @@ test('separate setup uses genuine React form, core auth, verified route and nati
           rejected = assert.rejects(selection);
         await app.settle();
         assert.ok(held.waiting);
-        assert.equal(saved().selected.session.sessionFamilyId, 'setup_viewer');
+        assert.equal(
+          selectedSignIn().connection.session.sessionFamilyId,
+          'setup_viewer',
+        );
         setup.dispose();
         held.release();
         await rejected;
         await app.settle();
-        assert.equal(saved().selected.session.sessionFamilyId, 'setup_viewer');
         assert.equal(
-          saved().connection.session.sessionFamilyId,
+          selectedSignIn().connection.session.sessionFamilyId,
           'setup_viewer',
         );
         assert.equal(
