@@ -1,0 +1,150 @@
+name: Installer qualification
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/packaging-qualification.yml'
+      - 'scripts/*engine*'
+      - 'scripts/*qualification*'
+      - 'scripts/plan-packaging.py'
+      - 'scripts/ci-unsigned-payload.py'
+      - 'scripts/test-ci-unsigned-payload.py'
+      - 'scripts/package-macos.sh'
+      - 'third_party/ffmpeg/**'
+      - 'third_party/rclone/**'
+      - 'packaging/**'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: installer-qualification-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  GOMAXPROCS: '2'
+  GOFLAGS: '-p=2'
+  npm_config_jobs: '2'
+jobs:
+  plan:
+    name: Check installer inputs and controls
+    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      available: ${{ steps.plan.outputs.available }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.17'
+      - name: Run installer intake controls
+        run: |
+          export TMPDIR="$RUNNER_TEMP"
+          python scripts/test-engine-artifact.py
+          python scripts/test-ci-unsigned-payload.py
+      - id: plan
+        run: python scripts/plan-packaging.py --context github-actions --evidence "$RUNNER_TEMP/installer-evidence"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: installer-input-evidence-NOT-FOR-USE
+          path: ${{ runner.temp }}/installer-evidence/*.json
+          retention-days: 7
+          if-no-files-found: error
+  controls:
+    name: Native intake controls (${{ matrix.target }})
+    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - {target: windows-x64, runner: windows-2025, arch: x64}
+          - {target: windows-arm64, runner: windows-11-arm, arch: arm64}
+          - {target: macos-arm64, runner: macos-15, arch: arm64}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Enable long source paths on disposable Windows runner
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.17'
+          architecture: ${{ matrix.arch }}
+      - name: Test real archive intake and portable layout (no engine build or acceptance)
+        run: |
+          export TMPDIR="$RUNNER_TEMP"
+          python scripts/test-engine-artifact.py
+          python scripts/test-ci-unsigned-payload.py
+  native:
+    name: Construct ${{ matrix.target }} installer from pinned engine
+    needs: [plan, controls]
+    if: needs.plan.outputs.available == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Enable long source paths on disposable Windows runner
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.17'
+          architecture: ${{ endsWith(matrix.target, 'arm64') && 'arm64' || 'x64' }}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+      - name: Check native engine and construct installer without compiling FFmpeg
+        env:
+          TARGET: ${{ matrix.target }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence" "$RUNNER_TEMP/qualification/tmp"
+          export TMPDIR="$RUNNER_TEMP/qualification/tmp"
+          export GOCACHE="$RUNNER_TEMP/qualification/go-cache"
+          export GOMODCACHE="$RUNNER_TEMP/qualification/go-mod"
+          export npm_config_cache="$RUNNER_TEMP/qualification/npm-cache"
+          python -c 'import os,shutil; assert shutil.disk_usage(os.environ["RUNNER_TEMP"]).free >= 8*1024**3, "less than 8GiB scratch headroom"'
+          python -m pip install --disable-pip-version-check --requirement scripts/requirements-release.txt
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            brew list --versions bash >/dev/null 2>&1 || brew install bash
+            export PATH="$(brew --prefix bash)/bin:$PATH"
+          fi
+          { go version; node --version; npm --version; python --version; df -h; } > "$RUNNER_TEMP/qualification/evidence/tools.log" 2>&1
+          python scripts/fetch-engine.py --target "$TARGET" --purpose qualification --output "$RUNNER_TEMP/qualification/engine"
+          python scripts/ci-unsigned-payload.py "$TARGET" --context github-actions --engine "$RUNNER_TEMP/qualification/engine" --work "$RUNNER_TEMP/qualification/payload-build" --evidence "$RUNNER_TEMP/qualification/evidence" 2>&1 | tee "$RUNNER_TEMP/qualification/evidence/construction.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: installer-evidence-${{ matrix.target }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/qualification/evidence/*.json
+            ${{ runner.temp }}/qualification/evidence/*.log
+          retention-days: 7
+      - name: Remove owned inputs, payloads and installers
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/qualification" node_modules web/node_modules
