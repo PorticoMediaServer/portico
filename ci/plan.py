@@ -210,8 +210,8 @@ def vps_trusted(event, env):
 
 def go_matrix(plan,event,env):
     trusted=vps_trusted(event,env)
-    # Fixed five-slot share; remaining shards and every other job stay hosted.
-    return {'include':[{'index':i,'runner':'portico-vps' if trusted and i<5 else 'ubuntu-24.04'}
+    # Fixed four-slot share; remaining shards and every other job stay hosted.
+    return {'include':[{'index':i,'runner':'portico-vps' if trusted and i<4 else 'ubuntu-24.04'}
                        for i in range(len(plan['shards']))]}
 
 
