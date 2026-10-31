@@ -1,4 +1,5 @@
 import type {LibraryContentApi} from './library-content.ts';
+import {linkAbortSignals} from './abort-lifetime.ts';
 import {releaseThenRethrow} from './cleanup.ts';
 import {ApiError, HttpLocalApi, type LocalSession} from './index.ts';
 import type {AppSessionStore} from './app-sessions.ts';
@@ -53,6 +54,11 @@ export type SetupAdapter = Readonly<{ports: SetupPorts; libraryFolders: LibraryC
 type Paired = SetupPairing & {revision: number; installationId: string};
 type Own = {requestId: string; revision: string};
 const changed = () => new CodedError('cancelled', 'The pending setup or selected server changed.');
+/** A best-effort cleanup request, ended after five seconds; its failure is ignored. */
+const bounded = async (send: (signal: AbortSignal) => Promise<unknown>) => {
+  const linked = linkAbortSignals([], 5000);
+  try {await send(linked.signal);} catch { /* best effort */ } finally {linked.dispose();}
+};
 const refused = (error: unknown, ...codes: string[]) => error instanceof ApiError && codes.includes(error.code);
 
 /** The client's half of first-run setup for the controller (B-DESIGN §6), for web and native alike: pairing, the setup
@@ -85,7 +91,9 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
     if (paired) {await assertPaired(paired); return paired;}
     const before = await deps.sessions().read(), installationId = installation();
     live();
-    const pairing = await deps.pair(AbortSignal.any([signal, life.signal]));
+    // React Native has no AbortSignal.any/timeout: a linked signal, released after.
+    const linked = linkAbortSignals([signal, life.signal]);
+    const pairing = await deps.pair(linked.signal).finally(linked.dispose);
     try {
       live();
       const after = await deps.sessions().read();
@@ -293,7 +301,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         // Replaced after admission: what this run remembered goes, and its session ends.
         return releaseThenRethrow(error, 'setup exchange', async () => {
           await deps.sessions().connectionStorage(p.pin.serverId).change(old => old?.session.sessionFamilyId === family ? undefined : old).catch(() => {});
-          await done.api.request(routePath('delete_sessions_current'), 'DELETE', undefined, AbortSignal.timeout(5000)).catch(() => {});
+          await bounded(signal => done.api.request(routePath('delete_sessions_current'), 'DELETE', undefined, signal));
           done.connection.dispose();
         });
       }
@@ -335,7 +343,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
       } finally {
         if (!adopted) {
           await sessions.connectionStorage(p.pin.serverId).change(old => old?.session.sessionFamilyId === session.sessionFamilyId ? undefined : old).catch(() => {});
-          await tokenApi(p, session.accessToken).request(routePath('delete_sessions_current'), 'DELETE', undefined, AbortSignal.timeout(5000)).catch(() => {});
+          await bounded(signal => tokenApi(p, session.accessToken).request(routePath('delete_sessions_current'), 'DELETE', undefined, signal));
         }
       }
     },
@@ -404,7 +412,8 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
     const route = routePath('get_admin_filesystem');
     if (method !== 'GET' || body !== undefined || path !== route && !path.startsWith(route + '?')) throw changed();
     const api = await ownerApi();
-    const result = await api.request<T>(path, 'GET', undefined, AbortSignal.any([life.signal, ...(signal ? [signal] : [])]));
+    const linked = linkAbortSignals([life.signal, signal]);
+    const result = await api.request<T>(path, 'GET', undefined, linked.signal).finally(linked.dispose);
     await ownerApi();
     return result;
   }};

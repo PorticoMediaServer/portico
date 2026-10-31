@@ -1,3 +1,4 @@
+import {linkAbortSignals} from './abort-lifetime.ts';
 import {HttpLocalApi, type LocalSession} from './index.ts';
 import type {AppSessionStore} from './app-sessions.ts';
 import {parseDirectSignIn, type DirectSignIn} from './profile-management.ts';
@@ -41,8 +42,9 @@ export async function finishSetupExchange(ports: SetupExchangePorts, input: Read
     current();
     const selection = await ports.sessions.read();
     current();
-    const proof = await verifySetupClaimStart(attempt.handoff.claim, attempt.handoff.start, attempt.handoff.binding, now());
-    if (!await setupAttemptProofMatches(attempt, proof, ports.crypto ?? webRouteCrypto)) throw setupExchangeInvalid();
+    const crypto = ports.crypto ?? webRouteCrypto;
+    const proof = await verifySetupClaimStart(attempt.handoff.claim, attempt.handoff.start, attempt.handoff.binding, now(), crypto);
+    if (!await setupAttemptProofMatches(attempt, proof, crypto)) throw setupExchangeInvalid();
     current();
     const pin = attempt.handoff.binding.pin, environment = ports.environment(attempt.serverId);
     connected = await (ports.connect ?? connectPairedServer)(attempt.origin, pin, environment, signal);
@@ -86,5 +88,7 @@ async function retire(ports: SetupExchangePorts, api: HttpLocalApi, session: Loc
   if (ports.retire) return ports.retire(api, session);
   const temporary = new HttpLocalApi(api.baseUrl, session.accessToken), routes = api.getRouteConnection();
   if (routes) temporary.useRoutes(routes);
-  await temporary.request(routePath('delete_sessions_current'), 'DELETE', undefined, AbortSignal.timeout(5000)).catch(() => {});
+  // React Native has no AbortSignal.timeout: a linked deadline, released after.
+  const linked = linkAbortSignals([], 5000);
+  try {await temporary.request(routePath('delete_sessions_current'), 'DELETE', undefined, linked.signal);} catch { /* best effort */ } finally {linked.dispose();}
 }
