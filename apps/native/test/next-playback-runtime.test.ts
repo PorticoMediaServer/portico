@@ -214,8 +214,9 @@ function fixture(groupedVersions = false, subtitleFilePicker?: NativeSubtitleFil
     respond: (fn: typeof respond) => { respond = fn; },
     authority: (patch: Partial<PlaybackAuthority>, notify = true) => { authority = {...authority, ...patch}; if (notify) for (const listener of [...authorityListeners]) listener(); },
     family: (id: string) => { if (session) session = {...session, sessionFamilyId: id}; },
-    /** A routine refresh: the same family's next token and generation, and a later expiry. */
-    rotate: () => { if (session) session = {...session, accessToken: `rotated-${Number(session.tokenGeneration) + 1}`, tokenGeneration: String(Number(session.tokenGeneration) + 1), expiresAt: '2099-06-01T00:00:00Z'}; for (const listener of [...authorityListeners]) listener(); },
+    /** A routine refresh: the same family's next token and generation, a later expiry and, as a
+     *  local sign-in's refresh does, a later authorization horizon. */
+    rotate: () => { if (session) session = {...session, accessToken: `rotated-${Number(session.tokenGeneration) + 1}`, tokenGeneration: String(Number(session.tokenGeneration) + 1), expiresAt: '2099-06-01T00:00:00Z', authorizationHorizon: `horizon-${Number(session.tokenGeneration) + 1}`}; for (const listener of [...authorityListeners]) listener(); },
     changeAuthority: () => { authority = {...authority, epoch: 'epoch-2'}; session = undefined; for (const listener of [...authorityListeners]) listener(); },
     settings: (patch: Partial<NativePlaybackSettings>) => { settings = {...settings, ...patch}; for (const listener of settingsListeners) listener(); },
     get disposedCapabilities() { return disposedCapabilities; },
@@ -1171,6 +1172,51 @@ test('a routine token refresh mid-playback keeps the film playing and does not p
     // Control: another sign-in (a different family) still retires playback.
     d.family('family-2'); d.authority({}); await settle();
     assert.equal(d.runtime.getSnapshot().retired, true);
+  } finally { d.runtime.dispose(); }
+});
+
+test('a token refresh between Play and the server accepting the start still ends with the film playing', async () => {
+  // Before: the refresh made the press stale, so the start ended with no film, no starting
+  // state and no failure, and its preparing session was left for the server to expire.
+  const d = fixture();
+  try {
+    let rotated = false;
+    d.intercept(async request => { if (!rotated && request.method === 'POST' && request.path === '/v1/playback/sessions') { rotated = true; d.rotate(); } });
+    await d.start('movie-1'); await d.advance(25_000); await settle();
+    const snapshot = d.runtime.getSnapshot();
+    assert.ok(rotated, 'the refresh landed during the start');
+    assert.ok(snapshot.fence && !snapshot.retired && !snapshot.starting && !snapshot.startFailure, 'the film is playing');
+    assert.notEqual(snapshot.dock.local, null);
+    const creates = d.requests.filter(request => request.method === 'POST' && request.path === '/v1/playback/sessions');
+    assert.equal(creates.length, 1, 'the one press started once');
+  } finally { d.runtime.dispose(); }
+});
+
+test('a second Play during a token refresh still ends with one film', async () => {
+  const d = fixture();
+  try {
+    let rotated = false;
+    d.intercept(async request => { if (!rotated && request.method === 'POST' && request.path === '/v1/playback/sessions') { rotated = true; d.rotate(); } });
+    const first = d.start('movie-1').then(() => 'played', (error: unknown) => (error as Error).name);
+    const second = d.start('movie-1').then(() => 'played', (error: unknown) => (error as Error).name);
+    const outcomes = [await first, await second]; await d.advance(25_000); await settle();
+    const snapshot = d.runtime.getSnapshot();
+    assert.ok(rotated);
+    assert.deepEqual(outcomes, ['AbortError', 'played'], 'the second press supersedes the first');
+    assert.ok(snapshot.fence && !snapshot.retired && !snapshot.starting && !snapshot.startFailure);
+    assert.equal(d.engine.released.length, 0);
+  } finally { d.runtime.dispose(); }
+});
+
+test('another sign-in between Play and the server accepting the start still ends the start', async () => {
+  const d = fixture();
+  try {
+    let replaced = false;
+    d.intercept(async request => { if (!replaced && request.method === 'POST' && request.path === '/v1/playback/sessions') { replaced = true; d.family('family-2'); d.rotate(); } });
+    const outcome = await d.start('movie-1').then(() => 'played', (error: unknown) => (error as Error).name); await settle();
+    assert.ok(replaced);
+    assert.equal(outcome, 'AbortError');
+    assert.ok(!d.runtime.getSnapshot().fence, 'no film plays for the new sign-in');
   } finally { d.runtime.dispose(); }
 });
 
