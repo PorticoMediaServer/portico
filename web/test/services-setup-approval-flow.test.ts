@@ -114,7 +114,7 @@ test('each press of Try again is exactly one lookup, and Return goes ahead once 
   assert.equal(f.lookups(), 4); assert.deepEqual(f.navigations, [RETURN]); f.flow.dispose();
 });
 
-test('each phase variant reads as its own state, slow only while the server has not been heard from', async () => {
+test('each phase variant reads as its own state, and slow is Hosted\'s own reading', async () => {
   const at = (ms: number) => new Date(Date.now() + ms).toISOString();
   const cases: [string, 'pending' | 'approved', object | undefined, boolean, Record<string, unknown>][] = [
     ['review', 'pending', {variant: 'review'}, false, {phase: 'review'}],
@@ -122,7 +122,7 @@ test('each phase variant reads as its own state, slow only while the server has 
     ['finishing', 'approved', {variant: 'finishing', approvedAt: at(-1000), serverSeenAt: at(-500)}, false, {phase: 'approved', approved: true}],
     ['installed', 'approved', {variant: 'installed'}, true, {phase: 'approved', approved: true, installed: true}],
     ['slow, never seen', 'approved', {variant: 'approved', slow: true, approvedAt: at(-200000)}, false, {phase: 'approved', approved: true, slow: true}],
-    ['slow, seen since approval', 'approved', {variant: 'finishing', slow: true, approvedAt: at(-200000), serverSeenAt: at(-1000)}, false, {phase: 'approved', approved: true}],
+    ['slow, seen since approval but still not installed', 'approved', {variant: 'finishing', slow: true, approvedAt: at(-200000), serverSeenAt: at(-1000)}, false, {phase: 'approved', approved: true, slow: true}],
     ['slow, seen before approval', 'approved', {variant: 'finishing', slow: true, approvedAt: at(-1000), serverSeenAt: at(-200000)}, false, {phase: 'approved', approved: true, slow: true}],
     ['slow, seen but approval unknown', 'approved', {variant: 'finishing', slow: true, serverSeenAt: at(-1000)}, false, {phase: 'approved', approved: true, slow: true}],
   ];
@@ -134,12 +134,13 @@ test('each phase variant reads as its own state, slow only while the server has 
   }
 });
 
-test('Try again carries the slow reading from the same lookup, and clears it once the server is heard from', async () => {
-  const f = fixture(); phaseOf(f, 'approved', {variant: 'approved', slow: true, approvedAt: new Date(Date.now() - 200000).toISOString()});
+test('Try again carries the slow reading from the same lookup, and keeps it while the server tries and fails', async () => {
+  const f = fixture(); phaseOf(f, 'approved', {variant: 'approved', approvedAt: new Date(Date.now() - 1000).toISOString()});
   await f.flow.start(); f.completion(async () => undefined as never);
-  await f.flow.complete(); assert.equal(f.flow.getSnapshot().phase, 'finishing'); assert.equal(f.flow.getSnapshot().slow, true);
+  await f.flow.complete(); assert.equal(f.flow.getSnapshot().phase, 'finishing'); assert.equal(f.flow.getSnapshot().slow, undefined);
+  // Two minutes on, the server asking again and again (d2-exhausted): still the honest "taking longer".
   phaseOf(f, 'approved', {variant: 'finishing', slow: true, approvedAt: new Date(Date.now() - 200000).toISOString(), serverSeenAt: new Date().toISOString()});
-  await f.flow.complete(); assert.equal(f.flow.getSnapshot().slow, undefined); assert.equal(f.lookups(), 3);
+  await f.flow.complete(); assert.equal(f.flow.getSnapshot().slow, true); assert.equal(f.lookups(), 3);
   f.flow.dispose();
 });
 
