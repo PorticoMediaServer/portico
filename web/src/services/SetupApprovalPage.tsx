@@ -45,7 +45,7 @@ export function SetupApprovalPage({account, bootstrap, Review}: {account: Servic
   }
   const display=state.display, requested=Date.now()-Date.parse(display.requestedAt)<45000?t('services.claim.justNow'):servicesRelativeTime(servicesI18n(),display.requestedAt);
   return <Review phase={state.phase} serverName={display.name} address={new URL(display.address).host} accountName={display.accountName}
-    requestedAt={requested} approved={state.approved === true} installed={state.installed === true} slow={state.slow === true} retryIn={state.retryIn} busy={state.busy || state.phase === 'returning'}
+    requestedAt={requested} approved={state.approved === true} installed={state.installed === true || state.lapsed === true} slow={state.slow === true} retryIn={state.retryIn} busy={state.busy || state.phase === 'returning'}
     error={error} onApprove={() => {void flow?.decide('approve');}} onDeny={() => {void flow?.decide('deny');}}
     onReturn={() => {if(state.approved)void flow?.complete();else flow?.returnReviewed();}} />;
 }

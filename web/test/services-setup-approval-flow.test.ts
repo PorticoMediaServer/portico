@@ -68,8 +68,32 @@ test('a late protected completion cannot navigate after the original approval ex
   f.completion(() => new Promise(resolve => {finish = resolve;}));
   const pending = f.flow.complete(); f.flow.expire();
   finish('https://original.example/auth/portico-return#transaction=original-transaction'); await pending;
-  assert.deepEqual(f.navigations, []); assert.equal(f.disposed(), true); assert.equal(f.flow.getSnapshot().phase, 'expired');
+  // The late protected completion never navigates; the approved page keeps Connected and Return.
+  assert.deepEqual(f.navigations, []); assert.equal(f.disposed(), true);
+  assert.equal(f.flow.getSnapshot().phase, 'approved'); assert.equal(f.flow.getSnapshot().lapsed, true);
   f.flow.dispose();
+});
+
+test('an approved page keeps Return past the request window, and Return goes to the server, never the expired code', async () => {
+  const f = fixture(); await f.flow.start(); await f.flow.decide('approve');
+  await f.scheduler.advance(120_000);
+  const lapsed = f.flow.getSnapshot();
+  assert.deepEqual({phase: lapsed.phase, approved: lapsed.approved, lapsed: lapsed.lapsed}, {phase: 'approved', approved: true, lapsed: true});
+  assert.equal(lapsed.display?.name, 'Original server', 'still Connected, naming the server');
+  assert.equal(f.scheduler.pending(), 0, 'no timer runs on');
+  const lookups = f.lookups();
+  await f.flow.complete();
+  assert.deepEqual(f.navigations, ['https://original.example']);
+  assert.equal(f.completeCalls(), 0); assert.equal(f.lookups(), lookups);
+  assert.equal(f.flow.getSnapshot().phase, 'returning');
+  f.flow.dispose();
+  // An unanswered request still ends, with Start again from the server.
+  const g = fixture(); await g.flow.start(); await g.scheduler.advance(120_000);
+  assert.equal(g.flow.getSnapshot().phase, 'expired'); assert.equal(g.flow.getSnapshot().lapsed, undefined); g.flow.dispose();
+  // Another account signed in by then: no Return to the server for it.
+  const h = fixture(); await h.flow.start(); await h.flow.decide('approve'); await h.scheduler.advance(120_000);
+  h.replaceFamily(); await h.flow.complete();
+  assert.deepEqual(h.navigations, []); assert.equal(h.flow.getSnapshot().phase, 'error'); h.flow.dispose();
 });
 
 test('Return before the secure return is ready says so and retries, never a silent no-op', async () => {
