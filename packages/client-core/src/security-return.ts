@@ -89,7 +89,10 @@ export function securityReturnSessionHolds(held:LocalSession,live:LocalSession):
 }
 /** The latest a Security return may finish: five minutes after it opens, never past the Portico Account
  * session that opened it, nor the server family's horizon. The server token's own expiry is no limit:
- * a refresh replaces it inside the same family. */
+ * a refresh replaces it inside the same family. A date that doesn't parse ends the return at once:
+ * a NaN deadline would never compare as passed. */
 export function securityReturnDeadline(now:number,accountExpiresAt:string,serverHorizon?:string):number{
- return Math.min(now+300_000,Date.parse(accountExpiresAt),serverHorizon===undefined?Infinity:Date.parse(serverHorizon));
+ const account=Date.parse(accountExpiresAt),horizon=serverHorizon===undefined?Infinity:Date.parse(serverHorizon);
+ if(Number.isNaN(account)||Number.isNaN(horizon))return now;
+ return Math.min(now+300_000,account,horizon);
 }

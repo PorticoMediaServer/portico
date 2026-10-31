@@ -44,3 +44,10 @@ test('the deadline is five minutes, the Portico Account session or the family ho
   assert.equal(securityReturnDeadline(now, '2030-01-01T01:00:00Z', '2030-01-01T00:03:00Z'), Date.parse('2030-01-01T00:03:00Z'), 'the family horizon ends first');
   assert.equal(securityReturnDeadline(now, '2030-01-01T01:00:00Z'), now + 300_000, 'a Portico Account return has no server family');
 });
+
+test('a deadline from a date that does not parse ends the return at once', () => {
+  const now = Date.parse('2030-01-01T00:00:00Z');
+  assert.equal(securityReturnDeadline(now, 'not a date', horizon), now);
+  assert.equal(securityReturnDeadline(now, '2030-01-01T01:00:00Z', 'not a date'), now);
+  assert.equal(securityReturnSessionHolds(session({authorizationHorizon: 'not a date'}), session({authorizationHorizon: 'not a date'})), false, 'nor does an unreadable horizon hold');
+});
