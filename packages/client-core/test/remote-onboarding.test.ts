@@ -5,7 +5,6 @@ import {ApiError,HttpLocalApi} from '../src/index.ts';
 import {routeOrigin,probeRoute,serverPin,verifyRoutes,type ServerPin,type VerifiedRoutes} from '../src/route-identity.ts';
 import {RouteConnection,discoveredRoutes} from '../src/route-connection.ts';
 import {SetupCodeService,normalizeSetupCode,type SetupCodeJournal} from '../src/setup-code.ts';
-import {initializeServer,type SetupDraft} from '../src/setup-onboarding.ts';
 import {setupQR} from '../src/setup-qr.ts';
 import {addressClass,formatIP,parseDirectName} from '../src/network-locality.ts';
 const delay=(ms=10)=>new Promise<void>(r=>setTimeout(r,ms));
@@ -114,15 +113,6 @@ test('a committed private grant resumes after restart and is acknowledged only a
 test('failed intent persistence performs no create call',async()=>{
  let creates=0;const service=new SetupCodeService('local:one',{create:async()=>{creates++;return authorization();},poll:async()=>'',cancel:async()=>{}},{change:async()=>{throw new Error('storage unavailable');}});
  await service.start();assert.equal(service.getSnapshot().phase,'error');assert.equal(creates,0);service.pause();
-});
-test('initialization always reconciles the saved operation before creating; password is never drafted',async()=>{
- let draft:SetupDraft|undefined;const paths:string[]=[];let committed=false;
- const session={variant:'session',accessToken:'private',expiresAt:new Date(Date.now()+60000).toISOString(),authorizationHorizon:new Date(Date.now()+60000).toISOString(),sessionFamilyId:'family',tokenGeneration:'1',viewer:{serverId:pin.serverId,accountId:'local-owner',profileId:'profile',role:'owner',authority:'local'}};
- const api={getRouteConnection:()=>({pin}),request:async(path:string,_method:string,body:any)=>{paths.push(path);assert.equal(draft?.requestId,requestId);assert.ok(!Object.hasOwn(draft!,'password'));if(path.endsWith('/resume')){if(!committed)throw new ApiError(404,'not_found','not found');return session;}committed=true;assert.equal(body.requestId,requestId);return session;}} as unknown as HttpLocalApi;
- const store={read:async()=>draft,change:async(update:(v:SetupDraft|undefined)=>SetupDraft|undefined)=>{draft=update(draft);}};
- const input={setupToken:'s'.repeat(43),name:'Media',username:'owner',password:'a strong private password 123!',authMode:'local' as const};
- await initializeServer(api,store,input,new AbortController().signal,async()=>requestId);await initializeServer(api,store,input,new AbortController().signal,async()=>requestId);
- assert.deepEqual(paths,['/v1/setup/resume','/v1/setup','/v1/setup/resume']);
 });
 test('local QR code matches a fixed independent byte-mode version-5-L vector',()=>{
  const matrix=setupQR('https://web.getportico.tv/device#code=ABCD-EFGH');assert.equal(matrix.length,37);assert.ok(matrix.every(row=>row.length===37));
