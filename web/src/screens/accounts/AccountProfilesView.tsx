@@ -35,7 +35,7 @@ type RecoveryOpening = {flow: ProfileRecoveryView; binding: ProfilePickerViewBin
 
 /** auth13/14/18. The route supplies the actual captured entry/domain helpers,
  * retains their authority and owns their disposal. No renderer creates auth. */
-export function AccountProfilesView({binding, onSwitchServer}: {binding: ProfilePickerViewBinding; onSwitchServer: () => void}) {
+export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {binding: ProfilePickerViewBinding; onSwitchServer: () => void; focusProfileId?: string}) {
   const state = useSyncExternalStore(binding.subscribe, binding.getSnapshot);
   const [selection, setSelection] = useState<Selection>(), [remember, setRemember] = useState(false), [recovery, setRecovery] = useState<RecoveryOpening>();
   const [lock, setLock] = useState<Readonly<{error: unknown; until: number}>>(), [now, setNow] = useState(Date.now);
@@ -101,7 +101,7 @@ export function AccountProfilesView({binding, onSwitchServer}: {binding: Profile
         const flow = binding.profileRecovery(selected.id, () => Boolean(opening && openingCurrent(opening)));
         opening = {flow, binding, owner, flight, snapshot, server, selection, active: true, completing: false};
         activeRecovery.current = opening; setRecovery(opening);
-      }} /> : <ServerProfiles serverName={server.name} profiles={profiles!} error={state.error} onSwitchServer={switchServer}
+      }} /> : <ServerProfiles serverName={server.name} profiles={profiles!} error={state.error} onSwitchServer={switchServer} autoFocusId={focusProfileId}
         onSelect={profile => {if (!viewCurrent() || selectedNow.current !== selection || activeRecovery.current || binding.getSnapshot().busy) return; setRemember(false); if (profile.pinRequired) {const selected = {id: profile.id}; selectedNow.current = selected; setSelection(selected);} else void binding.chooseProfile(profile.id, '', false);}} />}
     {selected && recovery && <Recovery binding={binding} flow={recovery.flow} current={() => openingCurrent(recovery)} profileName={selected.name} username={snapshot.account.username}
       onClose={() => retire(recovery)} onOpen={pin => {
