@@ -26,7 +26,7 @@ export type NativeSetupTarget = Readonly<{origin: string; server: ServerSignIn; 
  * installed (the app has no Return to consume). The app's own Portico Account can approve in place (frame 1p, label 29);
  * otherwise the approval page opens in the browser and the app carries on when the person comes back. */
 export function createNativeSetupAdapter(target: NativeSetupTarget, options: Readonly<{current?: () => boolean}> = {}): SetupAdapter {
-  const {origin, server} = target;
+  const {origin} = target;
   return createSetupAdapter({
     tokenRoute: 'start_app_setup',
     finish: {kind: 'here', ports: {sessions: nativeAppSessions, environment: serverId => nativeServerEnvironment(serverId), crypto: nativeRouteCrypto}},

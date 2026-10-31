@@ -4,7 +4,6 @@ import {routeBytes, routeOrigin} from '../../../../packages/client-core/src/rout
 import {CodedError} from '../../../../packages/client-core/src/server-messages';
 import {decodeServerClaimLookupResponse, decodeServerClaimApproveCodeResponse} from '../../../../packages/contracts/src/hosted/decoders';
 import {routePath} from '../../../../packages/contracts/src/hosted/routes';
-import {NativeSetupEnded} from './setup-outcome';
 import {nativeAccounts} from './accounts';
 import {nativeNetworkFetch} from './server-connections';
 import {hostedUrl} from './account-authority';
@@ -66,7 +65,7 @@ export class NativeSetupApproval {
     routeBytes(value.serverId.slice(4), 32);
     // Setup has no return registration (O-163); `setupInstalled` is strictly true, only on approval.
     if (value.returnRegistration !== undefined || value.setupInstalled !== undefined && (value.setupInstalled !== true || value.status !== 'approved')) throw invalid();
-    if (value.status === 'denied') {this.declined(); throw new NativeSetupEnded('declined');}
+    if (value.status === 'denied') {this.declined(); throw new CodedError('setup_denied', 'This server was declined.');}
     if (value.status !== 'pending' && value.status !== 'approved') throw invalid();
     return value;
   }
