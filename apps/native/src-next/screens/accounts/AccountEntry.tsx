@@ -787,9 +787,10 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const backAction = stage !== 'welcome' || onBack ? {id: 'back', label: t('action.back'), disabled: busy, onPress: stage === 'tv' ? codeBack : back} : undefined;
   const failure = error ? presentError(error, stage === 'profile-pin' ? 'profiles' : 'sign-in') : undefined;
   // A TV that reaches a server nobody has set up says where setup happens: this device cannot be
-  // the owner, and the generic refusal tells nobody what to do. The notice is drawn under the
-  // address field it belongs to, so the field keeps the focus it already holds.
-  const status = Platform.isTV && stage === 'address' && setupElsewhereRefusal(error)
+  // the owner, and the generic refusal tells nobody what to do. On the address step the notice is
+  // drawn under the field it belongs to, so the field keeps the focus it already holds; a server
+  // picked from a list says the same.
+  const status = Platform.isTV && setupElsewhereRefusal(error)
     ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{t('accounts.setup.elsewhere')}</Text>
     : failure && !failure.silent ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{failure.body}</Text> : null;
   const directoryView = stage === 'servers' ? directoryFailure(target, error) : 'other';
