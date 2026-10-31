@@ -18,6 +18,7 @@ import {nativeAccounts} from '../../platform/accounts';
 import {hostedUrl} from '../../platform/account-authority';
 import {nativeNetworkFetch} from '../../platform/server-connections';
 import {PhonePINEntry} from './PhonePINEntry';
+import {profilePinFailureText} from './profile-pin-failure';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 
 const t = defaultI18n.t;
@@ -60,7 +61,7 @@ export function LifecycleProfileGate() {
   const busy = pick.phase === 'working' || submit.phase === 'working';
   const failed = submit.phase === 'failed' ? submit.failure.cause : pick.phase === 'failed' ? pick.failure.cause : undefined;
   const failure = failed ? presentError(failed, state.kind === 'enteringPin' ? 'profiles' : 'sign-in') : undefined;
-  const status = failure && !failure.silent ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{failure.body}</Text> : null;
+  const status = failure && !failure.silent ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{profilePinFailureText(failed) ?? failure.body}</Text> : null;
   const wait = <BootWaitLine active={busy} serverName={state.server.name} testID="lifecycle-profile-wait"/>;
 
   if (state.kind === 'choosingProfile') {

@@ -70,7 +70,7 @@ async function fixture(main = true, pinRequired = false) {
     '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
     '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../../platform/offline-downloads': {}, '../../kit/theme': {useTheme: () => ({colors, type, isTV: false})},
-    './AccountEntry': {}, './downloads-entry': {}, './PhonePINEntry': {}, './PhoneProfileRecovery': {}, './PhoneServerChooser': {}, './TVTrustedCertificates': {}, './TVServerChooser': {}, './sign-out-downloads': {}, '../../tv/auth': {},
+    './AccountEntry': {}, './downloads-entry': {}, './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {}, './PhoneProfileRecovery': {}, './PhoneServerChooser': {}, './TVTrustedCertificates': {}, './TVServerChooser': {}, './sign-out-downloads': {}, '../../tv/auth': {},
   };
   const {ProfileRoute} = await screenModule(new URL('../src-next/screens/accounts/AccountRoutes.tsx', import.meta.url), modules);
   const render = () => {renderingHost = host; return host.render(() => ProfileRoute({context, route, onBack() {}, embedded: true}));};

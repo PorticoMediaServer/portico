@@ -51,7 +51,7 @@ async function fixture() {
     '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../../platform/offline-downloads': {offlineDownloads: {}, offlineOwnerKey: () => 'owner'}, '../../kit/theme': {useTheme: () => theme},
     './AccountEntry': {AccountEntry: 'AccountEntry'}, './downloads-entry': {createAccountDownloadsEntry: () => ({dispose() {}})},
-    './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
+    './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
     './PhoneServerChooser': {PhoneServerChooser: 'PhoneServerChooser'}, './TVTrustedCertificates': {TVTrustedCertificates: 'TVTrustedCertificates'}, './TVServerChooser': {TVServerChooser: 'TVServerChooser'},
     './sign-out-downloads': {removeCapturedServerDownloads: async () => {}}, '../../tv/auth': {TVProfilePINForm: 'TVProfilePINForm', TVForgotPINHandoff: 'TVForgotPINHandoff'},
     './account-form-values': values,

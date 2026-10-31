@@ -82,7 +82,7 @@ test('TV entry Forgot PIN keeps the same account operation and returns to the sa
     '../../platform/portico-sign-in': {}, '../../platform/server-connections': {browseNearby: async () => []},
     '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, 'react-native-qrcode-svg': {default: 'QR'},
     './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'Phone'},
-    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'},
+    './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'},
     './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     '../../platform/setup-outcome': setupOutcome,
@@ -154,7 +154,7 @@ test('TV profile-switch hand-off preserves its current family, selection control
     ...shared(back), '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/app-session-storage': {},
     '../../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
       assert.equal(family, current.sessionFamilyId); calls++; attempts.push(args); throw new Error('refused');
-    }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'},
+    }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'},
     '../../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
     '../../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
     '../../platform/account-authority': {hostedUrl: 'https://hosted.test'},
@@ -224,7 +224,7 @@ test('R-16: a PIN submit on a stale context says so instead of returning silentl
     ...shared(back), '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/app-session-storage': {},
     '../../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
       assert.equal(family, current.sessionFamilyId); calls++; attempts.push(args); throw new Error('refused');
-    }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'},
+    }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'},
     '../../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
     '../../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
     '../../platform/account-authority': {hostedUrl: 'https://hosted.test'},
