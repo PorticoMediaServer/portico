@@ -243,6 +243,17 @@ test('select without remembered: no marker, replaced family ended, nothing remem
   assert.equal(fx.ports.connection('a'), undefined);
 });
 
+test('after a pick, reconnect opens the new sign-in and hands it over, so the shell opens from the lifecycle', async () => {
+  const fx = await fixture();
+  await fx.ports.connect('a', new AbortController().signal);
+  await fx.ports.select({serverId: 'a', profileId: 'p2', remember: false}, new AbortController().signal);
+  assert.equal(fx.ports.connection('a'), undefined, 'the pick released the old family\'s connection');
+  const opened = await fx.ports.reconnect('a', new AbortController().signal);
+  assert.equal(opened?.session.sessionFamilyId, 'family-new');
+  assert.equal(opened?.selected.connection.session.sessionFamilyId, 'family-new');
+  assert.equal(fx.ports.connection('a'), undefined, 'handed over: the shell owns it now');
+});
+
 test('a published pick resolves even when ending the replaced family never finishes (R-12)', async () => {
   const fx = await fixture({revokeNever: true});
   await fx.ports.connect('a', new AbortController().signal);

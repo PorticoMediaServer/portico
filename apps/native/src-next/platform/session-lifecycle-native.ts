@@ -81,6 +81,9 @@ export type NativeLifecyclePorts = LifecyclePorts & Readonly<{
   connection(serverId: string): NativeConnected | undefined;
   /** Hands the live connection to the shell, which owns and disposes it from then on. */
   adopt(serverId: string): NativeConnected | undefined;
+  /** Opens the held sign-in's connection again and hands it over: a pick or a switch publishes a new
+   *  sign-in without one, and the shell always opens from the lifecycle's connection. */
+  reconnect(serverId: string, signal: AbortSignal): Promise<NativeConnected | undefined>;
   /** The root lends its installation: installation generations are app-wide, so the ports must never
    *  begin a competing one while a root holds its own (that would retire the root). */
   lendInstallation(owner: ReturnType<typeof beginNativeInstallation> | undefined): void;
@@ -322,6 +325,12 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
     connection: (serverId: string) => connected?.serverId === serverId ? connected : undefined,
     lendInstallation(owner) {lent = owner;},
     adopt(serverId: string) {
+      const held = connected?.serverId === serverId ? connected : undefined;
+      if (held) connected = undefined;
+      return held;
+    },
+    async reconnect(serverId: string, signal: AbortSignal) {
+      await connect(serverId, signal);
       const held = connected?.serverId === serverId ? connected : undefined;
       if (held) connected = undefined;
       return held;

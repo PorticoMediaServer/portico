@@ -210,7 +210,15 @@ export function RestoredShell() {
         let decided = await lifecycleSettled(lifecycle, signal);
         if (decided.kind === 'offline' || decided.kind === 'identityFailed') {lifecycle.resume(); decided = await lifecycleSettled(lifecycle, signal);}
         if (choosingProfile(decided)) throw new NativeProfileChoice();
-        const adopted = decided.kind === 'ready' ? lifecyclePorts.adopt(decided.server.serverId) : undefined;
+        let adopted = decided.kind === 'ready' ? lifecyclePorts.adopt(decided.server.serverId) : undefined;
+        // A pick or a switch publishes its sign-in without a connection: open it here, through the lifecycle.
+        if (decided.kind === 'ready' && !adopted) {
+          try {adopted = await lifecyclePorts.reconnect(decided.server.serverId, signal);}
+          catch (error) {
+            if (lifecyclePorts.classifyConnect(error)?.reason === 'pinReentry') {lifecycle.report({type: 'gated'}); throw new NativeProfileChoice();}
+            // Anything else is found and shown again by the shell's own restore below.
+          }
+        }
         const usable = adopted && decided.kind === 'ready' && adopted.session.sessionFamilyId === decided.viewer.familyId ? adopted : undefined;
         if (adopted && !usable) {adopted.api.getRouteConnection()?.dispose(); adopted.api.setAccessToken('');}
         try {
