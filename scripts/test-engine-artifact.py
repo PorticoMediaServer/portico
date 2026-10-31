@@ -164,9 +164,14 @@ class EngineIntake(unittest.TestCase):
 
     def test_unsafe_zip_and_tar_never_extract(self):
         bad = self.root / 'bad.zip'
-        for name in ('../escape', '/absolute', 'C:/absolute', 'folder\\escape', 'aux.txt', 'folder/../escape'):
+        for name in ('../escape', '/absolute', 'C:/absolute', 'folder\\escape', 'folder\x00escape', 'aux.txt', 'folder/../escape'):
             with zipfile.ZipFile(bad, 'w') as archive:
-                archive.writestr(name, 'bad')
+                entry = zipfile.ZipInfo(name)
+                # The writer also normalizes Windows separators. Preserve
+                # the malformed on-disk header, not a repaired test input.
+                entry.filename = name
+                archive.writestr(entry, 'bad')
+            self.assertIn(name.encode(), bad.read_bytes())
             with self.subTest(name=name), self.assertRaises(ValueError):
                 M['extract'](bad, self.root / 'bad-out')
             self.assertFalse((self.root / 'bad-out').exists())
