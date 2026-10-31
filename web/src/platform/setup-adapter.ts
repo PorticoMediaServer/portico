@@ -1,4 +1,5 @@
 import type {LibraryContentApi} from '@core/library-content.ts';
+import {releaseThenRethrow} from '@core/cleanup.ts';
 import {ApiError, HttpLocalApi, type LocalSession} from '@core/index.ts';
 import type {AppSessionStore} from '@core/app-sessions.ts';
 import {parseLocalSession} from '@core/local-session.ts';
@@ -83,7 +84,7 @@ export function createWebSetupAdapter(deps: WebSetupAdapterDeps): WebSetupAdapte
       if (after.revision !== before.revision || installation() !== installationId) throw changed();
       paired = Object.freeze({...pairing, revision: after.revision, installationId}) as Paired;
       return paired;
-    } catch (error) {pairing.dispose(); throw error;}
+    } catch (error) {return releaseThenRethrow(error, 'setup pairing', () => pairing.dispose());}
   }
   /** An api that carries this setup's token, over the verified route. */
   const tokenApi = (p: Paired, token: string) => {
