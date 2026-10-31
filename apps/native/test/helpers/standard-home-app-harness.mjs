@@ -149,7 +149,7 @@ const nativeURL = data(`import React from ${JSON.stringify(reactURL)};
  export const NativeModules=S.modules,NativeEventEmitter=class{addListener(name,fn){const set=S.events.get(name)??new Set();S.events.set(name,set);set.add(fn);return{remove:()=>set.delete(fn)}}};
  export const DeviceEventEmitter=new NativeEventEmitter(),AppState={currentState:'active',addEventListener:(_,fn)=>{S.appState.add(fn);return{remove:()=>S.appState.delete(fn)}}};
  // This boundary has no attached screen reader, so the query answers as React Native does when the OS reports none; announcements and change subscriptions stay inert fixture controls.
- export const BackHandler={addEventListener:(_,listener)=>{S.back.add(listener);return{remove:()=>S.back.delete(listener)}}},AccessibilityInfo={isScreenReaderEnabled:async()=>false,isReduceMotionEnabled:async()=>true,addEventListener:()=>({remove(){}}),announceForAccessibility(){}};
+ export const BackHandler={addEventListener:(_,listener)=>{S.back.add(listener);return{remove:()=>S.back.delete(listener)}}},AccessibilityInfo={isScreenReaderEnabled:async()=>false,isReduceMotionEnabled:async()=>true,addEventListener:()=>({remove(){}}),announceForAccessibility(){},setAccessibilityFocus(){}};
  // Forward fixture-supplied responder events to the actual product callbacks;
  // this boundary does not simulate native gesture negotiation or movement.
  export const PanResponder={create:config=>({panHandlers:Object.fromEntries(Object.entries(config).filter(([key])=>key.startsWith('onPanResponder')||key.includes('ShouldSetPanResponder')).map(([key,callback])=>[key.replace('ShouldSetPanResponder','ShouldSetResponder').replace('onPanResponder','onResponder'),callback]))})};
