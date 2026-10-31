@@ -71,7 +71,8 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
     if (joining || initializing || entry.getSnapshot() !== state || input.factor || input.busy || state.memberMoveCompleted && !state.snapshot?.twoStepSetupRequired && (state.phase === 'profiles' || state.phase === 'ready') && acknowledgedMove !== state) return;
     if (state.phase === 'ready' && !state.ownerResetSessionReady) void (state.setupCompleted ? router.navigate({to: '/setup', replace: true})
       : openAfterProfile(!!(state.server && state.snapshot && hasTwoStepSetup(state.server.id, state.snapshot.account.id))));
-    else if (state.phase === 'profiles' && state.snapshot && !state.snapshot.twoStepSetupRequired) void router.navigate({to: '/profiles', replace: true});
+    // A setup Return decides first whether its owner opens straight into setup; only then is it a profile choice.
+    else if (state.phase === 'profiles' && !state.setupPending && state.snapshot && !state.snapshot.twoStepSetupRequired) void router.navigate({to: '/profiles', replace: true});
     else if (state.phase === 'two-step-setup' && state.origin) {
       form.setUsername(state.snapshot?.account.username ?? input.username);
       void entry.inspect(state.origin);
