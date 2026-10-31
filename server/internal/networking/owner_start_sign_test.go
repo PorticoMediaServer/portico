@@ -72,7 +72,7 @@ func TestProtectedOwnerStartSignsOnlyFullCurrentPreparedSwitch(t *testing.T) {
 		"different callback":      func(s *claimweb.OwnerStart) { s.Address = "https://other.example" },
 		"network HTTP":            func(s *claimweb.OwnerStart) { s.Address = "http://server.example" },
 		"different purpose":       func(s *claimweb.OwnerStart) { s.Purpose = "setup" },
-		"extended start":          func(s *claimweb.OwnerStart) { s.ExpiresAt = s.IssuedAt.Add(6 * time.Minute) },
+		"extended start":          func(s *claimweb.OwnerStart) { s.ExpiresAt = s.IssuedAt.Add(claimweb.OwnerStartLifetime + time.Minute) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			bad := start

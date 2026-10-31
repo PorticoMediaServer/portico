@@ -5,6 +5,7 @@ import {createPrivateKey, sign} from 'node:crypto';
 import {verifyOwnerClaimStart, type OwnerStartExpectation} from '../src/owner-claim-start.ts';
 import {transportJSON} from '../src/index.ts';
 import {routeBase64, routeBytes, webRouteCrypto} from '../src/route-identity.ts';
+import {ACCOUNT_STEP_WINDOW_MS} from '../../contracts/src/account-step.ts';
 
 // Consume the immutable canonical Go fixture in MAIN, not a second copied
 // success fixture. Its public interoperability key is explicitly not a secret.
@@ -25,7 +26,7 @@ test('actual canonical Go full claim/start vector verifies unchanged under the p
   assert.deepEqual(out.claim, claim); assert.deepEqual(out.start, start);
   assert.deepEqual(signed(claim), vector.claim); assert.deepEqual(signed(start), vector.start);
 });
-for (const [field, value] of Object.entries({claimHash: 'A'.repeat(43), operationId: 'another-operation', audience: 'https://other.test', serverId: 'srv_other', publicKey: 'A'.repeat(43), localGeneration: '8', address: 'https://another.test', purpose: 'sign-in', state: 'A'.repeat(43), codeChallenge: 'A'.repeat(43), installationId: 'another-installation-'.padEnd(43, '_'), serverChallenge: 'short', issuedAt: '2030-01-02T03:04:04Z', expiresAt: '2030-01-02T03:09:06.000000001Z'})) {
+for (const [field, value] of Object.entries({claimHash: 'A'.repeat(43), operationId: 'another-operation', audience: 'https://other.test', serverId: 'srv_other', publicKey: 'A'.repeat(43), localGeneration: '8', address: 'https://another.test', purpose: 'sign-in', state: 'A'.repeat(43), codeChallenge: 'A'.repeat(43), installationId: 'another-installation-'.padEnd(43, '_'), serverChallenge: 'short', issuedAt: '2030-01-02T03:04:04Z', expiresAt: '2030-01-02T03:14:05.000000001Z'})) {
   test('a genuinely re-signed start cannot substitute captured ' + field, async () => {
     await assert.rejects(verifyOwnerClaimStart(vector.claim, signed({...start, [field]: value}), await expectation(), now));
   });
@@ -94,4 +95,13 @@ test('an in-flight caller selection cannot retarget the captured signed identity
   expected.operationId = 'successor';
   release();
   assert.equal((await verification).start.operationId, start.operationId);
+});
+test('an owner start may last a whole Portico Account step, inside a claim that does too', async () => {
+  const step = {...claim, expiresAt: new Date(Date.parse(claim.issuedAt) + ACCOUNT_STEP_WINDOW_MS).toISOString().replace('.000Z', 'Z')};
+  const original = signed(step);
+  const claimHash = routeBase64(await webRouteCrypto.sha256(Buffer.from(original.payload, 'base64url')));
+  const whole = {...start, claimHash, issuedAt: step.issuedAt, expiresAt: step.expiresAt};
+  const out = await verifyOwnerClaimStart(original, signed(whole), await expectation(), now);
+  assert.equal(out.start.expiresAt, step.expiresAt);
+  await assert.rejects(verifyOwnerClaimStart(signed({...step, expiresAt: new Date(Date.parse(step.expiresAt) + 1000).toISOString().replace('.000Z', 'Z')}), signed(whole), await expectation(), now), 'a longer claim is refused');
 });

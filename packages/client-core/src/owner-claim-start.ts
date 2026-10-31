@@ -1,5 +1,6 @@
 import {readCanonicalClaimProof, canonicalClaimTimestamp, canonicalClaimCounter} from './claim-proof.ts';
 import {validInstallationId} from './installation.ts';
+import {ACCOUNT_STEP_WINDOW_MS} from '../../contracts/src/account-step.ts';
 import {routeBase64, routeBytes, routeOrigin, sameServerPin, serverPin, webRouteCrypto, type RouteCrypto, type ServerPin} from './route-identity.ts';
 import {CodedError} from './server-messages.ts';
 
@@ -21,6 +22,8 @@ function invalid(): never {throw new CodedError('invalid_return', 'This owner co
 const readProof = <T extends readonly string[]>(value: unknown, fields: T) => readCanonicalClaimProof(value, fields, invalid);
 const timestamp = (value: string) => canonicalClaimTimestamp(value, invalid);
 const counter = canonicalClaimCounter;
+/** A Portico Account step (claim request and owner start alike), in nanoseconds. */
+const STEP_NS = BigInt(ACCOUNT_STEP_WINDOW_MS) * 1000000n;
 
 /** Verify the actual canonical MAIN OwnerStart protocol before saving a
  * browser handoff. Both original signed envelopes remain unchanged. This
@@ -58,8 +61,8 @@ export async function verifyOwnerClaimStart(original: unknown, signedStart: unkn
     !claim.name || new TextEncoder().encode(claim.name).length > 120 || start.state !== expected.state || start.codeChallenge !== expected.codeChallenge || start.installationId !== expected.installationId ||
     !/^[A-Za-z0-9_-]{32,128}$/.test(start.serverChallenge)) invalid();
   const issued = timestamp(claim.issuedAt), expires = timestamp(claim.expiresAt), startIssued = timestamp(start.issuedAt), startExpires = timestamp(start.expiresAt), nowNS = BigInt(now) * 1000000n;
-  if (issued > nowNS + 60000000000n || expires <= nowNS || expires <= issued || expires - issued > 600000000000n || startIssued < issued || startIssued > nowNS + 60000000000n ||
-    startExpires <= nowNS || startExpires <= startIssued || startExpires - startIssued > 300000000000n || startExpires > expires) invalid();
+  if (issued > nowNS + 60000000000n || expires <= nowNS || expires <= issued || expires - issued > STEP_NS || startIssued < issued || startIssued > nowNS + 60000000000n ||
+    startExpires <= nowNS || startExpires <= startIssued || startExpires - startIssued > STEP_NS || startExpires > expires) invalid();
   if (routeBase64(await crypto.sha256(c.raw)) !== start.claimHash) invalid();
   routeBytes(start.claimHash, 32);
   const pin = await serverPin(claim.serverId, claim.publicKey, expected.pin.fingerprint, crypto);

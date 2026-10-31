@@ -1,3 +1,4 @@
+import {ACCOUNT_STEP_WINDOW_MS} from '../../contracts/src/account-step.ts';
 import type {ClaimExpected, ClaimStatus} from './claim-onboarding.ts';
 import type {SetupClaimHandoff} from './setup-claim-client.ts';
 import type {verifySetupClaimStart} from './setup-claim-start.ts';
@@ -22,7 +23,7 @@ export type SetupProof = Awaited<ReturnType<typeof verifySetupClaimStart>>;
 type SignedIn = Extract<DirectSignIn, {kind: 'signed-in'}>;
 
 /** A setup with a Portico Account has 30 minutes end to end: signing up and verifying an email takes longer than five. */
-export const SETUP_CLAIM_LIFETIME_MS = 1_800_000;
+export const SETUP_CLAIM_LIFETIME_MS = ACCOUNT_STEP_WINDOW_MS;
 const LIFETIME_MS = SETUP_CLAIM_LIFETIME_MS, CLOCK_SKEW_MS = 60_000;
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const keys = (value: Record<string, unknown>) => Object.keys(value).sort().join(',');

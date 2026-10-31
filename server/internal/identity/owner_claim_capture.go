@@ -59,7 +59,9 @@ func (s *Service) CaptureOwnerClaimTx(ctx context.Context, tx *sql.Tx, expected 
 	if _, err = s.sessionFamilyRecordTx(ctx, tx, expected, family); err != nil {
 		return err
 	}
-	if family.principal.Grant != "" || start.ExpiresAt.After(family.AuthorizationHorizon) || start.ExpiresAt.After(family.tokenExpiry) {
+	// Bound to the family (A5), not the pressing token: a start may outlive that
+	// token, never the family's horizon.
+	if family.principal.Grant != "" || start.ExpiresAt.After(family.AuthorizationHorizon) {
 		return ErrUnauthorized
 	}
 	if err = refuseResetDescendantTx(ctx, tx, family.ID); err != nil {

@@ -83,7 +83,6 @@ func NetworkingClaimAuthorizer(id *identity.Service, origins []string, policies 
 		}, Resume: string(resume), CancelOwnerReturnTx: func(ctx context.Context, tx *sql.Tx, operation string) error {
 			return networkingOwnerStartError(id.CancelOwnerReturnTx(ctx, tx, p, operation))
 		}, OwnerStart: &networking.OwnerStartAuthority{
-			ExpiresAt: p.ExpiresAt,
 			CaptureTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed) error {
 				return networkingOwnerStartError(id.CaptureOwnerClaimTx(ctx, tx, p, original, start, audience))
 			},
