@@ -17,3 +17,21 @@ func pinReentryRoute(method, path string) bool {
 	}
 	return false
 }
+
+// runningPlaybackRoute is a request on a playback that has already started: its
+// session (control, observation, chapters, receivers, stop), the media its
+// grant hands out, its subtitle plan and subtitle fonts. Starting a playback (POST /v1/playback/sessions) is not one.
+func runningPlaybackRoute(method, path string) bool {
+	switch {
+	case strings.HasPrefix(path, "/v1/playback/sessions/"):
+		return strings.TrimPrefix(path, "/v1/playback/sessions/") != ""
+	case strings.HasPrefix(path, "/v1/media/"):
+		return (method == "GET" || method == "HEAD") && strings.TrimPrefix(path, "/v1/media/") != ""
+	case strings.HasPrefix(path, "/v1/items/"):
+		// What belongs to a playback of a title (its subtitle plan), not the title.
+		return method == "GET" && strings.Contains(path, "/playback/")
+	case strings.HasPrefix(path, "/v1/subtitle-fonts/"):
+		return method == "GET"
+	}
+	return false
+}

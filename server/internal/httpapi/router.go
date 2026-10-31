@@ -1432,6 +1432,9 @@ func New(d Dependencies) http.Handler {
 		if pinReentryRoute(r.Method, r.URL.Path) {
 			r = r.WithContext(identity.WithPINReentryRequest(r.Context()))
 		}
+		if runningPlaybackRoute(r.Method, r.URL.Path) {
+			r = r.WithContext(identity.WithRunningPlaybackRequest(r.Context()))
+		}
 		if installation := r.Header.Get("X-Portico-Installation-Id"); installation != "" {
 			claim := identity.DeviceRegistration{
 				InstallationID: installation,
