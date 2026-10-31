@@ -55,7 +55,8 @@ portico_clone udfread
 portico_meson -Denable_examples=false
 portico_clone bluray
 portico_disc_patch libbluray-no-decryption.patch
-portico_meson -Denable_docs=false -Denable_tools=false -Denable_examples=false -Dbdj_jar=disabled -Dfontconfig=enabled -Dfreetype=enabled -Dlibxml2=disabled -Dlibudfread=enabled
+# The pinned libbluray always requires libudfread >= 1.2.0; it has no libudfread option.
+portico_meson -Denable_docs=false -Denable_tools=false -Denable_examples=false -Dbdj_jar=disabled -Dfontconfig=enabled -Dfreetype=enabled -Dlibxml2=disabled
 portico_clone vulkanHeaders
 portico_cmake -DVULKAN_HEADERS_ENABLE_TESTS=OFF
 portico_clone vulkanLoader
