@@ -2,6 +2,7 @@
 """Qualify actual executable inventories against the bundled target contract."""
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -11,6 +12,40 @@ import sys
 TARGETS = {'linux-x64': 'linux-amd64', 'linux-arm64': 'linux-arm64',
            'windows-x64': 'windows-amd64', 'windows-arm64': 'windows-arm64',
            'macos-x64': 'darwin-amd64', 'macos-arm64': 'darwin-arm64'}
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def verifier(name):
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(name + '.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+disc = verifier('verify-disc-bundle')
+bluray = verifier('verify-ffmpeg-bluray')
+
+
+def macos_udfread(tool, target, lock, root=ROOT):
+    if target not in ('macos-x64', 'macos-arm64'):
+        return None
+    entry = lock['discHelper']
+    manifest = root / entry['fixtureManifest']
+    if (manifest.is_symlink() or not manifest.resolve().is_relative_to(root.resolve()) or
+            disc.digest(manifest) != entry['fixtureManifestSHA256']):
+        raise ValueError('Mac UDF reader fixture authority changed')
+    fixtures = [row for row in json.loads(manifest.read_text())['fixtures'] if row['id'] in bluray.IDS]
+    if len(fixtures) != 2 or {row['id'] for row in fixtures} != set(bluray.IDS):
+        raise ValueError('Mac feature probe requires both BDMV and UDF ISO fixtures')
+    paths = {row['id']: disc.fixture_path(manifest.parent, row) for row in fixtures}
+    # A configure flag or pc file cannot prove the final FFmpeg/libbluray link
+    # retained udfread. Decode the same checked title through both real readers.
+    result = bluray.qualify(tool, paths)
+    for row in fixtures:
+        disc.fixture_path(manifest.parent, row)
+    if disc.digest(manifest) != entry['fixtureManifestSHA256']:
+        raise ValueError('Mac UDF reader fixtures changed during the feature probe')
+    return result
 
 
 def entries(raw, kind):
@@ -106,6 +141,8 @@ def main():
               'MPEGTSMergeDolbyVisionDefaultFalse': join_default_off,
               'stockDoviRpuOptions': sorted(stock_options),
               'inventories': {k: sorted(v) for k, v in inventories.items()}}
+    if target.startswith('macos-'):
+        report['macosLibblurayUdfread'] = macos_udfread(tool, target, lock)
     if missing:
         if args.report:
             args.report.write_text(json.dumps(report, indent=2) + '\n')
