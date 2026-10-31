@@ -5,6 +5,7 @@ import {StateView} from '../kit/states';
 import {ServerStarting} from '../kit/states/ServerStarting';
 import {LaunchUnreachableScreen} from './LaunchUnreachable';
 import {router} from '../router';
+import {rememberRequestedPath} from '../platform/requested-path';
 import {BootProgress} from './Boot';
 import {DocumentBootReady} from './DocumentBootReady';
 import type {ShellBootstrapSnapshot} from './bootstrap';
@@ -21,6 +22,8 @@ export function BootstrapContent({children}: {children: ReactNode}) {
   const needsProfile = state?.snapshot.phase === 'choose-profile' && path !== '/profiles';
   const focus = state?.snapshot.focus;
   useEffect(() => {
+    // The page asked for opens once a profile does (sign-in and Who's watching come first).
+    if (needsSignIn || needsProfile) rememberRequestedPath(router.state.location.href);
     if (needsSignIn) void router.navigate({to: '/sign-in', replace: true});
     else if (needsProfile) void router.navigate({to: '/profiles', replace: true, ...(focus ? {search: {profileId: focus}} : {})});
   }, [needsSignIn, needsProfile, focus]);

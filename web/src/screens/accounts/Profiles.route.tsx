@@ -11,6 +11,7 @@ import {AuthError, AuthStage} from '../../kit/accounts';
 import {Button} from '../../kit/controls';
 import {AccountIdentityFailure} from './AccountIdentityFailure';
 import {AccountProfilesView, type ProfilePickerViewBinding} from './AccountProfilesView';
+import {openAfterProfile} from './open-after-profile';
 
 function ProfilesScreen() {
   const [entry, setEntry] = useState<BrowserAccountEntry>();
@@ -28,7 +29,7 @@ function BoundProfiles({entry}: {entry: BrowserAccountEntry}) {
   useEffect(() => entry.subscribeAuthorityRetired(() => {setEpoch(value => value + 1);}), [entry]);
   useEffect(() => {
     if (entry.getSnapshot() !== state) return;
-    if (state.phase === 'ready' && !delivered.current) {delivered.current = true;void router.navigate(state.server && state.snapshot && hasTwoStepSetup(state.server.id, state.snapshot.account.id) ? profileSettingsDestination : {to: '/'});}
+    if (state.phase === 'ready' && !delivered.current) {delivered.current = true;void openAfterProfile(!!(state.server && state.snapshot && hasTwoStepSetup(state.server.id, state.snapshot.account.id)));}
     // A restored restricted account has no submitted password in this page.
     // Re-enter the existing sign-in, never invent an enrollment proof field.
     if (state.phase === 'two-step-setup' || state.phase === 'password-change') void router.navigate({to: '/sign-in', replace: true});

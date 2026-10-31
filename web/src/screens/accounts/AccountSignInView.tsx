@@ -24,6 +24,7 @@ import {LocalPasswordRecoveryFlow} from './LocalPasswordRecoveryFlow';
 import {PorticoOwnerRecoveryFlow} from './PorticoOwnerRecoveryFlow';
 import {AccountIdentityFailure} from './AccountIdentityFailure';
 import {MemberMoveForm} from './MemberMoveForm';
+import {openAfterProfile} from './open-after-profile';
 import {localAccountStorage, readRememberedLocalAccounts, rememberLocalAccount, rememberedLocalKey, type RememberedLocalAccount} from './remembered-local-accounts';
 
 type RecoveryTarget = Readonly<{entry: BrowserAccountEntry; origin: string; serverId: string; pin: NonNullable<ReturnType<BrowserAccountEntry['getSnapshot']>['pin']>}>;
@@ -68,8 +69,8 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
   }, [entry, form, takeReturn, takeMove, pageOrigin, initialize]);
   useEffect(() => {
     if (joining || initializing || entry.getSnapshot() !== state || input.factor || input.busy || state.memberMoveCompleted && !state.snapshot?.twoStepSetupRequired && (state.phase === 'profiles' || state.phase === 'ready') && acknowledgedMove !== state) return;
-    if (state.phase === 'ready' && !state.ownerResetSessionReady) void router.navigate(state.setupCompleted ? {to: '/setup', replace: true}
-      : state.server && state.snapshot && hasTwoStepSetup(state.server.id, state.snapshot.account.id) ? {...profileSettingsDestination, replace: true} : {to: '/', replace: true});
+    if (state.phase === 'ready' && !state.ownerResetSessionReady) void (state.setupCompleted ? router.navigate({to: '/setup', replace: true})
+      : openAfterProfile(!!(state.server && state.snapshot && hasTwoStepSetup(state.server.id, state.snapshot.account.id))));
     else if (state.phase === 'profiles' && state.snapshot && !state.snapshot.twoStepSetupRequired) void router.navigate({to: '/profiles', replace: true});
     else if (state.phase === 'two-step-setup' && state.origin) {
       form.setUsername(state.snapshot?.account.username ?? input.username);
