@@ -159,8 +159,7 @@ export const FOLDER_SPLITTABLE_KINDS:readonly string[]=Object.freeze(['song','au
 export async function separateLibraryFolder(api:TitleIdentityApi,libraryId:string,file:LibraryFileRecord,signal?:AbortSignal):Promise<string>{
  const objectId=file.objectId,revision=file.revision;
  if(!id(libraryId)||!id(objectId)||!id(revision))invalid('folder to separate');
- // This raw-mux route is not covered by generated contracts (API-REGISTRY-SEPARATE-FOLDER).
- const path=libraryBase(libraryId)+'/inventory/'+encodeURIComponent(objectId)+'/separate-folder';
+ const path=encodedRoutePath("post_admin_libraries_id_inventory_object_separate_folder", {"id": encodeURIComponent(libraryId), "object": encodeURIComponent(objectId)});
  const body=Object.freeze({revision}),started=Date.now();
  let pending:unknown;
  for(let attempt=0;attempt<32;attempt++){

@@ -103,6 +103,14 @@ func registerLibrariesHTTPContracts(registry *apikit.Registry) error {
 	if err := apikit.RegisterHTTP[struct{}, ingestion.Job](registry, apikit.Metadata{Audience: apikit.Integrations, ID: "post_admin_ingestion_jobs_id_action", Method: "POST", Path: "/v1/admin/ingestion/jobs/{id}/{action}", SuccessStatuses: []int{202, 204}, Summary: "Run server ingestion jobs", Access: apikit.Admin, AdminScope: "libraries", Requires: apikit.ScopeLibrary, Lane: apikit.Default, Admission: laneDefault, Cost: apikit.Constant, BodyLimit: 0, Status: 204, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
 		return err
 	}
+	// internal/httpapi/inventory.go:206
+	if err := apikit.RegisterHTTP[struct {
+		Revision string `json:"revision"`
+	}, struct {
+		ItemId string `json:"itemId"`
+	}](registry, apikit.Metadata{Audience: apikit.Clients, ID: "post_admin_libraries_id_inventory_object_separate_folder", Method: "POST", Path: "/v1/admin/libraries/{id}/inventory/{object}/separate-folder", SuccessStatuses: []int{200}, Summary: "Make a file's folder its own album or book", Access: apikit.Admin, AdminScope: "libraries", Requires: apikit.ScopeLibrary, Lane: apikit.Default, Admission: laneAdminHeavy, Cost: apikit.Constant, BodyLimit: 65536, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "revision_mismatch", "request_in_progress", "internal"}}); err != nil {
+		return err
+	}
 	// internal/httpapi/inventory.go:192
 	if err := apikit.RegisterHTTP[struct {
 		Revision string "json:\"revision\""

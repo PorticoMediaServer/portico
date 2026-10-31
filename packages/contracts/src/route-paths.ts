@@ -631,6 +631,7 @@ export const routePaths = {
   "post_admin_feedback_reports_id_status": "/v1/admin/feedback/reports/{id}/status",
   "post_admin_ingestion_jobs_id_action": "/v1/admin/ingestion/jobs/{id}/{action}",
   "post_admin_libraries_id_inventory_object_action": "/v1/admin/libraries/{id}/inventory/{object}/{action}",
+  "post_admin_libraries_id_inventory_object_separate_folder": "/v1/admin/libraries/{id}/inventory/{object}/separate-folder",
   "post_admin_libraries_id_sonic_analysis_retry": "/v1/admin/libraries/{id}/sonic-analysis/retry",
   "post_admin_libraries_id_sources": "/v1/admin/libraries/{id}/sources",
   "post_admin_libraries_id_sources_source_check": "/v1/admin/libraries/{id}/sources/{source}/check",
