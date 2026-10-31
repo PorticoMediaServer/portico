@@ -610,6 +610,13 @@ export class HttpLocalApi {
     this.certificateSessionListeners.add(listener);
     return () => { this.certificateSessionListeners.delete(listener); };
   };
+  // A request this session made was refused with profile_pin_reentry (the profile's PIN changed
+  // elsewhere): whoever holds the session hears it, whichever screen asked.
+  private profileGateListeners = new Set<(error: ApiError) => void>();
+  readonly subscribeProfileGate = (listener: (error: ApiError) => void) => {
+    this.profileGateListeners.add(listener);
+    return () => { this.profileGateListeners.delete(listener); };
+  };
   private fetcher: typeof fetch;
   private rawFetcher: typeof fetch;
   private routes?: RouteConnection;
@@ -953,6 +960,7 @@ export class HttpLocalApi {
         if(version)error.version=version;
         if(minimum)error.minimumVersion=minimum;
       }
+      if (error.code === 'profile_pin_reentry') for (const listener of [...this.profileGateListeners]) try { listener(error); } catch { /* the caller still gets its error */ }
       throw error;
     }
     return response.status === 204 ? (undefined as T) : response.json();
