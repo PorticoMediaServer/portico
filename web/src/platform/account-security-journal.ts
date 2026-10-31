@@ -190,6 +190,23 @@ export function browserSecurityJournal() {
 
 /** The coordinator record contains no credentials; comparing it is read-only.
  * Sensitive sends still use the captured access token and server-side family checks. */
+/** Whether the browser's Portico Account coordination still holds the sign-in a Security return was captured
+ * under: the same account and session family, no revocation of it, no request in flight. A routine refresh
+ * rewrites the active session (its expiry) and keeps it; another sign-in, a sign-out or a revocation ends it. */
+export function securityCoordinatorHolds(captured: string, current: string | null): boolean {
+  try {
+    if (current === null || current.length > 131072) return false;
+    const was = parseBrowserCredentialRecord(JSON.parse(captured)), now = parseBrowserCredentialRecord(JSON.parse(current));
+    const a = was.active, b = now.active;
+    return Boolean(a && b) && !b!.pendingRequestId && b!.session.account.id === a!.session.account.id && b!.session.familyId === a!.session.familyId &&
+      b!.authority.familyId === a!.authority.familyId && !now.revocations.some(v => v.familyId === a!.session.familyId) &&
+      JSON.stringify(now.revocations) === JSON.stringify(was.revocations);
+  } catch {return false;}
+}
+export function securityCoordinatorStillHolds(hostedOrigin: string, captured: string) {
+  return securityCoordinatorHolds(captured, localStorage.getItem('portico.account.v1:' + origin(hostedOrigin)));
+}
+
 export function securityCoordinatorStamp(hostedOrigin: string) {
   const raw = localStorage.getItem('portico.account.v1:' + origin(hostedOrigin));
   if (raw === null || raw.length > 131072) invalid();

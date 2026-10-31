@@ -9,8 +9,10 @@ import {BrowserAccountApi} from './account';
 import {browserAppSessions, browserConnectionEnvironment} from './server-connections';
 import {currentAccountWork, type AccountIdentity} from './account-work';
 import type {ServicesAccount} from '../services/session';
-import {browserSecurityJournal, parseSecurityJournal, securityCoordinatorStamp, type AccountSecurityJournal, type AccountSecurityPending, type OriginalSecurityAccount} from './account-security-journal';
+import {browserSecurityJournal, parseSecurityJournal, securityCoordinatorStamp, securityCoordinatorStillHolds, type AccountSecurityJournal, type AccountSecurityPending, type OriginalSecurityAccount} from './account-security-journal';
 
+/** A return starts only on a token with its whole window (five minutes) and a minute more left. */
+export const CAPTURE_MIN_TOKEN_MS = 6 * 60_000;
 function ended(): never {throw new Error('This account security continuation no longer matches its original opening.');}
 const random = () => routeBase64(crypto.getRandomValues(new Uint8Array(32)));
 const noRefresh = <T extends HostedSession | LocalSession>(session: T): T => {
@@ -18,7 +20,8 @@ const noRefresh = <T extends HostedSession | LocalSession>(session: T): T => {
   return JSON.parse(JSON.stringify(original)) as T;
 };
 const checkDeadline = (original: OriginalSecurityAccount) => {
-  if (Date.parse(original.expiresAt) <= Date.now() || securityCoordinatorStamp(original.hostedOrigin) !== original.coordinator) ended();
+  // Bound to the Portico Account sign-in, not one stored session: another tab's routine refresh keeps it.
+  if (Date.parse(original.expiresAt) <= Date.now() || !securityCoordinatorStillHolds(original.hostedOrigin, original.coordinator)) ended();
 };
 export function originalSecurityClient(origin: string) {
   // Inert transport only. The protected return never starts the singleton's
@@ -83,7 +86,15 @@ export async function captureAccountSecurity(input: {
   const state: SecurityState = JSON.parse(JSON.stringify(input.state)), purpose = input.purpose, target = input.target, originalServerScope = input.server ? {...input.server} : undefined;
   const provider = state.providers.find(v => v.id === providerId);
   if (state.hasPassword || !provider?.revision || state.accountId !== expectedIdentity.accountId || state.familyId !== expectedIdentity.familyId) ended();
-  const captured = await currentAccountWork(account, async session => {assertCurrent(); return noRefresh(session);}, expectedIdentity);
+  const capture = () => currentAccountWork(account, async session => {assertCurrent(); return noRefresh(session);}, expectedIdentity);
+  let captured = await capture();
+  // The return never refreshes on its own and lasts five minutes on the token it starts with: a token with less
+  // than that (and a little) left is renewed the ordinary way first, so the return gets its whole window.
+  if (Date.parse(captured.expiresAt) - Date.now() < CAPTURE_MIN_TOKEN_MS) {
+    await account.service.accessSession(true);
+    assertCurrent();
+    captured = await capture();
+  }
   assertCurrent();
   const coordinator = securityCoordinatorStamp(hostedOrigin), now = Date.now();
   let server: OriginalSecurityAccount['server'];
@@ -218,8 +229,9 @@ export class OriginalProviderSecurity {
     const key = 'portico.account.v1:' + this.original.hostedOrigin;
     try {await navigator.locks.request(key, async () => {
       let stamp: string | undefined;try {stamp=securityCoordinatorStamp(this.original.hostedOrigin);}catch {return;}
-      if (stamp !== this.original.coordinator) return;
-      const value = JSON.parse(this.original.coordinator) as {version: 1; revocations: unknown[]};
+      // Only while it still holds this sign-in (a refresh may have rewritten its session): never a successor.
+      if (!securityCoordinatorStillHolds(this.original.hostedOrigin, this.original.coordinator)) return;
+      const value = JSON.parse(stamp) as {version: 1; revocations: unknown[]};
       localStorage.setItem(key, JSON.stringify({version: 1, revocations: value.revocations}));
     });} finally {await this.journal.clear(this.pending);}
   }

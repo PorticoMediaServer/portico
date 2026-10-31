@@ -63,9 +63,7 @@
   "web/src/shell/LaunchUnreachable.tsx": 1
  },
  "throwing-cleanup": {
-  "apps/native/src-next/platform/server-setup.ts": 1,
   "apps/native/src-next/platform/server-sign-in.ts": 1,
-  "apps/native/src-next/platform/setup-claim.ts": 1,
   "apps/native/src-next/shell/remembered-downloads-device.ts": 2,
   "packages/client-core/src/server-connections.ts": 5,
   "web/src/screens/settings/local-owner-transfer.ts": 1,
