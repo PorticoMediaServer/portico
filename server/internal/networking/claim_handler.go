@@ -426,19 +426,7 @@ func (h *ClaimHandler) snapshot(ctx context.Context) (ClaimStatus, error) {
 	result.AccountID = v.AccountID
 	result.InstallationAcknowledged = v.InstallationAcknowledged
 	result.Actions = []string{}
-	var setup SetupContinuation
-	var setupExpires int64
-	se := tx.QueryRowContext(ctx, `SELECT transaction_id,phase,expires_ms FROM identity_setup_completions WHERE operation_id=?`, v.OperationID).Scan(&setup.TransactionID, &setup.Phase, &setupExpires)
-	if se != nil && !errors.Is(se, sql.ErrNoRows) {
-		return ClaimStatus{}, se
-	}
-	if se == nil {
-		setup.ExpiresAt = time.UnixMilli(setupExpires).UTC().Format(time.RFC3339Nano)
-		result.SetupContinuation = &setup
-		if setup.Phase != "prepared" && setup.Phase != "installed" {
-			return result, nil
-		}
-	}
+	// A first-run setup's progress is read from GET /v1/setup/state; only the approval answer carries its signed pair.
 	var continuation OwnerContinuation
 	var expires int64
 	var registration, origin string
