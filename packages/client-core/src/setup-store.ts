@@ -75,6 +75,33 @@ export function readSetupLocal(rawRecord: unknown, rawAttempt: unknown): SetupLo
   return Object.freeze({...(record ? {record} : {}), ...(attempt ? {attempt} : {})});
 }
 
+/** One platform's protected storage for the two records (B-DESIGN §6.3). */
+export interface SetupStore {
+  /** Never throws on bad bytes: unreadable, older or malformed values come back as `unreadable`. */
+  read(): Promise<SetupLocal>;
+  /** Compare-and-swap. A slot is touched only when `next` names it (a value writes, `null` deletes), and is checked against `expect`:
+   * the stored record's requestId, the stored attempt's attemptId, `undefined` meaning none (or unreadable). Every touched slot
+   * must match or nothing is written and the answer is false: a successor, written by another tab or flow, is preserved. */
+  change(expect: Readonly<{requestId?: string; attemptId?: string}>, next: Readonly<{record?: SetupRecord | null; attempt?: SetupAttempt | null}>): Promise<boolean>;
+}
+
+/** In memory, for tests and for adapters that keep nothing across restarts. `initial` may be `{unreadable: true}`. */
+export function createMemorySetupStore(initial: SetupLocal = {}): SetupStore & Readonly<{peek(): SetupLocal}> {
+  let local: SetupLocal = Object.freeze({...initial});
+  return {
+    peek: () => local,
+    async read() {return local;},
+    async change(expect, next) {
+      const touchesRecord = next.record !== undefined, touchesAttempt = next.attempt !== undefined;
+      if (touchesRecord && local.record?.requestId !== expect.requestId) return false;
+      if (touchesAttempt && local.attempt?.attemptId !== expect.attemptId) return false;
+      const record = touchesRecord ? next.record ?? undefined : local.record, attempt = touchesAttempt ? next.attempt ?? undefined : local.attempt;
+      local = Object.freeze({...(record ? {record} : {}), ...(attempt ? {attempt} : {})}); // a successful change clears `unreadable`
+      return true;
+    },
+  };
+}
+
 export type SetupReconcile = 'keep' | 'retire' | 'retire-attempt';
 
 const attemptLive = (attempt: SetupAttempt, record: SetupRecord, now: number): boolean => {
