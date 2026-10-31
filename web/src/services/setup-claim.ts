@@ -75,7 +75,7 @@ async function lookup(account: ServicesAccount, request: HostedSetupClaimLink, s
   claimCode(request.code); signal.throwIfAborted();
   return currentAccountWork(account, async session => {
     signal.throwIfAborted();
-    const raw = await account.api.send(routePath('server_claim_lookup'), 'POST', {code: request.code, phase: true}, signal, session.accessToken);
+    const raw = await account.api.send(routePath('server_claim_lookup'), 'POST', {code: request.code}, signal, session.accessToken);
     signal.throwIfAborted();
     const claim = decodeServerClaimLookupResponse(raw), now = Date.now();
     if (claim.code !== request.code || claim.transitionMode !== undefined || claim.purpose !== 'setup' || claim.ownerTransactionId !== undefined || !claim.setupTransactionId || !identifier(claim.setupTransactionId) ||
