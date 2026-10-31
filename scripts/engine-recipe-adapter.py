@@ -1,5 +1,30 @@
 """Bounded local recipe adapter, derived from reviewed 86a539f. No pin changes."""
 import re
+from pathlib import Path
+import shutil
+
+
+def compiler_custody(recipe):
+    directory = recipe / 'images/base-win64'
+    path = directory / 'Dockerfile'
+    text = path.read_text()
+    marker = '    ./ct-ng build && \\\n    cd / && \\\n    rm -rf ct-ng'
+    if text.count(marker) != 1:
+        raise ValueError('pinned compiler source-retention boundary changed')
+    capture = '''    ./ct-ng build && \\
+    mkdir -p /opt/portico-compiler-source/tarballs && \\
+    cp -a build/tarballs/. /opt/portico-compiler-source/tarballs/ && \\
+    cp .config /opt/portico-compiler-source/crosstool-ng.config && \\
+    git rev-parse HEAD > /opt/portico-compiler-source/crosstool-ng.commit && \\
+    git archive -o /opt/portico-compiler-source/crosstool-ng.tar HEAD && \\
+    xz -T1 -0 /opt/portico-compiler-source/crosstool-ng.tar && \\
+    cd / && \\
+    rm -rf ct-ng'''
+    text = text.replace(marker, capture)
+    # Source-only installation, for this exact installed Rust toolchain.
+    text += '\nCOPY portico-capture.py /opt/portico-compiler-source/capture.py\nRUN rustup component add rust-src && python3 /opt/portico-compiler-source/capture.py\n'
+    path.write_text(text)
+    shutil.copyfile(Path(__file__).with_name('capture-engine-compiler.py'), directory / 'portico-capture.py')
 
 
 def selected_download(text):
@@ -83,3 +108,4 @@ def prepare_recipe(recipe, owner):
     p.write_text(text.replace('docker run --rm', 'docker run --cpus 2 --memory 4g --memory-swap 4g --rm'))
     p = recipe / 'scripts.d/50-vaapi/50-libva.sh'
     p.write_text(libva_diagnostics(p.read_text()))
+    compiler_custody(recipe)

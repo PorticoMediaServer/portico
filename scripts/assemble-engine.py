@@ -37,7 +37,7 @@ def write_json(path, value):
 
 def source_licenses(archive, destination):
     notices, seen, count, expanded = {}, set(), 0, 0
-    with tarfile.open(archive, 'r|xz') as source:
+    with tarfile.open(archive, 'r|*') as source:
         for member in source:
             count += 1
             expanded += member.size
@@ -141,6 +141,7 @@ def assemble(target, raw, recipe, output, report_file):
     source_sha = inputs.checked_source(ROOT)
     build_report = json.loads(report_file.read_text())
     build_proof(build_report, target, raw, recipe, source_sha, lock['sourceAuthority']['sha256'])
+    inputs.compiler_inputs(recipe, build_report)
     subprocess.run([sys.executable, ROOT / 'scripts/check-ffmpeg-build-inputs.py'], check=True)
     with tempfile.TemporaryDirectory(prefix='engine-assembly-', dir=output.parent) as temp:
         work = Path(temp)
@@ -165,6 +166,12 @@ def assemble(target, raw, recipe, output, report_file):
             path = recipe / filename
             records.append({'script': script, 'sourceArchive': filename, 'sourceSHA256': digest(path),
                 'licenses': source_licenses(path, licenses / Path(script).with_suffix(''))})
+        compiler_sources = recipe / 'portico-compiler-inputs'
+        shutil.copytree(compiler_sources / 'LICENSES', licenses / 'compiler-installed')
+        for path in sorted(compiler_sources.rglob('*')):
+            if path.is_file() and path.name.endswith(('.tar.xz', '.tar.gz', '.tar.bz2')):
+                records.append({'compilerSourceArchive': path.relative_to(recipe).as_posix(),
+                    'sourceSHA256': digest(path), 'licenses': source_licenses(path, licenses / 'compiler' / path.name)})
         write_json(licenses / 'dependency-license-inventory.json', records)
         provenance = work / 'provenance'
         (provenance / 'scripts').mkdir(parents=True)
