@@ -385,6 +385,9 @@ def main():
             if entry['state'] == 'pending':
                 report['stages'][name] = {'state': 'blocked', 'prerequisites': ['bootstrap/source-download'], 'error': str(error)}
     finally:
+        # systemd may signal the whole process group again while it drains.
+        # Finish evidence/cache cleanup under the held lease before exiting.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         telemetry('finish')
         # Only the unique builder and image names allocated by this invocation.
         subprocess.run(['docker', 'buildx', 'rm', '--keep-state', owner], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
