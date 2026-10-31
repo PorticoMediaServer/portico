@@ -223,6 +223,8 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     api.setDeviceClass(Platform.isTV ? 'television' : 'mobile');
     const local = api;
     trackNativeConnection(local);
+    // Any screen's request refused for a PIN changed elsewhere asks for the PIN, as the shell's own reads do.
+    cleanups.push(local.subscribeProfileGate(error => queueMicrotask(() => refused(error))));
     session = restored.session;
     const accountBinding = createNativeShellAccountBinding(selected, session, {
       current: () => alive && installation.current() && !signal.signal.aborted,
