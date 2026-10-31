@@ -135,8 +135,12 @@ def event_stats(reports):
     result = {}
     for event in ('pull_request', 'merge_group'):
         group = [r for r in reports if r['event'] == event]
-        values = [r['wall_seconds'] for r in group if r['conclusion'] == 'success' and r['wall_seconds'] is not None]
-        result[event] = {'observed': len(group), 'successful_completed': len(values),
+        completed = [r for r in group if r['conclusion'] == 'success' and r['wall_seconds'] is not None]
+        # Attempt-start wall time lacks the original queue wait. Do not mix it
+        # into end-to-end quantiles for runs measured from creation.
+        values = [r['wall_seconds'] for r in completed if r.get('wall_origin', 'run_created') == 'run_created']
+        result[event] = {'observed': len(group), 'successful_completed': len(completed),
+                         'wall_sample_count': len(values), 'reruns_excluded_from_wall_quantiles': len(completed)-len(values),
                          'conclusions': dict(Counter(r['conclusion'] or r['status'] for r in group)),
                          'p50_seconds': percentile(values, .5), 'p90_seconds': percentile(values, .9),
                          'p95_seconds': percentile(values, .95)}

@@ -46,6 +46,9 @@ class Timings(unittest.TestCase):
         self.assertIsNone(stats['pull_request']['p50_seconds'])
         run.update(run_attempt=2, run_started_at='2026-10-31T19:01:00Z')
         self.assertEqual(summarize(run, [job()])['wall_seconds'], 120)
+        rerun_stats=event_stats([complete,summarize(run,[job()])])['merge_group']
+        self.assertEqual(rerun_stats['wall_sample_count'],1)
+        self.assertEqual(rerun_stats['reruns_excluded_from_wall_quantiles'],1)
         self.assertIsNone(summarize(run, [])['wall_seconds'])
 
     def test_pages_and_live_snapshot_deduplicate_runs(self):
