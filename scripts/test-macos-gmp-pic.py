@@ -6,11 +6,29 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import runpy
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
+PROBE = runpy.run_path(str(ROOT / 'scripts/qualify-macos-gmp.py'))
 
 
 class MacGmpPic(unittest.TestCase):
+    def test_probe_refuses_other_hosts_rosetta_and_implicit_ci(self):
+        with patch('platform.system', return_value='Linux'), patch('platform.machine', return_value='x86_64'):
+            with self.assertRaisesRegex(ValueError, 'native Intel'):
+                PROBE['native']('local', {})
+        with patch('platform.system', return_value='Darwin'), patch('platform.machine', return_value='x86_64'):
+            with patch('subprocess.check_output', return_value='1\n'):
+                with self.assertRaisesRegex(ValueError, 'Rosetta'):
+                    PROBE['native']('local', {})
+            with patch('subprocess.check_output', return_value='0\n'):
+                PROBE['native']('local', {})
+                with self.assertRaises(ValueError):
+                    PROBE['native']('local', {'GITHUB_ACTIONS': 'true'})
+                with self.assertRaisesRegex(ValueError, 'manual only'):
+                    PROBE['native']('github-actions', {'GITHUB_EVENT_NAME': 'pull_request'})
+
     def test_exact_checked_patch_preserves_every_non_intel_configure_flag(self):
         entry = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())['macosRecipe']['intelGmpPicPatch']
         patch = ROOT / entry['path']
