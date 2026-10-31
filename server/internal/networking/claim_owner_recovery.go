@@ -216,6 +216,11 @@ func (h *ClaimHandler) reconcileWebClaim(parent context.Context, operation strin
 			_, err = coordinator.ReconcilePreinstallCancellation(ctx)
 			return err
 		}
+		if v.Purpose == "setup" {
+			// A first-run setup has no installed claim to fall back to: its own claim ends here.
+			_, err = h.store.WithdrawSetupClaim(ctx, v)
+			return err
+		}
 		_, _, err = h.store.WithdrawReplacement(ctx, v)
 		return err
 	})
