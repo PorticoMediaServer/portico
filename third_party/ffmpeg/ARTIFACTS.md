@@ -35,6 +35,16 @@ Windows source inventory follows the generated target Dockerfile: every selected
 dependency recipe and its exact command-hash source snapshot must be present.
 The complete builder tree, including scripts disabled for that target, remains
 in corresponding source; disabled stages do not require unused source downloads.
+Before using those mounts, intake checks `source-build-receipt.json`, which must
+be hashed by the externally pinned bundle manifest. It records schema version 1,
+`release: false`, the target and pinned engine source SHA, `dockerfileSHA256`,
+`sourceArchiveSHA256`, `configureScripts` (source-archive paths to SHA-256s), and
+`recipeTreeSHA256`. The latter hashes the sorted compact JSON map of all recipe
+files (`kind: file`, `sha256`, permission `mode`) and symlinks (`kind: symlink`,
+`target`, permission `mode`), relative to `recipe/`; directories are omitted.
+All eight engine/configuration/source-preparation scripts listed in intake are
+required. Removing a stage and its source, or changing a script, cannot rewrite
+the manifest-sealed build history. Intake never executes bundled build scripts.
 
 Local consumption uses a copy of the exact locked Actions ZIP, with no GitHub
 environment variables. From a dedicated worktree, with on-disk scratch:

@@ -22,6 +22,13 @@ MAX_ARCHIVE = 3 * 1024**3
 MAX_EXPANDED = 8 * 1024**3
 MAX_FILES = 200000
 README = 'Qualification engine intermediate; NOT-FOR-USE; not a Portico release.\n'
+WINDOWS_CONFIGURE_SCRIPTS = {
+    'provenance/scripts/build-engine.py', 'provenance/scripts/engine_inputs.py',
+    'provenance/scripts/engine-recipe-adapter.py', 'provenance/scripts/configure-ffmpeg-recipe.py',
+    'provenance/scripts/configure-windows-libdovi.py',
+    'provenance/scripts/patch-btbn-winarm64-system-error.sh',
+    'provenance/scripts/prepare-ffmpeg-source.py', 'provenance/scripts/archive-ffmpeg-source.py',
+}
 
 
 def digest(path):
@@ -202,11 +209,12 @@ def verify_windows_sources(files, source_scripts, dockerfile):
         raise ValueError('missing Windows dependency source inventory')
 
 
-def verify_source(path, target):
+def verify_source(path, target, build_receipt=None):
     # Inventory only: corresponding source may contain ordinary internal
     # symlinks, but no escaping links, devices or unbounded expansion.
     names, files, source_scripts, total = set(), set(), set(), 0
     dockerfile = ''
+    recipe_tree, configure_scripts, dockerfile_sha = {}, {}, None
     with tarfile.open(path) as archive:
         for member in archive:
             name = safe_name(member.name)
@@ -222,14 +230,31 @@ def verify_source(path, target):
                 raise ValueError('special corresponding-source member')
             if member.isfile():
                 files.add(name)
+            recipe_script = name.startswith('recipe/scripts.d/') and name.endswith('.sh')
+            selected_text = member.isfile() and (name == 'recipe/Dockerfile' or recipe_script)
+            data = None
+            if selected_text:
+                if member.size > (2 if name == 'recipe/Dockerfile' else 1) * 1024**2:
+                    raise ValueError('oversized generated graph/dependency recipe')
+                data = archive.extractfile(member).read()
+            if target.startswith('windows') and (name.startswith('recipe/') or name in WINDOWS_CONFIGURE_SCRIPTS):
+                if member.isfile():
+                    sha = hashlib.sha256(data).hexdigest() if data is not None else hashlib.file_digest(
+                        archive.extractfile(member), 'sha256').hexdigest()
+                    if name.startswith('recipe/'):
+                        recipe_tree[name.removeprefix('recipe/')] = {'kind': 'file', 'sha256': sha, 'mode': member.mode & 0o777}
+                    if name in WINDOWS_CONFIGURE_SCRIPTS:
+                        configure_scripts[name] = sha
+                    if name == 'recipe/Dockerfile':
+                        dockerfile_sha = sha
+                elif member.issym():
+                    recipe_tree[name.removeprefix('recipe/')] = {'kind': 'symlink', 'target': member.linkname, 'mode': member.mode & 0o777}
+                elif member.islnk():
+                    raise ValueError('hard-linked recipe inputs are not supported')
             if member.isfile() and name == 'recipe/Dockerfile':
-                if member.size > 2 * 1024**2:
-                    raise ValueError('oversized generated dependency graph')
-                dockerfile = archive.extractfile(member).read().decode('utf-8')
-            if member.isfile() and name.startswith('recipe/scripts.d/') and name.endswith('.sh'):
-                if member.size > 1024**2:
-                    raise ValueError('oversized dependency recipe')
-                if re.search(rb'^SCRIPT_REPO=', archive.extractfile(member).read(), re.M):
+                dockerfile = data.decode('utf-8')
+            if member.isfile() and recipe_script:
+                if re.search(rb'^SCRIPT_REPO=', data, re.M):
                     source_scripts.add(name)
     required = {'provenance/contract/sources.lock.json', 'provenance/contract/build-source-authority.json',
                 'provenance/scripts/build-ffmpeg.sh', 'provenance/portico-disc/LICENSE',
@@ -239,6 +264,15 @@ def verify_source(path, target):
     if target.startswith('windows'):
         if not {'recipe/build.sh', 'recipe/makeimage.sh', 'recipe/Dockerfile'} <= files:
             raise ValueError('missing Windows dependency source inventory')
+        if (not isinstance(build_receipt, dict) or build_receipt.get('schemaVersion') != 1 or
+                build_receipt.get('release') is not False or build_receipt.get('target') != target or
+                not re.fullmatch('[a-f0-9]{40}', str(build_receipt.get('engineSourceSHA'))) or
+                set(configure_scripts) != WINDOWS_CONFIGURE_SCRIPTS or
+                build_receipt.get('configureScripts') != configure_scripts or
+                build_receipt.get('recipeTreeSHA256') != json_digest(recipe_tree) or
+                build_receipt.get('dockerfileSHA256') != dockerfile_sha or
+                build_receipt.get('sourceArchiveSHA256') != digest(path)):
+            raise ValueError('sealed source build receipt does not match recipe, graph or configure scripts')
         # Keep the complete upstream recipe, including disabled target scripts.
         # Corresponding source must cover every actual generated build mount,
         # with the exact command-hash snapshot, rather than a filename prefix.
@@ -267,7 +301,15 @@ def verify_bundle(envelope, pin):
     subprocess.run([sys.executable, str(ROOT / 'scripts/verify-ffmpeg-manifest.py'), str(bundle)], check=True)
     if digest(bundle / 'corresponding-source.tar.xz') != pin['sourceArchiveSHA256']:
         raise ValueError('corresponding source digest mismatch')
-    verify_source(bundle / 'corresponding-source.tar.xz', pin['target'])
+    build_receipt = None
+    if pin['target'].startswith('windows'):
+        name = 'source-build-receipt.json'
+        if name not in manifest['files']:
+            raise ValueError('missing manifest-sealed source build receipt')
+        build_receipt = json.loads((bundle / name).read_text())
+        if build_receipt.get('engineSourceSHA') != pin['engineSourceSHA']:
+            raise ValueError('source build receipt differs from pinned engine source')
+    verify_source(bundle / 'corresponding-source.tar.xz', pin['target'], build_receipt)
     licenses = {p.relative_to(bundle).as_posix(): digest(p) for p in sorted((bundle / 'LICENSES').rglob('*')) if p.is_file()}
     if len(licenses) < 2 or json_digest(licenses) != pin['licensesSHA256']:
         raise ValueError('licence inventory digest mismatch')
