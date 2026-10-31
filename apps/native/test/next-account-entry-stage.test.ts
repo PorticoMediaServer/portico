@@ -9,7 +9,6 @@ import * as invitationCode from '../../../packages/client-core/src/short-invitat
 import * as tvCodeOpening from '../src-next/screens/accounts/tv-code-opening';
 import * as tvApprovalCredentials from '../src-next/screens/accounts/tv-approval-credentials';
 import * as tvApprovalFinalization from '../src-next/screens/accounts/tv-approval-finalization';
-import * as setupOutcome from '../src-next/platform/setup-outcome';
 import * as passwordPolicy from '../../../packages/client-core/src/password-strength';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,13 +22,11 @@ import * as qrScanner from '../src-next/platform/qr-scanner';
 import type {NativeAccountEntryStage} from '../src-next/screens/accounts/AccountEntry';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
-const deferred = <T,>() => {let resolve!: (value: T) => void, reject!: (reason: unknown) => void; const promise = new Promise<T>((accept, refuse) => {resolve = accept; reject = refuse;}); return {promise, resolve, reject};};
 type FixtureOptions = Readonly<{providers?: boolean; setupRequired?: boolean; providerTransaction?: any; inspectFails?: (origin: string) => boolean}>;
 
 async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options: FixtureOptions = {}) {
   const events: string[] = [], stages: NativeAccountEntryStage[] = [], inspected: string[] = [], back = new Set<() => boolean>();
   let tree: any, phase = 'render', complete = 0, observed = true, providerCalls = 0, prepareCalls = 0;
-  const finishes: ReturnType<typeof deferred<any>>[] = [];
   const credentials = {synchronize: async () => {}, getSnapshot: () => ({session: undefined})};
   const available = {password: true, registration: false, recovery: false, providers: options.providers
     ? [{id: 'google', enabled: true, native: false, nativeClientIds: []}] : []};
@@ -48,11 +45,6 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     async inspectLocalIdentity() {return {};}
     async confirmLocal() {events.push('confirm-identity');}
     serverOrigin() {return 'https://public.example';}
-    readonly setup = {
-      async prepareSetup() {return {id: 'public-server', name: 'Public fixture', signIn: 'portico', hostedConfigured: true};},
-      async prepareHostedSetup() {return 'https://hosted.example/approve';},
-      finishHostedSetup() {const held = deferred<any>(); finishes.push(held); return held.promise;},
-    };
     serverDescriptor() {return {id: 'public-server', name: 'Public fixture', signIn: 'local'};}
     dispose() {events.push('dispose-command');}
   }
@@ -78,9 +70,8 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
-    '../../platform/setup-outcome': setupOutcome,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
-    './PhoneSetupApproval': {PhoneSetupApproval: 'PhoneSetupApproval'},
+    './NativeSetup': {NativeSetup: 'NativeSetup'},
     './directory-chooser': directoryChooser,
     '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', TextField: 'Field'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}}, '../../platform/server-sign-in': {NativeServerSignIn: SignIn}, '../../platform/portico-sign-in': {NativePorticoSignIn: Portico},
@@ -93,7 +84,7 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
   };
   const host = createFabricHookHost(() => {tree = AccountEntry({initialStage, onComplete: () => {complete++;}, onStageChange: observed ? onStageChange : undefined});});
   await act(() => host.mount());
-  return {host, stages, events, inspected, back, tree: () => tree, complete: () => complete, providerCalls: () => providerCalls, prepareCalls: () => prepareCalls, finishes,
+  return {host, stages, events, inspected, back, tree: () => tree, complete: () => complete, providerCalls: () => providerCalls, prepareCalls: () => prepareCalls,
     omitObserver: async () => {observed = false; await host.rerender();}};
 }
 
@@ -187,23 +178,21 @@ test('actual AccountEntry seeds the committed provider name once and a newer dra
   } finally {await f.host.unmount();}
 });
 
-test('actual AccountEntry resumes the drawn setup opening once through its own guarded runner and catch stage', async () => {
+test('a server that needs setup opens the setup screen after the confirmation, with one target kept across renders', async () => {
   const f = await fixture('address', {setupRequired: true});
   try {
     await act(() => providerFields(f.tree())[0]!.props.onChangeText('https://public.example'));
     await act(() => f.tree().props.primaryAction.onPress());
     assert.equal(f.stages.at(-1), 'setup-confirm');
     await act(() => f.tree().props.primaryAction.onPress());
-    assert.equal(f.stages.at(-1), 'setup-choice');
-    await act(() => f.tree().props.primaryAction.onPress());
-    assert.equal(f.stages.at(-1), 'setup-hosted');
-    assert.equal(f.finishes.length, 1, 'the drawn opening resumes exactly once through the commit that drew it');
-    // A newer commit (its runner now captures busy) must not run the original completion again.
+    assert.equal(f.stages.at(-1), 'setup');
+    const first = f.tree();
+    assert.equal(first.type, 'NativeSetup');
+    assert.equal(first.props.target.origin, 'https://public.example');
+    assert.equal(first.props.target.server.id, 'public-server');
     await f.host.rerender();
-    assert.equal(f.finishes.length, 1);
-    await act(() => f.finishes[0]!.reject(new Error('setup refused')));
-    assert.equal(f.stages.at(-1), 'setup-hosted', 'the original run reports at the stage it captured');
-    assert.ok(nodes(f.tree().props.beforeActions).some((node: any) => node.props.accessibilityRole === 'alert'), 'the original catch publishes its refusal');
-    assert.equal(f.finishes.length, 1);
+    assert.equal(f.tree().props.target, first.props.target, 'a re-render keeps the same target, so the screen keeps its controller');
+    await act(() => f.tree().props.onLeave());
+    assert.equal(f.stages.at(-1), 'setup-confirm', 'Back from the choice returns to the confirmation');
   } finally {await f.host.unmount();}
 });

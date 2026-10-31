@@ -18,7 +18,6 @@ import * as accountWork from '../src-next/platform/account-work';
 import * as abortSignals from '../src-next/platform/abort-signals';
 import * as localInvitation from '../src-next/platform/local-invitation';
 import * as tvOpening from '../src-next/screens/accounts/tv-code-opening';
-import * as outcome from '../src-next/platform/setup-outcome';
 import * as chooser from '../src-next/screens/accounts/directory-chooser';
 import {nativeHostedSource} from '../src-next/platform/server-connections';
 import {NativeAccountWorkspace} from '../src-next/platform/account-workspace';
@@ -157,7 +156,7 @@ async function entry(t: any, f: F) {
     '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'},
     '../../platform/accounts': {nativeAccounts: {accountCredentials: () => f.owner}}, '../../platform/account-work': accountWork,
     '../../platform/account-authority': {hostedUrl}, '../../platform/portico-sign-in': {NativePorticoSignIn: Auth},
-    '../../platform/server-connections': await import('../src-next/platform/server-connections'), '../../platform/setup-outcome': outcome,
+    '../../platform/server-connections': await import('../src-next/platform/server-connections'),
     '../../platform/tv-menu': {useTVMenuCapture() {}}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, './tv-code-opening': tvOpening, './directory-chooser': chooser, './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, './PhoneAccountForm': {PhoneAccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, './PhoneAccountSignIn': {PhoneAccountSignIn: 'SignIn'}, './PhoneFrontDoor': {PhoneFrontDoor: 'FrontDoor'},
     './PhoneNoServers': {PhoneNoServers: 'NoServers'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}},
   };

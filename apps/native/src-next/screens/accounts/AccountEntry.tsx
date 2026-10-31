@@ -1,5 +1,5 @@
 import {accountExpectation, nativeAccountRead} from '../../platform/account-work';
-import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {AppState, BackHandler, Linking, NativeModules, Platform, Share, Image, Text, View} from 'react-native';
 import {useTVMenuCapture} from '../../platform/tv-menu';
 import QRCode from 'react-native-qrcode-svg';
@@ -24,7 +24,6 @@ import {ServerNeedsUpdate} from './ServerNeedsUpdate';
 import {useTheme} from '../../kit/theme';
 import {nativeAccounts} from '../../platform/accounts';
 import {NativeServerSignIn} from '../../platform/server-sign-in';
-import {NativeSetupEnded} from '../../platform/setup-outcome';
 import {HostedSignInUnavailable} from '../../platform/hosted-sign-in-unavailable';
 import {NativePorticoSignIn, porticoUsernameUnavailable, type NativeFactorWitness} from '../../platform/portico-sign-in';
 import {nativeNetworkFetch, browseNearby} from '../../platform/server-connections';
@@ -42,7 +41,7 @@ import {formatShortInvitationCode, parseShortInvitationCode} from '../../../../.
 import type {NativeSignInHint} from '../../platform/sign-in-ended';
 import {PhoneOwnerReset} from './PhoneOwnerReset';
 import type {ResetFileLocation} from '../../../../../packages/client-core/src/account-reset';
-import {PhoneSetupApproval} from './PhoneSetupApproval';
+import {NativeSetup} from './NativeSetup';
 import {PhoneFrontDoor} from './PhoneFrontDoor';
 import {PhoneNoServers} from './PhoneNoServers';
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
@@ -66,24 +65,13 @@ import {PasswordStrengthMeter} from './PasswordStrengthMeter';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 import {directoryFailure, directoryOfflineBody, directoryRows, nextRetryDelay} from './directory-chooser';
 
-export type NativeAccountEntryStage = 'welcome' | 'ended-sign-in' | 'owner-reset' | 'owner-reset-code' | 'owner-reset-done' | 'setup-ended' | 'setup-confirm' | 'setup-choice' | 'setup-review' | 'setup-hosted' | 'setup-local' | 'address' | 'identity-code' | 'local' | 'factor' | 'uses-portico' | 'portico' | 'forgot' | 'forgot-sent' | 'register' | 'verify' | 'provider' | 'contact' | 'servers' | 'account-sign-out' | 'profiles' | 'profile-pin' | 'profile-forgot-pin' | 'tv' | 'tv-credentials' | 'tv-required-setup' | 'member-move' | 'invitation-code' | 'invitation-local' | 'invitation-portico' | 'invitation-sign-out' | 'invitation-entry' | 'invitation-account' | 'account-workspace';
+export type NativeAccountEntryStage = 'welcome' | 'ended-sign-in' | 'owner-reset' | 'owner-reset-code' | 'owner-reset-done' | 'setup-confirm' | 'setup' | 'address' | 'identity-code' | 'local' | 'factor' | 'uses-portico' | 'portico' | 'forgot' | 'forgot-sent' | 'register' | 'verify' | 'provider' | 'contact' | 'servers' | 'account-sign-out' | 'profiles' | 'profile-pin' | 'profile-forgot-pin' | 'tv' | 'tv-credentials' | 'tv-required-setup' | 'member-move' | 'invitation-code' | 'invitation-local' | 'invitation-portico' | 'invitation-sign-out' | 'invitation-entry' | 'invitation-account' | 'account-workspace';
 type MemberMove = Awaited<ReturnType<NativeServerSignIn['createMemberMove']>>;
 type MemberMoveSnapshot = ReturnType<MemberMove['getSnapshot']>;
 type PINRecovery = {controller: NativeProfileRecovery; profile: ManagedProfile; operation: NativeServerSignIn; retired: boolean};
 type RequiredSetup = Readonly<{kind: 'required-setup'; requirement: 'password' | 'two-step'; serverName: string; serverOrigin: string}>;
 type Result = {kind: 'profiles'; profiles: readonly ManagedProfile[]} | {kind: 'challenge'; expiresAt: string} | {kind: 'complete'} | RequiredSetup;
 const t = defaultI18n.t;
-type SetupHostedOpening = Readonly<{source: NativeServerSignIn; life: AbortController; owner: {live: boolean}; url?: string}>;
-type SetupResumePorts = Readonly<{opening: SetupHostedOpening; run: (work: () => Promise<void>) => void;
-  finish: (opening: SetupHostedOpening | undefined) => Promise<void>; current: (opening: SetupHostedOpening | undefined) => boolean}>;
-/** Resume the drawn setup-hosted opening through the exact ports of the commit that drives it:
- * the same run() and completion the Continue button draws with, so the runner keeps the busy,
- * stage and recovery it captured and no port is re-read from a later render. A resume is owned
- * by the opening it was drawn for, and only while the app is active. */
-function resumeSetupHosted(opening: SetupHostedOpening | undefined, ports: SetupResumePorts | undefined, appActive: boolean) {
-  if (!opening || !appActive || !ports || ports.opening !== opening || !ports.current(opening)) return;
-  ports.run(() => ports.finish(opening));
-}
 
 /** Current normal entry, drawn in connect39 onward. The separately labelled historical
  * setup entry is not imported. Every button below dispatches an actual native/core command. */
@@ -109,13 +97,6 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const [providerUsernameUnavailable, setProviderUsernameUnavailable] = useState(false);
   // The phone Portico factor form's opening: its exact issued witness, source and life.
   const [factorOpening, setFactorOpening] = useState<Readonly<{source: NativePorticoSignIn; witness: NativeFactorWitness; owner: {live: boolean}; life: AbortController}>>();
-  type SetupReview = Awaited<ReturnType<NativeServerSignIn['setup']['reviewHostedSetup']>>;
-  const [setupReview, setSetupReview] = useState<SetupReview>();
-  const setupReviewTicket = useRef<{source: NativeServerSignIn; controller: AbortController; review?: SetupReview} | undefined>(undefined);
-  // The retirement commands below own only refs and stable setters, so they keep one identity
-  // for the life of this entry. Effects refer to them by that identity instead of reopening on
-  // every render.
-  const retireSetupReview = useCallback(() => {const ticket = setupReviewTicket.current; setupReviewTicket.current = undefined; ticket?.controller.abort(); ticket?.review?.approval.dispose(); setSetupReview(undefined);}, []);
   type OwnerRecoveryOpening = {active: boolean; contact?: {open: () => Promise<void>; dispose: () => void}; finish?: () => void};
   const ownerRecoveryContact = useRef<OwnerRecoveryOpening | undefined>(undefined);
   const ownerRecoveryMounted = useRef(false);
@@ -127,13 +108,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const ownerResetIntent = useRef<Readonly<{origin: string; serverId: string}> | undefined>(undefined);
   const ownerResetOpening = useRef<{source: NativeServerSignIn; controller: AbortController} | undefined>(undefined);
   const retireOwnerReset = useCallback(() => {const ticket = ownerResetOpening.current; ownerResetOpening.current = undefined; ticket?.controller.abort(); ticket?.source.dispose();}, []);
-  const [setupEndedReason, setSetupEndedReason] = useState<'declined' | 'cancelled'>('cancelled');
-  const [setupMode, setSetupMode] = useState<'hosted' | 'local'>('hosted');
   const [setupAddress, setSetupAddress] = useState('');
-  const [setupApprovalURL, setSetupApprovalURL] = useState<string>();
-  const [setupHostedOpening, setSetupHostedOpening] = useState<SetupHostedOpening>();
-  // The drawn opening's resume ports for the commit that owns it (see resumeSetupHosted).
-  const setupResume = useRef<SetupResumePorts | undefined>(undefined);
   const [setupPasswordConfirm, setSetupPasswordConfirm] = useState(''), [name, setName] = useState(''), [email, setEmail] = useState(''), [masked, setMasked] = useState('');
   const [server, setServer] = useState<ServerSignIn>(), [profiles, setProfiles] = useState<readonly ManagedProfile[]>([]), [profile, setProfile] = useState<ManagedProfile>();
   const profileFocus = useRef(new WeakMap<NativeServerSignIn, string>()).current;
@@ -244,9 +219,9 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     ownerRecoveryMounted.current = true;
     return () => {ownerRecoveryMounted.current = false; retireOwnerRecoveryContact();};
   }, [retireOwnerRecoveryContact]);
-  useEffect(() => {lifetime.current = true; return () => {lifetime.current = false; retireInvitation(); memberMoveRef.current?.dispose(); retireOwnerRecoveryContact(); retireOwnerReset(); retireSetupReview(); retireRecovery(); stopRetry(); operation.current?.dispose(); account.current?.dispose();};},
+  useEffect(() => {lifetime.current = true; return () => {lifetime.current = false; retireInvitation(); memberMoveRef.current?.dispose(); retireOwnerRecoveryContact(); retireOwnerReset(); retireRecovery(); stopRetry(); operation.current?.dispose(); account.current?.dispose();};},
     // Every command here keeps one identity for this entry; the mount and unmount commit alone decide.
-    [retireInvitation, retireOwnerRecoveryContact, retireOwnerReset, retireRecovery, retireSetupReview, stopRetry]);
+    [retireInvitation, retireOwnerRecoveryContact, retireOwnerReset, retireRecovery, stopRetry]);
   useLayoutEffect(() => {if (stage !== 'tv') retireTVOpening();}, [stage, retireTVOpening]);
   useLayoutEffect(() => {if (stage !== 'servers') retireOwnerRecoveryContact();}, [stage, retireOwnerRecoveryContact]);
   // Open one signup form per entry to the register stage. Its layout cleanup retires
@@ -347,12 +322,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   // drive it read the port of the commit that drew them rather than a newer render's runner.
   const run = useCallback(async (work: () => Promise<void>) => {
     if (busy || acting.current || adoptingTV.current || tvOpening.current?.pending() || !lifetime.current) return; acting.current = true; setBusy(true); setError(undefined);
-    const startedOperation = operation.current, startedInvitationEpoch = invitationEpoch.current;
+    const startedInvitationEpoch = invitationEpoch.current;
     try {await work();} catch (failure) {if (lifetime.current && invitationEpoch.current === startedInvitationEpoch) {
-      if (failure instanceof NativeSetupEnded) {
-        if (!startedOperation || operation.current !== startedOperation || !['setup-choice', 'setup-review', 'setup-hosted'].includes(stageRef.current)) return;
-        retireSetupReview(); setPassword(''); setCode(''); setSetupEndedReason(failure.reason); setError(undefined); setStage('setup-ended'); return;
-      }
       if (endedTarget.current) {setPassword(''); setCode('');}
       if (failure instanceof MFARequiredError) {factorKind.current = 'portico'; setCode(''); setRecovery(false); setStage('factor');}
       else {
@@ -364,11 +335,11 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         setError(failure);
       }
     }} finally {if (invitationEpoch.current === startedInvitationEpoch) {acting.current = false; if (lifetime.current) setBusy(adoptingTV.current || tvOpening.current?.pending() === true);}}
-  }, [busy, recovery, retireSetupReview, stage]);
-  const reset = useCallback(() => {retireTVOpening(true); retireAccountWorkspace(); retireInvitationEntry(); retireInvitationSwitch(); invitationIntent.current = undefined; retireInvitation(); ownerResetIntent.current = undefined; endedTarget.current = undefined; retireOwnerRecoveryContact(); retireOwnerReset(); retireSetupReview(); setDirectoryList('idle'); memberFactorOperation.current = undefined; stopMemberMove(); retireRecovery(); stopRetry(); targetRef.current = undefined; stageRef.current = initialStage; ++directoryAttempt.current; acting.current = false; preparedAuthSource.current = undefined; operation.current?.dispose(); operation.current = undefined; account.current?.dispose(); account.current = undefined;
-    setPassword(''); setSetupReview(undefined); setSetupApprovalURL(undefined); setSetupPasswordConfirm(''); setCode(''); setIdentityCode(''); setIdentityWrong(false); setIdentityAddress(''); identityOrigin.current = undefined; setTarget(undefined); setError(undefined); retryDelay.current = 20; setRetryIn(20); setStage(initialStage);},
-  [initialStage, retireAccountWorkspace, retireInvitation, retireInvitationEntry, retireInvitationSwitch, retireOwnerRecoveryContact, retireOwnerReset, retireRecovery, retireSetupReview, stopMemberMove, stopRetry, retireTVOpening]);
-  const cancelDirectory = useCallback(() => {retireOwnerRecoveryContact(); retireOwnerReset(); retireSetupReview(); setDirectoryList('idle'); retireRecovery(); stopRetry(); targetRef.current = undefined; ++directoryAttempt.current; operation.current?.dispose(); operation.current = undefined; acting.current = false; setBusy(false); setTarget(undefined); setError(undefined);}, [retireOwnerRecoveryContact, retireOwnerReset, retireRecovery, retireSetupReview, stopRetry]);
+  }, [busy, recovery, stage]);
+  const reset = useCallback(() => {retireTVOpening(true); retireAccountWorkspace(); retireInvitationEntry(); retireInvitationSwitch(); invitationIntent.current = undefined; retireInvitation(); ownerResetIntent.current = undefined; endedTarget.current = undefined; retireOwnerRecoveryContact(); retireOwnerReset(); setDirectoryList('idle'); memberFactorOperation.current = undefined; stopMemberMove(); retireRecovery(); stopRetry(); targetRef.current = undefined; stageRef.current = initialStage; ++directoryAttempt.current; acting.current = false; preparedAuthSource.current = undefined; operation.current?.dispose(); operation.current = undefined; account.current?.dispose(); account.current = undefined;
+    setPassword(''); setSetupPasswordConfirm(''); setCode(''); setIdentityCode(''); setIdentityWrong(false); setIdentityAddress(''); identityOrigin.current = undefined; setTarget(undefined); setError(undefined); retryDelay.current = 20; setRetryIn(20); setStage(initialStage);},
+  [initialStage, retireAccountWorkspace, retireInvitation, retireInvitationEntry, retireInvitationSwitch, retireOwnerRecoveryContact, retireOwnerReset, retireRecovery, stopMemberMove, stopRetry, retireTVOpening]);
+  const cancelDirectory = useCallback(() => {retireOwnerRecoveryContact(); retireOwnerReset(); setDirectoryList('idle'); retireRecovery(); stopRetry(); targetRef.current = undefined; ++directoryAttempt.current; operation.current?.dispose(); operation.current = undefined; acting.current = false; setBusy(false); setTarget(undefined); setError(undefined);}, [retireOwnerRecoveryContact, retireOwnerReset, retireRecovery, stopRetry]);
   const openAccountWorkspace = (scope: Readonly<{accountId: string; familyId: string}> | undefined, isCurrent: () => boolean) => {
     if (!isCurrent() || busyRef.current || acting.current || adoptingTV.current || !scope) return;
     const session = nativeAccounts.accountCredentials().getSnapshot().session; if (!session) return;
@@ -431,8 +402,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     }
     if (stage === 'invitation-code' || stage === 'invitation-local' || stage === 'invitation-portico') {invitationIntent.current = undefined; retireInvitation(); cancelDirectory(); setPassword(''); setCode(''); setAddress(''); stageRef.current = 'address'; setStage('address'); return;}
     if (stage === 'owner-reset' || stage === 'owner-reset-code' || stage === 'owner-reset-done') {reset(); setCode(''); setResetLocation(undefined); setStage('address'); return;}
-    if (stage === 'setup-review') {retireSetupReview(); setError(undefined); setStage('setup-choice'); return;}
-    if (stage === 'setup-local') {setPassword(''); setSetupPasswordConfirm(''); setError(undefined); setStage('setup-choice'); return;}
+    if (stage === 'setup') {setError(undefined); setStage('setup-confirm'); return;}
     if (stage === 'member-move') {stopMemberMove(); setStage(server?.signIn === 'local' ? 'local' : 'uses-portico'); return;}
     if (pinRecoveryRef.current) {retireRecovery(); setCode(''); return;}
     if (stage === 'servers' && target) {cancelDirectory(); return;}
@@ -463,8 +433,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     }
     else if (result.kind === 'profiles') {setServer(operation.current!.serverDescriptor()); setProfiles(result.profiles); setStage('profiles');}
     else if (result.kind === 'challenge') {factorKind.current = 'local'; setCode(''); setRecovery(false); setStage('factor');}
-    else {if (stageRef.current === 'setup-local' || stageRef.current === 'setup-hosted') onSetupComplete?.(operation.current!.serverDescriptor().id); onComplete();}
-  }, [onComplete, onSetupComplete]);
+    else onComplete();
+  }, [onComplete]);
   useEffect(() => {
     if (stage !== 'member-move' || !memberMove || moveSnapshot?.phase !== 'adopted'
       || moveSnapshot.result?.kind !== 'challenge' || memberOperation.current !== operation.current) return;
@@ -532,7 +502,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     void (async () => {
       let next: NativeServerSignIn | undefined;
       try {
-        retireOwnerRecoveryContact(); retireOwnerReset(); retireSetupReview(); retireRecovery(); operation.current?.dispose(); next = operation.current = new NativeServerSignIn();
+        retireOwnerRecoveryContact(); retireOwnerReset(); retireRecovery(); operation.current?.dispose(); next = operation.current = new NativeServerSignIn();
         const result = await next.connectPortico(value);
         if (!lifetime.current || attempt !== directoryAttempt.current) return;
         if (result.kind !== 'complete') setServer(next.serverDescriptor()); consume(result);
@@ -650,7 +620,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const beginEndedMemberCode = async (openingCurrent: () => boolean, signal: AbortSignal) => {
     const hint = endedSignIn;
     if (Platform.isTV || !hint || hint.signIn !== 'portico' || signal.aborted || !openingCurrent() || !lifetime.current || stageRef.current !== 'ended-sign-in') return;
-    retireOwnerRecoveryContact(); retireOwnerReset(); retireSetupReview(); retireRecovery(); operation.current?.dispose();
+    retireOwnerRecoveryContact(); retireOwnerReset(); retireRecovery(); operation.current?.dispose();
     const source = new NativeServerSignIn(nativeAccounts, {expectedTarget: {serverId: hint.serverId, fingerprint: hint.fingerprint}});
     operation.current = source;
     const retire = () => source.dispose(); signal.addEventListener('abort', retire, {once: true});
@@ -700,7 +670,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   };
   const inspect = async (origin = address) => {
     const resetIntent = ownerResetIntent.current, invite = invitationIntent.current;
-    retireOwnerRecoveryContact(); retireOwnerReset(); retireSetupReview(); retireRecovery(); operation.current?.dispose(); const next = operation.current = new NativeServerSignIn(nativeAccounts, {requiredSetupHandoff: Platform.isTV, expectedTarget: endedTarget.current, expectedInvitation: invite ? {origin: invite.server, serverId: invite.id, fingerprint: invite.fingerprint, signIn: invite.signIn, expiresAt: invite.expiresAt} : undefined});
+    retireOwnerRecoveryContact(); retireOwnerReset(); retireRecovery(); operation.current?.dispose(); const next = operation.current = new NativeServerSignIn(nativeAccounts, {requiredSetupHandoff: Platform.isTV, expectedTarget: endedTarget.current, expectedInvitation: invite ? {origin: invite.server, serverId: invite.id, fingerprint: invite.fingerprint, signIn: invite.signIn, expiresAt: invite.expiresAt} : undefined});
     const found = await firstAnswering(serverAddressCandidates(origin), candidate => next.inspect(candidate));
     const value = found.value; if (!lifetime.current) return;
     const inspected = found.origin;
@@ -714,7 +684,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       throw Object.assign(new Error('native_sign_in_authority_changed'), {code: 'identity_mismatch'});
     setServer(value);
     if (value.setupRequired && !Platform.isTV) {
-      setSetupAddress(routeOrigin(inspected)); setSetupMode(value.hostedConfigured ? 'hosted' : 'local');
+      setSetupAddress(routeOrigin(inspected));
       setName(value.name); setUsername(''); setPassword(''); setSetupPasswordConfirm(''); setStage('setup-confirm'); return;
     }
     if (value.setupRequired) throw Object.assign(new Error('native_setup_phone_required'), {code: 'access_refused'});
@@ -863,41 +833,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const stopOwnedRetry = () => {if (retryEpoch.current === epoch) stopRetry();};
     return stopOwnedRetry;
   }, [stage, target, directoryView, hostedWaiting, busy, appActive, allDirectoryOffline, servers, directoryScope, stopRetry]);
-  const setupOpeningSource = operation.current;
-  useLayoutEffect(() => {
-    const source = setupOpeningSource;
-    if (stage !== 'setup-hosted' || !source) {setSetupHostedOpening(undefined); return;}
-    const owner = {live: true}, life = new AbortController();
-    setSetupHostedOpening(Object.freeze({source, owner, life, url: setupApprovalURL}));
-    return () => {owner.live = false; life.abort();};
-  }, [stage, server?.id, setupApprovalURL, setupOpeningSource]);
-  const setupOpeningCurrent = useCallback((opening: typeof setupHostedOpening) => !!opening && opening.owner.live && !opening.life.signal.aborted
-    && lifetime.current && stageRef.current === 'setup-hosted' && operation.current === opening.source, []);
-  const finishSetupOpening = useCallback(async (opening: typeof setupHostedOpening) => {
-    if (!opening || !setupOpeningCurrent(opening)) return;
-    const current = () => setupOpeningCurrent(opening);
-    try {
-      const result = await opening.source.setup.finishHostedSetup({signal: opening.life.signal, isCurrent: current});
-      if (result && current()) consume(result);
-    } catch (error) {if (current()) throw error;}
-  }, [consume, setupOpeningCurrent]);
-  // The automatic resume keeps the original trigger set (this stage, app activity, the drawn
-  // opening) and drives the completion through the ports published by the commit that drew it:
-  // the same run() and its captured busy/stage/recovery guards, the same completion and currency
-  // check the Continue button draws with. The ports are published in the layout turn, never
-  // during render, so an abandoned render cannot replace them; the cleanup clears only the port
-  // it published, so it can never clear a successor's. The effect below copies the committed
-  // port once at its own run and the async completion reads only that copy.
-  useLayoutEffect(() => {
-    const ports: SetupResumePorts | undefined = setupHostedOpening
-      ? {opening: setupHostedOpening, run, finish: finishSetupOpening, current: setupOpeningCurrent} : undefined;
-    setupResume.current = ports;
-    return () => {if (setupResume.current === ports) setupResume.current = undefined;};
-  }, [setupHostedOpening, run, finishSetupOpening, setupOpeningCurrent]);
-  useEffect(() => {
-    const ports = setupResume.current;
-    if (stage === 'setup-hosted') resumeSetupHosted(setupHostedOpening, ports, appActive);
-  }, [stage, appActive, setupHostedOpening]);
+  // One setup target per server shown for setup: NativeSetup keeps one controller for it.
+  const setupTarget = useMemo(() => server && setupAddress ? Object.freeze({origin: setupAddress, server, expected: endedTarget.current}) : undefined, [server, setupAddress]);
   const FormLayout = theme.platform === 'phone' ? PhoneAccountForm : StateLayout;
   // Pickers and directory/recovery states keep their authored centred composition.
   const EntryLayout = ['profiles', 'profile-pin', 'servers', 'account-sign-out', 'tv'].includes(stage) ? StateLayout : FormLayout;
@@ -980,89 +917,16 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   if (stage === 'welcome') return <StateLayout testID="accounts-welcome" title={t('web.signin.welcomeHome')} beforeActions={status}
     primaryAction={action('portico', t('accounts.signIn.portico'), portico)} secondaryAction={{id: 'local', label: t('accounts.signIn.local'), onPress: () => {setStage('address');}}}
     detailsAction={backAction}/>;
-  if (stage === 'setup-confirm') {
-    const source = operation.current;
-    const current = () => !!source && operation.current === source && lifetime.current && stageRef.current === 'setup-confirm';
-    return layout(t('accounts.setup.confirmTitle'), t('accounts.setup.confirmBody'),
-      <View style={{alignSelf: 'stretch', gap: 12, marginBottom: 18}}>
-        <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{server!.name}</Text>
-        <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{new URL(setupAddress).host}</Text>
-        <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('accounts.setup.confirmWarning')}</Text>
-      </View>, action('confirm-setup', t('accounts.setup.confirmAction'), async () => {
-        if (!current() || !source) return;
-        const checked = await source.setup.prepareSetup();
-        if (current()) {setServer(checked); setSetupAddress(source.serverOrigin()); setName(checked.name); setStage('setup-choice');}
-      }));
-  }
-  if (stage === 'setup-choice') {
-    const source = operation.current;
-    const current = () => !!source && operation.current === source && lifetime.current && stageRef.current === 'setup-choice';
-    return layout(t('accounts.setup.title'), t('accounts.setup.at', {address: new URL(setupAddress).host}),
-      fields(field(t('web.general.serverName'), name, setName), <Text key="name-help" style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('web.setup.serverNameHelp')}</Text>,
-        <Text key="sign-in-choice" style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('web.setup.howSignIn')}</Text>,
-        <View key="modes" style={{gap: 12}}>{(['hosted', 'local'] as const).filter(mode => mode === 'local' || server?.hostedConfigured).map(mode =>
-          <Focusable key={mode} accessibilityRole="radio" accessibilityState={{checked: setupMode === mode}} disabled={busy}
-            onPress={() => {if (current()) setSetupMode(mode);}} style={{padding: 14, borderWidth: 1, borderRadius: 14, borderColor: setupMode === mode ? theme.colors.accentStrong : theme.colors.line}}>
-            <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{t(mode === 'hosted' ? 'accounts.settings.portico' : 'web.setup.localSignIn')}{mode === 'hosted' ? ' · ' + t('web.setup.recommended') : ''}</Text>
-            <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t(mode === 'hosted' ? 'web.setup.porticoBody' : 'web.setup.localSignInBody')}</Text>
-          </Focusable>)}</View>),
-      action('setup-continue', t('action.continue'), async () => {
-        if (!current() || !source) return;
-        if (setupMode === 'local') {setStage('setup-local'); return;}
-        const url = await source.setup.prepareHostedSetup(name); if (!current()) return;
-        setSetupApprovalURL(url);
-        const credentials = nativeAccounts.accountCredentials(); await credentials.synchronize(); if (!current()) return;
-        if (url && credentials.getSnapshot().session) {
-          retireSetupReview();
-          const ticket = {source, controller: new AbortController(), review: undefined as SetupReview | undefined}; setupReviewTicket.current = ticket;
-          const live = () => lifetime.current && setupReviewTicket.current === ticket && operation.current === source && !ticket.controller.signal.aborted;
-          const review = await source.setup.reviewHostedSetup(url, {signal: ticket.controller.signal, current: live,
-            canApprove: () => live() && stageRef.current === 'setup-review' && ticket.review === setupReviewTicket.current?.review});
-          if (!live()) {review.approval.dispose(); return;}
-          ticket.review = review;
-          if (review.display.approved) {retireSetupReview(); setStage('setup-hosted');} else {setSetupReview(review); setStage('setup-review');}
-        } else {setStage('setup-hosted'); if (url) await Linking.openURL(url);}
-      }, !name.trim()), <View style={{gap: 10}}>
-        <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t(setupMode === 'hosted' ? 'accounts.setup.nextHosted' : 'accounts.setup.nextLocal')}</Text>
-        <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('accounts.setup.changeLater')}</Text>
-      </View>);
-  }
-  if (stage === 'setup-review' && setupReview) {
-    const ticket = setupReviewTicket.current;
-    const current = () => !!ticket && setupReviewTicket.current === ticket && ticket.review === setupReview
-      && operation.current === ticket.source && stageRef.current === 'setup-review' && !ticket.controller.signal.aborted && lifetime.current;
-    return <PhoneSetupApproval display={setupReview.display} busy={busy} error={status}
-      onClose={() => {if (current()) {retireSetupReview(); setError(undefined); setStage('setup-choice');}}}
-      onApprove={() => {if (!current()) return; void run(async () => {
-        if (!current()) return;
-        try {await setupReview.approval.approve();} catch (error) {if (current()) throw error; return;}
-        if (current()) {retireSetupReview(); setStage('setup-hosted');}
-      });}}/>;
-  }
-  if (stage === 'setup-ended') {
-    const source = operation.current;
-    const current = () => !!source && operation.current === source && lifetime.current && stageRef.current === 'setup-ended';
-    // Start again returns to the choice of kind; nothing here steers towards local sign-in (Justin, 31 Oct).
-    const restart = async () => {
-      if (!current() || !source) return;
-      await source.setup.restartEndedSetup();
-      if (current()) {setSetupApprovalURL(undefined); setSetupMode('hosted'); setStage('setup-choice');}
-    };
-    return layout(t('accounts.setup.declinedTitle', {server: server!.name}), t(setupEndedReason === 'declined' ? 'accounts.setup.declinedBody' : 'accounts.setup.endedBody'),
-      undefined, action('restart-setup', t('accounts.setup.startAgain'), restart));
-  }
-  if (stage === 'setup-hosted') return layout(t('web.claim.title', {server: server!.name}), t('accounts.setup.waiting'), undefined,
-    action('setup-resume', t('action.continue'), () => finishSetupOpening(setupHostedOpening)),
-    setupHostedOpening?.url && <Button variant="glass" disabled={busy} onPress={() => {const opening = setupHostedOpening;if (!opening || !setupOpeningCurrent(opening) || !opening.url) return;void run(async () => {if (setupOpeningCurrent(opening)) await Linking.openURL(opening.url!);});}}>{t('accounts.signIn.continuePortico')}</Button>);
-  if (stage === 'setup-local') return layout(t('web.setup.ownerTitle'), t('web.setup.localSignInBody'),
-    fields(field(t('auth.username'), username, setUsername, false, 'username'), field(t('auth.password'), password, setPassword, true, 'new-password'),
-      <PasswordStrengthMeter key="strength" password={password}/>,
-      field(t('accounts.signIn.confirmPassword'), setupPasswordConfirm, setSetupPasswordConfirm, true, 'new-password'),
-      <Text key="recovery" style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('accounts.setup.localRecovery')}</Text>),
-    action('create-owner', t('web.setup.createOwner'), async () => {
-      const result = await operation.current!.setup.setupLocal(name, username, password);
-      setPassword(''); setSetupPasswordConfirm(''); consume(result);
-    }, !name.trim() || !/^[A-Za-z0-9_.-]{3,64}$/.test(username.trim()) || !passwordStrength(password).acceptable || password !== setupPasswordConfirm));
+  if (stage === 'setup-confirm') return layout(t('accounts.setup.confirmTitle'), t('accounts.setup.confirmBody'),
+    <View style={{alignSelf: 'stretch', gap: 12, marginBottom: 18}}>
+      <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{server!.name}</Text>
+      <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{new URL(setupAddress).host}</Text>
+      <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('accounts.setup.confirmWarning')}</Text>
+    </View>, action('confirm-setup', t('accounts.setup.confirmAction'), async () => {if (lifetime.current && stageRef.current === 'setup-confirm') setStage('setup');}));
+  // First-run setup on the shared controller; it pairs with the same first-contact proof as sign-in.
+  if (stage === 'setup' && setupTarget) return <NativeSetup target={setupTarget}
+    onAdmitted={id => {if (!lifetime.current || stageRef.current !== 'setup') return; onSetupComplete?.(id); onComplete();}}
+    onLeave={() => {if (lifetime.current && stageRef.current === 'setup') setStage('setup-confirm');}}/>;
   if (stage === 'address') {
     const ticket = nearbySource.current;
     const current = () => !!ticket?.active && nearbySource.current === ticket && lifetime.current && stageRef.current === 'address';
