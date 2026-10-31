@@ -1,4 +1,5 @@
 import {apiRoot} from '../../contracts/src/route-paths.ts';
+import {parseRetryAfter} from './timer.ts';
 /** Durable custody for the reviewed user-mutation cohort. Authentication always
  * comes from the live original family; credentials never enter this store. */
 export type UserMutationScope = Readonly<{serverId:string;origin:string;authority:string;accountId:string;profileId:string;familyId:string;deviceId?:string}>;
@@ -121,10 +122,11 @@ function receivedUserMutationReceipt(raw:unknown,entry:Pick<UserMutationEntry,'k
  try{return parseUserMutationReceipt(raw,entry);}catch(error){if(error instanceof UserMutationError&&error.code==='mutation_receipt_invalid')throw new Error('mutation_receipt_pending');throw error;}
 }
 export function userMutationRetryAfterMs(value:string|undefined,now=Date.now()):number{
- if(!value)return 0;const trimmed=value.trim();
- if(/^[0-9]+$/.test(trimmed)){const n=Number(trimmed);return Number.isFinite(n)?Math.min(n*1000,Number.MAX_SAFE_INTEGER-now):Number.MAX_SAFE_INTEGER-now;}
- const date=Date.parse(trimmed);return Number.isFinite(date)?Math.max(0,date-now):0;
+ const cap=Number.MAX_SAFE_INTEGER-now,ms=parseRetryAfter(value,now);
+ // A positive digit string too large for the helper to hold is still a (very long) floor.
+ return ms!==undefined?Math.min(ms,cap):value&&/^\s*\d*[1-9]\d*\s*$/.test(value)?cap:0;
 }
+const retryFloorOf=(response:UserMutationResponse,now:number)=>userMutationRetryAfterMs(header(response,'retry-after'),now);
 function header(response:UserMutationResponse,name:string):string|undefined{return Object.entries(response.headers).find(([key])=>key.toLowerCase()===name.toLowerCase())?.[1];}
 function errorCode(response:UserMutationResponse):string{
  const body=response.body;return object(body)&&object(body.error)&&typeof body.error.code==='string'?body.error.code:'request_failed';
@@ -386,16 +388,16 @@ export class UserMutationCoordinator {
    if(this.stopped)return;
    const current=this.options.scope();if(!current||!sameUserMutationScope(current,entry.scope))throw new UserMutationError('mutation_scope_changed',entry.key);
    if(entry.attempts>1||entry.requiresReentry){
-    const lookup=await this.options.transport.lookup(entry,signal);if(this.stopped)return;retryFloor=userMutationRetryAfterMs(header(lookup,'retry-after'),this.now());
+    const lookup=await this.options.transport.lookup(entry,signal);if(this.stopped)return;retryFloor=retryFloorOf(lookup,this.now());
     if(lookup.status>=200&&lookup.status<300){await this.complete(entry,receivedUserMutationReceipt(lookup.body,entry),undefined,signal);return;}
     if(lookup.status===404&&retryFloor>0)throw new Error('mutation_lookup_pending');
     if(lookup.status!==404||errorCode(lookup)!=='receipt_unknown'){if(lookup.status>=400&&lookup.status<500&&lookup.status!==429)throw refusal(entry,lookup);throw new Error('mutation_lookup_pending');}
    }
    const scope=this.options.scope();if(!scope||!sameUserMutationScope(scope,entry.scope))throw new UserMutationError('mutation_scope_changed',entry.key);
-   const response=await this.options.transport.send(entry,signal);if(this.stopped)return;retryFloor=userMutationRetryAfterMs(header(response,'retry-after'),this.now());
+   const response=await this.options.transport.send(entry,signal);if(this.stopped)return;retryFloor=retryFloorOf(response,this.now());
    if(response.status>=200&&response.status<300){
     const live=this.options.scope();if(!live||!sameUserMutationScope(live,entry.scope))throw new UserMutationError('mutation_scope_changed',entry.key);
-    const lookup=await this.options.transport.lookup(entry,signal);if(this.stopped)return;retryFloor=Math.max(retryFloor,userMutationRetryAfterMs(header(lookup,'retry-after'),this.now()));
+    const lookup=await this.options.transport.lookup(entry,signal);if(this.stopped)return;retryFloor=Math.max(retryFloor,retryFloorOf(lookup,this.now()));
     if(lookup.status>=200&&lookup.status<300){await this.complete(entry,receivedUserMutationReceipt(lookup.body,entry),response,signal);return;}
     if(lookup.status>=400&&lookup.status<500&&lookup.status!==429&&lookup.status!==404)throw refusal(entry,lookup);
     throw new Error('mutation_receipt_pending');

@@ -16,6 +16,7 @@ const {renderNativeSettingsPanel} = await screenModule(new URL('../src-next/scre
   '../../../../../packages/client-core/src/presentation/kit-model/text': {},
   '../../kit/controls': {},
   '../../../../../packages/client-core/src/freshness-actions': {},
+  '../../../../../packages/client-core/src/timer': {},
   '../../../../../packages/client-core/src/playback-v1/http': {},
   '../../../../../packages/client-core/src/playback-v1/local-http': {},
   '../../../../../packages/client-core/src/playback-v1/sessions': {},

@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
+import {repeat} from '../../../../../../packages/client-core/src/timer';
 import type {PlaySummary} from '../../../../../../packages/client-core/src/play-history';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import type {AdminSession} from '../../../../../../packages/client-core/src/playback-v1/types';
@@ -30,11 +31,10 @@ function useOwnerTelemetry(reader: NativeOwnerDashboardReader, window: OwnerHeal
   const [state, setState] = useState<TelemetryState>({}), [revision, setRevision] = useState(0);
   useEffect(() => {
     if (!enabled) {setState({}); return;}
-    let live = true;
-    const load = () => {void reader.telemetry(window).then(reading => {if (live) setState({reading});}, error => {if (live) setState(current => ({...current, error}));});};
-    load();
-    const timer = setInterval(load, window === '10m' ? 15_000 : 60_000);
-    return () => {live = false; clearInterval(timer);};
+    const everyMs = window === '10m' ? 15_000 : 60_000;
+    const poll = repeat(async signal => {const reading = await reader.telemetry(window); if (!signal.aborted) setState({reading});},
+      {everyMs, backoff: {baseMs: everyMs * 2, maxMs: 120_000}, onError: error => setState(current => ({...current, error}))});
+    return () => poll.stop();
   }, [reader, window, enabled, revision]);
   return Object.freeze({...state, reload: () => setRevision(value => value + 1)});
 }
