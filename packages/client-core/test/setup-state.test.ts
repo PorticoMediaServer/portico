@@ -18,6 +18,12 @@ test('the caller\'s own setup, with its window and operation', () => {
   assert.equal(typeof lapsed.setup === 'object' && lapsed.setup.renewable, true);
 });
 
+test('delivery facts while the server applies an approval', () => {
+  const state = parseSetupState({status: 'in_progress', setup: {variant: 'exhausted', requestId: '44444444-4444-4444-8444-444444444444', revision: '1',
+    delivery: {attempts: 3, slow: true, since: '2026-10-31T01:00:00Z'}}});
+  assert.deepEqual(typeof state.setup === 'object' && state.setup.delivery, {attempts: 3, slow: true, since: '2026-10-31T01:00:00Z'});
+});
+
 test('a phase this app doesn\'t know is unknown, never a guess', () => {
   const state = parseSetupState({status: 'in_progress', setup: {variant: 'claimed_by_token', requestId: 'x', revision: '1'}});
   assert.equal(state.setup, 'unknown');

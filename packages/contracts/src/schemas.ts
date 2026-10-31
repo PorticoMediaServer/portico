@@ -178303,6 +178303,29 @@ export const schemas = {
               "cancelling": {
                 "type": "boolean"
               },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
               "expiresAt": {
                 "type": "string"
               },
@@ -178350,6 +178373,29 @@ export const schemas = {
             "properties": {
               "cancelling": {
                 "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
               },
               "expiresAt": {
                 "type": "string"
@@ -178399,6 +178445,29 @@ export const schemas = {
               "cancelling": {
                 "type": "boolean"
               },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
               "expiresAt": {
                 "type": "string"
               },
@@ -178446,6 +178515,29 @@ export const schemas = {
             "properties": {
               "cancelling": {
                 "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
               },
               "expiresAt": {
                 "type": "string"
@@ -178495,6 +178587,29 @@ export const schemas = {
               "cancelling": {
                 "type": "boolean"
               },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
               "expiresAt": {
                 "type": "string"
               },
@@ -178542,6 +178657,29 @@ export const schemas = {
             "properties": {
               "cancelling": {
                 "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
               },
               "expiresAt": {
                 "type": "string"
@@ -178591,6 +178729,29 @@ export const schemas = {
               "cancelling": {
                 "type": "boolean"
               },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
               "expiresAt": {
                 "type": "string"
               },
@@ -178638,6 +178799,29 @@ export const schemas = {
             "properties": {
               "cancelling": {
                 "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
               },
               "expiresAt": {
                 "type": "string"
@@ -247755,6 +247939,29 @@ export const schemas = {
               "cancelling": {
                 "type": "boolean"
               },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
               "expiresAt": {
                 "type": "string"
               },
@@ -247802,6 +248009,29 @@ export const schemas = {
             "properties": {
               "cancelling": {
                 "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
               },
               "expiresAt": {
                 "type": "string"
@@ -247851,6 +248081,29 @@ export const schemas = {
               "cancelling": {
                 "type": "boolean"
               },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
               "expiresAt": {
                 "type": "string"
               },
@@ -247898,6 +248151,29 @@ export const schemas = {
             "properties": {
               "cancelling": {
                 "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
               },
               "expiresAt": {
                 "type": "string"
@@ -247947,6 +248223,29 @@ export const schemas = {
               "cancelling": {
                 "type": "boolean"
               },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
               "expiresAt": {
                 "type": "string"
               },
@@ -247994,6 +248293,29 @@ export const schemas = {
             "properties": {
               "cancelling": {
                 "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
               },
               "expiresAt": {
                 "type": "string"
@@ -248043,6 +248365,29 @@ export const schemas = {
               "cancelling": {
                 "type": "boolean"
               },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
               "expiresAt": {
                 "type": "string"
               },
@@ -248090,6 +248435,29 @@ export const schemas = {
             "properties": {
               "cancelling": {
                 "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
               },
               "expiresAt": {
                 "type": "string"
@@ -248633,6 +249001,615 @@ export const schemas = {
       }
     ],
     "x-discriminator": "variant"
+  },
+  "PostSetupRetryRequest": {
+    "properties": {
+      "requestId": {
+        "type": "string"
+      },
+      "revision": {
+        "type": "string"
+      },
+      "setupToken": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "requestId",
+      "revision",
+      "setupToken"
+    ],
+    "type": "object"
+  },
+  "PostSetupRetryResponse": {
+    "properties": {
+      "retryAfterSeconds": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "setup": {
+        "oneOf": [
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "started",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "awaiting_approval",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "expired",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "approved",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "finishing",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "exhausted",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "installed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "delivery": {
+                "properties": {
+                  "attempts": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "nextRetryAt": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "slow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "attempts",
+                  "slow"
+                ],
+                "type": "object"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "installed_lapsed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          }
+        ],
+        "x-discriminator": "variant"
+      },
+      "status": {
+        "description": "Open: ready, in_progress or complete today. Read any other value as unknown.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "status"
+    ],
+    "type": "object"
   },
   "PostShowsIdMetadataScreenRetryRequest": {
     "properties": {
