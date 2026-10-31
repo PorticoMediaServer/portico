@@ -288,3 +288,11 @@ test('dispose during the exchange leaves nothing remembered', async t => {
   assert.deepEqual(f.retireCalls, [FAMILY]);
   assert.deepEqual(f.disposedConnections.sort(), ['connect', 'portico']);
 });
+
+test('the setup code the app shares uses no abort helper the app runtime lacks (Hermes has no AbortSignal.any or AbortSignal.timeout)', async () => {
+  const {readFileSync} = await import('node:fs');
+  for (const file of ['setup-adapter.ts', 'setup-exchange.ts', 'setup-approval-client.ts', 'setup-claim-client.ts', 'setup-controller.ts', 'setup-custody.ts', 'setup-slot-store.ts']) {
+    const source = readFileSync(new URL('../src/' + file, import.meta.url), 'utf8').replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, '');
+    assert.doesNotMatch(source, /AbortSignal\.(any|timeout)\s*\(/, file);
+  }
+});
