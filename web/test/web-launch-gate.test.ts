@@ -41,13 +41,13 @@ test('the account\'s only profile with no PIN opens without asking', async () =>
   const l = launch(() => direct([profile('alex', false, true)]));
   await l.bootstrap.start();
   assert.notEqual(l.bootstrap.getSnapshot().phase, 'choose-profile');
-  assert.equal(gate.tabAdmits({serverId: 'server-a', familyId: 'family-z', profileId: 'alex'}), true, 'the page load now follows this server');
+  assert.equal(gate.tabAdmits({serverId: 'server-a', familyId: 'family-z', profileId: 'alex'}), true, 'the page load now follows this profile on this server');
   l.bootstrap.dispose();
 });
 
 test('remembered in this tab: opens with no account read for the gate', async () => {
   gate.resetTabSessionGate(); tab.values.clear();
-  gate.recordTabPick('server-a', {serverId: 'server-a', familyId: 'family-a', profileId: 'alex', expiresAt: '2099-01-01T00:00:00Z'});
+  gate.recordTabPick('server-a', 'alex', {serverId: 'server-a', familyId: 'family-a', profileId: 'alex', expiresAt: '2099-01-01T00:00:00Z'});
   gate.resetTabSessionGate();
   const l = launch(() => direct([profile('main', false, true), profile('alex', true)]));
   await l.bootstrap.start();
@@ -59,7 +59,7 @@ test('remembered in this tab: opens with no account read for the gate', async ()
 test('a PIN changed elsewhere (profile_pin_reentry) asks for it again and stops remembering in this tab', async () => {
   gate.resetTabSessionGate(); tab.values.clear();
   // Remembered for an older sign-in only, so the gate reads the account, and that read is refused.
-  gate.recordTabPick('server-a', {serverId: 'server-a', familyId: 'family-old', profileId: 'alex', expiresAt: '2099-01-01T00:00:00Z'});
+  gate.recordTabPick('server-a', 'alex', {serverId: 'server-a', familyId: 'family-old', profileId: 'alex', expiresAt: '2099-01-01T00:00:00Z'});
   gate.resetTabSessionGate();
   const l = launch(() => Object.assign(new Error('gated'), {code: 'profile_pin_reentry', status: 403}));
   await l.bootstrap.start();
@@ -69,7 +69,7 @@ test('a PIN changed elsewhere (profile_pin_reentry) asks for it again and stops 
   l.bootstrap.dispose();
 });
 
-test('another tab choosing a profile never signs this tab out: it restarts onto the new sign-in without asking', async () => {
+test('another tab choosing the same profile never signs this tab out: it restarts onto the new sign-in without asking', async () => {
   gate.resetTabSessionGate(); tab.values.clear();
   assert.equal(followsStoredSignIn({code: 'session_replaced'}), true, 'a different saved sign-in restarts this tab');
   assert.equal(followsStoredSignIn({code: 'refresh_revoked'}), false, 'a refusal still signs out');
@@ -79,8 +79,8 @@ test('another tab choosing a profile never signs this tab out: it restarts onto 
   const first = launch(() => direct([profile('alex', false, true)]));
   await first.bootstrap.start();
   first.bootstrap.dispose();
-  // Tab 2 then picked "main" (a new family); this tab's restart reads it from the shared store.
-  const next = launch(several, {...session, sessionFamilyId: 'family-b', viewer: {...session.viewer, profileId: 'main'}});
+  // Tab 2 then chose Alex again (a new family); this tab's restart reads it from the shared store.
+  const next = launch(several, {...session, sessionFamilyId: 'family-b'});
   await next.bootstrap.start();
   assert.notEqual(next.bootstrap.getSnapshot().phase, 'choose-profile');
   assert.notEqual(next.bootstrap.getSnapshot().phase, 'signed-out');
@@ -88,8 +88,25 @@ test('another tab choosing a profile never signs this tab out: it restarts onto 
   next.bootstrap.dispose();
   // On its next reload it is no longer admitted, and nothing was remembered here: Who's watching.
   gate.resetTabSessionGate();
-  const reload = launch(several, {...session, sessionFamilyId: 'family-b', viewer: {...session.viewer, profileId: 'main'}});
+  const reload = launch(several, {...session, sessionFamilyId: 'family-b'});
   await reload.bootstrap.start();
   assert.equal(reload.bootstrap.getSnapshot().phase, 'choose-profile');
   reload.bootstrap.dispose();
+});
+
+test('another tab choosing a different profile sends this tab to Who\'s watching, focused on its own profile', async () => {
+  gate.resetTabSessionGate(); tab.values.clear();
+  // This page load opened Alex (its only profile then, with no PIN).
+  const first = launch(() => direct([profile('alex', false, true)]));
+  await first.bootstrap.start();
+  first.bootstrap.dispose();
+  // Tab 2 then chose "parent" (PIN-protected). This tab must never become that profile unasked.
+  const parent = {...session, sessionFamilyId: 'family-b', viewer: {...session.viewer, profileId: 'parent'}};
+  const next = launch(() => direct([profile('parent', true, true), profile('alex', false)]), parent);
+  await next.bootstrap.start();
+  assert.equal(next.bootstrap.getSnapshot().phase, 'choose-profile');
+  assert.equal(next.bootstrap.getSnapshot().focus, 'alex', 'Who\'s watching starts on the profile this tab had open');
+  assert.equal(next.disposed(), 1, 'the route to the other profile\'s sign-in is released');
+  assert.equal(gate.tabAdmits({serverId: 'server-a', familyId: 'family-b', profileId: 'parent'}), false, 'still not admitted: the pick (and its PIN) comes first');
+  next.bootstrap.dispose();
 });

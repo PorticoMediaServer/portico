@@ -1,4 +1,5 @@
 import {useLayoutEffect, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {defineWebScreen} from '../../route-registry';
 import {router} from '../../router';
@@ -22,6 +23,8 @@ function ProfilesScreen() {
 }
 function BoundProfiles({entry}: {entry: BrowserAccountEntry}) {
   const state = useSyncExternalStore(entry.subscribe, entry.getSnapshot), [epoch, setEpoch] = useState(0), delivered = useRef(false);
+  // The profile this tab had open, when the launch gate sent it here.
+  const asked: unknown = useSearch({from: '/profiles'}).profileId, focus = typeof asked === 'string' ? asked : undefined;
   useEffect(() => entry.subscribeAuthorityRetired(() => {setEpoch(value => value + 1);}), [entry]);
   useEffect(() => {
     if (entry.getSnapshot() !== state) return;
@@ -53,6 +56,6 @@ function BoundProfiles({entry}: {entry: BrowserAccountEntry}) {
   if (state.error && !state.snapshot) return <AuthStage legal={false}><AuthError error={state.error} />
     <Button onClick={() => void entry.loadProfiles()}>{defaultI18n.t('action.tryAgain')}</Button>
     <Button onClick={switchServer}>{defaultI18n.t('settings.switchServer')}</Button></AuthStage>;
-  return <AccountProfilesView key={epoch} binding={binding} onSwitchServer={switchServer} />;
+  return <AccountProfilesView key={epoch} binding={binding} onSwitchServer={switchServer} focusProfileId={focus} />;
 }
 export default defineWebScreen({id: 'profiles', component: ProfilesScreen, chrome: 'standalone'});

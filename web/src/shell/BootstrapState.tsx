@@ -19,10 +19,11 @@ export function BootstrapContent({children}: {children: ReactNode}) {
   const needsSignIn = state?.snapshot.phase === 'signed-out' && !state.snapshot.entry
     && !['/setup', '/sign-in', '/profiles', '/servers', '/account'].includes(path) && !path.startsWith('/dev/');
   const needsProfile = state?.snapshot.phase === 'choose-profile' && path !== '/profiles';
+  const focus = state?.snapshot.focus;
   useEffect(() => {
     if (needsSignIn) void router.navigate({to: '/sign-in', replace: true});
-    else if (needsProfile) void router.navigate({to: '/profiles', replace: true});
-  }, [needsSignIn, needsProfile]);
+    else if (needsProfile) void router.navigate({to: '/profiles', replace: true, ...(focus ? {search: {profileId: focus}} : {})});
+  }, [needsSignIn, needsProfile, focus]);
   if (needsSignIn || needsProfile) return null;
   if (state?.snapshot.phase === 'restoring') return <DocumentBootReady ready={!!state.snapshot.waiting}/>;
   let content = children;

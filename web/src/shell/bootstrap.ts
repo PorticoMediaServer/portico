@@ -35,7 +35,7 @@ import {freshnessFor, type FreshnessRuntime} from '../platform/freshness';
 import {authenticatedArtwork, type ShellArtwork} from './artwork';
 import type {ShellBindings} from './bindings';
 import type {ShellIdentity} from './Shell';
-import {admitServer, forgetTabServer, tabAdmits} from '../platform/tab-session-gate';
+import {admitProfile, admittedProfile, forgetTabServer, tabAdmits} from '../platform/tab-session-gate';
 
 export type ShellFacts = Readonly<{identity: ShellIdentity; preferences: PreferenceSnapshot; serverName: string}>;
 export type ShellAssemblyContext = Readonly<{
@@ -73,9 +73,10 @@ export type LaunchUnreachable = Readonly<{
   retrying: boolean;
 }>;
 /** `choose-profile`: this tab may not open the saved profile unasked (not remembered here, several
- *  profiles or a PIN, or its PIN changed elsewhere); Who's watching comes first. */
+ *  profiles or a PIN, its PIN changed elsewhere, or another tab chose a different profile); Who's
+ *  watching comes first, with `focus` on the profile this tab had open. */
 export type ShellBootstrapSnapshot = Readonly<{phase: 'restoring' | 'signed-out' | 'ready' | 'error' | 'unreachable' | 'choose-profile'; binding?: ShellBindings; context?: ShellAssemblyContext; entry?: boolean; error?: unknown; unreachable?: LaunchUnreachable;
-  startedAt?: number; waiting?: Readonly<{serverName?: string}>}>;
+  startedAt?: number; waiting?: Readonly<{serverName?: string}>; focus?: string}>;
 
 /** The saved address without credentials or paths; display only. */
 function savedHost(value: unknown): string {
@@ -96,7 +97,8 @@ export function shellArtworkAuthorityKey(session: LocalSession, epoch: number): 
  * A library added or removed changes only the viewer fence: the shell stays, and
  * `viewerFence` follows the current document (H-11). */
 /** A renewal that finds a different sign-in saved (another tab chose a profile, or signed out)
- * restarts on what is saved instead of signing this tab out (C-DESIGN §2, multi-tab rule). */
+ * restarts on what is saved instead of signing this tab out (C-DESIGN §2, multi-tab rule): the
+ * same profile opens; a different one asks Who's watching first (the launch gate). */
 export const followsStoredSignIn = (error: {code?: string}) => error.code === 'session_replaced';
 
 export function watchHomeViewerFence(home: Pick<HomeService, 'getSnapshot' | 'subscribe'>, isCurrent: () => boolean, replaced: () => void) {
@@ -176,7 +178,7 @@ export class ShellBootstrap {
   private waitWakers?: () => void;
   private recoveryWait?: () => void;
   private failure?: {attempt: number; firstFailureAt: number; startedAt: number; nextRetryAt: number};
-  private launch?: {address: string; owner: boolean; serverId: string; family?: string};
+  private launch?: {address: string; owner: boolean; serverId: string; family?: string; profileId?: string};
   /** Exactly the error the restore call raised; a later bug must never read as "server away". */
   private transportError?: unknown;
   constructor(private readonly assemble: ShellAssembler, private readonly environment: {
@@ -231,8 +233,9 @@ export class ShellBootstrap {
       if (!current()) return;
       // A PIN changed elsewhere (profile_pin_reentry): this tab asks for it again, never signs out.
       if ((error as {code?: unknown} | null)?.code === 'profile_pin_reentry') {
+        const focus = this.launch?.profileId;
         if (this.launch?.serverId) forgetTabServer(this.launch.serverId);
-        this.clearWait(); this.fence(); this.publish({phase: 'choose-profile'}); return;
+        this.clearWait(); this.fence(); this.publish({phase: 'choose-profile', ...(focus ? {focus} : {})}); return;
       }
       if (serverIsStarting(error)) {this.waitAfterFailure(error, 'starting');return;}
       const category = this.transportError === error ? launchFailure(error, globalThis.navigator?.onLine) : 'other';
@@ -337,7 +340,7 @@ export class ShellBootstrap {
     if (!selected) { this.publish({phase: 'signed-out'}); return; }
     // Only what this saved launch already holds: the address used and the saved role.
     const viewer = selected.session?.viewer;
-    this.launch = {address: savedHost(selected.serverUrl), owner: viewer?.role === 'owner', serverId: viewer?.serverId ?? '', family: selected.session.sessionFamilyId};
+    this.launch = {address: savedHost(selected.serverUrl), owner: viewer?.role === 'owner', serverId: viewer?.serverId ?? '', family: selected.session.sessionFamilyId, ...(viewer?.profileId ? {profileId: viewer.profileId} : {})};
     if (this.state.phase === 'restoring') {
       const known = lastKnownShell(selected.session.sessionFamilyId);
       const serverName = known?.serverName ?? (viewer?.serverId ? browserServerDisplay().name(viewer.serverId) : undefined);
@@ -361,9 +364,13 @@ export class ShellBootstrap {
       catch (error) {api.getRouteConnection()?.dispose(); throw error;}
       const only = direct.profiles.length === 1 && direct.profiles[0]!.id === held.profileId && !direct.profiles[0]!.pinRequired;
       if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}
-      if (!only) {api.getRouteConnection()?.dispose(); this.clearWait(); this.publish({phase: 'choose-profile'}); return;}
+      if (!only) {
+        // Focus the profile this tab had open (another tab chose a different one), else the saved one.
+        const focus = admittedProfile(held.serverId) ?? held.profileId;
+        api.getRouteConnection()?.dispose(); this.clearWait(); this.publish({phase: 'choose-profile', focus}); return;
+      }
     }
-    admitServer(held.serverId);
+    admitProfile(held.serverId, held.profileId);
     const mutations = mountBrowserUserMutations(api, session);
     trackBrowserConnection(api);
     const cleanups: (() => void)[] = [() => {api.setUserMutationSession(undefined); mutations.dispose();}];
