@@ -1,4 +1,5 @@
 import {routePath, type RouteResponse} from '../../contracts/src/route-paths.ts';
+import {releaseQuietly} from './cleanup.ts';
 import {decodeGetSearchGenresResponse, decodeGetGenreQueryResponse} from '../../contracts/src/decoders.ts';
 import type {BrowseRequestBody} from './browse.ts';
 import type {LibraryContentApi} from './library-content.ts';
@@ -283,12 +284,12 @@ async function executeGenreRead(api: SearchGenreApi, descriptor: SearchGenreRequ
       runtime, onPreparing: (pending, response) => onPreparing?.(Object.freeze({variant: 'preparing' as const, kind: 'genre-preparing', state: 'preparing', ...pending}), response),
       errorFromResponse: errorFromResponse ?? (response => genreError(response, runtime?.now?.() ?? Date.now())),
     });
-    try { current(signal, isCurrent); } catch (error) { result.release(); throw error; }
+    try { current(signal, isCurrent); } catch (error) { releaseQuietly('genre result release', () => result.release()); throw error; }
     const page = result.value;
     const retain = !descriptor.preview && !!(page.nextCursor || page.previousCursor || page.reloadCursor);
     const metadata = Object.freeze({reanchored, ...(previousRevision !== undefined ? {previousRevision} : {})});
     const lease = makeLease(api, descriptor.limit ?? 50, metadata, result.release, controller, signal, retain);
-    try { current(signal, isCurrent); } catch (error) { lease.release(); throw error; }
+    try { current(signal, isCurrent); } catch (error) { releaseQuietly('genre lease release', () => lease.release()); throw error; }
     leases.set(page, lease); completed = true;
     return page;
   } finally {

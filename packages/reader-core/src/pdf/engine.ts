@@ -1,4 +1,5 @@
 import {throwSignalAborted as throwIfAborted} from '../abort.ts';
+import {releaseQuietly} from '@portico/client-core';
 import {abortScope,abortReason} from '../abort.ts';
 import type {ReaderSource} from '../ports.ts';
 import type {PDFDocumentProxy,PDFPageProxy,PDFWorker} from 'pdfjs-dist/types/src/display/api.d.ts';
@@ -50,7 +51,7 @@ async function openPdfEngine(source:ReaderSource,signal:AbortSignal,options:PdfO
   const unchanged=()=>{if(source.id!==id||source.revision!==revision||source.size!==size)throw new PdfInputError('pdf_invalid');};
   const life=new AbortController(),scope=abortScope([signal,life.signal]),combined=scope.signal;
   let sequential:Awaited<ReturnType<typeof pdfSequential>>|undefined;
-  try{sequential=sequentialOpen?await pdfSequential(source,sequentialOpen,combined):undefined;}catch(error){scope.dispose();throw error;}
+  try{sequential=sequentialOpen?await pdfSequential(source,sequentialOpen,combined):undefined;}catch(error){releaseQuietly('pdf scope dispose',()=>scope.dispose());throw error;}
   const firstEnd=Math.min(source.size,rangeBytes);let initial:Uint8Array;
   try{initial=sequential?.initial??await source.read!({start:0,endExclusive:firstEnd},combined);throwIfAborted(combined);unchanged();}catch(error){scope.dispose();await sequential?.dispose();throw error;}
   if(!(initial instanceof Uint8Array)||!sequential&&initial.byteLength!==firstEnd||!new TextDecoder('latin1').decode(initial.subarray(0,1024)).includes('%PDF-')){scope.dispose();await sequential?.dispose();throw new PdfInputError('pdf_invalid');}
@@ -94,7 +95,7 @@ async function openPdfEngine(source:ReaderSource,signal:AbortSignal,options:PdfO
 /** Stream text with a byte budget; scans never gain scripts, links, forms or HTML. */
 export async function pdfText(engine:PdfEngine,page:PDFPageProxy,signal:AbortSignal):Promise<string>{
   const scope=abortScope([engine.signal,signal]),combined=scope.signal;
-  try{throwIfAborted(combined);}catch(error){scope.dispose();throw error;}
+  try{throwIfAborted(combined);}catch(error){releaseQuietly('pdf scope dispose',()=>scope.dispose());throw error;}
   const reader=page.streamTextContent().getReader();let text='',bytes=0;
   const abort=()=>{void reader.cancel(abortReason(combined)).catch(()=>{});};combined.addEventListener('abort',abort,{once:true});
   try{
