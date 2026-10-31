@@ -30,6 +30,7 @@ export const accountMessages = {
   'accounts.setup.title': 'Set up your server',
   'accounts.setup.at': 'New Portico server at {address}. It takes about a minute.',
   'accounts.setup.waiting': 'Approve this server in your browser, then return here to continue.',
+  'accounts.setup.elsewhere': 'Set up this server from a phone or a browser.',
   'accounts.move.sheetTitle': 'Codes for everyone waiting',
   'accounts.move.makeCodes': 'Make codes for everyone waiting',
   'accounts.move.nobodyWaiting': 'Nobody is waiting for a code right now.',

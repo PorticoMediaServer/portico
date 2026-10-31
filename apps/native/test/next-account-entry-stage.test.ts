@@ -22,7 +22,7 @@ import * as qrScanner from '../src-next/platform/qr-scanner';
 import type {NativeAccountEntryStage} from '../src-next/screens/accounts/AccountEntry';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
-type FixtureOptions = Readonly<{providers?: boolean; setupRequired?: boolean; providerTransaction?: any; inspectFails?: (origin: string) => boolean}>;
+type FixtureOptions = Readonly<{providers?: boolean; setupRequired?: boolean; providerTransaction?: any; inspectFails?: (origin: string) => boolean; tv?: boolean}>;
 
 async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options: FixtureOptions = {}) {
   const events: string[] = [], stages: NativeAccountEntryStage[] = [], inspected: string[] = [], back = new Set<() => boolean>();
@@ -63,12 +63,12 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
       useLayoutEffect: (create: () => void | (() => void), deps: readonly unknown[]) => React.useLayoutEffect(() => {phase = 'layout'; try {return create();} finally {phase = 'render';}}, deps),
       // eslint-disable-next-line react-hooks/exhaustive-deps
       useEffect: (create: () => void | (() => void), deps: readonly unknown[]) => React.useEffect(() => {phase = 'passive'; try {return create();} finally {phase = 'render';}}, deps)},
-    'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: {addEventListener: (_: string, handler: () => boolean) => {back.add(handler); return {remove: () => back.delete(handler)};}}, Platform: {isTV: false}, NativeModules: {PorticoAccountAuth: {canOpenBrowser: options.providers === true}}, Linking: {openURL: async () => {}}, View: 'View', Text: 'Text'},
+    'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: {addEventListener: (_: string, handler: () => boolean) => {back.add(handler); return {remove: () => back.delete(handler)};}}, Platform: {isTV: options.tv === true}, NativeModules: {PorticoAccountAuth: {canOpenBrowser: options.providers === true}}, Linking: {openURL: async () => {}}, View: 'View', Text: 'Text'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src': {},
     '../../../../../packages/client-core/src/sign-in': {}, '../../../../../packages/client-core/src/route-identity': {routeOrigin},
     '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
+    '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../kit/theme': {useTheme: () => createTheme({isTV: options.tv === true, width: options.tv ? 1920 : 390})},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
     './NativeSetup': {NativeSetup: 'NativeSetup'},
@@ -194,5 +194,24 @@ test('a server that needs setup opens the setup screen after the confirmation, w
     assert.equal(f.tree().props.target, first.props.target, 'a re-render keeps the same target, so the screen keeps its controller');
     await act(() => f.tree().props.onLeave());
     assert.equal(f.stages.at(-1), 'setup-confirm', 'Back from the choice returns to the confirmation');
+  } finally {await f.host.unmount();}
+});
+
+test('a TV that reaches a server nobody has set up says where setup happens and leaves the address field in place', async () => {
+  const f = await fixture('address', {setupRequired: true, tv: true});
+  try {
+    await act(() => providerFields(f.tree())[0]!.props.onChangeText('https://public.example'));
+    await act(() => f.tree().props.primaryAction.onPress());
+    assert.deepEqual(f.stages, ['address'], 'the address screen stays; nothing navigates away with the focus');
+    assert.equal(f.tree().type, 'Layout', 'the same layout and its actions are still drawn');
+    assert.equal(f.tree().props.primaryAction.id, 'inspect');
+    assert.equal(f.tree().props.secondaryAction.id, 'back');
+    const before = nodes(f.tree().props.beforeActions);
+    const field = before.find((node: any) => node.type === 'Field');
+    const notices = before.filter((node: any) => node.type === 'Text' && node.props.accessibilityRole === 'alert');
+    assert.equal(field.props.value, 'https://public.example', 'the drawn field, and so its native input, is not replaced or cleared');
+    assert.deepEqual(notices.map((node: any) => node.props.children), ['Set up this server from a phone or a browser.']);
+    assert.equal(notices.some((node: any) => node.props.children === defaultI18n.t('error.unknown')), false, 'the generic refusal is not shown');
+    assert.ok(before.indexOf(field) < before.indexOf(notices[0]), 'the notice sits under the address field it belongs to');
   } finally {await f.host.unmount();}
 });
