@@ -36,6 +36,17 @@ class AssemblyTests(unittest.TestCase):
         for name in notices:
             self.assertEqual((self.root / 'licenses' / name).read_bytes(), texts[name])
 
+    def test_compiler_gzip_and_bzip2_sources_keep_actual_notices(self):
+        for suffix, mode in (('gz', 'w:gz'), ('bz2', 'w:bz2')):
+            path = self.root / ('compiler.tar.' + suffix)
+            with tarfile.open(path, mode) as archive:
+                entry = tarfile.TarInfo('COPYING.RUNTIME')
+                data = b'full runtime exception transport fixture'
+                entry.size = len(data)
+                archive.addfile(entry, io.BytesIO(data))
+            notices = M['source_licenses'](path, self.root / ('notices-' + suffix))
+            self.assertEqual(notices, {'COPYING.RUNTIME': __import__('hashlib').sha256(data).hexdigest()})
+
     def test_missing_license_and_source_escape_fail(self):
         for name in ('source.c', '../LICENSE'):
             path = self.root / 'source.tar.xz'
