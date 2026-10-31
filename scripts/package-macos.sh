@@ -4,8 +4,9 @@
 #   scripts/package-macos.sh VERSION PAYLOAD_DIR OUT_DIR BUILD_NUMBER
 set -euo pipefail
 export COPYFILE_DISABLE=1
-if [[ $# -ne 4 ]]; then echo "usage: $0 VERSION PAYLOAD_DIR OUT_DIR BUILD_NUMBER" >&2; exit 2; fi
-VERSION="$1"; PAYLOAD="$2"; OUT="$3"; BUILD_NUMBER="$4"
+if [[ $# -lt 4 || $# -gt 5 ]]; then echo "usage: $0 VERSION PAYLOAD_DIR OUT_DIR BUILD_NUMBER [x64|arm64]" >&2; exit 2; fi
+VERSION="$1"; PAYLOAD="$2"; OUT="$3"; BUILD_NUMBER="$4"; ARCH="${5:-arm64}"
+case "$ARCH" in x64|arm64) ;; *) echo "invalid architecture: $ARCH" >&2; exit 2 ;; esac
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DMG_ROOT="$OUT/dmg-root"
 APP="$DMG_ROOT/Portico Media Server.app"
@@ -34,9 +35,9 @@ cp -R "$APP" "$PKG_ROOT/Applications/"
 chmod +x "$ROOT/packaging/macos/package-scripts/"* "$PKG_ROOT/Applications/Portico Media Server.app/Contents/Resources/launchd/uninstall.sh"
 sign=()
 if [[ -n "${PORTICO_MACOS_INSTALLER_IDENTITY:-}" ]]; then sign=(--sign "$PORTICO_MACOS_INSTALLER_IDENTITY"); fi
-pkgbuild --component-plist "$ROOT/packaging/macos/components.plist" --root "$PKG_ROOT" --identifier tv.getportico.server --version "$VERSION" --install-location / --scripts "$ROOT/packaging/macos/package-scripts" "${sign[@]}" "$OUT/Portico-Media-Server-macOS-arm64.pkg"
+pkgbuild --component-plist "$ROOT/packaging/macos/components.plist" --root "$PKG_ROOT" --identifier tv.getportico.server --version "$VERSION" --install-location / --scripts "$ROOT/packaging/macos/package-scripts" "${sign[@]}" "$OUT/Portico-Media-Server-macOS-$ARCH.pkg"
 
 rm -rf "${DMG_ROOT:?}"
 mkdir -p "$DMG_ROOT"
-cp "$OUT/Portico-Media-Server-macOS-arm64.pkg" "$DMG_ROOT/"
-hdiutil create -quiet -volname "Portico Media Server" -srcfolder "$DMG_ROOT" -ov -format UDZO "$OUT/Portico-Media-Server-macOS-arm64.dmg"
+cp "$OUT/Portico-Media-Server-macOS-$ARCH.pkg" "$DMG_ROOT/"
+hdiutil create -quiet -volname "Portico Media Server" -srcfolder "$DMG_ROOT" -ov -format UDZO "$OUT/Portico-Media-Server-macOS-$ARCH.dmg"
