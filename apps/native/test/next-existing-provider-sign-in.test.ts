@@ -15,7 +15,6 @@ import {defaultI18n} from '../../../packages/i18n/src';
 import * as accountWork from '../src-next/platform/account-work';
 import * as continuationQueue from '../src-next/platform/continuation-queue';
 import * as abortSignals from '../src-next/platform/abort-signals';
-import * as setupOutcome from '../src-next/platform/setup-outcome';
 import * as hostedUnavailable from '../src-next/platform/hosted-sign-in-unavailable';
 import * as directoryChooser from '../src-next/screens/accounts/directory-chooser';
 import {createTheme} from '../src-next/kit/theme';
@@ -153,8 +152,7 @@ async function fixture(context: import('node:test').TestContext, provider: Provi
     '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
     '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', TextField: 'Field'},
-    '../../platform/tv-menu': {useTVMenuCapture() {}}, '../../platform/account-work': accountWork,
-    '../../platform/setup-outcome': setupOutcome, '../../platform/hosted-sign-in-unavailable': hostedUnavailable,
+    '../../platform/tv-menu': {useTVMenuCapture() {}}, '../../platform/account-work': accountWork, '../../platform/hosted-sign-in-unavailable': hostedUnavailable,
     '../../platform/accounts': {nativeAccounts: accounts}, '../../platform/portico-sign-in': auth,
     '../../platform/account-authority': {hostedUrl: origin}, '../../platform/server-connections': {nativeNetworkFetch: fetcher},
     './PhoneFrontDoor': {PhoneFrontDoor: 'PhoneFrontDoor'}, './PhoneAccountSignIn': {PhoneAccountSignIn: 'PhoneAccountSignIn'},

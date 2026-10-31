@@ -22,7 +22,6 @@ import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 import * as tvCodeOpening from '../src-next/screens/accounts/tv-code-opening';
 import * as passwordPolicy from '../../../packages/client-core/src/password-strength';
-import * as setupOutcome from '../src-next/platform/setup-outcome';
 import * as joinLink from '../../../packages/client-core/src/join-link';
 import * as invitationCode from '../../../packages/client-core/src/short-invitation-code';
 import * as directoryChooser from '../src-next/screens/accounts/directory-chooser';
@@ -174,7 +173,7 @@ async function accountEntry(f: Awaited<ReturnType<typeof fixture>>, prepare: () 
     '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/artwork': {ProfilePicker: 'Picker'},
     '../../tv/auth': {TVCodePresenter: 'Code', TVFrontDoor: 'Front', TVCredentialForm: 'Credentials'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: approvedAccounts ?? {accountCredentials: () => ({synchronize: async () => {}, getSnapshot: () => ({}), subscribe: () => () => {}})}},
-    '../../platform/server-sign-in': {NativeServerSignIn: LocalSource}, '../../platform/setup-outcome': setupOutcome,
+    '../../platform/server-sign-in': {NativeServerSignIn: LocalSource},
     '../../platform/portico-sign-in': {NativePorticoSignIn: AuthSource},
     '../../platform/server-connections': {browseNearby: async () => []},
     '../../platform/tv-sign-in': {createNativePorticoTVSignIn: () => f.newService('portico')},

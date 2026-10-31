@@ -3,7 +3,6 @@ import * as accountWork from '../src-next/platform/account-work';
 import * as tvApprovalCredentials from '../src-next/screens/accounts/tv-approval-credentials';
 import * as tvApprovalFinalization from '../src-next/screens/accounts/tv-approval-finalization';
 import * as tvCodeOpening from '../src-next/screens/accounts/tv-code-opening';
-import * as setupOutcome from '../src-next/platform/setup-outcome';
 import * as passwordPolicy from '../../../packages/client-core/src/password-strength';
 import * as joinLink from '../../../packages/client-core/src/join-link';
 import * as invitationCode from '../../../packages/client-core/src/short-invitation-code';
@@ -75,9 +74,8 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
     './PhonePINEntry': {PhonePINEntry: 'PhonePIN'},
     './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
-    '../../platform/setup-outcome': setupOutcome,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
-    './PhoneSetupApproval': {PhoneSetupApproval: 'PhoneSetupApproval'},
+    './NativeSetup': {NativeSetup: 'NativeSetup'},
     './directory-chooser': {directoryRows: () => [], directoryFailure: () => 'other', directoryOfflineBody: () => ({key: 'web.chooser.unreachableBodyNever'})},
   });
   let tree: any;
@@ -200,9 +198,8 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
     './PhonePINEntry': {PhonePINEntry: 'PhonePIN'},
     './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
-    '../../platform/setup-outcome': setupOutcome,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
-    './PhoneSetupApproval': {PhoneSetupApproval: 'PhoneSetupApproval'},
+    './NativeSetup': {NativeSetup: 'NativeSetup'},
     './directory-chooser': {directoryRows: () => [], directoryFailure: () => 'other', directoryOfflineBody: () => ({key: 'web.chooser.unreachableBodyNever'})},
   });
   let tree: any;
