@@ -320,6 +320,8 @@ def main():
         run('compiler-export', common + ['--build-arg', 'GH_REPO=local/' + owner + '/engine',
             '--build-context', base + '=oci-layout://' + str(base_oci),
             '--output', 'type=oci,tar=false,dest=' + str(compiler_dir), 'images/base-win64'], recipe)
+        report['compilerContext'] = inputs.compiler_layout(compiler_dir, compiler_id)
+        atomic(state / 'report.json', report)
         stage_results = {}
         def publish(results):
             stage_results.update(results)
