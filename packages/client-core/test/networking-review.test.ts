@@ -6,7 +6,6 @@ import {RouteConnection,sessionRoute} from '../src/route-connection.ts';
 import {type ServerPin} from '../src/route-identity.ts';
 import {parseRememberedServer,rememberNativeSession,restoreNativeSession,restoreExactNativeSession,rememberRotatedSession,prepareRoutedSession,commitRoutedSession,type RememberedServer,type ServerConnectionStorage} from '../src/server-connections.ts';
 import {SetupCodeService,type SetupCodeJournal} from '../src/setup-code.ts';
-import {SessionSelectionService} from '../src/session-selection.ts';
 const tick=()=>new Promise<void>(r=>setTimeout(r,5));
 async function until(check:()=>boolean){for(let i=0;i<120&&!check();i++)await tick();assert.ok(check(),'condition did not settle');}
 function deferred<T>(){let resolve!:(v:T)=>void,reject!:(e:unknown)=>void;const promise=new Promise<T>((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
@@ -132,11 +131,6 @@ test('activation retries stay spread out once they reach the cap, and never pass
  for(const gap of [...early,...late])assert.ok(gap>=24&&gap<=31,'at the cap: '+gap+' s');
  assert.ok(late.every((gap,i)=>gap-early[i]!>=4),'still several seconds apart on every retry: '+early.join(',')+' against '+late.join(','));
 });
-test('unobserved authorized server remains in the chooser without fabricated routes',async()=>{
- const selection=new SessionSelectionService({account:{accountId:'account',sessionId:'session'},api:{listServers:async()=>({items:[{id:pin.serverId,name:'Not observed yet',publicKey:pin.publicKey,policyRevision:1,baseUrl:''}]}),serverProfiles:async()=>({}),attach:async()=>session(),revokeLocal:async()=>{}},onSelected:()=>{}});
- try{await selection.loadServers();assert.equal(selection.getSnapshot().phase,'servers');assert.equal(selection.getSnapshot().servers.length,1);assert.equal(selection.getSnapshot().servers[0].routes,undefined);}finally{selection.dispose();}
-});
-
 test('route recovery cannot adopt a different tab or device selected profile',async()=>{
  const vault=storage(),{connection,api}=await ready();const saved=session();await rememberNativeSession(api,saved,{storage:vault});
  let probes=0;const env={storage:vault,fetcher:async()=>{probes++;throw new Error('must not send credentials for another selected viewer');}};

@@ -39,5 +39,4 @@ paths = [
   '''.*_test\.go''',
   '''server/internal/catalog/local_artwork\.go''',
   '''server/internal/playbackv1/queue_counts\.go''',
-  '''packages/client-core/src/session-selection\.ts''',
 ]
