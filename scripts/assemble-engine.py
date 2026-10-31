@@ -37,7 +37,9 @@ def write_json(path, value):
 
 def source_licenses(archive, destination):
     notices, seen, count, expanded = {}, set(), 0, 0
-    with tarfile.open(archive, 'r|*') as source:
+    # BZ2File/LZMAFile handle concatenated compressed streams (including the
+    # real MinGW source archive); tarfile's raw streaming decoder does not.
+    with tarfile.open(archive, 'r:*') as source:
         for member in source:
             count += 1
             expanded += member.size

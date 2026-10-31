@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bounded source/licence and raw-artifact checks, without compiling an engine."""
 import io
+import bz2
 import json
 from pathlib import Path
 import runpy
@@ -46,6 +47,26 @@ class AssemblyTests(unittest.TestCase):
                 archive.addfile(entry, io.BytesIO(data))
             notices = M['source_licenses'](path, self.root / ('notices-' + suffix))
             self.assertEqual(notices, {'COPYING.RUNTIME': __import__('hashlib').sha256(data).hexdigest()})
+
+    def test_concatenated_bzip2_streams_keep_every_notice_in_one_tar(self):
+        # Upstream MinGW's real compiler-source archive uses concatenated bzip2
+        # streams. tarfile's raw r|* decoder cannot continue into the next one.
+        raw = io.BytesIO()
+        texts = {'source.c': b'non-source transport fixture',
+                 'COPYING': b'complete licence fixture', 'COPYING.RUNTIME': b'runtime exception fixture'}
+        with tarfile.open(fileobj=raw, mode='w') as archive:
+            for name, data in texts.items():
+                member = tarfile.TarInfo(name)
+                member.size = len(data)
+                archive.addfile(member, io.BytesIO(data))
+        payload = raw.getvalue()
+        path = self.root / 'compiler.tar.bz2'
+        path.write_bytes(bz2.compress(payload[:1024]) + bz2.compress(payload[1024:]))
+        self.assertEqual(bz2.decompress(path.read_bytes()), payload)
+        notices = M['source_licenses'](path, self.root / 'notices')
+        self.assertEqual(set(notices), {'COPYING', 'COPYING.RUNTIME'})
+        for name in notices:
+            self.assertEqual((self.root / 'notices' / name).read_bytes(), texts[name])
 
     def test_missing_license_and_source_escape_fail(self):
         for name in ('source.c', '../LICENSE'):
