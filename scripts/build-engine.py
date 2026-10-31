@@ -113,6 +113,8 @@ def dependency_steps(text):
 
 
 def cached_mounts(text):
+    if isinstance(text, bytes):
+        text = text.decode('utf-8', errors='replace')
     steps = set(re.findall(r'(?m)^#(\d+) \[[^\n]+\] RUN --mount=', text))
     cached = set(re.findall(r'(?m)^#(\d+) CACHED$', text))
     return bool(steps) and steps <= cached
@@ -349,7 +351,7 @@ def main():
             run('dependency-' + name, args + ['.'], recipe)
             inputs.consumed_dockerfile(recipe, dockerfile_sha)
             log = state / ('dependency-' + name + '.log')
-            result = {'state': 'cached' if cached_mounts(log.read_text()) else 'passed', 'key': key,
+            result = {'state': 'cached' if cached_mounts(log.read_bytes()) else 'passed', 'key': key,
                       'compilerImageId': compiler_id, 'logSHA256': digest(log)}
             if metadata.exists():
                 result['metadataSHA256'] = digest(metadata)

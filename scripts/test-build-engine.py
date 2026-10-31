@@ -62,6 +62,32 @@ class EngineTests(unittest.TestCase):
     def test_buildkit_cache_classification_requires_all_source_build_steps(self):
         self.assertTrue(engine.cached_mounts('#1 [lib 1/1] RUN --mount=src=source,dst=/source build\n#1 CACHED\n'))
         self.assertFalse(engine.cached_mounts('#1 [lib 1/1] RUN --mount=src=source,dst=/source build\n#1 DONE 1s\n#2 CACHED\n'))
+        self.assertTrue(engine.cached_mounts(b'warning: \xcc\n#1 [lib 1/1] RUN --mount=src=source,dst=/source build\n#1 CACHED\n'))
+        self.assertFalse(engine.cached_mounts(b'warning: \xcc\n#1 [lib 1/1] RUN --mount=src=source,dst=/source build\n#1 DONE 1s\n'))
+
+    def test_meson_diagnostics_keep_arguments_failure_status_and_output_bound(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as temp:
+            root = Path(temp)
+            for command in ('meson "${myconf[@]}" ..', 'meson setup "${myconf[@]}" ..'):
+                text = 'ffbuild_dockerbuild() {\n    local myconf=(--cross-file=/cross.meson --default-library=static)\n    ' + command + '\n    touch after-meson\n}\n'
+                wrapped = adapter.meson_diagnostics(text, command, 'control')
+                fake = '''meson() {
+  printf 'arguments:%s\\n' "$*"
+  mkdir -p meson-logs
+  head -c 2097152 /dev/zero | tr '\\0' Q >meson-logs/meson-log.txt
+  return 23
+}
+'''
+                result = subprocess.run(['bash', '-c', fake + wrapped + 'ffbuild_dockerbuild'],
+                                        cwd=root, capture_output=True)
+                self.assertEqual(result.returncode, 23)
+                self.assertFalse((root / 'after-meson').exists())
+                self.assertIn(b'--cross-file=/cross.meson --default-library=static ..', result.stdout)
+                self.assertIn(b'BEGIN control meson-log.txt', result.stdout)
+                self.assertLess(len(result.stdout), 1048576 + 300)
+                success = subprocess.run(['bash', '-c', 'meson() { return 0; }\n' + wrapped + 'ffbuild_dockerbuild'], cwd=root)
+                self.assertEqual(success.returncode, 0)
+                (root / 'after-meson').unlink()
 
     def test_only_selected_sources_download_and_failures_do_not_cancel_independent_sources(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as temp:
