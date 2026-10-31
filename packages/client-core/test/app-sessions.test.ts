@@ -97,3 +97,66 @@ test('a rendered server choice consumes only its original saved-record revision'
   await assert.rejects(store.select('a', () => true, -1));
   assert.deepEqual(await store.read(), accepted);
 });
+const marker = {profileId: 'profile-a', expiresAt: '2099-01-01T00:00:00Z'};
+test('remember marker and PIN flag are written only for the exact family, and advance the revision', async () => {
+  const store = storage([entry('a'), entry('b')]);
+  const revision = async () => (await store.read()).revision;
+  let before = await revision();
+  await store.setRemembered('a', 'old-family', marker); await store.setProfilePinRequired('a', 'old-family', true);
+  await store.setRemembered('missing', 'family-a', marker);
+  assert.equal(await revision(), before);
+  assert.equal((await store.read()).servers.find(v => v.connection.pin.serverId === 'a')?.remembered, undefined);
+  await store.setRemembered('a', 'family-a', marker);
+  assert.equal(await revision(), before + 1); before += 1;
+  await store.setProfilePinRequired('a', 'family-a', true);
+  assert.equal(await revision(), before + 1); before += 1;
+  const [a, b] = (await store.read()).servers;
+  assert.deepEqual(a.remembered, {...marker, familyId: 'family-a'}); assert.equal(a.profilePinRequired, true);
+  assert.equal(b.remembered, undefined); assert.equal(b.profilePinRequired, undefined);
+  // Writing what is already there changes nothing; clearing removes only the marker.
+  await store.setProfilePinRequired('a', 'family-a', true); await store.setRemembered('b', 'family-b', undefined);
+  assert.equal(await revision(), before);
+  await store.setRemembered('a', 'family-a', undefined);
+  const cleared = (await store.read()).servers[0];
+  assert.equal(cleared.remembered, undefined); assert.equal(cleared.profilePinRequired, true);
+});
+test('token rotation and route updates keep the marker; a new family drops it', async () => {
+  const store = storage([entry('a')]);
+  await store.setRemembered('a', 'family-a', marker); await store.setProfilePinRequired('a', 'family-a', false);
+  const adapter = store.connectionStorage('a');
+  await adapter.change(value => ({...value!, session: {...value!.session, accessToken: 'rotated', tokenGeneration: '2'}}));
+  await adapter.change(value => ({...value!, routes: {...value!.routes, lastGood: 'https://elsewhere.test'}}));
+  let held = (await store.read()).servers[0];
+  assert.equal(held.connection.session.accessToken, 'rotated');
+  assert.deepEqual(held.remembered, {...marker, familyId: 'family-a'}); assert.equal(held.profilePinRequired, false);
+  const replacement: RememberedServer = {...held.connection, selectionId: 'n'.repeat(32), session: {...held.connection.session, sessionFamilyId: 'new-family'}};
+  const current = await store.read();
+  await store.connectionStorage('a', {signIn: 'local', expectedRevision: current.revision}).change(() => replacement);
+  held = (await store.read()).servers[0];
+  assert.equal(held.connection.session.sessionFamilyId, 'new-family');
+  assert.equal(held.remembered, undefined); assert.equal(held.profilePinRequired, undefined);
+  // A marker for the family that was replaced can no longer be written.
+  await store.setRemembered('a', 'family-a', marker);
+  assert.equal((await store.read()).servers[0].remembered, undefined);
+});
+test('an unreadable marker or PIN flag is dropped and the record stays valid (R-23)', () => {
+  const good = entry('a');
+  for (const remembered of [null, 'yes', [], {profileId: 'p'}, {profileId: 'p', familyId: 'family-a', expiresAt: 'not a date'}, {profileId: '', familyId: 'family-a', expiresAt: '2099-01-01T00:00:00Z'}, {profileId: 5, familyId: 'f', expiresAt: '2099-01-01T00:00:00Z'}]) {
+    const parsed = parseAppSessionRecord({version: 1, revision: 3, servers: [{...good, remembered, profilePinRequired: 'maybe'}]});
+    assert.equal(parsed.servers.length, 1); assert.equal(parsed.revision, 3);
+    assert.equal(parsed.servers[0].remembered, undefined); assert.equal(parsed.servers[0].profilePinRequired, undefined);
+  }
+  const kept = parseAppSessionRecord({version: 1, revision: 3, servers: [{...good, remembered: {...marker, familyId: 'family-a', later: 1}, profilePinRequired: true}]}).servers[0];
+  assert.deepEqual(kept.remembered, {...marker, familyId: 'family-a'}); assert.equal(kept.profilePinRequired, true);
+});
+test('a cancelled admission restores the previous entry with its marker', async () => {
+  const a = entry('a'), store = storage([a]);
+  await store.setRemembered('a', 'family-a', marker);
+  const adapter = store.connectionStorage('a', {signIn: 'local', expectedRevision: (await store.read()).revision});
+  let previous: RememberedServer | undefined;
+  const candidate: RememberedServer = {...a.connection, selectionId: 'n'.repeat(32), session: {...a.connection.session, sessionFamilyId: 'new-family'}};
+  await adapter.change(current => {previous = current; return candidate;});
+  assert.equal((await store.read()).servers[0].remembered, undefined);
+  await adapter.change(current => current?.selectionId === candidate.selectionId ? previous : current);
+  assert.deepEqual((await store.read()).servers[0].remembered, {...marker, familyId: 'family-a'});
+});
