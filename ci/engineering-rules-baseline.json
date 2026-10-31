@@ -88,7 +88,6 @@
  "token-compare": {
   "apps/native/src-next/platform/account-work.ts": 1,
   "apps/native/src-next/platform/playback/preparing-owner.ts": 1,
-  "apps/native/src-next/platform/playback/runtime.ts": 2,
   "apps/native/src-next/platform/tv-approval-grant.ts": 1,
   "apps/vega/src/bridge/credential-boundary.ts": 4,
   "packages/client-core/src/credential-format.ts": 2,
