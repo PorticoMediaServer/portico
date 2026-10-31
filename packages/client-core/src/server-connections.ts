@@ -8,6 +8,7 @@ import {hostedGate} from './hosted-gate.ts';
 import {ApiError,HttpLocalApi,type HostedServer,type LocalSession} from './index.ts';
 import {credentialLock,installationIdentity} from './installation.ts';
 import {parseLocalSession} from './local-session.ts';
+import {compareSessionAuthority} from './session-authority.ts';
 import {parseServerSignIn} from './sign-in.ts';
 import {parseDirectSnapshot} from './profile-management.ts';
 import {RouteConnection,bindSessionRoute,forgetSessionRoute,sessionRoute,sessionRoute as sessionRouteForRotation,type DiscoveryRoute,type RememberedNetworkPolicy,type RouteMemory,type RouteProbeFailure} from './route-connection.ts';
@@ -50,6 +51,19 @@ async function routeKey(source:HostedConnectionSource,env:ConnectionEnvironment,
 function sameSelection(a:RememberedServer|undefined,b:RememberedServer):boolean {
  return !!a&&a.selectionId===b.selectionId&&a.pin.serverId===b.pin.serverId&&a.session.sessionFamilyId===b.session.sessionFamilyId&&
   (b.selectionId!==undefined||a.session.accessToken===b.session.accessToken);
+}
+const selectionChanged=()=>new RouteError('cancelled','The saved selection changed during reconnect.');
+/** R-17: the store may hold a newer rotation of the same sign-in (another tab, a foreground
+ * refresh) by the time reconnect checks it again. Adopt it instead of cancelling. Exact
+ * restoration (captured Security continuations) still needs the very same token.
+ * Returns true when record.session was replaced by the newer rotation. */
+function followSelection(selected:RememberedServer|undefined,record:RememberedServer,exact:boolean):boolean{
+ const change=selected&&selected.selectionId===record.selectionId&&selected.pin.serverId===record.pin.serverId?compareSessionAuthority(record.session,selected.session):'replaced';
+ if(change==='same')return false;
+ if(change!=='rotated'||exact)throw selectionChanged();
+ const next=parseRememberedServer(selected);if(!next)throw selectionChanged();
+ record.session=next.session;record.pendingRefresh=next.pendingRefresh;
+ return true;
 }
 function attachPersistence(connection:RouteConnection,env:ConnectionEnvironment,record:RememberedServer,hosted?:RememberedServer['hosted']){
  connection.setPersistence(memory=>env.storage.change(current=>{
@@ -147,7 +161,7 @@ async function restoreStoredSession(env:ConnectionEnvironment,source:((record:Re
  try{
   await connection.resolve(signal);check();
   const selected=await env.storage.read();check();
-  if(!sameSelection(selected,record)||selected!.session.accessToken!==record.session.accessToken||(exact&&!exactViewerMatches(selected)))throw new RouteError('cancelled','The saved selection changed during reconnect.');
+  followSelection(selected,record,exact);if(exact&&!exactViewerMatches(selected))throw selectionChanged();
   const api=new HttpLocalApi(record.logicalOrigin,'',env.fetcher);api.useRoutes(connection);api.setAccessToken(record.session.accessToken);let renewedNow=false;
   // A sign-in saved more than a few minutes ago has an expired access token: renew it first.
   if(!exact&&record.session.refreshToken&&(record.pendingRefresh||Date.parse(record.session.expiresAt)-Date.now()<REFRESH_MIN_VALID_MS)){
@@ -197,7 +211,7 @@ async function restoreStoredSession(env:ConnectionEnvironment,source:((record:Re
    catch(again){check();const s=statusOf(again);if(s===401||s===403)throw refusedAccess();throw again;}
   }
   const selectedAfter=await env.storage.read();check();
-  if(!sameSelection(selectedAfter,record)||selectedAfter!.session.accessToken!==record.session.accessToken||(exact&&!exactViewerMatches(selectedAfter)))throw new RouteError('cancelled','The saved selection changed during reconnect.');
+  if(followSelection(selectedAfter,record,exact))api.setAccessToken(record.session.accessToken);if(exact&&!exactViewerMatches(selectedAfter))throw selectionChanged();
   if(!exact){attachPersistence(connection,env,record,hosted);bindSessionRoute(record.session.accessToken,connection);}return {api,session:record.session};
  }catch(e){connection.dispose();throw e;}
  }catch(e){check();throw e;}
