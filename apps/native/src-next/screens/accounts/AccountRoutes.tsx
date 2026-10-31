@@ -13,7 +13,7 @@ import type {AppServerSession} from '../../../../../packages/client-core/src/app
 import {routeOrigin} from '../../../../../packages/client-core/src/route-identity';
 import {nativeAccounts} from '../../platform/accounts';
 import {nativeAppSessions, subscribeNativeAppSessions} from '../../platform/app-session-storage';
-import {nativeProfileSelection} from '../../platform/profile-selection';
+import {switchNativeProfile} from '../../platform/native-session-lifecycle';
 import {NativeProfileRecovery, temporaryRecoveryApi} from '../../platform/profile-recovery';
 import {hostedUrl} from '../../platform/account-authority';
 import {pickProfilePicture, profileAvatarUpload, profilePicturePickerAvailable, profilePictureSource} from '../../platform/profile-avatars';
@@ -102,7 +102,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
   const activeTicket = useRef<AbortController | undefined>(undefined);
   const retireEditor = () => {editorRef.current = undefined; setEditor(undefined); editDraftRef.current = {name: '', pin: '', again: ''}; setNameDraft(''); setPinDraft(''); setPinAgain('');};
   const retireAddition = () => {additionRef.current = undefined; setAddition(undefined); addNameRef.current = ''; setAddName('');};
-  const selection = useRef<ReturnType<typeof nativeProfileSelection> | undefined>(undefined), alive = useRef(true), starting = useRef(false);
+  const alive = useRef(true), starting = useRef(false);
   useLayoutEffect(() => {
     const session = context.session(), lifetime = new NativeScreenLifetime(context), live = {value: true};
     const authority = Object.freeze({...context.authority()}), snapshot = context.navigation.getSnapshot();
@@ -159,10 +159,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
     void identity.avatars(controller.signal).then(found => {if (lease.current() && !controller.signal.aborted) setAvatars(found);}, () => {});
     return () => {controller.abort(); if (avatarsLease.current === lease) {avatarsLease.current = undefined; setAvatars([]);}};
   }, [lease, scopedIdentity]);
-  useEffect(() => {alive.current = true; const session = context.session();
-    if (session) selection.current = nativeProfileSelection(session.viewer.serverId, session.sessionFamilyId);
-    return () => {alive.current = false; selection.current?.dispose();};
-  }, [context]);
+  useEffect(() => {alive.current = true; return () => {alive.current = false;};}, [context]);
   // TV (F-PROFILE-28): a wrong PIN keeps the filled boxes in the error colour for 400 ms, then empties them.
   const wrongPinTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cancelWrongPin = () => {if (wrongPinTimer.current) {clearTimeout(wrongPinTimer.current); wrongPinTimer.current = undefined;}};
@@ -170,9 +167,11 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
   // R-16: a stale context or a missing controller says "this changed" (with Refresh), never nothing.
   const staleProfiles = () => Object.assign(new Error('native_profiles_changed'), {code: 'stale'});
   const choose = async (id: string, code?: string) => {if (busy) return;
-    if (!context.current() || !selection.current) {setError(staleProfiles()); return;}
+    const session = context.session();
+    if (!context.current() || !session) {setError(staleProfiles()); return;}
     setBusy(true); setError(undefined);
-    try {await selection.current.select(id, code);} catch (failure) {if (alive.current) {
+    // The session lifecycle makes the switch: a profile with a PIN always asks for it.
+    try {await switchNativeProfile(session.sessionFamilyId, id, code);} catch (failure) {if (alive.current) {
       if (theme.isTV && code !== undefined) {cancelWrongPin(); wrongPinTimer.current = setTimeout(() => {wrongPinTimer.current = undefined; if (alive.current) setPin('');}, 400);} else setPin('');
       setError(failure);
     }} finally {if (alive.current) setBusy(false);}

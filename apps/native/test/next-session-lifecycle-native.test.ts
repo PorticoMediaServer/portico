@@ -34,6 +34,8 @@ type Options = {
   entries?: AppServerSession[]; selected?: string; displays?: boolean; prepare?: () => Promise<boolean>; hint?: object | undefined;
   restore?: (signal: AbortSignal) => Promise<unknown>; account?: unknown; accountError?: unknown; remember?: boolean; mismatch?: boolean;
   assertCurrent?: () => Promise<void>; marker?: AppServerSession['remembered'];
+  /** Ending the replaced family never settles (R-12: it must not hold up the pick). */
+  revokeNever?: boolean;
 };
 
 async function fixture(options: Options = {}) {
@@ -114,7 +116,7 @@ async function fixture(options: Options = {}) {
       return {session: issuedSession(profileId), ...(options.remember ? {remembered: {expiresAt: FUTURE}} : {})};
     }) as any,
     logoutIssued: async (_api, issued) => {issuedLogouts.push(issued.accessToken);},
-    revokeInBackground: ((record: unknown, live: unknown) => {revokes.push({record, live}); return Promise.resolve();}) as any,
+    revokeInBackground: ((record: unknown, live: unknown) => {revokes.push({record, live}); return options.revokeNever ? new Promise(() => {}) : Promise.resolve();}) as any,
     drainRevocations: (async (serverId: string) => {drains.push(serverId); return 0;}) as any,
     removeDownloads: async captured => {downloads.push(captured.connection.pin.serverId);},
     accounts: {
@@ -239,6 +241,16 @@ test('select without remembered: no marker, replaced family ended, nothing remem
   assert.equal(fx.issuedLogouts.length, 0);
   // The connection the shell held was for the replaced family.
   assert.equal(fx.ports.connection('a'), undefined);
+});
+
+test('a published pick resolves even when ending the replaced family never finishes (R-12)', async () => {
+  const fx = await fixture({revokeNever: true});
+  await fx.ports.connect('a', new AbortController().signal);
+  const result = await Promise.race([fx.ports.select({serverId: 'a', profileId: 'p2', remember: false}, new AbortController().signal).then(() => 'resolved', () => 'rejected'),
+    new Promise(resolve => setTimeout(() => resolve('blocked'), 300))]);
+  assert.equal(result, 'resolved');
+  assert.equal(fx.revokes.length, 1, 'the replaced family goes through the durable revocation queue');
+  assert.equal(fx.issuedLogouts.length, 0, 'no direct logout on the path to Home');
 });
 
 test('select with remembered: the marker is written for the new family, with the server\'s expiry', async () => {

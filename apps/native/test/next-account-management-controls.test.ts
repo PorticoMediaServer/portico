@@ -37,7 +37,7 @@ async function fixture() {
     '../../platform/accounts': {nativeAccounts: {snapshot: async () => ({selectedServerId: 'server', servers: []}),
       porticoTVConsent: async () => ({review: async (code: string) => {calls.push(['review', code]); return {deviceName: 'TV', platform: 'TV', appVersion: '1', userCode: code};}, dispose() {}})}},
     '../../platform/app-session-storage': {nativeAppSessions: {}, subscribeNativeAppSessions: () => () => {}},
-    '../../platform/profile-selection': {nativeProfileSelection: () => ({dispose() {}})},
+    '../../platform/native-session-lifecycle': {switchNativeProfile: async () => {}},
     '../../platform/profile-recovery': {NativeProfileRecovery: class {}, temporaryRecoveryApi: () => ({})},
     '../../platform/account-authority': {hostedUrl: 'https://accounts.example.invalid'},
     '../../platform/profile-avatars': {profileAvatarUpload: () => ({}), profilePictureSource: () => undefined, profilePicturePickerAvailable: () => false},

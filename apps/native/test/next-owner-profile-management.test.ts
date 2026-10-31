@@ -60,7 +60,7 @@ async function fixture(main = true, pinRequired = false) {
     }},
     '../../../../../packages/client-core/src': {HttpHostedApi: class {constructor() {throw new Error('Unexpected Hosted contact');}}},
     '../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
-    '../../platform/accounts': {}, '../../platform/app-session-storage': {}, '../../platform/profile-selection': {}, '../../platform/profile-recovery': {}, '../../platform/account-authority': {},
+    '../../platform/accounts': {}, '../../platform/app-session-storage': {}, '../../platform/native-session-lifecycle': {}, '../../platform/profile-recovery': {}, '../../platform/account-authority': {},
     '../../platform/profile-avatars': {profileAvatarUpload: () => ({}), profilePictureSource: () => undefined, profilePicturePickerAvailable: () => false}, '../../platform/server-connections': {},
     '../settings-live/ProfileEditorFields': await profileEditorFields(react, {colors, type, isTV: false}),
     '../settings-live/lifetime': {NativeScreenLifetime: class {current = () => true; dispose() {}}},
