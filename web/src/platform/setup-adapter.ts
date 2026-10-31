@@ -39,7 +39,7 @@ export type WebSetupAdapterDeps = Readonly<{
   crypto?: RouteCrypto;
   newRequestId?: () => string;
 }>;
-export type WebSetupAdapter = Readonly<{ports: SetupPorts; libraryFolders: LibraryContentApi; dispose: () => void}>;
+export type WebSetupAdapter = Readonly<{ports: SetupPorts; libraryFolders: LibraryContentApi; serverName: () => string | undefined; dispose: () => void}>;
 
 type Paired = SetupPairing & {revision: number; installationId: string};
 type Own = {requestId: string; revision: string};
@@ -343,7 +343,7 @@ export function createWebSetupAdapter(deps: WebSetupAdapterDeps): WebSetupAdapte
     return result;
   }};
 
-  return Object.freeze({ports: Object.freeze(ports), libraryFolders, dispose: () => {
+  return Object.freeze({ports: Object.freeze(ports), libraryFolders, serverName: () => paired?.server.name, dispose: () => {
     if (life.signal.aborted) return;
     life.abort();
     const p = paired;
