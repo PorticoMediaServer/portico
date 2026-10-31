@@ -134,8 +134,8 @@ func (s *Service) CaptureOwnerClaimTx(ctx context.Context, tx *sql.Tx, expected 
 	if _, err = tx.ExecContext(ctx, `INSERT INTO hosted_identity_challenges(challenge_hash,installation_id,expires_ms) VALUES(?,?,?)`, Digest(start.ServerChallenge), start.InstallationID, start.ExpiresAt.UnixMilli()); err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO identity_owner_completions(operation_id,move_id,family_id,token_hash,token_generation,owner_id,owner_profile_id,owner_epoch,phase,claim_hash,claim_payload,claim_signature,start_payload,start_signature,state_hash,code_challenge,installation_id,server_challenge_hash,created_ms,expires_ms,move_revision)
- VALUES(?,?,?,?,?,?,?,?,'prepared',?,?,?,?,?,?,?,?,?,?,?,?)`, claim.OperationID, move, family.ID, expected.Hash, family.TokenGeneration, expected.AccountID, expected.ProfileID, expected.Epoch, start.ClaimHash, claimRaw, claimSignature, startRaw, startSignature, Digest(start.State), start.CodeChallenge, start.InstallationID, Digest(start.ServerChallenge), now.UnixMilli(), start.ExpiresAt.UnixMilli(), revision)
+	_, err = tx.ExecContext(ctx, `INSERT INTO identity_owner_completions(operation_id,move_id,family_id,token_generation,owner_id,owner_profile_id,owner_epoch,phase,claim_hash,claim_payload,claim_signature,start_payload,start_signature,state_hash,code_challenge,installation_id,server_challenge_hash,created_ms,expires_ms,move_revision)
+ VALUES(?,?,?,?,?,?,?,'prepared',?,?,?,?,?,?,?,?,?,?,?,?)`, claim.OperationID, move, family.ID, family.TokenGeneration, expected.AccountID, expected.ProfileID, expected.Epoch, start.ClaimHash, claimRaw, claimSignature, startRaw, startSignature, Digest(start.State), start.CodeChallenge, start.InstallationID, Digest(start.ServerChallenge), now.UnixMilli(), start.ExpiresAt.UnixMilli(), revision)
 	if err != nil {
 		return err
 	}
