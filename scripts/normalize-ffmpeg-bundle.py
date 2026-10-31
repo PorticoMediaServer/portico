@@ -18,7 +18,7 @@ shutil.copy2(disc_metadata[0],a.output/'portico-disc-build.json')
 disc_licenses=sorted(x for x in a.input.rglob('portico-disc-LICENSE') if x.is_file() and not x.is_symlink())
 if len(disc_licenses)!=1:p.error('expected one checked disc reader license')
 shutil.copy2(disc_licenses[0],a.output/'LICENSES/portico-disc.txt')
-for name in ['dependency-inputs.json', 'compiler.txt', 'compiler-linked-inputs.json', 'license-inventory.json', 'linux-build-inputs.json', 'repeat-build.json', 'libdovi-build.json', 'dovi-profile-build.json', 'dovi-video-build.json']:
+for name in ['dependency-inputs.json', 'compiler.txt', 'compiler-linked-inputs.json', 'license-inventory.json', 'linux-build-inputs.json', 'repeat-build.json', 'libdovi-build.json', 'dovi-profile-build.json', 'dovi-video-build.json'] + (['source-build-receipt.json'] if a.target.startswith('windows') else []):
  matches=sorted(x for x in a.input.rglob(name) if x.is_file() and not x.is_symlink())
  if a.target=='linux-x64' and len(matches)!=1 and not (a.working and name in ('repeat-build.json','dovi-profile-build.json','dovi-video-build.json')):p.error('expected one '+name+' provenance file')
  if len(matches)==1:shutil.copy2(matches[0],a.output/name)

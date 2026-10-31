@@ -58,8 +58,12 @@ class AssemblyTests(unittest.TestCase):
         recipe = self.root / 'recipe'
         recipe.mkdir()
         (recipe / 'build.sh').write_text('pinned recipe')
+        (recipe / 'Dockerfile').write_text('consumed graph')
         report = {'rawCompilation': True, 'qualified': False, 'target': 'windows-x64',
             'engineSourceSHA': '1' * 40, 'sourceAuthoritySHA256': '2' * 64,
+            'dockerfileSHA256': M['digest'](recipe / 'Dockerfile'),
+            'recipeTreeSHA256': M['inputs'].json_digest(M['inputs'].recipe_tree(recipe)),
+            'configureScripts': M['inputs'].configure_scripts(ROOT),
             'rawArchives': {raw.name: M['digest'](raw)}, 'recipeFiles': M['recipe_inventory'](recipe)}
         M['build_proof'](report, 'windows-x64', raw, recipe, '1' * 40, '2' * 64)
         (recipe / 'build.sh').write_text('changed source input')
@@ -67,6 +71,44 @@ class AssemblyTests(unittest.TestCase):
             M['build_proof'](report, 'windows-x64', raw, recipe, '1' * 40, '2' * 64)
         with self.assertRaises(ValueError):
             M['build_proof'](report, 'windows-x64', raw, recipe, '3' * 40, '2' * 64)
+
+    def test_sealed_receipt_uses_the_exact_consumed_graph_and_matches_archive_inventory(self):
+        recipe = self.root / 'recipe'
+        (recipe / 'scripts.d').mkdir(parents=True)
+        (recipe / '.cache/downloads').mkdir(parents=True)
+        snapshot = '.cache/downloads/10-dep_' + 'a' * 64 + '.tar.xz'
+        (recipe / snapshot).write_bytes(b'source transport fixture')
+        (recipe / '.cache/downloads/10-dep.tar.xz').symlink_to(Path(snapshot).name)
+        (recipe / 'scripts.d/10-dep.sh').write_text('SCRIPT_REPO=transport-fixture\n')
+        for name in ('build.sh', 'makeimage.sh'):
+            (recipe / name).write_text('transport fixture')
+        dockerfile = recipe / 'Dockerfile'
+        original = 'FROM compiler AS base-layer\nRUN --mount=src=scripts.d/10-dep.sh,dst=/stage.sh --mount=src=' + snapshot + ',dst=/cache.tar.xz build\n'
+        dockerfile.write_text(original)
+        consumed_sha = M['digest'](dockerfile)
+        self.assertEqual(M['inputs'].consumed_dockerfile(recipe, consumed_sha), dockerfile)
+        dockerfile.write_text('regenerated graph is not the build input')
+        with self.assertRaisesRegex(ValueError, 'Dockerfile changed'):
+            M['inputs'].consumed_dockerfile(recipe, consumed_sha)
+        dockerfile.write_text(original)
+        report = {'target': 'windows-x64', 'engineSourceSHA': '1' * 40,
+            'dockerfileSHA256': consumed_sha, 'recipeTreeSHA256': M['inputs'].json_digest(M['inputs'].recipe_tree(recipe)),
+            'configureScripts': M['inputs'].configure_scripts(ROOT)}
+        archive_path = self.root / 'source.tar.xz'
+        with tarfile.open(archive_path, 'w:xz') as archive:
+            archive.add(recipe, arcname='recipe')
+            for name in ('provenance/contract/sources.lock.json', 'provenance/contract/build-source-authority.json',
+                         'provenance/scripts/build-ffmpeg.sh', 'provenance/portico-disc/LICENSE',
+                         'provenance/portico-disc/portico-disc.c', 'provenance/contract/patches/example.patch'):
+                data = b'transport fixture'
+                entry = tarfile.TarInfo(name)
+                entry.size = len(data)
+                archive.addfile(entry, io.BytesIO(data))
+            for name in report['configureScripts']:
+                archive.add(ROOT / 'scripts' / Path(name).name, arcname=name)
+        receipt = M['source_build_receipt'](report, archive_path)
+        self.assertEqual(receipt['dockerfileSHA256'], consumed_sha)
+        M['intake'].verify_source(archive_path, 'windows-x64', receipt)
 
     def test_corresponding_source_inventory_rejects_broken_or_external_links(self):
         recipe = self.root / 'recipe'
