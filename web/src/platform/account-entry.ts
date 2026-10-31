@@ -51,7 +51,7 @@ export type AccountEntryState = Readonly<{
  phase:'welcome'|'address'|'checking'|'password'|'portico'|'challenge'|'password-change'|'profiles'|'ready'|'joined'|'move-code'|'move-local'|'move-portico'|'two-step-setup'|'owner-reset-password';
  server?:ServerSignIn; origin?:string; pin?:ServerPin; snapshot?:DirectSnapshot;
  invitation?:PreviewInvitationResponse; joined?:Readonly<{origin:string;signIn:'local'|'portico'}>;
- movePreview?:MoveCodePreview; ownerReset?:OwnerResetDetails; setupCompleted?:true; memberMoveCompleted?:true; memberMovePending?:true;
+ movePreview?:MoveCodePreview; ownerReset?:OwnerResetDetails; setupCompleted?:true; /** A setup Return still deciding whether its owner opens straight away: no profile page yet. */ setupPending?:true; memberMoveCompleted?:true; memberMovePending?:true;
  busy?:boolean; error?:unknown; identityFailure?:Readonly<{serverName:string;failure:'local-changed'|'unconfirmed'}>;
 }>;
 type EntryPorts = Readonly<{
@@ -649,15 +649,15 @@ export class BrowserAccountEntry {
   if(selected?.signIn!=='portico'||!sameServerPin(selected.connection.pin,pin)||!saved||saved.sessionFamilyId!==result.session.sessionFamilyId||
     result.snapshot.serverId!==pin.serverId||result.snapshot.account.id!==saved.viewer.accountId||(['serverId','authority','accountId','profileId','role'] as const).some(key=>saved.viewer[key]!==result.session.viewer[key])){await this.discardReturn(api,result.session);throw new CodedError('cancelled','The server selection changed.');}
   this.api=api;this.session=result.session;
-  await this.restoreProfiles({pin,session:result.session,memberMove});
+  await this.restoreProfiles({pin,session:result.session,memberMove,initialSetup});
   // The fresh setup writer may issue its single, unprotected main-profile
   // owner directly. Do not choose a profile or promote an account-only grant.
   const state=this.state;
   if(initialSetup&&!this.disposed&&state.phase==='profiles'&&!state.busy&&!state.error&&this.session?.sessionFamilyId===result.session.sessionFamilyId&&
     this.session.viewer.role==='owner'&&!result.accountScoped&&state.snapshot?.profiles.length===1&&!state.snapshot.profiles[0]!.pinRequired&&
     state.snapshot.profiles[0]!.id===this.session.viewer.profileId&&!state.snapshot.twoStepSetupRequired){
-   this.publish({...state,phase:'ready',setupCompleted:true});
-  }
+   this.publish({...state,phase:'ready',setupCompleted:true,setupPending:undefined});
+  }else if(initialSetup&&!this.disposed&&this.state.setupPending)this.publish({...this.state,setupPending:undefined});
  }
  private async registeredCompletion(completion:RegisteredCompletion,controller:RegisteredController,op:ReturnType<BrowserAccountEntry['operation']>){
   const {api,result}=completion;
@@ -766,7 +766,7 @@ export class BrowserAccountEntry {
  serverIdentityFailure(chooseServer:()=>void):AccountIdentityFailureBinding|undefined{
   return this.identityFailure?.isCurrent()?this.identityFailure.binding(chooseServer):undefined;
  }
- private async restoreProfiles(expected?:Readonly<{pin:ServerPin;session:LocalSession;signIn?:SignInKind;memberMove?:boolean}>){
+ private async restoreProfiles(expected?:Readonly<{pin:ServerPin;session:LocalSession;signIn?:SignInKind;memberMove?:boolean;initialSetup?:boolean}>){
   this.cancel();const op=this.operation();this.publish({phase:'profiles',busy:true});
   let saved:AppServerSession|undefined,revision=0;
   try{
@@ -785,7 +785,7 @@ export class BrowserAccountEntry {
    if(!op.current())return;if(server.id!==entry.connection.pin.serverId||server.signIn!==entry.signIn)throw new Error('The server sign-in changed.');
    if(expected&&!matches(await this.ports.store.selected()))throw new CodedError('cancelled','The server selection changed.');
    if(!op.current())return;
-   this.publish({phase:snapshot.twoStepSetupRequired?'two-step-setup':'profiles',server,origin:restored.api.baseUrl,pin:entry.connection.pin,snapshot,busy:false,...(expected?.memberMove?{memberMoveCompleted:true as const}:{})});
+   this.publish({phase:snapshot.twoStepSetupRequired?'two-step-setup':'profiles',server,origin:restored.api.baseUrl,pin:entry.connection.pin,snapshot,busy:false,...(expected?.memberMove?{memberMoveCompleted:true as const}:{}),...(expected?.initialSetup?{setupPending:true as const}:{})});
    this.watchAuthority();
   }catch(error){if(op.current()){
    this.release();

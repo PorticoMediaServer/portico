@@ -157,8 +157,13 @@ test('two protected continuation kinds refuse without URL selection or consuming
 
 test('only protected setup with the real admitted sole owner can resume the first-library screen',async()=>{
  for(const kind of ['setup','owner'] as const){
-  const f=await fixture(kind,true);await f.entry.finishPorticoReturn(callback);
+  const f=await fixture(kind,true),seen:ReturnType<typeof f.entry.getSnapshot>[]=[];
+  const off=f.entry.subscribe(()=>{seen.push(f.entry.getSnapshot());});
+  await f.entry.finishPorticoReturn(callback);off();
   const state=f.entry.getSnapshot();
+  // A setup Return never shows a settled profile choice before admission decides: the page would leave for /profiles.
+  if(kind==='setup')assert.ok(!seen.some(value=>value.phase==='profiles'&&!value.busy&&!value.setupPending),'no settled profiles state during a setup Return');
+  assert.equal(state.setupPending,undefined);
   assert.equal((await f.store.selected())?.connection.session.viewer.role,'owner');
   assert.equal(state.phase,kind==='setup'?'ready':'profiles');
   assert.equal(state.setupCompleted,kind==='setup'?true:undefined);
