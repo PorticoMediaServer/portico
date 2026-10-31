@@ -13,6 +13,7 @@ export type SetupApprovalSnapshot = Readonly<{
   busy: boolean; approved?: true; /** Hosted reports the claim installed: only then is Return offered. */ installed?: true; display?: SetupApprovalDisplay; error?: unknown;
   /** Hosted says it is still finishing well after Approve: the page says so, with what to check. */ slow?: true;
   /** Seconds until a refused (429) lookup may be tried again; Try again is held until then. */ retryIn?: number;
+  /** Approved, and the request window has passed: Return goes to the server, which renews the setup's admission. */ lapsed?: true;
 }>;
 const changed = () => new ApiError(409, 'claim_stale', 'claim_stale', false);
 const KNOWN_PHASES = new Set(['review', 'approved', 'finishing', 'installed']);
@@ -44,6 +45,7 @@ export class SetupApprovalFlow {
   private holding?: AbortController;
   private slowCheck?: AbortController;
   private slowChecks = 0;
+  private lapsed = false;
   constructor(private readonly account: ServicesAccount, private readonly controller: Controller,
     private readonly navigate: (location: string) => void, private readonly now = Date.now, private readonly scheduler: Scheduler = systemScheduler) {}
   readonly getSnapshot = () => this.state;
@@ -189,6 +191,7 @@ export class SetupApprovalFlow {
     }
   }
   async complete() {
+    if (this.lapsed) return this.returnLapsed();
     if (!this.state.approved || !['approved', 'finishing', 'error'].includes(this.state.phase) || !this.review) return;
     return this.run(async (generation, identity) => {
       const done = await this.controller.complete();
@@ -214,9 +217,25 @@ export class SetupApprovalFlow {
       this.navigate(location);
     });
   }
+  /** Past the window an approved request is still this person's: Return takes them to the server's own address,
+   * where setup renews its admission. The expired code is never used again. */
+  private returnLapsed() {
+    const review = this.review, identity = this.identity;
+    if (this.disposed || this.state.busy || this.state.phase === 'returning' || !review || !identity) return;
+    const session = this.account.service.getSnapshot().session;
+    if (!session || !sameAccount(accountIdentity(session), identity)) {this.publish({...this.state, phase: 'error', busy: false, error: changed()}); return;}
+    this.publish({...this.state, phase: 'returning', busy: false});
+    this.navigate(review.address);
+  }
   expire() {
     if (this.disposed) return;
     this.stopTimers();
+    // Only an unanswered request ends. Once approved the page keeps Connected and Return.
+    if (this.state.approved && this.state.phase !== 'returning' && this.review && this.identity) {
+      this.lapsed = true; ++this.epoch; this.controller.dispose();
+      this.publish({phase: 'approved', busy: false, approved: true, lapsed: true, display: this.state.display});
+      return;
+    }
     ++this.epoch; this.review = undefined; this.controller.dispose();
     this.publish({phase: 'expired', busy: false});
   }
