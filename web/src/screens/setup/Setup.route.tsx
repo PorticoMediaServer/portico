@@ -1,16 +1,19 @@
 import {useLayoutEffect, useRef, useState} from 'react';
 import {useLocation} from '@tanstack/react-router';
+import {createSetupController, type SetupController} from '@core/setup-controller.ts';
+import {installationIdentity} from '@core/installation.ts';
+import {rememberNativeSession} from '@core/server-connections.ts';
 import {defineWebScreen} from '../../route-registry';
 import {router} from '../../router';
 import {browserAccountOrigin} from '../../platform/account-origin';
-import {browserSetupDraft} from '../../platform/setup-claim';
-import {BrowserSetupComposition} from '../../platform/setup-composition';
-import {createBrowserSetupPorts} from './browser-setup';
+import {createWebSetupAdapter, type WebSetupAdapter} from '../../platform/setup-adapter';
+import {browserSetupStore} from '../../platform/setup-store';
+import {browserAppSessions, browserConnectionEnvironment, restoreBrowserConnection} from '../../platform/server-connections';
+import {browserSetupPairing} from './browser-setup';
 import {SetupScreen} from './SetupScreen';
-import type {SetupPorts} from './setup-flow';
 
 type SetupOpening = typeof router.state.location;
-type SetupLease = Readonly<{opening: SetupOpening; ports: SetupPorts; key: number; current: () => boolean}>;
+type SetupLease = Readonly<{opening: SetupOpening; adapter: WebSetupAdapter; controller: SetupController; key: number; current: () => boolean}>;
 
 function SetupRoute() {
   const opening = useLocation({select: value => value});
@@ -20,20 +23,20 @@ function SetupRoute() {
     const current = () => live && opening.pathname === '/setup' && router.state.location === opening;
     if (!current()) return;
     const origin = location.origin;
-    const lifetime = new BrowserSetupComposition(browserAccountOrigin(import.meta.env, location), undefined, undefined, current);
-    const base = createBrowserSetupPorts({origin: () => origin, draft: browserSetupDraft, acceptLocal: lifetime.acceptLocal,
-      continueHosted: lifetime.continueHosted, resumeHosted: lifetime.resumeHosted, discardStaleDraft: lifetime.discardStaleDraft, addLibrary: lifetime.addLibrary, libraryFolders: lifetime.libraryFolders,
-      complete: () => {if (current()) void router.navigate({to: '/', replace: true});}});
-    const ports: SetupPorts = {...base, connect: async signal => {
-      if (!current()) throw new DOMException('Setup opening changed', 'AbortError');
-      const target = await lifetime.connect(base.connect, signal);
-      if (!current()) {target.dispose();throw new DOMException('Setup opening changed', 'AbortError');}
-      return target;
-    }};
-    publish({opening, ports, key: ++generation.current, current});
-    return () => {live = false;lifetime.dispose();};
+    const adapter = createWebSetupAdapter({hostedOrigin: browserAccountOrigin(import.meta.env, location), pageOrigin: () => location.origin,
+      pair: browserSetupPairing(() => origin), sessions: browserAppSessions, environment: browserConnectionEnvironment, restore: restoreBrowserConnection,
+      remember: rememberNativeSession, store: browserSetupStore, installationId: () => installationIdentity()?.installationId,
+      navigate: url => {if (current()) location.assign(url);}, current});
+    const controller = createSetupController(adapter.ports, {foreground: document.visibilityState === 'visible'});
+    const visibility = () => controller.setForeground(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', visibility);
+    // Setup done (library added or skipped): on to the shell.
+    const stop = controller.subscribe(() => {if (controller.getSnapshot().kind === 'done' && current()) void router.navigate({to: '/', replace: true});});
+    publish({opening, adapter, controller, key: ++generation.current, current});
+    controller.start();
+    return () => {live = false; stop(); document.removeEventListener('visibilitychange', visibility); controller.dispose(); adapter.dispose();};
   }, [opening]);
   const owned = published?.opening === opening && published.current() ? published : undefined;
-  return owned ? <SetupScreen key={owned.key} ports={owned.ports} /> : null;
+  return owned ? <SetupScreen key={owned.key} controller={owned.controller} serverName={owned.adapter.serverName} libraryFolders={owned.adapter.libraryFolders}/> : null;
 }
 export default defineWebScreen({id: 'setup', component: SetupRoute, chrome: 'standalone'});

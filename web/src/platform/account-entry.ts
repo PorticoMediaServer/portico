@@ -24,7 +24,7 @@ import {BrowserProfileRecovery} from './profile-recovery';
 import {createBrowserRegisteredSignIn, type BrowserRegisteredSignIn} from './registered-sign-in';
 import {dispatchPorticoReturn, type CapturedPorticoReturn} from './portico-return-dispatch';
 import {createBrowserOwnerClaim, type BrowserOwnerClaim} from './owner-claim';
-import {createBrowserSetupClaim, type BrowserSetupClaim} from './setup-claim';
+import {createBrowserSetupReturn, type BrowserSetupReturn} from './setup-return';
 import {buildHostedSignInStartURL} from '@core/hosted-sign-in-start.ts';
 import type {AccountServerAccess} from './account-server-access';
 import {CapturedAccountIdentityFailure, type AccountIdentityFailureBinding} from './account-identity-failure';
@@ -33,7 +33,7 @@ type InvitationCapability=Readonly<{code:string}|{shortCode:string}>;
 type RegisteredController=Pick<BrowserRegisteredSignIn,'prepare'|'finish'|'completeChallenge'|'cancel'>;
 type RegisteredCompletion=Awaited<ReturnType<RegisteredController['finish']>>;
 type OwnerReturnController=Pick<BrowserOwnerClaim,'pendingReturn'|'finish'|'cancel'>;
-type SetupReturnController=Pick<BrowserSetupClaim,'pendingReturn'|'finish'|'cancel'>;
+type SetupReturnController=Pick<BrowserSetupReturn,'pendingReturn'|'finish'|'cancel'>;
 type ContinuationReturnController=OwnerReturnController|SetupReturnController;
 type AdmittedCompletion=Readonly<{api:HttpLocalApi;result:Extract<DirectSignIn,{kind:'signed-in'}>}>;
 export type OwnerResetDetails=Readonly<{username:string;twoStepEnabled:boolean}>;
@@ -844,4 +844,4 @@ export class BrowserAccountEntry {
 
  dispose(){this.cancel();this.disposed=true;this.probe.dispose();this.listeners.clear();this.retiredListeners.clear();}
 }
-export function createBrowserAccountEntry(options:Pick<EntryPorts,'invitationDestination'>={}){return new BrowserAccountEntry({store:browserAppSessions(),actions:browserAppSessionActions(),environment:browserConnectionEnvironment,restore:restoreBrowserConnection,inspect:inspectDirectServer,connect:connectPairedServer,remember:rememberNativeSession,observeSelection:observeBrowserSessionChanges,registered:()=>createBrowserRegisteredSignIn(buildHostedSignInStartURL),ownerReturn:createBrowserOwnerClaim,setupReturn:createBrowserSetupClaim,setupRequired:(origin)=>location.assign(new URL('/setup',origin).href),rememberName:(api,name)=>browserServerDisplay().remember(api,name),serverName:id=>browserServerDisplay().name(id),...options});}
+export function createBrowserAccountEntry(options:Pick<EntryPorts,'invitationDestination'>={}){return new BrowserAccountEntry({store:browserAppSessions(),actions:browserAppSessionActions(),environment:browserConnectionEnvironment,restore:restoreBrowserConnection,inspect:inspectDirectServer,connect:connectPairedServer,remember:rememberNativeSession,observeSelection:observeBrowserSessionChanges,registered:()=>createBrowserRegisteredSignIn(buildHostedSignInStartURL),ownerReturn:createBrowserOwnerClaim,setupReturn:createBrowserSetupReturn,setupRequired:(origin)=>location.assign(new URL('/setup',origin).href),rememberName:(api,name)=>browserServerDisplay().remember(api,name),serverName:id=>browserServerDisplay().name(id),...options});}
