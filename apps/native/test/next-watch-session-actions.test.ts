@@ -9,6 +9,7 @@ import {durationText} from '../../../packages/client-core/src/presentation/kit-m
 import {NativeSubtitleStyleChoices, nativeSubtitleStyleKeys, nativeSubtitleStyleValue} from '../src-next/platform/playback/subtitle-style-choices.ts';
 import {NativeTitleStarts} from '../src-next/screens/watch/title-starts.ts';
 import {NativeVersionChooserController} from '../src-next/screens/watch/version-destination.ts';
+import * as cleanup from '../../../packages/client-core/src/cleanup.ts';
 
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
 const fence = playbackFence({kind: 'queue', playback: {scope: {...authority, controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1},
@@ -56,7 +57,7 @@ async function fixture() {
         if (accepted) source = {...source, subtitleStyle: styleChoices.read(source.fence, defaults)};
         return accepted;
       }}};
-  const {createNativeWatchScreens} = await screenModule(new URL('../src-next/screens/watch/factory.tsx', import.meta.url), {'../share/share-actions': {shareLinkActions: () => []}, 
+  const {createNativeWatchScreens} = await screenModule(new URL('../src-next/screens/watch/factory.tsx', import.meta.url), {'../share/share-actions': {shareLinkActions: () => []}, '../../../../../packages/client-core/src/cleanup': cleanup, 
     react, '../../../../../packages/client-core/src/detail': {DetailService: class {
       async select() {} getSnapshot() {return {data: {item: source.entry, actions: [{id: 'play', enabled: true, playback: source.entry.playback}]}};}
       subscribe() {return () => {};} dispose() {}

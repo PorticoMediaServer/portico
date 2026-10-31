@@ -1,6 +1,7 @@
 import {linkAbortSignals, throwIfAborted} from './abort-lifetime.ts';
 import {resendableRefusal, retryWriterCapacity} from './writer-capacity.ts';
 export {linkAbortSignals, throwIfAborted} from './abort-lifetime.ts';
+export {releaseAll, releaseQuietly, releaseQuietlyAsync, releaseThenRethrow, setCleanupLog} from './cleanup.ts';
 export * from './read-preparation.ts';
 export * from './server-links.ts';
 export * from './file-info-windows.ts';

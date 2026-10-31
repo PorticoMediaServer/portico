@@ -1,4 +1,5 @@
 import {createDecoder, type PacketDecoder, type Planar} from './decoder';
+import {releaseQuietly} from '@core/cleanup.ts';
 import {openDemuxer} from './demux';
 import {JsFlacDecoder} from './flac-decoder';
 import {DemuxError, u16le, type ByteReader, type Demuxer, type Packet, type SeekResult, type TrackConfig} from './types';
@@ -114,7 +115,7 @@ export class TrackStream {
       ({packets, rawStart} = demuxer.config.family === 'vorbis'
         ? {packets: demuxer.packets(signal), rawStart: 0}
         : await startAt(demuxer, target - choice.skip, PREROLL[demuxer.config.family] ?? 0, signal, index, PREROLL_BYTES[demuxer.config.family] ?? 0));
-    } catch (e) { choice.decoder.close(); throw e; }
+    } catch (e) { releaseQuietly('audio decoder close', () => choice.decoder.close()); throw e; }
     return new TrackStream({plan, choice, packets, rawStart, fromFrame: Math.max(0, fromFrame), pad: o.pad !== false});
   }
 

@@ -1,4 +1,5 @@
 import {Reader, ZipReader, type Entry, type FileEntry} from '@zip.js/zip.js';
+import {releaseQuietly} from '@portico/client-core';
 import type {ReaderSource} from '../ports.ts';
 import {readRange} from '../source.ts';
 import {ReaderError, throwIfAborted} from '../errors.ts';
@@ -42,7 +43,7 @@ async function checkDirectory(source: ReaderSource, signal: AbortSignal) {
 }
 export async function openEpubArchive(source: ReaderSource, parent: AbortSignal): Promise<EpubAssets> {
   const abort = new AbortController(), scope=abortScope([parent, abort.signal]), signal=scope.signal;
-  try{await checkDirectory(source, signal);}catch(error){scope.dispose();throw error;}
+  try{await checkDirectory(source, signal);}catch(error){releaseQuietly('epub archive scope dispose',()=>scope.dispose());throw error;}
   const reader=new RangeReader(source,signal);
   const zip = new ZipReader(reader, {useWebWorkers: false, checkCrc32: true, strictness: 'strict'});
   const entries = new Map<string, FileEntry>(); let total = 0;

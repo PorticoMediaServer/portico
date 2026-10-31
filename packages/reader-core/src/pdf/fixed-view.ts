@@ -1,4 +1,5 @@
 import {throwSignalAborted as throwIfAborted} from '../abort.ts';
+import {releaseQuietlyAsync} from '@portico/client-core';
 import {abortScope,abortReason} from '../abort.ts';
 import type {ReaderDocument,ReaderFixedViewport,ReaderLocation,ReaderView} from '../ports.ts';
 import {planFixedLayout, fixedVisualPanes, validReaderCrease} from '../layout.ts';
@@ -377,5 +378,5 @@ export async function mountFixed<P extends FixedPreferences>(format:'pdf'|'cbz'|
   host.addEventListener('keydown',onKey,{signal});host.addEventListener('focusin',()=>options.onSurfaceInput?.({kind:'activity'}),{signal});
   host.addEventListener('scroll',onScroll,{passive:true,signal});
   signal.addEventListener('abort',()=>{void view.dispose();},{once:true});
-  try{await render(0,signal);throwIfAborted(signal);options.container.append(host);return view;}catch(error){await view.dispose();throw error;}
+  try{await render(0,signal);throwIfAborted(signal);options.container.append(host);return view;}catch(error){await releaseQuietlyAsync('pdf view dispose',()=>view.dispose());throw error;}
 }

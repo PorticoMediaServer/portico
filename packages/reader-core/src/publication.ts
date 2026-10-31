@@ -1,4 +1,5 @@
 import type {ReadingSession,ReadingLocation,ReadingProgress} from '@portico/client-core';
+import {releaseQuietly} from '@portico/client-core';
 import type {ReaderSource,ReaderFormat,ReaderMetadata,ReaderLocation,ReaderRange,ReaderContentsTarget} from './ports.ts';
 import type {ComicPageProvider} from './comic/archive.ts';
 import {rasterInfo} from './comic/image.ts';
@@ -59,9 +60,9 @@ export async function createReadingPublication(session:ReaderSessionInput,caller
       throwIfAborted(task.signal);if(typeof session.openSequential!=='function')throw new ReaderError('invalid_source');
       stream=await session.openSequential(task.signal);
       try{throwIfAborted(task.signal);current();}catch(error){await stream.cancel(error).catch(()=>{});throw error;}
-    }catch(error){task.dispose();throw error;}
+    }catch(error){releaseQuietly('publication task dispose',()=>task.dispose());throw error;}
     let reader:ReturnType<typeof stream.getReader>;
-    try{reader=stream.getReader();}catch(error){task.dispose();throw error;}
+    try{reader=stream.getReader();}catch(error){releaseQuietly('publication task dispose',()=>task.dispose());throw error;}
     let controller:ReadableStreamDefaultController<Uint8Array>,ended=false,total=0;
     const unlock=()=>{try{reader.releaseLock();}catch{/* pending read releases after cancellation */}};
     const finish=(error?:unknown,cancel=false)=>{
