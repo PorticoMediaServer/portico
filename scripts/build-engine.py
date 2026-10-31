@@ -166,6 +166,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('target', choices=['windows-x64'])
     p.add_argument('--state', type=Path, required=True, help='fresh owned on-disk state directory')
+    p.add_argument('--rebuild-ffmpeg', action='store_true',
+                   help='force a fresh final engine compile, retaining dependency caches')
     a = p.parse_args()
     # Re-exec the entire lifetime under the machine's existing lock. No queue.
     if os.environ.get('PORTICO_ENGINE_LOCKED') != '1':
@@ -186,6 +188,7 @@ def main():
     cache = state / 'cache'
     cache.mkdir(exist_ok=True)
     report = {'target': a.target, 'context': 'local', 'qualified': False, 'stages': {},
+              'forceFinalRebuild': a.rebuild_ffmpeg,
               'unexercised': ['bundle assembly', 'native runtime', 'ABI', 'repeat build', 'installer']}
     scratch = Path(tempfile.mkdtemp(prefix='scratch-', dir=state))
     def interrupted(signum, frame):
@@ -350,6 +353,8 @@ def main():
             args = common + ['--file', inputs.consumed_dockerfile(recipe, dockerfile_sha),
                              '--target', name, '--build-context', compiler + '=oci-layout://' + str(compiler_dir),
                              '--metadata-file', metadata]
+            if a.rebuild_ffmpeg and name == 'portico-ffmpeg':
+                args += ['--no-cache-filter', 'portico-ffmpeg']
             run('dependency-' + name, args + ['.'], recipe)
             inputs.consumed_dockerfile(recipe, dockerfile_sha)
             log = state / ('dependency-' + name + '.log')
