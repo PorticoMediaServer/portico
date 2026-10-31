@@ -1,5 +1,8 @@
 package wirejson
 
+// This file is public-only. object.go beside it is synced from Hosted
+// (server/internal/claimweb/source.json); edit it there.
+
 import (
 	"bytes"
 	"encoding/json"
