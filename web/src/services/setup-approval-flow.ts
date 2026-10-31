@@ -11,7 +11,7 @@ export type SetupApprovalDisplay = Readonly<{
 export type SetupApprovalSnapshot = Readonly<{
   phase: 'loading' | 'review' | 'approved' | 'finishing' | 'denied' | 'returning' | 'error' | 'expired';
   busy: boolean; approved?: true; /** Hosted reports the claim installed: only then is Return offered. */ installed?: true; display?: SetupApprovalDisplay; error?: unknown;
-  /** Hosted says it is still finishing well after Approve with no word from the server: the page says so, with what to check. */ slow?: true;
+  /** Hosted says it is still finishing well after Approve: the page says so, with what to check. */ slow?: true;
   /** Seconds until a refused (429) lookup may be tried again; Try again is held until then. */ retryIn?: number;
 }>;
 const changed = () => new ApiError(409, 'claim_stale', 'claim_stale', false);
@@ -20,12 +20,9 @@ const KNOWN_PHASES = new Set(['review', 'approved', 'finishing', 'installed']);
 function knownPhase(review: HostedSetupClaimReview) {
   if (review.phase && !KNOWN_PHASES.has(review.phase.variant)) throw changed();
 }
-/** Slow counts only while Hosted has heard nothing from the server since the approval. */
-function slowWording(phase: HostedSetupClaimPhase | undefined) {
-  if (!phase?.slow) return false;
-  const seen = Date.parse(phase.serverSeenAt ?? ''), approved = Date.parse(phase.approvedAt ?? '');
-  return !(seen >= approved);
-}
+/** Hosted's own reading: two minutes or more since the approval with no install. The page then says it is taking
+ * longer, whether or not the server has been in touch since (it may be trying and failing). */
+const slowWording = (phase: HostedSetupClaimPhase | undefined) => phase?.slow === true;
 const rateLimited = (error: unknown) => {
   const value = error as {status?: unknown; code?: unknown} | null;
   return value?.status === 429 || value?.code === 'rate_limited';
