@@ -1,0 +1,85 @@
+"""Bounded local recipe adapter, derived from reviewed 86a539f. No pin changes."""
+import re
+
+
+def selected_download(text):
+    marker = "bash -c 'set -xe && for STAGE in /stages/*.sh; do bash $STAGE; done'"
+    if text.count(marker) != 1:
+        raise ValueError('pinned source download invocation changed')
+    # The runner calls this once per selected source stage, preserving the
+    # upstream verified download/cache implementation and its failure status.
+    return text.replace(marker, "bash -c 'set -xe; for STAGE in \"$@\"; do bash \"/stages/$STAGE\"; done' -- \"$@\"")
+
+
+def libva_diagnostics(text):
+    marker = '    meson "${myconf[@]}" ..\n'
+    if text.count(marker) != 1:
+        raise ValueError('pinned libva Meson diagnostic boundary changed')
+    # The file lives inside a disposable compiler container, with no CI token
+    # in its environment. Preserve Meson's original failure and all checks.
+    return text.replace(marker, '''    if meson "${myconf[@]}" ..; then
+        :
+    else
+        local meson_status=$?
+        printf '%s\\n' 'BEGIN libva meson-log.txt (at most 1048576 bytes)'
+        if [[ -f meson-logs/meson-log.txt && ! -L meson-logs/meson-log.txt ]]; then
+            head -c 1048576 -- meson-logs/meson-log.txt || :
+        else
+            printf '%s\\n' 'Meson log unavailable or not a regular non-symlink file'
+        fi
+        printf '\\n%s\\n' 'END libva meson-log.txt'
+        return "$meson_status"
+    fi
+''')
+
+
+def prepare_recipe(recipe, owner):
+    # Task-local generated recipe only. Hard limits include dependency pools,
+    # not just FFmpeg's final make invocation. No personal Docker state touched.
+    for p in recipe.rglob('*'):
+        if '.git' in p.parts or not p.is_file() or p.suffix not in ('.sh', ''):
+            continue
+        try:
+            text = p.read_text()
+        except UnicodeError:
+            continue
+        text = text.replace('$(nproc)', '2').replace('$(getconf _NPROCESSORS_ONLN)', '2').replace('xz -T0', 'xz -T1')
+        text = re.sub(r'(?<![\w/"-])ninja(?=\s|$)', 'ninja -j2', text) if p.suffix == '.sh' else text
+        text = re.sub(r'-j\s*[0-9]+', '-j2', text)
+        if p.name == 'Dockerfile':
+            # Plain make includes libiconv's order-sensitive autogen cleanup
+            # and macro generation. Keep that serial; explicit compile -j2
+            # above still overrides this default within the same job ceiling.
+            # Host TMPDIR is not inherited by Docker build stages. Shaderc's
+            # checked staging recipe requires a writable container-local path.
+            # download.sh uses the runner UID, not root: use normal sticky
+            # temporary-directory permissions inside the disposable image.
+            text = re.sub(r'(?m)^(FROM .+)$', r'\1\nENV MAKEFLAGS=-j1 CARGO_BUILD_JOBS=2 CMAKE_BUILD_PARALLEL_LEVEL=2 RAYON_NUM_THREADS=2 TMPDIR=/var/tmp/portico-ci\nRUN mkdir -p "$TMPDIR" && chmod 1777 "$TMPDIR"', text)
+        if p.name == 'download.sh':
+            text = text.replace('docker run ', 'docker run --cpus 2 --memory 4g --memory-swap 4g ')
+            text = selected_download(text)
+        p.write_text(text)
+    for p in recipe.glob('images/*/ct-ng-config'):
+        text = p.read_text()
+        p.write_text(re.sub(r'(?m)^CT_PARALLEL_JOBS=.*$', 'CT_PARALLEL_JOBS=2', text))
+    p = recipe / 'util/vars.sh'
+    text = p.read_text()
+    marker = '${GITHUB_REPOSITORY:-btbn/ffmpeg-builds}'
+    if text.count(marker) != 1:
+        raise ValueError('pinned local repository hook changed')
+    p.write_text(text.replace(marker, '${PORTICO_ENGINE_REPOSITORY:?Explicit local engine namespace required}'))
+    p = recipe / 'makeimage.sh'
+    text = p.read_text()
+    if 'max-parallelism = 4' not in text or 'ffbuilder' not in text or '--driver-opt network=host' not in text:
+        raise ValueError('pinned builder resource hooks changed')
+    text = text.replace('max-parallelism = 4', 'max-parallelism = 1')
+    text = text.replace('ffbuilder', owner)
+    text = text.replace('--driver-opt network=host', '--driver-opt memory=4g --driver-opt cpu-quota=200000 --driver-opt cpu-period=100000')
+    p.write_text(text)
+    p = recipe / 'build.sh'
+    text = p.read_text()
+    if 'docker run --rm' not in text:
+        raise ValueError('pinned runtime resource hook changed')
+    p.write_text(text.replace('docker run --rm', 'docker run --cpus 2 --memory 4g --memory-swap 4g --rm'))
+    p = recipe / 'scripts.d/50-vaapi/50-libva.sh'
+    p.write_text(libva_diagnostics(p.read_text()))
