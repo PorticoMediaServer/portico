@@ -6,9 +6,12 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import subprocess
 import sys
 import tempfile
+import time
+from js_shards import digest, receipt_name, reconcile, validate_selection
 from plan import ROOT
 
 def policy(data, today=None):
@@ -100,7 +103,7 @@ def download():
 def ensure_ffmpeg(plan, index=0, component=None):
     import shutil
     if component:
-        files=next(x['files'] for x in plan['js'] if x['component']==component)
+        files=next(x['shards'][index] for x in plan['js'] if x['component']==component)
         needed=any(re.search(r'ffmpeg|ffprobe|go[\s\S]{0,80}test', (ROOT/f).read_text(),re.I) for f in files)
     else:
         packages={t['package'] for t in plan['shards'][index]}
@@ -131,35 +134,83 @@ def fixture_producers(files, directory):
             execute(['go','test','-count=1','-run','^'+test+'$','./internal/httpapi'],ROOT/'server')
             if not list(target.glob('*.json')): raise ValueError('producer did not record fixtures: '+test)
 
-def js(plan,component):
-    files=next(x for x in plan['js'] if x['component']==component)['files']
-    # Licence regeneration lists Go dependencies for every release architecture
-    # with GOPROXY=off. A host-only cache is insufficient for those imports.
-    if 'web/test/licences.test.ts' in files: download()
-    with tempfile.TemporaryDirectory(prefix='portico-ci-fixtures-') as directory:
-        saved = {k:os.environ.get(k) for k in ['PORTICO_READING_HOME_FIXTURE_DIR','PORTICO_CONCURRENCY_DIAGNOSTICS_FIXTURE_DIR','PORTICO_CONSOLE_REGISTRY_FIXTURE_DIR']}
-        try:
-            fixture_producers(next(x for x in plan['js'] if x['component']==component)['files'],directory)
-            js_tests(plan,component)
-        finally:
-            for k,v in saved.items():
-                if v is None: os.environ.pop(k,None)
-                else: os.environ[k]=v
+def js(plan,component,index=0):
+    validate_selection(plan['js'])
+    item=next(x for x in plan['js'] if x['component']==component)
+    # Validate the original nonempty authority before indexing the shard.
+    if not item['files']: raise ValueError('refusing empty node test list')
+    if index < 0 or index >= len(item['shards']): raise ValueError('invalid JS shard index')
+    files=item['shards'][index]
+    if command_head() != plan['head']: raise ValueError('JS checkout differs from selection head')
+    out=ROOT/'ci-results/js'; out.mkdir(parents=True,exist_ok=True)
+    record={'version':1,'head':plan['head'],'plan_sha256':digest(plan),'component':component,
+            'index':index,'assigned':files,'files':[],'returncode':1,'steps_seconds':{},
+            'node_version':subprocess.check_output(['node','--version'],text=True,timeout=10).strip()}
+    raw=[]
+    scratch=ROOT/'ci-results/tmp'; scratch.mkdir(parents=True,exist_ok=True)
+    saved = {k:os.environ.get(k) for k in ['PORTICO_READING_HOME_FIXTURE_DIR','PORTICO_CONCURRENCY_DIAGNOSTICS_FIXTURE_DIR','PORTICO_CONSOLE_REGISTRY_FIXTURE_DIR']}
+    try:
+        if 'web/test/licences.test.ts' in files: download()
+        before=time.monotonic(); execute(['npm','run','build'],ROOT/'packages/contracts')
+        record['steps_seconds']['contracts']=time.monotonic()-before
+        with tempfile.TemporaryDirectory(prefix='fixtures-',dir=scratch) as directory:
+            before=time.monotonic(); fixture_producers(files,directory)
+            record['steps_seconds']['producers']=time.monotonic()-before
+            code=0
+            for group in item['static_roots']:
+                own=[str(Path(file).relative_to(group)) for file in files if file.startswith(group+'/')]
+                if not own: continue
+                target=out/(component.replace('/','-')+'-'+str(index)+'-'+group.replace('/','-')+'.jsonl')
+                raw.append(target)
+                args=['node','--experimental-transform-types']
+                if group=='apps/native': args+=['--experimental-vm-modules']
+                if (ROOT/group/'test/register.mjs').exists(): args+=['--import','./test/register.mjs']
+                args+=['--test-timeout=120000','--test-concurrency=4','--test',
+                       '--test-reporter=spec','--test-reporter-destination=stdout',
+                       '--test-reporter='+str(ROOT/'ci/js-reporter.mjs'),
+                       '--test-reporter-destination='+str(target),*own]
+                env=dict(os.environ,PORTICO_CI_ROOT=str(ROOT))
+                result=node_process(args,ROOT/group,env)
+                code=code or result
+            record['returncode']=code
+    finally:
+        for k,v in saved.items():
+            if v is None: os.environ.pop(k,None)
+            else: os.environ[k]=v
+        for target in raw:
+            if target.exists():
+                try: record['files'].extend(json.loads(line) for line in target.read_text().splitlines())
+                except ValueError: record['returncode']=1
+        target=out/receipt_name(component,index)
+        temporary=target.with_suffix('.tmp'); temporary.write_text(json.dumps(record,indent=2)+'\n'); temporary.replace(target)
+    # Reconcile this shard now as well as the full union in ci/required.
+    terminals=record['files']
+    if record['returncode'] or sorted(r['file'] for r in terminals)!=sorted(files) or any(r['status']!='pass' for r in terminals):
+        raise ValueError('JS shard failed or did not report every assigned file: '+component+'/'+str(index))
 
-def js_tests(plan,component):
+
+def node_process(args,cwd,env,timeout=900):
+    # Kill the test process group on a harness timeout too, so descendants do
+    # not outlive local measurements or a failed hosted job.
+    process=subprocess.Popen(args,cwd=cwd,env=env,start_new_session=True)
+    try:
+        return process.wait(timeout=timeout)
+    finally:
+        if process.poll() is None:
+            os.killpg(process.pid,signal.SIGKILL)
+            process.wait()
+
+
+def command_head():
+    return subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True,timeout=10).strip()
+
+
+def js_static(plan,component):
+    validate_selection(plan['js'])
     item=next(x for x in plan['js'] if x['component']==component)
     if component=='website': execute(['npm','run','check'],ROOT/component); return
-    if not item['files']: raise ValueError('refusing empty node test list')
     execute(['npm','run','build'],ROOT/'packages/contracts')
-    roots={}
-    for file in item['files']:
-        parts=Path(file).parts; group='/'.join(parts[:2]) if parts[0] in ['apps','packages'] else parts[0]
-        roots.setdefault(group,[]).append(str(Path(file).relative_to(group)))
-    for group,files in roots.items():
-        args=['node','--experimental-transform-types']
-        if group=='apps/native': args+=['--experimental-vm-modules']
-        if (ROOT/group/'test/register.mjs').exists(): args+=['--import','./test/register.mjs']
-        execute(args+['--test-timeout=120000','--test-concurrency=4','--test',*files],ROOT/group)
+    for group in item['static_roots']:
         pkg=json.loads((ROOT/group/'package.json').read_text()); scripts=pkg.get('scripts',{})
         if (ROOT/group/'tsconfig.json').exists(): execute(['npx','--no-install','tsc','--noEmit'],ROOT/group)
         for name in ['lint:boundary','lint:hooks','lint:strings','lint:design','lint:routes','tokens']:
@@ -167,10 +218,11 @@ def js_tests(plan,component):
     if component=='apps/desktop': execute(['npm','run','test:rust'],ROOT/component)
 
 def aggregate(plan,needs):
-    expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_tests':bool(plan['packages']),'js':bool(plan['js']), 'android':plan.get('android',False)}
+    expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_tests':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False)}
     for job,required in expected.items():
         actual=needs.get(job,{}).get('result')
         if actual != ('success' if required else 'skipped'): raise ValueError(f'{job}: unexpected {actual}')
+    reconcile(plan,ROOT/'ci-results/js')
 
 def validate_tags(plan):
     execute(['python3','scripts/release-build-tags.py','--capability','--check',plan['tags']])
@@ -189,11 +241,12 @@ def build(plan):
     build_helper(plan)
 
 if __name__=='__main__':
-    ap=argparse.ArgumentParser(); ap.add_argument('kind',choices=['go','build','js','aggregate','download','helper','ffmpeg']); ap.add_argument('--plan',default='ci-plan.json'); ap.add_argument('--index',type=int,default=0); ap.add_argument('--component'); ap.add_argument('--needs'); a=ap.parse_args(); plan=json.loads(Path(a.plan).read_text())
+    ap=argparse.ArgumentParser(); ap.add_argument('kind',choices=['go','build','js','js-static','aggregate','download','helper','ffmpeg']); ap.add_argument('--plan',default='ci-plan.json'); ap.add_argument('--index',type=int,default=0); ap.add_argument('--component'); ap.add_argument('--needs'); a=ap.parse_args(); plan=json.loads(Path(a.plan).read_text())
     if a.kind=='download': download()
     elif a.kind=='helper': build_helper(plan)
     elif a.kind=='ffmpeg': ensure_ffmpeg(plan,a.index,a.component)
     elif a.kind=='go': go(plan,a.index)
-    elif a.kind=='js': js(plan,a.component)
+    elif a.kind=='js': js(plan,a.component,a.index)
+    elif a.kind=='js-static': js_static(plan,a.component)
     elif a.kind=='aggregate': aggregate(plan,json.loads(a.needs))
     else: build(plan)
