@@ -185,7 +185,7 @@ func TestCertificateHTTPAcceptsFieldsANewerHostedAdds(t *testing.T) {
 
 func TestHostedResponsesRefuseRepeatedKeysAtAnyDepth(t *testing.T) {
 	var out map[string]any
-	for name, body := range map[string]string{"top": `{"a":1,"a":2}`, "case": `{"a":1,"A":2}`, "nested": `{"a":{"b":1,"b":2}}`, "in_array": `{"a":[{"b":1},{"b":1,"b":2}]}`, "trailing": `{"a":1} {}`, "invalid": `{"a":`} {
+	for name, body := range map[string]string{"top": `{"a":1,"a":2}`, "case": `{"a":1,"A":2}`, "long_s": `{"serverId":"a","\u017ferverId":"b"}`, "kelvin": `{"k":1,"\u212a":2}`, "nested": `{"a":{"b":1,"b":2}}`, "in_array": `{"a":[{"b":1},{"b":1,"b":2}]}`, "trailing": `{"a":1} {}`, "invalid": `{"a":`} {
 		if decodeHostedResponse([]byte(body), &out) == nil {
 			t.Fatalf("%s accepted", name)
 		}

@@ -1,4 +1,5 @@
-// Package wirejson parses the closed objects used by owner handoff transports.
+// Package wirejson parses the JSON that crosses Portico's transports: the closed
+// objects used by owner handoff, and Hosted's plain responses, which read open.
 package wirejson
 
 import (
