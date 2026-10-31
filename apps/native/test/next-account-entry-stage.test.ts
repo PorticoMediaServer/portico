@@ -47,9 +47,11 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     async inspectLocalIdentity() {return {};}
     async confirmLocal() {events.push('confirm-identity');}
     serverOrigin() {return 'https://public.example';}
-    async prepareSetup() {return {id: 'public-server', name: 'Public fixture', signIn: 'portico', hostedConfigured: true};}
-    async prepareHostedSetup() {return 'https://hosted.example/approve';}
-    finishHostedSetup() {const held = deferred<any>(); finishes.push(held); return held.promise;}
+    readonly setup = {
+      async prepareSetup() {return {id: 'public-server', name: 'Public fixture', signIn: 'portico', hostedConfigured: true};},
+      async prepareHostedSetup() {return 'https://hosted.example/approve';},
+      finishHostedSetup() {const held = deferred<any>(); finishes.push(held); return held.promise;},
+    };
     serverDescriptor() {return {id: 'public-server', name: 'Public fixture', signIn: 'local'};}
     dispose() {events.push('dispose-command');}
   }

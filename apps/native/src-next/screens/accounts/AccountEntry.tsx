@@ -108,7 +108,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const [providerUsernameUnavailable, setProviderUsernameUnavailable] = useState(false);
   // The phone Portico factor form's opening: its exact issued witness, source and life.
   const [factorOpening, setFactorOpening] = useState<Readonly<{source: NativePorticoSignIn; witness: NativeFactorWitness; owner: {live: boolean}; life: AbortController}>>();
-  type SetupReview = Awaited<ReturnType<NativeServerSignIn['reviewHostedSetup']>>;
+  type SetupReview = Awaited<ReturnType<NativeServerSignIn['setup']['reviewHostedSetup']>>;
   const [setupReview, setSetupReview] = useState<SetupReview>();
   const setupReviewTicket = useRef<{source: NativeServerSignIn; controller: AbortController; review?: SetupReview} | undefined>(undefined);
   // The retirement commands below own only refs and stable setters, so they keep one identity
@@ -874,7 +874,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     if (!opening || !setupOpeningCurrent(opening)) return;
     const current = () => setupOpeningCurrent(opening);
     try {
-      const result = await opening.source.finishHostedSetup({signal: opening.life.signal, isCurrent: current});
+      const result = await opening.source.setup.finishHostedSetup({signal: opening.life.signal, isCurrent: current});
       if (result && current()) consume(result);
     } catch (error) {if (current()) throw error;}
   }, [consume, setupOpeningCurrent]);
@@ -987,7 +987,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('accounts.setup.confirmWarning')}</Text>
       </View>, action('confirm-setup', t('accounts.setup.confirmAction'), async () => {
         if (!current() || !source) return;
-        const checked = await source.prepareSetup();
+        const checked = await source.setup.prepareSetup();
         if (current()) {setServer(checked); setSetupAddress(source.serverOrigin()); setName(checked.name); setStage('setup-choice');}
       }));
   }
@@ -1006,14 +1006,14 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       action('setup-continue', t('action.continue'), async () => {
         if (!current() || !source) return;
         if (setupMode === 'local') {setStage('setup-local'); return;}
-        const url = await source.prepareHostedSetup(name); if (!current()) return;
+        const url = await source.setup.prepareHostedSetup(name); if (!current()) return;
         setSetupApprovalURL(url);
         const credentials = nativeAccounts.accountCredentials(); await credentials.synchronize(); if (!current()) return;
         if (url && credentials.getSnapshot().session) {
           retireSetupReview();
           const ticket = {source, controller: new AbortController(), review: undefined as SetupReview | undefined}; setupReviewTicket.current = ticket;
           const live = () => lifetime.current && setupReviewTicket.current === ticket && operation.current === source && !ticket.controller.signal.aborted;
-          const review = await source.reviewHostedSetup(url, {signal: ticket.controller.signal, current: live,
+          const review = await source.setup.reviewHostedSetup(url, {signal: ticket.controller.signal, current: live,
             canApprove: () => live() && stageRef.current === 'setup-review' && ticket.review === setupReviewTicket.current?.review});
           if (!live()) {review.approval.dispose(); return;}
           ticket.review = review;
@@ -1041,7 +1041,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const current = () => !!source && operation.current === source && lifetime.current && stageRef.current === 'setup-ended';
     const restart = async (local: boolean) => {
       if (!current() || !source) return;
-      await source.restartEndedSetup();
+      await source.setup.restartEndedSetup();
       if (current()) {setSetupApprovalURL(undefined); setSetupMode(local ? 'local' : 'hosted'); setStage(local ? 'setup-local' : 'setup-choice');}
     };
     return layout(t('accounts.setup.declinedTitle', {server: server!.name}), t(setupEndedReason === 'declined' ? 'accounts.setup.declinedBody' : 'accounts.setup.endedBody'),
@@ -1057,7 +1057,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       field(t('accounts.signIn.confirmPassword'), setupPasswordConfirm, setSetupPasswordConfirm, true, 'new-password'),
       <Text key="recovery" style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('accounts.setup.localRecovery')}</Text>),
     action('create-owner', t('web.setup.createOwner'), async () => {
-      const result = await operation.current!.setupLocal(name, username, password);
+      const result = await operation.current!.setup.setupLocal(name, username, password);
       setPassword(''); setSetupPasswordConfirm(''); consume(result);
     }, !name.trim() || !/^[A-Za-z0-9_.-]{3,64}$/.test(username.trim()) || !passwordStrength(password).acceptable || password !== setupPasswordConfirm));
   if (stage === 'address') {

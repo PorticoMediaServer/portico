@@ -21,10 +21,10 @@ test('native setup completion refuses a retired opening and releases only its or
       // No token/session fixture is needed: original lifetime must refuse before
       // inspecting or installing this returned grant, and release its own handle.
       const claim = {finishInstalled: () => {calls++; return new Promise(resolve => {finish = resolve;});}, dispose() {}};
-      (source as unknown as {hostedSetup: unknown}).hostedSetup = claim;
+      (source.setup as unknown as {hostedSetup: unknown}).hostedSetup = claim;
       const life = new AbortController(); if (mode === 'pre-aborted') life.abort();
       const before = app.requests.length;
-      const pending = source.finishHostedSetup({signal: life.signal, isCurrent: () => live});
+      const pending = source.setup.finishHostedSetup({signal: life.signal, isCurrent: () => live});
       const rejected = assert.rejects(pending);
       if (mode !== 'pre-aborted') {
         if (mode === 'retired') live = false; else life.abort();
