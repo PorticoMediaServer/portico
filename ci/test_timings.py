@@ -3,7 +3,7 @@ import json
 import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
-from timings import capacity_history, capacity_snapshot, concurrency_timeline, event_stats, job_timing, pages, summarize
+from timings import parse_runner_log, runner_evidence, capacity_history, capacity_snapshot, concurrency_timeline, event_stats, job_timing, pages, summarize
 
 
 def job(status='completed', **kwargs):
@@ -69,3 +69,21 @@ class Timings(unittest.TestCase):
             path=Path(d)/'capacity.jsonl';path.write_text(''.join(json.dumps(x)+'\n' for x in samples))
             rows=capacity_history(path,'owner/repo')
             self.assertEqual([r['queued'] for r in rows],[0,2])
+
+    def test_hardware_provisioner_header_and_unavailable_logs(self):
+        from unittest.mock import patch
+        raw='2026-10-31T19:00:00Z Region: eastus2\n2026-10-31T19:00:00Z Cloud: Azure\n2026-10-31T19:00:00Z runner: 4 cpu, 15 GiB\n'
+        self.assertEqual(parse_runner_log(raw),{'cores':4,'memory_gib':15,'region':'eastus2','cloud':'Azure'})
+        self.assertIsNone(parse_runner_log('Run echo "runner: $(nproc) cpu"')['cores'])
+        self.assertIsNone(parse_runner_log('Region: '+('x'*101))['region'])
+        with patch('timings.subprocess.run') as call:
+            call.return_value.returncode=1;call.return_value.stderr='gh: not ready (HTTP 404)'
+            evidence=runner_evidence('owner/repo',job('in_progress'))
+            self.assertEqual(evidence['log_status'],'unavailable_404')
+            self.assertIsNone(evidence['cores'])
+        def fetch(path):
+            if '/attempts/' in path: return {'jobs':[job()]}
+            return {'workflow_runs':[{'id':42}]}
+        sample=capacity_snapshot('owner/repo',fetch,lambda *_:dict(parse_runner_log(raw),log_status='available'))
+        self.assertEqual((sample['in_progress'],sample['queued']),(0,0))
+        self.assertEqual(sample['jobs'][0]['runner']['cores'],4)
