@@ -24,6 +24,8 @@ export type HeldSignIn = Readonly<{
 export type LifecycleState =
   | Readonly<{kind: 'starting'}>
   | Readonly<{kind: 'recordsLost'}>
+  /** The saved sign-ins couldn't be read (twice), and nothing says the key is lost: an honest error with Try again. */
+  | Readonly<{kind: 'recordsUnreadable'}>
   | Readonly<{kind: 'signedOut'; notice?: 'recordsReset'}>
   | Readonly<{kind: 'choosingServer'}>
   /** `admitted`: a sign-in that already chose its profile (continuation 'viewer') opens it once connected. */
@@ -50,11 +52,12 @@ export type ConnectFailure =
   | Readonly<{reason: 'offline'}>
   | Readonly<{reason: 'identity'; code: IdentityFailureCode}>
   | Readonly<{reason: 'signInEnded'; username: string}>
-  | Readonly<{reason: 'pinReentry'}>;
+  /** The account was read before the refusal: its profiles name the re-entry screen and say whether remembering is offered. */
+  | Readonly<{reason: 'pinReentry'; facts?: ConnectedFacts}>;
 
 export type LifecycleEvent =
   | Readonly<{type: 'launch'}>
-  | Readonly<{type: 'recordsRead'; outcome: 'ok' | 'lost' | 'reset'; servers: number; held?: HeldSignIn}>
+  | Readonly<{type: 'recordsRead'; outcome: 'ok' | 'lost' | 'reset' | 'unreadable'; servers: number; held?: HeldSignIn}>
   | Readonly<{type: 'recordsResetConfirmed'}>
   | Readonly<{type: 'connected'; facts: ConnectedFacts}>
   | Readonly<{type: 'connectFailed'; failure: ConnectFailure}>
@@ -150,6 +153,7 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
   case 'recordsRead':
     if (s.kind !== 'starting') return undefined;
     if (event.outcome === 'lost') return to({kind: 'recordsLost'}, 3);
+    if (event.outcome === 'unreadable') return to({kind: 'recordsUnreadable'}, 37);
     if (event.outcome === 'reset') return to({kind: 'signedOut', notice: 'recordsReset'}, 4, [], {authority: true});
     if (event.held) return to({kind: 'connecting', server: event.held.server, held: event.held}, 5, [{kind: 'connect', serverId: event.held.server.serverId}], {authority: true});
     return event.servers > 0 ? to({kind: 'choosingServer'}, 2) : to({kind: 'signedOut'}, 1);
@@ -161,9 +165,14 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
   case 'connectFailed': {
     if (s.kind !== 'connecting') return undefined;
     const f = event.failure;
-    if (f.reason === 'pinReentry' && s.held) return to({kind: 'enteringPin', server: s.server, viewer: s.held.viewer, profiles: [],
-      profile: {id: s.held.viewer.profileId, name: '', primary: false, pinRequired: true}, reason: 'reentry', canRemember: false, switching: false},
+    if (f.reason === 'pinReentry' && s.held) {
+      // Named from the account read before the refusal; the server's policy decides whether remembering is offered again.
+      const profiles = f.facts?.profiles ?? [];
+      const profile = profiles.find(value => value.id === s.held!.viewer.profileId) ?? {id: s.held.viewer.profileId, name: '', primary: false, pinRequired: true};
+      return to({kind: 'enteringPin', server: s.server, viewer: s.held.viewer, profiles, profile, reason: 'reentry',
+        canRemember: f.facts?.rememberProfiles ?? false, switching: false},
       10, [{kind: 'clearMarker', serverId: s.server.serverId}]);
+    }
     if (f.reason === 'signInEnded') return to({kind: 'signInEnded', server: s.server, ...(s.held ? {held: s.held} : {}), username: f.username}, 11, [], {authority: true});
     const admitted = s.admitted ? {admitted: true as const} : {};
     if (f.reason === 'identity') return to({kind: 'identityFailed', server: s.server, ...(s.held ? {held: s.held} : {}), ...admitted, code: f.code}, 12);
@@ -172,6 +181,7 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     return undefined;
   }
   case 'retry':
+    if (s.kind === 'recordsUnreadable') return to({kind: 'starting'}, 38, [{kind: 'readRecords'}]);
     // A sign-in that already chose its profile stays chosen across a retry.
     if (s.kind === 'offline') return to({kind: 'connecting', server: s.server, ...(s.held ? {held: s.held} : {}), ...(s.admitted ? {admitted: true as const} : {})}, 14, [{kind: 'connect', serverId: s.server.serverId}]);
     if (s.kind === 'identityFailed') return to({kind: 'connecting', server: s.server, ...(s.held ? {held: s.held} : {}), ...(s.admitted ? {admitted: true as const} : {})}, 32, [{kind: 'connect', serverId: s.server.serverId}]);
@@ -228,7 +238,9 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     if (s.kind !== 'ready') return undefined;
     {const profile = s.profiles.find(value => value.id === s.viewer.profileId) ?? {id: s.viewer.profileId, name: '', primary: false, pinRequired: true};
       return to({kind: 'enteringPin', server: s.server, viewer: s.viewer, profiles: s.profiles, profile, reason: 'reentry', canRemember: s.canRemember,
-        switching: false}, 24, [{kind: 'fenceShell'}, {kind: 'clearMarker', serverId: s.server.serverId}]);}
+        switching: false}, 24, [{kind: 'fenceShell'}, {kind: 'clearMarker', serverId: s.server.serverId},
+        // The shell's connection ended with it: reconnect for the PIN screen (art, Forgot PIN?). Its answer moves nothing.
+        {kind: 'connect', serverId: s.server.serverId}]);}
   case 'signInEnded':
     if (s.kind !== 'ready' && s.kind !== 'choosingProfile' && s.kind !== 'enteringPin') return undefined;
     return to({kind: 'signInEnded', server: s.server, held: {server: s.server, viewer: s.viewer, remembered: false}, username: event.username}, 25, [{kind: 'fenceShell'}], {authority: true});
@@ -265,7 +277,7 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
       [{kind: 'connect', serverId: event.held.server.serverId}], {authority: true});
   case 'envelopeChanged': {
     // Row 34: another owner (another tab, a setup claim, a sign-out elsewhere) changed the record.
-    if (s.kind === 'starting' || s.kind === 'recordsLost') return undefined;
+    if (s.kind === 'starting' || s.kind === 'recordsLost' || s.kind === 'recordsUnreadable') return undefined;
     // Our own action is writing the record; its result event, not this echo, moves the state.
     if (current.pending && current.pending !== 'switchServer') return undefined;
     const server = 'server' in s ? s.server : undefined;

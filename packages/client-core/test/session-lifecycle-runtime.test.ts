@@ -487,8 +487,22 @@ test("recordsRead 'lost' then resetRecords ends in signedOut", async () => {
   life.dispose();
 });
 
-test('a readRecords that throws (not a proven lost key) reads as signed out, never as records lost', async () => {
-  const {life} = await launched({readRecords: async () => {throw new Error('keystore');}});
+test('a readRecords that throws is tried once more, then shows unreadable (never signed out, never records lost)', async () => {
+  const scheduler = createManualScheduler(0);
+  let reads = 0;
+  const {life} = await launched({scheduler, readRecords: async () => {reads++; throw new Error('keystore');}});
+  assert.equal(kind(life), 'starting', 'waiting for the second look');
+  await scheduler.advance(1_000); await flush();
+  assert.equal(reads, 2);
+  assert.equal(kind(life), 'recordsUnreadable');
+  life.dispose();
+});
+
+test('a readRecords that fails once and then reads opens normally', async () => {
+  const scheduler = createManualScheduler(0);
+  let reads = 0;
+  const {life} = await launched({scheduler, readRecords: async () => {if (reads++ === 0) throw new Error('busy'); return {outcome: 'ok', servers: 0};}});
+  await scheduler.advance(1_000); await flush();
   assert.equal(kind(life), 'signedOut');
   life.dispose();
 });

@@ -84,6 +84,8 @@ const cases: readonly Case[] = [
     state: {kind: 'signedOut'}, absent: ['notice']},
   {name: 'row 2: records ok, servers but none held → choosingServer', row: 2, from: snap({kind: 'starting'}), event: {type: 'recordsRead', outcome: 'ok', servers: 2},
     state: {kind: 'choosingServer'}},
+  {name: 'row 37: saved sign-ins unreadable twice → recordsUnreadable', row: 37, from: snap({kind: 'starting'}), event: {type: 'recordsRead', outcome: 'unreadable', servers: 0}, state: {kind: 'recordsUnreadable'}},
+  {name: 'row 38: Try again reads the saved sign-ins again', row: 38, from: snap({kind: 'recordsUnreadable'}), event: {type: 'retry'}, state: {kind: 'starting'}, effects: [{kind: 'readRecords'}]},
   {name: 'row 3: key lost → recordsLost', row: 3, from: snap({kind: 'starting'}), event: {type: 'recordsRead', outcome: 'lost', servers: 0}, state: {kind: 'recordsLost'}},
   {name: 'row 4: system reset the records → signedOut with the one-time notice', row: 4, from: snap({kind: 'starting'}),
     event: {type: 'recordsRead', outcome: 'reset', servers: 0}, state: {kind: 'signedOut', notice: 'recordsReset'}, advances: true},
@@ -214,10 +216,10 @@ const cases: readonly Case[] = [
     state: {kind: 'choosingProfile', switching: true, focus: 'main', resume: {remembered: true, manageLocked: true}}},
   {name: 'row 24: ready, profile_pin_reentry → enteringPin(reentry), shell fenced, marker cleared, same generation', row: 24,
     from: snap(ready({remembered: true})), event: {type: 'gated'},
-    state: {kind: 'enteringPin', reason: 'reentry', profile: {id: 'main', pinRequired: true}, viewer: viewer(), switching: false}, effects: [fence, clear()]},
+    state: {kind: 'enteringPin', reason: 'reentry', profile: {id: 'main', pinRequired: true}, viewer: viewer(), switching: false}, effects: [fence, clear(), connectS1]},
   {name: 'row 24: a profile missing from the list still gets a PIN screen', row: 24,
     from: snap(ready({viewer: viewer('gone'), remembered: true})), event: {type: 'gated'},
-    state: {kind: 'enteringPin', reason: 'reentry', profile: {id: 'gone', pinRequired: true}}, effects: [fence, clear()]},
+    state: {kind: 'enteringPin', reason: 'reentry', profile: {id: 'gone', pinRequired: true}}, effects: [fence, clear(), connectS1]},
   {name: 'row 25: ready, refresh refused → signInEnded, shell fenced', row: 25, from: snap(ready()), event: {type: 'signInEnded', username: 'justin'},
     state: {kind: 'signInEnded', username: 'justin'}, effects: [fence], advances: true},
   {name: 'row 25: also from the picker', row: 25, from: snap(choosing()), event: {type: 'signInEnded', username: 'justin'}, state: {kind: 'signInEnded'}, effects: [fence], advances: true},
@@ -350,7 +352,7 @@ test('a gated ready goes to enteringPin(reentry) with fenceShell and clearMarker
   assert.ok(t);
   assert.equal(t.snapshot.state.kind, 'enteringPin');
   assert.equal(t.snapshot.state.kind === 'enteringPin' && t.snapshot.state.reason, 'reentry');
-  assert.deepEqual(t.effects, [fence, clear()]);
+  assert.deepEqual(t.effects, [fence, clear(), connectS1]);
   assert.equal(t.snapshot.generation, G, 'the family is unchanged, so authority does not move');
   // `gated` has no route to signInEnded from any state.
   for (const state of allStates()) {
@@ -431,11 +433,12 @@ test('generation advances on a change of server, account, profile or sign-in and
 
 // ---- generated (state × event) check ---------------------------------------------------------
 
-const DOCUMENTED_ROWS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36]);
+const DOCUMENTED_ROWS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38]);
 
 const STATES = {
   starting: {kind: 'starting'},
   recordsLost: {kind: 'recordsLost'},
+  recordsUnreadable: {kind: 'recordsUnreadable'},
   signedOut: {kind: 'signedOut'},
   choosingServer: {kind: 'choosingServer'},
   connecting: connecting(),
@@ -552,8 +555,10 @@ const EXPECTED_APPLIES: readonly string[] = [
   'pinRejected @ ready+unlock → 20',
   // row 36: a failed action while anything is pending, in any state
   ...[
-    'choosingProfile', 'choosingServer', 'connecting', 'enteringPin', 'identityFailed', 'offline', 'ready', 'recordsLost', 'signInEnded', 'signedOut', 'starting',
+    'choosingProfile', 'choosingServer', 'connecting', 'enteringPin', 'identityFailed', 'offline', 'ready', 'recordsLost', 'recordsUnreadable', 'signInEnded', 'signedOut', 'starting',
   ].flatMap(kind => PENDINGS.flatMap(pending => ['selectFailed', 'actionFailed'].map(type => `${type} @ ${kind}+${pending} → 36`))),
+  // row 38: Try again on unreadable saved sign-ins (not a command, so under any pending value)
+  ...['', ...PENDINGS.map(p => '+' + p)].map(p => `retry @ recordsUnreadable${p} → 38`),
   // row 21, 23, 18: navigation (not commands, so they apply under any pending value)
   ...['', ...PENDINGS.map(p => '+' + p)].map(p => `otherProfiles @ enteringPin${p} → 21`),
   ...['', ...PENDINGS.map(p => '+' + p)].map(p => `switchProfile @ ready${p} → 23`),
@@ -591,7 +596,7 @@ const EXPECTED_APPLIES: readonly string[] = [
   'signOutAccount @ ready → 30',
   'signOutAccount @ signInEnded → 30',
   // rows 29, 6, 31: a sign-out, reset or forget finished
-  ...['choosingProfile', 'choosingServer', 'connecting', 'enteringPin', 'identityFailed', 'offline', 'ready', 'recordsLost', 'signInEnded', 'signedOut', 'starting']
+  ...['choosingProfile', 'choosingServer', 'connecting', 'enteringPin', 'identityFailed', 'offline', 'ready', 'recordsLost', 'recordsUnreadable', 'signInEnded', 'signedOut', 'starting']
     .flatMap(kind => [`signedOut @ ${kind}+signOut → 29 ↑`, `signedOut @ ${kind}+reset → 6 ↑`, `forgotten @ ${kind}+forget → 31 ↑`]),
   // row 31: forget
   'forget @ identityFailed → 31',
@@ -623,7 +628,7 @@ test('no pair ever reports row 22 (Forgot PIN runs outside the reducer)', () => 
   assert.ok(!appliesTable().some(line => / → 22\b/.test(line)));
 });
 
-test('every documented row 0–36 (except 22) is exercised by a table case', () => {
+test('every documented row 0–38 (except 22) is exercised by a table case', () => {
   const seen = new Set<number>([...cases.map(c => c.row), 36]);
   for (const row of DOCUMENTED_ROWS) assert.ok(seen.has(row), `row ${row} has a test`);
 });
@@ -689,4 +694,35 @@ test('a switch to a PIN-protected profile always asks for its PIN, even from a r
     assert.equal(tapped.snapshot.state.kind, 'enteringPin', `${target.id} asks for its PIN`);
     assert.equal(tapped.effects.some(effect => effect.kind === 'select'), false, 'nothing is chosen without the PIN');
   }
+});
+
+test('a re-entry refused while connecting is named from the account read first, and offers remembering per the server', () => {
+  for (const rememberProfiles of [true, false]) {
+    const next = nextLifecycle(snap(connecting()), {type: 'connectFailed', failure: {reason: 'pinReentry', facts: facts(PROFILES, rememberProfiles)}})!;
+    const s = next.snapshot.state;
+    assert.equal(s.kind, 'enteringPin');
+    if (s.kind !== 'enteringPin') continue;
+    assert.equal(s.profile.name, 'Main', 'the PIN screen names the profile');
+    assert.equal(s.reason, 'reentry');
+    assert.equal(s.canRemember, rememberProfiles, 'remembering is offered again when the server allows it');
+    assert.equal(s.profiles.length, PROFILES.length);
+  }
+});
+
+test('a re-entry from Home keeps the profile name and the server policy for remembering', () => {
+  const next = nextLifecycle(snap(ready({canRemember: true})), {type: 'gated'})!;
+  const s = next.snapshot.state;
+  assert.equal(s.kind === 'enteringPin' && s.profile.name, 'Main');
+  assert.equal(s.kind === 'enteringPin' && s.canRemember, true);
+});
+
+test('unreadable saved sign-ins show an honest error with Try again, never signed out or records lost', () => {
+  const read = nextLifecycle(snap({kind: 'starting'}), {type: 'recordsRead', outcome: 'unreadable', servers: 0})!;
+  assert.equal(read.snapshot.state.kind, 'recordsUnreadable');
+  assert.equal(read.row, 37);
+  const again = nextLifecycle(read.snapshot, {type: 'retry'})!;
+  assert.equal(again.snapshot.state.kind, 'starting');
+  assert.deepEqual(again.effects, [{kind: 'readRecords'}]);
+  for (const event of [{type: 'envelopeChanged', servers: 1, held: held()}, {type: 'signedIn', held: held(), continuation: 'viewer'}] as const)
+    assert.equal(nextLifecycle(read.snapshot, event), undefined, `${event.type} does not leave the error`);
 });

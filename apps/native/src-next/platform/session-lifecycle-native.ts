@@ -127,7 +127,7 @@ const viewerRef = (session: LocalSession) => Object.freeze({accountId: session.v
   role: session.viewer.role, familyId: session.sessionFamilyId});
 
 /** What the last `connect` learned, which `classifyConnect` needs to read the failure that follows it. */
-type ConnectContext = Readonly<{server: NativeIdentityServer; hint?: NativeSignInHint; expiresAt: string}>;
+type ConnectContext = Readonly<{server: NativeIdentityServer; hint?: NativeSignInHint; expiresAt: string; facts?: ConnectedFacts}>;
 
 /**
  * The native side of the session lifecycle (planning/v3/rebuilds/C-DESIGN.md §10, C2a): wraps today's
@@ -209,11 +209,14 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
         {authority: 'local', serverId, accountId: restored.session.viewer.accountId}, true); check();
       const profiles: readonly PickerProfile[] = Object.freeze(snapshot.profiles.map(value => Object.freeze({
         id: value.id, name: value.name, primary: value.primary, pinRequired: value.pinRequired})));
+      const facts: ConnectedFacts = Object.freeze({profiles, rememberProfiles: snapshot.rememberProfiles === true});
+      // A refusal after this point (profile_pin_reentry) names its PIN screen from this account.
+      context = Object.freeze({...context!, facts});
       const held = profiles.find(value => value.id === restored.session.viewer.profileId);
       // The last-seen PIN state is a cache for offline openings; failing to save it never fails the connection.
       if (held) await own(() => deps.sessions.setProfilePinRequired(serverId, restored.session.sessionFamilyId, held.pinRequired)).catch(() => {});
       connected = Object.freeze({serverId, api: restored.api, session: restored.session, installation, prepared, selected, server, account: snapshot, ...(hint ? {hint} : {})});
-      return Object.freeze({profiles, rememberProfiles: snapshot.rememberProfiles === true});
+      return facts;
     } catch (error) {
       releaseQuietly('lifecycle failed route', () => api?.getRouteConnection()?.dispose());
       releaseQuietly('lifecycle failed token', () => api?.setAccessToken(''));
@@ -230,7 +233,7 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
       const ended = nativeSignInEnded(error, context.hint, context.expiresAt);
       if (ended) return {reason: 'signInEnded', username: ended.hint.username};
     }
-    if (error instanceof ApiError && error.code === 'profile_pin_reentry') return {reason: 'pinReentry'};
+    if (error instanceof ApiError && error.code === 'profile_pin_reentry') return {reason: 'pinReentry', ...(context?.facts ? {facts: context.facts} : {})};
     return undefined;
   };
 

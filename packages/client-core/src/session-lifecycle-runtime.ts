@@ -6,7 +6,7 @@
  */
 import {ApiError} from './index.ts';
 import {releaseQuietly} from './cleanup.ts';
-import {systemScheduler, serverFloorFrom, type Scheduler} from './timer.ts';
+import {systemScheduler, serverFloorFrom, wait, type Scheduler} from './timer.ts';
 import {createUserAction, type UserAction} from './user-action.ts';
 import type {AuthoritySource, AuthorityTuple} from './session-authority.ts';
 import {initialLifecycle, nextLifecycle, type ConnectFailure, type ConnectedFacts, type HeldSignIn, type LifecycleEffect,
@@ -16,7 +16,7 @@ import {initialLifecycle, nextLifecycle, type ConnectFailure, type ConnectedFact
 /** One line per move: codes only, never ids, names, addresses or tokens. */
 export type TransitionRecord = Readonly<{t: number; from: string; event: string; to: string; row: number | 'ignored'; generation: number}>;
 
-export type RecordsRead = Readonly<{outcome: 'ok' | 'lost' | 'reset'; servers: number; held?: HeldSignIn}>;
+export type RecordsRead = Readonly<{outcome: 'ok' | 'lost' | 'reset' | 'unreadable'; servers: number; held?: HeldSignIn}>;
 export type HeldRead = Readonly<{servers: number; held?: HeldSignIn}>;
 export type SelectInput = Readonly<{serverId: string; profileId: string; pin?: string; remember: boolean}>;
 
@@ -51,6 +51,8 @@ export type LifecyclePorts = Readonly<{
 
 /** The boot screen's longest wait (boot.html): after this, Can't reach. */
 export const CONNECT_DEADLINE_MS = 15_000;
+/** A saved-sign-ins read that failed is tried once more after this. */
+export const RECORDS_RETRY_MS = 1_000;
 const HISTORY = 200;
 const pinRejection = (error: unknown) => error instanceof ApiError && (error.code === 'profile_pin_invalid' || error.code === 'profile_pin_locked');
 
@@ -173,9 +175,14 @@ export class SessionLifecycle implements AuthoritySource {
     case 'clearMarker': await p.clearMarker(effect.serverId).catch(error => releaseQuietly('lifecycle marker', () => {throw error;})); return;
     case 'readRecords': {
       let read: RecordsRead;
-      // Only the port says records are lost (it looks twice first). Any other failure to read the
-      // saved sign-ins is a sign-in to make again, never an offer to reset the device.
-      try {read = await p.readRecords();} catch {read = {outcome: 'ok', servers: 0};}
+      // Only the port says records are lost (it looks twice first). Any other failure to read the saved
+      // sign-ins is tried once more, then shown honestly as unreadable with Try again: never as signed
+      // out (which would invite a new sign-in over an intact record) and never as an offer to reset.
+      try {read = await p.readRecords();}
+      catch {
+        try {await wait(RECORDS_RETRY_MS, {scheduler: this.scheduler}); if (!this.current(generation)) return; read = await p.readRecords();}
+        catch {read = {outcome: 'unreadable', servers: 0};}
+      }
       if (this.current(generation)) await this.dispatch({type: 'recordsRead', ...read});
       return;
     }
