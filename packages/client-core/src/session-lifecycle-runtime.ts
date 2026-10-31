@@ -182,7 +182,11 @@ export class SessionLifecycle implements AuthoritySource {
       return;
     }
     case 'resetRecords': {
-      await p.resetRecords();
+      try {await p.resetRecords();}
+      catch (error) {
+        if (this.current(generation) && this.snapshot.pending) await this.dispatch({type: 'actionFailed'});
+        throw error;
+      }
       if (this.current(generation)) await this.dispatch({type: 'signedOut', remaining: 0});
       return;
     }
@@ -228,9 +232,14 @@ export class SessionLifecycle implements AuthoritySource {
   private async connect(serverId: string, generation: number) {
     this.connecting?.abort();
     const controller = this.connecting = new AbortController();
-    const timer = this.scheduler.setTimeout(() => controller.abort(), CONNECT_DEADLINE_MS);
+    // The deadline wins even when a port ignores its signal: the late answer is then dropped.
+    let expire!: () => void;
+    const deadline = new Promise<never>((_, reject) => {expire = () => {controller.abort(); reject(Object.assign(new Error('connect_deadline'), {code: 'timeout'}));};});
+    const timer = this.scheduler.setTimeout(() => expire(), CONNECT_DEADLINE_MS);
     try {
-      const facts = await this.ports.connect(serverId, controller.signal);
+      const attempt = this.ports.connect(serverId, controller.signal);
+      attempt.catch(() => {});
+      const facts = await Promise.race([attempt, deadline]);
       if (this.current(generation) && !controller.signal.aborted) await this.dispatch({type: 'connected', facts});
     } catch (error) {
       if (!this.current(generation)) return;

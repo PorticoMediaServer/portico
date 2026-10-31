@@ -26,10 +26,11 @@ export type LifecycleState =
   | Readonly<{kind: 'recordsLost'}>
   | Readonly<{kind: 'signedOut'; notice?: 'recordsReset'}>
   | Readonly<{kind: 'choosingServer'}>
-  | Readonly<{kind: 'connecting'; server: ServerRef; held?: HeldSignIn}>
-  | Readonly<{kind: 'offline'; server: ServerRef; viewer?: ViewerRef; downloads: boolean}>
-  | Readonly<{kind: 'identityFailed'; server: ServerRef; code: IdentityFailureCode}>
-  | Readonly<{kind: 'signInEnded'; server: ServerRef; username: string}>
+  /** `admitted`: a sign-in that already chose its profile (continuation 'viewer') opens it once connected. */
+  | Readonly<{kind: 'connecting'; server: ServerRef; held?: HeldSignIn; admitted?: true}>
+  | Readonly<{kind: 'offline'; server: ServerRef; held?: HeldSignIn; viewer?: ViewerRef; downloads: boolean}>
+  | Readonly<{kind: 'identityFailed'; server: ServerRef; held?: HeldSignIn; code: IdentityFailureCode}>
+  | Readonly<{kind: 'signInEnded'; server: ServerRef; held?: HeldSignIn; username: string}>
   | Readonly<{kind: 'choosingProfile'; server: ServerRef; viewer: ViewerRef; profiles: readonly PickerProfile[]; focus?: string;
       switching: boolean; canRemember: boolean; resume?: Readonly<{remembered: boolean; manageLocked: boolean}>}>
   | Readonly<{kind: 'enteringPin'; server: ServerRef; viewer: ViewerRef; profiles: readonly PickerProfile[]; profile: PickerProfile;
@@ -38,7 +39,7 @@ export type LifecycleState =
   | Readonly<{kind: 'ready'; server: ServerRef; viewer: ViewerRef; profiles: readonly PickerProfile[]; remembered: boolean;
       manageLocked: boolean; canRemember: boolean}>;
 
-export type LifecyclePending = 'pick' | 'pin' | 'unlock' | 'switchServer' | 'signOut' | 'forget' | 'reset';
+export type LifecyclePending = 'pick' | 'pin' | 'unlock' | 'switchServer' | 'signOut' | 'signOutAccount' | 'forget' | 'reset';
 export type LifecycleSnapshot = Readonly<{generation: number; state: LifecycleState; pending?: LifecyclePending}>;
 
 /** A connection to the held server succeeded and its account was read. */
@@ -98,13 +99,20 @@ export type LifecycleEffect =
 export type Transition = Readonly<{snapshot: LifecycleSnapshot; effects: readonly LifecycleEffect[]; row: number}>;
 
 const freeze = <T extends object>(value: T): T => Object.freeze(value);
+/** Events that report how a pending action ended. */
+const RESULTS = new Set<LifecycleEvent['type']>(['recordsRead', 'connected', 'connectFailed', 'selected', 'pinRejected', 'selectFailed', 'actionFailed',
+  'managementUnlocked', 'signedOut', 'forgotten', 'envelopeChanged']);
 const same = (a: ViewerRef, b: ViewerRef) => a.accountId === b.accountId && a.profileId === b.profileId && a.familyId === b.familyId;
 const signedInStates = new Set(['connecting', 'offline', 'choosingProfile', 'enteringPin', 'ready', 'identityFailed', 'signInEnded']);
 
 /** Where a held sign-in goes once its server has answered (rows 7–9). */
-function afterConnect(server: ServerRef, held: HeldSignIn, facts: ConnectedFacts): Pick<Transition, 'effects'> & {state: LifecycleState; row: number} {
+function afterConnect(server: ServerRef, held: HeldSignIn, facts: ConnectedFacts, admitted = false): Pick<Transition, 'effects'> & {state: LifecycleState; row: number} {
   const profile = facts.profiles.find(value => value.id === held.viewer.profileId);
   const canRemember = facts.rememberProfiles;
+  // Row 33: a sign-in that already chose its profile (one profile, no PIN; or the server picked it) opens it.
+  if (admitted && profile)
+    return {row: 33, state: freeze({kind: 'ready', server, viewer: held.viewer, profiles: facts.profiles, remembered: held.remembered,
+      manageLocked: false, canRemember}), effects: [freeze({kind: 'drainRevocations', serverId: server.serverId})]};
   if (held.remembered && profile)
     return {row: 7, state: freeze({kind: 'ready', server, viewer: held.viewer, profiles: facts.profiles, remembered: true,
       manageLocked: profile.primary && profile.pinRequired, canRemember}), effects: [freeze({kind: 'drainRevocations', serverId: server.serverId})]};
@@ -122,9 +130,13 @@ function afterConnect(server: ServerRef, held: HeldSignIn, facts: ConnectedFacts
  */
 export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent): Transition | undefined {
   const s = current.state;
-  const to = (state: LifecycleState, row: number, effects: readonly LifecycleEffect[] = [], options: {authority?: boolean; pending?: LifecyclePending} = {}): Transition =>
-    freeze({row, effects: freeze([...effects]), snapshot: freeze({generation: current.generation + (options.authority ? 1 : 0), state,
-      ...(options.pending ? {pending: options.pending} : {})})});
+  // A pending action ends only with its own result, or when the sign-in it acts for changes (its result is then dropped).
+  const keepPending = !RESULTS.has(event.type);
+  const to = (state: LifecycleState, row: number, effects: readonly LifecycleEffect[] = [], options: {authority?: boolean} = {}): Transition => {
+    const pending = keepPending && !options.authority ? current.pending : undefined;
+    return freeze({row, effects: freeze([...effects]), snapshot: freeze({generation: current.generation + (options.authority ? 1 : 0), state,
+      ...(pending ? {pending} : {})})});
+  };
   const busy = (pending: LifecyclePending, effects: readonly LifecycleEffect[], row: number): Transition =>
     freeze({row, effects: freeze([...effects]), snapshot: freeze({...current, pending})});
 
@@ -145,22 +157,22 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     return s.kind === 'recordsLost' ? busy('reset', [{kind: 'resetRecords'}], 6) : undefined;
   case 'connected':
     if (s.kind !== 'connecting' || !s.held) return undefined;
-    {const next = afterConnect(s.server, s.held, event.facts); return to(next.state, next.row, next.effects);}
+    {const next = afterConnect(s.server, s.held, event.facts, !!s.admitted); return to(next.state, next.row, next.effects);}
   case 'connectFailed': {
     if (s.kind !== 'connecting') return undefined;
     const f = event.failure;
     if (f.reason === 'pinReentry' && s.held) return to({kind: 'enteringPin', server: s.server, viewer: s.held.viewer, profiles: [],
       profile: {id: s.held.viewer.profileId, name: '', primary: false, pinRequired: true}, reason: 'reentry', canRemember: false, switching: false},
       10, [{kind: 'clearMarker', serverId: s.server.serverId}]);
-    if (f.reason === 'signInEnded') return to({kind: 'signInEnded', server: s.server, username: f.username}, 11, [], {authority: true});
-    if (f.reason === 'identity') return to({kind: 'identityFailed', server: s.server, code: f.code}, 12);
-    if (f.reason === 'offline') return to({kind: 'offline', server: s.server, ...(s.held ? {viewer: s.held.viewer} : {}),
+    if (f.reason === 'signInEnded') return to({kind: 'signInEnded', server: s.server, ...(s.held ? {held: s.held} : {}), username: f.username}, 11, [], {authority: true});
+    if (f.reason === 'identity') return to({kind: 'identityFailed', server: s.server, ...(s.held ? {held: s.held} : {}), code: f.code}, 12);
+    if (f.reason === 'offline') return to({kind: 'offline', server: s.server, ...(s.held ? {held: s.held, viewer: s.held.viewer} : {}),
       downloads: !!s.held && (s.held.remembered || s.held.profilePinRequired === false)}, 13);
     return undefined;
   }
   case 'retry':
-    if (s.kind === 'offline') return to({kind: 'connecting', server: s.server}, 14, [{kind: 'connect', serverId: s.server.serverId}]);
-    if (s.kind === 'identityFailed') return to({kind: 'connecting', server: s.server}, 32, [{kind: 'connect', serverId: s.server.serverId}]);
+    if (s.kind === 'offline') return to({kind: 'connecting', server: s.server, ...(s.held ? {held: s.held} : {})}, 14, [{kind: 'connect', serverId: s.server.serverId}]);
+    if (s.kind === 'identityFailed') return to({kind: 'connecting', server: s.server, ...(s.held ? {held: s.held} : {})}, 32, [{kind: 'connect', serverId: s.server.serverId}]);
     return undefined;
   case 'profileTapped': {
     if (s.kind !== 'choosingProfile') return undefined;
@@ -185,7 +197,8 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
   case 'pinRejected':
     if (current.pending !== 'pin' && current.pending !== 'unlock' || s.kind !== 'enteringPin' && s.kind !== 'ready') return undefined;
     if (s.kind === 'ready') return to(s, 20);
-    return to({...s, rejected: true, ...(event.waitUntil !== undefined ? {waitUntil: event.waitUntil} : {})}, 20);
+    {const {waitUntil: _stale, ...rest} = s;
+      return to({...rest, rejected: true, ...(event.waitUntil !== undefined ? {waitUntil: event.waitUntil} : {})}, 20);}
   case 'selectFailed':
   case 'actionFailed':
     // A failed action leaves the screen it started on; its UserAction shows the error.
@@ -216,10 +229,10 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
         switching: false}, 24, [{kind: 'fenceShell'}, {kind: 'clearMarker', serverId: s.server.serverId}]);}
   case 'signInEnded':
     if (s.kind !== 'ready' && s.kind !== 'choosingProfile' && s.kind !== 'enteringPin') return undefined;
-    return to({kind: 'signInEnded', server: s.server, username: event.username}, 25, [{kind: 'fenceShell'}], {authority: true});
+    return to({kind: 'signInEnded', server: s.server, held: {server: s.server, viewer: s.viewer, remembered: false}, username: event.username}, 25, [{kind: 'fenceShell'}], {authority: true});
   case 'identityFailed':
     if (s.kind !== 'ready' && s.kind !== 'choosingProfile' && s.kind !== 'enteringPin') return undefined;
-    return to({kind: 'identityFailed', server: s.server, code: event.code}, 26, [{kind: 'fenceShell'}], {authority: true});
+    return to({kind: 'identityFailed', server: s.server, held: {server: s.server, viewer: s.viewer, remembered: false}, code: event.code}, 26, [{kind: 'fenceShell'}], {authority: true});
   case 'networkLost':
     return s.kind === 'ready' ? to(s, 27) : undefined;
   case 'switchServer':
@@ -228,16 +241,16 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     return busy('switchServer', [{kind: 'fenceShell'}, {kind: 'storeSelect', serverId: event.server.serverId}], 28);
   case 'signOutServer':
     if (!signedInStates.has(s.kind) || !('server' in s)) return undefined;
-    {const viewer = 'viewer' in s && s.viewer ? s.viewer : s.kind === 'connecting' ? s.held?.viewer : undefined;
+    {const viewer = 'viewer' in s && s.viewer ? s.viewer : 'held' in s ? s.held?.viewer : undefined;
       if (!viewer) return undefined;
       return busy('signOut', [{kind: 'fenceShell'}, {kind: 'clearMarker', serverId: s.server.serverId},
         {kind: 'signOutServer', serverId: s.server.serverId, familyId: viewer.familyId, removeDownloads: event.removeDownloads}], 29);}
   case 'signOutAccount':
     if (!signedInStates.has(s.kind) && s.kind !== 'choosingServer') return undefined;
-    return busy('signOut', [{kind: 'fenceShell'}, {kind: 'signOutAccount'}], 30);
+    return busy('signOutAccount', [{kind: 'fenceShell'}, {kind: 'signOutAccount'}], 30);
   case 'signedOut':
-    if (current.pending !== 'signOut' && current.pending !== 'reset') return undefined;
-    return to(event.remaining > 0 ? {kind: 'choosingServer'} : {kind: 'signedOut'}, current.pending === 'reset' ? 6 : 29, [], {authority: true});
+    if (current.pending !== 'signOut' && current.pending !== 'signOutAccount' && current.pending !== 'reset') return undefined;
+    return to(event.remaining > 0 ? {kind: 'choosingServer'} : {kind: 'signedOut'}, current.pending === 'reset' ? 6 : current.pending === 'signOutAccount' ? 30 : 29, [], {authority: true});
   case 'forget':
     if (s.kind !== 'identityFailed') return undefined;
     return busy('forget', [{kind: 'clearMarker', serverId: s.server.serverId}, {kind: 'forgetServer', serverId: s.server.serverId}], 31);
@@ -246,7 +259,8 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     return to(event.remaining > 0 ? {kind: 'choosingServer'} : {kind: 'signedOut'}, 31, [], {authority: true});
   case 'signedIn':
     if (s.kind !== 'signedOut' && s.kind !== 'choosingServer' && s.kind !== 'signInEnded') return undefined;
-    return to({kind: 'connecting', server: event.held.server, held: event.held}, 33, [{kind: 'connect', serverId: event.held.server.serverId}], {authority: true});
+    return to({kind: 'connecting', server: event.held.server, held: event.held, ...(event.continuation === 'viewer' ? {admitted: true as const} : {})}, 33,
+      [{kind: 'connect', serverId: event.held.server.serverId}], {authority: true});
   case 'envelopeChanged': {
     // Row 34: another owner (another tab, a setup claim, a sign-out elsewhere) changed the record.
     if (s.kind === 'starting' || s.kind === 'recordsLost') return undefined;
