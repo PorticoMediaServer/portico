@@ -57,6 +57,8 @@ export const servicesMessages = {
   'services.provider.heading': 'Continuing with {provider}',
   'services.provider.lastThing': 'One last thing, then your Portico Account is ready.',
   'services.provider.usernameHelp': 'Letters, numbers, dots and dashes, 3 to 32 characters. People use it to share a server with you.',
+  'services.provider.usernameInvalid': 'Use 3 to 32 letters, numbers, dots or dashes, starting and ending with a letter or number.',
+  'services.provider.nameTooLong': 'Use a shorter name.',
   'services.provider.privacy': 'Portico uses the name and email address {provider} shares, and nothing else.',
   'services.provider.ready': 'Your account is ready',
   'services.provider.readyBody': 'You’re signed in to your new Portico Account.',
