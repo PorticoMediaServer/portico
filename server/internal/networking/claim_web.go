@@ -369,9 +369,13 @@ func (h *ClaimHandler) runWebClaimWatch(parent context.Context, expected ClaimEx
 		})
 	}
 	e = retryWebApproval(ctx, apply, delivery.failed)
+	if e == nil {
+		h.deliveries.Delete(expected.OperationID) // installed: nothing more to deliver
+	}
 	if e != nil {
 		if errors.Is(e, ErrOwnerCollision) || errors.Is(e, ErrClaimOwnerRequired) || errors.Is(e, ErrStale) || errors.Is(e, ErrApprovalRequired) {
 			withdraw()
+			h.deliveries.Delete(expected.OperationID) // withdrawn: setup reads started, cancelling
 		}
 		log.Printf("Claim approval from the web could not be applied: %v", e)
 		return webClaimAnswer("approval_changed"), true
@@ -484,6 +488,7 @@ func (h *ClaimHandler) StopSetupWatch(operationID string) {
 	if h == nil {
 		return
 	}
+	h.deliveries.Delete(operationID)
 	if current, ok := h.webWatches.Load(operationID); ok {
 		watch := current.(*webClaimWatch)
 		watch.stopped.Store(true)

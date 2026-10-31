@@ -78,10 +78,10 @@ type ClaimStatus struct {
 	OwnerContinuation        *OwnerContinuation    `json:"ownerContinuation,omitempty"`
 }
 type ClaimHandler struct {
-	recoveryWake        chan struct{}
-	webWatches          sync.Map
+	recoveryWake chan struct{}
+	webWatches   sync.Map
 	// deliveries tracks applying an approval a setup claim was given (setup_delivery.go).
-	deliveries sync.Map
+	deliveries          sync.Map
 	certificates        *CertificateManager
 	remote              *RemoteManager
 	store               *SQLiteStore
@@ -206,7 +206,6 @@ func readClaimBody(w http.ResponseWriter, r *http.Request, out any) error {
 	return canonicalApprovalJSON(raw, out)
 }
 func (h *ClaimHandler) handle(ctx context.Context, w http.ResponseWriter, r *http.Request, actor ClaimRequestOwner, denied *bool) (ClaimStatus, error) {
-	owner := actor.Owner
 	if r.Method == http.MethodGet && r.URL.Path == "/v1/networking/claim" {
 		return h.snapshot(ctx)
 	}
@@ -221,51 +220,7 @@ func (h *ClaimHandler) handle(ctx context.Context, w http.ResponseWriter, r *htt
 		if e := readClaimBody(w, r, &body); e != nil {
 			return ClaimStatus{}, e
 		}
-		if body.Purpose == "switch" && actor.WebOrigin == "" {
-			return ClaimStatus{}, ErrClaimOwnerRequired
-		}
-		// Web approval (Plex-style): no account is needed to prepare. The person
-		// who approves the code on web.getportico.tv becomes the owner.
-		if body.AccountID == "" {
-			body.AccountID = UnboundAccount
-		}
-		if !validID(body.AccountID) || !validID(body.Expected.ServerID) || body.Expected.LocalGeneration < 0 {
-			return ClaimStatus{}, ErrInvalid
-		}
-		gated, e := h.store.tx(ctx)
-		if e != nil {
-			return ClaimStatus{}, e
-		}
-		tx := gated.Tx()
-		identity, active, installed, e := readCurrentIdentityTx(ctx, tx)
-		gated.Rollback()
-		if e != nil {
-			return ClaimStatus{}, e
-		}
-		if (active.Valid || installed.Valid) && body.Purpose != "change-owner" && body.Purpose != "switch" || identity.ServerID != body.Expected.ServerID || identity.ResetGeneration != body.Expected.LocalGeneration {
-			return ClaimStatus{}, ErrStale
-		}
-		nonce := make([]byte, 24)
-		if _, e = rand.Read(nonce); e != nil {
-			return ClaimStatus{}, e
-		}
-		binding := Binding{OperationID: base64.RawURLEncoding.EncodeToString(nonce), ServerID: identity.ServerID, AccountID: body.AccountID, PublicKey: identity.PublicKey, LocalGeneration: identity.ResetGeneration}
-		purpose := ClaimPurpose{Purpose: body.Purpose, PreviousOwnerRole: body.PreviousOwnerRole, ReturnRegistrationID: body.ReturnRegistrationID}
-		if purpose.Purpose == "" {
-			purpose.Purpose = "setup"
-		}
-		if purpose.Purpose != "setup" {
-			if purpose.Purpose == "change-owner" && purpose.PreviousOwnerRole == "" {
-				purpose.PreviousOwnerRole = "admin"
-			}
-			if e = h.store.db.QueryRowContext(ctx, `SELECT hosted_account_id FROM account_portico_links WHERE account_id=?`, owner.AccountID).Scan(&purpose.CurrentOwnerAccountID); e != nil && !(purpose.Purpose == "switch" && errors.Is(e, sql.ErrNoRows)) {
-				return ClaimStatus{}, ErrClaimOwnerRequired
-			}
-		}
-		if _, e = h.store.PreparePurpose(ctx, binding, owner, purpose); e != nil {
-			return ClaimStatus{}, e
-		}
-		return h.snapshot(ctx)
+		return h.prepareClaim(ctx, actor, body)
 	}
 	var body ClaimActionRequest
 	if e := readClaimBody(w, r, &body); e != nil {
@@ -291,17 +246,7 @@ func (h *ClaimHandler) handle(ctx context.Context, w http.ResponseWriter, r *htt
 			if expected.Purpose != "setup" || actor.SetupStart == nil || actor.WebOrigin == "" || body.OwnerStart != nil || body.ApprovalEnvelope != "" || len(r.Header.Values("X-Portico-Installation-Id")) != 1 || body.SetupStart.InstallationID != r.Header.Get("X-Portico-Installation-Id") {
 				return ClaimStatus{}, ErrInvalid
 			}
-			pending, e = h.beginSetupWebClaim(ctx, expected, actor.WebOrigin, body.SetupStart.State, body.SetupStart.CodeChallenge, body.SetupStart.InstallationID, actor.SetupStart)
-			// A renewed start of an installed setup binds its HTTPS return now, as the
-			// continue step would have if the original start were still live.
-			if e == nil && expected.Stage == Installed && expected.InstallationAcknowledged && actor.ResolveSetupReturn != nil {
-				if err := actor.ResolveSetupReturn(ctx); err != nil && !errors.Is(err, ErrUnavailable) {
-					e = stepFailure("setup return registration", err)
-				} else if err != nil {
-					// Not ready yet is not a refusal, but it must never be silent.
-					h.failures.report(routeLabel(r, "networking claim route"), 200, ctx, err)
-				}
-			}
+			pending, e = h.setupWebClaim(ctx, r, actor, expected, *body.SetupStart)
 		} else if expected.Purpose == "switch" && expected.CurrentOwnerAccountID == "" {
 			if body.OwnerStart == nil || actor.OwnerStart == nil || actor.WebOrigin == "" || body.ApprovalEnvelope != "" || len(r.Header.Values("X-Portico-Installation-Id")) != 1 || body.OwnerStart.InstallationID != r.Header.Get("X-Portico-Installation-Id") {
 				return ClaimStatus{}, ErrInvalid
@@ -316,16 +261,7 @@ func (h *ClaimHandler) handle(ctx context.Context, w http.ResponseWriter, r *htt
 		if e != nil {
 			return ClaimStatus{}, e
 		}
-		status, e := h.snapshot(ctx)
-		status.ApprovalURL = pending.URL
-		status.ClaimCode = pending.Code
-		if pending.SetupStart != nil {
-			status.SetupContinuation = &SetupContinuation{TransactionID: pending.SetupTransactionID, Phase: "prepared", ExpiresAt: pending.ExpiresAt.UTC().Format(time.RFC3339Nano), Claim: &pending.Signed, Start: pending.SetupStart}
-		}
-		if pending.OwnerStart != nil {
-			status.OwnerContinuation = &OwnerContinuation{TransactionID: pending.OwnerTransactionID, Phase: "prepared", ExpiresAt: pending.ExpiresAt.UTC().Format(time.RFC3339Nano), Claim: &pending.Signed, Start: pending.OwnerStart}
-		}
-		return status, e
+		return h.webClaimStatus(ctx, pending)
 	}
 	if body.OwnerStart != nil || body.SetupStart != nil {
 		return ClaimStatus{}, ErrInvalid
@@ -666,4 +602,86 @@ func (ClaimPrepareRequest) JSONSchema() map[string]any {
 		"accountId": id, "purpose": map[string]any{"type": "string", "enum": []string{"setup", "switch", "change-owner"}},
 		"previousOwnerRole": map[string]any{"type": "string", "enum": []string{"admin", "member", "remove"}}, "returnRegistrationId": id,
 		"expected": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"serverId", "localGeneration"}, "properties": map[string]any{"serverId": map[string]any{"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"}, "localGeneration": map[string]any{"type": "string", "pattern": "^(0|[1-9][0-9]*)$"}}}}}
+}
+
+// setupWebClaim signs and registers a setup claim's start with Portico Services for the
+// setup's own caller. A renewed start of an installed setup binds its HTTPS return now,
+// as the continue step would have if the original start were still live.
+func (h *ClaimHandler) setupWebClaim(ctx context.Context, r *http.Request, actor ClaimRequestOwner, expected Intent, start ClaimSetupStartRequest) (localWebClaim, error) {
+	pending, e := h.beginSetupWebClaim(ctx, expected, actor.WebOrigin, start.State, start.CodeChallenge, start.InstallationID, actor.SetupStart)
+	if e == nil && expected.Stage == Installed && expected.InstallationAcknowledged && actor.ResolveSetupReturn != nil {
+		if err := actor.ResolveSetupReturn(ctx); err != nil && !errors.Is(err, ErrUnavailable) {
+			e = stepFailure("setup return registration", err)
+		} else if err != nil {
+			// Not ready yet is not a refusal, but it must never be silent.
+			h.failures.report(routeLabel(r, "networking claim route"), 200, ctx, err)
+		}
+	}
+	return pending, e
+}
+
+// webClaimStatus is the claim as it now is, with the approval link and any signed
+// continuation the caller binds before it opens that link.
+func (h *ClaimHandler) webClaimStatus(ctx context.Context, pending localWebClaim) (ClaimStatus, error) {
+	status, e := h.snapshot(ctx)
+	status.ApprovalURL = pending.URL
+	status.ClaimCode = pending.Code
+	if pending.SetupStart != nil {
+		status.SetupContinuation = &SetupContinuation{TransactionID: pending.SetupTransactionID, Phase: "prepared", ExpiresAt: pending.ExpiresAt.UTC().Format(time.RFC3339Nano), Claim: &pending.Signed, Start: pending.SetupStart}
+	}
+	if pending.OwnerStart != nil {
+		status.OwnerContinuation = &OwnerContinuation{TransactionID: pending.OwnerTransactionID, Phase: "prepared", ExpiresAt: pending.ExpiresAt.UTC().Format(time.RFC3339Nano), Claim: &pending.Signed, Start: pending.OwnerStart}
+	}
+	return status, e
+}
+
+// prepareClaim prepares a claim operation for the caller: unbound to any account, so
+// whoever approves it on Portico Services becomes the owner (Plex-style).
+func (h *ClaimHandler) prepareClaim(ctx context.Context, actor ClaimRequestOwner, body ClaimPrepareRequest) (ClaimStatus, error) {
+	owner := actor.Owner
+	if body.Purpose == "switch" && actor.WebOrigin == "" {
+		return ClaimStatus{}, ErrClaimOwnerRequired
+	}
+	// Web approval (Plex-style): no account is needed to prepare. The person
+	// who approves the code on web.getportico.tv becomes the owner.
+	if body.AccountID == "" {
+		body.AccountID = UnboundAccount
+	}
+	if !validID(body.AccountID) || !validID(body.Expected.ServerID) || body.Expected.LocalGeneration < 0 {
+		return ClaimStatus{}, ErrInvalid
+	}
+	gated, e := h.store.tx(ctx)
+	if e != nil {
+		return ClaimStatus{}, e
+	}
+	tx := gated.Tx()
+	identity, active, installed, e := readCurrentIdentityTx(ctx, tx)
+	gated.Rollback()
+	if e != nil {
+		return ClaimStatus{}, e
+	}
+	if (active.Valid || installed.Valid) && body.Purpose != "change-owner" && body.Purpose != "switch" || identity.ServerID != body.Expected.ServerID || identity.ResetGeneration != body.Expected.LocalGeneration {
+		return ClaimStatus{}, ErrStale
+	}
+	nonce := make([]byte, 24)
+	if _, e = rand.Read(nonce); e != nil {
+		return ClaimStatus{}, e
+	}
+	binding := Binding{OperationID: base64.RawURLEncoding.EncodeToString(nonce), ServerID: identity.ServerID, AccountID: body.AccountID, PublicKey: identity.PublicKey, LocalGeneration: identity.ResetGeneration}
+	purpose := ClaimPurpose{Purpose: body.Purpose, PreviousOwnerRole: body.PreviousOwnerRole, ReturnRegistrationID: body.ReturnRegistrationID}
+	if purpose.Purpose == "" {
+		purpose.Purpose = "setup"
+	}
+	if purpose.Purpose != "setup" {
+		if purpose.Purpose == "change-owner" && purpose.PreviousOwnerRole == "" {
+			purpose.PreviousOwnerRole = "admin"
+		}
+		if e = h.store.db.QueryRowContext(ctx, `SELECT hosted_account_id FROM account_portico_links WHERE account_id=?`, owner.AccountID).Scan(&purpose.CurrentOwnerAccountID); e != nil && !(purpose.Purpose == "switch" && errors.Is(e, sql.ErrNoRows)) {
+			return ClaimStatus{}, ErrClaimOwnerRequired
+		}
+	}
+	if _, e = h.store.PreparePurpose(ctx, binding, owner, purpose); e != nil {
+		return ClaimStatus{}, e
+	}
+	return h.snapshot(ctx)
 }

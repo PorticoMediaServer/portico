@@ -248860,6 +248860,273 @@ export const schemas = {
     ],
     "type": "object"
   },
+  "PostSetupApprovalRequest": {
+    "properties": {
+      "setupStart": {
+        "additionalProperties": false,
+        "properties": {
+          "codeChallenge": {
+            "maxLength": 43,
+            "minLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+            "type": "string"
+          },
+          "installationId": {
+            "maxLength": 128,
+            "minLength": 32,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "state": {
+            "maxLength": 43,
+            "minLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "codeChallenge",
+          "installationId"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "setupStart"
+    ],
+    "type": "object"
+  },
+  "PostSetupApprovalResponse": {
+    "properties": {
+      "accountId": {
+        "type": "string"
+      },
+      "actions": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "approvalRequest": {
+        "properties": {
+          "currentOwnerAccountId": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "string"
+          },
+          "localGeneration": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "previousOwnerRole": {
+            "type": "string"
+          },
+          "publicKey": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "returnRegistrationId": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "purpose",
+          "currentOwnerAccountId",
+          "previousOwnerRole",
+          "returnRegistrationId",
+          "operationId",
+          "serverId",
+          "publicKey",
+          "localGeneration",
+          "name",
+          "expectedRevision"
+        ],
+        "type": "object"
+      },
+      "approvalRequired": {
+        "type": "boolean"
+      },
+      "approvalUrl": {
+        "type": "string"
+      },
+      "claimCode": {
+        "type": "string"
+      },
+      "identity": {
+        "properties": {
+          "localGeneration": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId",
+          "localGeneration"
+        ],
+        "type": "object"
+      },
+      "installationAcknowledged": {
+        "type": "boolean"
+      },
+      "operation": {
+        "properties": {
+          "localGeneration": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "localGeneration",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "ownerContinuation": {
+        "properties": {
+          "claim": {
+            "properties": {
+              "payload": {
+                "type": "string"
+              },
+              "signature": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "payload",
+              "signature"
+            ],
+            "type": "object"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "returnRegistration": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "origin": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "origin"
+            ],
+            "type": "object"
+          },
+          "start": {
+            "properties": {
+              "payload": {
+                "type": "string"
+              },
+              "signature": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "payload",
+              "signature"
+            ],
+            "type": "object"
+          },
+          "transactionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "phase",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "setupContinuation": {
+        "properties": {
+          "claim": {
+            "properties": {
+              "payload": {
+                "type": "string"
+              },
+              "signature": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "payload",
+              "signature"
+            ],
+            "type": "object"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "start": {
+            "properties": {
+              "payload": {
+                "type": "string"
+              },
+              "signature": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "payload",
+              "signature"
+            ],
+            "type": "object"
+          },
+          "transactionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "phase",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "state": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "state",
+      "identity",
+      "installationAcknowledged",
+      "approvalRequired",
+      "actions"
+    ],
+    "type": "object"
+  },
   "PostSetupResumeRequest": {
     "properties": {
       "requestId": {

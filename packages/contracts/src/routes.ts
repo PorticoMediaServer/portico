@@ -34936,6 +34936,30 @@ export const routes = [
   },
   {
     "audience": "Clients",
+    "id": "post_setup_approval",
+    "method": "POST",
+    "path": "/v1/setup/approval",
+    "summary": "Ask a Portico Account to approve this setup",
+    "access": "public",
+    "requires": "session",
+    "lane": "security",
+    "cost": "constant",
+    "bodyLimit": 20480,
+    "errors": [
+      "unauthorized",
+      "invalid_request",
+      "rate_limited",
+      "setup_state_changed",
+      "setup_source_not_local",
+      "internal",
+      "database_busy",
+      "writer_capacity"
+    ],
+    "status": 200,
+    "admission": "auth"
+  },
+  {
+    "audience": "Clients",
     "id": "post_setup_resume",
     "method": "POST",
     "path": "/v1/setup/resume",
