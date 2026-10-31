@@ -29,6 +29,7 @@ UI changes need to match the approved design. Keep each pull request to one prob
 - The issue it fixes, or a line on why the fix is obvious
 - How to reproduce the problem, and what you saw before and after
 - Tests for the change, and anything you couldn't test
+- A change that keeps to the [engineering rules](docs/ENGINEERING-RULES.md)
 - Before and after screenshots for UI changes. Use a recording for anything to do with motion or timing, and show where focus goes for TV changes.
 - Who wrote it: you, or which AI model and tool. AI-written code is fine and welcome, but you're still responsible for it.
 - Any third-party code you copied in, and its licence

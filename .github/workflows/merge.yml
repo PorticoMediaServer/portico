@@ -35,6 +35,7 @@ jobs:
       - run: python3 -m unittest discover -s ci -p 'test_*.py'
       - run: python3 ci/source_guard.py
       - run: bash ci/secret-scan.sh
+      - run: python3 ci/engineering_rules.py
   planner:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
@@ -61,6 +62,9 @@ jobs:
           CI_TIER: ${{ github.event_name == 'merge_group' && 'merge' || inputs.tier || 'short' }}
           CI_BASE: ${{ inputs.base }}
         run: python3 ci/plan.py --tier "$CI_TIER"
+      - env:
+          CI_BASE: ${{ inputs.base }}
+        run: python3 ci/commit_bylines.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: selection
