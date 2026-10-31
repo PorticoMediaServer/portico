@@ -85,7 +85,6 @@
   "packages/client-core/src/session-refresh.ts": 4,
   "packages/client-core/src/social-playback.ts": 2,
   "web/src/platform/account-entry.ts": 3,
-  "web/src/platform/account-security.ts": 2,
   "web/src/platform/account-work.ts": 1,
   "web/src/services/OriginalAccountSecurityWorkspace.tsx": 1,
   "web/src/services/ServicesApp.tsx": 2
