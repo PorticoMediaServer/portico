@@ -9332,7 +9332,7 @@ CREATE TABLE identity_owner_completions(
 CREATE TABLE identity_setup_completions(
  operation_id TEXT PRIMARY KEY REFERENCES networking_claim_intents(operation_id),
  setup_request_id TEXT NOT NULL, setup_revision INTEGER NOT NULL CHECK(setup_revision>0),setup_proof TEXT NOT NULL,
- phase TEXT NOT NULL CHECK(phase IN('prepared','installed','consumed','completed','cancelled','expired','superseded')),
+ phase TEXT NOT NULL CHECK(phase IN('prepared','installed','consumed','completed','cancelled','denied','expired','superseded')),
  claim_hash TEXT NOT NULL CHECK(length(claim_hash)=43),claim_payload BLOB NOT NULL CHECK(length(claim_payload) BETWEEN 1 AND 8192),claim_signature BLOB NOT NULL CHECK(length(claim_signature)=64),
  start_payload BLOB NOT NULL CHECK(length(start_payload) BETWEEN 1 AND 8192),start_signature BLOB NOT NULL CHECK(length(start_signature)=64),
  state_hash TEXT NOT NULL,code_challenge TEXT NOT NULL CHECK(length(code_challenge)=43),installation_id TEXT NOT NULL,server_challenge_hash TEXT NOT NULL,

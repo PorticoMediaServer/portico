@@ -60,6 +60,7 @@ function Stage({view, controller, form, setForm, name, mode, library, setLibrary
       // Back here from Portico Services without Return: offer Continue again, which asks the server for the same approval.
       return <AuthStage legal={false} contentClassName={styles.content}>
         <h1 className={styles.one}>{t('web.setup.welcome')}</h1>
+        {view.declined && <p className={styles.quiet} role="status">{t('web.setup.declined')}</p>}
         <div className={styles.field}><TextField variant="auth" label={t('web.general.serverName')} value={view.name || name} readOnly/></div>
         <div className={styles.btnRow}><Button variant="primary" size="hero" onClick={controller.retry}>{t('accounts.signIn.handoff')}</Button>{back}</div>
         <p className={styles.quiet}>{t('web.setup.tabTrip')}</p>

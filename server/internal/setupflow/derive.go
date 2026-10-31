@@ -80,6 +80,14 @@ func Derive(ctx context.Context, q Querier, now time.Time, delivery DeliveryLook
 			return State{}, inconsistent("a settled setup completion with no active claim")
 		}
 		out.Phase, out.ExpiresAt = byWindow(Started), window
+		// The newest signed start says how the last request ended; a new request replaces it.
+		var last sql.NullString
+		if err = q.QueryRowContext(ctx, `SELECT phase FROM identity_setup_completions WHERE setup_request_id=? ORDER BY created_ms DESC LIMIT 1`, out.RequestID).Scan(&last); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return State{}, err
+		}
+		if out.Phase == Started && last.String == "denied" {
+			out.Outcome = "denied"
+		}
 		return out, nil
 	}
 

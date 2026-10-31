@@ -109,6 +109,9 @@ type State struct {
 	Delivery *Delivery
 	// Cancelling is true while the setup's own unapproved claim is being withdrawn.
 	Cancelling bool
+	// Outcome says how the setup's last request on Portico Services ended, while started
+	// with no new request since: "denied" when the Portico Account declined it.
+	Outcome string
 	// Renewable is true when an installed setup's lapsed admission window may be
 	// renewed without a second approval.
 	Renewable bool

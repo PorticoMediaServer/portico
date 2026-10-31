@@ -887,8 +887,12 @@ func (s *SQLiteStore) SetInstallationHooks(ready func(context.Context, *sql.Tx, 
 // hosted_denied, awaiting approval back to started. The claim is cancelled and no
 // longer active and its signed start ends; the setup request stays, so Continue
 // prepares a new claim with a new request on Portico Services. Nothing here reaches
-// Portico Services. It reports whether it withdrew anything.
-func (s *SQLiteStore) WithdrawSetupClaim(ctx context.Context, expected Intent) (bool, error) {
+// Portico Services. phase is how its signed start ends: "denied" when the Portico
+// Account declined it (setup then says so), otherwise "cancelled". It reports whether it withdrew anything.
+func (s *SQLiteStore) WithdrawSetupClaim(ctx context.Context, expected Intent, phase string) (bool, error) {
+	if phase != "denied" && phase != "cancelled" {
+		return false, ErrInvalid
+	}
 	gated, e := s.tx(ctx)
 	if e != nil {
 		return false, e
@@ -917,7 +921,7 @@ func (s *SQLiteStore) WithdrawSetupClaim(ctx context.Context, expected Intent) (
 		{`DELETE FROM networking_claim_cancellations WHERE operation_id=? AND state='pending'`, []any{v.OperationID}},
 		{`UPDATE networking_claim_intents SET stage='cancelled',revision=revision+1 WHERE operation_id=? AND stage='prepared' AND approval_revision=0`, []any{v.OperationID}},
 		{`UPDATE networking_claim_identity SET active_operation_id=NULL,pending_operation_id=CASE WHEN pending_operation_id=? THEN NULL ELSE pending_operation_id END WHERE singleton=1 AND active_operation_id=? AND installed_operation_id IS NULL`, []any{v.OperationID, v.OperationID}},
-		{`UPDATE identity_setup_completions SET phase='cancelled' WHERE operation_id=? AND phase='prepared'`, []any{v.OperationID}},
+		{`UPDATE identity_setup_completions SET phase=? WHERE operation_id=? AND phase='prepared'`, []any{phase, v.OperationID}},
 		{`DELETE FROM networking_web_claims WHERE operation_id=?`, []any{v.OperationID}},
 	} {
 		if _, e = tx.ExecContext(ctx, q.query, q.args...); e != nil {
