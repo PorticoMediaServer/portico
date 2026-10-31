@@ -1,6 +1,6 @@
 {
   "sourceRepository": "PorticoMediaServer/portico-internal",
-  "sourceCommit": "ae9b104945c8c02f1c2ce6aae2c72c6739d56246",
+  "sourceCommit": "516b83412d7b80da798d31b448f9285479b6ad2f",
   "importMapping": {
     "portico.local/hosted/internal/serverreturn": "github.com/PorticoMediaServer/portico/server/internal/serverreturn",
     "portico.local/hosted/internal/wirejson": "github.com/PorticoMediaServer/portico/server/internal/wirejson"
@@ -16,16 +16,16 @@
     {
       "source": "hosted-services/hosted/claimweb/owner_start.go",
       "target": "server/internal/claimweb/owner_start.go",
-      "sourceBlob": "255968faf5478eaf8732ae8af3a5dc3b33d91140",
-      "sourceSHA256": "676ca5c279a1bffec6396a658cb50243903391e7e200baff97905a389abd7bc8",
-      "targetSHA256": "86733104d1f583350269c117067fece026920eee2c9689fe255ae2817cebeccb"
+      "sourceBlob": "4e3aae13a380005291a6c9b65bf5c00d28740dc0",
+      "sourceSHA256": "4ea7c57362b0d065f42ed357d3ba0d6858e735dcd1757b9c5eda5fd224eacfcf",
+      "targetSHA256": "027f2486e221889ddebf8340ffe6ae5bc7896a28407ce9e051d52730fa547c0d"
     },
     {
       "source": "hosted-services/hosted/claimweb/owner_start_test.go",
       "target": "server/internal/claimweb/owner_start_test.go",
-      "sourceBlob": "805402a323e977cc77aaa116d84bee5330784fd3",
-      "sourceSHA256": "1a511918092c16fb4220350b28ba31b1bc42be00c30ed3a872c62f307eb05256",
-      "targetSHA256": "1c0bd484146ff3a986fa8aca7b38efe4e4a2942486e507ae7d03ca8e8394c8f4"
+      "sourceBlob": "7a3076e36519ce24d1fac5f7013831cebe060363",
+      "sourceSHA256": "6ed257fab1382494b6f7c94eb01d284db639234c6af1752c0d4baf4de39efbdc",
+      "targetSHA256": "d200c88d56ff365c644d041782821a12cacd897238fa5a35984db1957b949060"
     },
     {
       "source": "hosted-services/hosted/claimweb/owner_switch_count.go",
@@ -44,16 +44,16 @@
     {
       "source": "hosted-services/hosted/claimweb/setup_start.go",
       "target": "server/internal/claimweb/setup_start.go",
-      "sourceBlob": "d780cff09bfe03a682a0f0e8a92c4fc34985387a",
-      "sourceSHA256": "1addae4b2a5d31917d70a1680e823fdaedc81113623725a8a14339b2360eb250",
-      "targetSHA256": "1addae4b2a5d31917d70a1680e823fdaedc81113623725a8a14339b2360eb250"
+      "sourceBlob": "5bb7050c80f631b9c183fb343fb840b5f7bf99aa",
+      "sourceSHA256": "e15393f2a880f7619a4c6acb9747584ee5d65f51fd34dcc1f4aceea888b4d64d",
+      "targetSHA256": "e15393f2a880f7619a4c6acb9747584ee5d65f51fd34dcc1f4aceea888b4d64d"
     },
     {
       "source": "hosted-services/hosted/claimweb/setup_start_test.go",
       "target": "server/internal/claimweb/setup_start_test.go",
-      "sourceBlob": "0b43af5d025266a581733634b376d185dbb853d6",
-      "sourceSHA256": "eabaf9f0f40cdae61c6fb10c0cedd9e36042650e9aab5f3a3a23b8adec40b324",
-      "targetSHA256": "eabaf9f0f40cdae61c6fb10c0cedd9e36042650e9aab5f3a3a23b8adec40b324"
+      "sourceBlob": "5a1e964d946cdcba80636a7ccefb02e4f4d1a61a",
+      "sourceSHA256": "bdc1e95d7a75078f8b873082336e7eefe48ba8d3a09bddad98fedb3cc7f00973",
+      "targetSHA256": "bdc1e95d7a75078f8b873082336e7eefe48ba8d3a09bddad98fedb3cc7f00973"
     },
     {
       "source": "hosted-services/hosted/claimweb/testdata/owner_start.json",

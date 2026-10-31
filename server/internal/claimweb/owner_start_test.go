@@ -31,7 +31,7 @@ func ownerStartFixture(t *testing.T) (ed25519.PrivateKey, Request, OwnerStart, t
 	}
 	hash := sha256.Sum256(raw)
 	challenge := sha256.Sum256([]byte("public-vector-pkce-verifier-only-not-a-runtime-secret"))
-	start := OwnerStart{Kind: OwnerStartKind, Audience: claim.Audience, ClaimHash: base64.RawURLEncoding.EncodeToString(hash[:]), OperationID: claim.OperationID, ServerID: claim.ServerID, PublicKey: claim.PublicKey, LocalGeneration: claim.LocalGeneration, Address: claim.Address, Purpose: claim.Purpose, State: strings.Repeat("s", 43), CodeChallenge: base64.RawURLEncoding.EncodeToString(challenge[:]), InstallationID: strings.Repeat("i", 43), ServerChallenge: strings.Repeat("c", 43), IssuedAt: at.Add(time.Second), ExpiresAt: at.Add(OwnerStartLifetime)}
+	start := OwnerStart{Kind: OwnerStartKind, Audience: claim.Audience, ClaimHash: base64.RawURLEncoding.EncodeToString(hash[:]), OperationID: claim.OperationID, ServerID: claim.ServerID, PublicKey: claim.PublicKey, LocalGeneration: claim.LocalGeneration, Address: claim.Address, Purpose: claim.Purpose, State: strings.Repeat("s", 43), CodeChallenge: base64.RawURLEncoding.EncodeToString(challenge[:]), InstallationID: strings.Repeat("i", 43), ServerChallenge: strings.Repeat("c", 43), IssuedAt: at.Add(time.Second), ExpiresAt: at.Add(5 * time.Minute)}
 	return key, claim, start, at.Add(time.Minute)
 }
 
@@ -97,7 +97,7 @@ func TestOwnerStartRejectsSignedTupleChanges(t *testing.T) {
 		"before claim":      func(v *OwnerStart) { v.IssuedAt = claim.IssuedAt.Add(-time.Second) },
 		"expiry":            func(v *OwnerStart) { v.ExpiresAt = now },
 		"empty interval":    func(v *OwnerStart) { v.ExpiresAt = v.IssuedAt },
-		"over five minutes": func(v *OwnerStart) { v.ExpiresAt = v.IssuedAt.Add(OwnerStartLifetime + time.Nanosecond) },
+		"over the step":     func(v *OwnerStart) { v.ExpiresAt = v.IssuedAt.Add(OwnerStartLifetime + time.Nanosecond) },
 		"over claim expiry": func(v *OwnerStart) { v.ExpiresAt = claim.ExpiresAt.Add(time.Second) },
 	}
 	for name, change := range cases {
@@ -111,9 +111,16 @@ func TestOwnerStartRejectsSignedTupleChanges(t *testing.T) {
 	}
 	// New state/installation/challenge are opaque, not external authority. Their
 	// equality to private pending and stored challenge belongs to runtime checks.
-	start.ExpiresAt = start.IssuedAt.Add(OwnerStartLifetime)
+	// The exact boundary: a start may last a whole Portico Account step, inside a
+	// claim that does too.
+	claim.ExpiresAt = claim.IssuedAt.Add(RequestLifetime(claim.Purpose))
+	original = signOwnerFixture(t, key, claim)
+	raw, _ := json.Marshal(claim)
+	hash := sha256.Sum256(raw)
+	start.ClaimHash = base64.RawURLEncoding.EncodeToString(hash[:])
+	start.IssuedAt, start.ExpiresAt = claim.IssuedAt, claim.IssuedAt.Add(OwnerStartLifetime)
 	if _, _, e := VerifyOwnerStart(original, signOwnerFixture(t, key, start), claim.Audience, now); e != nil {
-		t.Fatal("exact five-minute boundary refused", e)
+		t.Fatal("exact boundary refused", e)
 	}
 }
 
