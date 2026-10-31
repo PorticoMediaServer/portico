@@ -801,7 +801,7 @@ export class HttpLocalApi {
   /** Keep this transport's access token alive: refresh before expiry and once on a 401. */
   setAuthRecovery(auth: AuthRecovery | undefined) { this.auth = auth; }
   private async send(path: string, method: string, body: unknown, signal: AbortSignal | undefined, token: string, extra?: Readonly<Record<string, string>>, keepalive = false) {
-    const ownerStart = method === 'POST' && path === routePath('post_networking_claim_web_approval');
+    const ownerStart = method === 'POST' && (path === routePath('post_networking_claim_web_approval') || path === routePath('post_setup_approval'));
     const response = await this.fetcher(this.baseUrl + path, {
       method,
       signal,
