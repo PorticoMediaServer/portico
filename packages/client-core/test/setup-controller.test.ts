@@ -126,6 +126,55 @@ test('a stale own record (the server is open) is retired and the form shows with
   assert.deepEqual(t.store.peek(), {});
 });
 
+test('Back while Continue is in flight drops the call and abandons what the server may hold; its late answer changes nothing', async () => {
+  const late = deferred<unknown>();
+  const t = rig({handlers: {requestApproval: () => late.promise}});
+  t.controller.start();
+  await t.settle();
+  t.controller.submitHosted('Den', {navigate: true});
+  await t.settle();
+  assert.equal(t.kind(), 'starting');
+  t.controller.back();
+  await t.settle();
+  assert.deepEqual(t.calls.map(c => c.name), ['readState', 'start', 'initializeHosted', 'requestApproval', 'abandon']);
+  assert.ok(t.calls[3]!.context!.signal.aborted, 'the approval request is dropped');
+  assert.deepEqual(t.controller.getSnapshot(), {kind: 'form', mode: 'choose', name: 'Den'});
+  late.resolve({kind: 'approvalReady', approvalUrl: 'https://hosted.example/claim#late'});
+  await t.clock.advance(60_000);
+  assert.equal(t.count('navigate'), 0, 'a late approval link never leaves the page');
+  assert.equal(t.kind(), 'form');
+});
+
+test('Back while Continue is in flight, and the server had already taken the approval request: the refused abandon re-reads and shows the waiting', async () => {
+  const late = deferred<unknown>();
+  const t = rig({reads: [open, own('awaiting_approval')], handlers: {requestApproval: () => late.promise, abandon: () => ({kind: 'abandonRefused'})}});
+  t.handlers.start = async () => {await t.store.change({}, {record: record()}); return {kind: 'startDone'};};
+  t.controller.start();
+  await t.settle();
+  t.controller.submitHosted('Den', {navigate: false});
+  await t.settle();
+  t.controller.back();
+  await t.settle();
+  assert.equal(t.count('abandon'), 1);
+  assert.equal(t.kind(), 'awaiting_approval', 'the server\'s word, not the form');
+});
+
+test('Back while a local owner is being created is not taken: that runs on to the library', async () => {
+  const late = deferred<unknown>();
+  const t = rig({handlers: {initializeLocal: () => late.promise}});
+  t.controller.start();
+  await t.settle();
+  t.controller.submitLocal('Den', 'alice', SECRET);
+  await t.settle();
+  t.controller.back();
+  await t.settle();
+  assert.equal(t.kind(), 'starting');
+  late.resolve({kind: 'initializeDone'});
+  await t.settle();
+  assert.equal(t.count('abandon'), 0);
+  assert.equal(t.kind(), 'library');
+});
+
 // ---- cancel, dispose, watchdog --------------------------------------------------------------------------------------------
 test('a result that arrives after dispose is ignored, and nothing further runs', async () => {
   const late = deferred<unknown>();

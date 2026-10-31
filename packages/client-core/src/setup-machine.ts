@@ -157,7 +157,7 @@ const failedStep = (error: SetupError, name: string, hold: SetupHold, to: SetupV
 /** Back and Start again. An own unapproved attempt is abandoned (S8) and the form shows both kinds; an approved one is never abandoned. */
 function leave(hold: SetupHold, name: string): SetupStep {
   if (hold === 'committed') return go({kind: 'connecting'}, [{kind: 'read-state'}]);
-  return go(form(name), hold === 'unapproved' ? [{kind: 'abandon'}] : []);
+  return go(form(name), [{kind: 'cancel-pending'}, ...(hold === 'unapproved' ? [{kind: 'abandon'} as const] : [])]);
 }
 
 function connecting(view: SetupView, i: SetupInput, now: number): SetupStep {
@@ -208,6 +208,9 @@ function starting(view: Extract<SetupView, {kind: 'starting'}>, i: SetupInput, n
       return go(next, [...(view.navigate ? [{kind: 'navigate', url: i.approvalUrl} as const] : []), readAfter(0)]);
     }
     case 'ownerAdopted': return step === 'adopt' ? go({kind: 'library'}, RETIRE) : stay(view);
+    // Back while Continue is in flight: the runner drops the call, and anything the server may already hold is abandoned (it decides
+    // the race). A local owner being created can't be taken back, so that runs on.
+    case 'back': return step === 'start' ? leave('none', name) : hosted ? leave('unapproved', name) : stay(view);
     case 'effectFailed': {
       if (step === 'start' && i.effect === 'start') return failedStep(i.error, name, 'none', view, [{kind: 'start'}]);
       if (step === 'initialize' && i.effect === 'initialize') return failedStep(i.error, name, hosted ? 'unapproved' : 'none', view, [hosted ? {kind: 'initialize-hosted', name} : {kind: 'initialize-local', name}]);
@@ -283,7 +286,7 @@ function busy(view: Extract<SetupView, {kind: 'busy_elsewhere'}>, i: SetupInput,
     case 'state': return reconcile(i, now, view);
     case 'readFailed': return go({...view, polls: view.polls + 1}, [readAfter(view.polls + 1, i.error.retryAfterMs)]);
     case 'alreadyComplete': return alreadySetUp();
-    case 'back': return go(form(''));
+    case 'back': return leave('none', '');
     default: return stay(view);
   }
 }

@@ -324,7 +324,11 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
       intent({kind: 'submitLocal', name});
     },
     chooseKind: mode => direct({kind: 'chooseKind', mode}),
-    back: () => intent({kind: 'back'}),
+    back() {
+      // Back while Continue is in flight drops that call, when the reducer takes Back there; the server decides any race.
+      if (!disposed && working(user) && view.kind === 'starting' && stepSetup(view, {kind: 'back'}, wallNow()).view !== view) user.action.cancel();
+      intent({kind: 'back'});
+    },
     startAgain: () => intent({kind: 'startAgain'}),
     retry() {
       if (disposed || working(user)) return;
