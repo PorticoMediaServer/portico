@@ -1,6 +1,6 @@
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {routePath} from '../../../../packages/contracts/src/routes.ts';
-import {initializeServer, resumeServerSetup, type PendingAccountSetup, type SetupDraft, type SetupDraftStore, type SetupSession} from '@core/setup-onboarding.ts';
+import {initializeServer, resumeServerSetup, type PendingAccountSetup, type SetupDraftStore, type SetupSession} from '@core/setup-onboarding.ts';
 import type {HttpLocalApi, LocalSession} from '@core/index.ts';
 import type {ServerPin} from '@core/route-identity.ts';
 import type {ServerSignIn} from '@core/sign-in.ts';
@@ -72,7 +72,6 @@ export class SetupFlow {
   private controller?: AbortController;
   private started = false;
   private disposed = false;
-  private localRecovery?: {readonly server: SetupServer; draft: Readonly<SetupDraft>};
   constructor(private readonly ports: SetupPorts) {}
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => {if (this.disposed) return () => {}; this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
@@ -90,7 +89,6 @@ export class SetupFlow {
   };
   private async connect(): Promise<void> {
     const op = this.operation();
-    this.localRecovery = undefined;
     this.publish({phase: 'loading', busy: true, error: undefined, connectError: undefined, failure: undefined, earlierExpired: undefined});
     try {
       const server = await this.ports.connect(op.signal);
@@ -174,55 +172,6 @@ export class SetupFlow {
         this.publish({phase: 'error', busy: false, error: setupErrorMessage(error), failure: error instanceof SetupStageFailure ? error : expected});
     }
   };
-  /** Switches to local setup only after the failure's own guarded callback resolves. */
-  useLocalFailure = async (expected: SetupStageFailure): Promise<void> => {
-    const server = this.server;
-    if (!server || this.state.busy || this.state.failure !== expected || typeof expected.useLocal !== 'function') return;
-    const op = this.operation();
-    this.publish({busy: true, error: undefined});
-    try {
-      const draft = await server.draft.read();
-      if (!this.current(server, op) || this.state.failure !== expected) return;
-      if (!draft || draft.version !== 1 || draft.serverId !== server.pin.serverId || draft.authMode !== 'hosted' || !draft.setupToken)
-        throw Object.assign(new Error('The original setup changed.'), {code: 'cancelled'});
-      const original = Object.freeze({...draft});
-      await expected.useLocal!();
-      if (!this.current(server, op) || this.state.failure !== expected) return;
-      const after = await server.draft.read();
-      if (!this.current(server, op) || this.state.failure !== expected) return;
-      if (JSON.stringify(after) !== JSON.stringify(original)) throw Object.assign(new Error('The original setup changed.'), {code: 'cancelled'});
-      this.localRecovery = {server, draft: original};
-      this.publish({phase: 'form', mode: 'local', busy: false, failure: undefined, error: undefined});
-    } catch (error) {
-      if (this.current(server, op) && this.state.failure === expected)
-        this.publish({phase: 'error', busy: false, error: setupErrorMessage(error), failure: error instanceof SetupStageFailure ? error : expected});
-    }
-  };
-  /** The browser-start route refuses an already-pending onboarding row. A
-   * recovered local form must keep its original protected proof instead. */
-  private recoveredDraft(server: SetupServer, op: {current: () => boolean}, recovery: NonNullable<SetupFlow['localRecovery']>): SetupDraftStore {
-    const current = () => {
-      if (!this.current(server, op) || this.localRecovery !== recovery || recovery.server !== server)
-        throw Object.assign(new Error('The original setup changed.'), {code: 'cancelled'});
-    };
-    const matches = (value: SetupDraft | undefined) => JSON.stringify(value) === JSON.stringify(recovery.draft);
-    return {
-      read: async () => {current(); const value = await server.draft.read(); current(); if (!matches(value)) throw Object.assign(new Error('The original setup changed.'), {code: 'cancelled'}); return value;},
-      change: async update => {
-        current();
-        await server.draft.change(old => {
-          current();
-          if (!matches(old)) throw Object.assign(new Error('The original setup changed.'), {code: 'cancelled'});
-          const next = update(old);
-          if (!next || next.serverId !== recovery.draft.serverId || next.requestId !== recovery.draft.requestId ||
-            next.setupToken !== recovery.draft.setupToken || next.authMode !== 'local')
-            throw Object.assign(new Error('The original setup changed.'), {code: 'cancelled'});
-          recovery.draft = Object.freeze({...next}); return next;
-        });
-        current();
-      },
-    };
-  }
   submitLocal = async (): Promise<void> => {
     const server = this.server, state = this.state;
     if (!server || state.phase !== 'form' || state.busy || state.mode !== 'local' || !setupNameValid(state.name) ||
@@ -230,12 +179,9 @@ export class SetupFlow {
     const op = this.operation();
     this.publish({busy: true, error: undefined});
     try {
-      const recovery = this.localRecovery, store = recovery ? this.recoveredDraft(server, op, recovery) : server.draft;
-      const recovered = recovery ? await store.read() : undefined;
-      if (!this.current(server, op)) return;
-      const issue = recovered ? {serverId: recovered.serverId, setupToken: recovered.setupToken}
-        : await server.api.request<{serverId?: unknown; setupToken?: unknown}>(routePath('start_browser_setup'), 'POST', {}, op.signal)
-          .catch(error => {throw new SetupStageFailure('browser-start', error);});
+      const store = server.draft;
+      const issue = await server.api.request<{serverId?: unknown; setupToken?: unknown}>(routePath('start_browser_setup'), 'POST', {}, op.signal)
+        .catch(error => {throw new SetupStageFailure('browser-start', error);});
       if (!op.current()) return;
       if (typeof issue?.serverId !== 'string' || issue.serverId !== server.server.id || typeof issue.setupToken !== 'string' || !issue.setupToken) {
         throw Object.assign(new Error('The setup answer did not match this server.'), {code: 'identity_mismatch'});
@@ -247,7 +193,6 @@ export class SetupFlow {
       if ('claimRequired' in issued) {this.publish({busy: false, phase: 'waiting'}); return;}
       await this.ports.acceptLocal(server, issued);
       if (!this.current(server, op)) return;
-      this.localRecovery = undefined;
       this.publish({phase: 'library', busy: false, libraryName: defaultLibraryName(this.state.kind)});
     } catch (error) {
       if (this.current(server, op)) this.publish({busy: false, password: '', confirm: '', error: setupErrorMessage(error)});
@@ -270,7 +215,6 @@ export class SetupFlow {
   dispose = () => {
     if (this.disposed) return;
     this.disposed = true; this.controller?.abort(); this.controller = undefined;
-    this.localRecovery = undefined;
     this.server?.dispose(); this.server = undefined;
     this.listeners.clear(); this.state = closed;
   };

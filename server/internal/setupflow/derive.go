@@ -98,6 +98,9 @@ func Derive(ctx context.Context, q Querier, now time.Time, delivery DeliveryLook
 		return State{}, inconsistent("active claim belongs to another request")
 	}
 	out.Operation = &op
+	if installed.Valid && op.Stage != "installed" {
+		return State{}, inconsistent("claim %s is recorded as installed at stage %q", op.ID, op.Stage)
+	}
 
 	switch op.Stage {
 	case "cancel_pending", "cancelled":

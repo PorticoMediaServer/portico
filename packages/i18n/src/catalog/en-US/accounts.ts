@@ -22,7 +22,6 @@ export const accountMessages = {
   'accounts.setup.localRecovery': 'There are no recovery codes to save. If you forget this password, Portico gives you a one-time code in a file on the server’s computer.',
   'accounts.setup.endedBody': 'This setup request has ended. A server needs an owner before anyone can use it.',
   'accounts.setup.startAgain': 'Start again',
-  'accounts.setup.useLocalInstead': 'Use local sign-in instead',
   'accounts.setup.declinedTitle': '{server} isn’t connected yet',
   'accounts.setup.declinedBody': 'The request was declined in your Portico Account. A server needs an owner before anyone can use it.',
   'accounts.setup.nextHosted': 'Next, you approve this server in your Portico Account and come back as its owner.',

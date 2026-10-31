@@ -775,6 +775,7 @@ export function decodePostReadingOfflineProgressReadResponse(input: unknown): ty
 export function decodePostReadingSessionsResponse(input: unknown): types.PostReadingSessionsResponse { return decode("PostReadingSessionsResponse", input) as types.PostReadingSessionsResponse; }
 export function decodePostReadingSessionsSessionIdFileSaveResponse(input: unknown): types.PostReadingSessionsSessionIdFileSaveResponse { return decode("PostReadingSessionsSessionIdFileSaveResponse", input) as types.PostReadingSessionsSessionIdFileSaveResponse; }
 export function decodePostSavedResourcesResponse(input: unknown): types.PostSavedResourcesResponse { return decode("PostSavedResourcesResponse", input) as types.PostSavedResourcesResponse; }
+export function decodePostSetupAbandonResponse(input: unknown): types.PostSetupAbandonResponse { return decode("PostSetupAbandonResponse", input) as types.PostSetupAbandonResponse; }
 export function decodePostSetupAccountCompleteResponse(input: unknown): types.PostSetupAccountCompleteResponse { return decode("PostSetupAccountCompleteResponse", input) as types.PostSetupAccountCompleteResponse; }
 export function decodePostSetupResumeResponse(input: unknown): types.PostSetupResumeResponse { return decode("PostSetupResumeResponse", input) as types.PostSetupResumeResponse; }
 export function decodePostShowsIdMetadataScreenRetryResponse(input: unknown): types.PostShowsIdMetadataScreenRetryResponse { return decode("PostShowsIdMetadataScreenRetryResponse", input) as types.PostShowsIdMetadataScreenRetryResponse; }

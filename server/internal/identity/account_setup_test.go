@@ -51,17 +51,17 @@ func TestAccountDefaultSetupIsPendingWithoutAnyLocalOwnerOrPassword(t *testing.T
 	if _, e = s.ResumeSetup(ctx, q.RequestID, Token(), false); !errors.Is(e, ErrUnauthorized) {
 		t.Fatal("wrong continuation secret admitted", e)
 	}
-	// Declining the web claim can finish with a real local owner, but only with
-	// the original protected setup continuation, never a confirmation string.
+	// A server being set up for a Portico Account never gets a local owner, not even
+	// with the original setup token (Justin, 31 Oct). Nothing is written.
 	q.AuthMode = "local"
 	q.Username = "owner"
 	q.Password = "Local-password1!"
-	local, e := s.SetupWithOptions(ctx, q, false)
-	if e != nil || local.Pending != nil || local.AccessToken == "" {
-		t.Fatal("local choice after pending claim", e)
+	if _, e = s.SetupWithOptions(ctx, q, false); !errors.Is(e, ErrPorticoSetup) {
+		t.Fatal("local choice on a Portico Account setup", e)
 	}
-	if _, e = s.Authenticate(local.AccessToken); e != nil {
-		t.Fatal(e)
+	var owners, rows int
+	if e = s.db.QueryRow(`SELECT (SELECT count(*) FROM accounts),(SELECT count(*) FROM onboarding_state_v1 WHERE auth_mode='hosted')`).Scan(&owners, &rows); e != nil || owners != 0 || rows != 1 {
+		t.Fatal("the refused local choice changed setup", owners, rows, e)
 	}
 }
 func TestAccountSetupRejectsPasswordFallbackAndConcurrentReplacement(t *testing.T) {
