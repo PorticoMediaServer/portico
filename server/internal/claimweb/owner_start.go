@@ -23,7 +23,8 @@ const OwnerStartKind = "portico.owner-start.v1"
 // OwnerStartKindV2 adds the signed closed transition mode. ClaimHash binds the
 // original claim; the mode is covered by the start signature. v1 is ordinary switch.
 const OwnerStartKindV2 = "portico.owner-start.v2"
-const OwnerStartLifetime = 5 * time.Minute
+// OwnerStartLifetime bounds an owner start (and its switch count): a Portico Account step.
+const OwnerStartLifetime = AccountStepLifetime
 
 var ErrOwnerStart = errors.New("invalid owner start")
 var ownerStartSecret = regexp.MustCompile(`^[A-Za-z0-9_-]{32,128}$`)

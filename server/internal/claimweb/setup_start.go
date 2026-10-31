@@ -17,10 +17,15 @@ import (
 
 const SetupStartKind = "portico.setup-start.v1"
 
-// SetupStartLifetime is the longest one setup start (and its setup claim request) may
-// live. Thirty minutes covers the most common first run: creating and email-verifying
-// a Portico Account in the middle of setting up a server.
-const SetupStartLifetime = 30 * time.Minute
+// AccountStepLifetime is how long a person may take over a step that leaves for
+// their Portico Account and comes back: a setup, an owner move, a member sign-in
+// return. Thirty minutes covers creating and email-verifying a Portico Account in
+// the middle of it. The clients' ACCOUNT_STEP_WINDOW_MS
+// (packages/contracts/src/account-step.ts in the public repo) is the same.
+const AccountStepLifetime = 30 * time.Minute
+
+// SetupStartLifetime is the longest one setup start (and its setup claim request) may live.
+const SetupStartLifetime = AccountStepLifetime
 
 var setupLifetime atomic.Int64
 
@@ -41,11 +46,13 @@ func SetDevelopmentSetupLifetime(d time.Duration) {
 	}
 }
 
-// RequestLifetime is the longest a signed web claim request may live: a setup claim
-// spans account creation; every other purpose keeps ten minutes.
+// RequestLifetime is the longest a signed web claim request may live. Setup and the
+// owner moves (switch, change-owner) span a Portico Account step; any other purpose
+// keeps ten minutes.
 func RequestLifetime(purpose string) time.Duration {
-	if purpose == "setup" {
-		return SetupStartLifetime
+	switch purpose {
+	case "setup", "switch", "change-owner":
+		return AccountStepLifetime
 	}
 	return 10 * time.Minute
 }
