@@ -37,7 +37,8 @@ jobs:
       - run: bash ci/secret-scan.sh
       - run: python3 ci/engineering_rules.py
   planner:
-    runs-on: ubuntu-24.04
+    # Bootstrap trusted plans without waiting for the saturated hosted pool.
+    runs-on: ${{ github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'portico-vps' || 'ubuntu-24.04' }}
     timeout-minutes: 8
     outputs:
       go_matrix: ${{ steps.plan.outputs.go_matrix }}
