@@ -245,6 +245,36 @@ def main():
         run('base-export', common + ['--output', 'type=oci,tar=false,dest=' + str(base_oci), 'images/base'], recipe)
         run('compiler', common + ['--load', '-t', compiler, '--build-arg', 'GH_REPO=local/' + owner + '/engine',
             '--build-context', base + '=oci-layout://' + str(base_oci), 'images/base-win64'], recipe)
+        compiler_id = subprocess.check_output(['docker', 'image', 'inspect', '-f', '{{.Id}}', compiler], text=True).strip()
+        # Export from the completed, exact image, never from BuildKit's private
+        # executor filesystem or an independently fetched compiler snapshot.
+        source_export = state / 'custody' / ('compiler-' + compiler_id.removeprefix('sha256:'))
+        if not source_export.exists():
+            pending_export = scratch / 'compiler-source-export'
+            pending_export.mkdir()
+            export_container = owner + '-compiler-inputs'
+            created = False
+            try:
+                run('compiler-custody-container', ['docker', 'create', '--name', export_container, compiler, 'true'])
+                created = True
+                run('compiler-custody-export', ['docker', 'cp', export_container + ':/opt/portico-compiler-source/.', pending_export])
+                inputs.verify_compiler_sources(pending_export)
+                source_export.parent.mkdir(parents=True, exist_ok=True)
+                pending_export.rename(source_export)
+            finally:
+                if created:
+                    subprocess.run(['docker', 'rm', export_container], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        compiler_inputs = recipe / 'portico-compiler-inputs'
+        if compiler_inputs.is_symlink():
+            raise ValueError('compiler source output must not be a symlink')
+        if compiler_inputs.exists():
+            shutil.rmtree(compiler_inputs)
+        shutil.copytree(source_export, compiler_inputs)
+        report.update(compilerImageId=compiler_id,
+                      compilerSourceInventorySHA256=digest(compiler_inputs / 'compiler-inputs.json'))
+        atomic(recipe / 'portico-compiler-image.json', {'compilerImageId': compiler_id,
+            'sourceInventorySHA256': report['compilerSourceInventorySHA256']})
+        inputs.compiler_inputs(recipe, report)
         def publish_downloads(results):
             report['downloads'] = dict(results)
             atomic(state / 'report.json', report)
@@ -277,7 +307,6 @@ def main():
         atomic(custody / 'recipe-inputs.json', {str(p.relative_to(recipe)): digest(p)
             for p in sorted(recipe.rglob('*')) if p.is_file() and '.git' not in p.parts
             and '.cache' not in p.parts})
-        compiler_id = subprocess.check_output(['docker', 'image', 'inspect', '-f', '{{.Id}}', compiler], text=True).strip()
         compiler_dir = scratch / 'compiler-layout'
         run('compiler-export', common + ['--build-arg', 'GH_REPO=local/' + owner + '/engine',
             '--build-context', base + '=oci-layout://' + str(base_oci),

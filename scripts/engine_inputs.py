@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import subprocess
 import json
+import runpy
 
 CONFIGURE_SCRIPTS = ('build-engine.py', 'engine_inputs.py', 'engine-recipe-adapter.py',
     'configure-ffmpeg-recipe.py', 'configure-windows-libdovi.py',
@@ -56,6 +57,25 @@ def consumed_dockerfile(recipe, expected_sha):
     if path.is_symlink() or digest(path) != expected_sha:
         raise ValueError('Dockerfile changed after build graph generation')
     return path
+
+
+def verify_compiler_sources(root):
+    return runpy.run_path(str(Path(__file__).with_name('capture-engine-compiler.py')))['verify'](root)
+
+
+def compiler_inputs(recipe, report):
+    root = recipe / 'portico-compiler-inputs'
+    binding = json.loads((recipe / 'portico-compiler-image.json').read_text())
+    expected_sha = digest(root / 'compiler-inputs.json')
+    if (binding.get('compilerImageId') != report.get('compilerImageId') or
+            binding.get('sourceInventorySHA256') != expected_sha or
+            report.get('compilerSourceInventorySHA256') != expected_sha):
+        raise ValueError('compiler source custody differs from the consumed image')
+    record = verify_compiler_sources(root)
+    expected = {'windows-x64': 'x86_64-pc-windows-gnu', 'windows-arm64': 'aarch64-pc-windows-gnullvm'}
+    if record.get('target') != expected.get(report.get('target')):
+        raise ValueError('compiler runtime target differs from the engine target')
+    return record
 
 
 def source_pairs(recipe, require_files=True):
