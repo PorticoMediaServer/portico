@@ -1,4 +1,5 @@
 import {readFileSync} from 'node:fs';
+import {sameFence} from '../../../packages/player-core/src/index.ts';
 // @fabric-react
 import test, {type TestContext} from 'node:test';
 import {SubtitleService} from '../../../packages/client-core/src/subtitles.ts';
@@ -213,6 +214,8 @@ function fixture(groupedVersions = false, subtitleFilePicker?: NativeSubtitleFil
     respond: (fn: typeof respond) => { respond = fn; },
     authority: (patch: Partial<PlaybackAuthority>, notify = true) => { authority = {...authority, ...patch}; if (notify) for (const listener of [...authorityListeners]) listener(); },
     family: (id: string) => { if (session) session = {...session, sessionFamilyId: id}; },
+    /** A routine refresh: the same family's next token and generation, and a later expiry. */
+    rotate: () => { if (session) session = {...session, accessToken: `rotated-${Number(session.tokenGeneration) + 1}`, tokenGeneration: String(Number(session.tokenGeneration) + 1), expiresAt: '2099-06-01T00:00:00Z'}; for (const listener of [...authorityListeners]) listener(); },
     changeAuthority: () => { authority = {...authority, epoch: 'epoch-2'}; session = undefined; for (const listener of [...authorityListeners]) listener(); },
     settings: (patch: Partial<NativePlaybackSettings>) => { settings = {...settings, ...patch}; for (const listener of settingsListeners) listener(); },
     get disposedCapabilities() { return disposedCapabilities; },
@@ -1144,6 +1147,30 @@ test('profile retirement aborts pending source reads, releases the engine and re
     await d.runtime.toggle(fence); await d.runtime.seek(fence, 1); await settle();
     assert.equal(d.requests.length, sent);
     assert.equal(d.runtime.getSnapshot().playback.phase, 'idle');
+  } finally { d.runtime.dispose(); }
+});
+
+test('a routine token refresh mid-playback keeps the film playing and does not prepare it again', async () => {
+  const d = fixture();
+  try {
+    await d.start('movie-1'); const fence = d.runtime.getSnapshot().fence!, released = d.engine.released.length, commands = d.engine.commands.length;
+    const sent = d.requests.length;
+    d.rotate(); await settle(); await d.advance(60_000);
+    d.rotate(); await settle();
+    const snapshot = d.runtime.getSnapshot();
+    assert.equal(snapshot.retired, false);
+    assert.ok(snapshot.fence && sameFence(snapshot.fence, fence), 'the same playback session is still current');
+    assert.notEqual(snapshot.dock.local, null);
+    assert.equal(d.engine.released.length, released, 'the engine was not released');
+    const prepared = d.requests.slice(sent).filter(request => request.method === 'POST' && /\/playback(?:$|\?|\/sessions)/.test(request.path));
+    assert.deepEqual(prepared.map(request => request.path), [], 'no new playback session was prepared');
+    assert.ok(d.engine.commands.length >= commands);
+    const before = d.engine.commands.length;
+    await d.runtime.toggle(fence); await settle();
+    assert.ok(d.engine.commands.length > before, 'controls still reach the engine after the refresh');
+    // Control: another sign-in (a different family) still retires playback.
+    d.family('family-2'); d.authority({}); await settle();
+    assert.equal(d.runtime.getSnapshot().retired, true);
   } finally { d.runtime.dispose(); }
 });
 
