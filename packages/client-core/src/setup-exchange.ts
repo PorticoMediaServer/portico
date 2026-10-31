@@ -16,7 +16,7 @@ export type SetupExchangePorts = Readonly<{
   connect?: typeof connectPairedServer; connectPortico?: typeof connectPairedPorticoServer; remember?: typeof rememberNativeSession;
   retire?: (api: HttpLocalApi, session: LocalSession) => Promise<void>;
 }>;
-export type SetupExchanged = Readonly<{api: HttpLocalApi; result: Extract<DirectSignIn, {kind: 'signed-in'}>}>;
+export type SetupExchanged = Readonly<{api: HttpLocalApi; result: Extract<DirectSignIn, {kind: 'signed-in'}>; connection: {dispose: () => void}}>;
 export const setupExchangeInvalid = () => new CodedError('invalid_return', 'This setup continuation is no longer available.');
 export const setupExchangeCancelled = () => new CodedError('cancelled', 'The pending setup or server selection changed.');
 
@@ -70,7 +70,7 @@ export async function finishSetupExchange(ports: SetupExchangePorts, input: Read
     // Admitted: the setup record has done its work.
     await store.change({requestId: record.requestId}, {record: null});
     adopted = true;
-    return {api: bound.api, result: grant};
+    return {api: bound.api, result: grant, connection: bound.connection};
   } finally {
     try {
       if (!adopted && grant?.kind === 'signed-in') {
