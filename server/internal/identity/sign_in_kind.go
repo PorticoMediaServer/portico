@@ -83,6 +83,12 @@ func (s *Service) RequireMainProfileTx(ctx context.Context, tx *sql.Tx, p Princi
 	if _, err := s.SessionFamilyTx(ctx, tx, p); err != nil {
 		return err
 	}
+	return mainProfileTx(ctx, tx, p)
+}
+
+// mainProfileTx is the profile half of RequireMainProfileTx, for a server-side
+// step whose family authority was already checked without a live token.
+func mainProfileTx(ctx context.Context, tx *sql.Tx, p Principal) error {
 	var allowed bool
 	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM direct_profiles p JOIN accounts a ON a.id=p.account_id WHERE p.account_id=? AND p.id=? AND p.id=a.profile_id AND p.is_primary=1 AND p.deleted=0)`, p.AccountID, p.ProfileID).Scan(&allowed)
 	if err != nil {

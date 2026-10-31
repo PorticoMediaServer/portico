@@ -28,6 +28,8 @@ type ownerCaptureFixture struct {
 	runner          *networking.AuthorityRunner
 	intent          networking.Intent
 	bearer          string
+	refresh         string
+	installation    string
 	verifier        string
 	s               *identity.Service
 	p               identity.Principal
@@ -137,7 +139,7 @@ func newOwnerCaptureFixture(t *testing.T, verifiers ...networking.ApprovalVerifi
 	pkce := sha256.Sum256([]byte(verifier))
 	state := sha256.Sum256([]byte(identity.Token()))
 	start := claimweb.OwnerStart{Kind: claimweb.OwnerStartKind, Audience: claim.Audience, ClaimHash: base64.RawURLEncoding.EncodeToString(hash[:]), OperationID: op, ServerID: server, PublicKey: claim.PublicKey, Address: claim.Address, Purpose: "switch", State: base64.RawURLEncoding.EncodeToString(state[:]), CodeChallenge: base64.RawURLEncoding.EncodeToString(pkce[:]), InstallationID: installation, ServerChallenge: identity.Token(), IssuedAt: now, ExpiresAt: now.Add(4 * time.Minute)}
-	return ownerCaptureFixture{db: db, store: store, runner: runner, intent: intent, bearer: setup.Envelope.AccessToken, verifier: verifier, s: s, p: p, key: key, claim: claim, start: start, original: original, proof: ownerCaptureSigned(t, key, start)}
+	return ownerCaptureFixture{db: db, store: store, runner: runner, intent: intent, bearer: setup.Envelope.AccessToken, refresh: setup.Envelope.RefreshToken, installation: installation, verifier: verifier, s: s, p: p, key: key, claim: claim, start: start, original: original, proof: ownerCaptureSigned(t, key, start)}
 }
 
 func (f ownerCaptureFixture) capture(ctx context.Context, tx *sql.Tx) error {

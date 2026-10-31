@@ -21,9 +21,12 @@ type ownerCompletion struct {
 	attempt                                               string
 }
 
+// ownerCompletionOperationTx finds the family's operation from any of its
+// tokens, so a rotated token still finds (and stays narrowed to) its own move.
+// The binding itself is checked by CheckOwnerClaimTx.
 func ownerCompletionOperationTx(ctx context.Context, tx *sql.Tx, token string) (string, error) {
 	var operation string
-	err := tx.QueryRowContext(ctx, `SELECT c.operation_id FROM authorization_family_tokens t JOIN identity_owner_completions c ON c.family_id=t.family_id AND c.token_hash=t.token_hash WHERE t.token_hash=?`, token).Scan(&operation)
+	err := tx.QueryRowContext(ctx, `SELECT c.operation_id FROM authorization_family_tokens t JOIN identity_owner_completions c ON c.family_id=t.family_id WHERE t.token_hash=?`, token).Scan(&operation)
 	return operation, err
 }
 
@@ -103,19 +106,26 @@ func (s *Service) CheckOwnerClaimTx(ctx context.Context, tx *sql.Tx, expected Pr
 }
 
 func (s *Service) currentOwnerCompletionTx(ctx context.Context, tx *sql.Tx, expected Principal, operation, attempt string) (ownerCompletion, familyRecord, error) {
-	return s.ownerCompletionAuthorityTx(ctx, tx, expected, operation, attempt, false)
+	return s.ownerCompletionAuthorityTx(ctx, tx, &expected, operation, attempt, false)
 }
 
-// installing is used only by the installation hook, after networking has
-// published the new tuple inside the same, still-uncommitted transaction.
-func (s *Service) ownerCompletionAuthorityTx(ctx context.Context, tx *sql.Tx, expected Principal, operation, attempt string, installing bool) (ownerCompletion, familyRecord, error) {
+// binding is the move's authority: the owner inside the family that started it,
+// at the generation captured then. Its token rotates; the move survives that.
+func (c ownerCompletion) binding() FamilyBinding {
+	return FamilyBinding{FamilyID: c.family, AccountID: c.owner, ProfileID: c.profile, Epoch: int(c.epoch), Generation: c.generation}
+}
+
+// caller is nil only for the installation hook, which has no caller session:
+// it runs after networking has published the new tuple inside the same,
+// still-uncommitted transaction, possibly after the owner's tab has closed.
+func (s *Service) ownerCompletionAuthorityTx(ctx context.Context, tx *sql.Tx, caller *Principal, operation, attempt string, installing bool) (ownerCompletion, familyRecord, error) {
 	var family familyRecord
 	c, err := ownerCompletionTx(ctx, tx, operation)
 	if err != nil {
 		return c, family, err
 	}
 	now := time.Now()
-	if c.expires <= now.UnixMilli() || c.owner != expected.AccountID || c.profile != expected.ProfileID || c.epoch != int64(expected.Epoch) || c.token != expected.Hash || expected.Authority != "local" || expected.Role != TierOwner {
+	if c.expires <= now.UnixMilli() || caller != nil && (c.owner != caller.AccountID || c.profile != caller.ProfileID || c.epoch != int64(caller.Epoch) || caller.Authority != "local" || caller.Role != TierOwner) {
 		return c, family, ErrUnauthorized
 	}
 	if c.phase != "prepared" && c.phase != "installed" && !(c.phase == "consumed" && attempt != "" && attempt == c.attempt && c.consumed > 0) {
@@ -124,12 +134,16 @@ func (s *Service) ownerCompletionAuthorityTx(ctx context.Context, tx *sql.Tx, ex
 	if installing && c.phase != "prepared" {
 		return c, family, ErrForbidden
 	}
-	family, err = s.familyTokenTx(ctx, tx, expected.Hash)
+	family, err = s.familyBindingTx(ctx, tx, c.binding(), caller)
 	if err != nil {
 		return c, family, err
 	}
 	current := family.principal
-	if family.ID != c.family || family.revoked || family.retired || family.TokenGeneration != c.generation || family.currentGeneration != c.generation || current.Viewer != expected.Viewer || current.Epoch != expected.Epoch || current.ServerID != s.ID() || !family.tokenExpiry.After(now) || !family.AuthorizationHorizon.After(now) {
+	expected := current
+	if caller != nil {
+		expected = *caller
+	}
+	if current.Authority != "local" || current.Role != TierOwner {
 		return c, family, ErrUnauthorized
 	}
 	if err = refuseResetDescendantTx(ctx, tx, family.ID); err != nil {
@@ -146,7 +160,12 @@ func (s *Service) ownerCompletionAuthorityTx(ctx context.Context, tx *sql.Tx, ex
 		if expected.Grant != "" || current.Grant != "" {
 			return c, family, ErrForbidden
 		}
-		if err = s.RequireMainProfileTx(ctx, tx, expected); err != nil {
+		if caller != nil {
+			err = s.RequireMainProfileTx(ctx, tx, expected)
+		} else {
+			err = mainProfileTx(ctx, tx, expected)
+		}
+		if err != nil {
 			return c, family, err
 		}
 	} else {
