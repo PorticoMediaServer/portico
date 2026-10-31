@@ -1,0 +1,15 @@
+--- a/build-ffmpeg
++++ b/build-ffmpeg
+@@ -660,7 +660,11 @@
+ 
+     download "https://ftp.gnu.org/gnu/gmp/gmp-${CURRENT_PACKAGE_VERSION}.tar.xz"
+ 
+-    execute ./configure --prefix="${WORKSPACE}" --disable-shared --enable-static
++    GMP_CONFIGURE=(--prefix="${WORKSPACE}" --disable-shared --enable-static)
++    if [[ "${TARGET_OS}" == darwin && "${TARGET_ARCH}" == x86_64 ]]; then
++      GMP_CONFIGURE+=(--with-pic)
++    fi
++    execute ./configure "${GMP_CONFIGURE[@]}"
+     execute make -j ${MJOBS}
+     execute make install
+ 
