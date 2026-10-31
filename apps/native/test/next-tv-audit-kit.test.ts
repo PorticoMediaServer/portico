@@ -21,7 +21,7 @@ test('TV code entry exposes counts, hides the digits and announces changes and r
   const {TVCodeBoxes} = await screenModule(new URL('../src-next/tv/auth/TVNumericPad.tsx', import.meta.url), {
     react, 'react-native': {Text: 'Text', View: 'View', AccessibilityInfo: {announceForAccessibility: (value: string) => spoken.push(value)}},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {}, '../../kit/focus': {}, '../../kit/focus/initial-entry': {}, '../../kit/Icon': {}, '../../kit/theme': {nativeType: type, useTheme: () => theme},
+    '../../kit/controls': {}, '../../kit/focus': {}, '../../kit/focus/initial-entry': {}, '../../kit/Icon': {}, '../../kit/overlays/OverlayPaintContext': {}, '../../kit/theme': {nativeType: type, useTheme: () => theme},
   });
   const render = (code: string, error = false, masked = true) => {
     const tree = host.render(() => TVCodeBoxes({code, length: masked ? 4 : 6, masked, busy: false, error}));

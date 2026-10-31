@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as React from 'react';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
-import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {hooks, liveOverlayPaint, screenModule} from './helpers/screen-harness.mjs';
 import {createFocusRegistry} from '../src-next/kit/focus/registry.ts';
 import {createInitialRegionEntry} from '../src-next/kit/focus/initial-entry.ts';
 import {defaultI18n} from '../../../packages/i18n/src';
@@ -36,7 +36,7 @@ const numericModule = async (_react: unknown) => {
   const numeric = await screenModule(new URL('../src-next/tv/auth/TVNumericPad.tsx', import.meta.url), {
     ...await common(h.react), 'react-native': {Text: 'Text', View: 'View'},
     '../../kit/focus': {FocusRegion: 'Region', FocusItem: 'Item', useFocusRegistry: () => registry},
-    '../../kit/focus/initial-entry': {createInitialRegionEntry}, '../../kit/Icon': {Icon: 'Icon'},
+    '../../kit/focus/initial-entry': {createInitialRegionEntry}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/overlays/OverlayPaintContext': liveOverlayPaint,
   });
   return {...numeric, TVNumericPad: (props: unknown) => h.render(() => numeric.TVNumericPad(props))};
 };
