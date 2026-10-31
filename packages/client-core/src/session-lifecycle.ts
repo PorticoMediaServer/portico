@@ -293,6 +293,8 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
         [{kind: 'connect', serverId: held.server.serverId}], {authority: true});
     // Signing in again from "sign-in ended" (or after an identity failure) chose its profile in the
     // form: open that sign-in once connected, never with a second picker.
+    // Admission relies on native writing the record only after the form chose the profile (and its PIN):
+    // a path that writes an account-scoped record before the pick must never reach this branch.
     if ((s.kind === 'signInEnded' || s.kind === 'identityFailed') && !(s.held && same(s.held.viewer, held.viewer)))
       return to({kind: 'connecting', server: held.server, held, admitted: true}, 34, [{kind: 'connect', serverId: held.server.serverId}], {authority: true});
     const viewer = 'viewer' in s ? s.viewer : undefined;
