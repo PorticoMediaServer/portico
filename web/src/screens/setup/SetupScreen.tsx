@@ -52,8 +52,6 @@ function SetupBody({flow}: {flow: SetupFlow}) {
         <div className={styles.btnRow}>
           {servicesFailure.retry && <Button variant="primary" size="hero" loading={state.busy} disabled={state.busy}
             onClick={() => void flow.retryFailure(servicesFailure)}>{t('action.tryAgain')}</Button>}
-          {servicesFailure.useLocal && <Button variant="glass" size="hero" disabled={state.busy}
-            onClick={() => void flow.useLocalFailure(servicesFailure)}>{t('web.setup.localSignIn')}</Button>}
         </div>
       </> : setupInProgressFailure(errorFailure) || setupInProgressFailure(state.connectError) ? <>
         <h1>{t('web.setup.welcome')}</h1>
@@ -62,11 +60,9 @@ function SetupBody({flow}: {flow: SetupFlow}) {
       </> : errorFailure ? <>
         <h1>{t('web.setup.welcome')}</h1>
         {state.error && <p className={styles.error} role="alert"><Icon name="i-warn" size={20}/>{state.error}</p>}
-        {(errorFailure.retry || errorFailure.useLocal) && <div className={styles.btnRow}>
-          {errorFailure.retry && <Button variant="primary" size="hero" loading={state.busy} disabled={state.busy}
-            onClick={() => void flow.retryFailure(errorFailure)}>{t('action.tryAgain')}</Button>}
-          {errorFailure.useLocal && <Button variant="glass" size="hero" disabled={state.busy}
-            onClick={() => void flow.useLocalFailure(errorFailure)}>{t('web.setup.localSignIn')}</Button>}
+        {errorFailure.retry && <div className={styles.btnRow}>
+          <Button variant="primary" size="hero" loading={state.busy} disabled={state.busy}
+            onClick={() => void flow.retryFailure(errorFailure)}>{t('action.tryAgain')}</Button>
         </div>}
       </> : <>
         <h1>{t('web.setup.welcome')}</h1>

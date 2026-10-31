@@ -7,7 +7,7 @@ export class SetupStageFailure extends Error {
   readonly status?: number;
   readonly retryAfterSeconds?: number;
   constructor(readonly stage: SetupFailureStage, readonly original: unknown,
-    readonly retry?: () => Promise<void>, readonly useLocal?: () => Promise<void>) {
+    readonly retry?: () => Promise<void>) {
     super(original instanceof Error ? original.message : 'Setup could not continue.', {cause: original});
     const value = original as {code?: unknown; status?: unknown; retryAfterSeconds?: unknown} | undefined;
     this.code = typeof value?.code === 'string' ? value.code : undefined;

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/authorityfiles"
-	"github.com/PorticoMediaServer/portico/server/internal/claimweb"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/setupflow"
 	"golang.org/x/crypto/bcrypt"
@@ -63,22 +62,20 @@ func (s *Service) SetupWithOptions(ctx context.Context, q SetupOptions, private 
 	raw, _ := json.Marshal(q)
 	defer clear(raw)
 	requestHash := s.setupHash("initialize-request", string(raw))
-	var existing, mode, secretHash string
-	var setupRevision int64
-	e := s.db.QueryRowContext(ctx, `SELECT operation_id,auth_mode,setup_hash,revision FROM onboarding_state_v1 WHERE singleton=1`).Scan(&existing, &mode, &secretHash, &setupRevision)
+	var existing, mode string
+	e := s.db.QueryRowContext(ctx, `SELECT operation_id,auth_mode FROM onboarding_state_v1 WHERE singleton=1`).Scan(&existing, &mode)
 	switch {
 	case e == nil:
-		if existing != q.RequestID {
+		// A server being set up for a Portico Account never gets a local owner (Justin,
+		// 31 Oct). Back (AbandonSetup) returns setup to its start first; local is then a
+		// fresh choice with a fresh setup token.
+		if mode == "hosted" && q.AuthMode == "local" {
+			return SetupResult{}, ErrPorticoSetup
+		}
+		if existing != q.RequestID || mode != q.AuthMode {
 			return SetupResult{}, ErrConflict
 		}
-		if mode == q.AuthMode {
-			return s.resumeSetup(ctx, q.RequestID, q.SetupToken, requestHash, private)
-		}
-		// An owner who declines the web claim may select local sign-in using the
-		// same protected setup secret; no public bootstrap can replace that secret.
-		if mode != "hosted" || q.AuthMode != "local" || subtle.ConstantTimeCompare([]byte(secretHash), []byte(s.setupHash("initialize-secret", q.SetupToken))) != 1 {
-			return SetupResult{}, ErrUnauthorized
-		}
+		return s.resumeSetup(ctx, q.RequestID, q.SetupToken, requestHash, private)
 	case errors.Is(e, sql.ErrNoRows):
 		token, e := os.ReadFile(s.setupPath)
 		if e != nil || subtle.ConstantTimeCompare(token, []byte(q.SetupToken)) != 1 {
@@ -104,32 +101,13 @@ func (s *Service) SetupWithOptions(ctx context.Context, q SetupOptions, private 
 	}
 	defer gated.Rollback()
 	tx := gated.Tx()
-	var count int
-	if e = tx.QueryRowContext(ctx, `SELECT count(*) FROM accounts`).Scan(&count); e != nil {
-		return SetupResult{}, e
+	// The setup row was absent when read; it must still be (setupflow S4, S5, S8r).
+	event := setupflow.EventInitializeHosted
+	if q.AuthMode == "local" {
+		event = setupflow.EventInitializeLocal
 	}
-	if count != 0 {
-		return SetupResult{}, ErrConflict
-	}
-	if existing != "" {
-		var active sql.NullString
-		err := tx.QueryRowContext(ctx, `SELECT active_operation_id FROM networking_claim_identity WHERE singleton=1`).Scan(&active)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return SetupResult{}, err
-		}
-		if active.Valid {
-			return SetupResult{}, ErrConflict
-		}
-		// Fence both the continuation secret and the pending revision against a
-		// concurrent claim completion or another method choice.
-		result, e := tx.ExecContext(ctx, `DELETE FROM onboarding_state_v1 WHERE singleton=1 AND operation_id=? AND auth_mode='hosted' AND setup_hash=? AND revision=?`, q.RequestID, secretHash, setupRevision)
-		if e != nil {
-			return SetupResult{}, e
-		}
-		n, _ := result.RowsAffected()
-		if n != 1 {
-			return SetupResult{}, ErrConflict
-		}
+	if state, _, e := setupflow.Require(ctx, tx, time.Now(), nil, event); e != nil || state.Phase != setupflow.Open {
+		return SetupResult{}, setupRefusal(state, e)
 	}
 	if _, e = tx.ExecContext(ctx, `INSERT INTO configuration(key,value) VALUES('name',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, q.Name); e != nil {
 		return SetupResult{}, e
@@ -285,14 +263,38 @@ type SetupInProgressError struct{ Until time.Time }
 
 func (e *SetupInProgressError) Error() string { return "setup_in_progress" }
 
+// ErrPorticoSetup refuses a local owner while the server is being set up for a
+// Portico Account (setup_portico_mode).
+var ErrPorticoSetup = setupflow.ErrPorticoSetup
+
+// setupRefusal turns a setupflow refusal into what setup callers already answer:
+// in progress (with when it can start over), already set up, or the Portico refusal.
+func setupRefusal(state setupflow.State, err error) error {
+	switch {
+	case err == nil:
+		return ErrConflict
+	case errors.Is(err, setupflow.ErrInProgress):
+		live := state.Phase == setupflow.Started || state.Phase == setupflow.AwaitingApproval
+		if live && !state.Cancelling {
+			return &SetupInProgressError{Until: state.ExpiresAt}
+		}
+		return &SetupInProgressError{}
+	case errors.Is(err, setupflow.ErrPorticoSetup):
+		return ErrPorticoSetup
+	case errors.Is(err, setupflow.ErrAlreadyComplete), errors.Is(err, setupflow.ErrInconsistent), errors.Is(err, setupflow.ErrStateChanged):
+		return ErrConflict
+	}
+	return err
+}
+
 // supersedeStaleSetup retires the pending Portico Account setup when it can no longer
-// finish: never approved, never installed, and past its window (claimweb.SetupLifetime
-// after its newest start, or after it began when it never reached Hosted). A live attempt
-// refuses with SetupInProgressError; a local, approved or installed one keeps ErrConflict.
+// finish: never approved, never installed, and past its window (setupflow S1). A setup
+// still in progress refuses with SetupInProgressError (with a time while it is unapproved
+// and live); a completed or inconsistent one with ErrConflict.
 //
 // It returns the new setup secret, written (atomically, inside the same fence) only when
-// it retired the old attempt; "" when a concurrent start already did, so the caller reads
-// the secret that start wrote.
+// it retired the old attempt; "" when there was nothing to retire, so the caller reads
+// the secret the file already holds.
 func (s *Service) supersedeStaleSetup(ctx context.Context) (string, error) {
 	gated, err := dbwork.Begin(ctx, s.db, dbwork.ClassSecurityFence)
 	if err != nil {
@@ -300,84 +302,106 @@ func (s *Service) supersedeStaleSetup(ctx context.Context) (string, error) {
 	}
 	defer gated.Rollback()
 	tx := gated.Tx()
-	var accounts int
-	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM accounts`).Scan(&accounts); err != nil {
-		return "", err
+	state, _, err := setupflow.Require(ctx, tx, time.Now(), nil, setupflow.EventStart)
+	if err != nil {
+		return "", setupRefusal(state, err)
 	}
-	var operation, mode string
-	var ready, receiptUntil int64
-	err = tx.QueryRowContext(ctx, `SELECT operation_id,auth_mode,ready,receipt_until FROM onboarding_state_v1 WHERE singleton=1`).Scan(&operation, &mode, &ready, &receiptUntil)
-	if errors.Is(err, sql.ErrNoRows) {
+	if state.Phase == setupflow.Open {
 		return "", gated.Commit()
 	}
+	token, err := s.retireSetupTx(ctx, tx, state, "superseded")
 	if err != nil {
 		return "", err
 	}
-	if accounts != 0 || mode != "hosted" || ready != 0 {
-		return "", ErrConflict
+	return token, gated.Commit()
+}
+
+// AbandonSetup is Back from a Portico Account setup that was never approved
+// (setupflow S8): the server returns to the start of setup and offers both kinds
+// again. Its claim is retired here alone; nothing is sent to Portico Services, then
+// or later, because the server may next be set up for local sign-in. The request on
+// Portico Services expires by itself and an approval of it is never applied.
+//
+// A replay after success finds setup already open and answers it. stop is called
+// with the retired claim operation, after commit, to end anything still waiting on it.
+func (s *Service) AbandonSetup(ctx context.Context, requestID, secret string, revision int64, stop func(operationID string)) (setupflow.State, error) {
+	if !setupUUID.MatchString(requestID) || len(secret) != 43 || revision < 1 {
+		return setupflow.State{}, ErrUnauthorized
 	}
-	var active, installed sql.NullString
-	if err = tx.QueryRowContext(ctx, `SELECT active_operation_id,installed_operation_id FROM networking_claim_identity WHERE singleton=1`).Scan(&active, &installed); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return "", err
+	gated, err := dbwork.Begin(ctx, s.db, dbwork.ClassSecurityFence)
+	if err != nil {
+		return setupflow.State{}, err
 	}
-	if installed.Valid {
-		return "", ErrConflict
+	defer gated.Rollback()
+	tx := gated.Tx()
+	state, _, err := setupflow.Require(ctx, tx, time.Now(), nil, setupflow.EventAbandon)
+	if state.Phase == setupflow.Open {
+		return state, gated.Commit()
 	}
-	if active.Valid {
-		// Only this setup's own claim, still exactly as prepared, may be retired.
-		var setupOperation, stage, account string
-		var approval int64
-		if err = tx.QueryRowContext(ctx, `SELECT setup_operation_id,stage,account_id,approval_revision FROM networking_claim_intents WHERE operation_id=?`, active.String).Scan(&setupOperation, &stage, &account, &approval); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return "", ErrConflict
-			}
-			return "", err
+	if err != nil && !errors.Is(err, setupflow.ErrStateChanged) {
+		return state, err
+	}
+	var hash string
+	if e := tx.QueryRowContext(ctx, `SELECT setup_hash FROM onboarding_state_v1 WHERE singleton=1 AND operation_id=? AND auth_mode='hosted'`, requestID).Scan(&hash); e != nil {
+		if errors.Is(e, sql.ErrNoRows) {
+			return setupflow.State{}, ErrUnauthorized
 		}
-		if setupOperation != operation {
-			return "", ErrConflict
-		}
-		// Approved and still finishing: honestly in progress (it can still complete), never
-		// "already set up", and never superseded.
-		if stage != "prepared" || account != "account-unbound" || approval != 0 {
-			return "", &SetupInProgressError{}
-		}
+		return setupflow.State{}, e
 	}
-	var settled int
-	var newest sql.NullInt64
-	if err = tx.QueryRowContext(ctx, `SELECT count(*) FILTER (WHERE phase IN('installed','consumed','completed')),max(expires_ms) FROM identity_setup_completions WHERE setup_request_id=?`, operation).Scan(&settled, &newest); err != nil {
-		return "", err
+	if subtle.ConstantTimeCompare([]byte(hash), []byte(s.setupHash("initialize-secret", secret))) != 1 {
+		return setupflow.State{}, ErrUnauthorized
 	}
-	if settled != 0 {
-		return "", ErrConflict
+	if err != nil {
+		// Approved or later: setup finishes; the owner can switch kinds afterwards.
+		return state, err
 	}
-	now := time.Now()
-	// receipt_until is the start plus setupReceiptSeconds; a start never prepared at
-	// Hosted keeps the same window from that moment.
-	until := time.Unix(receiptUntil-setupReceiptSeconds, 0).Add(claimweb.SetupLifetime())
-	if newest.Valid {
-		until = time.UnixMilli(newest.Int64)
+	if state.Revision != revision {
+		return state, setupflow.ErrStateChanged
 	}
-	if now.Before(until) {
-		return "", &SetupInProgressError{Until: until}
+	if _, err = s.retireSetupTx(ctx, tx, state, "cancelled"); err != nil {
+		return setupflow.State{}, err
 	}
-	for _, q := range []struct {
+	if err = gated.Commit(); err != nil {
+		return setupflow.State{}, err
+	}
+	if state.Operation != nil && stop != nil {
+		stop(state.Operation.ID)
+	}
+	return setupflow.State{Phase: setupflow.Open}, nil
+}
+
+// retireSetupTx retires an unapproved Portico Account setup on this server alone:
+// its signed starts end as phase, its claim (still exactly as prepared, or being
+// withdrawn) is cancelled with any queued withdrawal dropped, and the onboarding row
+// goes. It writes and returns a fresh setup secret. Nothing here reaches Portico Services.
+func (s *Service) retireSetupTx(ctx context.Context, tx *sql.Tx, state setupflow.State, phase string) (string, error) {
+	queries := []struct {
 		query string
 		args  []any
 	}{
-		{`UPDATE identity_setup_completions SET phase='superseded' WHERE setup_request_id=? AND phase IN('prepared','expired')`, []any{operation}},
-		{`UPDATE networking_claim_intents SET stage='cancelled',revision=revision+1 WHERE operation_id=? AND stage='prepared' AND account_id='account-unbound' AND approval_revision=0`, []any{active.String}},
-		{`UPDATE networking_claim_identity SET active_operation_id=NULL,pending_operation_id=CASE WHEN pending_operation_id=? THEN NULL ELSE pending_operation_id END WHERE singleton=1 AND active_operation_id=? AND installed_operation_id IS NULL`, []any{active.String, active.String}},
-		{`DELETE FROM onboarding_state_v1 WHERE singleton=1 AND operation_id=? AND ready=0`, []any{operation}},
-	} {
-		if _, err = tx.ExecContext(ctx, q.query, q.args...); err != nil {
+		{`UPDATE identity_setup_completions SET phase=? WHERE setup_request_id=? AND phase IN('prepared','expired')`, []any{phase, state.RequestID}},
+		{`DELETE FROM onboarding_state_v1 WHERE singleton=1 AND operation_id=? AND auth_mode='hosted' AND ready=0`, []any{state.RequestID}},
+	}
+	if op := state.Operation; op != nil {
+		queries = append([]struct {
+			query string
+			args  []any
+		}{
+			{`DELETE FROM networking_claim_cancellations WHERE operation_id=? AND state='pending'`, []any{op.ID}},
+			{`UPDATE networking_claim_intents SET stage='cancelled',revision=revision+1 WHERE operation_id=? AND stage IN('prepared','cancel_pending','cancelled') AND account_id='account-unbound' AND approval_revision=0`, []any{op.ID}},
+			{`UPDATE networking_claim_identity SET active_operation_id=NULL,pending_operation_id=CASE WHEN pending_operation_id=? THEN NULL ELSE pending_operation_id END WHERE singleton=1 AND active_operation_id=? AND installed_operation_id IS NULL`, []any{op.ID, op.ID}},
+		}, queries...)
+	}
+	for _, q := range queries {
+		if _, err := tx.ExecContext(ctx, q.query, q.args...); err != nil {
 			return "", err
 		}
 	}
 	token := Token()
-	if err = writeSetupSecret(s.setupPath, token); err != nil {
+	if err := writeSetupSecret(s.setupPath, token); err != nil {
 		return "", err
 	}
-	return token, gated.Commit()
+	return token, nil
 }
 
 // SetupClaimAuthority verifies the continuation secret without inventing a

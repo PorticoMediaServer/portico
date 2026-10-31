@@ -165,30 +165,6 @@ async function recovery(t: TestContext) {
  assert.ok(receipt);
  return {...f,receipt,retire:()=>{live=false;abort.abort();}};
 }
-test('local recovery cancels only the original prepared claim and keeps its setup proof',async t=>{
- const f=await recovery(t),draft=f.draft();
- await f.receipt.useLocal();
- const commands=f.sent.filter(value=>value.path.endsWith('/cancel'));
- assert.equal(commands.length,1);assert.deepEqual(commands[0].body,{expected:f.expected});
- assert.equal(commands[0].authorization,'Bearer actual-protected-setup-secret');
- assert.equal(f.pending(),undefined);assert.deepEqual(f.draft(),draft);
- const before=f.sent.length;await assert.rejects(f.receipt.useLocal());assert.equal(f.sent.length,before);
-});
-for(const replacement of ['draft','selection','expiry','opening','installed'] as const) test('local recovery refuses '+replacement+' without cancelling a successor',async t=>{
- const f=await recovery(t);
- if(replacement==='draft')f.replaceDraft();if(replacement==='selection')f.replaceSelection();if(replacement==='expiry')f.expire();
- if(replacement==='opening')f.retire();if(replacement==='installed')f.install();
- const pending=f.pending();await assert.rejects(f.receipt.useLocal());
- assert.equal(f.sent.some(value=>value.path.endsWith('/cancel')),false);assert.equal(f.pending(),pending);assert.ok(f.draft());
-});
-test('a lost cancel response never clears the private receipt or borrows a new cancel target',async t=>{
- const f=await recovery(t),pending=f.pending(),draft=f.draft();
- f.hook(async path=>{if(path.endsWith('/cancel'))throw new Error('lost original cancel result');});
- await assert.rejects(f.receipt.useLocal());
- assert.equal(f.pending(),pending);assert.deepEqual(f.draft(),draft);
- await assert.rejects(f.receipt.useLocal());
- assert.equal(f.sent.filter(value=>value.path.endsWith('/cancel')).length,1);assert.equal(f.pending(),pending);
-});
 
 // A certificate issued after several attempts outlives the five-minute attempt. Back on the
 // original setup page, continuing renews the start for the installed claim, and the setup
@@ -246,8 +222,6 @@ test('Try again after a slow certificate renews from the original receipt', asyn
  assert.match(url, /\/claim#/);
  assert.notEqual(f.pending()!.attemptId, first.attemptId);
  assert.equal(f.sent.some(value => value.path.endsWith('/cancel')), false);
- // Use local still refuses a lapsed receipt: it never cancels on a stale record.
- await assert.rejects(f.receipt.useLocal());
 });
 
 // Review finding (liveness): a renewal whose Hosted call failed is retried at once with the same
