@@ -37,13 +37,17 @@ func (s *Service) SecurityReturnActorTx(ctx context.Context, tx *sql.Tx, bearer 
 	if !validHostedAccountID(account) {
 		return "", "", time.Time{}, ErrUnauthorized
 	}
-	expires = record.tokenExpiry
-	if record.AuthorizationHorizon.Before(expires) {
-		expires = record.AuthorizationHorizon
+	// The return is bound to the sign-in, never to one token: a routine refresh
+	// between prepare and confirm keeps the same binding and deadline (the
+	// family's horizon, which a refresh never extends for a Portico sign-in). The
+	// pressing call itself still needs the current, unexpired token.
+	if !record.tokenExpiry.After(time.Now()) {
+		return "", "", time.Time{}, ErrUnauthorized
 	}
+	expires = record.AuthorizationHorizon
 	if !expires.After(time.Now()) {
 		return "", "", time.Time{}, ErrUnauthorized
 	}
-	raw, _ := json.Marshal([]any{c.account.ID, c.profileID, c.familyID, c.epoch, c.account.Revision, c.account.Role, c.deviceID, record.TokenGeneration, account, expires.UTC().Format(time.RFC3339Nano)})
+	raw, _ := json.Marshal([]any{c.account.ID, c.profileID, c.familyID, c.epoch, c.account.Revision, c.account.Role, c.deviceID, account, expires.UTC().Format(time.RFC3339Nano)})
 	return account, s.setupHash("security-return-actor", string(raw)), expires, nil
 }
