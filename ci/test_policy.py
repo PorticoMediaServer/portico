@@ -18,11 +18,15 @@ class PolicyTests(unittest.TestCase):
         self.assertIn('apps/native',components(['packages/client-core/src/auth.ts'])[0])
     def test_stream(self): self.assertEqual(decode_stream('{}\n{}'),[{},{}])
     def test_aggregate_absent_cancelled_skipped(self):
-        p={'packages':[],'js':[]}; n={k:{'result':v} for k,v in [('planner','success'),('hygiene','success'),('go_build','skipped'),('go_tests','skipped'),('js','skipped'),('android','skipped')]}
-        aggregate(p,n)
-        for state in ['cancelled','failure',None,'success']:
-            bad=dict(n); bad['go_tests']={'result':state}
-            with self.assertRaises(ValueError): aggregate(p,bad)
+        p={'packages':[],'js':[]}; n={k:{'result':v} for k,v in [('planner','success'),('hygiene','success'),('go_build','skipped'),('go_tests','skipped'),('js','skipped'),('js_static','skipped'),('android','skipped')]}
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory, patch('run.ROOT',Path(directory)):
+            aggregate(p,n)
+            for state in ['cancelled','failure',None,'success']:
+                bad=dict(n); bad['go_tests']={'result':state}
+                with self.assertRaises(ValueError): aggregate(p,bad)
     def test_exact_quarantine_no_infra_waiver(self):
         events=[{'Test':'TestKnown/child','Action':'fail'},{'Test':'TestKnown','Action':'fail'},{'Action':'fail'}]
         self.assertEqual(classify(events,['TestKnown'],1,{'TestKnown'}),'quarantined')
@@ -53,7 +57,7 @@ class BaseTests(unittest.TestCase):
             self.assertEqual(base_head({'before':'a'*40},{'GITHUB_EVENT_NAME':'push'}),('a'*40,'head'))
     def test_empty_js_list_fails_before_execution(self):
         from run import js
-        with self.assertRaises(ValueError): js({'js':[{'component':'web','files':[]}]},'web')
+        with self.assertRaises(ValueError): js({'js':[{'component':'web','files':[],'shards':[],'static_roots':[]}]},'web')
 
 class ActivePolicyTests(unittest.TestCase):
     def test_reviewed_corrections(self):

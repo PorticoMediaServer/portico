@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "provenance": [
+    {
+      "head": "efe9bef0751fcdc413847f93eb1762df48427d17",
+      "plan_sha256": "a68e10c03240120fdddc7dab66bd60e6b9c67001918e70ed0ecf5902a053c382",
+      "source": "Local Ubuntu focused merge selection, 8 files each in native, packages and web",
+      "captured_at": "2026-10-31T19:13:42.214927+00:00",
+      "files": 24,
+      "node_versions": [
+        "v24.22.1"
+      ]
+    }
+  ],
+  "seconds": {
+    "apps/native/test/ambient-fallback-ready.test.ts": 1.513353903,
+    "apps/native/test/next-account-security-provider.test.ts": 2.022587943,
+    "apps/native/test/next-family-render.test.ts": 9.889834259999999,
+    "apps/native/test/next-library-toolbar.test.ts": 1.1622858269999998,
+    "apps/native/test/next-owner-library-settings-rows.test.ts": 0.606065069,
+    "apps/native/test/next-recording-keep-policy.test.ts": 0.825306376,
+    "apps/native/test/next-shell-home-navigation.test.ts": 0.809541253,
+    "apps/native/test/next-tv-saved-activation-snapshot.test.ts": 0.6423304759999999,
+    "packages/client-core/test/abort-lifetime.test.ts": 3.342236211,
+    "packages/client-core/test/connection-note.test.ts": 3.351389858,
+    "packages/client-core/test/home-service.test.ts": 0.908046405,
+    "packages/client-core/test/media-item-duration.test.ts": 0.241643502,
+    "packages/client-core/test/playback-settings.test.ts": 0.320169675,
+    "packages/client-core/test/report-context.test.ts": 2.11152418,
+    "packages/client-core/test/settings-history-retention.test.ts": 0.6416179540000001,
+    "packages/contracts/test/final-batch/concurrency-memory-limit.test.ts": 1.127004249,
+    "web/src/screens/detail/audiobooks/bindings.test.ts": 0.8303639030000001,
+    "web/test/caption-style.test.ts": 0.305658287,
+    "web/test/families/toast-render.test.ts": 0.6669824139999999,
+    "web/test/live-source-settings-controller.test.ts": 6.2438393020000005,
+    "web/test/playback-runtime-audio-engine.test.ts": 4.896843626,
+    "web/test/registered-sign-in.test.ts": 3.955893656,
+    "web/test/services-entry.test.ts": 3.764233323,
+    "web/test/settings-table-model.test.ts": 0.246846471
+  }
+}
