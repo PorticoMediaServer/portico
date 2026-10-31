@@ -143,7 +143,7 @@ test('TV entry Forgot PIN keeps the same account operation and returns to the sa
 
 test('TV profile-switch hand-off preserves its current family, selection controller and server PIN attempts', async () => {
   const back = backOwner(), attempts: unknown[][] = [];
-  let created = 0, disposed = 0, exited = 0;
+  let calls = 0, exited = 0;
   const current = {sessionFamilyId: 'current-family', viewer: {serverId: 'server', accountId: 'account', profileId: 'current'}};
   const {AccountRoute} = await screenModule(new URL('../src-next/screens/accounts/AccountRoutes.tsx', import.meta.url), {'../../../../../packages/contracts/src/routes': await import('../../../packages/contracts/src/routes.ts'), 
     '@portico/design': {profileArtColors}, './account-form-values': accountFormValues,
@@ -152,9 +152,8 @@ test('TV profile-switch hand-off preserves its current family, selection control
     '../../platform/profile-avatars': profileAvatars, '../settings-live/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
     '../settings-live/lifetime': lifetime, '../../shell/model': shellModel,
     ...shared(back), '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/app-session-storage': {},
-    '../../platform/profile-selection': {nativeProfileSelection: (server: string, family: string) => {
-      assert.equal(server, 'server'); assert.equal(family, current.sessionFamilyId); created++;
-      return {select: async (...args: unknown[]) => {attempts.push(args); throw new Error('refused');}, dispose: () => {disposed++;}};
+    '../../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
+      assert.equal(family, current.sessionFamilyId); calls++; attempts.push(args); throw new Error('refused');
     }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'},
     '../../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
     '../../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
@@ -204,18 +203,17 @@ test('TV profile-switch hand-off preserves its current family, selection control
     await act(() => tree.props.onForgotPIN());
     await act(() => tree.props.onBack());
     assert.equal(tree.type, 'PIN'); assert.equal(tree.props.code, '');
-    assert.equal(context.session(), current); assert.equal(created, 1); assert.equal(disposed, 0); assert.equal(exited, 0);
+    assert.equal(context.session(), current); assert.equal(calls, 2, 'each submitted PIN is one switch through the session lifecycle'); assert.equal(exited, 0);
     assert.deepEqual(attempts, [[profile.id, '1234']], 'public hand-off neither selects a profile nor retries/resets server attempts');
     await act(() => tree.props.onSubmit('5678'));
     assert.deepEqual(attempts, [[profile.id, '1234'], [profile.id, '5678']]);
   } finally {await host.unmount();}
-  assert.equal(disposed, 1);
 });
 
 
 test('R-16: a PIN submit on a stale context says so instead of returning silently', async () => {
   const back = backOwner(), attempts: unknown[][] = [];
-  let live = true, created = 0, disposed = 0, exited = 0;
+  let live = true, calls = 0, exited = 0;
   const current = {sessionFamilyId: 'current-family', viewer: {serverId: 'server', accountId: 'account', profileId: 'current'}};
   const {AccountRoute} = await screenModule(new URL('../src-next/screens/accounts/AccountRoutes.tsx', import.meta.url), {'../../../../../packages/contracts/src/routes': await import('../../../packages/contracts/src/routes.ts'), 
     '@portico/design': {profileArtColors}, './account-form-values': accountFormValues,
@@ -224,9 +222,8 @@ test('R-16: a PIN submit on a stale context says so instead of returning silentl
     '../../platform/profile-avatars': profileAvatars, '../settings-live/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
     '../settings-live/lifetime': lifetime, '../../shell/model': shellModel,
     ...shared(back), '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/app-session-storage': {},
-    '../../platform/profile-selection': {nativeProfileSelection: (server: string, family: string) => {
-      assert.equal(server, 'server'); assert.equal(family, current.sessionFamilyId); created++;
-      return {select: async (...args: unknown[]) => {attempts.push(args); throw new Error('refused');}, dispose: () => {disposed++;}};
+    '../../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
+      assert.equal(family, current.sessionFamilyId); calls++; attempts.push(args); throw new Error('refused');
     }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'},
     '../../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
     '../../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
