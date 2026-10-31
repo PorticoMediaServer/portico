@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   hygiene:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'portico-vps' || 'ubuntu-24.04' }}
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -181,7 +181,7 @@ jobs:
     name: ci/nightly/full
     if: ${{ !cancelled() }}
     needs: [planner, hygiene, go_build, go_tests, js, android, diagnostic]
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'portico-vps' || 'ubuntu-24.04' }}
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
