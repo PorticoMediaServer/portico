@@ -258,7 +258,7 @@ def main():
             export_container = owner + '-compiler-inputs'
             created = False
             try:
-                run('compiler-custody-container', ['docker', 'create', '--name', export_container, compiler, 'true'])
+                run('compiler-custody-container', ['docker', 'create', '--name', export_container, compiler_id, 'true'])
                 created = True
                 run('compiler-custody-export', ['docker', 'cp', export_container + ':/opt/portico-compiler-source/.', pending_export])
                 inputs.verify_compiler_sources(pending_export)
@@ -278,6 +278,15 @@ def main():
         atomic(recipe / 'portico-compiler-image.json', {'compilerImageId': compiler_id,
             'sourceInventorySHA256': report['compilerSourceInventorySHA256']})
         inputs.compiler_inputs(recipe, report)
+        atomic(state / 'report.json', report)
+        # BuildKit also uses the host SOURCE_DATE_EPOCH for image config/history
+        # timestamps. Export in the completed image's original environment,
+        # before the final FFmpeg payload sets its epoch below.
+        compiler_dir = scratch / 'compiler-layout'
+        run('compiler-export', common + ['--build-arg', 'GH_REPO=local/' + owner + '/engine',
+            '--build-context', base + '=oci-layout://' + str(base_oci),
+            '--output', 'type=oci,tar=false,dest=' + str(compiler_dir), 'images/base-win64'], recipe)
+        report['compilerContext'] = inputs.compiler_layout(compiler_dir, compiler_id)
         atomic(state / 'report.json', report)
         def publish_downloads(results):
             report['downloads'] = dict(results)
@@ -316,12 +325,6 @@ def main():
         atomic(custody / 'recipe-inputs.json', {str(p.relative_to(recipe)): digest(p)
             for p in sorted(recipe.rglob('*')) if p.is_file() and '.git' not in p.parts
             and '.cache' not in p.parts})
-        compiler_dir = scratch / 'compiler-layout'
-        run('compiler-export', common + ['--build-arg', 'GH_REPO=local/' + owner + '/engine',
-            '--build-context', base + '=oci-layout://' + str(base_oci),
-            '--output', 'type=oci,tar=false,dest=' + str(compiler_dir), 'images/base-win64'], recipe)
-        report['compilerContext'] = inputs.compiler_layout(compiler_dir, compiler_id)
-        atomic(state / 'report.json', report)
         stage_results = {}
         def publish(results):
             stage_results.update(results)
