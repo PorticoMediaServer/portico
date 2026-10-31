@@ -9,14 +9,15 @@ import {screenModule} from './helpers/screen-harness.mjs';
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 const region = (tree: any, id: string) => nodes(tree).find((node: any) => node.type === 'FocusRegion' && node.props.id === id);
 
-/** The real chooser under a TV theme. TV directional focus is native and geometric, so the
- * declarative facts that decide Down are the action stack's layout direction, its child order
- * and the fact that nothing sits between it and the footer's Link a TV. */
-test('the TV server chooser stacks its actions so Down follows Refresh servers, Use a local server, then Link a TV', async () => {
+/** The real chooser under a TV theme. TV directional focus is native and geometric. Connect24 draws
+ * Refresh servers and Use a local server side by side, so the row stays, and Refresh's Down is
+ * pointed at Use a local server (the caption's order); Up returns to the server rows. The harness
+ * mounts no native views, so a node handle stands in for Use a local server's. */
+test('the TV server chooser keeps its actions in a row, Down goes Refresh servers, Use a local server, then Link a TV, and Up returns to the servers', async () => {
   const entries: any[] = [];
   const {TVServerChooser} = await screenModule(new URL('../src-next/screens/accounts/TVServerChooser.tsx', import.meta.url), {
     react: {...React, default: React},
-    'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
+    'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', findNodeHandle: () => 42},
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../kit/artwork': {ColourBackdrop: 'ColourBackdrop'},
     '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
@@ -45,16 +46,17 @@ test('the TV server chooser stacks its actions so Down follows Refresh servers, 
     assert.ok(actions && rows, 'both focus regions are drawn');
     assert.deepEqual(entries.at(-1), [{visible: true, intent: 'enter', revision: 0},
       {regionId: 'accounts.chooser.rows', childId: 'server:office'}], 'focus still enters the first offered server row');
-    // The stack is one column, so the native engine finds Use a local server under Refresh servers.
-    assert.equal(actions.props.style.flexDirection, 'column', 'the actions are a vertical stack, not a row');
+    assert.equal(actions.props.style.flexDirection, 'row', 'the actions sit side by side, as Connect24 draws them');
     assert.deepEqual(actions.props.order, ['refresh', 'add']);
     const buttons = React.Children.toArray(actions.props.children).filter((child: any) => child?.type === 'Button');
-    assert.deepEqual(buttons.map((child: any) => child.props.focusId), ['refresh', 'add'], 'Refresh servers is above Use a local server');
+    assert.deepEqual(buttons.map((child: any) => child.props.focusId), ['refresh', 'add'], 'Refresh servers comes before Use a local server');
     assert.deepEqual(buttons.map((child: any) => child.props.children),
       [defaultI18n.t('accounts.servers.refresh'), defaultI18n.t('accounts.signIn.local')]);
-    // Up must reverse within the stack, so the actions may not borrow the rows region's guide for Up.
-    assert.equal(actions.props.edges, undefined, 'Up moves to the action above, not straight back to the servers');
-    assert.deepEqual(rows.props.edges, {down: 'accounts.chooser.actions'}, 'the last server row still reaches the action stack');
+    assert.ok(buttons[1].props.ref, 'Use a local server is the target Refresh points at');
+    assert.equal(buttons[0].props.nextFocusDown, 42, 'Down from Refresh servers goes to Use a local server');
+    assert.equal(buttons[1].props.nextFocusDown, undefined, 'Down from Use a local server is left to the screen (Link a TV)');
+    assert.deepEqual(actions.props.edges, {up: 'accounts.chooser.rows'}, 'Up from the actions returns to the server rows');
+    assert.deepEqual(rows.props.edges, {down: 'accounts.chooser.actions'}, 'the last server row still reaches the actions');
     // Link a TV is the caller's footer, drawn immediately after the stack: Down from the last action reaches it.
     const all = nodes(tree);
     const add = all.find((node: any) => node.type === 'Button' && node.props.focusId === 'add');
