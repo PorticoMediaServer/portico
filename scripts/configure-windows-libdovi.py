@@ -59,6 +59,9 @@ CARGO_HOME="$PWD/../cargo-home" cargo vendor --locked --sync dolby_vision/Cargo.
 cd ..
 cp -R /portico-libdovi/license-supplements .
 cp /portico-libdovi/contract.json /portico-libdovi/expected.json /portico-libdovi/collect.py .
+echo '@COLLECTOR_SHA@  collect.py' | sha256sum --check
+echo '@CONTRACT_SHA@  contract.json' | sha256sum --check
+echo '@SUPPLEMENTS_SHA@  license-supplements/manifest.json' | sha256sum --check
 python3 -c 'import shutil; shutil.rmtree("cargo-home")'
 PORTICO_DOVI_SOURCE
 }
@@ -100,7 +103,9 @@ ffbuild_configure() { echo --enable-libdovi; }
 ffbuild_unconfigure() { echo --disable-libdovi; }
 '''
     values = {'COMMIT': lock['commit'], 'URL': lock['source'], 'SOURCE_SHA': lock['sha256'],
-              'ROOT_LOCK': lock['cargoLocks']['Cargo.lock'], 'CRATE_LOCK': lock['cargoLocks']['dolby_vision/Cargo.lock']}
+              'ROOT_LOCK': lock['cargoLocks']['Cargo.lock'], 'CRATE_LOCK': lock['cargoLocks']['dolby_vision/Cargo.lock'],
+              'COLLECTOR_SHA': digest(stage / 'collect.py'), 'CONTRACT_SHA': lock['contractSHA256'],
+              'SUPPLEMENTS_SHA': lock['licenseSupplements']['sha256']}
     for name, value in values.items():
         script = script.replace('@' + name + '@', value)
     (recipe / 'scripts.d/50-portico-libdovi.sh').write_text(script)
