@@ -1,94 +1,140 @@
-import {useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {useEffect, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {RadioGroup} from 'radix-ui';
 import {defaultI18n} from '@i18n';
+import type {LibraryContentApi} from '@core/library-content.ts';
+import type {SetupController} from '@core/setup-controller.ts';
+import type {SetupView} from '@core/setup-machine.ts';
 import {FolderPicker} from '../settings/libraries/FolderPicker';
 import {Button, TextField} from '../../kit/controls';
 import {AuthLoading, AuthStage} from '../../kit/accounts/AuthStage';
 import {ServicesStrength} from '../../kit/accounts/ServicesAuth';
 import {Icon} from '../../kit/Icon';
-import {addressSetupFailure, notLocalSourceFailure, setupInProgressFailure, unavailableSetupFailure} from '../../platform/setup-failure.ts';
-import {SetupFlow, type SetupPorts, type SetupSnapshot} from './setup-flow';
-import {libraryKindDescription, localPasswordValid, setupLibraryKinds, setupNameValid, setupSteps, validLocalUsername} from './setup-model';
+import {defaultLibraryName, defaultSetupServerName, libraryKindDescription, localPasswordValid, setupBusyMessage, setupEndedMessage, setupErrorMessage,
+  setupFailureKind, setupLibraryKinds, setupNameValid, setupNewerMessage, setupSteps, validLocalUsername, type SetupLibraryKind} from './setup-model';
 import styles from './setup.module.css';
 
 const t = defaultI18n.t;
-type SetupFlowLease = Readonly<{ports: SetupPorts; flow: SetupFlow; key: number; current: () => boolean}>;
+export type SetupScreenProps = Readonly<{
+  controller: SetupController;
+  /** The paired server's own name, once known. */
+  serverName: () => string | undefined;
+  /** The admitted owner's folder listing; absent until the owner is admitted. */
+  libraryFolders?: LibraryContentApi;
+  hostname?: string;
+}>;
+type Form = Readonly<{name?: string; username: string; password: string; confirm: string}>;
+type Library = Readonly<{kind: SetupLibraryKind; name: string; path: string; folders?: readonly string[]; folderClasses?: Readonly<Record<string, 'local' | 'network'>>}>;
 
-/** auth1 / auth1c / auth3. The mounted port bundle supplies the verified pairing,
- * the protected draft, shell admission and the guarded hosted continuation. */
-export function SetupScreen({ports}: {ports: SetupPorts}) {
-  const [published, publish] = useState<SetupFlowLease>(), generation = useRef(0);
-  useLayoutEffect(() => {
-    let live = true;
-    const flow = new SetupFlow(ports);
-    publish({ports, flow, key: ++generation.current, current: () => live});
-    void flow.start();
-    return () => {live = false;flow.dispose();};
-  }, [ports]);
-  const owned = published?.ports === ports && published.current() ? published : undefined;
-  return owned ? <SetupBody key={owned.key} flow={owned.flow}/> : null;
-}
-function SetupBody({flow}: {flow: SetupFlow}) {
-  const state = useSyncExternalStore(flow.subscribe, flow.getSnapshot);
-  const local = state.mode === 'local';
-  const preparing = state.phase === 'loading' || state.phase === 'waiting';
-  // The panel belongs to the exact failure this render shows, never a later one.
-  const errorFailure = state.phase === 'error' ? state.failure : undefined;
-  const notLocal = state.phase === 'error' && (notLocalSourceFailure(errorFailure) || notLocalSourceFailure(state.connectError));
-  const addressFailure = errorFailure && addressSetupFailure(errorFailure) ? errorFailure : undefined;
-  const servicesFailure = errorFailure && unavailableSetupFailure(errorFailure) ? errorFailure : undefined;
-  const steps = setupSteps({serverName: state.serverName, mode: state.mode, phase: state.phase === 'library' ? 'library' : 'form', local});
+/** First run (auth frames 1, 1c, 1d and 3), drawn from the setup controller's snapshot. The server decides every phase;
+ * this screen keeps only what the person is typing. */
+export function SetupScreen(props: SetupScreenProps) {
+  const {controller} = props;
+  const view = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
+  const busy = useSyncExternalStore(controller.subscribe, controller.busy, controller.busy);
+  const [form, setForm] = useState<Form>({username: '', password: '', confirm: ''});
+  const [library, setLibrary] = useState<Library>({kind: 'movie', name: defaultLibraryName('movie'), path: ''});
+  // Passwords never outlive the form that took them.
+  useEffect(() => {if (view.kind !== 'form' && view.kind !== 'starting') setForm(old => old.password || old.confirm ? {...old, password: '', confirm: ''} : old);}, [view.kind]);
+  const serverName = props.serverName() ?? '';
+  const name = form.name ?? (('name' in view && view.name) || defaultSetupServerName(serverName, props.hostname ?? location.hostname));
+  const mode = view.kind === 'form' && view.mode === 'local' || view.kind === 'starting' && view.mode === 'local' ? 'local' : 'hosted';
+  const steps = setupSteps({serverName, mode, phase: view.kind === 'library' ? 'library' : 'form', local: mode === 'local'});
+  const showSteps = view.kind === 'form' || view.kind === 'starting' || view.kind === 'library';
   return <div className={styles.host}>
-    {state.phase === 'library' ? <FirstLibrary flow={flow} state={state}/> : <AuthStage legal={false} shape={preparing ? 'round' : 'side'} layout={preparing ? 'center' : 'column'} contentClassName={preparing ? styles.loadingContent : state.phase === 'form' ? styles.content : styles.contentLibrary}>
-      {preparing && <AuthLoading>{t('web.setup.preparing')}</AuthLoading>}
-      {state.phase === 'error' && (notLocal ? <>
-        <p className={styles.error} role="alert"><Icon name="i-warn" size={20}/>{t('web.setup.notLocalSource')}</p>
-      </> : addressFailure ? <>
-        <p className={styles.error} role="alert"><Icon name="i-warn" size={20}/>{t('web.setup.notOnNetwork')}</p>
-        <div className={styles.field}><TextField variant="auth" label={t('web.general.serverName')} value={state.name || state.serverName} readOnly/></div>
-        <Button variant="primary" size="hero" disabled>{t('accounts.signIn.handoff')}</Button>
-      </> : servicesFailure ? <>
-        <p className={styles.error} role="alert"><Icon name="i-clock" size={20}/>{t('web.setup.servicesUnavailableBody')}</p>
-        <div className={styles.btnRow}>
-          {servicesFailure.retry && <Button variant="primary" size="hero" loading={state.busy} disabled={state.busy}
-            onClick={() => void flow.retryFailure(servicesFailure)}>{t('action.tryAgain')}</Button>}
-        </div>
-      </> : setupInProgressFailure(errorFailure) || setupInProgressFailure(state.connectError) ? <>
-        <h1>{t('web.setup.welcome')}</h1>
-        {state.error && <p className={styles.error} role="alert"><Icon name="i-clock" size={20}/>{state.error}</p>}
-        <Button variant="primary" size="hero" loading={state.busy} disabled={state.busy} onClick={() => void flow.retry()}>{t('action.tryAgain')}</Button>
-      </> : errorFailure ? <>
-        <h1>{t('web.setup.welcome')}</h1>
-        {state.error && <p className={styles.error} role="alert"><Icon name="i-warn" size={20}/>{state.error}</p>}
-        {errorFailure.retry && <div className={styles.btnRow}>
-          <Button variant="primary" size="hero" loading={state.busy} disabled={state.busy}
-            onClick={() => void flow.retryFailure(errorFailure)}>{t('action.tryAgain')}</Button>
-        </div>}
-      </> : <>
-        <h1>{t('web.setup.welcome')}</h1>
-        {state.error && <p className={styles.error} role="alert"><Icon name="i-warn" size={20}/>{state.error}</p>}
-        <Button variant="primary" size="hero" onClick={() => void flow.retry()}>{t('action.tryAgain')}</Button>
-      </>)}
-      {state.phase === 'form' && <SetupForm flow={flow} state={state} local={local}/>}
-    </AuthStage>}
-    {state.phase === 'form' || state.phase === 'library' ? <SetupSteps steps={steps} label={t('web.setup.stepsLabel')}/> : null}
+    {view.kind === 'library'
+      ? <FirstLibrary controller={controller} library={library} setLibrary={setLibrary} serverName={serverName} folders={props.libraryFolders} busy={busy}/>
+      : <Stage view={view} controller={controller} form={form} setForm={setForm} name={name} mode={mode} library={library} setLibrary={setLibrary}
+        serverName={serverName} folders={props.libraryFolders}/>}
+    {showSteps ? <SetupSteps steps={steps} label={t('web.setup.stepsLabel')}/> : null}
   </div>;
 }
 
-function SetupForm({flow, state, local}: {flow: SetupFlow; state: SetupSnapshot; local: boolean}) {
-  const hosted = state.mode === 'hosted';
-  const nameOk = setupNameValid(state.name), usernameOk = validLocalUsername(state.username), match = state.confirm === state.password;
-  const canSubmit = nameOk && (hosted || usernameOk && localPasswordValid(state.password, state.confirm)) && !state.busy;
-  const submit = () => {if (canSubmit) void (hosted ? flow.submitHosted() : flow.submitLocal());};
+function Stage({view, controller, form, setForm, name, mode, library, setLibrary, serverName, folders}: {view: SetupView; controller: SetupController; form: Form;
+  setForm: (update: (old: Form) => Form) => void; name: string; mode: 'hosted' | 'local'; library: Library; setLibrary: (update: (old: Library) => Library) => void;
+  serverName: string; folders?: LibraryContentApi}) {
+  const back = <Button variant="glass" size="hero" onClick={controller.back}>{t('action.back')}</Button>;
+  switch (view.kind) {
+    case 'connecting': case 'admitting': case 'renewing':
+      return <Loading/>;
+    case 'awaiting_approval':
+      // Back here from Portico Services without Return: offer Continue again, which asks the server for the same approval.
+      return <AuthStage legal={false} contentClassName={styles.content}>
+        <h1 className={styles.one}>{t('web.setup.welcome')}</h1>
+        <div className={styles.field}><TextField variant="auth" label={t('web.general.serverName')} value={view.name || name} readOnly/></div>
+        <div className={styles.btnRow}><Button variant="primary" size="hero" onClick={controller.retry}>{t('accounts.signIn.handoff')}</Button>{back}</div>
+        <p className={styles.quiet}>{t('web.setup.tabTrip')}</p>
+      </AuthStage>;
+    case 'finishing':
+      return <AuthStage legal={false} shape="round" layout="center" contentClassName={styles.loadingContent}>
+        <AuthLoading>{t('web.claim.finishingOnServer')}</AuthLoading>
+        {view.slow && <p className={styles.quiet}>{t('web.claim.finishingSlow')}</p>}
+      </AuthStage>;
+    case 'exhausted':
+      return <Message icon="i-clock" text={t('web.claim.finishingSlow')} actions={<Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>}/>;
+    case 'refused':
+      if (view.reason === 'address_not_allowed') return <AddressRefused name={name}/>;
+      return <Message icon="i-warn" text={view.reason === 'not_local_source' ? t('web.setup.notLocalSource') : setupErrorMessage({code: 'setup_complete', retryable: false})}/>;
+    case 'busy_elsewhere':
+      return <Message icon="i-clock" heading text={setupBusyMessage(view.retryAt)} actions={back}/>;
+    case 'ended':
+      return <Message icon="i-warn" heading text={setupEndedMessage(view.outcome, view.name || name)}
+        actions={<><Button variant="primary" size="hero" onClick={controller.startAgain}>{t('action.tryAgain')}</Button>{back}</>}/>;
+    case 'failed': {
+      const kind = setupFailureKind(view);
+      if (kind === 'address') return <AddressRefused name={name}/>;
+      // 1d-3 and the ordinary error: Try again where the server says it is worth it, and the ordinary Back.
+      return <Message icon={kind === 'services' ? 'i-clock' : 'i-warn'} heading={kind !== 'services'} text={setupErrorMessage(view.error)}
+        actions={<>{view.retryable && <Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>}{back}</>}/>;
+    }
+    case 'unknown':
+      return <Message icon="i-warn" heading text={setupNewerMessage()} actions={<Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>}/>;
+    case 'form': case 'starting':
+      return <AuthStage legal={false} contentClassName={styles.content}>
+        <SetupForm controller={controller} view={view} form={form} setForm={setForm} name={name} mode={mode}/>
+      </AuthStage>;
+    case 'library': case 'done':
+      return <Loading/>;
+  }
+}
+
+const Loading = () => <AuthStage legal={false} shape="round" layout="center" contentClassName={styles.loadingContent}><AuthLoading>{t('web.setup.preparing')}</AuthLoading></AuthStage>;
+
+function Message({icon, text, heading, actions}: {icon: 'i-warn' | 'i-clock'; text: string; heading?: boolean; actions?: ReactNode}) {
+  return <AuthStage legal={false} contentClassName={styles.content}>
+    {heading && <h1>{t('web.setup.welcome')}</h1>}
+    <p className={styles.error} role="alert"><Icon name={icon} size={20}/>{text}</p>
+    {actions && <div className={styles.btnRow}>{actions}</div>}
+  </AuthStage>;
+}
+
+/** 1d-2: setup can't start from this address; the form stays visible and Continue is off. */
+function AddressRefused({name}: {name: string}) {
+  return <AuthStage legal={false} contentClassName={styles.content}>
+    <p className={styles.error} role="alert"><Icon name="i-warn" size={20}/>{t('web.setup.notOnNetwork')}</p>
+    <div className={styles.field}><TextField variant="auth" label={t('web.general.serverName')} value={name} readOnly/></div>
+    <Button variant="primary" size="hero" disabled>{t('accounts.signIn.handoff')}</Button>
+  </AuthStage>;
+}
+
+function SetupForm({controller, view, form, setForm, name, mode}: {controller: SetupController; view: Extract<SetupView, {kind: 'form' | 'starting'}>; form: Form;
+  setForm: (update: (old: Form) => Form) => void; name: string; mode: 'hosted' | 'local'}) {
+  const busy = view.kind === 'starting', hosted = mode === 'hosted', local = !hosted;
+  const nameOk = setupNameValid(name), usernameOk = validLocalUsername(form.username), match = form.confirm === form.password;
+  const canSubmit = nameOk && (hosted || usernameOk && localPasswordValid(form.password, form.confirm)) && !busy;
+  const submit = () => {
+    if (!canSubmit) return;
+    if (hosted) controller.submitHosted(name.trim(), {navigate: true});
+    else controller.submitLocal(name.trim(), form.username.trim(), form.password);
+  };
   return <form onSubmit={event => {event.preventDefault(); submit();}}>
     <h1 className={styles.one}>{t('web.setup.welcome')}</h1>
     <p className={styles.lede}>{t('web.setup.welcomeLede')}</p>
-    {state.earlierExpired && <p className={styles.quiet}>{t('web.setup.earlierExpired')}</p>}
-    <div className={styles.field}><TextField variant="auth" autoFocus label={t('web.general.serverName')} value={state.name} maxLength={80} required
-      description={t('web.setup.serverNameHelp')} onChange={event => flow.setName(event.currentTarget.value)} disabled={state.busy}/></div>
+    {view.kind === 'form' && view.earlierExpired && <p className={styles.quiet}>{t('web.setup.earlierExpired')}</p>}
+    <div className={styles.field}><TextField variant="auth" autoFocus label={t('web.general.serverName')} value={name} maxLength={80} required
+      description={t('web.setup.serverNameHelp')} onChange={event => {const value = event.currentTarget.value; setForm(old => ({...old, name: value}));}} disabled={busy}/></div>
     <div className={styles.legend}>{t('web.setup.howSignIn')}</div>
-    <RadioGroup.Root orientation="vertical" aria-label={t('web.setup.howSignIn')} value={hosted ? 'hosted' : 'local'} disabled={state.busy}
-      onValueChange={value => {if (value === 'hosted' || value === 'local') flow.setMode(value);}}>
+    <RadioGroup.Root orientation="vertical" aria-label={t('web.setup.howSignIn')} value={mode} disabled={busy}
+      onValueChange={value => {if (value === 'hosted' || value === 'local') controller.chooseKind(value);}}>
     <RadioGroup.Item value="hosted" className={hosted ? styles.choice : styles.qopt}>
       {hosted && <span className={styles.choiceIcon} aria-hidden="true"><Icon name="i-person" size={22}/></span>}
       <span className={styles.choiceCopy}><b>{t('accounts.settings.portico')}<span className={styles.rec}>{t('web.setup.recommended')}</span></b>
@@ -96,31 +142,31 @@ function SetupForm({flow, state, local}: {flow: SetupFlow; state: SetupSnapshot;
       <span className={hosted ? styles.rad : styles.radOff} aria-hidden="true"/>
     </RadioGroup.Item>
     <RadioGroup.Item value="local" className={hosted ? styles.qopt : styles.choice}>
-      {!hosted && <span className={styles.choiceIcon} aria-hidden="true"><Icon name="i-server" size={22}/></span>}
+      {local && <span className={styles.choiceIcon} aria-hidden="true"><Icon name="i-server" size={22}/></span>}
       <span className={styles.qoptCopy}><b>{t('web.setup.localSignIn')}</b><br/>{t('web.setup.localSignInBody')}</span>
-      <span className={!hosted ? styles.rad : styles.radOff} aria-hidden="true"/>
+      <span className={local ? styles.rad : styles.radOff} aria-hidden="true"/>
     </RadioGroup.Item>
     </RadioGroup.Root>
     {local && <>
       <div className={[styles.legend, styles.formLegend].join(' ')}>{t('web.setup.ownerTitle')}</div>
       <p className={styles.para}>{t('web.setup.ownerLede')}</p>
-      <div className={styles.field}><TextField variant="auth" label={t('web.direct.username')} value={state.username} autoComplete="username"
-        autoCapitalize="off" spellCheck={false} maxLength={64} required disabled={state.busy} description={t('web.setup.usernameHelp')}
-        onChange={event => flow.setUsername(event.currentTarget.value)}/></div>
+      <div className={styles.field}><TextField variant="auth" label={t('web.direct.username')} value={form.username} autoComplete="username"
+        autoCapitalize="off" spellCheck={false} maxLength={64} required disabled={busy} description={t('web.setup.usernameHelp')}
+        onChange={event => {const value = event.currentTarget.value; setForm(old => ({...old, username: value}));}}/></div>
       <div className={styles.pair}>
-        <div className={styles.field}><TextField variant="auth" type="password" label={t('web.account.password')} value={state.password}
-          autoComplete="new-password" required disabled={state.busy} onChange={event => flow.setPassword(event.currentTarget.value)}/>
-          <ServicesStrength password={state.password} id="setup-password-strength"/></div>
-        <div className={styles.field}><TextField variant="auth" type="password" label={t('web.directJoin.confirm')} value={state.confirm}
-          autoComplete="new-password" required disabled={state.busy} error={Boolean(state.confirm) && !match ? t('web.setup.mismatch') : undefined}
-          onChange={event => flow.setConfirm(event.currentTarget.value)}/></div>
+        <div className={styles.field}><TextField variant="auth" type="password" label={t('web.account.password')} value={form.password}
+          autoComplete="new-password" required disabled={busy} onChange={event => {const value = event.currentTarget.value; setForm(old => ({...old, password: value}));}}/>
+          <ServicesStrength password={form.password} id="setup-password-strength"/></div>
+        <div className={styles.field}><TextField variant="auth" type="password" label={t('web.directJoin.confirm')} value={form.confirm}
+          autoComplete="new-password" required disabled={busy} error={Boolean(form.confirm) && !match ? t('web.setup.mismatch') : undefined}
+          onChange={event => {const value = event.currentTarget.value; setForm(old => ({...old, confirm: value}));}}/></div>
       </div>
     </>}
-    {state.error && <p className={styles.error} role="alert"><Icon name="i-warn" size={20}/>{state.error}</p>}
     <div className={[styles.btnRow, local ? styles.btnRowTight : ''].filter(Boolean).join(' ')}>
-      <Button variant="primary" size="hero" type="submit" loading={state.busy} disabled={!canSubmit}>
+      <Button variant="primary" size="hero" type="submit" loading={busy} disabled={!canSubmit}>
         {hosted ? t('accounts.signIn.handoff') : t('web.setup.createOwner')}
       </Button>
+      {busy && <Button variant="glass" size="hero" onClick={controller.back}>{t('action.back')}</Button>}
     </div>
     <p className={styles.quiet}>{hosted ? t('web.setup.tabTrip') : t('web.setup.plainHttp')}</p>
   </form>;
@@ -135,42 +181,50 @@ function SetupSteps({steps, label}: {steps: ReturnType<typeof setupSteps>; label
   </div>;
 }
 
-function FirstLibrary({flow, state}: {flow: SetupFlow; state: SetupSnapshot}) {
+function FirstLibrary({controller, library, setLibrary, serverName, folders, busy}: {controller: SetupController; library: Library;
+  setLibrary: (update: (old: Library) => Library) => void; serverName: string; folders?: LibraryContentApi; busy: boolean}) {
   const [picking, setPicking] = useState(false);
-  const folderApi = flow.libraryFolderApi();
-  const ready = setupNameValid(state.libraryName) && (!!state.folders?.length || state.path.trim().length > 0) && !state.busy;
+  const ready = setupNameValid(library.name) && (!!library.folders?.length || library.path.trim().length > 0) && !busy;
+  const setFolders = (chosen: readonly string[], classifications?: Readonly<Record<string, 'local' | 'network'>>) => {
+    if (chosen.length > 64 || chosen.some(path => !path || path.length > 8192)) return;
+    const unique = Object.freeze([...new Set(chosen)]), classes: Record<string, 'local' | 'network'> = {};
+    for (const path of unique) {const value = classifications?.[path]; if (value === 'local' || value === 'network') classes[path] = value;}
+    setLibrary(old => ({...old, folders: unique, folderClasses: Object.freeze(classes), path: ''}));
+  };
+  const setPath = (path: string) => setLibrary(old => ({...old, path, folders: undefined, folderClasses: undefined}));
   return <AuthStage legal={false} contentClassName={styles.contentLibrary}>
-    <p className={styles.okline}><Icon name="i-okc" size={20}/>{t('web.setup.youOwn', {server: state.serverName})}</p>
+    <p className={styles.okline}><Icon name="i-okc" size={20}/>{t('web.setup.youOwn', {server: serverName})}</p>
     <h1>{t('web.setup.firstLibrary')}</h1>
     <p className={styles.lede}>{t('web.setup.firstLibraryLede')}</p>
     <div className={styles.kinds} role="group" aria-label={t('web.setup.firstLibrary')}>
-      {setupLibraryKinds.map(kind => <button key={kind.id} type="button" className={styles.kind} aria-pressed={state.kind === kind.id}
-        onClick={() => flow.setKind(kind.id)} disabled={state.busy}>
+      {setupLibraryKinds.map(kind => <button key={kind.id} type="button" className={styles.kind} aria-pressed={library.kind === kind.id}
+        onClick={() => setLibrary(old => ({...old, kind: kind.id, name: defaultLibraryName(kind.id)}))} disabled={busy}>
         <Icon name={kind.icon} size={26}/>{t(kind.label)}
       </button>)}
     </div>
-    <p className={styles.kindDescription}><b>{t(setupLibraryKinds.find(kind => kind.id === state.kind)!.label)}.</b> {libraryKindDescription(state.kind)}</p>
-    <div className={styles.field}><TextField variant="auth" label={t('web.setup.folderName')} value={state.libraryName} maxLength={80}
-      required disabled={state.busy} onChange={event => flow.setLibraryName(event.currentTarget.value)}/></div>
+    <p className={styles.kindDescription}><b>{t(setupLibraryKinds.find(kind => kind.id === library.kind)!.label)}.</b> {libraryKindDescription(library.kind)}</p>
+    <div className={styles.field}><TextField variant="auth" label={t('web.setup.folderName')} value={library.name} maxLength={80}
+      required disabled={busy} onChange={event => {const value = event.currentTarget.value; setLibrary(old => ({...old, name: value}));}}/></div>
     <div className={styles.legend}>{t('web.setup.folders')}</div>
-    {folderApi ? <>
-      <div className={styles.setupFolders}>{state.folders?.map(path => {
-        const folderClass = state.folderClasses?.[path];
+    {folders ? <>
+      <div className={styles.setupFolders}>{library.folders?.map(path => {
+        const folderClass = library.folderClasses?.[path];
         return <div key={path} className={styles.setupFolder}><Icon name="i-folder" size={20}/><span>{path}</span>
           {folderClass ? <small className={styles.folderClass}>{t(folderClass === 'network' ? 'web.libraries.networkShare' : 'web.libraries.localDisk')}</small> : null}
-          <Button variant="text" size="small" icon="i-x" aria-label={`${t('next.ownerLibraries.explorer.removeChosen')} ${path}`} disabled={state.busy} onClick={() => flow.setFolders(state.folders?.filter(value => value !== path) ?? [], state.folderClasses)}/></div>;
+          <Button variant="text" size="small" icon="i-x" aria-label={`${t('next.ownerLibraries.explorer.removeChosen')} ${path}`} disabled={busy}
+            onClick={() => setFolders(library.folders?.filter(value => value !== path) ?? [], library.folderClasses)}/></div>;
       })}</div>
       <div className={styles.folderChoose}>
-        <Button variant="glass" disabled={state.busy} onClick={() => setPicking(true)}>{t('next.ownerLibraries.explorer.choose')}</Button>
+        <Button variant="glass" disabled={busy} onClick={() => setPicking(true)}>{t('next.ownerLibraries.explorer.choose')}</Button>
         <small>{t('web.setup.chooseFoldersHelp')}</small>
       </div>
-      <FolderPicker open={picking && !state.busy} onOpenChange={setPicking} api={folderApi} onChoose={flow.setPath} onChooseMany={flow.setFolders} initialPaths={state.folders} serverName={state.serverName}/>
-    </> : <div className={styles.field}><TextField variant="auth" label={t('web.setup.orTypePath')} value={state.path} required disabled={state.busy}
-      autoComplete="off" spellCheck={false} onChange={event => flow.setPath(event.currentTarget.value)}/></div>}
-    {state.error && <p className={styles.error} role="alert"><Icon name="i-warn" size={20}/>{state.error}</p>}
+      <FolderPicker open={picking && !busy} onOpenChange={setPicking} api={folders} onChoose={setPath} onChooseMany={setFolders} initialPaths={library.folders} serverName={serverName}/>
+    </> : <div className={styles.field}><TextField variant="auth" label={t('web.setup.orTypePath')} value={library.path} required disabled={busy}
+      autoComplete="off" spellCheck={false} onChange={event => setPath(event.currentTarget.value)}/></div>}
     <div className={styles.btnRow}>
-      <Button variant="primary" size="hero" loading={state.busy} disabled={!ready} onClick={() => void flow.addLibrary()}>{t('web.setup.addLibraryScan')}</Button>
-      <Button variant="glass" size="hero" disabled={state.busy} onClick={flow.skip}>{t('web.setup.skip')}</Button>
+      <Button variant="primary" size="hero" loading={busy} disabled={!ready} onClick={() => controller.addLibrary({kind: library.kind, name: library.name.trim(), path: library.path.trim(),
+        ...(library.folders?.length ? {folders: library.folders} : {})})}>{t('web.setup.addLibraryScan')}</Button>
+      <Button variant="glass" size="hero" disabled={busy} onClick={controller.skip}>{t('web.setup.skip')}</Button>
     </div>
   </AuthStage>;
 }
