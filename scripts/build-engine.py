@@ -23,6 +23,9 @@ import fcntl
 spec = importlib.util.spec_from_file_location("engine_inputs", Path(__file__).with_name("engine_inputs.py"))
 inputs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(inputs)
+spec = importlib.util.spec_from_file_location('final_cache', Path(__file__).with_name('engine-final-cache.py'))
+final_cache = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(final_cache)
 
 ROOT = Path(__file__).resolve().parents[1]
 LIMIT = 8 * 1024**3
@@ -285,14 +288,19 @@ def main():
         (recipe / 'Dockerfile').write_text(dependency_steps((recipe / 'Dockerfile').read_text()))
         if 'scripts.d/50-vaapi/50-libva.sh' in (recipe / 'Dockerfile').read_text():
             raise ValueError('Windows graph unexpectedly contains libva')
-        graph = stages((recipe / 'Dockerfile').read_text())
-        report['stages'] = {n: {'state': 'pending'} for n in graph}
-        atomic(state / 'report.json', report)
         disc = recipe / 'portico-disc'; disc.mkdir(exist_ok=True)
         for name in ('portico-disc.c', 'mpegts_dovi.h'):
             shutil.copy2(ROOT / 'third_party/portico-disc' / name, disc)
         shutil.copy2(ROOT / 'LICENSE', disc / 'LICENSE')
         shutil.copy2(ROOT / 'scripts/build-portico-disc.py', disc)
+        env['SOURCE_DATE_EPOCH'] = str(lock['sourceDateEpoch'])
+        final_cache.compile_program(recipe, 'win64', recipe / 'portico-compile.sh', env)
+        dockerfile = recipe / 'Dockerfile'
+        dockerfile.write_text(final_cache.stages(dockerfile.read_text(), os.getuid(), os.getgid(),
+                                                lock['sourceDateEpoch']))
+        graph = stages(dockerfile.read_text())
+        report['stages'] = {n: {'state': 'pending'} for n in graph}
+        atomic(state / 'report.json', report)
         # Capture the file BuildKit actually consumes, after final generation.
         # No separately regenerated Dockerfile supplies the sealed receipt.
         dockerfile_sha = digest(recipe / 'Dockerfile')
@@ -343,26 +351,22 @@ def main():
             return result
         report['stages'] = aggregate(graph, execute, publish)
         if all(v['state'] in ('passed', 'cached') for v in report['stages'].values()):
-            final_image = 'local/' + owner + '/engine/win64-gpl-8.1:latest'
-            images.append(final_image)
+            prefix = scratch / 'engine-prefix'
             args = common + ['--file', inputs.consumed_dockerfile(recipe, dockerfile_sha),
-                             '--load', '-t', final_image, '--build-context', compiler + '=oci-layout://' + str(compiler_dir)]
-            run('combine', args + ['.'], recipe)
+                             '--target', 'portico-engine-output',
+                             '--output', 'type=local,dest=' + str(prefix),
+                             '--build-context', compiler + '=oci-layout://' + str(compiler_dir)]
+            run('ffmpeg-export', args + ['.'], recipe)
             inputs.consumed_dockerfile(recipe, dockerfile_sha)
-            env['GIT_BRANCH_OVERRIDE'] = 'n' + lock['ffmpeg']['version']
-            env['SOURCE_DATE_EPOCH'] = str(lock['sourceDateEpoch'])
-            artifacts = recipe / 'artifacts'
-            if artifacts.is_symlink():
-                raise ValueError('raw output directory must not be a symlink')
-            if artifacts.exists():
-                shutil.rmtree(artifacts)
-            run('ffmpeg-compile', ['bash', 'build.sh', 'win64', 'gpl', '8.1'], recipe)
+            package = scratch / ('ffmpeg-' + lock['ffmpeg']['version'] + '-win64-gpl-8.1')
+            final_cache.package(recipe, 'win64', prefix, prepared, package, env)
             if inputs.json_digest(inputs.recipe_tree(recipe)) != recipe_sha:
                 raise ValueError('recipe inputs changed during compilation')
             if inputs.checked_source(ROOT) != source_sha:
                 raise ValueError('engine source changed during compilation')
             raw_output = state / ('raw-' + uuid.uuid4().hex[:12])
-            shutil.copytree(recipe / 'artifacts', raw_output)
+            raw_output.mkdir()
+            final_cache.archive(package, raw_output / (package.name + '.zip'))
             archives = sorted(raw_output.glob('*.zip'))
             if not archives:
                 raise ValueError('compiler produced no Windows archive')
@@ -371,7 +375,8 @@ def main():
             shutil.copytree(disc, custody / 'portico-disc', dirs_exist_ok=True)
             shutil.copytree(ROOT / 'scripts', custody / 'portico-build-scripts', ignore=shutil.ignore_patterns('__pycache__'), dirs_exist_ok=True)
             shutil.copytree(ROOT / 'third_party/ffmpeg', custody / 'portico-contract', dirs_exist_ok=True)
-            report['rawCompilation'] = True
+            report.update(rawCompilation=True, compilationTransport='buildkit',
+                          compilationState=report['stages']['portico-ffmpeg']['state'])
             atomic(raw_output / 'build-report.json', report)
     except (Exception, KeyboardInterrupt) as error:
         report['blocker'] = str(error)
