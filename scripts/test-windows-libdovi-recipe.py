@@ -39,6 +39,7 @@ class WindowsDoviRecipe(unittest.TestCase):
             self.assertIn('echo portico-libdovi', (recipe / 'scripts.d/zz-final.sh').read_text())
             self.assertIn('"$PWD/portico-dovi-inputs":/portico-libdovi:ro', (recipe / 'download.sh').read_text())
             self.assertIn('/opt/ffbuild/LICENSES', (recipe / 'build.sh').read_text())
+            self.assertIn('/opt/ffbuild/share/doc/ffmpeg/libdovi-build.json', (recipe / 'build.sh').read_text())
 
 
 if __name__ == '__main__':
