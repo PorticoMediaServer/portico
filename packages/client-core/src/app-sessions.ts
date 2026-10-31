@@ -4,7 +4,14 @@ import {RouteError, routeOrigin, type KnownServerRoute} from './route-identity.t
 
 export type SignInKind = 'portico' | 'local';
 export type PorticoAccountScope = Readonly<{origin: string; accountId: string}>;
-export type AppServerSession = Readonly<{signIn: SignInKind; connection: RememberedServer; resetFileOwner?: true}>;
+/** "Remember this profile": this device opens `profileId` at launch while it still holds `familyId`,
+ * until `expiresAt`. Written with the family it names and dropped when the family changes. */
+export type AppRememberedProfile = Readonly<{profileId: string; familyId: string; expiresAt: string}>;
+/** `remembered`: the marker above. `profilePinRequired`: whether the held profile had a PIN when last
+ * seen (unknown counts as having one). Both are optional and tolerant: an unreadable one is dropped
+ * and the rest of the record stays valid (R-23). */
+export type AppServerSession = Readonly<{signIn: SignInKind; connection: RememberedServer; resetFileOwner?: true;
+  remembered?: AppRememberedProfile; profilePinRequired?: boolean}>;
 export type AppSessionRecord = Readonly<{
   version: 1; revision: number; selectedServerId?: string; servers: readonly AppServerSession[];
 }>;
@@ -24,6 +31,18 @@ export type NewServerConnection = Readonly<{
 const empty = (): AppSessionRecord => ({version: 1, revision: 0, servers: []});
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const id = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 256 && !/[\p{Cc}\p{Cf}]/u.test(v);
+const rememberedText = (v: unknown, max: number): v is string => id(v) && v.length <= max;
+/** Unreadable is simply not a marker: dropped, never thrown (R-23). */
+function parseRemembered(raw: unknown): AppRememberedProfile | undefined {
+  if (!object(raw) || !rememberedText(raw.profileId, 256) || !rememberedText(raw.familyId, 128) || !rememberedText(raw.expiresAt, 64)
+    || !Number.isFinite(Date.parse(raw.expiresAt))) return undefined;
+  return Object.freeze({profileId: raw.profileId, familyId: raw.familyId, expiresAt: raw.expiresAt});
+}
+/** The optional fields of an entry, as they are kept. */
+const extras = (v: {remembered?: unknown; profilePinRequired?: unknown}) => {
+  const remembered = parseRemembered(v.remembered);
+  return {...(remembered ? {remembered} : {}), ...(typeof v.profilePinRequired === 'boolean' ? {profilePinRequired: v.profilePinRequired} : {})};
+};
 function invalid(): never { throw new RouteError('invalid_saved_connection', 'Saved app sign-ins are incomplete.'); }
 function cancelled(): never { throw new RouteError('cancelled', 'This server sign-in changed or ended on this device.'); }
 function scope(raw: PorticoAccountScope): PorticoAccountScope {
@@ -50,7 +69,7 @@ export function parseAppSessionRecord(raw: unknown): AppSessionRecord {
     if (value.resetFileOwner === true) {if (value.signIn !== 'portico' || !resetOwner(connection)) invalid();}
     else if (value.signIn === 'portico' ? !connection.hosted : !!connection.hosted) invalid();
     if (connection.hosted) scope(connection.hosted);
-    return {signIn: value.signIn as SignInKind, connection, ...(value.resetFileOwner === true ? {resetFileOwner: true as const} : {})};
+    return {signIn: value.signIn as SignInKind, connection, ...(value.resetFileOwner === true ? {resetFileOwner: true as const} : {}), ...extras(value)};
   });
   const ids = servers.map(v => v.connection.pin.serverId);
   if (new Set(ids).size !== ids.length || raw.selectedServerId !== undefined && (!id(raw.selectedServerId) || !ids.includes(raw.selectedServerId))) invalid();
@@ -94,6 +113,32 @@ export class AppSessionStore {
       return next(old, old.servers, serverId);
     }, beforeCommit);
   }
+  /** Writes or clears the remember marker of the sign-in that holds exactly `familyId`. A server that
+   * holds another family, or none, is left alone. */
+  async setRemembered(serverId: string, familyId: string, marker: Pick<AppRememberedProfile, 'profileId' | 'expiresAt'> | undefined): Promise<void> {
+    if (!id(serverId) || !id(familyId)) invalid();
+    await this.amend(serverId, familyId, entry => {
+      if (!marker && !entry.remembered) return entry;
+      const {remembered: _dropped, ...rest} = entry;
+      const remembered = marker && parseRemembered({profileId: marker.profileId, familyId, expiresAt: marker.expiresAt});
+      if (marker && !remembered) return entry;
+      return {...rest, ...(remembered ? {remembered} : {})};
+    });
+  }
+  /** Records whether the held profile has a PIN, as the server last said. Same family rule as setRemembered. */
+  async setProfilePinRequired(serverId: string, familyId: string, value: boolean): Promise<void> {
+    if (!id(serverId) || !id(familyId) || typeof value !== 'boolean') invalid();
+    await this.amend(serverId, familyId, entry => entry.profilePinRequired === value ? entry : {...entry, profilePinRequired: value});
+  }
+  private async amend(serverId: string, familyId: string, change: (entry: AppServerSession) => AppServerSession): Promise<void> {
+    await this.storage.change(raw => {
+      const old = parseAppSessionRecord(raw), entry = old.servers.find(v => v.connection.pin.serverId === serverId);
+      if (!entry || entry.connection.session.sessionFamilyId !== familyId) return raw;
+      const changed = change(entry);
+      if (changed === entry) return raw;
+      return next(old, old.servers.map(v => v === entry ? changed : v));
+    });
+  }
   connectionStorage(serverId: string, admission?: NewServerConnection): ServerConnectionStorage {
     if (!id(serverId)) invalid();
     if (admission && (!Number.isSafeInteger(admission.expectedRevision) || admission.expectedRevision < 0 || !['portico', 'local'].includes(admission.signIn) || admission.resetFileOwner !== undefined && admission.resetFileOwner !== true || (admission.resetFileOwner ? admission.signIn !== 'portico' || !!admission.hostedAccount : (admission.signIn === 'portico') !== !!admission.hostedAccount))) invalid();
@@ -117,7 +162,11 @@ export class AppSessionStore {
           const resetFileOwner = rollback ? previous!.resetFileOwner : replacement ? admission!.resetFileOwner : entry!.resetFileOwner;
           if (resetFileOwner ? signIn !== 'portico' || !resetOwner(checked) : signIn === 'portico' && (!checked.hosted || account && (checked.hosted.origin !== account.origin || checked.hosted.accountId !== account.accountId)) || signIn === 'local' && checked.hosted) invalid();
           if (replacement && !rollback) { previous = entry; accepted = checked; }
-          const result = next(old, [...old.servers.filter(v => v !== entry), {signIn, connection: checked, ...(resetFileOwner ? {resetFileOwner: true as const} : {})}], replacement ? serverId : old.selectedServerId);
+          // The marker names a family: it survives rotation and route updates, and goes with the family it was written for.
+          const familyChanged = !entry || checked.session.sessionFamilyId !== entry.connection.session.sessionFamilyId;
+          const kept = rollback ? previous : familyChanged ? undefined : entry;
+          const result = next(old, [...old.servers.filter(v => v !== entry), {signIn, connection: checked, ...(resetFileOwner ? {resetFileOwner: true as const} : {}),
+            ...(kept ? extras(kept) : {})}], replacement ? serverId : old.selectedServerId);
           return result;
         }, beforeCommit);
         // An admission is single use. Rotation, route updates and cleanup need no admission.
