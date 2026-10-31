@@ -1,0 +1,231 @@
+name: Packaging qualification
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/packaging-qualification.yml'
+      - 'scripts/ci-*-payload.py'
+      - 'scripts/test-ci-*-payload.py'
+      - 'scripts/ci-ffmpeg-native.py'
+      - 'scripts/build-ffmpeg.sh'
+      - 'scripts/package-macos.sh'
+      - 'scripts/*ffmpeg*'
+      - 'third_party/ffmpeg/**'
+      - 'third_party/rclone/**'
+      - 'packaging/**'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: packaging-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  GOMAXPROCS: '2'
+  GOFLAGS: '-p=2'
+  PORTICO_BUILD_JOBS: '2'
+  MAKEFLAGS: '-j2'
+  CMAKE_BUILD_PARALLEL_LEVEL: '2'
+  CARGO_BUILD_JOBS: '2'
+  npm_config_jobs: '2'
+  NUMJOBS: '2'
+jobs:
+  source_x64:
+    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    outputs:
+      artifact_id: ${{ steps.transfer.outputs.artifact-id }}
+      artifact_digest: ${{ steps.transfer.outputs.artifact-digest }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.17'
+      - name: Record hosted source resources before build
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence"
+          { date -u; df -h; free -h; } | tee -a "$RUNNER_TEMP/qualification/evidence/resources.log"
+      - name: Build source engine and complete corresponding source
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence" "$RUNNER_TEMP/qualification/tmp"
+          export TMPDIR="$RUNNER_TEMP/qualification/tmp"
+          # Fresh hosted VMs only: reclaim toolchains this source-only job never uses.
+          [[ "$RUNNER_ENVIRONMENT" == github-hosted && "$RUNNER_OS" == Linux ]]
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          python -c 'import os,shutil; assert shutil.disk_usage(os.environ["RUNNER_TEMP"]).free >= 8*1024**3, "less than 8GiB scratch headroom"'
+          python scripts/test-ci-unsigned-payload.py
+          python scripts/test-ci-ffmpeg-native.py
+          python scripts/check-ffmpeg-build-inputs.py --output "$RUNNER_TEMP/qualification/evidence/authority.json"
+          python scripts/ci-ffmpeg-native.py produce windows-x64 --output "$RUNNER_TEMP/qualification/transfer" --evidence "$RUNNER_TEMP/qualification/evidence" 2>&1 | tee "$RUNNER_TEMP/qualification/evidence/source-build.log"
+      - name: Record hosted source resources after build
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence"
+          { date -u; df -h; free -h; } | tee -a "$RUNNER_TEMP/qualification/evidence/resources.log"
+      - id: transfer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ci-intermediate-ffmpeg-windows-x64-${{ github.event.pull_request.head.sha || github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/qualification/transfer/
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: source-evidence-x64
+          path: |
+            ${{ runner.temp }}/qualification/evidence/*.json
+            ${{ runner.temp }}/qualification/evidence/*.log
+          retention-days: 7
+      - name: Remove owned scratch
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/qualification"
+  source_arm64:
+    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    outputs:
+      artifact_id: ${{ steps.transfer.outputs.artifact-id }}
+      artifact_digest: ${{ steps.transfer.outputs.artifact-digest }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.17'
+      - name: Record hosted source resources before build
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence"
+          { date -u; df -h; free -h; } | tee -a "$RUNNER_TEMP/qualification/evidence/resources.log"
+      - name: Build source engine and complete corresponding source
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence" "$RUNNER_TEMP/qualification/tmp"
+          export TMPDIR="$RUNNER_TEMP/qualification/tmp"
+          # Fresh hosted VMs only: reclaim toolchains this source-only job never uses.
+          [[ "$RUNNER_ENVIRONMENT" == github-hosted && "$RUNNER_OS" == Linux ]]
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          python -c 'import os,shutil; assert shutil.disk_usage(os.environ["RUNNER_TEMP"]).free >= 8*1024**3, "less than 8GiB scratch headroom"'
+          python scripts/test-ci-unsigned-payload.py
+          python scripts/test-ci-ffmpeg-native.py
+          python scripts/check-ffmpeg-build-inputs.py --output "$RUNNER_TEMP/qualification/evidence/authority.json"
+          python scripts/ci-ffmpeg-native.py produce windows-arm64 --output "$RUNNER_TEMP/qualification/transfer" --evidence "$RUNNER_TEMP/qualification/evidence" 2>&1 | tee "$RUNNER_TEMP/qualification/evidence/source-build.log"
+      - name: Record hosted source resources after build
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence"
+          { date -u; df -h; free -h; } | tee -a "$RUNNER_TEMP/qualification/evidence/resources.log"
+      - id: transfer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ci-intermediate-ffmpeg-windows-arm64-${{ github.event.pull_request.head.sha || github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/qualification/transfer/
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: source-evidence-arm64
+          path: |
+            ${{ runner.temp }}/qualification/evidence/*.json
+            ${{ runner.temp }}/qualification/evidence/*.log
+          retention-days: 7
+      - name: Remove owned scratch
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/qualification"
+  native:
+    needs: [source_x64, source_arm64]
+    if: always() && !cancelled() && github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - {target: macos-x64, runner: macos-15-intel}
+          - {target: macos-arm64, runner: macos-15}
+          - {target: windows-x64, runner: windows-2025}
+          - {target: windows-arm64, runner: windows-11-arm}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 330
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Enable long source paths on hosted Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.17'
+          architecture: ${{ endsWith(matrix.target, 'arm64') && 'arm64' || 'x64' }}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+      - name: Native engine and actual server installer construction
+        env:
+          TARGET: ${{ matrix.target }}
+          ARTIFACT_ID: ${{ matrix.target == 'windows-x64' && needs.source_x64.outputs.artifact_id || needs.source_arm64.outputs.artifact_id }}
+          ARTIFACT_DIGEST: ${{ matrix.target == 'windows-x64' && needs.source_x64.outputs.artifact_digest || needs.source_arm64.outputs.artifact_digest }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence" "$RUNNER_TEMP/qualification/tmp"
+          export TMPDIR="$RUNNER_TEMP/qualification/tmp"
+          python -c 'import os,shutil; assert shutil.disk_usage(os.environ["RUNNER_TEMP"]).free >= 8*1024**3, "less than 8GiB scratch headroom"'
+          export GOCACHE="$RUNNER_TEMP/qualification/go-cache"
+          export GOMODCACHE="$RUNNER_TEMP/qualification/go-mod"
+          export npm_config_cache="$RUNNER_TEMP/qualification/npm-cache"
+          python scripts/test-ci-unsigned-payload.py
+          python scripts/check-ffmpeg-build-inputs.py --output "$RUNNER_TEMP/qualification/evidence/authority.json"
+          python -m pip install --disable-pip-version-check --requirement scripts/requirements-release.txt
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            brew list --versions gnu-tar >/dev/null 2>&1 || brew install gnu-tar
+            brew list --versions bash >/dev/null 2>&1 || brew install bash
+            export PATH="$(brew --prefix bash)/bin:$(brew --prefix gnu-tar)/libexec/gnubin:$PATH"
+            tar --version
+          fi
+          { go version; node --version; npm --version; python --version; df -h; } > "$RUNNER_TEMP/qualification/evidence/tools.log" 2>&1
+          if [[ "$TARGET" == windows-* ]]; then
+            python -c 'import os,runpy,pathlib; runpy.run_path("scripts/ci-unsigned-payload.py")["download"](os.environ["ARTIFACT_ID"],os.environ["ARTIFACT_DIGEST"],os.environ["TARGET"],pathlib.Path(os.environ["RUNNER_TEMP"])/"qualification/input")'
+            python scripts/ci-ffmpeg-native.py consume "$TARGET" --input "$RUNNER_TEMP/qualification/input" --bundle-out "$RUNNER_TEMP/qualification/engine" --evidence "$RUNNER_TEMP/qualification/evidence"
+          else
+            python scripts/ci-ffmpeg-native.py macos "$TARGET" --work "$GITHUB_WORKSPACE/runtime/ffmpeg-build/$TARGET" --bundle-out "$RUNNER_TEMP/qualification/engine" --evidence "$RUNNER_TEMP/qualification/evidence"
+          fi
+          python scripts/ci-unsigned-payload.py "$TARGET" --engine "$RUNNER_TEMP/qualification/engine" --work "$RUNNER_TEMP/qualification/payload-build" --evidence "$RUNNER_TEMP/qualification/evidence" 2>&1 | tee "$RUNNER_TEMP/qualification/evidence/construction.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: native-evidence-${{ matrix.target }}
+          path: |
+            ${{ runner.temp }}/qualification/evidence/*.json
+            ${{ runner.temp }}/qualification/evidence/*.log
+          retention-days: 7
+      - name: Remove owned scratch
+        if: always()
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          rm -rf "$RUNNER_TEMP/qualification" node_modules web/node_modules
+          if [[ "$TARGET" == macos-* ]]; then rm -rf "$GITHUB_WORKSPACE/runtime/ffmpeg-build/$TARGET"; fi
