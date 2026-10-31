@@ -178,6 +178,9 @@ def validate_tags(plan):
 def build(plan):
     validate_tags(plan)
     execute(['go','run','-tags',plan['tags'],'./cmd/apigen','-root','..'],ROOT/'server')
+    # Development contracts (packages/contracts/src/development) come from the devtrust routes;
+    # regenerate them in the same drift check so they cannot rot unnoticed.
+    execute(['go','run','-tags','devtrust','./cmd/apigen','-development','-root','..'],ROOT/'server')
     execute(['git','diff','--exit-code'])
     for module in ['server','apikit']:
         for tags in ['',plan['tags']]:

@@ -61,6 +61,18 @@ export const errors = [
     "retry": "same_request"
   },
   {
+    "code": "avatar_not_found",
+    "status": 404,
+    "message": "This profile picture is no longer available.",
+    "retry": "after_refresh"
+  },
+  {
+    "code": "avatar_unsupported",
+    "status": 415,
+    "message": "Choose a JPEG or PNG picture smaller than 4 MB.",
+    "retry": "never"
+  },
+  {
     "code": "body_too_large",
     "status": 413,
     "message": "The request is too large.",
@@ -139,9 +151,21 @@ export const errors = [
     "retry": "same_request"
   },
   {
+    "code": "claim_move_required",
+    "status": 409,
+    "message": "In Settings, change sign-in from Local to Portico Account and confirm the move before connecting this server.",
+    "retry": "never"
+  },
+  {
     "code": "client_log_budget",
     "status": 429,
     "message": "The daily client log limit has been reached.",
+    "retry": "never"
+  },
+  {
+    "code": "client_update_required",
+    "status": 400,
+    "message": "Update the app to play on this server.",
     "retry": "never"
   },
   {
@@ -191,6 +215,12 @@ export const errors = [
     "status": 409,
     "message": "Refresh the list to continue.",
     "retry": "after_refresh"
+  },
+  {
+    "code": "database_busy",
+    "status": 503,
+    "message": "The server is briefly busy maintaining its database. Try again shortly.",
+    "retry": "same_request"
   },
   {
     "code": "device_not_found",
@@ -256,6 +286,12 @@ export const errors = [
     "code": "event_stream_exists",
     "status": 409,
     "message": "An existing stream was retired; reconnect using your last event ID.",
+    "retry": "same_request"
+  },
+  {
+    "code": "event_wait_limit",
+    "status": 429,
+    "message": "This device already has its event waits open. Read without waiting, then wait again.",
     "retry": "same_request"
   },
   {
@@ -343,6 +379,12 @@ export const errors = [
     "retry": "never"
   },
   {
+    "code": "idempotency_conflict",
+    "status": 409,
+    "message": "This request key belongs to a different change.",
+    "retry": "never"
+  },
+  {
     "code": "idempotency_key_required",
     "status": 428,
     "message": "Send an Idempotency-Key with this request.",
@@ -395,6 +437,12 @@ export const errors = [
     "status": 401,
     "message": "Request a new download link.",
     "retry": "after_refresh"
+  },
+  {
+    "code": "invalid_mutation_key",
+    "status": 400,
+    "message": "The change could not be identified. Refresh before trying again.",
+    "retry": "never"
   },
   {
     "code": "invalid_query",
@@ -535,6 +583,24 @@ export const errors = [
     "retry": "never"
   },
   {
+    "code": "observation_capacity",
+    "status": 503,
+    "message": "The server is following as many players as it can. Try again shortly.",
+    "retry": "same_request"
+  },
+  {
+    "code": "observation_epoch_changed",
+    "status": 409,
+    "message": "Another player now reports this playback. Claim it again to continue.",
+    "retry": "after_refresh"
+  },
+  {
+    "code": "observation_owned",
+    "status": 409,
+    "message": "Another player on this device reports this playback.",
+    "retry": "never"
+  },
+  {
     "code": "operation_expired",
     "status": 409,
     "message": "The time to undo this change has passed.",
@@ -655,6 +721,18 @@ export const errors = [
     "retry": "same_request"
   },
   {
+    "code": "receipt_expired",
+    "status": 410,
+    "message": "This change needs review because its receipt is no longer available.",
+    "retry": "never"
+  },
+  {
+    "code": "receipt_unknown",
+    "status": 404,
+    "message": "No receipt is available for this change yet.",
+    "retry": "same_request"
+  },
+  {
     "code": "receiver_key_mismatch",
     "status": 403,
     "message": "That receiver key does not match the registration.",
@@ -757,6 +835,18 @@ export const errors = [
     "retry": "never"
   },
   {
+    "code": "setup_in_progress",
+    "status": 409,
+    "message": "Setup is already in progress in another browser.",
+    "retry": "same_request"
+  },
+  {
+    "code": "setup_source_not_local",
+    "status": 403,
+    "message": "Setup has to start from a device on the same network as this server.",
+    "retry": "never"
+  },
+  {
     "code": "sign_in_kind_local",
     "status": 403,
     "message": "This server uses local accounts. Sign in with its username and password.",
@@ -845,6 +935,12 @@ export const errors = [
     "status": 409,
     "message": "There is not enough storage for this download.",
     "retry": "never"
+  },
+  {
+    "code": "storage_offline",
+    "status": 503,
+    "message": "This title’s storage is offline right now.",
+    "retry": "same_request"
   },
   {
     "code": "storage_operation_expired",
@@ -1037,5 +1133,11 @@ export const errors = [
     "status": 409,
     "message": "There are too many of these already. Remove one you no longer use.",
     "retry": "never"
+  },
+  {
+    "code": "writer_capacity",
+    "status": 503,
+    "message": "The server is busy saving other changes. Try again shortly.",
+    "retry": "same_request"
   }
 ] as const;
