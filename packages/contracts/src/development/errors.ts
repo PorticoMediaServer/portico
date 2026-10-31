@@ -853,9 +853,21 @@ export const errors = [
     "retry": "same_request"
   },
   {
+    "code": "setup_portico_mode",
+    "status": 409,
+    "message": "This server is being set up for a Portico Account. Go back to the start of setup to choose local sign-in.",
+    "retry": "never"
+  },
+  {
     "code": "setup_source_not_local",
     "status": 403,
     "message": "Setup has to start from a device on the same network as this server.",
+    "retry": "never"
+  },
+  {
+    "code": "setup_state_changed",
+    "status": 409,
+    "message": "Setup moved on. Read its state again.",
     "retry": "never"
   },
   {
