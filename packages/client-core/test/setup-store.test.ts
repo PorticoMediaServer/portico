@@ -20,6 +20,7 @@ test('a good record and a good attempt parse to themselves', () => {
   assert.deepEqual(parseSetupRecord(record), record);
   assert.deepEqual(parseSetupAttempt(attempt), attempt);
   assert.deepEqual(parseSetupAttempt({...attempt, handoff}), {...attempt, handoff});
+  assert.deepEqual(parseSetupAttempt({...attempt, handoff, approvalUrl: 'https://hosted.example/claim#c'}), {...attempt, handoff, approvalUrl: 'https://hosted.example/claim#c'});
   assert.deepEqual(parseSetupRecord({...record, authMode: 'local'}), {...record, authMode: 'local'});
 });
 
@@ -39,7 +40,7 @@ const garbage: unknown[] = [undefined, null, 0, 1, NaN, '', 'text', '{"version":
     installationId: 'i', state: 's', verifier: 'v', codeChallenge: 'c', createdAt: 1, expiresAt: 'x'},
   {...attempt, version: 1}, {...attempt, attemptId: 1}, {...attempt, origin: null}, {...attempt, createdAt: 'now'}, {...attempt, expiresAt: undefined},
   {...attempt, handoff: 'bad'}, {...attempt, handoff: {}}, {...attempt, handoff: {...handoff, claim: {payload: 1}}}, {...attempt, handoff: {...handoff, expected: null}},
-  {...attempt, handoff: null},
+  {...attempt, handoff: null}, {...attempt, approvalUrl: 'https://hosted.example/claim#c'}, {...attempt, handoff, approvalUrl: ''},
   Object.create(null),
   new Proxy({}, {get() { throw new Error('boom'); }, has() { throw new Error('boom'); }, ownKeys() { throw new Error('boom'); }}),
   {get version(): number { throw new Error('getter boom'); }},
