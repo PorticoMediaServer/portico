@@ -9,7 +9,25 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/claimweb"
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 )
+
+// OwnerStartHorizon is the latest an owner start pressed by p may last: its
+// session family's authorization horizon. The move is bound to the family, so
+// a start may outlive the pressing token but never the family (capture refuses
+// one that would).
+func (s *Service) OwnerStartHorizon(ctx context.Context, p Principal) (time.Time, error) {
+	g, err := dbwork.BeginSnapshot(ctx, s.db)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer g.Rollback()
+	family, err := s.familyTokenTx(ctx, g.Tx(), p.Hash)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return family.AuthorizationHorizon, nil
+}
 
 // CaptureOwnerClaimTx freezes both complete signed envelopes beside the actual
 // initiating owner family and fresh local challenge, before any pending POST.
