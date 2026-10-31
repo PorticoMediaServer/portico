@@ -216,20 +216,20 @@ func TestRestrictionsRejectAStaleRevisionAndBadInput(t *testing.T) {
 	}
 }
 
-func TestPINRecoveryUsesAccountSessionAndRetiresTrust(t *testing.T) {
+func TestPINRecoveryUsesAccountSessionAndRemovingAPINGatesNothing(t *testing.T) {
 	ctx := context.Background()
 	s, login, child := restrictionFixture(t)
-	// Give the child a PIN and a remembered device trust.
+	// Give the child a PIN and a remembered sign-in.
 	if _, e := s.EditDirectProfile(ctx, login.AccountToken, child.ID, DirectProfileEdit{ExpectedRevision: child.Revision, PIN: pointer("4321")}); e != nil {
 		t.Fatal(e)
 	}
 	installation := Token()
-	selected, e := s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{PIN: "4321", Trust: true, InstallationID: installation})
+	selected, e := s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{PIN: "4321", Remember: true, InstallationID: installation})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if selected.TrustedSelection == nil {
-		t.Fatal("trust proof missing")
+	if selected.Remembered == nil {
+		t.Fatal("remembered sign-in missing")
 	}
 
 	methods, e := s.PINRecovery(ctx, login.AccountToken)
@@ -248,19 +248,17 @@ func TestPINRecoveryUsesAccountSessionAndRetiresTrust(t *testing.T) {
 			t.Fatal("the PIN was not cleared")
 		}
 	}
-	// The remembered trust and the live session must both be gone: a device that
-	// was trusted under the old PIN must not stay trusted under no PIN.
-	if _, e = s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{TrustToken: selected.TrustedSelection.Token, InstallationID: installation}); e != nil {
-		// Selecting without a PIN now succeeds because the PIN is cleared; what
-		// matters is that the trust row itself did not survive.
+	// With no PIN the profile opens without one, and clearing a PIN asks nobody
+	// to enter anything: no sign-in of the profile is gated.
+	if _, e = s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{InstallationID: installation}); e != nil {
 		t.Fatal(e)
 	}
-	var trusted int
-	if e = s.db.QueryRow(`SELECT count(*) FROM direct_profile_trust WHERE profile_id=? AND token_hash=?`, child.ID, Digest(selected.TrustedSelection.Token)).Scan(&trusted); e != nil {
+	var gated int
+	if e = s.db.QueryRow(`SELECT count(*) FROM authorization_session_families WHERE profile_id=? AND pin_gate=1`, child.ID).Scan(&gated); e != nil {
 		t.Fatal(e)
 	}
-	if trusted != 0 {
-		t.Fatal("remembered device trust survived a PIN reset")
+	if gated != 0 {
+		t.Fatalf("removing a PIN gated %d sign-ins", gated)
 	}
 }
 

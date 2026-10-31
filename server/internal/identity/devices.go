@@ -367,13 +367,6 @@ func (s *Service) revokeDeviceFamiliesTx(ctx context.Context, tx *sql.Tx, c devi
 			return e
 		}
 	}
-	// Remembered profile trust is a local-account idea: it is the PIN-free profile list this
-	// server keeps for its own accounts.
-	if c.local() {
-		if _, e = tx.ExecContext(ctx, `DELETE FROM direct_profile_trust WHERE account_id=? AND installation_id=(SELECT installation_id FROM identity_devices WHERE id=?)`, c.account, device); e != nil {
-			return e
-		}
-	}
 	// A device that is signed out keeps no feed token: the Top Shelf must go dark with it.
 	if _, e = tx.ExecContext(ctx, `DELETE FROM topshelf_tokens WHERE device_id=?`, device); e != nil {
 		return e

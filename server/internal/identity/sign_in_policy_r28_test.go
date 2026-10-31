@@ -112,7 +112,7 @@ func TestAttemptPolicyChoicesKeepBothPasswordAndPINBudgetsBounded(t *testing.T) 
 	}
 }
 
-func TestSignInPolicyRetiresPINProofsRememberedRowsAndEndedHistory(t *testing.T) {
+func TestSignInPolicyEndsRememberedProfilesRememberedRowsAndEndedHistory(t *testing.T) {
 	ctx := context.Background()
 	s, db, login := directFixture(t)
 	profiles, e := s.CreateDirectProfile(ctx, login.AccountToken, "Protected", "blue")
@@ -124,8 +124,8 @@ func TestSignInPolicyRetiresPINProofsRememberedRowsAndEndedHistory(t *testing.T)
 	if _, e = s.EditDirectProfile(ctx, login.AccountToken, child.ID, DirectProfileEdit{ExpectedRevision: child.Revision, PIN: &pin}); e != nil {
 		t.Fatal(e)
 	}
-	selected, e := s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{PIN: pin, Trust: true, InstallationID: "installation"})
-	if e != nil || selected.TrustedSelection == nil {
+	selected, e := s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{PIN: pin, Remember: true, InstallationID: "installation"})
+	if e != nil || selected.Remembered == nil {
 		t.Fatalf("remember PIN: %+v %v", selected, e)
 	}
 	installation := Token()
@@ -155,9 +155,13 @@ func TestSignInPolicyRetiresPINProofsRememberedRowsAndEndedHistory(t *testing.T)
 	if _, e = s.ChangeSignInPolicy(ctx, login.AccountToken, SignInPolicyPatch{policy.Revision, policy.Values}); e != nil {
 		t.Fatal(e)
 	}
-	var trust, remembered int
-	if e = db.QueryRow(`SELECT count(*) FROM direct_profile_trust`).Scan(&trust); e != nil || trust != 0 {
-		t.Fatalf("PIN proofs survived: %d %v", trust, e)
+	var kept, remembered int
+	if e = db.QueryRow(`SELECT count(*) FROM authorization_session_families WHERE remember_until<>''`).Scan(&kept); e != nil || kept != 0 {
+		t.Fatalf("remembered profiles survived: %d %v", kept, e)
+	}
+	// Turning the remembering Off ends it; it does not sign the device out.
+	if viewer, e := s.Authenticate(selected.Session.AccessToken); e != nil || viewer.ProfileID != child.ID {
+		t.Fatalf("the family that remembered the profile stopped working: %+v %v", viewer, e)
 	}
 	if e = db.QueryRow(`SELECT count(*) FROM identity_browser_accounts`).Scan(&remembered); e != nil || remembered != 0 {
 		t.Fatalf("remembered descriptors survived: %d %v", remembered, e)
@@ -168,14 +172,12 @@ func TestSignInPolicyRetiresPINProofsRememberedRowsAndEndedHistory(t *testing.T)
 	if _, e = s.RememberBrowserAccount(ctx, login.AccountToken, installation, true); !errors.Is(e, ErrUnauthorized) {
 		t.Fatalf("remembered write while off: %v", e)
 	}
-	withoutProof, e := s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{PIN: pin, Trust: true, InstallationID: "installation"})
-	if e != nil || withoutProof.TrustedSelection != nil {
-		t.Fatalf("remember-off issued proof: %+v %v", withoutProof, e)
+	withoutProof, e := s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{PIN: pin, Remember: true, InstallationID: "installation"})
+	if e != nil || withoutProof.Remembered != nil {
+		t.Fatalf("remember-off remembered a profile: %+v %v", withoutProof, e)
 	}
-	// A rejected retired token charges the real PIN budget. Keep this negative
-	// after the independent valid-PIN check rather than bypassing that budget.
-	if _, e = s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{TrustToken: selected.TrustedSelection.Token, InstallationID: "installation"}); !errors.Is(e, ErrProfilePIN) {
-		t.Fatalf("retired PIN proof admitted: %v", e)
+	if e = db.QueryRow(`SELECT count(*) FROM authorization_session_families WHERE remember_until<>''`).Scan(&kept); e != nil || kept != 0 {
+		t.Fatalf("remember-off stored a remembered profile: %d %v", kept, e)
 	}
 	if n, e := s.PruneEndedSessions(ctx); e != nil || n != 1 {
 		t.Fatalf("policy retention pruned%d: %v", n, e)

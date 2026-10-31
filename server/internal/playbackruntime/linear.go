@@ -1261,7 +1261,7 @@ func watchLinearWork(signal *workerloop.Signal) func() {
 		"live_programmes", "live_programme_metadata", "catalog_entities", "catalog_libraries",
 		"library_sources", "library_revisions", "server_settings", "console_settings_revision",
 		"authorization_*", "accounts", "direct_profiles", "direct_memberships",
-		"direct_profile_trust", "restrictions", "hosted_*", "identity_devices",
+		"restrictions", "hosted_*", "identity_devices",
 		"profile_*", "media_process_*",
 	)
 }

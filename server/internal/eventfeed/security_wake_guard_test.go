@@ -132,11 +132,11 @@ func hiddenSecurityWrites(t *testing.T, db *sql.DB, subscribed []string) []strin
 // TestNoHiddenWritesToTheSecurityTables keeps the exact security wake complete:
 // every write that changes a subscribed table is named by its own statement or
 // fired from another subscribed table. If one is ever added, add its table to
-// the security subscription in Run. The list is pinned at its current 16
+// the security subscription in Run. The list is pinned at its current 15
 // entries so a change to it is a deliberate edit here too.
 func TestNoHiddenWritesToTheSecurityTables(t *testing.T) {
 	subscribed := securitySubscription(t)
-	want := []string{"authorization_session_families", "authorization_family_tokens", "accounts", "direct_memberships", "direct_profiles", "identity_devices", "libraries", "library_sources", "direct_profile_trust", "restrictions", "profile_restrictions", "restriction_outbox", "policy", "library_network_policy", "api_credentials", "hosted_profile_revisions"}
+	want := []string{"authorization_session_families", "authorization_family_tokens", "accounts", "direct_memberships", "direct_profiles", "identity_devices", "libraries", "library_sources", "restrictions", "profile_restrictions", "restriction_outbox", "policy", "library_network_policy", "api_credentials", "hosted_profile_revisions"}
 	if strings.Join(subscribed, ",") != strings.Join(want, ",") {
 		t.Fatalf("security subscription changed:\n got %v\nwant %v\nre-run this guard's census and update the pin", subscribed, want)
 	}

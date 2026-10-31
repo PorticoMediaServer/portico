@@ -691,6 +691,18 @@ export const errors = [
     "retry": "never"
   },
   {
+    "code": "profile_pin_manage",
+    "status": 403,
+    "message": "Enter this profile's PIN to manage this account.",
+    "retry": "never"
+  },
+  {
+    "code": "profile_pin_reentry",
+    "status": 403,
+    "message": "Enter this profile's PIN to continue.",
+    "retry": "never"
+  },
+  {
     "code": "queue_building",
     "status": 503,
     "message": "This part of the queue is still loading. Try again in a moment.",

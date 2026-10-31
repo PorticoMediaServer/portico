@@ -45,6 +45,11 @@ func Refusal(err error) (status int, code string, ok bool) {
 	switch {
 	case errors.Is(err, ErrNotVisible):
 		return 404, "not_found", true
+	// Before ErrForbidden, which they also are: the device asks for a PIN.
+	case errors.Is(err, ErrProfilePINReentry):
+		return 403, "profile_pin_reentry", true
+	case errors.Is(err, ErrProfilePINManage):
+		return 403, "profile_pin_manage", true
 	case errors.Is(err, ErrForbidden):
 		return 403, "forbidden", true
 	case errors.Is(err, ErrUnauthorized):
@@ -76,6 +81,10 @@ type Principal struct {
 	// for an ordinary session, GrantCastTarget for a screen paired as a Cast
 	// target (playback only).
 	Grant string `json:"-"`
+	// PINGated: this profile's PIN changed (or its remembered devices were
+	// forgotten) after the family was issued. Only the requests that let the
+	// device enter the PIN again, sign out or finish a playback are allowed.
+	PINGated bool `json:"-"`
 }
 
 // NativeServerIdentity is a pin delivered only with a successful native session.

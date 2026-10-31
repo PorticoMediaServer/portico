@@ -399,3 +399,32 @@ func TestPlaybackV1UnconfirmedSourceIsRetryable(t *testing.T) {
 		}
 	}
 }
+
+// A PIN-gated sign-in may finish a running playback (PATCH on its session is a
+// running-playback request), so a PATCH must never move that session to another
+// title: only its version, part, tracks, quality, position and state change.
+func TestPlaybackV1ChangeNeverMovesASessionToAnotherTitle(t *testing.T) {
+	f := newV1Fixture(t, 2)
+	f.call("PUT", "/v1/me/devices/current/capabilities", nil, webCapabilities(), 204, nil)
+	var a, b playbackv1.SessionView
+	f.call("POST", "/v1/playback/sessions", map[string]string{"Idempotency-Key": "title-a-start-000001"}, startBody(f.items[0], map[string]any{"startFrom": "beginning"}), 201, &a)
+	f.call("POST", "/v1/playback/sessions", map[string]string{"Idempotency-Key": "title-b-start-000001"}, startBody(f.items[1], map[string]any{"startFrom": "beginning"}), 201, &b)
+	if a.ItemID == b.ItemID || b.VersionID == "" {
+		t.Fatalf("setup: %+v %+v", a, b)
+	}
+	// Another title's version is refused, and the session stays on its own title.
+	w := f.raw("PATCH", "/v1/playback/sessions/"+a.ID, f.owner.AccessToken, map[string]string{"If-Match": `"` + a.Revision + `"`}, map[string]any{"versionId": b.VersionID})
+	// Refused for the version itself, not because the session ended.
+	if w.Code != 400 || !strings.Contains(w.Body.String(), `"path":"versionId"`) {
+		t.Fatalf("a change to another title's version: %d %s", w.Code, w.Body.String())
+	}
+	// There is no field that names a title; one sent is refused.
+	if w = f.raw("PATCH", "/v1/playback/sessions/"+a.ID, f.owner.AccessToken, map[string]string{"If-Match": `"` + a.Revision + `"`}, map[string]any{"itemId": f.items[1]}); w.Code != 400 {
+		t.Fatalf("a change naming another title: %d %s", w.Code, w.Body.String())
+	}
+	var now playbackv1.SessionView
+	f.call("GET", "/v1/playback/sessions/"+a.ID, nil, nil, 200, &now)
+	if now.ItemID != f.items[0] || now.VersionID != a.VersionID {
+		t.Fatalf("the session moved: %+v", now)
+	}
+}
