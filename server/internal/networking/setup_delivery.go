@@ -9,7 +9,10 @@ import (
 
 // setupDelivery is what this server knows about applying an approval it was given:
 // when it arrived, how many tries have failed, when the next starts, and whether
-// anything is still trying. It lives in memory; a restart re-arms the wait.
+// anything is still trying. It lives in memory; a restart re-arms the wait, so after a
+// restart `since` (and with it "slow") counts from when the approval was seen again.
+// An entry goes when the claim installs, is withdrawn or is abandoned; one whose
+// delivery stopped stays until Try again, so its facts can still be shown.
 type setupDelivery struct {
 	since    time.Time
 	attempts atomic.Int32

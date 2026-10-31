@@ -875,6 +875,7 @@ var routeLanes = map[string]string{
 	"POST /v1/setup/abandon":                                                      "auth",
 	"POST /v1/setup/account/complete":                                             "auth",
 	"POST /v1/setup/app":                                                          "default",
+	"POST /v1/setup/approval":                                                     "auth",
 	"POST /v1/setup/browser":                                                      "default",
 	"POST /v1/setup/resume":                                                       "default",
 	"POST /v1/setup/retry":                                                        "auth",
