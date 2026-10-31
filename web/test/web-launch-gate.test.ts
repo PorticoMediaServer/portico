@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ShellBootstrap, type ShellAssembler} from '../src/shell/bootstrap.ts';
+import {ShellBootstrap, followsStoredSignIn, type ShellAssembler} from '../src/shell/bootstrap.ts';
 import type {SelectedViewerRecord} from '@core/viewer-selection.ts';
 
 class TabStorage {values = new Map<string, string>(); getItem(k: string) {return this.values.get(k) ?? null;} setItem(k: string, v: string) {this.values.set(k, v);} removeItem(k: string) {this.values.delete(k);}}
@@ -17,12 +17,12 @@ const direct = (profiles: Array<{id: string; primary: boolean}>) => ({authority:
   account: {id: 'account-a', username: 'alex', primaryProfileId: profiles.find(value => value.primary)!.id, role: 'member', revision: 1, disabled: false, allowedLibraries: []}, profiles});
 const assembler: ShellAssembler = async () => {throw new Error('assembled');};
 
-function launch(answer: () => unknown) {
+function launch(answer: () => unknown, held = session) {
   const requests: string[] = [];
   let disposed = 0;
   const api = {baseUrl: 'https://demo.example:32500', getRouteConnection: () => ({dispose: () => {disposed++;}}),
     request: async (path: string) => {requests.push(path); const value = answer(); if (value instanceof Error) throw value; return value;}};
-  const bootstrap = new ShellBootstrap(assembler, {selected: {read: async () => saved}, restore: async () => ({api, session}) as never});
+  const bootstrap = new ShellBootstrap(assembler, {selected: {read: async () => ({...saved, session: held})}, restore: async () => ({api, session: held}) as never});
   return {bootstrap, requests, disposed: () => disposed};
 }
 
@@ -67,4 +67,29 @@ test('a PIN changed elsewhere (profile_pin_reentry) asks for it again and stops 
   gate.resetTabSessionGate();
   assert.equal(gate.tabAdmits({serverId: 'server-a', familyId: 'family-old', profileId: 'alex'}), false, 'the old remembering is gone');
   l.bootstrap.dispose();
+});
+
+test('another tab choosing a profile never signs this tab out: it restarts onto the new sign-in without asking', async () => {
+  gate.resetTabSessionGate(); tab.values.clear();
+  assert.equal(followsStoredSignIn({code: 'session_replaced'}), true, 'a different saved sign-in restarts this tab');
+  assert.equal(followsStoredSignIn({code: 'refresh_revoked'}), false, 'a refusal still signs out');
+  assert.equal(followsStoredSignIn({code: 'saved_sign_in_damaged'}), false);
+  const several = () => direct([profile('main', false, true), profile('alex', true)]);
+  // This page load opened server-a (its only profile then), so it passed the gate.
+  const first = launch(() => direct([profile('alex', false, true)]));
+  await first.bootstrap.start();
+  first.bootstrap.dispose();
+  // Tab 2 then picked "main" (a new family); this tab's restart reads it from the shared store.
+  const next = launch(several, {...session, sessionFamilyId: 'family-b', viewer: {...session.viewer, profileId: 'main'}});
+  await next.bootstrap.start();
+  assert.notEqual(next.bootstrap.getSnapshot().phase, 'choose-profile');
+  assert.notEqual(next.bootstrap.getSnapshot().phase, 'signed-out');
+  assert.deepEqual(next.requests.filter(path => path === '/v1/direct'), [], 'no gate read: the page load is already admitted');
+  next.bootstrap.dispose();
+  // On its next reload it is no longer admitted, and nothing was remembered here: Who's watching.
+  gate.resetTabSessionGate();
+  const reload = launch(several, {...session, sessionFamilyId: 'family-b', viewer: {...session.viewer, profileId: 'main'}});
+  await reload.bootstrap.start();
+  assert.equal(reload.bootstrap.getSnapshot().phase, 'choose-profile');
+  reload.bootstrap.dispose();
 });

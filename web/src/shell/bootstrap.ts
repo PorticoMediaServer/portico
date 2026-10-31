@@ -95,6 +95,10 @@ export function shellArtworkAuthorityKey(session: LocalSession, epoch: number): 
  * baseline without remounting Settings; a later missing/replaced privacy fence retires it.
  * A library added or removed changes only the viewer fence: the shell stays, and
  * `viewerFence` follows the current document (H-11). */
+/** A renewal that finds a different sign-in saved (another tab chose a profile, or signed out)
+ * restarts on what is saved instead of signing this tab out (C-DESIGN §2, multi-tab rule). */
+export const followsStoredSignIn = (error: {code?: string}) => error.code === 'session_replaced';
+
 export function watchHomeViewerFence(home: Pick<HomeService, 'getSnapshot' | 'subscribe'>, isCurrent: () => boolean, replaced: () => void) {
   let shell: string | undefined, fence: string | undefined, closed = false, off = () => {};
   const dispose = () => {if (closed) return; closed = true; off();};
@@ -381,8 +385,10 @@ export class ShellBootstrap {
         const authorityChanged = !sameShellAuthority(session, next); session = next;
         if (authorityChanged) this.restart();
       },
-      onSignedOut: () => {
+      onSignedOut: error => {
         if (!isCurrent()) return;
+        // Another tab picked a profile (or signed out): this tab follows what the store now holds.
+        if (followsStoredSignIn(error)) {this.restart(); return;}
         const captured = session;
         this.fence(); this.publish({phase: 'signed-out'});
         void browserViewerStorage.clearIfFamily?.(captured.sessionFamilyId).catch(() => {});
