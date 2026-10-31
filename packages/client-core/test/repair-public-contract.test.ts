@@ -1,6 +1,6 @@
-import test from 'node:test';
+import test,{after,before} from 'node:test';
 import assert from 'node:assert/strict';
-import {spawn,execFileSync} from 'node:child_process';
+import {spawn,execFile} from 'node:child_process';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -10,16 +10,24 @@ import {HttpLocalApi} from '../src/index.ts';
 import {routeBody} from '../../contracts/src/routes.ts';
 import {decode} from '../../contracts/src/runtime.ts';
 
+// The server's httpapi test binary, built once for this file. Building that package takes as long as the machine's load
+// allows, so it happens before the tests and outside their budgets: each test times only the setup behaviour it checks.
+const folder=mkdtempSync(join(tmpdir(),'portico-public-bridge-'));
+let building:Promise<string>|undefined;
+const compiled=()=>building??=new Promise<string>((resolve,reject)=>{const binary=join(folder,'http-producer.test');
+ execFile('go',['test','-c','-o',binary,'./internal/httpapi'],{cwd:fileURLToPath(new URL('../../../server/',import.meta.url))},error=>error?reject(error):resolve(binary));});
+before(()=>compiled());
+after(()=>rmSync(folder,{recursive:true,force:true}));
+
 async function bridge(){
- const folder=mkdtempSync(join(tmpdir(),'portico-public-bridge-'));const binary=join(folder,'http-producer.test');
- execFileSync('go',['test','-c','-o',binary,'./internal/httpapi'],{cwd:fileURLToPath(new URL('../../../server/',import.meta.url)),stdio:'pipe',timeout:120_000});
+ const binary=await compiled();
  const proc=spawn(binary,['-test.run=^TestRepairPublicHTTPBridge$','-test.v','-test.timeout=90s'],{cwd:fileURLToPath(new URL('../../../server/',import.meta.url)),env:{...process.env,PORTICO_REPAIR_PUBLIC_BRIDGE:'1'},stdio:['pipe','pipe','pipe']});
  const pending:((v:any)=>void)[]=[];const ready:any[]=[];let diagnostics='';
  proc.stderr.on('data',v=>{diagnostics+=v.toString()});
  createInterface({input:proc.stdout}).on('line',line=>{if(line.startsWith('PORTICO_REPAIR_JSON:')){const v=JSON.parse(line.slice('PORTICO_REPAIR_JSON:'.length));const next=pending.shift();if(next)next(v);else ready.push(v)}else diagnostics+=line+'\n'});
  const receive=()=>ready.length?Promise.resolve(ready.shift()):new Promise<any>((resolve,reject)=>{pending.push(resolve);proc.once('exit',code=>{if(code!==0)reject(new Error(`actual HTTP bridge failed (${code}): ${diagnostics}`))})});
  const initial=await receive();
- return {initial,request:async(path:string,method:string,body?:unknown,token?:string)=>{proc.stdin.write(JSON.stringify({Path:path,Method:method,Body:body,Token:token})+'\n');return receive()},close:async()=>{proc.stdin.end(JSON.stringify({Path:'stop'})+'\n');await new Promise<void>((resolve,reject)=>proc.once('exit',code=>code===0?resolve():reject(new Error('actual HTTP bridge failed'))));rmSync(folder,{recursive:true,force:true})}};
+ return {initial,request:async(path:string,method:string,body?:unknown,token?:string)=>{proc.stdin.write(JSON.stringify({Path:path,Method:method,Body:body,Token:token})+'\n');return receive()},close:async()=>{proc.stdin.end(JSON.stringify({Path:'stop'})+'\n');await new Promise<void>((resolve,reject)=>proc.once('exit',code=>code===0?resolve():reject(new Error('actual HTTP bridge failed'))))}};
 }
 test('exported local setup intent reaches the actual strict route and writer, and setup reads complete',{timeout:120_000},async()=>{
  const b=await bridge();try{
