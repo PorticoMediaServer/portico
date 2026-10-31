@@ -112,13 +112,22 @@ func (s *Service) CaptureOwnerClaimTx(ctx context.Context, tx *sql.Tx, expected 
 	if _, err = s.confirmMoveTx(ctx, tx, caller, MoveConfirmRequest{MoveID: move, ExpectedRevision: revision, Confirmation: confirmation}, SignInPortico); err != nil {
 		return err
 	}
-	var boundFamily, challengeExists bool
-	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM identity_owner_completions WHERE family_id=?),EXISTS(SELECT 1 FROM hosted_identity_challenges WHERE challenge_hash=?)`, family.ID, Digest(start.ServerChallenge)).Scan(&boundFamily, &challengeExists)
+	// R-02: only a live attempt of this family blocks a new one: prepared and
+	// unexpired, or installed onward. One that expired unconsumed, or ended
+	// cancelled, expired or superseded, is replaced (family_id is unique).
+	var liveFamily, challengeExists bool
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM identity_owner_completions WHERE family_id=? AND phase NOT IN('cancelled','expired','superseded') AND NOT (phase='prepared' AND expires_ms<=?)),EXISTS(SELECT 1 FROM hosted_identity_challenges WHERE challenge_hash=?)`, family.ID, now.UnixMilli(), Digest(start.ServerChallenge)).Scan(&liveFamily, &challengeExists)
 	if err != nil {
 		return err
 	}
-	if boundFamily || challengeExists {
+	if liveFamily || challengeExists {
 		return ErrConflict
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM hosted_identity_challenges WHERE challenge_hash IN(SELECT server_challenge_hash FROM identity_owner_completions WHERE family_id=?)`, family.ID); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM identity_owner_completions WHERE family_id=?`, family.ID); err != nil {
+		return err
 	}
 	// The challenge and immutable operation capture become visible together.
 	// No relaxed public Local identity-challenge endpoint is involved.

@@ -15,15 +15,7 @@ import (
 // none is visible until this owner transition and the final claim guard commit.
 // It does not admit a session from an identity assertion or claim approval.
 func (s *Service) InstallOwnerClaimTx(ctx context.Context, tx *sql.Tx, operation string) error {
-	c, err := ownerCompletionTx(ctx, tx, operation)
-	if err != nil {
-		return err
-	}
-	family, err := s.familyTokenTx(ctx, tx, c.token)
-	if err != nil {
-		return err
-	}
-	c, family, err = s.ownerCompletionAuthorityTx(ctx, tx, family.principal, operation, "", true)
+	c, family, err := s.ownerCompletionAuthorityTx(ctx, tx, nil, operation, "", true)
 	if err != nil {
 		return err
 	}
@@ -135,7 +127,8 @@ func (s *Service) InstallOwnerClaimTx(ctx context.Context, tx *sql.Tx, operation
 		}
 	}
 	if family.tokenExpiry.After(time.UnixMilli(c.expires)) {
-		if _, err = tx.ExecContext(ctx, `UPDATE authorization_family_tokens SET expires_at=? WHERE family_id=? AND generation=?`, deadline, family.ID, c.generation); err != nil {
+		// The family's current token, which the move's own refreshes may have rotated.
+		if _, err = tx.ExecContext(ctx, `UPDATE authorization_family_tokens SET expires_at=? WHERE family_id=? AND generation=?`, deadline, family.ID, family.TokenGeneration); err != nil {
 			return err
 		}
 	}
@@ -151,5 +144,6 @@ func (s *Service) InstallOwnerClaimTx(ctx context.Context, tx *sql.Tx, operation
 	if n, err := result.RowsAffected(); err != nil || n != 1 {
 		return ErrConflict
 	}
-	return s.CheckOwnerClaimTx(ctx, tx, family.principal, operation)
+	_, _, err = s.ownerCompletionAuthorityTx(ctx, tx, nil, operation, "", false)
+	return err
 }
