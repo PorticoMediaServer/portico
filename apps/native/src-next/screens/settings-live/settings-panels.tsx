@@ -5,6 +5,7 @@ import {NativeConnectionAddressRow, NativeConnectionStatusRow, NativeInsecureCon
 import {IntroCreditsReview} from './owner-libraries/IntroCreditsReview';
 import React, {useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {NativeModules, Text, View} from 'react-native';
+import {repeat} from '../../../../../packages/client-core/src/timer';
 import {isStaleAnswer} from '../../../../../packages/client-core/src/freshness-actions';
 import {idempotencyKey} from '../../../../../packages/client-core/src/playback-v1/http';
 import {localV1Http} from '../../../../../packages/client-core/src/playback-v1/local-http';
@@ -123,11 +124,9 @@ function RemoteControlsPanel({context, lifetime, t}: NativeSettingsPanelDeps) {
   const controls = useMemo(() => playbackControlsService(<T,>(path: string, method?: string, body?: unknown) => lifetime.request(signal => context.api.request<T>(path, method, body, signal))), [context, lifetime]);
   const sessions = useMemo(() => new SessionsClient(localV1Http(context.api)), [context]);
   useEffect(() => {
-    let live = true;
-    const read = () => {void controls.remote().then(value => {if (live) setItems(value.items);}, () => {});};
-    read();
-    const timer = setInterval(read, 10_000);
-    return () => {live = false; clearInterval(timer);};
+    // A failed read leaves what is drawn as it is; repeat backs the next one off.
+    const poll = repeat(async signal => {const value = await controls.remote(); if (!signal.aborted) setItems(value.items);}, {everyMs: 10_000, backoff: {baseMs: 20_000, maxMs: 120_000}});
+    return () => poll.stop();
   }, [controls]);
   if (!items.length) return null;
   const words: Record<TransportCommand, string> = {pause: t('action.pause'), resume: t('entry.resume'), back: t('player.skipBackSeconds', {seconds: 30}), forward: t('player.skipForwardSeconds', {seconds: 30}), startOver: t('action.startOver')};

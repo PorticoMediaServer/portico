@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {BackHandler, Text, View} from 'react-native';
 import {parseSegmentClock, segmentClock, segmentKinds, type SegmentKind, type SegmentReviewEntry, type SegmentReviewMarker} from '../../../../../../packages/client-core/src/segment-review';
+import {repeat} from '../../../../../../packages/client-core/src/timer';
 import {parseMediaItem} from '../../../../../../packages/client-core/src/media-item';
 import {validateContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import {encodedRoutePath} from '../../../../../../packages/contracts/src/routes';
@@ -26,8 +27,15 @@ export function IntroCreditsReview({context, lifetime, t, runtime}: NativeSettin
   useEffect(() => {void controller.open(); return () => controller.dispose();}, [controller]);
   useEffect(() => {
     if (state.titleId || state.libraryId) return;
-    const timer = setInterval(() => {const current = controller.getSnapshot(); if (!current.busy && !current.loading) void controller.reload();}, 15000);
-    return () => clearInterval(timer);
+    // reload keeps its failure in the snapshot; rethrowing it lets repeat back the next read off.
+    const poll = repeat(async () => {
+      const current = controller.getSnapshot();
+      if (current.busy || current.loading) return;
+      await controller.reload();
+      const {error} = controller.getSnapshot();
+      if (error) throw error;
+    }, {everyMs: 15_000, backoff: {baseMs: 30_000, maxMs: 120_000}, immediate: false});
+    return () => poll.stop();
   }, [controller, state.libraryId, state.titleId]);
   useEffect(() => {const listener = BackHandler.addEventListener('hardwareBackPress', () => {
     if (state.busy) return true;

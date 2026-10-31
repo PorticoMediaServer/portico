@@ -20,6 +20,7 @@
  * No DOM types and no React Native: the platform hands in the few things that differ.
  */
 import {readEventStream} from './sse.ts';
+import {parseRetryAfter} from './timer.ts';
 import type {EventsClient, RawStreamEvent, StreamOpener} from './playback-v1/events.ts';
 import type {FreshnessHub} from './freshness-hub.ts';
 
@@ -43,11 +44,7 @@ function failure(code: string, extra: Record<string, unknown> = {}): Error {
 function retryAfterMs(response: Response): number | undefined {
   let header: string | null = null;
   try { header = response.headers?.get?.('Retry-After') ?? null; } catch { header = null; }
-  const text = header?.trim();
-  if (!text) return undefined;
-  if (/^\d+$/.test(text)) return Number(text) * 1000;
-  const at = Date.parse(text);
-  return Number.isFinite(at) && at > Date.now() ? at - Date.now() : undefined;
+  return parseRetryAfter(header);
 }
 
 /** An `EventsClient` stream opener over any way of fetching a streaming response. */

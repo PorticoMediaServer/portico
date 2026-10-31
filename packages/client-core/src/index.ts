@@ -1,5 +1,6 @@
 import {linkAbortSignals, throwIfAborted} from './abort-lifetime.ts';
 import {resendableRefusal, retryWriterCapacity} from './writer-capacity.ts';
+import {parseRetryAfter} from './timer.ts';
 export {linkAbortSignals, throwIfAborted} from './abort-lifetime.ts';
 export {releaseAll, releaseQuietly, releaseQuietlyAsync, releaseThenRethrow, setCleanupLog} from './cleanup.ts';
 export * from './read-preparation.ts';
@@ -179,15 +180,11 @@ export function errorConfirmRoots(value: unknown): readonly string[] | undefined
 export function errorFieldPath(value: unknown): string | undefined {
   return typeof value === "string" && /^[A-Za-z][A-Za-z0-9_]*(?:\[\d{1,4}\]|\.[A-Za-z][A-Za-z0-9_]*){0,12}$/.test(value) && value.length <= 200 ? value : undefined;
 }
-/** RFC 9110 Retry-After: delay-seconds or an HTTP-date. Returns whole seconds from now, or undefined. */
+/** RFC 9110 Retry-After as whole seconds from now (rounded up), or undefined; parsed by timer.ts. */
 export function retryAfterSecondsFrom(value: string | null, now = Date.now()): number | undefined {
-  if (!value) return undefined;
-  const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) { const n = Number(trimmed); return n > 0 ? n : undefined; }
-  const at = Date.parse(trimmed);
-  if (!Number.isFinite(at)) return undefined;
-  const seconds = Math.ceil((at - now) / 1000);
-  return seconds > 0 ? seconds : undefined;
+  const ms = parseRetryAfter(value, now);
+  // A positive number too large for the helper stays an (enormous) floor, so callers never retry early.
+  return ms !== undefined ? ms / 1000 : value && /^\s*\d*[1-9]\d*\s*$/.test(value) ? Number(value) : undefined;
 }
 
 /** A refusal to wait out and resend: the server said nothing ran. */

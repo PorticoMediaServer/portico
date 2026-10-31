@@ -3,6 +3,7 @@ import {LOG_DETAIL_MINUTES, type LogDetailMinutes} from '../server-administratio
 import {parseLogPage, parseLogEvent, parseLogSettings, logLevels, type LogRecord, type LogLevel, type LogCategory, type LogSettings} from '../server-administration.ts';
 import {readEventStream} from '../sse.ts';
 import {randomId} from '../random-id.ts';
+import {backoffDelay, parseRetryAfter, type Backoff} from '../timer.ts';
 import {routePath} from '../../../contracts/src/route-paths.ts';
 
 export type MessageConnection = Readonly<{open: (headers: Record<string, string>, signal: AbortSignal) => Promise<Response>}>;
@@ -11,13 +12,17 @@ const empty: MessagesSnapshot = Object.freeze({phase: 'idle', lines: [], level: 
 export function appendMessage(lines: readonly LogRecord[], record: LogRecord): readonly LogRecord[] {
   return lines.some(line => line.sequence === record.sequence) ? lines : [...lines.slice(-499), record];
 }
+const messageBackoff: Backoff = {baseMs: 2000, maxMs: 64000, jitter: 'none'};
 export function messageRetryMs(attempt: number, retryAfter: string|null, now = Date.now()): number {
   if (retryAfter !== null) {
-    const seconds = Number(retryAfter), date = Date.parse(retryAfter);
-    if (retryAfter.trim() && Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, 2147483647);
-    if (Number.isFinite(date)) return Math.min(Math.max(0, date - now), 2147483647);
+    const ms = parseRetryAfter(retryAfter, now);
+    if (ms !== undefined) return Math.min(ms, 2147483647);
+    // The helper reports no floor for zero, a past date or a number past safe integers; the first two mean "reconnect now".
+    const text = retryAfter.trim();
+    if (/^\d+$/.test(text)) return /^0+$/.test(text) ? 0 : 2147483647;
+    if (/[a-z]/i.test(text) && Number.isFinite(Date.parse(text))) return 0;
   }
-  return 1000 * 2 ** Math.min(Math.max(attempt, 1), 6);
+  return backoffDelay(messageBackoff, attempt);
 }
 function terminalMessageError(error: unknown): boolean {
   const {status, code} = (error && typeof error === 'object' ? error : {}) as {status?: number; code?: string};

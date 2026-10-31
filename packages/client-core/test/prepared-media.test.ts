@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PreparedMediaService,parsePreparedView,parsePreparedVersion,parsePreparedChoice,preparedChoice} from '../src/prepared-media.ts';
+import {createManualScheduler} from '../src/timer.ts';
 import {resetSkippedParts,skippedParts} from '../src/tolerant.ts';
 const sha='a'.repeat(64);
 const job=():any=>({id:'job',itemId:'item',sourceId:'source',profileId:'portable-720-v1',targetId:'prepared-library',state:'running',phase:'encoding',generation:1,bytes:10,errorCode:'',revision:1,createdMs:1,updatedMs:2,versionId:''});
 function view():any{return {itemId:'item',canManage:true,configured:true,configurationReason:'',preparedOffersRevision:sha,pollAfterMs:3000,profiles:[{id:'portable-720-v1',name:'Portable',kind:'video',width:1280,height:720,videoKbps:2500,audioKbps:192,description:'Keeps original'}],targets:[{id:'prepared-library',name:'This server'}],sources:[{id:'source',revision:sha,partIndex:0,container:'mp4',height:1080,available:true,reason:''}],jobs:[],versions:[{id:'version',itemId:'item',sourceId:'source',profileId:'portable-720-v1',targetId:'prepared-library',sourceRevision:sha,partIndex:0,editionId:null,digest:sha,size:256,facts:{container:'mp4',videoCodec:'h264',audioCodec:'aac',width:1280,height:720,durationMs:60000,audioTracks:1},state:'published',revision:1,createdMs:1,selectable:true,reason:''}]};}
 function fixture(){let raw=view(),error:unknown=null;let serial=0;const posts:{path:string;body:any}[]=[];const api={request:async<T>(path:string,method?:string,body?:unknown):Promise<T>=>{if(method==='POST'){posts.push({path,body:structuredClone(body)});if(error)throw error;return {} as T;}return structuredClone(raw) as T;}};const service=new PreparedMediaService({api,scope:{serverId:'server',viewerId:'viewer'},itemId:'item',requestId:()=>`request-${++serial}`});return {service,posts,setError:(e:unknown)=>{error=e;},setView:(v:any)=>{raw=v;},get keys(){return serial;}};}
-test('prepared version offers are bounded, scoped and separate from original identity',()=>{const data=parsePreparedView(view(),'item');assert(Object.isFrozen(data.versions));assert.equal(data.versions[0].editionId,null);assert.deepEqual(preparedChoice(data,data.versions[0]),{versionId:'version',expectedRevision:1,offersRevision:sha});for(const change of [(v:any)=>v.itemId='other',(v:any)=>v.canManage='yes',(v:any)=>v.preparedOffersRevision='latest',(v:any)=>v.configured=1,(v:any)=>v.configurationReason='Encoder\u0000missing',(v:any)=>v.pollAfterMs=10,(v:any)=>v.pollAfterMs=600000,(v:any)=>v.versions={0:v.versions[0]},(v:any)=>v.versions=Array.from({length:129},()=>v.versions[0]),(v:any)=>v.jobs=Array.from({length:65},()=>job()),(v:any)=>v.sources=Array.from({length:33},()=>v.sources[0]),(v:any)=>v.profiles=Array.from({length:17},()=>v.profiles[0]),(v:any)=>v.targets=Array.from({length:17},()=>v.targets[0]),(v:any)=>{v.canManage=false;v.jobs=[job()];},(v:any)=>{v.canManage=false;v.jobs=[{...job(),state:'archived'}];}]){const v=view();change(v);assert.throws(()=>parsePreparedView(v,'item'));}assert.throws(()=>parsePreparedView([view()],'item'));const offline=view();offline.sources[0]={...offline.sources[0],available:false,revision:'',reason:'source_unavailable'};assert.equal(parsePreparedView(offline,'item').versions[0].selectable,true,'offline original does not disable a valid derivative');});
+test('prepared version offers are bounded, scoped and separate from original identity',()=>{const data=parsePreparedView(view(),'item');assert(Object.isFrozen(data.versions));assert.equal(data.versions[0].editionId,null);assert.deepEqual(preparedChoice(data,data.versions[0]),{versionId:'version',expectedRevision:1,offersRevision:sha});for(const change of [(v:any)=>v.itemId='other',(v:any)=>v.canManage='yes',(v:any)=>v.preparedOffersRevision='latest',(v:any)=>v.configured=1,(v:any)=>v.configurationReason='Encoder\u0000missing',(v:any)=>v.pollAfterMs=1.5,(v:any)=>v.pollAfterMs=-1,(v:any)=>v.versions={0:v.versions[0]},(v:any)=>v.versions=Array.from({length:129},()=>v.versions[0]),(v:any)=>v.jobs=Array.from({length:65},()=>job()),(v:any)=>v.sources=Array.from({length:33},()=>v.sources[0]),(v:any)=>v.profiles=Array.from({length:17},()=>v.profiles[0]),(v:any)=>v.targets=Array.from({length:17},()=>v.targets[0]),(v:any)=>{v.canManage=false;v.jobs=[job()];},(v:any)=>{v.canManage=false;v.jobs=[{...job(),state:'archived'}];}]){const v=view();change(v);assert.throws(()=>parsePreparedView(v,'item'));}assert.throws(()=>parsePreparedView([view()],'item'));const offline=view();offline.sources[0]={...offline.sources[0],available:false,revision:'',reason:'source_unavailable'};assert.equal(parsePreparedView(offline,'item').versions[0].selectable,true,'offline original does not disable a valid derivative');});
 test('uncertain optimization response retains exact immutable mutation identity',async t=>{const f=fixture();t.after(()=>f.service.dispose());await f.service.refresh();const v=f.service.getSnapshot().data!;f.setError(new Error('response lost'));await f.service.submit(v.sources[0],v.profiles[0],v.targets[0].id);assert.equal(f.service.getSnapshot().uncertain,true);await f.service.submit(v.sources[0],v.profiles[0],v.targets[0].id);assert.equal(f.keys,1);f.setError(null);await f.service.retryPending();assert.equal(f.posts.length,2);assert.deepEqual(f.posts[1],f.posts[0]);assert.equal(f.service.getSnapshot().uncertain,false);});
 test('definitive CAS rejection stays visible after successful refresh; next request gets new identity',async t=>{const f=fixture();t.after(()=>f.service.dispose());await f.service.refresh();const v=f.service.getSnapshot().data!;f.setError(Object.assign(new Error(),{status:409}));await f.service.remove(v.versions[0]);assert.equal(f.service.getSnapshot().uncertain,false);assert.match(f.service.getSnapshot().error!,/changed/);f.setError(null);await f.service.remove(v.versions[0]);assert.equal(f.keys,2);assert.notEqual(f.posts[0].body.idempotencyKey,f.posts[1].body.idempotencyKey);});
 test('denied current authority clears cached data and cannot be masked by refresh',async t=>{const f=fixture();t.after(()=>f.service.dispose());await f.service.refresh();const v=f.service.getSnapshot().data!;f.setError(Object.assign(new Error(),{status:403}));await f.service.remove(v.versions[0]);assert.equal(f.service.getSnapshot().data,null);assert.match(f.service.getSnapshot().error!,/owner/);});
@@ -58,4 +59,64 @@ test('one prepared version, job, source, profile or target that cannot be read l
 test('a playback choice the client builds stays exact',()=>{
  assert.deepEqual(parsePreparedChoice({versionId:'version',expectedRevision:1,offersRevision:sha}),{versionId:'version',expectedRevision:1,offersRevision:sha});
  for(const bad of [{versionId:'version',expectedRevision:1,offersRevision:sha,note:'new'},{versionId:'version',expectedRevision:0,offersRevision:sha},{versionId:'version',expectedRevision:1,offersRevision:'latest'},{versionId:'bad id!',expectedRevision:1,offersRevision:sha}])assert.throws(()=>parsePreparedChoice(bad));
+});
+
+const activeView=(pollAfterMs:number):any=>({...view(),jobs:[job()],pollAfterMs});
+function polled(options:{views:()=>unknown;random?:()=>number}){
+ const scheduler=createManualScheduler();const reads:number[]=[];let failing=false,hold:Promise<void>|undefined;
+ const api={request:async<T>():Promise<T>=>{reads.push(scheduler.now());if(hold)await hold;if(failing)throw new Error('offline');return structuredClone(options.views()) as T;}};
+ const service=new PreparedMediaService({api,scope:{serverId:'server',viewerId:'viewer'},itemId:'item',requestId:()=>'request',scheduler,random:options.random??(()=>0)});
+ return {service,scheduler,reads,fail:(on:boolean)=>{failing=on;},holdReads:(p:Promise<void>|undefined)=>{hold=p;}};
+}
+test('a poll hint outside one to sixty seconds is held to that range instead of refused',()=>{
+ for(const [sent,held] of [[0,1000],[10,1000],[999,1000],[1000,1000],[25000,25000],[60000,60000],[600000,60000]]){const v=view();v.pollAfterMs=sent;assert.equal(parsePreparedView(v,'item').pollAfterMs,held,String(sent));}
+});
+test('polling runs only while a job is active and the server hint is never shortened',async t=>{
+ const quiet=polled({views:()=>view()});t.after(()=>quiet.service.dispose());
+ await quiet.service.refresh();await quiet.scheduler.advance(120000);assert.equal(quiet.reads.length,1,'no active job, no poll');
+ const busy=polled({views:()=>activeView(10)});t.after(()=>busy.service.dispose());
+ await busy.service.refresh();assert.equal(busy.service.getSnapshot().data?.pollAfterMs,1000);
+ await busy.scheduler.advance(999);assert.equal(busy.reads.length,1,'not before the floor');
+ await busy.scheduler.advance(1);assert.equal(busy.reads.length,2);
+ const jittered=polled({views:()=>activeView(20000),random:()=>1});t.after(()=>jittered.service.dispose());
+ await jittered.service.refresh();await jittered.scheduler.advance(19999);assert.equal(jittered.reads.length,1);
+ await jittered.scheduler.advance(2001);assert.equal(jittered.reads.length,2,'jitter only adds to the hint, at most a tenth');
+});
+test('one read is in flight: the next poll is armed only after the read settles',async t=>{
+ const f=polled({views:()=>activeView(1000)});t.after(()=>f.service.dispose());
+ let release!:()=>void;f.holdReads(new Promise<void>(resolve=>{release=resolve;}));
+ const first=f.service.refresh();await f.scheduler.advance(0);
+ assert.equal(f.scheduler.pending(),1,'only the read timeout is pending');
+ await f.scheduler.advance(5000);assert.equal(f.reads.length,1,'no second read starts while one is in flight');
+ f.holdReads(undefined);release();await first;
+ assert.equal(f.scheduler.pending(),1,'the next poll is armed once it settles');
+});
+test('failed refreshes back off, never below the hint, and a success starts over',async t=>{
+ const f=polled({views:()=>activeView(2000)});t.after(()=>f.service.dispose());
+ await f.service.refresh();assert.equal(f.reads.length,1);
+ f.fail(true);
+ await f.scheduler.advance(2000);assert.equal(f.reads.length,2,'the first poll comes at the hint');
+ const gaps:number[]=[];
+ for(let i=0;i<4;i++){const before=f.reads.length;let waited=0;while(f.reads.length===before&&waited<120000){await f.scheduler.advance(500);waited+=500;}gaps.push(waited);}
+ assert.ok(gaps.every(g=>g>=2000),String(gaps));
+ assert.ok(gaps[3]>gaps[0],`waits grow while the server keeps failing: ${gaps}`);
+ assert.ok(gaps.every(g=>g<=60000+500));
+ assert.match(f.service.getSnapshot().error!,/could not be refreshed/);
+ f.fail(false);
+ let waited=0;const count=f.reads.length;while(f.reads.length===count&&waited<120000){await f.scheduler.advance(500);waited+=500;}
+ const after=f.reads.length;await f.scheduler.advance(2000);assert.equal(f.reads.length,after+1,'a good read returns to the hint');
+ assert.equal(f.service.getSnapshot().error,null);
+});
+test('the twelve-second read timeout still ends a read that never answers',async t=>{
+ const scheduler=createManualScheduler();let aborted=false;
+ const api={request:async<T>(_p:string,_m?:string,_b?:unknown,signal?:AbortSignal):Promise<T>=>new Promise<T>((_resolve,reject)=>{signal?.addEventListener('abort',()=>{aborted=true;reject(new Error('aborted'));});})};
+ const service=new PreparedMediaService({api,scope:{serverId:'server',viewerId:'viewer'},itemId:'item',requestId:()=>'r',scheduler});t.after(()=>service.dispose());
+ const read=service.refresh();await scheduler.advance(11999);assert.equal(aborted,false);
+ await scheduler.advance(1);await read;assert.equal(aborted,true);assert.equal(service.getSnapshot().loading,false);assert.match(service.getSnapshot().error!,/could not be refreshed/);
+});
+test('disposing stops the poll and cancels no server job',async()=>{
+ const f=polled({views:()=>activeView(1000)});
+ await f.service.refresh();assert.equal(f.scheduler.pending(),1);
+ f.service.dispose();assert.equal(f.scheduler.pending(),0);
+ await f.scheduler.advance(10000);assert.equal(f.reads.length,1);
 });
