@@ -12,13 +12,13 @@ import (
 // authority. Its proof bytes are read only when preparing/verifying the signed
 // operation; current family, membership, challenge and claim rows remain live.
 type ownerCompletion struct {
-	operation, move, family, token, owner, profile, phase string
-	transaction, installation, challenge                  string
-	registration, origin                                  string
-	generation, epoch, moveRevision, expires              int64
-	routeGeneration                                       int64
-	consumed                                              int64
-	attempt                                               string
+	operation, move, family, owner, profile, phase string
+	transaction, installation, challenge           string
+	registration, origin                           string
+	generation, epoch, moveRevision, expires       int64
+	routeGeneration                                int64
+	consumed                                       int64
+	attempt                                        string
 }
 
 // ownerCompletionOperationTx finds the family's operation from any of its
@@ -89,7 +89,7 @@ func ownerCompletionTx(ctx context.Context, tx *sql.Tx, operation string) (owner
 	if tx == nil || !validFamilyID(operation) {
 		return c, ErrUnauthorized
 	}
-	err := tx.QueryRowContext(ctx, `SELECT operation_id,move_id,family_id,token_hash,token_generation,owner_id,owner_profile_id,owner_epoch,phase,transaction_id,installation_id,server_challenge_hash,move_revision,expires_ms,consumed_ms,attempt_id,registration_id,registration_origin,route_generation FROM identity_owner_completions WHERE operation_id=?`, operation).Scan(&c.operation, &c.move, &c.family, &c.token, &c.generation, &c.owner, &c.profile, &c.epoch, &c.phase, &c.transaction, &c.installation, &c.challenge, &c.moveRevision, &c.expires, &c.consumed, &c.attempt, &c.registration, &c.origin, &c.routeGeneration)
+	err := tx.QueryRowContext(ctx, `SELECT operation_id,move_id,family_id,token_generation,owner_id,owner_profile_id,owner_epoch,phase,transaction_id,installation_id,server_challenge_hash,move_revision,expires_ms,consumed_ms,attempt_id,registration_id,registration_origin,route_generation FROM identity_owner_completions WHERE operation_id=?`, operation).Scan(&c.operation, &c.move, &c.family, &c.generation, &c.owner, &c.profile, &c.epoch, &c.phase, &c.transaction, &c.installation, &c.challenge, &c.moveRevision, &c.expires, &c.consumed, &c.attempt, &c.registration, &c.origin, &c.routeGeneration)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c, ErrUnauthorized
 	}
