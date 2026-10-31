@@ -18,6 +18,15 @@ import (
 var ErrProfileSelection = errors.New("choose a profile to finish signing in")
 var ErrProfilePIN = errors.New("That profile PIN is not correct. Try again after the delay.")
 var ErrProfileLocked = errors.New("Profile PIN attempts are temporarily locked. Try again later.")
+
+// ErrProfilePINReentry: this profile's PIN changed, or its remembered devices
+// were forgotten, after this sign-in began. The sign-in stays; the device asks
+// for the PIN again by choosing the profile.
+var ErrProfilePINReentry = errors.New("Enter this profile's PIN to continue.")
+
+// ErrProfilePINManage: a remembered main profile with a PIN must prove its PIN
+// again before it uses the account's management powers.
+var ErrProfilePINManage = errors.New("Enter this profile's PIN to manage this account.")
 var ErrProfileCapacity = errors.New("An account can have up to eight active profiles, including its primary profile.")
 var ErrProfileChanged = errors.New("This profile changed. Refresh before trying again.")
 var ErrDirectInput = requestinput.New("invalid Direct Sign-In account or profile input")
@@ -57,6 +66,13 @@ type DirectSnapshot struct {
 	// certificates) is not with it. The owner accepts it with a custody
 	// assertion (POST /v1/direct/ownership/custody, INT M6).
 	CustodyPending bool `json:"custodyPending,omitempty"`
+	// RememberProfiles: this server lets a device remember a profile picked
+	// with its PIN ("Remember PIN for" is not Off).
+	RememberProfiles bool `json:"rememberProfiles"`
+	// ManagePINRequired: this sign-in remembered its main profile, and that
+	// profile's PIN must be entered again before the account's management
+	// powers are used (profile_pin_manage).
+	ManagePINRequired bool `json:"managePinRequired,omitempty"`
 }
 type DirectSignIn struct {
 	ResetFileOwnerSession  bool   `json:"resetFileOwnerSession,omitempty"`
@@ -378,6 +394,11 @@ func (s *Service) directCallerTx(ctx context.Context, tx *sql.Tx, bearer string,
 		return c, err
 	}
 	c.manage = primary == 1
+	// A sign-in whose profile PIN changed may still read its account and choose
+	// a profile again; it manages nothing until then.
+	if manage && record.principal.PINGated {
+		return c, ErrProfilePINReentry
+	}
 	sessionRole = record.principal.Role
 	// The family record, not any client input, says whether this session is
 	// account-scoped: directSignInTx mints role "account" until a profile is

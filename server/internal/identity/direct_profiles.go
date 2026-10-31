@@ -101,6 +101,18 @@ func (s *Service) directSnapshotTx(ctx context.Context, tx *sql.Tx, c directCall
 		}
 		out.CustodyPending = custodian.Valid && custodian.String != hosted.String
 	}
+	policy, e := ReadSignInPolicyTx(ctx, tx)
+	if e != nil {
+		return out, e
+	}
+	out.RememberProfiles = policy.Values.PINRememberDays > 0
+	if out.CanManage {
+		locked, e := manageLockedTx(ctx, tx, c.familyID)
+		if e != nil {
+			return out, e
+		}
+		out.ManagePINRequired = locked
+	}
 	rows, e := tx.QueryContext(ctx, `SELECT id,name,is_primary,position,art,revision,pin_revision,pin_hash IS NOT NULL,allowed_libraries FROM direct_profiles WHERE account_id=? AND deleted=0 ORDER BY position,id`, c.account.ID)
 	if e != nil {
 		return out, e
@@ -141,7 +153,50 @@ func (s *Service) profileManagerTx(ctx context.Context, tx *sql.Tx, bearer strin
 	if role == "account" && protected {
 		return c, ErrForbidden
 	}
+	if e = s.requireManagePINTx(ctx, tx, c.familyID); e != nil {
+		return c, e
+	}
 	return c, nil
+}
+
+// rememberedManageWindow is how long a PIN entered on a remembered main profile
+// unlocks the account's management powers. Apps ask once per app session; this
+// is the server's floor under that.
+const rememberedManageWindow = time.Hour
+
+// manageLockedTx reports whether familyID is a remembered sign-in of a profile
+// with a PIN that has not entered that PIN within rememberedManageWindow. A
+// sign-in that is not remembered proved the PIN when the profile was chosen.
+func manageLockedTx(ctx context.Context, tx *sql.Tx, familyID string) (bool, error) {
+	if familyID == "" {
+		return false, nil
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	var locked bool
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM authorization_session_families f JOIN direct_profiles p ON p.id=f.profile_id AND p.account_id=f.account_id WHERE f.id=? AND f.remember_until>? AND f.manage_until<=? AND p.pin_hash IS NOT NULL)`, familyID, now, now).Scan(&locked)
+	return locked, err
+}
+
+// requireManagePINTx refuses the account's management powers to a remembered
+// main profile until its PIN is entered again (profile_pin_manage).
+func (s *Service) requireManagePINTx(ctx context.Context, tx *sql.Tx, familyID string) error {
+	locked, err := manageLockedTx(ctx, tx, familyID)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return ErrProfilePINManage
+	}
+	return nil
+}
+
+// gateProfileFamiliesTx makes every live sign-in of profile, except keep (the
+// one that made the change), enter the profile's PIN again before it does
+// anything but choose a profile, read its account, finish a playback or sign
+// out. remembered limits it to sign-ins that remembered the profile.
+func gateProfileFamiliesTx(ctx context.Context, tx *sql.Tx, account, profile, keep string, remembered bool) error {
+	_, err := tx.ExecContext(ctx, `UPDATE authorization_session_families SET pin_gate=1,remember_until='' WHERE account_id=? AND profile_id=? AND id<>? AND revoked=0 AND (?=0 OR remember_until<>'')`, account, profile, keep, remembered)
+	return err
 }
 
 // ProfilePINError carries the actual next permitted attempt, preserving the error identity.
@@ -260,6 +315,13 @@ func (s *Service) EditDirectProfile(ctx context.Context, bearer, id string, q Di
 		if _, e = tx.ExecContext(ctx, `UPDATE direct_profiles SET pin_hash=?,pin_revision=pin_revision+1 WHERE id=?`, value, id); e != nil {
 			return DirectSnapshot{}, e
 		}
+		// A new or changed PIN: the profile's other sign-ins ask for it again.
+		// Removing a PIN asks nobody for anything.
+		if len(hash) > 0 {
+			if e = gateProfileFamiliesTx(ctx, tx, c.account.ID, id, c.familyID, false); e != nil {
+				return DirectSnapshot{}, e
+			}
+		}
 	}
 	if q.Policy != nil {
 		var value any
@@ -340,24 +402,18 @@ func (s *Service) OrderDirectProfiles(ctx context.Context, bearer string, order 
 type DirectSelection struct {
 	PIN            string `json:"pin"`
 	InstallationID string `json:"installationId"`
-	TrustToken     string `json:"trustToken"`
-	Trust          bool   `json:"trust"`
+	// Remember: the device asks to open this profile at launch without the
+	// picker or PIN. Honoured only when "Remember PIN for" is not Off.
+	Remember bool `json:"remember"`
 }
-type DirectTrust struct {
-	Authority          string `json:"authority"`
-	Token              string `json:"token"`
-	ExpiresAt          string `json:"expiresAt"`
-	InstallationID     string `json:"installationId"`
-	ServerID           string `json:"serverId"`
-	AccountID          string `json:"accountId"`
-	ProfileID          string `json:"profileId"`
-	PINRevision        int64  `json:"pinRevision"`
-	ProfileRevision    int64  `json:"profileRevision"`
-	MembershipRevision int64  `json:"membershipRevision"`
+
+// DirectRemembered says the new sign-in remembers its profile until ExpiresAt.
+type DirectRemembered struct {
+	ExpiresAt string `json:"expiresAt"`
 }
 type DirectSelectionResult struct {
-	Session          Envelope     `json:"session"`
-	TrustedSelection *DirectTrust `json:"trustedSelection,omitempty"`
+	Session    Envelope          `json:"session"`
+	Remembered *DirectRemembered `json:"remembered,omitempty"`
 }
 
 // profilePINProof is what was established about a PIN outside the selection
@@ -372,22 +428,13 @@ type profilePINProof struct {
 	pinRevision int64
 }
 
-// switchingProfile reports whether choosing id is an actual switch away from the
-// profile this session is viewing. An account-scoped sign-in has not chosen a
-// profile yet: the primary profile id it carries is a placeholder, so its first
-// choice is a launch and not a switch. Every session that has viewed a profile
-// keeps that profile's id, and choosing any other one from it is a switch.
-func (c directCaller) switchingProfile(id string) bool {
-	return !c.accountScoped && c.profileID != id
-}
-
 // proveProfilePIN compares the offered PIN with the profile's, reading what it
 // needs in a snapshot and hashing with no transaction open. A profile with no
-// PIN, or a same-profile selection covered by remembered trust, needs no proof.
-// A switch from another profile is never covered by remembered trust, whichever
-// profile the destination is: it always proves that destination's own PIN
-// freshly. A device chain in its own retry delay is refused before hashing;
-// other device chains remain unaffected.
+// PIN needs no proof; every other choice of a profile proves its PIN freshly,
+// whichever profile it is chosen from. A remembered profile is resumed by the
+// device keeping its sign-in, never by skipping this check. A device chain in
+// its own retry delay is refused before hashing; other device chains remain
+// unaffected.
 func (s *Service) proveProfilePIN(ctx context.Context, bearer, id string, q DirectSelection) (profilePINProof, error) {
 	var proof profilePINProof
 	gated, e := dbwork.BeginSnapshot(ctx, s.db)
@@ -401,24 +448,11 @@ func (s *Service) proveProfilePIN(ctx context.Context, bearer, id string, q Dire
 		return proof, e
 	}
 	var hash []byte
-	var revision int64
-	if e = tx.QueryRowContext(ctx, `SELECT pin_hash,revision,pin_revision FROM direct_profiles WHERE account_id=? AND id=? AND deleted=0`, c.account.ID, id).Scan(&hash, &revision, &proof.pinRevision); e != nil {
+	if e = tx.QueryRowContext(ctx, `SELECT pin_hash,pin_revision FROM direct_profiles WHERE account_id=? AND id=? AND deleted=0`, c.account.ID, id).Scan(&hash, &proof.pinRevision); e != nil {
 		gated.Rollback()
 		return proof, ErrUnauthorized
 	}
-	// Remembered selection is a convenience for a profile this installation
-	// already proved: a launch from an account-scoped sign-in, or a same-profile
-	// selection. It never covers an actual switch from another profile: that
-	// needs the destination profile's own PIN, whatever its role.
-	switching := c.switchingProfile(id)
-	trusted := false
-	if !switching && q.TrustToken != "" && validFamilyID(q.InstallationID) {
-		if e = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM direct_profile_trust WHERE token_hash=? AND account_id=? AND profile_id=? AND installation_id=? AND pin_revision=? AND membership_revision=? AND profile_revision=? AND expires_at>? AND EXISTS(SELECT 1 FROM identity_sign_in_policy WHERE pin_remember_days>0))`, Digest(q.TrustToken), c.account.ID, id, q.InstallationID, proof.pinRevision, c.account.Revision, revision, time.Now().UTC().Format(time.RFC3339)).Scan(&trusted); e != nil {
-			gated.Rollback()
-			return proof, e
-		}
-	}
-	if len(hash) == 0 || trusted {
+	if len(hash) == 0 {
 		gated.Rollback()
 		return proof, nil
 	}
@@ -456,7 +490,7 @@ func (s *Service) SelectDirectProfile(ctx context.Context, bearer, id string, q 
 }
 func (s *Service) SelectDirectProfileFrom(ctx context.Context, bearer, id string, q DirectSelection, private bool) (DirectSelectionResult, error) {
 	out := DirectSelectionResult{}
-	if !validFamilyID(id) || len(q.PIN) > 4 || len(q.TrustToken) > 128 || len(q.InstallationID) > 128 || q.Trust && !validFamilyID(q.InstallationID) {
+	if !validFamilyID(id) || len(q.PIN) > 4 || len(q.InstallationID) > 128 {
 		return out, ErrDirectInput
 	}
 	// The PIN is checked before the transaction opens. Hashing takes tens of
@@ -479,29 +513,17 @@ func (s *Service) SelectDirectProfileFrom(ctx context.Context, bearer, id string
 		return out, e
 	}
 	var hash []byte
-	var revision, pinRevision int64
+	var pinRevision int64
 	var primary int
-	e = tx.QueryRowContext(ctx, `SELECT pin_hash,revision,pin_revision,is_primary FROM direct_profiles WHERE account_id=? AND id=? AND deleted=0`, c.account.ID, id).Scan(&hash, &revision, &pinRevision, &primary)
+	e = tx.QueryRowContext(ctx, `SELECT pin_hash,pin_revision,is_primary FROM direct_profiles WHERE account_id=? AND id=? AND deleted=0`, c.account.ID, id).Scan(&hash, &pinRevision, &primary)
 	if e != nil {
 		return out, ErrUnauthorized
-	}
-	// A remembered selection covers a profile this installation already proved:
-	// a launch from an account-scoped sign-in, or a same-profile selection. It
-	// never covers an actual switch from another profile: that needs the
-	// destination profile's own PIN, checked afresh, whatever its role.
-	switching := c.switchingProfile(id)
-	trusted := false
-	if !switching && q.TrustToken != "" && validFamilyID(q.InstallationID) {
-		e = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM direct_profile_trust WHERE token_hash=? AND account_id=? AND profile_id=? AND installation_id=? AND pin_revision=? AND membership_revision=? AND profile_revision=? AND expires_at>? AND EXISTS(SELECT 1 FROM identity_sign_in_policy WHERE pin_remember_days>0))`, Digest(q.TrustToken), c.account.ID, id, q.InstallationID, pinRevision, c.account.Revision, revision, time.Now().UTC().Format(time.RFC3339)).Scan(&trusted)
-		if e != nil {
-			return out, e
-		}
 	}
 	lineage, e := familyPINLineageTx(ctx, tx, c.familyID)
 	if e != nil {
 		return out, e
 	}
-	if len(hash) > 0 && !trusted {
+	if len(hash) > 0 {
 		var attempts int
 		var lastFailed, locked int64
 		e = tx.QueryRowContext(ctx, `SELECT failed_attempts,last_failed_ms,locked_until_ms FROM direct_profile_pin_attempts WHERE profile_id=? AND lineage_id=?`, id, lineage).Scan(&attempts, &lastFailed, &locked)
@@ -546,9 +568,7 @@ func (s *Service) SelectDirectProfileFrom(ctx context.Context, bearer, id string
 	// own main profile. The session this selection mints takes the account's
 	// current membership role, read here in the same writer; a non-primary
 	// profile is always a member. The caller's role and client input never set
-	// it. The target's PIN gate above already ran, and a switch from another
-	// profile needed the destination's own fresh PIN rather than a remembered
-	// selection.
+	// it. The target's PIN gate above already ran.
 	role := TierMember
 	if primary != 0 {
 		if e = tx.QueryRowContext(ctx, `SELECT role FROM direct_memberships WHERE account_id=? AND disabled=0`, c.account.ID).Scan(&role); e != nil {
@@ -574,23 +594,34 @@ func (s *Service) SelectDirectProfileFrom(ctx context.Context, bearer, id string
 		return out, e
 	}
 
-	policy, e := ReadSignInPolicyTx(ctx, tx)
-	if e != nil {
-		return out, e
+	// Remembering is the new sign-in's: the device opens this profile at launch
+	// while it holds this family. A PIN entered just now also unlocks the
+	// account's management powers on it for a while (manageLockedTx).
+	now := time.Now().UTC()
+	rememberUntil, manageUntil := "", ""
+	if len(hash) > 0 {
+		manageUntil = now.Add(rememberedManageWindow).Format(time.RFC3339)
 	}
-	if q.Trust && policy.Values.PINRememberDays > 0 {
-		proof := &DirectTrust{Authority: "local", Token: Token(), ExpiresAt: time.Now().UTC().Add(time.Duration(policy.Values.PINRememberDays) * 24 * time.Hour).Format(time.RFC3339), InstallationID: q.InstallationID, ServerID: s.ID(), AccountID: c.account.ID, ProfileID: id, PINRevision: pinRevision, ProfileRevision: revision, MembershipRevision: c.account.Revision}
-		if _, e = tx.ExecContext(ctx, `DELETE FROM direct_profile_trust WHERE (account_id=? AND profile_id=? AND installation_id=?) OR expires_at<=?`, c.account.ID, id, q.InstallationID, time.Now().UTC().Format(time.RFC3339)); e != nil {
-			return out, e
+	if q.Remember {
+		policy, err := ReadSignInPolicyTx(ctx, tx)
+		if err != nil {
+			return out, err
 		}
-		if _, e = tx.ExecContext(ctx, `INSERT INTO direct_profile_trust VALUES(?,?,?,?,?,?,?,?)`, Digest(proof.Token), c.account.ID, id, q.InstallationID, pinRevision, c.account.Revision, revision, proof.ExpiresAt); e != nil {
-			return out, e
+		if policy.Values.PINRememberDays > 0 {
+			rememberUntil = now.Add(time.Duration(policy.Values.PINRememberDays) * 24 * time.Hour).Format(time.RFC3339)
+			out.Remembered = &DirectRemembered{ExpiresAt: rememberUntil}
 		}
-		out.TrustedSelection = proof
+	}
+	if _, e = tx.ExecContext(ctx, `UPDATE authorization_session_families SET remember_until=?,manage_until=? WHERE id=?`, rememberUntil, manageUntil, out.Session.SessionFamilyID); e != nil {
+		return out, e
 	}
 	return out, gated4.Commit()
 }
-func (s *Service) RevokeDirectTrust(ctx context.Context, bearer, profile, installation string) error {
+// ForgetRememberedDevices ("Forget remembered devices") makes every sign-in
+// that remembered profile (or, with no profile, any of the account's profiles)
+// ask for its PIN again. installation, when given, limits it to that device.
+// The caller's own sign-in is kept.
+func (s *Service) ForgetRememberedDevices(ctx context.Context, bearer, profile, installation string) error {
 	gated5, e := dbwork.Begin(ctx, s.db, dbwork.ClassSecurityFence)
 	if e != nil {
 		return e
@@ -601,7 +632,7 @@ func (s *Service) RevokeDirectTrust(ctx context.Context, bearer, profile, instal
 	if e != nil {
 		return e
 	}
-	if _, e = tx.ExecContext(ctx, `DELETE FROM direct_profile_trust WHERE account_id=? AND (?='' OR profile_id=?) AND (?='' OR installation_id=?)`, c.account.ID, profile, profile, installation, installation); e != nil {
+	if _, e = tx.ExecContext(ctx, `UPDATE authorization_session_families SET pin_gate=1,remember_until='' WHERE account_id=? AND (?='' OR profile_id=?) AND id<>? AND revoked=0 AND remember_until<>'' AND (?='' OR id IN (SELECT b.family_id FROM identity_device_families b JOIN identity_devices d ON d.id=b.device_id WHERE d.installation_id=?))`, c.account.ID, profile, profile, c.familyID, installation, installation); e != nil {
 		return e
 	}
 	return gated5.Commit()

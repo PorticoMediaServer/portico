@@ -408,6 +408,12 @@ func failure(w http.ResponseWriter, e error) {
 			w.Header().Set("Retry-After", strconv.FormatInt(wait.RetryAfterSeconds, 10))
 		}
 	}
+	if errors.Is(e, identity.ErrProfilePINReentry) {
+		status, code = 403, "profile_pin_reentry"
+	}
+	if errors.Is(e, identity.ErrProfilePINManage) {
+		status, code = 403, "profile_pin_manage"
+	}
 	if errors.Is(e, identity.ErrProfileCapacity) {
 		status, code = 409, "profile_capacity"
 	}
@@ -1422,6 +1428,9 @@ func New(d Dependencies) http.Handler {
 		r = r.WithContext(d.withSessionAdmission(r))
 		if castTargetRoute(r.Method, r.URL.Path) {
 			r = r.WithContext(identity.WithPlaybackRequest(r.Context()))
+		}
+		if pinReentryRoute(r.Method, r.URL.Path) {
+			r = r.WithContext(identity.WithPINReentryRequest(r.Context()))
 		}
 		if installation := r.Header.Get("X-Portico-Installation-Id"); installation != "" {
 			claim := identity.DeviceRegistration{

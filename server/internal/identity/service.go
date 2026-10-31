@@ -76,6 +76,10 @@ type Principal struct {
 	// for an ordinary session, GrantCastTarget for a screen paired as a Cast
 	// target (playback only).
 	Grant string `json:"-"`
+	// PINGated: this profile's PIN changed (or its remembered devices were
+	// forgotten) after the family was issued. Only the requests that let the
+	// device enter the PIN again, sign out or finish a playback are allowed.
+	PINGated bool `json:"-"`
 }
 
 // NativeServerIdentity is a pin delivered only with a successful native session.

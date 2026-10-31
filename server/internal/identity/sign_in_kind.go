@@ -80,18 +80,23 @@ type ManagementCapabilities struct {
 }
 
 func (s *Service) RequireMainProfileTx(ctx context.Context, tx *sql.Tx, p Principal) error {
-	if _, err := s.SessionFamilyTx(ctx, tx, p); err != nil {
+	family, err := s.SessionFamilyTx(ctx, tx, p)
+	if err != nil {
 		return err
 	}
+	if p.PINGated {
+		return ErrProfilePINReentry
+	}
 	var allowed bool
-	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM direct_profiles p JOIN accounts a ON a.id=p.account_id WHERE p.account_id=? AND p.id=? AND p.id=a.profile_id AND p.is_primary=1 AND p.deleted=0)`, p.AccountID, p.ProfileID).Scan(&allowed)
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM direct_profiles p JOIN accounts a ON a.id=p.account_id WHERE p.account_id=? AND p.id=? AND p.id=a.profile_id AND p.is_primary=1 AND p.deleted=0)`, p.AccountID, p.ProfileID).Scan(&allowed)
 	if err != nil {
 		return err
 	}
 	if !allowed || p.Grant != "" || p.Role == "account" {
 		return ErrForbidden
 	}
-	return nil
+	// A remembered main profile with a PIN enters it again before it manages.
+	return s.requireManagePINTx(ctx, tx, family.ID)
 }
 
 func (s *Service) RevokeMemberSessionsTx(ctx context.Context, tx *sql.Tx, account string) error {

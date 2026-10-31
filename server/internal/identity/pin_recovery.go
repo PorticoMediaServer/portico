@@ -105,6 +105,11 @@ func (s *Service) PINReset(ctx context.Context, bearer, profile, pin string) (Di
 	if e = s.retireProfilePINGrantsTx(ctx, tx, c.account.ID, profile); e != nil {
 		return DirectSnapshot{}, e
 	}
+	if len(hash) > 0 {
+		if e = gateProfileFamiliesTx(ctx, tx, c.account.ID, profile, c.familyID, false); e != nil {
+			return DirectSnapshot{}, e
+		}
+	}
 	out, e := s.directSnapshotTx(ctx, tx, c)
 	if e != nil {
 		return out, e
@@ -117,9 +122,6 @@ func (s *Service) PINReset(ctx context.Context, bearer, profile, pin string) (Di
 // their own grant lifetimes.
 func (s *Service) retireProfilePINGrantsTx(ctx context.Context, tx *sql.Tx, account, profile string) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM direct_profile_pin_attempts WHERE profile_id=?`, profile); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM direct_profile_trust WHERE profile_id=?`, profile); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM topshelf_tokens WHERE account_id=? AND profile_id=?`, account, profile); err != nil {

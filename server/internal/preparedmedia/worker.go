@@ -885,7 +885,7 @@ func watchPreparedWork(signal *worker.Signal) func() {
 		"source_*", "remote_source_*", "remote_sources", "remote_scan_observations", "playback_origin_*",
 		"playback_owner_policy", "playback_sessions", "server_settings", "console_settings_revision",
 		"authorization_*", "accounts", "direct_profiles", "direct_memberships",
-		"direct_profile_trust", "restrictions", "hosted_*", "identity_devices",
+		"restrictions", "hosted_*", "identity_devices",
 		"profile_*", "media_process_*",
 	)
 }
