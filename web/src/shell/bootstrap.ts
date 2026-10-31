@@ -378,6 +378,17 @@ export class ShellBootstrap {
     this.retire = close;
     let signingOut = false;
     cleanups.push(() => { if (!signingOut) api.getRouteConnection()?.dispose(); });
+    // A PIN changed elsewhere, refused on any screen's request: this tab asks for it again, as at launch.
+    // Only a request sent with this tab's sign-in counts (its first token, or one renewed in place).
+    const ownTokens = new Set([session.accessToken]);
+    cleanups.push(api.subscribeProfileGate(({accessToken}) => {
+      if (!accessToken || !ownTokens.has(accessToken)) return;
+      queueMicrotask(() => {
+        if (!isCurrent()) return;
+        forgetTabServer(held.serverId);
+        this.clearWait(); this.fence(); this.publish({phase: 'choose-profile', focus: held.profileId});
+      });
+    }));
     const signOut = () => {
       if (!isCurrent()) return;
       const captured = session;
@@ -389,7 +400,7 @@ export class ShellBootstrap {
     const auth = new LocalSessionRefresher({api, env: browserConnectionEnvironment(session.viewer.serverId), session,
       onRotated: next => {
         if (!isCurrent()) return;
-        const authorityChanged = !sameShellAuthority(session, next); session = next;
+        const authorityChanged = !sameShellAuthority(session, next); session = next; ownTokens.add(next.accessToken);
         if (authorityChanged) this.restart();
       },
       onSignedOut: error => {

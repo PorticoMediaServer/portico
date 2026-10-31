@@ -110,3 +110,41 @@ test('another tab choosing a different profile sends this tab to Who\'s watching
   assert.equal(gate.tabAdmits({serverId: 'server-a', familyId: 'family-b', profileId: 'parent'}), false, 'still not admitted: the pick (and its PIN) comes first');
   next.bootstrap.dispose();
 });
+
+test('mid-session, any screen refused for a PIN changed elsewhere asks for it again, once, and only for this tab\'s sign-in', async () => {
+  gate.resetTabSessionGate(); tab.values.clear();
+  gate.recordTabPick('server-a', 'alex', {serverId: 'server-a', familyId: 'family-a', profileId: 'alex', expiresAt: '2099-01-01T00:00:00Z'});
+  gate.resetTabSessionGate();
+  // A browser page's listeners, which the session refresher uses.
+  const page = globalThis as {addEventListener?: unknown; removeEventListener?: unknown; document?: unknown};
+  page.addEventListener ??= () => {}; page.removeEventListener ??= () => {};
+  page.document ??= {hidden: false, addEventListener: () => {}, removeEventListener: () => {}};
+  let gateListener: ((refusal: {error: unknown; accessToken: string | undefined}) => void) | undefined;
+  let released = 0;
+  const {HttpLocalApi} = await import('@core/index.ts');
+  // The tab's reads stay in flight (until the restore is fenced), so the restore's owners are live.
+  const real = new HttpLocalApi('https://demo.example:32500', 'access', (_url, init) => new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener('abort', () => reject(init.signal!.reason), {once: true});
+  }));
+  const api = new Proxy(real, {get: (target, key, receiver) => key === 'subscribeProfileGate'
+    ? (listener: typeof gateListener) => {gateListener = listener; return () => {released++; gateListener = undefined;};}
+    : Reflect.get(target, key, receiver)});
+  const bootstrap = new ShellBootstrap(() => new Promise(() => {}), {selected: {read: async () => saved}, restore: async () => ({api, session}) as never});
+  void bootstrap.start();
+  for (let i = 0; i < 50 && !gateListener; i++) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.ok(gateListener, 'the tab listens on its connection');
+  const refused = Object.assign(new Error('gated'), {code: 'profile_pin_reentry', status: 403});
+  gateListener!({error: refused, accessToken: 'another-sign-in'});
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.notEqual(bootstrap.getSnapshot().phase, 'choose-profile', 'a reply for another sign-in is not this tab\'s gate');
+  const listener = gateListener!;
+  listener({error: refused, accessToken: 'access'}); listener({error: refused, accessToken: 'access'});
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const state = bootstrap.getSnapshot();
+  assert.equal(state.phase, 'choose-profile');
+  assert.equal((state as {focus?: string}).focus, 'alex', 'Who\'s watching focuses the gated profile');
+  assert.equal(released, 1, 'released with the restore it belonged to');
+  gate.resetTabSessionGate();
+  assert.equal(gate.tabAdmits({serverId: 'server-a', familyId: 'family-a', profileId: 'alex'}), false, 'this tab stops remembering it');
+  bootstrap.dispose();
+});
