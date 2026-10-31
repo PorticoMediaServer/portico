@@ -21,7 +21,6 @@ import (
 type OwnerSwitchCountSign func(context.Context, *sql.Tx, string, int64, int) (claimweb.Signed, error)
 
 type OwnerStartAuthority struct {
-	ExpiresAt          time.Time
 	CaptureTx          func(context.Context, *sql.Tx, string, claimweb.Signed, claimweb.Signed) error
 	CaptureWithCountTx func(context.Context, *sql.Tx, string, claimweb.Signed, claimweb.Signed, OwnerSwitchCountSign) (*claimweb.Signed, error)
 	BindTx             func(context.Context, *sql.Tx, string, string) error
@@ -80,14 +79,11 @@ func (h *ClaimHandler) beginOwnerWebClaim(ctx context.Context, v Intent, address
 			return out, ErrStale
 		}
 		now := time.Now().UTC()
+		// The move is bound to the owner's session family, not its access token
+		// (A5), so a start lasts a whole Portico Account step even though the
+		// token that pressed it expires sooner.
 		expires := now.Add(claimweb.OwnerStartLifetime)
-		if authority.ExpiresAt.Before(expires) {
-			expires = authority.ExpiresAt.UTC()
-		}
-		if !expires.After(now) {
-			return out, ErrStale
-		}
-		original = claimweb.Request{Kind: "portico.claim.web.v2", Audience: transport.origin, OperationID: v.OperationID, ServerID: v.ServerID, PublicKey: base64.RawURLEncoding.EncodeToString(v.PublicKey), LocalGeneration: v.LocalGeneration, Name: h.name(), Address: address, Purpose: "switch", IssuedAt: now, ExpiresAt: now.Add(webClaimLifetime)}
+		original = claimweb.Request{Kind: "portico.claim.web.v2", Audience: transport.origin, OperationID: v.OperationID, ServerID: v.ServerID, PublicKey: base64.RawURLEncoding.EncodeToString(v.PublicKey), LocalGeneration: v.LocalGeneration, Name: h.name(), Address: address, Purpose: "switch", IssuedAt: now, ExpiresAt: now.Add(claimweb.RequestLifetime("switch"))}
 		claimPayload, err = json.Marshal(original)
 		if err != nil {
 			return out, ErrInvalid

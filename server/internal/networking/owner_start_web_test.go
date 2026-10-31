@@ -110,7 +110,7 @@ func TestOwnerWebPendingFollowsAtomicCaptureAndFencesLateRevocation(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	authority := &OwnerStartAuthority{ExpiresAt: p.ExpiresAt, CaptureTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed) error {
+	authority := &OwnerStartAuthority{CaptureTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed) error {
 		return id.CaptureOwnerClaimTx(ctx, tx, p, original, start, audience)
 	}, CaptureWithCountTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed, sign OwnerSwitchCountSign) (*claimweb.Signed, error) {
 		return id.CaptureOwnerClaimWithCountTx(ctx, tx, p, original, start, audience, identity.OwnerSwitchCountSigner(sign))
@@ -218,6 +218,15 @@ func TestOwnerWebPendingFollowsAtomicCaptureAndFencesLateRevocation(t *testing.T
 	expires, err := time.Parse(time.RFC3339Nano, status.OwnerContinuation.ExpiresAt)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// The move is bound to the owner's family, not the token that pressed it: the
+	// start lasts a whole Portico Account step, past that token's expiry.
+	var issuedStart claimweb.OwnerStart
+	if raw, e := base64.RawURLEncoding.DecodeString(status.OwnerContinuation.Start.Payload); e != nil || json.Unmarshal(raw, &issuedStart) != nil {
+		t.Fatal("issued start unreadable", e)
+	}
+	if issuedStart.ExpiresAt.Sub(issuedStart.IssuedAt) != claimweb.OwnerStartLifetime || !issuedStart.ExpiresAt.After(p.ExpiresAt) {
+		t.Fatalf("owner start lasts %v (token until %v)", issuedStart.ExpiresAt.Sub(issuedStart.IssuedAt), p.ExpiresAt)
 	}
 	out := localWebClaim{Signed: *status.OwnerContinuation.Claim, OwnerStart: status.OwnerContinuation.Start, OwnerTransactionID: status.OwnerContinuation.TransactionID, URL: status.ApprovalURL, Code: status.ClaimCode, ExpiresAt: expires}
 	if err != nil || out.OwnerStart == nil || out.OwnerTransactionID != "actual_owner_transaction" || calls != 1 {

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/claimweb"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 )
@@ -49,8 +50,10 @@ const maximumIdentityLifetime = 10 * time.Minute
 // would lock them out (INT M8).
 const identityClockSkew = 5 * time.Minute
 
-// challengeLifetime is how long a sign-in challenge waits for its assertion.
-const challengeLifetime = 5 * time.Minute
+// challengeLifetime is how long a sign-in challenge waits for its assertion: a
+// whole Portico Account step, since a member may create and verify an account on
+// the way (R-07). The assertion itself is minted at return and stays short.
+const challengeLifetime = claimweb.AccountStepLifetime
 
 // ErrClockSkew is an assertion whose times do not fit this server's clock even
 // with the tolerance: the server's clock is wrong, or the assertion is stale.

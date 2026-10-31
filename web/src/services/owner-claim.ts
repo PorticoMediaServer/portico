@@ -3,6 +3,7 @@ import {currentUTCTimestamp} from '@core/local-session.ts';
 import {routeBytes, routeOrigin} from '@core/route-identity.ts';
 import {decodeServerClaimLookupResponse, decodeServerClaimApproveCodeResponse, decodeServerClaimDenyResponse, decodeServerReturnCompleteResponse} from '../../../packages/contracts/src/hosted/decoders.ts';
 import {routePath, encodedRoutePath} from '../../../packages/contracts/src/hosted/routes.ts';
+import {ACCOUNT_STEP_WINDOW_MS} from '../../../packages/contracts/src/account-step.ts';
 import {accountIdentity, currentAccountWork, type AccountIdentity, type ServicesAccount} from './session';
 
 /** The code identifies an already registered signed owner start. URL name and
@@ -111,7 +112,7 @@ async function lookup(account: ServicesAccount, request: HostedOwnerClaimLink, s
         claim.status !== 'pending' && claim.status !== 'approved' || claim.name !== request.nameHint || !claim.name ||
         new TextEncoder().encode(claim.name).length > 120 || !claim.serverId.startsWith('srv_') ||
         !currentUTCTimestamp(claim.requestedAt) || Date.parse(claim.requestedAt) > now + 60000 ||
-        !currentUTCTimestamp(claim.expiresAt) || Date.parse(claim.expiresAt) - now > 300000 ||
+        !currentUTCTimestamp(claim.expiresAt) || Date.parse(claim.expiresAt) - now > ACCOUNT_STEP_WINDOW_MS ||
         Date.parse(claim.expiresAt) <= Date.parse(claim.requestedAt)) throw invalid();
     // A change-owner claim names what the previous owner becomes; a plain switch
     // carries neither field. Anything else is refused rather than guessed.

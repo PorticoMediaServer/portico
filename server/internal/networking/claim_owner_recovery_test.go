@@ -234,7 +234,7 @@ func firstSwitchApproved(t *testing.T, f *ownerRecoveryFixture) Intent {
 	if err != nil {
 		t.Fatal(err)
 	}
-	authority := &OwnerStartAuthority{ExpiresAt: f.principal.ExpiresAt, CaptureTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed) error {
+	authority := &OwnerStartAuthority{CaptureTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed) error {
 		return f.identity.CaptureOwnerClaimTx(ctx, tx, f.principal, original, start, audience)
 	}, BindTx: func(ctx context.Context, tx *sql.Tx, op, transaction string) error {
 		return f.identity.BindOwnerClaimTransactionTx(ctx, tx, f.principal, op, transaction)
