@@ -3,7 +3,7 @@ import hashlib,json,pathlib,re,sys
 root=pathlib.Path(sys.argv[1]).resolve();m=json.loads((root/'toolchain-manifest.json').read_text())
 if m.get('schemaVersion')!=1 or m.get('licenseMode')!='gpl3':raise SystemExit('Invalid manifest')
 files=m['files']
-actual={str(p.relative_to(root)) for p in root.rglob('*') if p.is_file() and p.name!='toolchain-manifest.json'}
+actual={p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file() and p.name!='toolchain-manifest.json'}
 if actual!=set(files):raise SystemExit('Bundle file inventory mismatch')
 def digest_file(path):
  with path.open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
