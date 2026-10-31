@@ -1445,6 +1445,12 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 			}
 		}
 	})
+	// Development trust builds only (dev_trusted_proxies.go): the setup rig's HTTPS front.
+	devProxies, devProxiesErr := developmentTrustedProxies(os.Getenv("PORTICO_DEV_TRUSTED_PROXIES"))
+	if devProxiesErr != nil {
+		log.Fatal(devProxiesErr)
+	}
+	apiDependencies.TrustedProxies = devProxies
 	handler := httpapi.New(apiDependencies)
 	backupService.SetBeforeSnapshot(func(ctx context.Context) error {
 		flush, cancel := context.WithTimeout(ctx, 10*time.Second)
