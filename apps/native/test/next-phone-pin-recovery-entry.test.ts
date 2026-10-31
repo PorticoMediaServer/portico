@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {routeOrigin} from '../../../packages/client-core/src/route-identity';
+import * as serverAddress from '../../../packages/client-core/src/server-address';
 import {createTheme} from '../src-next/kit/theme';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
@@ -60,6 +61,7 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
     '../../../../../packages/client-core/src': {},
     '../../../../../packages/client-core/src/sign-in': {},
     '../../../../../packages/client-core/src/route-identity': {routeOrigin},
+    '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: (_: unknown, context: string) => {contexts.push(context); return {body: `${context} failure`, silent: false};}},
     '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'Layout'},
@@ -184,6 +186,7 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
     '../../../../../packages/client-core/src': {},
     '../../../../../packages/client-core/src/sign-in': {},
     '../../../../../packages/client-core/src/route-identity': {routeOrigin},
+    '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: (_: unknown, context: string) => {contexts.push(context); return {body: `${context} failure`, silent: false};}},
     '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'Layout'},

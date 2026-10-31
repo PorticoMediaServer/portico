@@ -2,6 +2,7 @@
 import * as accountWork from '../src-next/platform/account-work';
 import {presentError} from '../../../packages/client-core/src/presentation/errors';
 import {routeOrigin} from '../../../packages/client-core/src/route-identity';
+import * as serverAddress from '../../../packages/client-core/src/server-address';
 import {NativeLocalInvitation} from '../src-next/platform/local-invitation';
 import * as joinLink from '../../../packages/client-core/src/join-link';
 import * as invitationCode from '../../../packages/client-core/src/short-invitation-code';
@@ -23,10 +24,10 @@ import type {NativeAccountEntryStage} from '../src-next/screens/accounts/Account
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 const deferred = <T,>() => {let resolve!: (value: T) => void, reject!: (reason: unknown) => void; const promise = new Promise<T>((accept, refuse) => {resolve = accept; reject = refuse;}); return {promise, resolve, reject};};
-type FixtureOptions = Readonly<{providers?: boolean; setupRequired?: boolean; providerTransaction?: any}>;
+type FixtureOptions = Readonly<{providers?: boolean; setupRequired?: boolean; providerTransaction?: any; inspectFails?: (origin: string) => boolean}>;
 
 async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options: FixtureOptions = {}) {
-  const events: string[] = [], stages: NativeAccountEntryStage[] = [], back = new Set<() => boolean>();
+  const events: string[] = [], stages: NativeAccountEntryStage[] = [], inspected: string[] = [], back = new Set<() => boolean>();
   let tree: any, phase = 'render', complete = 0, observed = true, providerCalls = 0, prepareCalls = 0;
   const finishes: ReturnType<typeof deferred<any>>[] = [];
   const credentials = {synchronize: async () => {}, getSnapshot: () => ({session: undefined})};
@@ -40,7 +41,7 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
   class SignIn {
     static parseInvitationEntry = NativeLocalInvitation.parseEntry;
     constructor() {events.push('create-command');}
-    async inspect() {events.push('inspect'); return options.setupRequired
+    async inspect(origin: string) {events.push('inspect'); inspected.push(origin); if (options.inspectFails?.(origin)) throw new Error('refused ' + origin); return options.setupRequired
       ? {id: 'public-server', name: 'Public fixture', signIn: 'portico', setupRequired: true, hostedConfigured: true}
       : {id: 'public-server', name: 'Public fixture', signIn: 'local'};}
     needsIdentityCode() {return false;}
@@ -73,6 +74,7 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: {addEventListener: (_: string, handler: () => boolean) => {back.add(handler); return {remove: () => back.delete(handler)};}}, Platform: {isTV: false}, NativeModules: {PorticoAccountAuth: {canOpenBrowser: options.providers === true}}, Linking: {openURL: async () => {}}, View: 'View', Text: 'Text'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src': {},
     '../../../../../packages/client-core/src/sign-in': {}, '../../../../../packages/client-core/src/route-identity': {routeOrigin},
+    '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
@@ -91,7 +93,7 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
   };
   const host = createFabricHookHost(() => {tree = AccountEntry({initialStage, onComplete: () => {complete++;}, onStageChange: observed ? onStageChange : undefined});});
   await act(() => host.mount());
-  return {host, stages, events, back, tree: () => tree, complete: () => complete, providerCalls: () => providerCalls, prepareCalls: () => prepareCalls, finishes,
+  return {host, stages, events, inspected, back, tree: () => tree, complete: () => complete, providerCalls: () => providerCalls, prepareCalls: () => prepareCalls, finishes,
     omitObserver: async () => {observed = false; await host.rerender();}};
 }
 
@@ -123,6 +125,42 @@ test('an entry starting at address reports address only, never a synthetic welco
   const f = await fixture('address');
   try {assert.deepEqual(f.stages, ['address']); assert.ok(f.events.indexOf('stage:address') < f.events.indexOf('discovery'));}
   finally {await f.host.unmount();}
+});
+
+async function enterAddress(f: Awaited<ReturnType<typeof fixture>>, typed: string) {
+  await act(() => nodes(f.tree().props.beforeActions).find(node => node.type === 'Field').props.onChangeText(typed));
+  await act(() => f.tree().props.primaryAction.onPress());
+}
+
+test('a server address typed without a scheme is tried as the web tries it and reaches the server', async () => {
+  for (const typed of ['10.0.2.2:8341', '192.168.1.20:32400']) {
+    const f = await fixture('address');
+    try {
+      await enterAddress(f, typed);
+      assert.deepEqual(f.inspected, ['http://' + typed], typed);
+      assert.equal(f.stages.at(-1), 'local', typed);
+    } finally {await f.host.unmount();}
+  }
+});
+
+test('a typed scheme is kept exactly as typed and https is never downgraded', async () => {
+  for (const typed of ['http://192.168.1.20:32400', 'https://10.0.2.2:8341', 'https://media.example.com:8443']) {
+    const f = await fixture('address');
+    try {
+      await enterAddress(f, typed);
+      assert.deepEqual(f.inspected, [typed], typed);
+      assert.equal(f.stages.at(-1), 'local', typed);
+    } finally {await f.host.unmount();}
+  }
+});
+
+test('the first candidate that answers is used and a later one is not tried', async () => {
+  const f = await fixture('address', {inspectFails: origin => origin.startsWith('http://')});
+  try {
+    await enterAddress(f, '10.0.2.2:8341');
+    assert.deepEqual(f.inspected, ['http://10.0.2.2:8341', 'https://10.0.2.2:8341']);
+    assert.equal(f.stages.at(-1), 'local');
+  } finally {await f.host.unmount();}
 });
 
 const providerFields = (tree: any) => nodes(tree.props.beforeActions).filter((node: any) => node.type === 'Field');

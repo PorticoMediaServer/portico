@@ -10,6 +10,7 @@ import {CredentialSessionService, HttpCredentialApi, type CredentialRecord} from
 import {CodedError} from '../../../packages/client-core/src/server-messages';
 import {presentError} from '../../../packages/client-core/src/presentation/errors';
 import * as passwordPolicy from '../../../packages/client-core/src/password-strength';
+import * as serverAddress from '../../../packages/client-core/src/server-address';
 import {defaultI18n} from '../../../packages/i18n/src';
 import * as accountWork from '../src-next/platform/account-work';
 import * as continuationQueue from '../src-next/platform/continuation-queue';
@@ -148,6 +149,7 @@ async function fixture(context: import('node:test').TestContext, provider: Provi
   const {AccountEntry} = await screenModule(new URL('../src-next/screens/accounts/AccountEntry.tsx', import.meta.url), ports({
     react: {...React, default: React}, 'react-native': rn, 'react-native-qrcode-svg': {default: 'QR'},
     '../../../../../packages/client-core/src': core, '../../../../../packages/client-core/src/hosted-security': security,
+    '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
     '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', TextField: 'Field'},

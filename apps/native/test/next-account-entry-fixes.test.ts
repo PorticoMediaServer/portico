@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import {porticoPublicLinks} from '../../../packages/client-core/src/public-links';
 import * as passwordPolicy from '../../../packages/client-core/src/password-strength';
+import * as serverAddress from '../../../packages/client-core/src/server-address';
 import {act as fabricAct, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {act as driverAct, createHookHost} from './hook-driver.ts';
 const act = async (work: () => void | Promise<void>) => {await driverAct(work); await fabricAct(() => {});};
@@ -74,6 +75,7 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({silent: false, body: 'Request failed'})},
     '../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
+    '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'StateLayout'}, '../../kit/controls': {Button: 'Button', TextField: 'TextField', Focusable: 'Focusable'},
     '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}}, '../../platform/server-sign-in': {NativeServerSignIn: Server},

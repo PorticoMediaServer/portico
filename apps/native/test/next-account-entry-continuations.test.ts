@@ -9,6 +9,7 @@ import * as security from '../../../packages/client-core/src/hosted-security';
 import {CodedError} from '../../../packages/client-core/src/server-messages';
 import * as routes from '../../../packages/contracts/src/hosted/routes';
 import * as passwordPolicy from '../../../packages/client-core/src/password-strength';
+import * as serverAddress from '../../../packages/client-core/src/server-address';
 import * as queue from '../src-next/platform/continuation-queue';
 import * as tvOpening from '../src-next/screens/accounts/tv-code-opening';
 import * as outcome from '../src-next/platform/setup-outcome';
@@ -72,7 +73,7 @@ async function fixture(context:import('node:test').TestContext,wrongAccount=fals
   });
   const modules:any={react:{...React,default:React},'react-native':rn,'react-native-qrcode-svg':{default:'QR'},
     '../../../../../packages/i18n/src':{defaultI18n},'../../../../../packages/client-core/src':{HttpHostedApi:class {}},
-    '../../../../../packages/client-core/src/route-identity':{routeOrigin:(s:string)=>s},'../../../../../packages/client-core/src/hosted-security':security,
+    '../../../../../packages/client-core/src/route-identity':{routeOrigin:(s:string)=>s},'../../../../../packages/client-core/src/server-address':serverAddress,'../../../../../packages/client-core/src/hosted-security':security,
     '../../../../../packages/client-core/src/presentation/errors':{presentError:()=>({body:'Refused',silent:false})},
     '../../../../../packages/client-core/src/password-strength':passwordPolicy,'../../kit/theme':{useTheme:()=>theme},
     '../../kit/states':{StateLayout:'Layout'},'../../kit/controls':{Button:'Button',TextField:'Field',Focusable:'Focusable'},

@@ -5,6 +5,7 @@ import {useTVMenuCapture} from '../../platform/tv-menu';
 import QRCode from 'react-native-qrcode-svg';
 import {HttpHostedApi, type HostedServer} from '../../../../../packages/client-core/src';
 import {ServerSignInProbe, moveOfferDays, type ServerSignIn} from '../../../../../packages/client-core/src/sign-in';
+import {firstAnswering, serverAddressCandidates} from '../../../../../packages/client-core/src/server-address';
 import {routeOrigin} from '../../../../../packages/client-core/src/route-identity';
 import type {NativeInvitationEntry} from '../../platform/portico-invitation';
 import type {PublicInvitation} from '../../../../../packages/client-core/src/direct-account';
@@ -700,18 +701,20 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const inspect = async (origin = address) => {
     const resetIntent = ownerResetIntent.current, invite = invitationIntent.current;
     retireOwnerRecoveryContact(); retireOwnerReset(); retireSetupReview(); retireRecovery(); operation.current?.dispose(); const next = operation.current = new NativeServerSignIn(nativeAccounts, {requiredSetupHandoff: Platform.isTV, expectedTarget: endedTarget.current, expectedInvitation: invite ? {origin: invite.server, serverId: invite.id, fingerprint: invite.fingerprint, signIn: invite.signIn, expiresAt: invite.expiresAt} : undefined});
-    const value = await next.inspect(origin); if (!lifetime.current) return;
+    const found = await firstAnswering(serverAddressCandidates(origin), candidate => next.inspect(candidate));
+    const value = found.value; if (!lifetime.current) return;
+    const inspected = found.origin;
     if (next.needsIdentityCode()) {
-      routeOrigin(origin); identityOrigin.current = origin;
-      setIdentityAddress(origin);
+      routeOrigin(inspected); identityOrigin.current = inspected;
+      setIdentityAddress(inspected);
       setServer(undefined); setIdentityCode(''); setIdentityWrong(false); setStage('identity-code'); return;
     }
     if (!value) throw Object.assign(new Error('native_sign_in_authority_changed'), {code: 'identity_mismatch'});
-    if (resetIntent && (ownerResetIntent.current !== resetIntent || routeOrigin(origin) !== resetIntent.origin || value.id !== resetIntent.serverId || value.signIn !== 'portico' || value.setupRequired))
+    if (resetIntent && (ownerResetIntent.current !== resetIntent || routeOrigin(inspected) !== resetIntent.origin || value.id !== resetIntent.serverId || value.signIn !== 'portico' || value.setupRequired))
       throw Object.assign(new Error('native_sign_in_authority_changed'), {code: 'identity_mismatch'});
     setServer(value);
     if (value.setupRequired && !Platform.isTV) {
-      setSetupAddress(routeOrigin(origin)); setSetupMode(value.hostedConfigured ? 'hosted' : 'local');
+      setSetupAddress(routeOrigin(inspected)); setSetupMode(value.hostedConfigured ? 'hosted' : 'local');
       setName(value.name); setUsername(''); setPassword(''); setSetupPasswordConfirm(''); setStage('setup-confirm'); return;
     }
     if (value.setupRequired) throw Object.assign(new Error('native_setup_phone_required'), {code: 'access_refused'});

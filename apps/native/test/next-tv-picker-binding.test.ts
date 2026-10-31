@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {routeOrigin} from '../../../packages/client-core/src/route-identity';
+import * as serverAddress from '../../../packages/client-core/src/server-address';
 import {createTheme} from '../src-next/kit/theme';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
@@ -37,6 +38,7 @@ const shared = (back: Awaited<ReturnType<typeof backOwner>>) => ({
   'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: back.api, Platform: {OS: 'ios', isTV: true}, Dimensions: {get: () => ({width: 1920, height: 1080})}, NativeModules: {}, TVEventControl: {enableTVMenuKey: () => menuCalls.push('enable'), disableTVMenuKey: () => menuCalls.push('disable')}, View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
   '../../../../../packages/i18n/src': {defaultI18n},
   '../../../../../packages/client-core/src/route-identity': {routeOrigin},
+  '../../../../../packages/client-core/src/server-address': serverAddress,
   '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'PIN refused'})},
   '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'Layout'},
   '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
