@@ -339,6 +339,7 @@ func (h *ClaimHandler) handle(ctx context.Context, w http.ResponseWriter, r *htt
 		return ClaimStatus{}, e
 	}
 	if r.URL.Path == "/v1/networking/claim/cancel" {
+		h.deliveries.Delete(expected.OperationID) // cancelled: nothing more to deliver
 		// A never-installed captured switch is withdrawn locally or fenced by
 		// its original-key outbox. Only that completed denial skips the now
 		// retired family's final positive check.
