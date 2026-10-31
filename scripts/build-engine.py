@@ -278,6 +278,7 @@ def main():
         atomic(recipe / 'portico-compiler-image.json', {'compilerImageId': compiler_id,
             'sourceInventorySHA256': report['compilerSourceInventorySHA256']})
         inputs.compiler_inputs(recipe, report)
+        atomic(state / 'report.json', report)
         def publish_downloads(results):
             report['downloads'] = dict(results)
             atomic(state / 'report.json', report)
