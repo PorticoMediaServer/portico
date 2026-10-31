@@ -118,8 +118,19 @@ def build_proof(report, target, raw, recipe, source_sha, authority_sha):
             report.get('target') != target or report.get('engineSourceSHA') != source_sha or
             report.get('sourceAuthoritySHA256') != authority_sha or
             report.get('rawArchives', {}).get(raw.name) != digest(raw) or
+            report.get('dockerfileSHA256') != digest(recipe / 'Dockerfile') or
+            report.get('recipeTreeSHA256') != inputs.json_digest(inputs.recipe_tree(recipe)) or
+            report.get('configureScripts') != inputs.configure_scripts(ROOT) or
             report.get('recipeFiles') != recipe_inventory(recipe)):
         raise ValueError('raw engine/source/recipe provenance does not match this assembly')
+
+
+def source_build_receipt(report, source):
+    # These hashes came from the consumed build graph and frozen inputs in the
+    # raw build report. Assembly checks them; it never regenerates a graph.
+    return {key: report[key] for key in ('target', 'engineSourceSHA', 'dockerfileSHA256',
+            'recipeTreeSHA256', 'configureScripts')} | {'schemaVersion': 1, 'release': False,
+            'sourceArchiveSHA256': digest(source)}
 
 
 def assemble(target, raw, recipe, output, report_file):
@@ -128,7 +139,8 @@ def assemble(target, raw, recipe, output, report_file):
     output.parent.mkdir(parents=True, exist_ok=True)
     lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
     source_sha = inputs.checked_source(ROOT)
-    build_proof(json.loads(report_file.read_text()), target, raw, recipe, source_sha, lock['sourceAuthority']['sha256'])
+    build_report = json.loads(report_file.read_text())
+    build_proof(build_report, target, raw, recipe, source_sha, lock['sourceAuthority']['sha256'])
     subprocess.run([sys.executable, ROOT / 'scripts/check-ffmpeg-build-inputs.py'], check=True)
     with tempfile.TemporaryDirectory(prefix='engine-assembly-', dir=output.parent) as temp:
         work = Path(temp)
@@ -168,15 +180,20 @@ def assemble(target, raw, recipe, output, report_file):
         shutil.copyfile(font_license, provenance / 'fixtures/subtitles/OFL.txt')
         for path in (ROOT / 'scripts').glob('*'):
             if path.is_file() and ('ffmpeg' in path.name or 'engine' in path.name or 'disc' in path.name or
-                                   path.name in ('build-linux-libdovi.py', 'configure-windows-libdovi.py')):
+                                   path.name in ('build-linux-libdovi.py', 'configure-windows-libdovi.py') or
+                                   path.name in inputs.CONFIGURE_SCRIPTS):
                 shutil.copyfile(path, provenance / 'scripts' / path.name)
         source = work / 'corresponding-source.tar.xz'
         # The real recipe includes every downloaded dependency snapshot. Exclude
         # only compiler outputs, Git metadata and OCI layers, as in build-ffmpeg.
         subprocess.run(['tar', '-C', recipe.parent, '--sort=name', '--mtime=@' + str(lock['sourceDateEpoch']),
-            '--owner=0', '--group=0', '--numeric-owner', '--exclude=' + recipe.name + '/.git', '--exclude=' + recipe.name + '/workspace',
+            '--owner=0', '--group=0', '--numeric-owner', '--hard-dereference',
+            '--exclude=' + recipe.name + '/.git', '--exclude=' + recipe.name + '/workspace',
             '--exclude=' + recipe.name + '/ffbuild', '--exclude=' + recipe.name + '/artifacts', '--exclude=' + recipe.name + '/.cache/images',
             '-I', 'xz -T1 -0', '-cf', source, recipe.name, '-C', work, 'provenance'], check=True)
+        receipt = source_build_receipt(build_report, source)
+        intake.verify_source(source, target, receipt)
+        write_json(work / 'raw/source-build-receipt.json', receipt)
         subprocess.run([sys.executable, ROOT / 'scripts/normalize-ffmpeg-bundle.py', work / 'raw', target,
                         work / 'bundle', source], check=True)
         subprocess.run([sys.executable, ROOT / 'scripts/verify-ffmpeg-manifest.py', work / 'bundle'], check=True)

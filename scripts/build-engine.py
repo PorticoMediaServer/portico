@@ -258,6 +258,18 @@ def main():
         graph = stages((recipe / 'Dockerfile').read_text())
         report['stages'] = {n: {'state': 'pending'} for n in graph}
         atomic(state / 'report.json', report)
+        disc = recipe / 'portico-disc'; disc.mkdir(exist_ok=True)
+        for name in ('portico-disc.c', 'mpegts_dovi.h'):
+            shutil.copy2(ROOT / 'third_party/portico-disc' / name, disc)
+        shutil.copy2(ROOT / 'LICENSE', disc / 'LICENSE')
+        shutil.copy2(ROOT / 'scripts/build-portico-disc.py', disc)
+        # Capture the file BuildKit actually consumes, after final generation.
+        # No separately regenerated Dockerfile supplies the sealed receipt.
+        dockerfile_sha = digest(recipe / 'Dockerfile')
+        recipe_sha = inputs.json_digest(inputs.recipe_tree(recipe))
+        report.update(dockerfileSHA256=dockerfile_sha, recipeTreeSHA256=recipe_sha,
+                      configureScripts=inputs.configure_scripts(ROOT))
+        atomic(state / 'report.json', report)
         # Source snapshots stay in the owned recipe cache across retries. Never
         # use a successful layer as a substitute for corresponding source.
         custody = state / 'custody'
@@ -288,9 +300,11 @@ def main():
                 return {'state': 'blocked', 'prerequisites': ['download:' + p for p in unavailable]}
             key = stage_key(recipe, name, graph[name], compiler_id, stage_results)
             metadata = state / ('metadata-' + name + '.json')
-            args = common + ['--target', name, '--build-context', compiler + '=oci-layout://' + str(compiler_dir),
+            args = common + ['--file', inputs.consumed_dockerfile(recipe, dockerfile_sha),
+                             '--target', name, '--build-context', compiler + '=oci-layout://' + str(compiler_dir),
                              '--metadata-file', metadata]
             run('dependency-' + name, args + ['.'], recipe)
+            inputs.consumed_dockerfile(recipe, dockerfile_sha)
             log = state / ('dependency-' + name + '.log')
             result = {'state': 'cached' if cached_mounts(log.read_text()) else 'passed', 'key': key,
                       'compilerImageId': compiler_id, 'logSHA256': digest(log)}
@@ -302,13 +316,10 @@ def main():
         if all(v['state'] in ('passed', 'cached') for v in report['stages'].values()):
             final_image = 'local/' + owner + '/engine/win64-gpl-8.1:latest'
             images.append(final_image)
-            args = common + ['--load', '-t', final_image, '--build-context', compiler + '=oci-layout://' + str(compiler_dir)]
+            args = common + ['--file', inputs.consumed_dockerfile(recipe, dockerfile_sha),
+                             '--load', '-t', final_image, '--build-context', compiler + '=oci-layout://' + str(compiler_dir)]
             run('combine', args + ['.'], recipe)
-            disc = recipe / 'portico-disc'; disc.mkdir(exist_ok=True)
-            for name in ('portico-disc.c', 'mpegts_dovi.h'):
-                shutil.copy2(ROOT / 'third_party/portico-disc' / name, disc)
-            shutil.copy2(ROOT / 'LICENSE', disc / 'LICENSE')
-            shutil.copy2(ROOT / 'scripts/build-portico-disc.py', disc)
+            inputs.consumed_dockerfile(recipe, dockerfile_sha)
             env['GIT_BRANCH_OVERRIDE'] = 'n' + lock['ffmpeg']['version']
             env['SOURCE_DATE_EPOCH'] = str(lock['sourceDateEpoch'])
             artifacts = recipe / 'artifacts'
@@ -317,6 +328,8 @@ def main():
             if artifacts.exists():
                 shutil.rmtree(artifacts)
             run('ffmpeg-compile', ['bash', 'build.sh', 'win64', 'gpl', '8.1'], recipe)
+            if inputs.json_digest(inputs.recipe_tree(recipe)) != recipe_sha:
+                raise ValueError('recipe inputs changed during compilation')
             if inputs.checked_source(ROOT) != source_sha:
                 raise ValueError('engine source changed during compilation')
             raw_output = state / ('raw-' + uuid.uuid4().hex[:12])
