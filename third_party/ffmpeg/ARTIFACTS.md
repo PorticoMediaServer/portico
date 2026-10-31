@@ -95,3 +95,27 @@ retained as NOT-FOR-USE evidence for attachment to the engine release and a
 reviewed transport pin; the code never substitutes another image. Copying an
 index does not grant corresponding-source, compiler or engine qualification.
 The copy utility's actual version is recorded; it cannot change accepted bytes.
+
+The local Windows x64 producer is separate from installer consumption:
+
+```sh
+python3 scripts/build-engine.py windows-x64 --state /absolute/owned/on-disk-state
+python3 scripts/assemble-engine.py windows-x64 --raw /absolute/owned/on-disk-state/raw-ID/engine.zip --recipe /absolute/owned/on-disk-state/recipe --build-report /absolute/owned/on-disk-state/report.json --output /absolute/fresh/engine-construction
+```
+
+Run from a clean committed checkout; assembly must use that same source commit.
+The producer acquires `portico-heavy D-engine` itself. Run long jobs in a
+transient user service so a terminal restart cannot cancel them. State retains
+source archives, incremental reports and an owned bounded BuildKit cache.
+Independent dependency failures aggregate; failed prerequisites block their
+descendants. The final compile uses the pinned recipe's exact expanded payload
+inside that graph, with a fresh output export and unchanged GPLv3 configuration.
+
+The Dockerfile is hashed after final generation and that exact file is consumed
+and checked around every build. Assembly seals its captured hash, recipe tree,
+configure-script hashes, source archive and engine commit. Compiler runtime
+sources/notices come from the completed image used by the build and remain
+required on cache hits. Normalization preserves the existing source-build
+receipt in the manifest. Neither construction nor intake grants native engine,
+ABI, repeat-build, installer or release acceptance; run the existing native gates
+on matching hardware before proposing any accepted engine pin.
