@@ -194,23 +194,44 @@ def event_tier(event, tier, full):
     if event: raise ValueError('unsupported CI event')
     return tier or 'short', full
 
+def vps_trusted(event, env):
+    repo=env.get('GITHUB_REPOSITORY','')
+    if repo.lower()!='porticomediaserver/portico': return False
+    name=env.get('GITHUB_EVENT_NAME','')
+    if name=='pull_request':
+        pr=event.get('pull_request') or {}
+        head=pr.get('head') or {}
+        head_repo=head.get('repo') or {}
+        full_name=head_repo.get('full_name')
+        return isinstance(full_name,str) and full_name.lower()==repo.lower()
+    if name=='push': return env.get('GITHUB_REF')=='refs/heads/main'
+    return name in ('merge_group','schedule','workflow_dispatch')
+
+
+def go_matrix(plan,event,env):
+    trusted=vps_trusted(event,env)
+    # Fixed five-slot share; remaining shards and every other job stay hosted.
+    return {'include':[{'index':i,'runner':'portico-vps' if trusted and i<5 else 'ubuntu-24.04'}
+                       for i in range(len(plan['shards']))]}
+
+
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--tier',choices=['short','merge','nightly'],default=''); ap.add_argument('--full',action='store_true'); ap.add_argument('--paths',nargs='*'); ap.add_argument('--output',default='ci-plan.json'); a=ap.parse_args()
     base=None; head=None
+    event=json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text()) if os.environ.get('GITHUB_EVENT_PATH') else {}
     a.full = a.full or os.environ.get('CI_FULL_PLAN','').lower() == 'true'
     a.tier,a.full=event_tier(os.environ.get('GITHUB_EVENT_NAME',''),a.tier,a.full)
     if a.paths is None: head=command(['git','rev-parse','HEAD']).strip()
     if a.paths is not None: paths=a.paths
     elif a.full: paths=[]
     else:
-        event=json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text()) if os.environ.get('GITHUB_EVENT_PATH') else {}
         base,head=base_head(event,os.environ)
         paths=command(['git','diff','--name-only','-z',base,head]).split('\0'); paths=[p for p in paths if p]
     plan=make_plan(paths,a.full,'merge' if a.full and a.tier=='short' else a.tier); plan.update(base=base,head=head)
     Path(a.output).write_text(json.dumps(plan,indent=2)+'\n')
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'],'a') as f:
-            f.write('go_matrix='+json.dumps({'index':list(range(len(plan['shards'])))})+'\n')
+            f.write('go_matrix='+json.dumps(go_matrix(plan,event,os.environ))+'\n')
             f.write('android='+str(plan['android']).lower()+'\n')
             f.write('go='+str(bool(plan['packages'])).lower()+'\n')
             f.write('js='+str(bool(plan['js'])).lower()+'\n')
