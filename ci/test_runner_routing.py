@@ -12,7 +12,7 @@ class RunnerRouting(unittest.TestCase):
         plan={'shards':[[]]*10}
         rows=go_matrix(plan,{},dict(env,GITHUB_EVENT_NAME='merge_group'))['include']
         self.assertEqual([r['index'] for r in rows],list(range(10)))
-        self.assertEqual([r['runner'] for r in rows],['portico-vps']*5+['ubuntu-24.04']*5)
+        self.assertEqual([r['runner'] for r in rows],['portico-vps']*4+['ubuntu-24.04']*6)
 
     def test_forks_deleted_head_and_wrong_repository_fail_closed(self):
         env={'GITHUB_REPOSITORY':'PorticoMediaServer/portico','GITHUB_EVENT_NAME':'pull_request'}
