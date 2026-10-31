@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET="${1:?usage: build-ffmpeg.sh TARGET [WORK_DIRECTORY]}"
 PHASE="${PORTICO_FFMPEG_PHASE:-full}"
-case "$PHASE" in full) ;; working|compile|package) [[ "$TARGET" == linux-x64 ]] || { echo 'Split compile/package phases currently require linux-x64' >&2; exit 1; };; *) echo 'Unknown source build phase' >&2; exit 1;; esac
+case "$PHASE" in full) ;; windows-producer) [[ "$TARGET" == windows-x64 || "$TARGET" == windows-arm64 ]] || { echo "Windows producer requires a Windows target" >&2; exit 1; };; working|compile|package) [[ "$TARGET" == linux-x64 ]] || { echo 'Split compile/package phases currently require linux-x64' >&2; exit 1; };; *) echo 'Unknown source build phase' >&2; exit 1;; esac
 # The dedicated hardware lane names its on-disk scratch directory explicitly.
 # CI and local packaging runs without one use the script-owned runtime
 # directory, so the emitted archive stays on the path packaging reads.
@@ -159,12 +159,30 @@ PYLICENSE
   else
     [[ "${PORTICO_FFMPEG_DEPS_ONLY:-0}" != 1 ]] || { echo 'Dependency-only phase currently supports linux-x64' >&2; exit 1; }
   cp "$SOURCE" "$WORK/recipe/portico-ffmpeg-source.tar.xz"
+  if [[ "$PHASE" == windows-producer ]]; then
+    export PORTICO_NATIVE_ADAPTER="$ROOT/scripts/ci-ffmpeg-native.py"
+    python3 "$ROOT/scripts/ci-ffmpeg-native.py" prepare-recipe "$WORK/recipe"
+  fi
   (cd "$WORK/recipe" && export GIT_BRANCH_OVERRIDE="n$VERSION" && ./makeimage.sh "$native" gpl 8.1 && ./build.sh "$native" gpl 8.1)
   mkdir -p "$WORK/extracted"
   python3 - "$WORK/recipe/artifacts" "$WORK/extracted" <<'PY'
 import pathlib,shutil,sys
 files=[p for p in pathlib.Path(sys.argv[1]).rglob('*') if p.name.endswith(('.tar.xz','.zip'))]
 if len(files)!=1:raise SystemExit('Expected exactly one build artifact')
+if __import__('os').environ.get('PORTICO_FFMPEG_PHASE') == 'windows-producer':
+ import importlib.util
+ spec=importlib.util.spec_from_file_location('native', pathlib.Path(__import__('os').environ['PORTICO_NATIVE_ADAPTER']))
+ adapter=importlib.util.module_from_spec(spec);spec.loader.exec_module(adapter)
+ import zipfile,stat
+ if not zipfile.is_zipfile(files[0]):raise SystemExit('Windows producer requires recipe ZIP')
+ with zipfile.ZipFile(files[0]) as archive:
+  members=archive.infolist()
+  if len(members)>adapter.MAX_FILES or sum(m.file_size for m in members)>adapter.MAX_BYTES:raise SystemExit('Compiled archive exceeds bounds')
+  seen=set()
+  for member in members:
+   adapter.safe_name(member.filename.rstrip('/'))
+   if member.filename in seen or stat.S_ISLNK(member.external_attr >> 16):raise SystemExit('Duplicate/symlink archive entry')
+   seen.add(member.filename)
 shutil.unpack_archive(str(files[0]),sys.argv[2])
 PY
   INPUT="$WORK/extracted"
@@ -192,6 +210,7 @@ cp "$WORK/build-source-authority.json" "$WORK/provenance/contract/"
 cp -R "$ROOT/third_party/ffmpeg/patches" "$WORK/provenance/contract/"
 cp "$ROOT/scripts/build-ffmpeg.sh" "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$ROOT/scripts/patch-btbn-winarm64-system-error.sh" "$ROOT/scripts/prepare-ffmpeg-source.py" "$ROOT/scripts/archive-ffmpeg-source.py" "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/build-portico-disc.py" "$ROOT/scripts/build-macos-ffmpeg-extras.sh" "$WORK/provenance/scripts/"
+if [[ "$PHASE" == windows-producer ]]; then cp "$ROOT/scripts/ci-ffmpeg-native.py" "$WORK/provenance/scripts/"; fi
 cp "$ROOT/scripts/verify-ffmpeg-bundle.sh" "$ROOT/scripts/verify-ffmpeg-manifest.py" "$ROOT/scripts/verify-ffmpeg-features.py" "$ROOT/scripts/verify-disc-bundle.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-bluray.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-recipes.py" "$ROOT/scripts/verify-hdr10plus-encode.py" "$WORK/provenance/scripts/"
@@ -228,8 +247,24 @@ if [[ "$TARGET" == linux-x64 ]]; then
   cp "$ROOT/third_party/ffmpeg/portico-bluray-playlist-minimum.patch" "$ROOT/third_party/ffmpeg/portico-x265-hdr10plus.patch" "$WORK/provenance/contract/"
   cp "$ROOT/scripts/qualify-linux-ffmpeg-hdr.py" "$ROOT/scripts/qualify-hdr-video.py" "$ROOT/scripts/qualify-dovi-join.py" "$WORK/provenance/scripts/"
 fi
+# CI transfer retains every .cache/downloads source snapshot, but not OCI
+# build-cache layers. Current full/release callers keep their existing archive.
+ci_source_excludes=()
+if [[ "$PHASE" == windows-producer && -d "$WORK/recipe/.cache" ]]; then
+  while IFS= read -r -d '' cache_entry; do
+    [[ "$(basename "$cache_entry")" == downloads ]] || ci_source_excludes+=("--exclude=recipe/.cache/$(basename "$cache_entry")")
+  done < <(find "$WORK/recipe/.cache" -mindepth 1 -maxdepth 1 -print0)
+fi
 # Include dependency sources and exact recipe, excluding only output binaries and git metadata.
-tar -C "$WORK" --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner --exclude=recipe/.git --exclude=recipe/workspace --exclude=recipe/artifacts --exclude=recipe/.cache/images -I 'xz -T1 -0' -cf "$WORK/corresponding-source.tar.xz" recipe provenance
+tar -C "$WORK" --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner --exclude=recipe/.git --exclude=recipe/workspace --exclude=recipe/artifacts --exclude=recipe/.cache/images "${ci_source_excludes[@]}" -I 'xz -T1 -0' -cf "$WORK/corresponding-source.tar.xz" recipe provenance
+if [[ "$PHASE" == windows-producer ]]; then
+  # Raw INPUT is intentionally unnormalized and never runtime-qualified here.
+  python3 - "$INPUT" "$WORK" <<'PYPRODUCER'
+import json,pathlib,sys
+pathlib.Path(sys.argv[2], 'producer.json').write_text(json.dumps({'qualified':False,'input':str(pathlib.Path(sys.argv[1]).relative_to(sys.argv[2]))})+'\n')
+PYPRODUCER
+  exit 0
+fi
 normalize_options=()
 archive_name="portico-ffmpeg-$TARGET.tar.xz"
 if [[ "$PHASE" == working ]]; then
