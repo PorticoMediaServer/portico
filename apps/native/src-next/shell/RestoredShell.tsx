@@ -37,6 +37,22 @@ import {acknowledgeSecureRecordsRecovered, isSecureRecordsLost, secureRecordsRec
 import {SecureRecordsRecovery} from './SecureRecordsRecovery';
 import {takeLaunchStartedAt} from '../platform/boot-host';
 import {StartupBoot} from './StartupBoot';
+import {choosingProfile, lifecycleSettled, nativeSessionLifecycle} from '../platform/native-session-lifecycle';
+import {NativeProfileGated, nativeProfileGated} from '../platform/session-lifecycle-native';
+import {LifecycleProfileGate} from '../screens/accounts/LifecycleProfileGate';
+
+/** The session lifecycle wants the person to choose a profile or enter its PIN before any shell opens. */
+class NativeProfileChoice extends Error {constructor() {super('native_profile_choice'); this.name = 'NativeProfileChoice';}}
+
+/** Who's watching, until the lifecycle has a sign-in to open; then the root restores from it. */
+function ProfileGateHost({onReady}: {onReady: () => void}) {
+  const {lifecycle} = nativeSessionLifecycle();
+  const state = useSyncExternalStore(lifecycle.subscribe, () => lifecycle.getSnapshot().state, () => lifecycle.getSnapshot().state);
+  const handed = useRef(false);
+  // Hand over once: the root restarts from the lifecycle's new sign-in.
+  useEffect(() => {if (!choosingProfile(state) && !handed.current) {handed.current = true; onReady();}}, [state, onReady]);
+  return choosingProfile(state) ? <LifecycleProfileGate/> : null;
+}
 import {createNativeStartupRecovery, startupRetrySeconds, startupWait, type NativeStartupWait} from './startup-recovery';
 
 type RestoreState = Readonly<{phase: 'loading' | 'ready' | 'ended'; runtime?: RestoredNativeShellRuntime; error?: unknown}>;
@@ -71,6 +87,11 @@ export function RestoredShell() {
     const abort = new AbortController(); let owned: RestoredNativeShellRuntime | undefined;
     const installation = beginNativeInstallation(abort.signal);
     homeActionDiagnostics.lifetime?.('root-begin', ticket, installation);
+    // The one session lifecycle decides which sign-in opens (C-DESIGN §3). It borrows this root's
+    // installation: a competing installation generation would retire this root.
+    const {lifecycle, ports: lifecyclePorts} = nativeSessionLifecycle();
+    lifecyclePorts.lendInstallation(installation);
+    lifecycle.start();
     let alive = true;
     const ownsRoot = () => alive && ticket.active && root.current === ticket && !abort.signal.aborted;
     const rootCurrent = () => ownsRoot() && installation.current();
@@ -183,16 +204,34 @@ export function RestoredShell() {
     }}, () => {});
     if (rootCurrent()) recovery = createNativeStartupRecovery<RestoredNativeShellRuntime | undefined>({
       startedAt: started, current: rootCurrent, online: deviceOnline(), foreground: AppState.currentState === 'active',
-      restore: signal => restoreNativeShellRuntime(createNativeShellBindings, {signal, installationOwner: installation, onSessionRenewed: () => {
+      restore: async signal => {
+        // Launch is decided by the lifecycle first: a remembered (or only) profile opens, otherwise
+        // Who's watching and the PIN come first. A server that wasn't answering is tried again.
+        let decided = await lifecycleSettled(lifecycle, signal);
+        if (decided.kind === 'offline' || decided.kind === 'identityFailed') {lifecycle.resume(); decided = await lifecycleSettled(lifecycle, signal);}
+        if (choosingProfile(decided)) throw new NativeProfileChoice();
+        const adopted = decided.kind === 'ready' ? lifecyclePorts.adopt(decided.server.serverId) : undefined;
+        const usable = adopted && decided.kind === 'ready' && adopted.session.sessionFamilyId === decided.viewer.familyId ? adopted : undefined;
+        if (adopted && !usable) {adopted.api.getRouteConnection()?.dispose(); adopted.api.setAccessToken('');}
+        try {
+          return await restoreNativeShellRuntime(createNativeShellBindings, {signal, installationOwner: installation, ...(usable ? {adopted: usable} : {}), onSessionRenewed: () => {
         if (rootCurrent() && !signal.aborted) {homeActionDiagnostics.lifetime?.('root-renewal', ticket, installation);restart();}
       }, onAuthorityEnded: error => {
         if (rootCurrent() && !signal.aborted) {homeActionDiagnostics.lifetime?.('root-authority-ended', ticket, installation);homeActionDiagnostics.error('restore-error', error);
+          // A PIN changed elsewhere: the lifecycle asks for it (never a sign-in form).
+          if (error instanceof NativeProfileGated) {lifecycle.report({type: 'gated'}); restored = true; recovery?.finish(); owned = undefined; publishState({phase: 'ended', error: new NativeProfileChoice()}); return;}
           restored = true; recovery?.finish(); owned = undefined; publishState({phase: 'ended', error}); if (rootCurrent()) fallback();}
-      }}),
+      }});
+        } catch (error) {
+          // Home itself answered profile_pin_reentry while opening.
+          if (nativeProfileGated(error)) {lifecycle.report({type: 'gated'}); throw new NativeProfileChoice();}
+          throw error;
+        }
+      },
       discard: runtime => runtime?.dispose(),
       // Step names and offsets only (restore-trace.ts): which await a slow restore was still on.
       onAttemptTimeout: () => {try {console.warn(`portico_restore_timeout ${JSON.stringify(restoreTrace())}`);} catch { /* passive */ }},
-      retryable: error => !(error instanceof NativeIdentityFailure) && !(error instanceof NativeSignInEnded) && !isSecureRecordsLost(error)
+      retryable: error => !(error instanceof NativeProfileChoice) && !(error instanceof NativeIdentityFailure) && !(error instanceof NativeSignInEnded) && !isSecureRecordsLost(error)
         && ['offline', 'unreachable', 'timeout'].includes(presentError(error, 'home').category),
       onWait: value => {if (rootCurrent()) setWaiting(previous => rootCurrent() ? value : previous);},
       onReady: runtime => {
@@ -214,7 +253,7 @@ export function RestoredShell() {
       onError: (error, retrying) => {
         homeActionDiagnostics.error('restore-error', error); restored = !retrying;
         publishState({phase: retrying ? 'loading' : 'ended', error}); showRecovered();
-        if (rootCurrent() && !isSecureRecordsLost(error)) fallback();
+        if (rootCurrent() && !isSecureRecordsLost(error) && !(error instanceof NativeProfileChoice)) fallback();
       },
     });
     ticket.canRecover = () => rootCurrent() && !owned && !pauses.size && !viewOwner.current && !ticket.input?.current();
@@ -285,6 +324,7 @@ export function RestoredShell() {
   if (state.runtime && state.phase === 'ready') return <NativeSettingsAppearance source={state.runtime}><>{firstLibrary && state.runtime.firstLibraryContext?.current() && state.runtime.firstLibraryContext.authority().serverId === firstLibrary && state.runtime.firstLibraryContext.account.account.role === 'owner' && state.runtime.firstLibraryContext.account.account.primaryProfileId === state.runtime.firstLibraryContext.authority().profileId ? <PhoneFirstLibrary context={state.runtime.firstLibraryContext} onDone={() => {if (!renderedCurrent()) return; const runtime = state.runtime;
     setFirstLibrary(previous => renderedCurrent() ? undefined : previous); if (renderedCurrent()) void runtime?.refresh();}}/> : <><NativeShell runtime={state.runtime}/>{!theme.isTV && <NativeShareLinks runtime={state.runtime} online={online !== false} onRestart={complete}/>}</>}</></NativeSettingsAppearance>;
   if (state.phase === 'loading' && waiting.stage === 'boot') return null;
+  if (state.error instanceof NativeProfileChoice) return <ProfileGateHost onReady={complete}/>;
   // A read may still be in flight at 15 s (or 1 s offline). The recovery page is
   // then visible without cancelling or starting a second copy of that read.
   const restoreError = state.error ?? (state.phase === 'loading' ? {code: 'network'} : undefined);

@@ -28,8 +28,8 @@ export type LifecycleState =
   | Readonly<{kind: 'choosingServer'}>
   /** `admitted`: a sign-in that already chose its profile (continuation 'viewer') opens it once connected. */
   | Readonly<{kind: 'connecting'; server: ServerRef; held?: HeldSignIn; admitted?: true}>
-  | Readonly<{kind: 'offline'; server: ServerRef; held?: HeldSignIn; viewer?: ViewerRef; downloads: boolean}>
-  | Readonly<{kind: 'identityFailed'; server: ServerRef; held?: HeldSignIn; code: IdentityFailureCode}>
+  | Readonly<{kind: 'offline'; server: ServerRef; held?: HeldSignIn; admitted?: true; viewer?: ViewerRef; downloads: boolean}>
+  | Readonly<{kind: 'identityFailed'; server: ServerRef; held?: HeldSignIn; admitted?: true; code: IdentityFailureCode}>
   | Readonly<{kind: 'signInEnded'; server: ServerRef; held?: HeldSignIn; username: string}>
   | Readonly<{kind: 'choosingProfile'; server: ServerRef; viewer: ViewerRef; profiles: readonly PickerProfile[]; focus?: string;
       switching: boolean; canRemember: boolean; resume?: Readonly<{remembered: boolean; manageLocked: boolean}>}>
@@ -165,14 +165,16 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
       profile: {id: s.held.viewer.profileId, name: '', primary: false, pinRequired: true}, reason: 'reentry', canRemember: false, switching: false},
       10, [{kind: 'clearMarker', serverId: s.server.serverId}]);
     if (f.reason === 'signInEnded') return to({kind: 'signInEnded', server: s.server, ...(s.held ? {held: s.held} : {}), username: f.username}, 11, [], {authority: true});
-    if (f.reason === 'identity') return to({kind: 'identityFailed', server: s.server, ...(s.held ? {held: s.held} : {}), code: f.code}, 12);
-    if (f.reason === 'offline') return to({kind: 'offline', server: s.server, ...(s.held ? {held: s.held, viewer: s.held.viewer} : {}),
+    const admitted = s.admitted ? {admitted: true as const} : {};
+    if (f.reason === 'identity') return to({kind: 'identityFailed', server: s.server, ...(s.held ? {held: s.held} : {}), ...admitted, code: f.code}, 12);
+    if (f.reason === 'offline') return to({kind: 'offline', server: s.server, ...(s.held ? {held: s.held, viewer: s.held.viewer} : {}), ...admitted,
       downloads: !!s.held && (s.held.remembered || s.held.profilePinRequired === false)}, 13);
     return undefined;
   }
   case 'retry':
-    if (s.kind === 'offline') return to({kind: 'connecting', server: s.server, ...(s.held ? {held: s.held} : {})}, 14, [{kind: 'connect', serverId: s.server.serverId}]);
-    if (s.kind === 'identityFailed') return to({kind: 'connecting', server: s.server, ...(s.held ? {held: s.held} : {})}, 32, [{kind: 'connect', serverId: s.server.serverId}]);
+    // A sign-in that already chose its profile stays chosen across a retry.
+    if (s.kind === 'offline') return to({kind: 'connecting', server: s.server, ...(s.held ? {held: s.held} : {}), ...(s.admitted ? {admitted: true as const} : {})}, 14, [{kind: 'connect', serverId: s.server.serverId}]);
+    if (s.kind === 'identityFailed') return to({kind: 'connecting', server: s.server, ...(s.held ? {held: s.held} : {}), ...(s.admitted ? {admitted: true as const} : {})}, 32, [{kind: 'connect', serverId: s.server.serverId}]);
     return undefined;
   case 'profileTapped': {
     if (s.kind !== 'choosingProfile') return undefined;
@@ -273,7 +275,9 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
       return to(event.servers > 0 ? {kind: 'choosingServer'} : {kind: 'signedOut'}, 34, [{kind: 'fenceShell'}], {authority: true});
     }
     if (current.pending === 'switchServer' || !server || held.server.serverId !== server.serverId)
-      return to({kind: 'connecting', server: held.server, held}, current.pending === 'switchServer' ? 28 : 34,
+      // A sign-in that appeared while signed out was made by a sign-in or setup form, which already
+      // chose its profile: it opens once connected (as row 33), never with a second picker.
+      return to({kind: 'connecting', server: held.server, held, ...(!server ? {admitted: true as const} : {})}, current.pending === 'switchServer' ? 28 : 34,
         [{kind: 'connect', serverId: held.server.serverId}], {authority: true});
     const viewer = 'viewer' in s ? s.viewer : undefined;
     if (!viewer || same(viewer, held.viewer)) return undefined;

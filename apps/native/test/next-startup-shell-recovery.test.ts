@@ -5,6 +5,7 @@ import * as React from 'react';
 import * as startupRecovery from '../src-next/shell/startup-recovery.ts';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {restoredShellLifecycleStub} from './helpers/lifecycle-stub.mjs';
 
 type RestoreCall = {signal: AbortSignal; installationOwner: object; onAuthorityEnded: (error?: unknown) => void; onSessionRenewed: () => void};
 const failure = Object.assign(new Error('test connection'), {code: 'network'});
@@ -17,7 +18,7 @@ async function shell(read: (call: RestoreCall, index: number) => Promise<unknown
   const calls: RestoreCall[] = [], errors: unknown[] = [], focus: number[] = [];
   let online: boolean | undefined = true, viewer = initialViewer, fallbacks = 0;
   let incoming: {id: string; current: () => boolean; dismiss: () => void} | undefined;
-  const {RestoredShell} = await screenModule(new URL('../src-next/shell/RestoredShell.tsx', import.meta.url), {'../screens/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../platform/negotiation': {negotiationRefusal: () => undefined}, './boot-timing': {logBootMilestone: () => {}}, './restore-trace': {restoreTrace: () => ({waiting: 'start', elapsedMs: 0, marks: []})}, '../screens/share/NativeShareLinks': {NativeShareLinks: () => null}, '../platform/share-links': {nativeShareLinks: {acquire: () => () => {}, subscribe: () => () => {}, getSnapshot: () => undefined, take: () => false}}, 
+  const {RestoredShell} = await screenModule(new URL('../src-next/shell/RestoredShell.tsx', import.meta.url), {...restoredShellLifecycleStub(), '../screens/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../platform/negotiation': {negotiationRefusal: () => undefined}, './boot-timing': {logBootMilestone: () => {}}, './restore-trace': {restoreTrace: () => ({waiting: 'start', elapsedMs: 0, marks: []})}, '../screens/share/NativeShareLinks': {NativeShareLinks: () => null}, '../platform/share-links': {nativeShareLinks: {acquire: () => () => {}, subscribe: () => () => {}, getSnapshot: () => undefined, take: () => false}}, 
     react: {...React, default: React},
     'react-native': {Platform: {OS: 'ios'}, View: 'View', Text: 'Text', Image: 'Image', findNodeHandle: (node: {tag: number}) => node.tag,
       AccessibilityInfo: {setAccessibilityFocus: (tag: number) => {focus.push(tag);}},

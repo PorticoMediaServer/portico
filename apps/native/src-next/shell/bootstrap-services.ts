@@ -16,7 +16,7 @@ type Domain = 'preferences' | 'inbox' | 'guide' | 'home';
 type Facts = Readonly<{preferences: PreferenceSnapshot; unread: number; hasLiveTV: boolean}>;
 type Options = {
   viewer: LocalSession['viewer']; deviceClass: Extract<DeviceClass, 'mobile' | 'television'>;
-  signal: AbortSignal; current: () => boolean; onAuthorityEnded: () => void;
+  signal: AbortSignal; current: () => boolean; onAuthorityEnded: (cause?: unknown) => void;
   /** CC-03: the server changed this account's role; role-dependent services rebuild. */
   onRoleChanged?: () => void;
   accountBinding: NativeShellAccountBinding;
@@ -105,9 +105,10 @@ export class NativeShellBootstrapServices {
     return !this.disposed;
   }
   private assertCurrent(): void {if (!this.isCurrent()) throw cancelled();}
-  private retire(): never {
+  /** `cause`: the refusal that ended it, when there was one (a PIN gate is told apart from a sign-out). */
+  private retire(cause?: unknown): never {
     const error = this.retirement ??= changed();
-    if (!this.disposed) {this.dispose(); this.options.onAuthorityEnded();}
+    if (!this.disposed) {this.dispose(); this.options.onAuthorityEnded(cause);}
     throw error;
   }
   private retireForRole(): never {
@@ -166,7 +167,7 @@ export class NativeShellBootstrapServices {
       // A profile with no guide entitlement can still open Home. Once a guide scope
       // was accepted, losing that permission is an authority change, not an empty list.
       const initialGuideDenial = domain === 'guide' && object(error) && error.status === 403 && !this.fences.has('guide');
-      if (this.isCurrent() && nativeShellPermissionDenied(error) && !initialGuideDenial) this.retire();
+      if (this.isCurrent() && nativeShellPermissionDenied(error) && !initialGuideDenial) this.retire(error);
       throw error;
     } finally {signal?.removeEventListener('abort', abort); batch?.removeEventListener('abort', abort); this.controllers.delete(controller);}
   }
@@ -178,7 +179,7 @@ export class NativeShellBootstrapServices {
       await this.options.accountBinding.assertCurrent();
     }
     catch (error) {
-      if (this.isCurrent() && nativeShellPermissionDenied(error)) this.retire();
+      if (this.isCurrent() && nativeShellPermissionDenied(error)) this.retire(error);
       throw error;
     }
     this.assertCurrent();
