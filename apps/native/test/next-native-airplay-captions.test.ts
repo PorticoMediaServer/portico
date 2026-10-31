@@ -21,6 +21,7 @@ const runtimeModule = screenModule(new URL('../src-next/platform/playback/runtim
   '../../../../../packages/client-core/src/presentation/service-text': {},
   '../../../../../packages/player-core/src': {playbackFence, sameFence, sameScope, PlayerSessionChoices},
   './NativePlaybackCoordinator': {}, './external-presentation': {}, './native-playback': {}, './scope-http': {},
+  './paint-authority': await import('../src-next/platform/playback/paint-authority.ts'),
   './preparing-owner': {}, './start-presentation': {}, './offline-playback': {}, './caption-style': {},
   './subtitle-style-choices': {}, './start-intent': {}, './video-policy': {NativeVideoPlaybackPolicy, nativeVideoPolicyMarkers, nativeVideoPolicyPostPlay},
   './subtitle-controls': {}, './subtitle-file-upload': {}, './engine-media': {}, './playback-failure': {}, './playback-recovery': {},
