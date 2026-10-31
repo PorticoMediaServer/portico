@@ -27,6 +27,7 @@ import * as joinLink from '../../../packages/client-core/src/join-link';
 import * as invitationCode from '../../../packages/client-core/src/short-invitation-code';
 import * as directoryChooser from '../src-next/screens/accounts/directory-chooser';
 import {routeOrigin} from '../../../packages/client-core/src/route-identity';
+import * as serverAddress from '../../../packages/client-core/src/server-address';
 
 const deferred = <T,>() => {let resolve!: (value: T) => void, reject!: (error: unknown) => void;
   const promise = new Promise<T>((yes, no) => {resolve = yes; reject = no;}); return {promise, resolve, reject};};
@@ -164,6 +165,7 @@ async function accountEntry(f: Awaited<ReturnType<typeof fixture>>, prepare: () 
       TVEventControl: {enableTVMenuKey() {}, disableTVMenuKey() {}}, View: 'View', Text: 'Text', Image: 'Image', NativeModules: {}},
     'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/route-identity': {routeOrigin},
+    '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Fixture failure', category: 'unavailable'})},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     '../../../../../packages/client-core/src/join-link': joinLink,

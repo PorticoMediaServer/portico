@@ -6,6 +6,7 @@ import * as invitationCode from '../../../packages/client-core/src/short-invitat
 import * as tvCodeOpening from '../src-next/screens/accounts/tv-code-opening';
 import * as setupOutcome from '../src-next/platform/setup-outcome';
 import * as passwordPolicy from '../../../packages/client-core/src/password-strength';
+import * as serverAddress from '../../../packages/client-core/src/server-address';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -41,6 +42,7 @@ test('phone Portico sign-in offers account help and returns to its form', async 
       View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src': {HttpHostedApi: class {}},
     '../../../../../packages/client-core/src/sign-in': {}, '../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
+    '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError},
     '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},

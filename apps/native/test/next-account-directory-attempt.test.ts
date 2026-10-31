@@ -5,6 +5,7 @@ import * as tvApprovalFinalization from '../src-next/screens/accounts/tv-approva
 import * as tvCodeOpening from '../src-next/screens/accounts/tv-code-opening';
 import * as setupOutcome from '../src-next/platform/setup-outcome';
 import * as passwordPolicy from '../../../packages/client-core/src/password-strength';
+import * as serverAddress from '../../../packages/client-core/src/server-address';
 import * as joinLink from '../../../packages/client-core/src/join-link';
 import * as invitationCode from '../../../packages/client-core/src/short-invitation-code';
 import * as qrScanner from '../src-next/platform/qr-scanner';
@@ -61,6 +62,7 @@ test('a directory connect is fenced to its attempt: Choose another and a success
     '../../../../../packages/client-core/src': {HttpHostedApi: HostedApi},
     '../../../../../packages/client-core/src/sign-in': {ServerSignInProbe: class {}},
     '../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
+    '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'error', silent: false})},
     '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'},

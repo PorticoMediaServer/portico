@@ -13,6 +13,7 @@ import * as passwordPolicy from '../../../packages/client-core/src/password-stre
 import * as joinLink from '../../../packages/client-core/src/join-link';
 import * as invitationCode from '../../../packages/client-core/src/short-invitation-code';
 import * as identity from '../../../packages/client-core/src/route-identity';
+import * as serverAddress from '../../../packages/client-core/src/server-address';
 import * as accountWork from '../src-next/platform/account-work';
 import * as abortSignals from '../src-next/platform/abort-signals';
 import * as localInvitation from '../src-next/platform/local-invitation';
@@ -148,7 +149,8 @@ async function entry(t: any, f: F) {
     react: {...React, default: React}, 'react-native': {Platform: {isTV: false}, NativeModules: {}, View: 'View', Text: 'Text', Image: 'Image',
       AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: {addEventListener: () => ({remove() {}})}},
     'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/client-core/src': core,
-    '../../../../../packages/client-core/src/route-identity': identity, '../../../../../packages/client-core/src/hosted-security': security,
+    '../../../../../packages/client-core/src/route-identity': identity, '../../../../../packages/client-core/src/server-address': serverAddress,
+    '../../../../../packages/client-core/src/hosted-security': security,
     '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy, '../../../../../packages/client-core/src/join-link': joinLink,
     '../../../../../packages/client-core/src/short-invitation-code': invitationCode,
