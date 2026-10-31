@@ -30,6 +30,11 @@ class WindowsDoviRecipe(unittest.TestCase):
             lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())['libdovi']
             for expected in (lock['commit'], lock['source'], lock['sha256'], *lock['cargoLocks'].values()):
                 self.assertIn(expected, text)
+            # These bytes are copied into the downloaded snapshot. Its recipe
+            # cache key must change if the checked collector/notices change.
+            self.assertIn(M['digest'](ROOT / 'scripts/build-linux-libdovi.py'), text)
+            self.assertIn(lock['contractSHA256'], text)
+            self.assertIn(lock['licenseSupplements']['sha256'], text)
             self.assertIn('--locked --offline', text)
             self.assertIn('--target "$FFBUILD_RUST_TARGET"', text)
             self.assertIn("['inside'](stage, prefix, target)", text)
