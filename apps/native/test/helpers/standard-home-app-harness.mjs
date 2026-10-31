@@ -930,8 +930,8 @@ export async function standardHomeApp({
     // Synthetic native store only; never connected to device authentication.
     syntheticStorage: () => ({
       selected: selected ? JSON.parse(selected) : null,
-      connection: store.has('network.selected.v1')
-        ? JSON.parse(store.get('network.selected.v1'))
+      appSessions: store.has('accounts.sessions.v1')
+        ? JSON.parse(store.get('accounts.sessions.v1'))
         : null,
     }),
     resetSyntheticStorage: () => {
