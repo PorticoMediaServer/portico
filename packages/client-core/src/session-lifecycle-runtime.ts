@@ -173,7 +173,9 @@ export class SessionLifecycle implements AuthoritySource {
     case 'clearMarker': await p.clearMarker(effect.serverId).catch(error => releaseQuietly('lifecycle marker', () => {throw error;})); return;
     case 'readRecords': {
       let read: RecordsRead;
-      try {read = await p.readRecords();} catch {read = {outcome: 'lost', servers: 0};}
+      // Only the port says records are lost (it looks twice first). Any other failure to read the
+      // saved sign-ins is a sign-in to make again, never an offer to reset the device.
+      try {read = await p.readRecords();} catch {read = {outcome: 'ok', servers: 0};}
       if (this.current(generation)) await this.dispatch({type: 'recordsRead', ...read});
       return;
     }

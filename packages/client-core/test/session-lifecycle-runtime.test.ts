@@ -487,9 +487,9 @@ test("recordsRead 'lost' then resetRecords ends in signedOut", async () => {
   life.dispose();
 });
 
-test('a readRecords that throws reads as records lost', async () => {
+test('a readRecords that throws (not a proven lost key) reads as signed out, never as records lost', async () => {
   const {life} = await launched({readRecords: async () => {throw new Error('keystore');}});
-  assert.equal(kind(life), 'recordsLost');
+  assert.equal(kind(life), 'signedOut');
   life.dispose();
 });
 
