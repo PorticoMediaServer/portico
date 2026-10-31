@@ -9312,7 +9312,7 @@ CREATE TABLE identity_owner_completions(
  operation_id TEXT PRIMARY KEY REFERENCES networking_claim_intents(operation_id),
  move_id TEXT NOT NULL REFERENCES identity_moves(id),
  family_id TEXT NOT NULL UNIQUE REFERENCES authorization_session_families(id) ON DELETE CASCADE,
- token_hash TEXT NOT NULL,token_generation INTEGER NOT NULL CHECK(token_generation>0),
+ token_generation INTEGER NOT NULL CHECK(token_generation>0),
  owner_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
  owner_profile_id TEXT NOT NULL REFERENCES direct_profiles(id),owner_epoch INTEGER NOT NULL CHECK(owner_epoch>0),
  phase TEXT NOT NULL CHECK(phase IN('prepared','installed','consumed','completed','cancelled','expired','superseded')),
