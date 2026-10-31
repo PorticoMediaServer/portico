@@ -9,7 +9,7 @@
   "status": 200,
   "response": {
     "authority": "local",
-    "serverId": "K8_qJo1hBEQ9uqqC821CAM5jc6qIU9wzVBvWOK9dObo",
+    "serverId": "o_cDl7CEiZ6vwCGU4yQIprSdkRzPLaj4ViLoDddVe1k",
     "account": {
       "id": "account",
       "username": "owner",
@@ -32,7 +32,7 @@
         "allowedLibraries": []
       },
       {
-        "id": "xz9-yS3riF8goAF8u3JYQzHEQUoyglhmkerc0GE9bso",
+        "id": "Yy7nr7pi8GvcR6536Xk_u3poAYlUy2inO3T7Ppq0gxY",
         "name": "Child",
         "primary": false,
         "position": 1,
@@ -49,6 +49,7 @@
       "managePeople": true,
       "manageServer": true,
       "manageSignIn": true
-    }
+    },
+    "rememberProfiles": true
   }
 }
