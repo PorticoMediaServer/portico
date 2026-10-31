@@ -17,14 +17,14 @@ import {nativeAccounts} from './accounts';
 import {hostedUrl} from './account-authority';
 import {nativeAppSessionStorage, nativeAppSessions, readNativeSelectedViewer, subscribeNativeAppSessions} from './app-session-storage';
 import {journal} from './error-capture';
-import {nativeIdentityFailure, nativeRouteIdentityFailure, type NativeIdentityServer} from './identity-failure';
+import {nativeIdentityFailure, nativeRouteIdentityFailure, type NativeIdentityFailure, type NativeIdentityServer} from './identity-failure';
 import {beginNativeInstallation} from './installation';
 import {logPickFailure, provenIdentityMismatch} from './pick-failure';
 import {isSecureRecordsLost, prepareSecureRecords, resetSecureRecords} from './secure-records';
 import {nativeNetworkFetch, nativeServerEnvironment, restoreNativeConnection} from './server-connections';
 import {readNativeServerDisplays} from './server-display';
 import {drainRevocations, revokeInBackground} from './session-revocation';
-import {nativeSignInEnded, readNativeSignInHint, type NativeSignInHint} from './sign-in-ended';
+import {nativeSignInEnded, readNativeSignInHint, type NativeSignInEnded, type NativeSignInHint} from './sign-in-ended';
 import {purgeStaleRoutes} from './stale-routes';
 
 /** Queued sign-outs start this long after a restore, never during the reads that open Home
@@ -84,6 +84,8 @@ export type NativeLifecyclePorts = LifecyclePorts & Readonly<{
   /** Opens the held sign-in's connection again and hands it over: a pick or a switch publishes a new
    *  sign-in without one, and the shell always opens from the lifecycle's connection. */
   reconnect(serverId: string, signal: AbortSignal): Promise<NativeConnected | undefined>;
+  /** What ended the last connect to `serverId` (identityFailed, signInEnded), for the screen that names it. */
+  failure(serverId: string): NativeIdentityFailure | NativeSignInEnded | undefined;
   /** The root lends its installation: installation generations are app-wide, so the ports must never
    *  begin a competing one while a root holds its own (that would retire the root). */
   lendInstallation(owner: ReturnType<typeof beginNativeInstallation> | undefined): void;
@@ -141,6 +143,7 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
   const deps: NativeLifecycleDeps = {...defaults(), ...overrides};
   let connected: NativeConnected | undefined, context: ConnectContext | undefined, drainAbort: AbortController | undefined;
   let lent: ReturnType<typeof beginNativeInstallation> | undefined;
+  let failed: Readonly<{serverId: string; error: NativeIdentityFailure | NativeSignInEnded}> | undefined;
   // Writes the ports make themselves must not wake `observeRecords`: that is for other owners.
   let ownWrites = 0;
   const own = async <T>(work: () => Promise<T>): Promise<T> => {ownWrites++; try {return await work();} finally {ownWrites--;}};
@@ -229,12 +232,13 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
   };
 
   const classifyConnect = (error: unknown): ConnectFailure | undefined => {
+    failed = undefined;
     // The order bootstrap.ts uses: a server that changed under the sign-in outranks the sign-in ending.
     if (context) {
       const identity = nativeIdentityFailure(error, context.server);
-      if (identity) return {reason: 'identity', code: identity.code as IdentityFailureCode};
+      if (identity) {failed = Object.freeze({serverId: context.server.serverId, error: identity}); return {reason: 'identity', code: identity.code as IdentityFailureCode};}
       const ended = nativeSignInEnded(error, context.hint, context.expiresAt);
-      if (ended) return {reason: 'signInEnded', username: ended.hint.username};
+      if (ended) {failed = Object.freeze({serverId: context.server.serverId, error: ended}); return {reason: 'signInEnded', username: ended.hint.username};}
     }
     if (error instanceof ApiError && error.code === 'profile_pin_reentry') return {reason: 'pinReentry', ...(context?.facts ? {facts: context.facts} : {})};
     return undefined;
@@ -329,6 +333,7 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
       if (held) connected = undefined;
       return held;
     },
+    failure: (serverId: string) => failed?.serverId === serverId ? failed.error : undefined,
     async reconnect(serverId: string, signal: AbortSignal) {
       await connect(serverId, signal);
       const held = connected?.serverId === serverId ? connected : undefined;

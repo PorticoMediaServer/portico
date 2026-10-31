@@ -210,6 +210,11 @@ export function RestoredShell() {
         let decided = await lifecycleSettled(lifecycle, signal);
         if (decided.kind === 'offline' || decided.kind === 'identityFailed') {lifecycle.resume(); decided = await lifecycleSettled(lifecycle, signal);}
         if (choosingProfile(decided)) throw new NativeProfileChoice();
+        // The lifecycle already found why this sign-in can't open: show that, without restoring again.
+        if (decided.kind === 'identityFailed' || decided.kind === 'signInEnded') {
+          const failure = lifecyclePorts.failure(decided.server.serverId);
+          if (failure) throw failure;
+        }
         let adopted = decided.kind === 'ready' ? lifecyclePorts.adopt(decided.server.serverId) : undefined;
         // A pick or a switch publishes its sign-in without a connection: open it here, through the lifecycle.
         if (decided.kind === 'ready' && !adopted) {

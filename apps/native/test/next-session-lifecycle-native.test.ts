@@ -204,8 +204,12 @@ test('classifyConnect: sign-in ended, identity codes, PIN re-entry, anything els
   const ended = await fixture({restore: async () => {throw new serverConnections.SessionRefreshError('refresh_refused', 'Refused', true);}});
   await assert.rejects(ended.ports.connect('a', new AbortController().signal));
   assert.deepEqual(ended.ports.classifyConnect(new serverConnections.SessionRefreshError('refresh_refused', 'Refused', true)), {reason: 'signInEnded', username: 'justin'});
+  // The screen that names the ending gets the lifecycle's own finding, for that server only.
+  assert.equal((ended.ports.failure('a') as {hint?: {username?: string}} | undefined)?.hint?.username, 'justin');
+  assert.equal(ended.ports.failure('b'), undefined);
   // A transient refresh failure before the access token expired is not an ending.
   assert.equal(ended.ports.classifyConnect(new serverConnections.SessionRefreshError('refresh_unavailable', 'Down', false)), undefined);
+  assert.equal(ended.ports.failure('a'), undefined, 'a later, different outcome replaces it');
   assert.equal(ended.apis.length, 0);
 
   const noHint = await fixture({hint: undefined, restore: async () => {throw new Error('x');}});
@@ -216,6 +220,7 @@ test('classifyConnect: sign-in ended, identity codes, PIN re-entry, anything els
   await assert.rejects(identity.ports.connect('a', new AbortController().signal));
   for (const code of ['identity_mismatch', 'certificate_unverified', 'certificate_untrusted'])
     assert.deepEqual(identity.ports.classifyConnect(Object.assign(new Error(code), {code})), {reason: 'identity', code});
+  assert.equal((identity.ports.failure('a') as {code?: string} | undefined)?.code, 'certificate_untrusted');
   assert.equal(identity.ports.classifyConnect(Object.assign(new Error('x'), {code: 'timeout'})), undefined);
 
   const gated = await fixture({accountError: new core.ApiError(403, 'profile_pin_reentry', 'Enter the PIN', false)});
