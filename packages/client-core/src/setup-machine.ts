@@ -28,7 +28,8 @@ export type SetupView =
   | Readonly<{kind: 'busy_elsewhere'; retryAt?: number; polls: number}>
   | Readonly<{kind: 'form'; mode: SetupFormMode; name: string; earlierExpired?: true}>
   | Readonly<{kind: 'starting'; mode: SetupKind; name: string; navigate: boolean; step: 'start' | 'initialize' | 'approval' | 'adopt'}>
-  | Readonly<{kind: 'awaiting_approval'; name: string; serverPhase: 'started' | 'awaiting_approval'; approvalUrl?: string; expiresAt?: string; polls: number}>
+  | Readonly<{kind: 'awaiting_approval'; name: string; serverPhase: 'started' | 'awaiting_approval'; approvalUrl?: string; expiresAt?: string; polls: number;
+      /** The Portico Account declined the last request: one line says so; Continue and Back are as ever. */ declined?: true}>
   | Readonly<{kind: 'finishing'; slow: boolean; polls: number}>
   | Readonly<{kind: 'exhausted'; polls: number}>
   | Readonly<{kind: 'admitting'}>
@@ -128,7 +129,7 @@ type OwnPhase = Exclude<SetupReading['setup'], 'unknown' | undefined>;
 const ownOf = (i: StateInput): OwnPhase | undefined => (i.own && typeof i.state.setup === 'object' ? i.state.setup : undefined);
 const floorOf = (r: SetupReading) => (typeof r.retryAfterSeconds === 'number' && r.retryAfterSeconds > 0 ? r.retryAfterSeconds * 1000 : undefined);
 const waiting = (name: string, own: OwnPhase, polls: number): SetupView => ({kind: 'awaiting_approval', name, serverPhase: own.phase === 'awaiting_approval' ? 'awaiting_approval' : 'started', polls,
-  ...(own.expiresAt ? {expiresAt: own.expiresAt} : {})});
+  ...(own.expiresAt ? {expiresAt: own.expiresAt} : {}), ...(own.phase === 'started' && own.outcome === 'denied' ? {declined: true as const} : {})});
 
 /** The `reconcile` rows of §6.2: what a server reading means when nothing more specific applies. */
 function reconcile(i: StateInput, now: number, from?: SetupView): SetupStep {
@@ -230,10 +231,13 @@ function awaitingApproval(view: Extract<SetupView, {kind: 'awaiting_approval'}>,
       const own = ownOf(i);
       if (!own) return superseded(view.name);
       if (own.phase === 'expired') return go(ended('expired', view.name));
+      // The server says the Portico Account declined: the same page, with one line saying so.
+      if (own.phase === 'started' && own.outcome === 'denied') return go(waiting(view.name, own, view.polls + 1), [readAfter(view.polls + 1, floorOf(r))]);
       if (own.phase === 'started' && view.serverPhase === 'awaiting_approval') return go(ended('denied', view.name));
       if (own.phase === 'started' || own.phase === 'awaiting_approval') {
         const polls = view.polls + 1;
-        return go({...view, serverPhase: own.phase, polls, ...(own.expiresAt ? {expiresAt: own.expiresAt} : {})}, [readAfter(polls, floorOf(r))]);
+        const {declined: _earlier, ...rest} = view;
+        return go({...rest, serverPhase: own.phase, polls, ...(own.expiresAt ? {expiresAt: own.expiresAt} : {})}, [readAfter(polls, floorOf(r))]);
       }
       return reconcile(i, now);
     }

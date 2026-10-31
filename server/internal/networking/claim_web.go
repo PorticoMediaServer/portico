@@ -320,6 +320,9 @@ func (h *ClaimHandler) runWebClaimWatch(parent context.Context, expected ClaimEx
 		return nil, false
 	}
 	if d.Status != "approved" {
+		if d.Status == "denied" {
+			h.endDeniedSetup(expected.OperationID)
+		}
 		withdraw()
 		return webClaimAnswer("approval_closed"), true
 	}
@@ -495,5 +498,24 @@ func (h *ClaimHandler) StopSetupWatch(operationID string) {
 		if watch.stop != nil {
 			watch.stop()
 		}
+	}
+}
+
+// endDeniedSetup ends a first-run setup's claim that its Portico Account declined, so
+// the setup says so until a new request replaces it. Any other claim is left to the
+// ordinary withdrawal.
+func (h *ClaimHandler) endDeniedSetup(operation string) {
+	ctx, stop := context.WithTimeout(context.Background(), 8*time.Second)
+	defer stop()
+	err := h.runner.Do(ctx, func(ctx context.Context) error {
+		v, err := h.store.Load(ctx, operation)
+		if err != nil || v.Purpose != "setup" {
+			return err
+		}
+		_, err = h.store.WithdrawSetupClaim(ctx, v, "denied")
+		return err
+	})
+	if err != nil {
+		log.Printf("The declined Portico Account setup could not be ended: %v", err)
 	}
 }

@@ -183059,6 +183059,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -183129,6 +183135,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -183201,6 +183213,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -183271,6 +183289,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -183343,6 +183367,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -183413,6 +183443,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -183485,6 +183521,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -183555,6 +183597,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -270304,6 +270352,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -270374,6 +270428,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -270446,6 +270506,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -270516,6 +270582,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -270588,6 +270660,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -270658,6 +270736,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -270730,6 +270814,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -270800,6 +270890,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -271680,6 +271776,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -271750,6 +271852,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -271822,6 +271930,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -271892,6 +272006,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -271964,6 +272084,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -272034,6 +272160,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -272106,6 +272238,12 @@
                     ],
                     "type": "object"
                   },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
+                  },
                   "renewable": {
                     "type": "boolean"
                   },
@@ -272176,6 +272314,12 @@
                       "revision"
                     ],
                     "type": "object"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "denied"
+                    ],
+                    "type": "string"
                   },
                   "renewable": {
                     "type": "boolean"
@@ -730207,6 +730351,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -730277,6 +730427,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"
@@ -730349,6 +730505,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -730419,6 +730581,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"
@@ -730491,6 +730659,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -730561,6 +730735,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"
@@ -730633,6 +730813,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -730703,6 +730889,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"
@@ -732063,6 +732255,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -732133,6 +732331,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"
@@ -732205,6 +732409,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -732275,6 +732485,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"
@@ -732347,6 +732563,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -732417,6 +732639,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"
@@ -732489,6 +732717,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -732559,6 +732793,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"
@@ -732718,6 +732958,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -732788,6 +733034,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"
@@ -732860,6 +733112,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -732930,6 +733188,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"
@@ -733002,6 +733266,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -733072,6 +733342,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"
@@ -733144,6 +733420,12 @@
                               ],
                               "type": "object"
                             },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
+                            },
                             "renewable": {
                               "type": "boolean"
                             },
@@ -733214,6 +733496,12 @@
                                 "revision"
                               ],
                               "type": "object"
+                            },
+                            "outcome": {
+                              "enum": [
+                                "denied"
+                              ],
+                              "type": "string"
                             },
                             "renewable": {
                               "type": "boolean"

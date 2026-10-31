@@ -44,3 +44,10 @@ test('reads GET /v1/setup/state through the caller\'s API', async () => {
   assert.equal(asked, 'GET /v1/setup/state');
   assert.equal(state.status, 'ready');
 });
+
+test('a setup started again after its Portico Account declined says so', () => {
+  const state = parseSetupState({status: 'in_progress', setup: {variant: 'started', requestId: '44444444-4444-4444-8444-444444444444', revision: '1', outcome: 'denied'}});
+  assert.equal(typeof state.setup === 'object' && state.setup.outcome, 'denied');
+  const plain = parseSetupState({status: 'in_progress', setup: {variant: 'started', requestId: '44444444-4444-4444-8444-444444444444', revision: '1'}});
+  assert.equal(typeof plain.setup === 'object' && plain.setup.outcome, undefined);
+});

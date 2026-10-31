@@ -178355,6 +178355,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -178425,6 +178431,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"
@@ -178497,6 +178509,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -178567,6 +178585,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"
@@ -178639,6 +178663,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -178709,6 +178739,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"
@@ -178781,6 +178817,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -178851,6 +178893,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"
@@ -248065,6 +248113,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -248135,6 +248189,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"
@@ -248207,6 +248267,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -248277,6 +248343,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"
@@ -248349,6 +248421,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -248419,6 +248497,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"
@@ -248491,6 +248575,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -248561,6 +248651,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"
@@ -249435,6 +249531,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -249505,6 +249607,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"
@@ -249577,6 +249685,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -249647,6 +249761,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"
@@ -249719,6 +249839,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -249789,6 +249915,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"
@@ -249861,6 +249993,12 @@ export const schemas = {
                 ],
                 "type": "object"
               },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
+              },
               "renewable": {
                 "type": "boolean"
               },
@@ -249931,6 +250069,12 @@ export const schemas = {
                   "revision"
                 ],
                 "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "denied"
+                ],
+                "type": "string"
               },
               "renewable": {
                 "type": "boolean"

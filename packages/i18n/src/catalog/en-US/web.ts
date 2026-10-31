@@ -2231,6 +2231,7 @@ export const webMessages = {
   'web.setup.inProgress': 'Setup is already in progress in another browser. You can start over after {time}.',
   'web.setup.inProgressNoTime': 'Setup is already in progress in another browser.',
   'web.setup.earlierExpired': 'Your earlier setup attempt expired. Start again.',
+  'web.setup.declined': 'You declined on Portico Services.',
   'web.setup.stillInstalling': 'Portico is still finishing this server’s secure connection. Try again in a minute.',
   'web.setup.recoveryTitleLocal': 'Create the owner account',
   'web.setup.recoveryBodyLocal': 'You will use this to sign in and to manage the server.',

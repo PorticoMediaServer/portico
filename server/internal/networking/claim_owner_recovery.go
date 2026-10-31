@@ -218,7 +218,7 @@ func (h *ClaimHandler) reconcileWebClaim(parent context.Context, operation strin
 		}
 		if v.Purpose == "setup" {
 			// A first-run setup has no installed claim to fall back to: its own claim ends here.
-			_, err = h.store.WithdrawSetupClaim(ctx, v)
+			_, err = h.store.WithdrawSetupClaim(ctx, v, "cancelled")
 			return err
 		}
 		_, _, err = h.store.WithdrawReplacement(ctx, v)

@@ -40,6 +40,9 @@ type SetupDetail struct {
 	// Delivery is the server applying the approval it was given (approved,
 	// finishing, exhausted): since the approval, failed tries and the next one.
 	Delivery *SetupDelivery `json:"delivery,omitempty"`
+	// Outcome is how the setup's last request ended while it is started again: "denied"
+	// when its Portico Account declined it.
+	Outcome string `json:"outcome,omitempty"`
 }
 
 // SetupDelivery: Slow is two minutes or more since the approval.
@@ -71,6 +74,7 @@ func (SetupDetail) JSONSchema() map[string]any {
 			panic(err)
 		}
 		shape["properties"].(map[string]any)["variant"] = map[string]any{"type": "string", "const": string(phase)}
+		shape["properties"].(map[string]any)["outcome"] = map[string]any{"type": "string", "enum": []any{"denied"}}
 		alternatives = append(alternatives, shape)
 	}
 	return map[string]any{"oneOf": alternatives}
@@ -141,7 +145,7 @@ func setupStateResponse(state setupflow.State, own bool, now time.Time) SetupSta
 	if !own {
 		return out
 	}
-	detail := &SetupDetail{Variant: string(state.Phase), RequestID: state.RequestID, Revision: state.Revision, Cancelling: state.Cancelling, Renewable: state.Renewable}
+	detail := &SetupDetail{Variant: string(state.Phase), RequestID: state.RequestID, Revision: state.Revision, Cancelling: state.Cancelling, Renewable: state.Renewable, Outcome: state.Outcome}
 	if !state.ExpiresAt.IsZero() {
 		detail.ExpiresAt = state.ExpiresAt.UTC().Format(time.RFC3339Nano)
 	}
