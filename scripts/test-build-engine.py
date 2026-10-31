@@ -89,6 +89,33 @@ class EngineTests(unittest.TestCase):
                 self.assertEqual(success.returncode, 0)
                 (root / 'after-meson').unlink()
 
+    def test_windows_meson_initializes_private_wine_runtime_and_keeps_sanity(self):
+        original = 'ffbuild_dockerbuild() {\n    meson setup --cross-file=/cross.meson ..\n}\n'
+        changed = adapter.meson_wine_runtime(original)
+        self.assertNotEqual(changed, original)
+        fake = '''id() { printf '123456789\\n'; }
+stat() { printf '123456789\\n'; }
+install() { printf 'install:%s\\n' "$*"; return "${INSTALL_STATUS:-0}"; }
+meson() { printf 'meson:%s;TMPDIR=%s\\n' "$*" "$TMPDIR"; return 23; }
+'''
+        for target in ('win64', 'winarm64', 'linux64'):
+            result = subprocess.run(['bash', '-c', fake + changed +
+                '\nTARGET=' + target + '; TMPDIR=/var/tmp/portico-ci; ffbuild_dockerbuild'],
+                capture_output=True, text=True)
+            self.assertEqual(result.returncode, 23)
+            self.assertIn('meson:setup --cross-file=/cross.meson ..;TMPDIR=/var/tmp/portico-ci', result.stdout)
+            self.assertEqual('install:' in result.stdout, target.startswith('win'))
+            if target.startswith('win'):
+                self.assertTrue(result.stdout.startswith('install:-d -m 0700 /run/user/123456789\n'))
+        refused = subprocess.run(['bash', '-c', fake + changed +
+            '\nTARGET=win64; INSTALL_STATUS=17; ffbuild_dockerbuild'], capture_output=True, text=True)
+        self.assertEqual(refused.returncode, 17)
+        self.assertNotIn('meson:', refused.stdout)
+        self.assertEqual(adapter.meson_wine_runtime('ffbuild_dockerbuild() {\n    make\n}\n'),
+                         'ffbuild_dockerbuild() {\n    make\n}\n')
+        with self.assertRaisesRegex(ValueError, 'boundary changed'):
+            adapter.meson_wine_runtime('    meson setup ..\n')
+
     def test_only_selected_sources_download_and_failures_do_not_cancel_independent_sources(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as temp:
             root = Path(temp)
