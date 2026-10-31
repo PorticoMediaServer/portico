@@ -47,8 +47,8 @@ test('unmount during the accepting handoff does not revoke a successfully publis
 test('P09 signed route envelope and verified logical origin survive the P10 PIN handoff',async()=>{
  const routed={...server,baseUrl:'',routes:{payload:'signed-routes',signature:'signature'}};let request:any;
  const f=setup({listServers:async()=>({items:[routed]}),attach:async input=>{request=input;return session();},selectedServer:(_session,selected)=>({...selected,baseUrl:'https://verified.example'})});
- await ready(f.service);await f.service.switchProfile('profile',{pin:'0123',trust:true});
- assert.deepEqual(request.server.routes,routed.routes);assert.equal(request.selection.pin,'0123');assert.equal(request.selection.trust,true);
+ await ready(f.service);await f.service.switchProfile('profile',{pin:'0123',remember:true});
+ assert.deepEqual(request.server.routes,routed.routes);assert.equal(request.selection.pin,'0123');assert.equal(request.selection.remember,true);
  assert.equal(f.offered[0].server.baseUrl,'https://verified.example');assert.deepEqual(f.offered[0].server.routes,routed.routes);
 });
 test('route adapter cannot replace the selected server cryptographic identity',async()=>{

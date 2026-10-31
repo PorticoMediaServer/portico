@@ -45015,6 +45015,9 @@ export const schemas = {
       "custodyPending": {
         "type": "boolean"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "profiles": {
         "items": {
           "properties": {
@@ -45070,6 +45073,9 @@ export const schemas = {
         },
         "type": "array"
       },
+      "rememberProfiles": {
+        "type": "boolean"
+      },
       "serverId": {
         "type": "string"
       },
@@ -45083,7 +45089,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
@@ -217723,6 +217730,9 @@ export const schemas = {
       "custodyPending": {
         "type": "boolean"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "profiles": {
         "items": {
           "properties": {
@@ -217778,6 +217788,9 @@ export const schemas = {
         },
         "type": "array"
       },
+      "rememberProfiles": {
+        "type": "boolean"
+      },
       "serverId": {
         "type": "string"
       },
@@ -217791,7 +217804,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
@@ -219836,6 +219850,9 @@ export const schemas = {
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "type": "boolean"
           },
@@ -219893,6 +219910,9 @@ export const schemas = {
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "serverId": {
             "type": "string"
@@ -219993,6 +220013,7 @@ export const schemas = {
           "profiles",
           "canManage",
           "capabilities",
+          "rememberProfiles",
           "session",
           "variant"
         ],
@@ -220093,8 +220114,14 @@ export const schemas = {
           "custodyPending": {
             "type": "boolean"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "profiles": {
             "type": "null"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "serverId": {
             "type": "string"
@@ -220114,6 +220141,7 @@ export const schemas = {
           "profiles",
           "canManage",
           "capabilities",
+          "rememberProfiles",
           "challenge",
           "variant"
         ],
@@ -227694,6 +227722,9 @@ export const schemas = {
       "installationId": {
         "type": "string"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "passwordChangeRequired": {
         "type": "boolean"
       },
@@ -227751,6 +227782,9 @@ export const schemas = {
           "type": "object"
         },
         "type": "array"
+      },
+      "rememberProfiles": {
+        "type": "boolean"
       },
       "resetFileOwnerSession": {
         "type": "boolean"
@@ -227849,7 +227883,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
@@ -228066,6 +228101,9 @@ export const schemas = {
       "installationId": {
         "type": "string"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "passwordChangeRequired": {
         "type": "boolean"
       },
@@ -228123,6 +228161,9 @@ export const schemas = {
           "type": "object"
         },
         "type": "array"
+      },
+      "rememberProfiles": {
+        "type": "boolean"
       },
       "resetFileOwnerSession": {
         "type": "boolean"
@@ -228221,7 +228262,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
@@ -228375,6 +228417,9 @@ export const schemas = {
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "const": true,
             "type": "boolean"
@@ -228433,6 +228478,9 @@ export const schemas = {
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "resetFileOwnerSession": {
             "const": false,
@@ -228541,6 +228589,7 @@ export const schemas = {
           "profiles",
           "canManage",
           "capabilities",
+          "rememberProfiles",
           "session",
           "passwordChangeRequired",
           "variant"
@@ -228636,6 +228685,9 @@ export const schemas = {
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "const": false,
             "type": "boolean"
@@ -228694,6 +228746,9 @@ export const schemas = {
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "resetFileOwnerSession": {
             "const": true,
@@ -228802,6 +228857,7 @@ export const schemas = {
           "profiles",
           "canManage",
           "capabilities",
+          "rememberProfiles",
           "session",
           "resetFileOwnerSession",
           "variant"
@@ -229073,6 +229129,9 @@ export const schemas = {
       "installationId": {
         "type": "string"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "passwordChangeRequired": {
         "type": "boolean"
       },
@@ -229130,6 +229189,9 @@ export const schemas = {
           "type": "object"
         },
         "type": "array"
+      },
+      "rememberProfiles": {
+        "type": "boolean"
       },
       "resetFileOwnerSession": {
         "type": "boolean"
@@ -229228,7 +229290,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
@@ -229544,6 +229607,9 @@ export const schemas = {
       "installationId": {
         "type": "string"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "passwordChangeRequired": {
         "type": "boolean"
       },
@@ -229601,6 +229667,9 @@ export const schemas = {
           "type": "object"
         },
         "type": "array"
+      },
+      "rememberProfiles": {
+        "type": "boolean"
       },
       "resetFileOwnerSession": {
         "type": "boolean"
@@ -229699,7 +229768,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
@@ -229880,6 +229950,9 @@ export const schemas = {
       "installationId": {
         "type": "string"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "passwordChangeRequired": {
         "type": "boolean"
       },
@@ -229937,6 +230010,9 @@ export const schemas = {
           "type": "object"
         },
         "type": "array"
+      },
+      "rememberProfiles": {
+        "type": "boolean"
       },
       "resetFileOwnerSession": {
         "type": "boolean"
@@ -230035,7 +230111,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
@@ -230841,6 +230918,9 @@ export const schemas = {
       "installationId": {
         "type": "string"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "passwordChangeRequired": {
         "const": true,
         "type": "boolean"
@@ -230899,6 +230979,9 @@ export const schemas = {
           "type": "object"
         },
         "type": "array"
+      },
+      "rememberProfiles": {
+        "type": "boolean"
       },
       "resetFileOwnerSession": {
         "const": false,
@@ -231003,6 +231086,7 @@ export const schemas = {
       "profiles",
       "canManage",
       "capabilities",
+      "rememberProfiles",
       "session",
       "passwordChangeRequired"
     ],
@@ -231140,6 +231224,9 @@ export const schemas = {
       "custodyPending": {
         "type": "boolean"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "profiles": {
         "items": {
           "properties": {
@@ -231195,6 +231282,9 @@ export const schemas = {
         },
         "type": "array"
       },
+      "rememberProfiles": {
+        "type": "boolean"
+      },
       "serverId": {
         "type": "string"
       },
@@ -231208,7 +231298,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
@@ -231281,23 +231372,30 @@ export const schemas = {
       "pin": {
         "type": "string"
       },
-      "trust": {
+      "remember": {
         "type": "boolean"
-      },
-      "trustToken": {
-        "type": "string"
       }
     },
     "required": [
       "pin",
       "installationId",
-      "trustToken",
-      "trust"
+      "remember"
     ],
     "type": "object"
   },
   "PostDirectProfilesIdSelectResponse": {
     "properties": {
+      "remembered": {
+        "properties": {
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expiresAt"
+        ],
+        "type": "object"
+      },
       "session": {
         "properties": {
           "accessToken": {
@@ -231376,59 +231474,6 @@ export const schemas = {
           "sessionFamilyId",
           "tokenGeneration",
           "authorizationHorizon"
-        ],
-        "type": "object"
-      },
-      "trustedSelection": {
-        "properties": {
-          "accountId": {
-            "type": "string"
-          },
-          "authority": {
-            "type": "string"
-          },
-          "expiresAt": {
-            "type": "string"
-          },
-          "installationId": {
-            "type": "string"
-          },
-          "membershipRevision": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "pinRevision": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "profileId": {
-            "type": "string"
-          },
-          "profileRevision": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "serverId": {
-            "type": "string"
-          },
-          "token": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "authority",
-          "token",
-          "expiresAt",
-          "installationId",
-          "serverId",
-          "accountId",
-          "profileId",
-          "pinRevision",
-          "profileRevision",
-          "membershipRevision"
         ],
         "type": "object"
       }
@@ -231536,6 +231581,9 @@ export const schemas = {
       "custodyPending": {
         "type": "boolean"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "profiles": {
         "items": {
           "properties": {
@@ -231591,6 +231639,9 @@ export const schemas = {
         },
         "type": "array"
       },
+      "rememberProfiles": {
+        "type": "boolean"
+      },
       "serverId": {
         "type": "string"
       },
@@ -231604,7 +231655,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
@@ -232019,6 +232071,9 @@ export const schemas = {
       "installationId": {
         "type": "string"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "passwordChangeRequired": {
         "type": "boolean"
       },
@@ -232076,6 +232131,9 @@ export const schemas = {
           "type": "object"
         },
         "type": "array"
+      },
+      "rememberProfiles": {
+        "type": "boolean"
       },
       "resetFileOwnerSession": {
         "type": "boolean"
@@ -232174,7 +232232,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
@@ -247533,6 +247592,9 @@ export const schemas = {
       "installationId": {
         "type": "string"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "passwordChangeRequired": {
         "type": "boolean"
       },
@@ -247590,6 +247652,9 @@ export const schemas = {
           "type": "object"
         },
         "type": "array"
+      },
+      "rememberProfiles": {
+        "type": "boolean"
       },
       "resetFileOwnerSession": {
         "type": "boolean"
@@ -247688,7 +247753,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
@@ -248268,6 +248334,9 @@ export const schemas = {
           "installationId": {
             "type": "string"
           },
+          "managePinRequired": {
+            "type": "boolean"
+          },
           "passwordChangeRequired": {
             "type": "boolean"
           },
@@ -248325,6 +248394,9 @@ export const schemas = {
               "type": "object"
             },
             "type": "array"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "resetFileOwnerSession": {
             "type": "boolean"
@@ -248423,7 +248495,8 @@ export const schemas = {
           "account",
           "profiles",
           "canManage",
-          "capabilities"
+          "capabilities",
+          "rememberProfiles"
         ],
         "type": "object"
       }
@@ -257042,6 +257115,9 @@ export const schemas = {
       "custodyPending": {
         "type": "boolean"
       },
+      "managePinRequired": {
+        "type": "boolean"
+      },
       "profiles": {
         "items": {
           "properties": {
@@ -257097,6 +257173,9 @@ export const schemas = {
         },
         "type": "array"
       },
+      "rememberProfiles": {
+        "type": "boolean"
+      },
       "serverId": {
         "type": "string"
       },
@@ -257110,7 +257189,8 @@ export const schemas = {
       "account",
       "profiles",
       "canManage",
-      "capabilities"
+      "capabilities",
+      "rememberProfiles"
     ],
     "type": "object"
   },
