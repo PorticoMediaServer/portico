@@ -46,7 +46,12 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
   useEffect(() => {if (view.kind === 'library' || view.kind === 'done') onAdmitted(target.server.id);}, [view.kind, onAdmitted, target.server.id]);
   useEffect(() => {if (view.kind !== 'awaiting_approval') setDeclined(false);}, [view.kind]);
 
-  const back = {id: 'back', label: t('action.back'), disabled: false, onPress: () => {if (view.kind === 'form' && view.mode === 'choose') onLeave(); else controller.back();}};
+  // Back in the form steps through it as on the web: the owner form back to the choice, the choice out of setup.
+  const back = {id: 'back', label: t('action.back'), disabled: false, onPress: () => {
+    if (view.kind !== 'form') controller.back();
+    else if (view.mode === 'local') controller.chooseKind('choose');
+    else onLeave();
+  }};
   const tryAgain = (onPress = controller.retry) => ({id: 'retry', label: t('action.tryAgain'), disabled: busy, loading: busy, onPress});
   const Layout = theme.platform === 'phone' ? PhoneAccountForm : StateLayout;
   const message = (title: string, body: string, primary?: ReturnType<typeof tryAgain>) =>
