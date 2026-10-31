@@ -312,7 +312,8 @@ test('bootstrap awaits the scoped prerequisite before hosted or local restoratio
   const prepare = source.indexOf('await installation.prepare()');
   assert.ok(start >= 0 && prepare > start);
   assert.equal(source.match(/\?\? beginNativeInstallation\(/g)?.length, 1);
-  for (const operation of ['await nativeAppSessions.selected()', 'await restoreNativeConnection(']) {
+  // Restoration is the session lifecycle's (C2b): its ports borrow this installation and connect after it is prepared.
+  for (const operation of ['ports.lendInstallation(installation)', 'await ports.reconnect(']) {
     assert.ok(source.indexOf(operation) > prepare, operation);
   }
   assert.doesNotMatch(source, /await credentials\.synchronize\(\)/);

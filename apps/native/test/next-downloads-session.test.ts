@@ -104,7 +104,13 @@ const bootModules: Record<string, Record<string, unknown>> = {
     retainNativeUserMutationSelection: (store: NativeUserMutationStore, scope: any, report: (error: unknown) => void) =>
       new NativeUserMutationSelectionOwner(async work => work({...active.viewer, origin: 'https://server.test', familyId: active.session.sessionFamilyId, deviceId: active.session.deviceId}), subscribe).activate(store, scope, report),
   },
-  '../platform/session': {restoreNativeConnection: async () => ({api: localApi(), session: active.session}), readNativeSelectedViewer: async () => ({session: active.session, serverUrl: 'https://server.test'}), trackNativeConnection: noop},
+  '../platform/session': {readNativeSelectedViewer: async () => ({session: active.session, serverUrl: 'https://server.test'}), trackNativeConnection: noop},
+  // The session lifecycle opens the connection the shell takes (C2b).
+  '../platform/native-session-lifecycle': {nativeSessionLifecycle: () => ({ports: {lendInstallation: noop, classifyConnect: noop, failure: noop,
+    reconnect: async () => ({serverId: 'server', api: localApi(), session: active.session, installation: {current: () => active.state.current, dispose: noop},
+      prepared: {saved: {viewer: {session: active.session, serverUrl: 'https://server.test'}}, env: {}, identity: {appVersion: 'test'}},
+      selected: await selected(), server: {serverId: 'server', familyId: active.session.sessionFamilyId, fingerprint: 'f', signIn: 'local', name: 'Server'},
+      account: {}})}})},
   '../platform/installation': {beginNativeInstallation: () => {
     const owner = active;
     return {current: () => owner.state.current, dispose: noop, prepare: async () => ({saved: {viewer: {session: owner.session, serverUrl: 'https://server.test'}}, env: {}, identity: {appVersion: 'test'}})};
