@@ -139,18 +139,18 @@ export type ServerClaimAckRequest = { "claimGeneration": string; "credentialGene
 export type ServerClaimAckResponse = { "claimGeneration": string; "credentialGeneration": string; "operationId": string; "serverId": string };
 export type ServerClaimApproveRequest = { "currentOwnerAccountId": string; "expectedRevision": string; "localGeneration": string; "name": string; "operationId": string; "previousOwnerRole": string; "publicKey": string; "purpose": string; "replacesServerId"?: string; "returnRegistrationId": string; "serverId": string };
 export type ServerClaimApproveResponse = { "certificate"?: { "keyId": string; "notAfter": string; "notBefore": string; "publicKey": string; "purpose": string; "revision": number; "revoked": Array<string>; "signature": string }; "keyId": string; "payload": string; "signature": string };
-export type ServerClaimApproveCodeRequest = { "code": string; "replacesServerId"?: string };
+export type ServerClaimApproveCodeRequest = { "code": string; "phase"?: boolean; "replacesServerId"?: string };
 export type ServerClaimApproveCodeResponse = { "code": string; "status": string };
 export type ServerClaimCancelRequest = { "payload": string; "signature": string };
 export type ServerClaimCancelResponse = { "operationId": string; "requestId": string };
-export type ServerClaimDenyRequest = { "code": string; "replacesServerId"?: string };
+export type ServerClaimDenyRequest = { "code": string; "phase"?: boolean; "replacesServerId"?: string };
 export type ServerClaimDenyResponse = { "code": string; "status": string };
 export type ServerClaimEventsRequest = { "payload": string; "signature": string };
 export type ServerClaimEventsResponse = { "approvalEnvelope": unknown; "status": string };
 export type ServerClaimFinalizeRequest = { "payload": string; "signature": string };
 export type ServerClaimFinalizeResponse = { "claimGeneration": string; "credentialGeneration": string; "operationId": string; "serverId": string };
-export type ServerClaimLookupRequest = { "code": string; "replacesServerId"?: string };
-export type ServerClaimLookupResponse = { "address": string; "code": string; "currentOwnerUsername"?: string; "expiresAt": string; "name": string; "otherPeopleCount"?: number; "ownerTransactionId"?: string; "previousOwnerRole"?: string; "purpose": string; "requestedAt": string; "returnRegistration"?: { "id": string; "origin": string }; "serverId": string; "setupInstalled"?: boolean; "setupTransactionId"?: string; "status": string; "transitionMode"?: string };
+export type ServerClaimLookupRequest = { "code": string; "phase"?: boolean; "replacesServerId"?: string };
+export type ServerClaimLookupResponse = { "address": string; "code": string; "currentOwnerUsername"?: string; "expiresAt": string; "name": string; "otherPeopleCount"?: number; "ownerTransactionId"?: string; "phase"?: { "approvedAt"?: string; "serverSeenAt"?: string; "slow"?: boolean; "variant": string }; "previousOwnerRole"?: string; "purpose": string; "requestedAt": string; "returnRegistration"?: { "id": string; "origin": string }; "serverId": string; "setupInstalled"?: boolean; "setupTransactionId"?: string; "status": string; "transitionMode"?: string };
 export type ServerClaimNonceRequest = { "payload": string; "signature": string };
 export type ServerClaimNonceResponse = { "expiresAt": string; "issuedAt": string; "nonce": string; "nonceId": string; "requestDigest": string };
 export type ServerClaimPendingRequest = { "payload": string; "signature": string } | { "ownerStart": { "payload": string; "signature": string }; "ownerSwitchCount"?: { "payload": string; "signature": string }; "payload": string; "signature": string } | { "payload": string; "setupStart": { "payload": string; "signature": string }; "signature": string };
@@ -205,6 +205,7 @@ export type SystemGetRequest = {  };
 export type SystemGetResponse = { "buildId": string; "builtAt": string; "proof": string; "sourceDigest": string; "version": string };
 export type TvAuthorizationTokenRequest = { "deviceCode": string };
 export type TvAuthorizationTokenResponse = { "ciphertext": string; "issuer": string; "kind": string; "nonce": string; "publicKey": string; "recipientKey": string; "requestId": string; "salt": string; "version": number };
+
 export type RouteContracts = {
 "account_create": { request: AccountCreateRequest; response: AccountCreateResponse };
 "account_deletion_accept": { request: AccountDeletionAcceptRequest; response: AccountDeletionAcceptResponse };

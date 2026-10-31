@@ -3768,6 +3768,9 @@ export const schemas = {
       "code": {
         "type": "string"
       },
+      "phase": {
+        "type": "boolean"
+      },
       "replacesServerId": {
         "type": "string"
       }
@@ -3942,6 +3945,9 @@ export const schemas = {
       "code": {
         "type": "string"
       },
+      "phase": {
+        "type": "boolean"
+      },
       "replacesServerId": {
         "type": "string"
       }
@@ -4037,6 +4043,9 @@ export const schemas = {
       "code": {
         "type": "string"
       },
+      "phase": {
+        "type": "boolean"
+      },
       "replacesServerId": {
         "type": "string"
       }
@@ -4072,6 +4081,30 @@ export const schemas = {
       },
       "ownerTransactionId": {
         "type": "string"
+      },
+      "phase": {
+        "properties": {
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "serverSeenAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "slow": {
+            "const": true,
+            "type": "boolean"
+          },
+          "variant": {
+            "pattern": "^[a-z][a-z_]{0,31}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "variant"
+        ],
+        "type": "object"
       },
       "previousOwnerRole": {
         "type": "string"
