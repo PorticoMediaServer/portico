@@ -11,6 +11,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/authorityfiles"
 	"github.com/PorticoMediaServer/portico/server/internal/claimweb"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"github.com/PorticoMediaServer/portico/server/internal/setupflow"
 	"golang.org/x/crypto/bcrypt"
 	"os"
 	"path/filepath"
@@ -181,7 +182,7 @@ func (s *Service) SetupWithOptions(ctx context.Context, q SetupOptions, private 
 
 // A reload or closed tab resumes setup within this window; after it, the owner
 // signs in with the password they just chose.
-const setupReceiptSeconds = 900
+const setupReceiptSeconds = int64(setupflow.ReceiptWindow / time.Second)
 
 func (s *Service) ResumeSetup(ctx context.Context, id, secret string, private bool) (SetupResult, error) {
 	return s.resumeSetup(ctx, id, secret, "", private)
