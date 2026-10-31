@@ -65,7 +65,22 @@ export async function prepareSetupClaimHandoff(api: Api, expected: ClaimExpected
   const raw: unknown = await api.request(routePath('post_networking_claim_web_approval'), 'POST', {expected,
     setupStart: {state: binding.state, codeChallenge: binding.codeChallenge, installationId: binding.installationId}}, options.signal);
   // Capture the response before any asynchronous current-setup check.
-  const shape = options.renewal
+  const {handoff, approvalURL, code} = captureSetupHandoff(raw, expected, binding, options.renewal === true);
+  await current();
+  await checkSetupHandoff(handoff, approvalURL, code, now(), options.crypto ?? webRouteCrypto);
+  await current();
+  const fresh = () => {const time = now(); if (!Number.isSafeInteger(time) || time >= Date.parse(handoff.expiresAt)) throw invalid();};
+  fresh();
+  await ports.bindPending(handoff);
+  await current();
+  fresh();
+  return approvalURL;
+}
+
+/** The claim status answer to a setup approval request, copied and checked before any await: the operation it names,
+ * the approval link and code, and the signed pair. `renewal`: the setup's installed claim renewing its start. */
+export function captureSetupHandoff(raw: unknown, expected: ClaimExpected, binding: SetupStartExpectation, renewal: boolean) {
+  const shape = renewal
     ? object(raw) && raw.state === 'installed' && raw.installationAcknowledged === true && typeof raw.accountId === 'string' && identifier(raw.accountId) && raw.accountId !== 'account-unbound'
     : object(raw) && raw.state === 'prepared' && raw.accountId === 'account-unbound' && raw.installationAcknowledged === false && raw.approvalRequired === true
       && Array.isArray(raw.actions) && raw.actions.every(action => action === 'cancel' || action === 'approve');
@@ -77,18 +92,14 @@ export async function prepareSetupClaimHandoff(api: Api, expected: ClaimExpected
   if (!exactKeys(continuation, ['transactionId', 'phase', 'expiresAt', 'claim', 'start']) || continuation.phase !== 'prepared' || !identifier(continuation.transactionId) || typeof continuation.expiresAt !== 'string') throw invalid();
   const handoff: SetupClaimHandoff = Object.freeze({expected, binding, transactionId: continuation.transactionId, expiresAt: continuation.expiresAt,
     claim: signed(continuation.claim), start: signed(continuation.start)});
-  const approvalURL = raw.approvalUrl, code = raw.claimCode;
-  await current();
-  const verified = await verifySetupClaimStart(handoff.claim, handoff.start, binding, now(), options.crypto ?? webRouteCrypto);
-  await current();
+  return {handoff, approvalURL: raw.approvalUrl, code: raw.claimCode};
+}
+
+/** The signed pair verifies against its binding, and the approval link is exactly Portico Services' claim page for it. */
+export async function checkSetupHandoff(handoff: SetupClaimHandoff, approvalURL: string, code: string, now: number, crypto: RouteCrypto): Promise<void> {
+  const verified = await verifySetupClaimStart(handoff.claim, handoff.start, handoff.binding, now, crypto);
   const url = new URL(approvalURL), fragment = new URLSearchParams(url.hash.slice(1));
   if (handoff.expiresAt !== verified.start.expiresAt || !exactKeys(Object.fromEntries(fragment), ['code', 'operation', 'server']) || [...fragment.keys()].length !== 3 ||
-      url.origin !== binding.hostedOrigin || url.pathname !== '/claim' || url.search || url.username || url.password ||
-      fragment.get('code') !== code || fragment.get('operation') !== expected.operationId || fragment.get('server') !== verified.claim.name) throw invalid();
-  const fresh = () => {const time = now(); if (!Number.isSafeInteger(time) || time >= Date.parse(handoff.expiresAt)) throw invalid();};
-  fresh();
-  await ports.bindPending(handoff);
-  await current();
-  fresh();
-  return approvalURL;
+      url.origin !== handoff.binding.hostedOrigin || url.pathname !== '/claim' || url.search || url.username || url.password ||
+      fragment.get('code') !== code || fragment.get('operation') !== handoff.expected.operationId || fragment.get('server') !== verified.claim.name) throw invalid();
 }
