@@ -37,6 +37,17 @@ type SetupDetail struct {
 	Operation  *SetupOperation `json:"operation,omitempty"`
 	Cancelling bool            `json:"cancelling,omitempty"`
 	Renewable  bool            `json:"renewable,omitempty"`
+	// Delivery is the server applying the approval it was given (approved,
+	// finishing, exhausted): since the approval, failed tries and the next one.
+	Delivery *SetupDelivery `json:"delivery,omitempty"`
+}
+
+// SetupDelivery: Slow is two minutes or more since the approval.
+type SetupDelivery struct {
+	Since       string `json:"since,omitempty"`
+	Attempts    int    `json:"attempts"`
+	NextRetryAt string `json:"nextRetryAt,omitempty"`
+	Slow        bool   `json:"slow"`
 }
 
 // SetupOperation names the setup's claim operation, as the claim routes expect it.
@@ -137,6 +148,15 @@ func setupStateResponse(state setupflow.State, own bool, now time.Time) SetupSta
 	if op := state.Operation; op != nil {
 		detail.Operation = &SetupOperation{OperationID: op.ID, LocalGeneration: op.LocalGeneration, Revision: op.Revision}
 	}
+	if d := state.Delivery; d != nil {
+		detail.Delivery = &SetupDelivery{Attempts: d.Attempts, Slow: d.Slow(now)}
+		if !d.Since.IsZero() {
+			detail.Delivery.Since = d.Since.UTC().Format(time.RFC3339Nano)
+		}
+		if !d.NextRetryAt.IsZero() {
+			detail.Delivery.NextRetryAt = d.NextRetryAt.UTC().Format(time.RFC3339Nano)
+		}
+	}
 	out.Setup = detail
 	return out
 }
@@ -168,7 +188,7 @@ func (d Dependencies) serveSetupState(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	now := time.Now()
-	state, own, err := d.Identity.SetupState(r.Context(), secret, now, nil)
+	state, own, err := d.Identity.SetupState(r.Context(), secret, now, d.setupDeliveryLookup())
 	switch {
 	case errors.Is(err, identity.ErrUnauthorized):
 		if limit := d.Identity.SetupLimit(r.Context(), d.setupPeerSubject(r), "state", 20); limit != nil {
@@ -186,5 +206,63 @@ func (d Dependencies) serveSetupState(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
+	write(w, 200, setupStateResponse(state, own, now))
+}
+
+// setupDeliveryLookup is the networking tracker, when this server has one.
+func (d Dependencies) setupDeliveryLookup() setupflow.DeliveryLookup {
+	if d.Networking == nil {
+		return nil
+	}
+	return d.Networking.SetupDelivery
+}
+
+// SetupRetryRequest is Try again for the caller's own exhausted setup delivery.
+type SetupRetryRequest struct {
+	RequestID  string `json:"requestId"`
+	Revision   int64  `json:"revision,string"`
+	SetupToken string `json:"setupToken"`
+}
+
+// serveSetupRetry is POST /v1/setup/retry (setupflow S15): when nothing is applying an
+// approval any more, the server waits on Portico Services for it again. It answers the
+// state as it then is; the setup moves to finishing once the wait is re-armed.
+func (d Dependencies) serveSetupRetry(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if !d.setupRequestAllowed(r) {
+		failure(w, identity.ErrUnauthorized)
+		return
+	}
+	if !d.setupSourceAllowed(r) {
+		policyErrors.Write(w, w.Header().Get("X-Request-Id"), errSetupSourceNotLocal)
+		return
+	}
+	var q SetupRetryRequest
+	if e := decode(w, r, &q); e != nil {
+		failure(w, e)
+		return
+	}
+	now := time.Now()
+	state, own, err := d.Identity.SetupState(r.Context(), q.SetupToken, now, d.setupDeliveryLookup())
+	if err == nil && (!own || state.RequestID != q.RequestID) {
+		err = identity.ErrUnauthorized
+	}
+	if errors.Is(err, identity.ErrUnauthorized) {
+		if limit := d.Identity.SetupLimit(r.Context(), d.setupPeerSubject(r), "retry", 20); limit != nil {
+			setupFailure(w, limit)
+			return
+		}
+		failure(w, err)
+		return
+	}
+	if err != nil {
+		writeSetupError(w, err)
+		return
+	}
+	if _, err = setupflow.Next(state.Phase, setupflow.EventRetry); err != nil || state.Revision != q.Revision || state.Operation == nil {
+		writeSetupError(w, setupflow.ErrStateChanged)
+		return
+	}
+	d.Networking.RetrySetupDelivery(state.Operation.ID)
 	write(w, 200, setupStateResponse(state, own, now))
 }

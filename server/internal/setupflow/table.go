@@ -91,7 +91,9 @@ var table = map[Event][]edge{
 	EventDeliveryTransient: {{Approved, Approved}, {Finishing, Finishing}},
 	EventDeliveryStopped:   {{Approved, Exhausted}, {Finishing, Exhausted}},
 	EventRetry:             {{Exhausted, Finishing}},
-	EventDeliveryRefused:   {{Approved, Expired}, {Finishing, Expired}, {Exhausted, Expired}},
+	// S16: a final refusal withdraws the claim. Until Portico Services acknowledges the
+	// withdrawal, setup reads started and cancelling; Back retires it here at once.
+	EventDeliveryRefused: {{Approved, Started}, {Finishing, Started}, {Exhausted, Started}},
 	// S17–S19
 	EventInstalled:             {{Finishing, Installed}},
 	EventExchange:              {{Installed, Completed}},
