@@ -193,3 +193,15 @@ export function createUserAction<T, A extends readonly unknown[] = []>(options: 
     },
   });
 }
+
+export type ActionNoticeModel = Readonly<{message: MessageId; retryable: boolean; retryAfterMs: number}>;
+
+/** What the kit's inline failure shows for an action: nothing until it has failed or gone
+ *  unconfirmed, then a line (the failure's own, else a generic one) and whether Try again is
+ *  offered, held back for a server's Retry-After. A screen's drawn copy replaces the line. */
+export function actionNotice<T>(snapshot: UserActionSnapshot<T>): ActionNoticeModel | undefined {
+  if (snapshot.phase === 'unconfirmed') return Object.freeze({message: 'next.states.actionUnconfirmed', retryable: true, retryAfterMs: 0});
+  if (snapshot.phase !== 'failed') return undefined;
+  const {message, retryable, retryAfterMs} = snapshot.failure;
+  return Object.freeze({message: message ?? 'next.states.actionFailed', retryable, retryAfterMs: retryable ? retryAfterMs ?? 0 : 0});
+}
