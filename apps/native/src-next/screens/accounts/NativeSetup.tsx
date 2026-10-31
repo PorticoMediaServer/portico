@@ -40,11 +40,11 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
   const signedIn = useSyncExternalStore(credentials?.subscribe ?? noSubscription, () => !!credentials?.getSnapshot().session);
   const [name, setName] = useState(target.server.name);
   const [username, setUsername] = useState(''), [password, setPassword] = useState(''), [confirm, setConfirm] = useState('');
-  const [declined, setDeclined] = useState(false);
+  const [notNow, setNotNow] = useState(false);
   const [chosen, setChosen] = useState<'hosted' | 'local'>(target.server.hostedConfigured ? 'hosted' : 'local');
   // Admitted: setup's own part is over, and the first library follows in the shell.
   useEffect(() => {if (view.kind === 'library' || view.kind === 'done') onAdmitted(target.server.id);}, [view.kind, onAdmitted, target.server.id]);
-  useEffect(() => {if (view.kind !== 'awaiting_approval') setDeclined(false);}, [view.kind]);
+  useEffect(() => {if (view.kind !== 'awaiting_approval') setNotNow(false);}, [view.kind]);
 
   // Back in the form steps through it as on the web: the owner form back to the choice, the choice out of setup.
   const back = {id: 'back', label: t('action.back'), disabled: false, onPress: () => {
@@ -80,8 +80,11 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
     case 'unknown':
       return message(t('accounts.setup.title'), setupNewerMessage(), tryAgain());
     case 'awaiting_approval': {
+      // The Portico Account declined the last request: one line, then Continue (a new request) and Back.
+      if (view.declined) return <Layout testID="accounts-setup" title={t('accounts.setup.title')} body={t('web.setup.declined')}
+        primaryAction={{id: 'continue', label: t('accounts.signIn.handoff'), disabled: busy, loading: busy, onPress: controller.retry}} secondaryAction={back}/>;
       // Label 29: the app's own Portico Account approves here, with no trip. Not now is the ordinary Back.
-      if (signedIn && !declined) return <PhoneSetupApproval busy={busy} onClose={() => setDeclined(true)} onApprove={controller.approveInApp}
+      if (signedIn && !notNow) return <PhoneSetupApproval busy={busy} onClose={() => setNotNow(true)} onApprove={controller.approveInApp}
         display={{serverName: view.name || name, address: target.origin, accountName: credentials?.getSnapshot().session?.account.displayName || credentials?.getSnapshot().session?.account.username || ''}}/>;
       const link = view.approvalUrl;
       return <Layout testID="accounts-setup" title={t('web.claim.title', {server: view.name || name})} body={t('accounts.setup.waiting')}
