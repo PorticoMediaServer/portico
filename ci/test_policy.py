@@ -69,9 +69,9 @@ class ActivePolicyTests(unittest.TestCase):
         names={test for pkg,test in q}
         self.assertEqual(names, {
             'TestDerivedWorkerCompletesWithForegroundPressure',
+            'TestReadingInitialReadyHasNoPollDelayOrHiddenHandle',
         })
         self.assertNotIn('TestMBStagingTenThousandCompleteFinalWriterHold',names)
-        self.assertNotIn('TestReadingInitialReadyHasNoPollDelayOrHiddenHandle',names)
 
 class IntegrationTests(unittest.TestCase):
     def test_docs_graphics_do_not_fan_out_and_deletions_do(self):
