@@ -41,7 +41,7 @@ func main() {
 			fail(fmt.Errorf("development contracts require a devtrust build"))
 		}
 	}
-	artifacts, err := apikit.GenerateWith(definitions, apikit.Options{Errors: registry.ErrorDefinitions(), Components: components, WireSchemas: wire, GrandfatheredUnionTags: httpapi.GrandfatheredUnionTags, RequireGrandfatheredUse: true})
+	artifacts, err := apikit.GenerateWith(definitions, apikit.Options{Errors: registry.ErrorDefinitions(), Components: components, WireSchemas: wire, GrandfatheredUnionTags: grandfatheredFor(definitions), RequireGrandfatheredUse: true})
 	if err != nil {
 		fail(err)
 	}
@@ -123,4 +123,22 @@ func main() {
 		}
 	}
 }
+
+// grandfatheredFor keeps only the grandfathered tags of the routes being
+// generated (keyed "routeID path"). Development generation selects only the
+// /v1/dev/ routes, so requiring every production entry there would always fail.
+func grandfatheredFor(definitions []apikit.Definition) map[string]string {
+	ids := map[string]bool{}
+	for _, d := range definitions {
+		ids[d.ID] = true
+	}
+	out := map[string]string{}
+	for key, tag := range httpapi.GrandfatheredUnionTags {
+		if id, _, ok := strings.Cut(key, " "); ok && ids[id] {
+			out[key] = tag
+		}
+	}
+	return out
+}
+
 func fail(err error) { fmt.Fprintln(os.Stderr, err); os.Exit(1) }
