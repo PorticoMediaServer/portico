@@ -5,6 +5,7 @@ import {Button, Focusable} from '../../kit/controls';
 import {FocusItem, FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {createInitialRegionEntry} from '../../kit/focus/initial-entry';
 import {Icon} from '../../kit/Icon';
+import {useOverlayPaintMode} from '../../kit/overlays/OverlayPaintContext';
 import {nativeType, useTheme} from '../../kit/theme';
 
 const rows = [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['delete', '0']];
@@ -14,10 +15,12 @@ export function TVNumericPad({id, busy, onDigit, onDelete, help, onHelp, helpTex
   id: string; busy: boolean; onDigit: (value: string) => void; onDelete: () => void;
   help: React.ReactNode; onHelp: () => void; helpTextSize?: number;
 }) {
-  const theme = useTheme(), registry = useFocusRegistry();
+  const theme = useTheme(), registry = useFocusRegistry(), interactive = useOverlayPaintMode().interactive;
   const focusRevision = useSyncExternalStore(registry.subscribe, registry.getSnapshot, registry.getSnapshot);
   const entry = useMemo(() => createInitialRegionEntry(registry, `${id}.pad`), [registry, id]);
-  useEffect(() => {entry.request({active: theme.isTV, primary: `${id}.pad`});}, [entry, focusRevision, id, theme.isTV]);
+  // Under the launch boot screen's fade the pad is painted but inert, so its keys can't take focus
+  // yet: the first key is asked for once the pad is live (Android TV walk, 31 Oct).
+  useEffect(() => {entry.request({active: theme.isTV && interactive, primary: `${id}.pad`});}, [entry, focusRevision, id, theme.isTV, interactive]);
   return <View style={{position: 'absolute', right: 260, top: 0, bottom: 0, width: 484, justifyContent: 'center'}}>
     <FocusRegion id={`${id}.pad`} entry="1" order={rows.flat()} grid={{columns: 3, count: 11, shortRow: 'exit'}} edges={{down: `${id}.help`}}>
       {rows.map((row, index) => <View key={index}
