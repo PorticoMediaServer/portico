@@ -74,6 +74,10 @@ func NetworkingClaimAuthorizer(id *identity.Service, origins []string, policies 
 			return networking.ClaimRequestOwner{}, identity.ErrUnauthorized
 		}
 		resume, _ := json.Marshal(claimResume{Digest: p.Hash, AccountID: p.AccountID, ProfileID: p.ProfileID, Epoch: p.Epoch})
+		horizon, e := id.OwnerStartHorizon(r.Context(), p)
+		if e != nil {
+			return networking.ClaimRequestOwner{}, identity.ErrUnauthorized
+		}
 		actor := networking.ClaimRequestOwner{Owner: networking.LocalOwner{AccountID: p.AccountID, ProfileID: p.ProfileID, Epoch: int64(p.Epoch)}, WebOrigin: d.ownerSwitchWebOrigin(r), Guard: func(ctx context.Context, tx *sql.Tx) error {
 			e := id.CheckClaimRequestOwnerTx(ctx, tx, p)
 			if errors.Is(e, identity.ErrUnauthorized) || errors.Is(e, identity.ErrForbidden) {
@@ -83,6 +87,7 @@ func NetworkingClaimAuthorizer(id *identity.Service, origins []string, policies 
 		}, Resume: string(resume), CancelOwnerReturnTx: func(ctx context.Context, tx *sql.Tx, operation string) error {
 			return networkingOwnerStartError(id.CancelOwnerReturnTx(ctx, tx, p, operation))
 		}, OwnerStart: &networking.OwnerStartAuthority{
+			Horizon: horizon,
 			CaptureTx: func(ctx context.Context, tx *sql.Tx, audience string, original, start claimweb.Signed) error {
 				return networkingOwnerStartError(id.CaptureOwnerClaimTx(ctx, tx, p, original, start, audience))
 			},
