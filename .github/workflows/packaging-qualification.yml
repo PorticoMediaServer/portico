@@ -48,6 +48,10 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.13.17'
+      - name: Record hosted source resources before build
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence"
+          { date -u; df -h; free -h; } | tee -a "$RUNNER_TEMP/qualification/evidence/resources.log"
       - name: Build source engine and complete corresponding source
         run: |
           mkdir -p "$RUNNER_TEMP/qualification/evidence" "$RUNNER_TEMP/qualification/tmp"
@@ -60,6 +64,11 @@ jobs:
           python scripts/test-ci-ffmpeg-native.py
           python scripts/check-ffmpeg-build-inputs.py --output "$RUNNER_TEMP/qualification/evidence/authority.json"
           python scripts/ci-ffmpeg-native.py produce windows-x64 --output "$RUNNER_TEMP/qualification/transfer" --evidence "$RUNNER_TEMP/qualification/evidence" 2>&1 | tee "$RUNNER_TEMP/qualification/evidence/source-build.log"
+      - name: Record hosted source resources after build
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence"
+          { date -u; df -h; free -h; } | tee -a "$RUNNER_TEMP/qualification/evidence/resources.log"
       - id: transfer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -98,6 +107,10 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.13.17'
+      - name: Record hosted source resources before build
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence"
+          { date -u; df -h; free -h; } | tee -a "$RUNNER_TEMP/qualification/evidence/resources.log"
       - name: Build source engine and complete corresponding source
         run: |
           mkdir -p "$RUNNER_TEMP/qualification/evidence" "$RUNNER_TEMP/qualification/tmp"
@@ -110,6 +123,11 @@ jobs:
           python scripts/test-ci-ffmpeg-native.py
           python scripts/check-ffmpeg-build-inputs.py --output "$RUNNER_TEMP/qualification/evidence/authority.json"
           python scripts/ci-ffmpeg-native.py produce windows-arm64 --output "$RUNNER_TEMP/qualification/transfer" --evidence "$RUNNER_TEMP/qualification/evidence" 2>&1 | tee "$RUNNER_TEMP/qualification/evidence/source-build.log"
+      - name: Record hosted source resources after build
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/qualification/evidence"
+          { date -u; df -h; free -h; } | tee -a "$RUNNER_TEMP/qualification/evidence/resources.log"
       - id: transfer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -147,6 +165,9 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Enable long source paths on hosted Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}

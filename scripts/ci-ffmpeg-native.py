@@ -184,7 +184,37 @@ def build_env():
     for name in ('PORTICO_FFMPEG_SOURCE_ONLY', 'PORTICO_FFMPEG_DEPS_ONLY'):
         if env.get(name, '0') != '0':
             raise ValueError('partial source/dependency builds forbidden')
+    if platform.system() == 'Darwin':
+        # NUMJOBS bypasses the pinned recipe's automatic job-count branch,
+        # which also initializes this Apple tool. Never select GNU libtool
+        # from the dependency prefix when merging the x265 static archives.
+        tool = Path(subprocess.check_output(['/usr/bin/xcrun', '--find', 'libtool'], text=True).strip())
+        if not tool.is_absolute() or not tool.is_file() or not os.access(tool, os.X_OK):
+            raise ValueError('xcrun did not resolve an absolute executable Apple libtool')
+        env['MACOS_LIBTOOL'] = str(tool)
     return env
+
+
+def libva_diagnostics(text):
+    marker = '    meson "${myconf[@]}" ..\n'
+    if text.count(marker) != 1:
+        raise ValueError('pinned libva Meson diagnostic boundary changed')
+    # The file lives inside a disposable compiler container, with no CI token
+    # in its environment. Preserve Meson's original failure and all checks.
+    return text.replace(marker, '''    if meson "${myconf[@]}" ..; then
+        :
+    else
+        local meson_status=$?
+        printf '%s\\n' 'BEGIN libva meson-log.txt (at most 1048576 bytes)'
+        if [[ -f meson-logs/meson-log.txt && ! -L meson-logs/meson-log.txt ]]; then
+            head -c 1048576 -- meson-logs/meson-log.txt || :
+        else
+            printf '%s\\n' 'Meson log unavailable or not a regular non-symlink file'
+        fi
+        printf '\\n%s\\n' 'END libva meson-log.txt'
+        return "$meson_status"
+    fi
+''')
 
 
 def prepare_recipe(recipe):
@@ -227,6 +257,8 @@ def prepare_recipe(recipe):
     if 'docker run --rm' not in text:
         raise ValueError('pinned runtime resource hook changed')
     p.write_text(text.replace('docker run --rm', 'docker run --cpus 2 --memory 4g --memory-swap 4g --rm'))
+    p = recipe / 'scripts.d/50-vaapi/50-libva.sh'
+    p.write_text(libva_diagnostics(p.read_text()))
 
 
 def verify_native(bundle, target, evidence):

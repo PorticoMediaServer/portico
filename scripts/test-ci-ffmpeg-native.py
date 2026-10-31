@@ -16,6 +16,12 @@ n = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(n)
 
 
+def seed_libva(root):
+    path = root / 'scripts.d/50-vaapi/50-libva.sh'
+    path.parent.mkdir(parents=True)
+    path.write_text('ffbuild_dockerbuild() {\n    meson "${myconf[@]}" ..\n}\n')
+
+
 class TransferTests(unittest.TestCase):
     def test_paths(self):
         for value in ('../x', '/x', 'a/../b', 'C:/x', 'a\\b', 'a//b', './x'):
@@ -112,6 +118,7 @@ class TransferTests(unittest.TestCase):
     def test_resource_adaptation(self):
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
+            seed_libva(root)
             (root / 'makeimage.sh').write_text('max-parallelism = 4\nffbuilder --driver-opt network=host\n')
             (root / 'build.sh').write_text('docker run --rm\nmake -j$(nproc)\nninja install\n')
             (root / 'Dockerfile').write_text('FROM base\nRUN make -j$(nproc)\n')
@@ -129,6 +136,7 @@ class TransferTests(unittest.TestCase):
         # generated macros. Do not add parallelism to their plain `make` calls.
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
+            seed_libva(root)
             (root / 'makeimage.sh').write_text('max-parallelism = 4\nffbuilder --driver-opt network=host\n')
             (root / 'build.sh').write_text('docker run --rm\n')
             (root / 'Dockerfile').write_text('FROM base\n')
@@ -150,6 +158,7 @@ class TransferTests(unittest.TestCase):
     def test_each_container_stage_has_created_scratch_before_build(self):
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
+            seed_libva(root)
             (root / 'makeimage.sh').write_text('max-parallelism = 4\nffbuilder --driver-opt network=host\n')
             (root / 'build.sh').write_text('docker run --rm\n')
             (root / 'Dockerfile').write_text('FROM base AS first\nRUN compile-first\nFROM base AS second\nRUN compile-second\n')
@@ -168,6 +177,43 @@ class TransferTests(unittest.TestCase):
                 subprocess.run(['sh', '-ec', lines[2][4:]], env=dict(os.environ, TMPDIR=str(scratch)), check=True)
                 self.assertEqual(stat.S_IMODE(scratch.stat().st_mode), 0o1777)
                 self.assertTrue(lines[3].startswith('RUN compile-'))
+
+    def test_native_apple_libtool_resolved_without_changing_job_limit(self):
+        with tempfile.TemporaryDirectory() as work:
+            tool = Path(work) / 'libtool'
+            tool.write_text('#!/bin/sh\nexit 0\n')
+            tool.chmod(0o755)
+            with patch.object(n.platform, 'system', return_value='Darwin'), patch.object(n.subprocess, 'check_output', return_value=str(tool)+'\n') as resolve, patch.dict(n.os.environ, {'MACOS_LIBTOOL':'/wrong/gnu/libtool'}):
+                env = n.build_env()
+                self.assertEqual(env['MACOS_LIBTOOL'], str(tool))
+                self.assertEqual(env['NUMJOBS'], '2')
+                resolve.assert_called_once_with(['/usr/bin/xcrun', '--find', 'libtool'], text=True)
+            for invalid in ('libtool', str(Path(work) / 'missing'), str(tool)):
+                tool.chmod(0o644)
+                with self.subTest(invalid=invalid), patch.object(n.platform, 'system', return_value='Darwin'), patch.object(n.subprocess, 'check_output', return_value=invalid):
+                    with self.assertRaises(ValueError): n.build_env()
+
+    def test_libva_failure_log_is_bounded_and_preserves_failure(self):
+        source = 'ffbuild_dockerbuild() {\n    meson "${myconf[@]}" ..\n    echo COMPILE_REACHED\n}\nffbuild_dockerbuild\n'
+        diagnostic = n.libva_diagnostics(source)
+        with self.assertRaises(ValueError): n.libva_diagnostics('changed recipe')
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            (root / 'meson-logs').mkdir()
+            log = root / 'meson-logs/meson-log.txt'
+            log.write_text('x' * 1048576 + 'OUTSIDE_BOUND')
+            for status in (0, 37):
+                command = 'meson() { return ' + str(status) + '; }\n' + diagnostic
+                result = subprocess.run(['bash', '-e', '-c', command], cwd=root, capture_output=True, text=True)
+                self.assertEqual(result.returncode, status)
+                self.assertEqual('COMPILE_REACHED' in result.stdout, status == 0)
+                self.assertEqual('BEGIN libva' in result.stdout, status != 0)
+                self.assertNotIn('OUTSIDE_BOUND', result.stdout)
+                self.assertLess(len(result.stdout), 1048576 + 200)
+            log.unlink()
+            result = subprocess.run(['bash', '-e', '-c', 'meson() { return 37; }\n' + diagnostic], cwd=root, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 37)
+            self.assertIn('Meson log unavailable', result.stdout)
 
 
 if __name__ == '__main__':
