@@ -3,6 +3,11 @@ import hashlib
 from pathlib import Path
 import re
 import subprocess
+import json
+
+CONFIGURE_SCRIPTS = ('build-engine.py', 'engine_inputs.py', 'engine-recipe-adapter.py',
+    'configure-ffmpeg-recipe.py', 'configure-windows-libdovi.py',
+    'patch-btbn-winarm64-system-error.sh', 'prepare-ffmpeg-source.py', 'archive-ffmpeg-source.py')
 
 
 def digest(path):
@@ -25,6 +30,32 @@ def recipe_inventory(recipe):
         elif path.is_symlink():
             raise ValueError('broken recipe symlink: ' + relative.as_posix())
     return result
+
+
+def json_digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def recipe_tree(recipe):
+    result = {}
+    for relative, sha in recipe_inventory(recipe).items():
+        path = recipe / relative
+        if path.is_symlink():
+            result[relative] = {'kind': 'symlink', 'target': str(path.readlink()), 'mode': path.lstat().st_mode & 0o777}
+        else:
+            result[relative] = {'kind': 'file', 'sha256': sha, 'mode': path.stat().st_mode & 0o777}
+    return result
+
+
+def configure_scripts(root):
+    return {'provenance/scripts/' + name: digest(root / 'scripts' / name) for name in CONFIGURE_SCRIPTS}
+
+
+def consumed_dockerfile(recipe, expected_sha):
+    path = recipe / 'Dockerfile'
+    if path.is_symlink() or digest(path) != expected_sha:
+        raise ValueError('Dockerfile changed after build graph generation')
+    return path
 
 
 def source_pairs(recipe, require_files=True):
