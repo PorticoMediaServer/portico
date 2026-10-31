@@ -178291,32 +178291,411 @@ export const schemas = {
   },
   "GetSetupStateResponse": {
     "properties": {
-      "authMode": {
-        "type": "string"
+      "retryAfterSeconds": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
       },
-      "claimInstalled": {
-        "type": "boolean"
+      "setup": {
+        "oneOf": [
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "started",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "awaiting_approval",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "expired",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "approved",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "finishing",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "exhausted",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "installed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "cancelling": {
+                "type": "boolean"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "operation": {
+                "properties": {
+                  "localGeneration": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "localGeneration",
+                  "revision"
+                ],
+                "type": "object"
+              },
+              "renewable": {
+                "type": "boolean"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              },
+              "variant": {
+                "const": "installed_lapsed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "variant",
+              "requestId",
+              "revision"
+            ],
+            "type": "object"
+          }
+        ],
+        "x-discriminator": "variant"
       },
-      "phase": {
-        "type": "string"
-      },
-      "ready": {
-        "type": "boolean"
-      },
-      "revision": {
-        "type": "string"
-      },
-      "sessionLabel": {
+      "status": {
+        "enum": [
+          "ready",
+          "in_progress",
+          "complete"
+        ],
         "type": "string"
       }
     },
     "required": [
-      "authMode",
-      "phase",
-      "ready",
-      "claimInstalled",
-      "revision",
-      "sessionLabel"
+      "status"
     ],
     "type": "object"
   },
@@ -247689,48 +248068,6 @@ export const schemas = {
       "profiles",
       "canManage",
       "capabilities"
-    ],
-    "type": "object"
-  },
-  "PostSetupFinishRequest": {
-    "properties": {
-      "revision": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "revision"
-    ],
-    "type": "object"
-  },
-  "PostSetupFinishResponse": {
-    "properties": {
-      "authMode": {
-        "type": "string"
-      },
-      "claimInstalled": {
-        "type": "boolean"
-      },
-      "phase": {
-        "type": "string"
-      },
-      "ready": {
-        "type": "boolean"
-      },
-      "revision": {
-        "type": "string"
-      },
-      "sessionLabel": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "authMode",
-      "phase",
-      "ready",
-      "claimInstalled",
-      "revision",
-      "sessionLabel"
     ],
     "type": "object"
   },

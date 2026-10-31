@@ -40,8 +40,8 @@ Usage::
     python3 seed_state.py --root ... --manifest ... --no-bootstrap --report /tmp/seed.json
 
 The owner and members in ``.private/walks/credentials.json`` are reused.  A
-fresh server is bootstrapped through ``/v1/setup/browser`` -> ``/v1/setup`` ->
-``/v1/setup/finish`` exactly as the app does, then the same credentials sign in.
+fresh server is bootstrapped through ``/v1/setup/browser`` -> ``/v1/setup``
+exactly as the app does, then the same credentials sign in.
 New accounts, profile PINs, API-key secrets and webhook secrets are written
 back to that 0600 file; nothing secret is printed.
 """
@@ -312,9 +312,8 @@ def bootstrap_setup(client, owner):
     session = created.get("session", created)
     client.token = session["accessToken"]
     state = client.read("/v1/setup/state")
-    if state.get("ready"):
-        return session
-    client.call("POST", "/v1/setup/finish", {"revision": state["revision"]}, ok=(200,))
+    if state.get("status") != "complete":
+        raise Refusal("setup_not_complete", detail=str(state.get("status")))
     return session
 
 
@@ -1599,7 +1598,7 @@ def main(argv=None):
         saved["serverId"] = system.get("id")
         saved["serverVersion"] = system.get("version")
         setup_state = owner.read("/v1/setup/state")
-        report["setup"] = {key: setup_state.get(key) for key in ("phase", "ready", "authMode")}
+        report["setup"] = {"status": setup_state.get("status")}
 
         # Libraries ---------------------------------------------------------
         declarations = manifest_libraries(server_root, args.manifest)
