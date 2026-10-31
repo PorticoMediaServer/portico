@@ -175,6 +175,7 @@ test('profile PIN shares the actual pad, submits four digits once and exposes on
     ...await common(react), 'react-native': {Text: 'Text', View: 'View', useTVEventHandler: (fn: typeof remote) => {remote = fn;}},
     '../../platform/tv-keys': remoteKeys(handler => {remote = handler;}),
     '../../kit/focus': {FocusProvider: 'Provider'}, './TVAuthLayout': {TVProfilePINLayout: 'PINLayout'}, './TVNumericPad': numeric,
+    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/Icon': {Icon: 'Icon'},
   });
   const profile = {id: 'actual-profile', name: 'Actual name', initial: 'A', color: 'blue'};
   const props = {profile, code: '', busy: false, onCodeChange: (value: string) => {props.code = value;},
