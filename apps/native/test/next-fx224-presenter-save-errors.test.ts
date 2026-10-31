@@ -126,6 +126,12 @@ async function presenterFixture(t: any) {
   const context = captured;
   assert.ok(runtime);
   assert.ok(context);
+  // What the coordinator itself is asked to admit. Its own reconciliation of a
+  // pending intent never comes through here, so a re-send can't pass for a retry.
+  const admissions: {operation: string; path: string; method: string}[] = [];
+  const coordinator = context.api.getUserMutationCoordinator()!;
+  const run = coordinator.run.bind(coordinator);
+  coordinator.run = (input, signal) => {admissions.push({operation: input.operation, path: input.path, method: input.method}); return run(input, signal);};
   const lifetime = new NativeScreenLifetime(context);
   const ports = createNativeSettingsPorts(context, lifetime, () => {});
   const hosts = () => app.hosts() as any[];
@@ -135,6 +141,7 @@ async function presenterFixture(t: any) {
   const writes = (path: string, method: string) => app.requests.filter((request: any) => request.path === path && request.method === method);
   // The General page's own saves. Background reads (the guide's sources) can land at any time.
   const generalSaves = () => [...writes('/v1/admin/console/settings', 'PATCH'), ...writes('/v1/admin/maintenance/settings', 'PUT')].length;
+  const generalAdmissions = () => admissions.filter(entry => entry.path === '/v1/admin/console/settings' || entry.path === '/v1/admin/maintenance/settings').length;
   const settle = async () => {await renderer.settle(); await app.settle();};
   const mount = async (presenter: 'general' | 'remote') => {
     await renderer.render(React.createElement(ThemeProvider, {width: 390, children:
@@ -181,7 +188,7 @@ async function presenterFixture(t: any) {
     await context.api.getUserMutationCoordinator()!.reconcile();
     await settle();
   };
-  return {app, failure, failPending, retryPending, lifetime, hosts, byTestId, pressable, text, writes, generalSaves, settle, mount, unmount, contextCurrent, retireRuntime};
+  return {app, failure, failPending, retryPending, lifetime, hosts, byTestId, pressable, text, writes, generalSaves, generalAdmissions, settle, mount, unmount, contextCurrent, retireRuntime};
 }
 
 const press = (app: any, host: any) => host.props.onPress({nativeEvent: {}, stopPropagation() {}});
@@ -208,7 +215,10 @@ test('a rejected General save shows the real FormSet saveError, keeps the draft 
   f.failure.consoleWrite = false;
   const retry = f.pressable('Try again');
   assert.ok(retry, 'the visible error offers the shared retry action');
+  const admittedBefore = f.generalAdmissions();
   press(f.app, retry);
+  await f.settle();
+  assert.equal(f.generalAdmissions(), admittedBefore + 1, 'the mounted page hands its retry to the coordinator');
   await f.retryPending();
   const retried = f.writes('/v1/admin/console/settings', 'PATCH');
   assert.equal(retried.length, 6);
@@ -287,8 +297,10 @@ test('a really unmounted General page refuses its captured retry', async t => {
   await f.unmount();
   const beforeUnmount = f.generalSaves();
   assert.ok(beforeUnmount > 0, 'the original save was sent');
+  const admittedBefore = f.generalAdmissions();
   press(f.app, unmountedRetry);
   await f.settle();
+  assert.equal(f.generalAdmissions(), admittedBefore, 'the coordinator is never asked to admit the unmounted page\'s retry');
   assert.equal(f.generalSaves(), beforeUnmount, 'the unmounted page never dispatches through its retired form group');
 });
 
@@ -308,8 +320,10 @@ test('a retired original bootstrap authority refuses its captured retry', async 
   assert.equal(f.contextCurrent(), false, 'the actual original bootstrap authority is retired, not only the ports lifetime');
   const beforeRetirement = f.generalSaves();
   assert.ok(beforeRetirement > 0, 'the original save was sent');
+  const admittedBefore = f.generalAdmissions();
   press(f.app, replacedRetry);
   await f.settle();
+  assert.equal(f.generalAdmissions(), admittedBefore, 'the coordinator is never asked to admit the retired authority\'s retry');
   assert.equal(f.generalSaves(), beforeRetirement, 'the retired original authority refuses the captured retry');
 });
 
