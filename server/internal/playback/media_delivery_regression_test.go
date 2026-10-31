@@ -31,6 +31,24 @@ func delayInitialProducer(t *testing.T, h *HLS) {
 	h.binary = path
 }
 
+// relocatedProducerStaysAhead keeps delayInitialProducer's slow first run, and
+// makes every relocated run write its segments and then stay alive until the
+// server cancels it, as a real converter running ahead of the viewer does. The
+// throttle then always sees the window ahead.
+func relocatedProducerStaysAhead(t *testing.T, h *HLS) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX process wrapper")
+	}
+	path := filepath.Join(t.TempDir(), "ahead-ffmpeg")
+	binary := "'" + strings.ReplaceAll(h.binary, "'", "'\\''") + "'"
+	script := "#!/bin/sh\nprev=''\nfirst=''\nfor arg in \"$@\"; do\n if [ \"$prev\" = '-start_number' ] && [ \"$arg\" = '0' ]; then first=1; fi\n prev=\"$arg\"\ndone\nif [ -n \"$first\" ]; then sleep 8; exec " + binary + " \"$@\"; fi\n" + binary + " \"$@\" || exit $?\nexec sleep 300\n"
+	if err := os.WriteFile(path, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	h.binary = path
+}
+
 func TestActiveVideoDemandRelocatesOnceBeforeThrottle(t *testing.T) {
 	for _, throttle := range []int{10, 60, 600} {
 		t.Run(strconv.Itoa(throttle), func(t *testing.T) {
@@ -80,6 +98,82 @@ func TestActiveVideoDemandRelocatesOnceBeforeThrottle(t *testing.T) {
 				t.Fatalf("relocation changed source clock: %f", first)
 			}
 		})
+	}
+}
+
+// The race behind the intermittent TestActiveVideoDemandRelocatesOnceBeforeThrottle/10,
+// held open instead of left to timing: the relocated window throttles, and a
+// serve lands while that window is still being torn down. It must not start
+// production again.
+func TestServeDuringThrottledTeardownRelocatesOnce(t *testing.T) {
+	cfg := DefaultDeliveryConfiguration()
+	cfg.ThrottleBufferSeconds = 10
+	ctx, db, s, h, session, grant := seekFixture(t, fixedSettings{cfg})
+	mustAudioExec(t, db, `UPDATE playback_delivery_plans SET video_action='convert',strategy='video_conversion',output_video='h264' WHERE session_id=?`, session.ID)
+	relocatedProducerStaysAhead(t, h)
+	held, release := make(chan *hlsWindow, 1), make(chan struct{})
+	var hold, unhold sync.Once
+	letGo := func() { unhold.Do(func() { close(release) }) }
+	t.Cleanup(letGo)
+	h.windowTeardown = func(id string, window *hlsWindow) {
+		h.mu.Lock()
+		throttled := window.throttled
+		h.mu.Unlock()
+		if id == session.ID && throttled {
+			hold.Do(func() { held <- window; <-release })
+		}
+	}
+	if err := s.Ready(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	errs := make(chan error, 24)
+	for range 24 {
+		wg.Add(1)
+		go func() { defer wg.Done(); _, err := h.FileContext(ctx, grant, "segment-000015.ts"); errs <- err }()
+	}
+	var window *hlsWindow
+	select {
+	case window = <-held:
+	case <-time.After(60 * time.Second):
+		t.Fatal("the relocated window never throttled")
+	}
+	h.mu.Lock()
+	registered := h.windows[session.ID] == window
+	h.mu.Unlock()
+	if !registered {
+		t.Fatal("the throttled window is not held registered")
+	}
+	// The serve lands inside the teardown. Without the fix it spends a second
+	// restart and then waits for this window to finish, so it can't return
+	// until the hold is released.
+	served := make(chan error, 1)
+	go func() { _, err := h.FileContext(ctx, grant, "segment-000015.ts"); served <- err }()
+	select {
+	case err := <-served:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(10 * time.Second):
+	}
+	letGo()
+	<-window.done
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.mu.Lock()
+	budget := h.restarts[session.ID]
+	count := 0
+	if budget != nil {
+		count = budget.count
+	}
+	h.mu.Unlock()
+	if count != 1 {
+		t.Fatalf("duplicate demand used %d restarts", count)
 	}
 }
 
