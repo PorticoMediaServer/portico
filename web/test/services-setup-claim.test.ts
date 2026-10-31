@@ -49,7 +49,7 @@ test('authenticated lookup provides setup facts and never starts or approves any
   const f = fixture(), review = await reviewHostedSetupClaim(f.account, f.request, f.signal);
   assert.equal(review.name, 'Actual server'); assert.equal(review.transactionId, 'opaque_setup_transaction');
   assert(Object.isFrozen(review) && Object.isFrozen(review.identity) && Object.isFrozen(review.request));
-  assert.deepEqual(f.calls.map(value => [value.path, value.body]), [['/v1/server-claims/lookup', {code, phase: true}]]);
+  assert.deepEqual(f.calls.map(value => [value.path, value.body]), [['/v1/server-claims/lookup', {code}]]);
 });
 test('a setup claim 25 minutes from expiry reviews; one 31 minutes out is refused', async () => {
   const ok = fixture(); ok.patch({expiresAt: new Date(Date.now() + 25 * 60_000).toISOString()});
@@ -162,7 +162,7 @@ test('every lookup asks for the phase, and an answer without one reads as before
   assert.equal(review.phase, undefined);
   await decideHostedSetupClaim(f.account, review, 'approve', f.signal);
   await completeHostedSetupClaim(f.account, review, f.signal);
-  assert.deepEqual(f.calls.filter(value => value.path.endsWith('/lookup')).map(value => value.body), [{code, phase: true}, {code, phase: true}, {code, phase: true}]);
+  assert.deepEqual(f.calls.filter(value => value.path.endsWith('/lookup')).map(value => value.body), [{code}, {code}, {code}]);
 });
 test('a lookup carries the phase through, unknown variants and extra members included, and phase installed offers Return', async () => {
   const seen = new Date().toISOString(), approved = new Date(Date.now() - 200000).toISOString();
