@@ -133,6 +133,8 @@ async function presenterFixture(t: any) {
   const pressable = (label: string) => hosts().find(host => host.name === 'Pressable' && app.nativeLabel(host) === label);
   const text = () => hosts().map(host => textOf(host.children)).join('\n');
   const writes = (path: string, method: string) => app.requests.filter((request: any) => request.path === path && request.method === method);
+  // The General page's own saves. Background reads (the guide's sources) can land at any time.
+  const generalSaves = () => [...writes('/v1/admin/console/settings', 'PATCH'), ...writes('/v1/admin/maintenance/settings', 'PUT')].length;
   const settle = async () => {await renderer.settle(); await app.settle();};
   const mount = async (presenter: 'general' | 'remote') => {
     await renderer.render(React.createElement(ThemeProvider, {width: 390, children:
@@ -179,7 +181,7 @@ async function presenterFixture(t: any) {
     await context.api.getUserMutationCoordinator()!.reconcile();
     await settle();
   };
-  return {app, failure, failPending, retryPending, lifetime, hosts, byTestId, pressable, text, writes, settle, mount, unmount, contextCurrent, retireRuntime};
+  return {app, failure, failPending, retryPending, lifetime, hosts, byTestId, pressable, text, writes, generalSaves, settle, mount, unmount, contextCurrent, retireRuntime};
 }
 
 const press = (app: any, host: any) => host.props.onPress({nativeEvent: {}, stopPropagation() {}});
@@ -283,13 +285,11 @@ test('a really unmounted General page refuses its captured retry', async t => {
   const unmountedRetry = f.pressable('Try again');
   assert.ok(unmountedRetry);
   await f.unmount();
-  const beforeUnmount = f.app.requests.length;
+  const beforeUnmount = f.generalSaves();
+  assert.ok(beforeUnmount > 0, 'the original save was sent');
   press(f.app, unmountedRetry);
   await f.settle();
-  const requestsAfterRetry = f.app.requests.slice(beforeUnmount)
-    .map((request: any) => ({method: request.method, path: request.path}));
-  assert.equal(f.app.requests.length, beforeUnmount,
-    `the unmounted page never dispatches through its retired form group; requests after retry: ${JSON.stringify(requestsAfterRetry)}`);
+  assert.equal(f.generalSaves(), beforeUnmount, 'the unmounted page never dispatches through its retired form group');
 });
 
 test('a retired original bootstrap authority refuses its captured retry', async t => {
@@ -306,10 +306,11 @@ test('a retired original bootstrap authority refuses its captured retry', async 
   assert.equal(f.contextCurrent(), true, 'the mounted page borrows the live bootstrap context before retirement');
   await f.retireRuntime();
   assert.equal(f.contextCurrent(), false, 'the actual original bootstrap authority is retired, not only the ports lifetime');
-  const beforeRetirement = f.app.requests.length;
+  const beforeRetirement = f.generalSaves();
+  assert.ok(beforeRetirement > 0, 'the original save was sent');
   press(f.app, replacedRetry);
   await f.settle();
-  assert.equal(f.app.requests.length, beforeRetirement, 'the retired original authority refuses the captured retry');
+  assert.equal(f.generalSaves(), beforeRetirement, 'the retired original authority refuses the captured retry');
 });
 
 test('a rejected Remote access save projects the same inline state and retries the same configuration', async t => {
