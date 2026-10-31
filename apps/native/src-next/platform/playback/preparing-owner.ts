@@ -29,6 +29,7 @@ export function captureNativePreparingOwner(api: HttpLocalApi, read: () => Local
         const live = read();
         return Date.now() < until && api.baseUrl === origin && api.getCertificateSessionEpoch() === epoch
           && api.getRouteConnection() === route && route.pin.publicKey === pin && route.pin.serverId === principal.viewer.serverId
+          // Exact token on purpose: the stop runs with the original token, which the server refuses after a rotation anyway.
           && route.getSnapshot().phase === 'ready' && !!live && live.accessToken === principal.accessToken
           && live.sessionFamilyId === principal.sessionFamilyId && live.tokenGeneration === principal.tokenGeneration
           && live.expiresAt === principal.expiresAt && live.authorizationHorizon === principal.authorizationHorizon && live.deviceId === principal.deviceId && live.installationId === principal.installationId

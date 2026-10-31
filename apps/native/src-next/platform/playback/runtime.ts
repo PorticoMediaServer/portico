@@ -4,6 +4,7 @@ import {startFailureHttp, type NativePlaybackStartFailure} from './start-failure
 import {capacityRetryHttp, type NativePlaybackCapacityWait} from './capacity-retry';
 import {createNativeListeningReadPort} from './listening-controls';
 import {PlaybackService, type PlaybackSession} from '../../../../../packages/client-core/src/index';
+import {paintAuthorityHolds} from './paint-authority';
 import {DetailService, type DetailProjection} from '../../../../../packages/client-core/src/detail';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {WholeGroupQuery} from '../../../../../packages/client-core/src/presentation/browse-groups';
@@ -717,8 +718,7 @@ export class NativePlaybackRuntime {
     const connection = api.getRouteConnection(), pin = connection?.pin.publicKey, certificate = api.getCertificateSessionEpoch();
     const paintUntil = principal ? Math.min(Date.parse(principal.expiresAt), Date.parse(principal.authorizationHorizon)) : NaN;
     const paintCurrent = () => this.currentAuthority() && this.startOperationCurrent(epoch) && callerCurrent()
-      && !!principal && Number.isFinite(paintUntil) && Date.now() < paintUntil && this.o.session()?.accessToken === principal.accessToken
-      && this.o.session()?.expiresAt === principal.expiresAt && this.o.session()?.viewer.role === principal.viewer.role
+      && !!principal && Number.isFinite(paintUntil) && Date.now() < paintUntil && paintAuthorityHolds(principal, this.o.session())
       && api.getRouteConnection() === connection && !!pin && connection?.pin.publicKey === pin && api.getCertificateSessionEpoch() === certificate
       && this.startContext === originalContext && originalContext?.() !== false
       && this.o.api === api && (route ? api.getRouteSnapshot()?.phase === 'ready'
@@ -2139,11 +2139,11 @@ export class NativePlaybackRuntime {
     try {if (this.o.subscribeStartContext) context = this.o.captureStartContext?.();} catch { /* Ordinary capture remains available without passive-page proof. */ }
     const api = this.o.api, route = api.getRouteSnapshot();
     const connection = api.getRouteConnection(), pin = connection?.pin.publicKey, certificate = api.getCertificateSessionEpoch();
-    const session = this.o.session(), principal = startupPrincipal(session), token = session?.accessToken, expires = session?.expiresAt, role = session?.viewer.role;
+    const session = this.o.session();
     const until = session ? Math.min(Date.parse(session.expiresAt), Date.parse(session.authorizationHorizon)) : NaN;
     const paintCurrent = () => this.currentAuthority() && !!context && context() === true
-      && !!session && Number.isFinite(until) && Date.now() < until && startupPrincipal(this.o.session()) === principal
-      && this.o.session()?.accessToken === token && this.o.session()?.expiresAt === expires && this.o.session()?.viewer.role === role
+      && !!session && Number.isFinite(until) && Date.now() < until && paintAuthorityHolds(session, this.o.session())
+      && this.o.session()?.authorizationHorizon === session.authorizationHorizon
       && this.o.api === api && api.getRouteConnection() === connection && !!pin && connection?.pin.publicKey === pin
       && api.getCertificateSessionEpoch() === certificate && (route ? api.getRouteSnapshot()?.phase === 'ready'
         && api.getRouteSnapshot()?.revision === route.revision && api.getRouteSnapshot()?.origin === route.origin : api.getRouteSnapshot() === null);

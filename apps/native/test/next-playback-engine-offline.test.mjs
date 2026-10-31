@@ -40,6 +40,7 @@ const {NativePlaybackRuntime} = await sourceModule(new URL('../src-next/platform
     skipTarget: unused, parseQueueSnapshot: unused, playbackFence: unused, sameFence: unused, sameScope: unused},
   './NativePlaybackCoordinator': {NativePlaybackCoordinator}, './external-presentation': external,
   './native-playback': {NativePlayback: unused, automaticSteps: unused}, './scope-http': {PlaybackScopeHttp: unused},
+  './paint-authority': await import('../src-next/platform/playback/paint-authority.ts'),
   './preparing-owner': {captureNativePreparingOwner: unused, nativePreparingStarts: unused},
   './start-presentation': {captureNativeStartPresentation: unused, nativeFirstVideoFrame: unused}, './offline-playback': {NativeOfflinePlayback: unused},
   './caption-style': captions, './subtitle-controls': {boundSubtitleControls: unused}, './subtitle-file-upload': {uploadPickedSubtitle: unused},
