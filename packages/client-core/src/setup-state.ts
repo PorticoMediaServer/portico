@@ -15,6 +15,8 @@ export type OwnSetup = Readonly<{
   expiresAt?: string;
   operation?: SetupOperation; cancelling: boolean; renewable: boolean;
   delivery?: SetupDelivery;
+  /** Started again because its Portico Account declined the last request. */
+  outcome?: 'denied';
 }>;
 /** Anyone sees `status`; `setup` is present only for the token of the Portico Account setup in progress.
  * `setup: 'unknown'` is a phase this app doesn't know: a newer server, shown honestly, never guessed at. */
@@ -43,6 +45,7 @@ export function parseSetupState(raw: unknown): SetupState {
       ...(setup.operation ? {operation: Object.freeze({operationId: setup.operation.operationId, localGeneration: setup.operation.localGeneration, revision: setup.operation.revision})} : {}),
       ...(setup.delivery ? {delivery: Object.freeze({attempts: setup.delivery.attempts, slow: setup.delivery.slow,
         ...(setup.delivery.since ? {since: setup.delivery.since} : {}), ...(setup.delivery.nextRetryAt ? {nextRetryAt: setup.delivery.nextRetryAt} : {})})} : {}),
+      ...(setup.outcome === 'denied' ? {outcome: 'denied' as const} : {}),
       cancelling: setup.cancelling === true, renewable: setup.renewable === true});
   }
   return Object.freeze(out);

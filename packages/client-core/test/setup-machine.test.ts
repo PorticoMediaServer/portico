@@ -466,3 +466,21 @@ test('a library add that fails is shown honestly: Try again repeats it, and Back
   assert.deepEqual(step(failed.view, {kind: 'retry'}), {view: VIEWS.library, effects: [{kind: 'add-library'}]});
   assert.deepEqual(kinds(step(failed.view, {kind: 'back'}).effects), ['read-state']);
 });
+
+test('the server saying the Portico Account declined shows the same page with one line, live or after a reload, until Continue asks again', () => {
+  const declinedReading: SetupInput = {kind: 'state', own: true, name: 'Den',
+    state: reading('in_progress', {phase: 'started', requestId: 'r1', revision: '1', cancelling: false, renewable: false, outcome: 'denied'})};
+  // After a reload (Return from Portico Services): the waiting page, marked declined.
+  const reload = step({kind: 'connecting'}, declinedReading);
+  assert.deepEqual(reload.view, {kind: 'awaiting_approval', name: 'Den', serverPhase: 'started', polls: 0, declined: true});
+  // On the live page that was waiting: the same, not the ended view.
+  const live = step(VIEWS['awaiting.live'], declinedReading);
+  assert.equal(live.view.kind, 'awaiting_approval');
+  assert.equal((live.view as {declined?: true}).declined, true);
+  // Continue asks again; once the server is waiting on the new request the line goes.
+  assert.equal(step(live.view, {kind: 'retry'}).view.kind, 'starting');
+  const asked = step(live.view, INPUTS['state.awaiting']);
+  assert.equal((asked.view as {declined?: true}).declined, undefined);
+  // Without the outcome (an older server) a live page still infers the denial as before.
+  assert.deepEqual(step(VIEWS['awaiting.live'], INPUTS['state.started']).view, {kind: 'ended', outcome: 'denied', name: 'Den'});
+});

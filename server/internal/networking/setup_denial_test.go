@@ -29,8 +29,8 @@ import (
 // A Portico Account that denies a first-run setup ends that claim on this server
 // (setupflow: hosted_denied, awaiting approval back to started): the claim is
 // cancelled and no longer active, its signed start ends, and the setup request
-// stays. Continue then prepares a new claim with a new request on Portico
-// Services, never the denied one again.
+// stays and says it was declined. Continue then prepares a new claim with a new
+// request on Portico Services, never the denied one again, and the setup no longer says so.
 func TestADeniedSetupClaimEndsHereAndContinueStartsANewOne(t *testing.T) {
 	decided := make(chan struct{})
 	var once sync.Once
@@ -187,8 +187,8 @@ func TestADeniedSetupClaimEndsHereAndContinueStartsANewOne(t *testing.T) {
 	}
 	decide()
 	waitFor(t, func() bool { return phase().Phase == setupflow.Started })
-	if p := phase(); p.Operation != nil || p.Cancelling || p.RequestID != pending.RequestID {
-		t.Fatalf("after the denial the setup request stays, with no claim: %+v", p)
+	if p := phase(); p.Operation != nil || p.Cancelling || p.RequestID != pending.RequestID || p.Outcome != "denied" {
+		t.Fatalf("after the denial the setup request stays, with no claim, and says it was declined: %+v", p)
 	}
 	var stage string
 	if err := db.QueryRow(`SELECT stage FROM networking_claim_intents WHERE operation_id=?`, first.Operation.OperationID).Scan(&stage); err != nil || stage != "cancelled" {
@@ -205,5 +205,8 @@ func TestADeniedSetupClaimEndsHereAndContinueStartsANewOne(t *testing.T) {
 	mu.Unlock()
 	if n != 2 {
 		t.Fatalf("Portico Services got %d requests, want a new one after the denial", n)
+	}
+	if p := phase(); p.Phase != setupflow.AwaitingApproval || p.Outcome != "" {
+		t.Fatalf("a new request no longer says declined: %+v", p)
 	}
 }

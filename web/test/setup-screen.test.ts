@@ -54,6 +54,10 @@ test('each drawn setup state shows its own catalogue words and only the actions 
   has(render({kind: 'busy_elsewhere', polls: 0}), t('web.setup.inProgressNoTime'), 'busy');
   // An attempt that was declined.
   has(render({kind: 'ended', outcome: 'denied', name: 'Den'}), t('web.claim.denied', {server: 'Den'}), 'denied');
+  // Started again after the Portico Account declined: the same page with one line, Continue and Back as ever.
+  const declined = render({kind: 'awaiting_approval', name: 'Den', serverPhase: 'started', polls: 0, declined: true});
+  has(declined, t('web.setup.declined'), 'declined'); has(declined, go, 'declined'); has(declined, back, 'declined');
+  lacks(render({kind: 'awaiting_approval', name: 'Den', serverPhase: 'started', polls: 0}), t('web.setup.declined'), 'waiting');
   // Approved but the server stopped trying: the honest wording and Try again.
   const exhausted = render({kind: 'exhausted', polls: 0});
   has(exhausted, t('web.claim.finishingSlow'), 'exhausted');
