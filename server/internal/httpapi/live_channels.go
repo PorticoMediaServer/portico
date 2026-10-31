@@ -124,6 +124,9 @@ func liveFailure(w http.ResponseWriter, e error) {
 	// CD-51: a refused but valid session is 403 (or a hidden 404), never 401.
 	case errors.Is(e, identity.ErrNotVisible):
 		status, code, message = 404, "not_found", publicErrorMessage("not_found")
+	case errors.Is(e, identity.ErrProfilePINReentry), errors.Is(e, identity.ErrProfilePINManage):
+		status, code, _ = identity.Refusal(e)
+		message = e.Error()
 	case errors.Is(e, identity.ErrForbidden):
 		status, code, message = 403, "forbidden", identity.ErrForbidden.Error()
 	case errors.Is(e, identity.ErrUnauthorized):

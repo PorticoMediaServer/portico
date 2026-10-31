@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -416,6 +417,99 @@ func TestRunningPlaybackRouteIsOnlyAPlaybackThatAlreadyStarted(t *testing.T) {
 	} {
 		if got := runningPlaybackRoute(c.method, c.path); got != c.want {
 			t.Errorf("runningPlaybackRoute(%s %s) = %v, want %v", c.method, c.path, got, c.want)
+		}
+	}
+}
+
+// Every area of management powers (People, other profiles' limits, libraries,
+// server settings, sign-in, remote access, API keys, the console) refuses a
+// remembered main profile with a PIN once its management hour has passed, with
+// profile_pin_manage, and works again after a fresh PIN check.
+func TestEveryManagementAreaAsksARememberedMainProfileForItsPIN(t *testing.T) {
+	d, owner := completedLocalFoundationFixture(t)
+	d.Access = AccessArea{Access: access.New(d.DB)}
+	ctx := t.Context()
+	const pin, install = "4821", "pin-manage-areas"
+	created, err := d.Identity.CreateDirectProfile(ctx, owner.AccessToken, "Kids", "blue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var main, kids identity.DirectProfile
+	for _, p := range created.Profiles {
+		if p.Primary {
+			main = p
+		} else {
+			kids = p
+		}
+	}
+	mainPIN := pin
+	if _, err = d.Identity.EditDirectProfile(ctx, owner.AccessToken, main.ID, identity.DirectProfileEdit{ExpectedRevision: main.Revision, PIN: &mainPIN}); err != nil {
+		t.Fatal(err)
+	}
+	login, err := d.Identity.DirectLogin(ctx, "owner", "Local-password1!")
+	if err != nil {
+		t.Fatal(err)
+	}
+	remembered, err := d.Identity.SelectDirectProfile(ctx, login.AccountToken, main.ID, identity.DirectSelection{PIN: pin, Remember: true, InstallationID: install})
+	if err != nil || remembered.Remembered == nil {
+		t.Fatalf("remembering the main profile: %v", err)
+	}
+	h := New(d)
+	areas := []struct{ area, method, path string }{
+		{"people", "GET", "/v1/admin/access/members"},
+		{"people", "GET", "/v1/admin/access/members/" + created.Account.ID + "/profiles"},
+		{"other profiles' limits", "PATCH", "/v1/direct/profiles/" + kids.ID},
+		{"libraries", "GET", "/v1/admin/libraries"},
+		{"libraries", "GET", "/v1/admin/library-settings"},
+		{"server settings", "GET", "/v1/admin/maintenance/settings"},
+		{"server settings", "GET", "/v1/admin/notifications/settings"},
+		{"server settings", "GET", "/v1/admin/dvr/settings"},
+		{"server settings", "GET", "/v1/admin/backups/settings"},
+		{"sign-in", "GET", "/v1/admin/sign-in/policy"},
+		{"remote access", "GET", "/v1/networking/remote"},
+		{"remote access", "GET", "/v1/networking/certificate"},
+		{"api keys", "GET", "/v1/admin/api-keys"},
+		{"console", "GET", "/v1/admin/console/alerts"},
+	}
+	renames := 0
+	body := func(method string) any {
+		if method != "PATCH" {
+			return nil
+		}
+		var revision int64
+		if err := d.DB.QueryRow(`SELECT revision FROM direct_profiles WHERE id=?`, kids.ID).Scan(&revision); err != nil {
+			t.Fatal(err)
+		}
+		renames++
+		return map[string]any{"expectedRevision": revision, "name": "Kids " + strconv.Itoa(renames)}
+	}
+	locked := func(w *httptest.ResponseRecorder) bool {
+		return w.Code == 403 && strings.Contains(w.Body.String(), `"profile_pin_manage"`)
+	}
+	reachable := map[string]int{}
+	for _, a := range areas {
+		w := pinRecoveryRequest(t, h, a.method, a.path, remembered.Session.AccessToken, body(a.method))
+		if locked(w) || w.Code == 404 || w.Code == 401 {
+			t.Fatalf("%s %s %s inside the management hour: %d %s", a.area, a.method, a.path, w.Code, w.Body.String())
+		}
+		reachable[a.path] = w.Code
+	}
+	if _, err = d.DB.Exec(`UPDATE authorization_session_families SET manage_until='2000-01-01T00:00:00Z' WHERE id=?`, remembered.Session.SessionFamilyID); err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range areas {
+		if w := pinRecoveryRequest(t, h, a.method, a.path, remembered.Session.AccessToken, body(a.method)); !locked(w) {
+			t.Fatalf("%s %s %s after the hour: %d %s", a.area, a.method, a.path, w.Code, w.Body.String())
+		}
+	}
+	// A fresh PIN check (choosing the same profile with its PIN) unlocks every area.
+	again, err := d.Identity.SelectDirectProfile(ctx, remembered.Session.AccessToken, main.ID, identity.DirectSelection{PIN: pin, Remember: true, InstallationID: install})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range areas {
+		if w := pinRecoveryRequest(t, h, a.method, a.path, again.Session.AccessToken, body(a.method)); locked(w) || w.Code == 401 {
+			t.Fatalf("%s %s %s after the PIN was entered again: %d %s", a.area, a.method, a.path, w.Code, w.Body.String())
 		}
 	}
 }
