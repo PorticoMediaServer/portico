@@ -29,20 +29,25 @@ async function fixture(t: TestContext, answer?: (raw: Record<string, unknown>) =
   const operation = {operationId: claim.operationId, localGeneration: claim.localGeneration, revision: '2'};
   const code = 'claim_' + 'K'.repeat(43), transactionId = 'actual_setup_transaction';
   const approvalUrl = claim.audience + '/claim#' + new URLSearchParams({code, operation: claim.operationId, server: claim.name});
-  const raw: Record<string, unknown> = {state: 'prepared', identity: {serverId: claim.serverId, localGeneration: claim.localGeneration}, operation, accountId: 'account-unbound',
+  const raw = {state: 'prepared', identity: {serverId: claim.serverId, localGeneration: claim.localGeneration}, operation, accountId: 'account-unbound',
     installationAcknowledged: false, approvalRequired: true, actions: ['cancel', 'approve'], approvalUrl, claimCode: code,
     setupContinuation: {transactionId, phase: 'prepared', expiresAt: startPayload.expiresAt, claim: {...claimProof}, start: {...startProof}}};
   const sent: {url: string; init?: RequestInit; body: unknown}[] = [], bound: SetupClaimHandoff[] = [];
-  let current = true;
+  let current = true, time = Date.parse('2030-01-02T03:04:07Z'), beforeAnswer = async () => {}, beforeBind = async () => {};
   const fetcher: typeof fetch = async (url, init) => {
     sent.push({url: String(url), init, body: JSON.parse(String(init?.body))});
+    await beforeAnswer();
     return new Response(JSON.stringify(answer ? answer(raw) : raw), {headers: {'Content-Type': 'application/json'}});
   };
   const api = new HttpLocalApi(start.origin, 'captured-setup-token', fetcher);
-  api.useRoutes({logicalOrigin: start.origin, pin, fetch: fetcher, subscribe: () => () => {}, getSnapshot: () => ({phase: 'ready'})} as never);
-  const ports = {assertCurrent: async () => {if (!current) throw new Error('attempt changed');}, bind: async (value: SetupClaimHandoff) => {if (!current) throw new Error('attempt changed'); bound.push(value);}};
-  const now = () => Date.parse('2030-01-02T03:04:07Z');
-  return {api, start, ports, sent, bound, approvalUrl, transactionId, operation, run: () => requestSetupApproval(api, start, ports, {now}), replace: () => {current = false;}};
+  const route = {logicalOrigin: start.origin, pin, fetch: fetcher, subscribe: () => () => {}, getSnapshot: () => ({phase: 'ready'})};
+  api.useRoutes(route as never);
+  const ports = {assertCurrent: async () => {if (!current) throw new Error('attempt changed');}, bind: async (value: SetupClaimHandoff) => {await beforeBind(); if (!current) throw new Error('attempt changed'); bound.push(value);}};
+  const run = (overrides: Partial<typeof start> = {}, options: {signal?: AbortSignal; renewal?: true} = {}) =>
+    requestSetupApproval(api, {...start, ...overrides}, ports, {now: () => time, ...options});
+  return {api, route, start, ports, raw, sent, bound, approvalUrl, transactionId, operation, run,
+    replace: () => {current = false;}, expire: () => {time = Date.parse(startPayload.expiresAt);},
+    beforeAnswer: (fn: () => Promise<void>) => {beforeAnswer = fn;}, beforeBind: (fn: () => Promise<void>) => {beforeBind = fn;}};
 }
 
 test('one call: the setup token and installation travel, and the server\'s operation comes back bound to this start', async t => {
@@ -56,6 +61,7 @@ test('one call: the setup token and installation travel, and the server\'s opera
   assert.equal(headers.get('Authorization'), 'Bearer captured-setup-token');
   assert.equal(headers.get('X-Portico-Installation-Id'), f.start.installationId);
   assert.equal(f.sent[0].init?.redirect, 'error');
+  assert.equal(f.sent[0].init?.credentials, 'omit');
   assert.deepEqual(f.bound, [out.handoff]);
   assert.deepEqual(out.handoff.expected, f.operation);
   assert.equal(out.handoff.binding.operationId, claim.operationId);
@@ -88,4 +94,89 @@ test('a successor attempt stops it before the request and before binding', async
   // A public http address never sends.
   const api = new HttpLocalApi('http://8.8.8.8:32500', 'token', async () => {throw new Error('must not send');});
   await assert.rejects(requestSetupApproval(api, {...f.start, origin: 'http://8.8.8.8:32500'}, f.ports));
+});
+
+for (const kind of ['installation', 'route', 'state', 'origin', 'setup-request', 'setup-revision'] as const)
+  test('captured ' + kind + ' mismatch never starts a request', async t => {
+    const f = await fixture(t);
+    if (kind === 'installation') setInstallationIdentity(undefined);
+    if (kind === 'route') f.route.pin = {...f.start.pin, fingerprint: 'A'.repeat(43)};
+    if (kind === 'state') f.start.state = 'not-a-canonical-state';
+    if (kind === 'origin') f.start.origin = 'https://another-route.example.test';
+    if (kind === 'setup-request') f.start.setupRequestId = 'invalid-request';
+    if (kind === 'setup-revision') f.start.setupRevision = '0';
+    await assert.rejects(f.run()); assert.equal(f.sent.length, 0); assert.equal(f.bound.length, 0);
+  });
+
+for (const kind of ['transaction', 'expiry', 'proof', 'continuation-extra', 'operation', 'account', 'phase', 'revision', 'duplicate-url', 'foreign-url', 'name', 'code'] as const)
+  test('untrusted ' + kind + ' response cannot bind protected state or navigate', async t => {
+    const f = await fixture(t);
+    if (kind === 'transaction') f.raw.setupContinuation.transactionId = '';
+    if (kind === 'expiry') f.raw.setupContinuation.expiresAt = '2030-01-02T03:09:06Z';
+    if (kind === 'proof') f.raw.setupContinuation.start.signature = f.raw.setupContinuation.claim.signature;
+    if (kind === 'continuation-extra') Object.assign(f.raw.setupContinuation, {returnRegistration: {id: 'invented', origin: claim.address}});
+    if (kind === 'operation') f.raw.operation.operationId = 'other-operation';
+    if (kind === 'account') f.raw.accountId = 'another-account';
+    if (kind === 'phase') f.raw.setupContinuation.phase = 'installed';
+    if (kind === 'revision') f.raw.operation.revision = '9223372036854775808';
+    if (kind === 'duplicate-url') f.raw.approvalUrl += '&code=' + f.raw.claimCode;
+    if (kind === 'foreign-url') f.raw.approvalUrl = f.raw.approvalUrl.replace(claim.audience, 'https://another.test');
+    if (kind === 'name') f.raw.approvalUrl = f.raw.approvalUrl.replace('Vector+server', 'Unsigned+name');
+    if (kind === 'code') f.raw.claimCode = 'different';
+    await assert.rejects(f.run()); assert.equal(f.bound.length, 0);
+  });
+
+test('a replacement while the HTTP response is in flight preserves the successor', async t => {
+  const f = await fixture(t);
+  f.beforeAnswer(async () => {f.replace();});
+  await assert.rejects(f.run(), /attempt changed/); assert.equal(f.sent.length, 1); assert.equal(f.bound.length, 0);
+});
+test('a failed bind returns no URL and does not clear another attempt', async t => {
+  const f = await fixture(t);
+  f.beforeBind(async () => {f.replace();});
+  await assert.rejects(f.run(), /attempt changed/); assert.equal(f.bound.length, 0);
+});
+test('expiry during bind prevents the handoff', async t => {
+  const f = await fixture(t);
+  f.beforeBind(async () => {f.expire();});
+  await assert.rejects(f.run(), {code: 'invalid_return'}); assert.equal(f.bound.length, 1);
+});
+test('an abort after a valid response prevents binding', async t => {
+  const f = await fixture(t), controller = new AbortController();
+  f.beforeAnswer(async () => {controller.abort();});
+  await assert.rejects(f.run({}, {signal: controller.signal})); assert.equal(f.bound.length, 0);
+});
+test('caller mutation of the response after capture cannot retarget the signed request', async t => {
+  const f = await fixture(t), live = JSON.parse(JSON.stringify(f.raw));
+  const api = {baseUrl: f.start.origin, request: async () => live, getRouteConnection: () => f.route as never};
+  let calls = 0;
+  const ports = {...f.ports, assertCurrent: async () => {
+    if (++calls !== 2) return;
+    // In place: a handoff that kept the response's objects would now carry the forged proofs.
+    live.operation.operationId = 'successor';
+    Object.assign(live.setupContinuation.start, {payload: 'forged'}); Object.assign(live.setupContinuation.claim, {payload: 'forged'});
+  }};
+  const out = await requestSetupApproval(api, f.start, ports, {now: () => Date.parse('2030-01-02T03:04:07Z')});
+  assert.equal(out.approvalUrl, f.approvalUrl); assert.equal(f.bound.length, 1);
+  assert.equal(f.bound[0].binding.operationId, claim.operationId);
+  assert.equal(f.bound[0].start.payload, startProof.payload); assert.equal(f.bound[0].claim.payload, claimProof.payload);
+});
+
+// A slow certificate outlived the start: the same setup renews it once its claim installed.
+test('a renewal accepts only the installed operation of a bound account', async t => {
+  const installed = async () => {
+    const f = await fixture(t);
+    Object.assign(f.raw, {state: 'installed', installationAcknowledged: true, accountId: 'account-approved', approvalRequired: false, actions: ['cancel']});
+    return f;
+  };
+  const renew = (f: Awaited<ReturnType<typeof installed>>) => f.run({}, {renewal: true});
+  const f = await installed();
+  assert.equal((await renew(f)).approvalUrl, f.approvalUrl); assert.equal(f.bound.length, 1);
+  // The ordinary path never takes an installed answer, and a renewal never takes anything else.
+  const ordinary = await installed();
+  await assert.rejects(ordinary.run()); assert.equal(ordinary.bound.length, 0);
+  for (const change of [{accountId: 'account-unbound'}, {installationAcknowledged: false}, {state: 'prepared'}, {accountId: ''}]) {
+    const g = await installed(); Object.assign(g.raw, change);
+    await assert.rejects(renew(g)); assert.equal(g.bound.length, 0);
+  }
 });
