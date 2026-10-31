@@ -222,6 +222,21 @@ test('awaiting approval without an app Portico Account shows the waiting screen 
   } finally {await f.host.unmount();}
 });
 
+test('a request the Portico Account declined says so with Continue and Back, and never offers to approve it again in the app', async () => {
+  for (const session of [undefined, {account: {displayName: 'Justin', username: 'justin'}}]) {
+    const f = await fixture({view: view('awaiting_approval', {name: 'Studio', serverPhase: 'started', polls: 0, declined: true}), ...(session ? {session} : {})});
+    try {
+      assert.equal(f.find('PhoneSetupApproval'), undefined, 'no in-app approval of a declined request');
+      const layout = f.layout()!;
+      assert.equal(layout.props.body, t('web.setup.declined'));
+      assert.equal(layout.props.primaryAction.label, t('accounts.signIn.handoff'));
+      assert.equal(layout.props.secondaryAction.label, t('action.back'));
+      await f.act(() => layout.props.primaryAction.onPress());
+      assert.equal(f.fake().count('retry'), 1, 'Continue asks again with a new request');
+    } finally {await f.host.unmount();}
+  }
+});
+
 test('Back steps through the form as on the web: out of setup from the choice, back to the choice from the owner form, and the controller elsewhere', async () => {
   const choice = await fixture({view: view('form', {mode: 'choose', name: 'Studio'})});
   try {
