@@ -165,6 +165,16 @@ def capacity_snapshot(repo, fetch=api):
             'statuses': dict(statuses), 'jobs': list(jobs.values())}
 
 
+def capacity_history(path, repo):
+    rows=[]
+    for line in path.read_text().splitlines():
+        if not line.strip(): continue
+        sample=json.loads(line)
+        if sample['repository']!=repo: continue
+        rows.append({k:sample[k] for k in ('observed_from','observed_until','in_progress','queued')})
+    return rows
+
+
 def display(data):
     for event, stats in data['events'].items():
         print(f"{event}: {json.dumps(stats, sort_keys=True)}")
@@ -179,6 +189,12 @@ def display(data):
         print(f"\nRepository capacity observed {sample['observed_from']} to {sample['observed_until']}: "
               f"{sample['in_progress']} in progress, {sample['queued']} queued/waiting. {sample['scope']}")
 
+    if data.get('capacity_history'):
+        print('\nObserved repository capacity over time (sequential snapshots):')
+        print('observation start | observation end | in progress | queued/waiting')
+        for row in data['capacity_history']:
+            print(f"{row['observed_from']} | {row['observed_until']} | {row['in_progress']} | {row['queued']}")
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -187,11 +203,12 @@ def main():
     parser.add_argument('--since', help='UTC cutoff for Merge checks runs, e.g. 2026-10-31T18:45:00Z')
     parser.add_argument('--json', action='store_true', help='Full report, including step times and reconstructed selected-run concurrency')
     parser.add_argument('--snapshot', type=Path, help='Append one live all-workflow capacity observation to this JSONL file; rerun to collect a time series')
+    parser.add_argument('--history', type=Path, help='Report an existing capacity JSONL time series without live API calls')
     args = parser.parse_args()
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', args.repo):
         parser.error('repo must be OWNER/REPO')
-    if not args.runs and not args.since and not args.snapshot:
-        parser.error('provide run IDs, --since or --snapshot')
+    if not args.runs and not args.since and not args.snapshot and not args.history:
+        parser.error('provide run IDs, --since, --snapshot or --history')
     runs = {}
     if args.since:
         timestamp(args.since)
@@ -214,6 +231,9 @@ def main():
         with args.snapshot.open('a') as stream:
             stream.write(json.dumps(sample, sort_keys=True) + '\n')
         data['capacity'] = sample
+    history=args.history or args.snapshot
+    if history:
+        data['capacity_history']=capacity_history(history,args.repo)
     if args.json:
         print(json.dumps(data, indent=2))
     else:
