@@ -10,7 +10,7 @@ const source = (path: string) => readFileSync(new URL('../' + path, import.meta.
 test('both runtime contracts prepare secure records before installation identity is used', () => {
   assert.match(source('android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt'), /fun prepareSecureRecords\(promise: Promise\)/);
   assert.match(source('Native/PorticoPlayer.m'), /RCT_REMAP_METHOD\(prepareSecureRecords/);
-  const session = source('src-next/platform/session.ts');
+  const session = source('src-next/platform/installation-host.ts');
   assert.ok(session.indexOf('await prepareSecureRecords()') < session.indexOf('Promise.all([profileInstallation()'));
   assert.match(session, /const recovered = await prepareSecureRecords\(\)/);
   assert.match(session, /return \{recovered,/);

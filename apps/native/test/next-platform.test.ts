@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {NativeModules} from './react-native-stub.mjs';
 import {NativeQueueStore} from '../src-next/platform/queue-storage.ts';
 import {nativeNetworkFetch} from '../src-next/platform/server-connections.ts';
-import {readNativeSession} from '../src-next/platform/session.ts';
+import {readNativeSession} from '../src-next/platform/installation-host.ts';
 import {glassRecipe, phoneTabBarRecipe} from '../src-next/platform/glass.ts';
 
 test('copied durable store serializes writers, reads without writes, and retains ambiguous failures', async () => {

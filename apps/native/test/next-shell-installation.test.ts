@@ -3,7 +3,7 @@ import test, {type TestContext} from 'node:test';
 import {readFileSync} from 'node:fs';
 import {NativeModules, Platform} from './react-native-stub.mjs';
 import {beginNativeInstallation} from '../src-next/platform/installation.ts';
-import {nativeSelectedConnectionEnvironment} from '../src-next/platform/session.ts';
+import {nativeSelectedConnectionEnvironment} from '../src-next/platform/server-connections.ts';
 import {HttpLocalApi, type LocalSession} from '../../../packages/client-core/src/index.ts';
 import {installationIdentity, setInstallationIdentity} from '../../../packages/client-core/src/installation.ts';
 import {refreshStoredSession, type RememberedServer} from '../../../packages/client-core/src/server-connections.ts';

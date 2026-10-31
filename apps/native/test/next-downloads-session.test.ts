@@ -104,7 +104,7 @@ const bootModules: Record<string, Record<string, unknown>> = {
     retainNativeUserMutationSelection: (store: NativeUserMutationStore, scope: any, report: (error: unknown) => void) =>
       new NativeUserMutationSelectionOwner(async work => work({...active.viewer, origin: 'https://server.test', familyId: active.session.sessionFamilyId, deviceId: active.session.deviceId}), subscribe).activate(store, scope, report),
   },
-  '../platform/session': {readNativeSelectedViewer: async () => ({session: active.session, serverUrl: 'https://server.test'}), trackNativeConnection: noop},
+  '../platform/server-connections': {trackNativeConnection: noop},
   // The session lifecycle opens the connection the shell takes (C2b).
   '../platform/native-session-lifecycle': {nativeSessionLifecycle: () => ({ports: {lendInstallation: noop, classifyConnect: noop, failure: noop,
     reconnect: async () => ({serverId: 'server', api: localApi(), session: active.session, installation: {current: () => active.state.current, dispose: noop},
@@ -119,7 +119,8 @@ const bootModules: Record<string, Record<string, unknown>> = {
   '../platform/device-settings': {bindNativeDeviceSettings: noop, nativeDeviceSettings: () => ({read: noop})},
   '../platform/server-preferences': {bindNativeServerPreferences: noop},
   '../platform/server-display': {rememberNativeServerDisplay: async () => ({name: 'Server'}), readNativeServerDisplays: async () => [{name: 'Server'}]},
-  '../platform/app-session-storage': {nativeAppSessions: {selected: async () => selected(), read: async () => undefined}, nativeAppSessionStorage: {change: async () => {}}},
+  '../platform/app-session-storage': {nativeAppSessions: {selected: async () => selected(), read: async () => undefined}, nativeAppSessionStorage: {change: async () => {}},
+    readNativeSelectedViewer: async () => ({session: active.session, serverUrl: 'https://server.test'})},
   '../platform/accounts': {nativeAccounts: {}}, '../platform/account-authority': {hostedUrl: 'https://services.invalid'},
   '../platform/sign-in-ended': {nativeSignInEnded: noop, rememberNativeSignInHint: async () => {}, readNativeSignInHint: async () => undefined},
   '../platform/identity-failure': {nativeIdentityFailure: noop, nativeRouteIdentityFailure: noop},
