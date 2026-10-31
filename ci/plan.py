@@ -179,6 +179,8 @@ def make_plan(paths, full=False, tier="short"):
         else: js_reasons[component]={'mode':'full component inventory' if full or tier!='short' else 'website check'}
         if component!='website' and not files: raise ValueError('empty JS selection: '+component)
         js.append({'component':component,'files':files})
+    from js_shards import extend_selection
+    extend_selection(js, json.loads((ROOT/'ci/js-durations.json').read_text())['seconds'])
     producer_consumers = {
         'TestHomeReadingSavedDeferredHTTP':'home-reading-wire.test.ts',
         'TestConcurrencyDiagnosticsMemoryLimitWire':'concurrency-memory-limit.test.ts',
@@ -234,7 +236,7 @@ def main():
     event=json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text()) if os.environ.get('GITHUB_EVENT_PATH') else {}
     a.full = a.full or os.environ.get('CI_FULL_PLAN','').lower() == 'true'
     a.tier,a.full=event_tier(os.environ.get('GITHUB_EVENT_NAME',''),a.tier,a.full)
-    if a.paths is None: head=command(['git','rev-parse','HEAD']).strip()
+    head=command(['git','rev-parse','HEAD']).strip()
     if a.paths is not None: paths=a.paths
     elif a.full: paths=[]
     else:
@@ -250,6 +252,8 @@ def main():
             f.write('go_matrix='+json.dumps(go_matrix(plan,event,os.environ))+'\n')
             f.write('android='+str(plan['android']).lower()+'\n')
             f.write('go='+str(bool(plan['packages'])).lower()+'\n')
-            f.write('js='+str(bool(plan['js'])).lower()+'\n')
-            f.write('js_matrix='+json.dumps({'include':[{'component':x['component']} for x in plan['js']]},separators=(',',':'))+'\n')
+            f.write('js='+str(any(x['shards'] for x in plan['js'])).lower()+'\n')
+            f.write('js_static='+str(bool(plan['js'])).lower()+'\n')
+            f.write('js_static_matrix='+json.dumps({'include':[{'component':x['component']} for x in plan['js']]},separators=(',',':'))+'\n')
+            f.write('js_matrix='+json.dumps({'include':[{'component':x['component'],'index':i} for x in plan['js'] for i in range(len(x['shards']))]},separators=(',',':'))+'\n')
 if __name__=='__main__': main()
