@@ -681,3 +681,12 @@ test('a sign-in that already chose its profile stays chosen through offline and 
   const opened = nextLifecycle(again.snapshot, {type: 'connected', facts: facts()});
   assert.equal(opened?.snapshot.state.kind, 'ready');
 });
+
+test('a switch to a PIN-protected profile always asks for its PIN, even from a remembered profile', () => {
+  const switching = nextLifecycle(snap(ready({remembered: true})), {type: 'switchProfile'})!;
+  for (const target of [TEEN, MAIN]) {
+    const tapped = nextLifecycle(switching.snapshot, {type: 'profileTapped', profileId: target.id})!;
+    assert.equal(tapped.snapshot.state.kind, 'enteringPin', `${target.id} asks for its PIN`);
+    assert.equal(tapped.effects.some(effect => effect.kind === 'select'), false, 'nothing is chosen without the PIN');
+  }
+});
