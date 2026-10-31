@@ -39,6 +39,9 @@ if target.startswith('macos'):
     sys.exit(0)
 
 # BtbN disables Linux ARM VAAPI by default, although libva supports it.
+if target.startswith('windows'):
+    import subprocess
+    subprocess.run([sys.executable, root / 'scripts/configure-windows-libdovi.py', recipe], check=True)
 # Shaderc's install staging predates TMPDIR support. Keep even that temporary
 # tree in the job's on-disk bind mount, including inside the compiler container.
 path = recipe / 'scripts.d/47-vulkan/50-shaderc.sh'
@@ -87,6 +90,13 @@ for script_name, patch_name in [
 
 path = recipe / 'scripts.d/50-vaapi/50-libva.sh'
 text = path.read_text().replace('    [[ $TARGET == linuxarm64 ]] && return -1\n', '')
+if target.startswith('windows'):
+    marker = 'ffbuild_enabled() {\n'
+    if text.count(marker) != 1:
+        raise ValueError('BtbN libva selection boundary changed')
+    # VA-API is a Linux-only requirement. Do not source-build libva or run its
+    # Wine/Meson cross sanity check for either Windows engine architecture.
+    text = text.replace(marker, marker + '    [[ $TARGET == win* ]] && return -1\n', 1)
 text = text.replace('elif [[ $TARGET == win* ]]; then', '''elif [[ $TARGET == linuxarm64 ]]; then
         myconf+=(--cross-file=/cross.meson --default-library=shared --sysconfdir="/etc"
                  -Ddriverdir="/usr/lib/aarch64-linux-gnu/dri" -Ddisable_drm=false

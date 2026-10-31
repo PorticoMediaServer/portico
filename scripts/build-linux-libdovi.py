@@ -211,9 +211,8 @@ cargo vendor --locked --sync dolby_vision/Cargo.toml --versioned-dirs /dovi/vend
     print('Built locked libdovi 3.4.0 C ABI and official test oracle from source')
 
 
-def inside():
+def inside(stage=Path('/dovi'), prefix=Path('/opt/ffbuild'), rust_target='x86_64-unknown-linux-gnu'):
     import tomllib
-    stage, prefix = Path('/dovi'), Path('/opt/ffbuild')
     contract = json.loads((stage / 'contract.json').read_text())
     expected = json.loads((stage / 'expected.json').read_text())
     supplement_file = stage / 'license-supplements/manifest.json'
@@ -299,12 +298,15 @@ def inside():
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(path, target)
         rust_notices[str(target.relative_to(prefix))] = digest(path)
-    runtime = sysroot / 'lib/rustlib/x86_64-unknown-linux-gnu/lib'
+    runtime = sysroot / 'lib/rustlib' / rust_target / 'lib'
+    runtime_archives = {p.name: digest(p) for p in sorted(runtime.glob('*.rlib'))}
+    if not runtime_archives:
+        raise ValueError('Rust target standard-library inventory missing: ' + str(runtime))
     record = {'versions': {tool: subprocess.check_output(command, text=True).strip()
                           for tool, command in [('rustc', ['rustc', '-vV']), ('cargo', ['cargo', '--version']),
                                                 ('cargo-c', ['cargo-capi', '--version'])]},
               'vendoredModules': modules, 'rustRuntimeNotices': rust_notices,
-              'rustStandardLibraryArchiveInventory': {p.name: digest(p) for p in sorted(runtime.glob('*.rlib'))},
+              'rustStandardLibraryArchiveInventory': runtime_archives,
               'runtimeInventoryBoundary': 'Compiler standard-library superset, not a claim every archive is linked',
               'oracleFeatures': ['--no-default-features', '--features=internal-font']}
     atomic_json(stage / 'compiler-and-licenses.json', record)
