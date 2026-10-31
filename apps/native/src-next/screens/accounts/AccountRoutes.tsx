@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {BackHandler, Dimensions, Platform, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
+import {profilePinFailureText} from './profile-pin-failure';
 import {ManagedProfilesClient, parseDirectSnapshot, type ManagedProfile, type ProfileArt, type ProfileDeletion} from '../../../../../packages/client-core/src/profile-management';
 import {routePath} from '../../../../../packages/contracts/src/routes';
 import {IdentityClient} from '../../../../../packages/client-core/src/identity-client';
@@ -317,7 +318,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
     url={new URL('/settings/profile', routeOrigin(context.api.baseUrl)).href} body="next.auth.tv.forgotPINBody" onBack={back}/>;
   if (theme.isTV && profile) return <TVProfilePINForm
     profile={{id: profile.id, name: profile.name, initial: [...profile.name][0] ?? '', color: profile.art, primary: profile.primary, pinRequired: true}}
-    code={pin} onCodeChange={setPin} busy={busy} error={error ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{presentError(error, 'profiles').body}</Text> : undefined}
+    code={pin} onCodeChange={setPin} busy={busy} error={error ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</Text> : undefined}
     onSubmit={value => {void choose(profile.id, value);}} onBack={back}
     onForgotPIN={() => {if (!busy) {cancelWrongPin(); setPin(''); setError(undefined); setForgotPIN(true);}}}/>;
   const moveProfile = (target: ManagedProfile, direction: -1 | 1) => {
@@ -375,7 +376,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
         selectedId={current?.viewer.profileId} preferredProfileId={lease ? profileFocus.get(lease) : undefined}
         onFocusChange={id => {if (id && lease) profileFocus.set(lease, id);}} onSelect={id => {const value = profiles.find(item => item.id === id)!;
           if (id === current?.viewer.profileId) onBack(); else if (value.pinRequired) {setProfile(value); setPin(''); setError(undefined);} else void choose(id);}}/>
-      {!!error && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginTop: 16}]}>{presentError(error, 'profiles').body}</Text>}
+      {!!error && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginTop: 16}]}>{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</Text>}
       {errorRefresh}
     </TVWhosWatching> : <StateLayout testID="accounts-profile-switch" title={profile ? t('profile.pinTitle', {name: profile.name}) : t('profiles.title')}
       beforeActions={<View style={{alignSelf: 'stretch', marginBottom: 20}}>{profile ? <><PhonePINEntry value={pin} onChange={setPin} onComplete={value => {void choose(profile.id, value);}} busy={busy} error={!!error}/>
@@ -387,7 +388,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
         {manage && profiles.length < 8 ? <View style={{flexDirection: 'row', marginTop: 12}}><Button size="compact" variant="glass" icon="i-plus" onPress={openAddition}>{t('profile.add')}</Button></View> : null}
         {managementActions}
         </>}
-        {!!error && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{presentError(error, 'profiles').body}</Text>}
+        {!!error && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</Text>}
         {errorRefresh}</View>}
       secondaryAction={{id: 'back', label: t('action.back'), disabled: busy, onPress: back}}/>}
     <Dialog testID="profile-add" open={additionCurrent()} onOpenChange={open => {if (!open) closeAddition();}} title={t('profile.addTitle')}

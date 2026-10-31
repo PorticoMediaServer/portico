@@ -40,7 +40,7 @@ async function gate(rememberProfiles: boolean, isTV = false) {
     '../../platform/native-session-lifecycle': {nativeSessionLifecycle: () => ({lifecycle, ports})},
     '../../platform/profile-recovery': {NativeProfileRecovery: class {}, temporaryRecoveryApi: () => undefined},
     '../../platform/accounts': {nativeAccounts: {}}, '../../platform/account-authority': {hostedUrl: 'https://hosted.example'},
-    '../../platform/server-connections': {nativeNetworkFetch: fetch}, './PhonePINEntry': {PhonePINEntry: 'PIN'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
+    '../../platform/server-connections': {nativeNetworkFetch: fetch}, './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PIN'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
   });
   const host = createFabricHookHost(() => {tree = LifecycleProfileGate();});
   await act(() => host.mount());
