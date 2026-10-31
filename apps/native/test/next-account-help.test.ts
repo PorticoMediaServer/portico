@@ -4,7 +4,6 @@ import {presentError} from '../../../packages/client-core/src/presentation/error
 import * as joinLink from '../../../packages/client-core/src/join-link';
 import * as invitationCode from '../../../packages/client-core/src/short-invitation-code';
 import * as tvCodeOpening from '../src-next/screens/accounts/tv-code-opening';
-import * as setupOutcome from '../src-next/platform/setup-outcome';
 import * as passwordPolicy from '../../../packages/client-core/src/password-strength';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -45,9 +44,8 @@ test('phone Portico sign-in offers account help and returns to its form', async 
     '../../../../../packages/client-core/src/presentation/errors': {presentError},
     '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
-    '../../platform/setup-outcome': setupOutcome,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
-    './PhoneSetupApproval': {PhoneSetupApproval: 'PhoneSetupApproval'},
+    './NativeSetup': {NativeSetup: 'NativeSetup'},
     './directory-chooser': directoryChooser,
     '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', TextField: 'Field'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {accountCredentials: () => account}},

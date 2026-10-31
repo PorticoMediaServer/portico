@@ -30,7 +30,9 @@ import {hostedSignInUnavailable} from './hosted-sign-in-unavailable';
 import {rememberNativeSignInHint} from './sign-in-ended';
 import {createNativeOwnerRecoveryContact} from './owner-recovery-contact';
 import {requestOwnerResetFile, verifyOwnerResetFile} from '../../../../packages/client-core/src/account-reset';
-import {NativeServerSetup, type NativeSetupIssuer} from './server-setup';
+
+/** The original issuer of a fresh grant, so cleanup can end it over the same route. */
+type GrantIssuer = {origin: string; routes: NonNullable<ReturnType<HttpLocalApi['getRouteConnection']>>; pin: ServerPin};
 import type {HostedRequestApi} from '../../../../packages/client-core/src/portico-servers';
 
 const cancelled = () => Object.assign(new Error('native_sign_in_cancelled'), {name: 'AbortError'});
@@ -66,7 +68,7 @@ export class NativeServerSignIn {
   private publishing = false;
   private disposeRequested = false;
   private readonly issued = new Map<string, LocalSession>();
-  private readonly setupIssuers = new Map<string, NativeSetupIssuer>();
+  private readonly setupIssuers = new Map<string, GrantIssuer>();
   private readonly requiredSetupHandoff: boolean;
   private readonly expectedInvitation?: Readonly<{origin: string; serverId?: string; fingerprint?: string; signIn?: 'local' | 'portico'; expiresAt?: string}>;
   private readonly expectedTarget?: Readonly<{serverId: string; fingerprint: string}>;
@@ -85,33 +87,7 @@ export class NativeServerSignIn {
     this.owner = owner; this.requiredSetupHandoff = options.requiredSetupHandoff === true;
     this.unfence = owner.onCancel(() => this.cancel());
   }
-  /** First-run setup commands (lane B's `server-setup.ts`), sharing this command's connection and lifetime. */
-  get setup(): NativeServerSetup<Awaited<ReturnType<NativeServerSignIn['signInLocal']>>> {
-    const self = this;
-    return this.setupCommands ??= new NativeServerSetup({
-      get api() {return self.api;}, set api(value) {self.api = value;},
-      get server() {return self.server;}, set server(value) {self.server = value;},
-      get admission() {return self.admission;}, set admission(value) {self.admission = value;},
-      get hosted() {return self.hosted;}, set hosted(value) {self.hosted = value;},
-      get account() {return self.account;},
-      get installation() {return self.installation;},
-      get expectedTarget() {return self.expectedTarget;},
-      get owner() {return self.owner;},
-      get signal() {return self.controller.signal;},
-      get complete() {return self.complete;},
-      get issued() {return self.issued;},
-      get setupIssuers() {return self.setupIssuers;},
-      probeOrigin: () => this.probe.getSnapshot().origin,
-      run: work => this.run(work),
-      current: () => this.current(),
-      assertCurrent: () => this.assertCurrent(),
-      consume: result => this.consume(result),
-      retire: session => this.retire(session),
-      dispose: () => this.dispose(),
-    });
-  }
-  private setupCommands?: NativeServerSetup<Awaited<ReturnType<NativeServerSignIn['signInLocal']>>>;
-  private current = (): boolean => !this.controller.signal.aborted && (this.setupCommands?.finishCurrent() ?? true) && installationIdentity() === this.installation && (!this.hostedLease || this.hostedLease()) && (!this.localInvitation || this.localInvitation.current()) && (!this.invitationBinding || this.invitationBinding()) && (!this.porticoInvitation || this.porticoInvitation.current());
+  private current = (): boolean => !this.controller.signal.aborted && installationIdentity() === this.installation && (!this.hostedLease || this.hostedLease()) && (!this.localInvitation || this.localInvitation.current()) && (!this.invitationBinding || this.invitationBinding()) && (!this.porticoInvitation || this.porticoInvitation.current());
   private assertCurrent = () => {if (!this.current()) throw cancelled(); if (!this.installation) throw mismatch();};
   /** Read-only lifetime fence for the original phone directory contact; never admission evidence. */
   ownerRecoveryCurrent() {return this.current() && !this.complete;}
@@ -717,7 +693,7 @@ export class NativeServerSignIn {
   }
   private cancel() {
     if (this.controller.signal.aborted) return;
-    this.localInvitation?.dispose(); this.porticoInvitation?.dispose(); this.setupCommands?.dispose(); this.directoryFactor = undefined; this.controller.abort(); if (this.pendingIdentity) clearPendingCertificate(this.pendingIdentity.origin, this.pendingIdentity); this.pendingIdentity = undefined;
+    this.localInvitation?.dispose(); this.porticoInvitation?.dispose(); this.directoryFactor = undefined; this.controller.abort(); if (this.pendingIdentity) clearPendingCertificate(this.pendingIdentity.origin, this.pendingIdentity); this.pendingIdentity = undefined;
     this.probe.dispose(); this.unfence();
     const routes = this.api?.getRouteConnection();
     void Promise.resolve(this.running).catch(() => {}).then(() => Promise.allSettled([...this.issued.values()].map(session => this.retire(session)))).finally(() => routes?.dispose());

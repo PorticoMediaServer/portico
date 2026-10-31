@@ -3,7 +3,6 @@ import * as accountWork from '../src-next/platform/account-work';
 import * as tvApprovalCredentials from '../src-next/screens/accounts/tv-approval-credentials';
 import * as tvApprovalFinalization from '../src-next/screens/accounts/tv-approval-finalization';
 import * as tvCodeOpening from '../src-next/screens/accounts/tv-code-opening';
-import * as setupOutcome from '../src-next/platform/setup-outcome';
 import * as passwordPolicy from '../../../packages/client-core/src/password-strength';
 import * as joinLink from '../../../packages/client-core/src/join-link';
 import * as invitationCode from '../../../packages/client-core/src/short-invitation-code';
@@ -75,9 +74,8 @@ test('a directory connect is fenced to its attempt: Choose another and a success
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
     './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'Phone'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
-    '../../platform/setup-outcome': setupOutcome,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
-    './PhoneSetupApproval': {PhoneSetupApproval: 'PhoneSetupApproval'},
+    './NativeSetup': {NativeSetup: 'NativeSetup'},
     './directory-chooser': {nextRetryDelay, directoryRows: (servers: readonly {id: string; name: string}[]) => servers.map(server => ({id: server.id, name: server.name, offline: false})),
       directoryFailure: (server: unknown, error: unknown) => !server ? 'other' : error === undefined ? 'opening' : 'waiting',
       directoryOfflineBody: () => ({key: 'web.chooser.unreachableBodyNever'})},

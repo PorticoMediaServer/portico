@@ -22,11 +22,11 @@ export function NativeSetup({target, onAdmitted, onLeave}: {target: NativeSetupT
   useEffect(() => {
     let live = true;
     const adapter = createNativeSetupAdapter(target, {current: () => live});
-    const controller = createSetupController(adapter.ports, {foreground: AppState.currentState === 'active'});
-    const app = AppState.addEventListener('change', state => controller.setForeground(state === 'active'));
-    setController(controller);
-    controller.start();
-    return () => {live = false; app.remove(); controller.dispose(); adapter.dispose();};
+    const created = createSetupController(adapter.ports, {foreground: AppState.currentState === 'active'});
+    const app = AppState.addEventListener('change', state => created.setForeground(state === 'active'));
+    setController(created);
+    created.start();
+    return () => {live = false; app.remove(); created.dispose(); adapter.dispose();};
   }, [target]);
   return controller ? <SetupStates controller={controller} target={target} onAdmitted={onAdmitted} onLeave={onLeave}/> : <Waiting/>;
 }
