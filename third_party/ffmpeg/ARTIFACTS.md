@@ -83,6 +83,10 @@ source archives, incremental reports and an owned bounded BuildKit cache.
 Independent dependency failures aggregate; failed prerequisites block their
 descendants. The final compile uses the pinned recipe's exact expanded payload
 inside that graph, with a fresh output export and unchanged GPLv3 configuration.
+For a repeat-build control, `--rebuild-ffmpeg` forces the final engine stage to
+compile again while retaining dependency caches. Each invocation retains a fresh
+raw archive and report; compare the actual executable hashes from two fresh
+compiles. A cache hit alone is not repeat-build acceptance.
 
 The Dockerfile is hashed after final generation, copied to a content-addressed
 read-only file outside the recipe tree, and re-hashed. Docker consumes that copy;
