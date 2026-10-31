@@ -1261,6 +1261,8 @@ export type PostAdminIngestionJobsIdActionRequest = {  };
 export type PostAdminIngestionJobsIdActionResponse = { "analyzed": number; "error"?: string; "id": string; "jobs"?: Array<string>; "phase"?: string; "processed": number; "scanMode"?: string; "sourceId"?: string; "status": string; "warnings": number };
 export type PostAdminLibrariesIdInventoryObjectActionRequest = { "itemId": string; "revision": string };
 export type PostAdminLibrariesIdInventoryObjectActionResponse = { "itemId": string };
+export type PostAdminLibrariesIdInventoryObjectSeparateFolderRequest = { "revision": string };
+export type PostAdminLibrariesIdInventoryObjectSeparateFolderResponse = { "itemId": string };
 export type PostAdminLibrariesIdSonicAnalysisRetryRequest = {  };
 export type PostAdminLibrariesIdSonicAnalysisRetryResponse = { "available": boolean; "defaultEnabled": boolean; "done": number; "enabled": boolean; "estimatedRemainingSeconds"?: number; "libraryId": string; "model"?: { "id": string; "sha256": string; "version": string }; "observedAtMs": number; "pausedUntilMs"?: number; "policyAllows": boolean; "policyRevision": number; "reasonCode"?: string; "revision": number; "state": string; "total": number };
 export type PostAdminLibrariesIdSourcesRequest = { "acceptReplacement": boolean; "classification": string; "expectedRemoteSource"?: { "generation": number; "sourceId": string }; "expectedRevision": number; "followSymlinks": boolean; "intervalMs": number; "name": string; "path": string; "scanAfter"?: boolean };
@@ -2553,6 +2555,7 @@ export type RouteContracts = {
 "post_admin_feedback_reports_id_status": { request: PostAdminFeedbackReportsIdStatusRequest; response: PostAdminFeedbackReportsIdStatusResponse };
 "post_admin_ingestion_jobs_id_action": { request: PostAdminIngestionJobsIdActionRequest; response: PostAdminIngestionJobsIdActionResponse };
 "post_admin_libraries_id_inventory_object_action": { request: PostAdminLibrariesIdInventoryObjectActionRequest; response: PostAdminLibrariesIdInventoryObjectActionResponse };
+"post_admin_libraries_id_inventory_object_separate_folder": { request: PostAdminLibrariesIdInventoryObjectSeparateFolderRequest; response: PostAdminLibrariesIdInventoryObjectSeparateFolderResponse };
 "post_admin_libraries_id_sonic_analysis_retry": { request: PostAdminLibrariesIdSonicAnalysisRetryRequest; response: PostAdminLibrariesIdSonicAnalysisRetryResponse };
 "post_admin_libraries_id_sources": { request: PostAdminLibrariesIdSourcesRequest; response: PostAdminLibrariesIdSourcesResponse };
 "post_admin_libraries_id_sources_source_check": { request: PostAdminLibrariesIdSourcesSourceCheckRequest; response: PostAdminLibrariesIdSourcesSourceCheckResponse };

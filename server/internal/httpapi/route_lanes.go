@@ -633,6 +633,7 @@ var routeLanes = map[string]string{
 	"POST /v1/admin/ingestion/jobs/{id}/{action}":                                 "default",
 	"POST /v1/admin/items/{id}/file-info/separate":                                "admin-heavy",
 	"POST /v1/admin/items/{id}/files/{fileId}/delete/preview":                     "admin-heavy",
+	"POST /v1/admin/libraries/{id}/inventory/{object}/separate-folder":            "admin-heavy",
 	"POST /v1/admin/libraries/{id}/inventory/{object}/{action}":                   "admin-heavy",
 	"POST /v1/admin/libraries/{id}/sonic-analysis/retry":                          "admin-heavy",
 	"POST /v1/admin/libraries/{id}/sources":                                       "admin-heavy",
