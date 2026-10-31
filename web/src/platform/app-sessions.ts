@@ -7,6 +7,7 @@ import {browserAppSessions, browserConnectionEnvironment} from './server-connect
 import {browserAccount} from './account';
 import {installationIdentity} from '@core/installation.ts';
 import {routePath} from '../../../packages/contracts/src/routes.ts';
+import {forgetTabServer, recordTabPick} from './tab-session-gate';
 
 /** Browser account actions share the canonical protected record. The caller retires its mounted
  * UI/player before switching/signing out. No account-service request is made for Local actions. */
@@ -20,14 +21,17 @@ export class BrowserAppSessionActions {
   * revoke remotely, or send that family a token while forgetting it. */
  async forgetServer(session:LocalSession,capture?:Readonly<{isCurrent:()=>boolean;expectedRevision:number}>):Promise<boolean>{
   this.probe.cancel();const captured=await this.store.signOutServer(session.viewer.serverId,session.sessionFamilyId,capture?.isCurrent,capture?.expectedRevision);
+  for(const entry of captured)forgetTabServer(entry.connection.pin.serverId);
   return captured.length>0;
  }
  async signOutServer(session:LocalSession){
   this.probe.cancel();const captured=await this.store.signOutServer(session.viewer.serverId,session.sessionFamilyId);
+  for(const entry of captured)forgetTabServer(entry.connection.pin.serverId);
   return Promise.allSettled(captured.map(async entry=>this.revoke(entry)));
  }
  async signOutPorticoAccount(account:PorticoAccountScope,logout:()=>Promise<void>){
   this.probe.cancel();const captured=await this.store.signOutPorticoAccount(account);
+  for(const entry of captured)forgetTabServer(entry.connection.pin.serverId);
   return Promise.allSettled([Promise.resolve().then(logout),...captured.map(async entry=>this.revoke(entry))]);
  }
  async switchProfile(api:HttpLocalApi,session:LocalSession,profileId:string,pin:string,signal:AbortSignal,isCurrent:()=>boolean,remember=false){
@@ -42,6 +46,8 @@ export class BrowserAppSessionActions {
   const env={...this.environment(session.viewer.serverId),storage:this.store.connectionStorage(session.viewer.serverId,{signIn:entry.signIn,hostedAccount:entry.connection.hosted,expectedRevision:state.revision})};
   try{await rememberNativeSession(api,chosen.session,env,entry.connection.hosted,()=>isCurrent()&&!signal.aborted);}
   catch(error){const cleanup=new HttpLocalApi(api.baseUrl,chosen.session.accessToken);const route=api.getRouteConnection();if(route)cleanup.useRoutes(route);await cleanup.logout().catch(()=>{});throw error;}
+  // "Remember this profile in this browser tab": only when asked for and the server agreed.
+  recordTabPick(session.viewer.serverId,remember&&chosen.remembered?{serverId:session.viewer.serverId,familyId:chosen.session.sessionFamilyId,profileId,expiresAt:chosen.remembered.expiresAt}:undefined);
   if(shouldRetireAccountSession(session,chosen.session)){
    const cleanup=new HttpLocalApi(api.baseUrl,session.accessToken);const route=api.getRouteConnection();if(route)cleanup.useRoutes(route);
    await cleanup.logout().catch(()=>{});

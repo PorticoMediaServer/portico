@@ -18,10 +18,12 @@ export function BootstrapContent({children}: {children: ReactNode}) {
   const path = useRouterState({select: state => state.location.pathname});
   const needsSignIn = state?.snapshot.phase === 'signed-out' && !state.snapshot.entry
     && !['/setup', '/sign-in', '/profiles', '/servers', '/account'].includes(path) && !path.startsWith('/dev/');
+  const needsProfile = state?.snapshot.phase === 'choose-profile' && path !== '/profiles';
   useEffect(() => {
     if (needsSignIn) void router.navigate({to: '/sign-in', replace: true});
-  }, [needsSignIn]);
-  if (needsSignIn) return null;
+    else if (needsProfile) void router.navigate({to: '/profiles', replace: true});
+  }, [needsSignIn, needsProfile]);
+  if (needsSignIn || needsProfile) return null;
   if (state?.snapshot.phase === 'restoring') return <DocumentBootReady ready={!!state.snapshot.waiting}/>;
   let content = children;
   if (state?.snapshot.phase === 'unreachable' && state.snapshot.unreachable?.category === 'starting') content = <ServerStarting onSwitchServer={() => {void router.navigate({to: '/servers'});}}/>;
