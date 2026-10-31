@@ -119,12 +119,20 @@ function sortSelection(v:unknown):BrowseSortSelection{
  return {field:v.field,direction:v.direction,...(v.seed===undefined?{}:{seed:v.seed as number})};
 }
 
+/** The one place an operator picks its node variant: the relative-date operator has a variant of its own, every other operator is a `predicate`. */
+const conditionVariant=(operator:unknown):'predicate'|'relative'=>operator==='within-last-days'?'relative':'predicate';
+/** A condition on one field, tagged as `completeBrowseNode` tags the loose `{field, operator, value}` form. Whether the operator and value are valid is still decided by `parseBrowseNode`. */
+export type BrowseCondition=Extract<BrowseNode,{field:string}>;
+export const browseCondition=(field:string,operator:BrowseOperator,value:BrowseScalar|readonly BrowseScalar[]|null):BrowseCondition=>({variant:conditionVariant(operator),field,operator,value});
+/** The negation of a node, in the wire form `completeBrowseNode` gives `{not}`. */
+export const browseNot=(node:BrowseNode):BrowseNode=>({variant:'group',not:node});
+
 /** The wire form of a node built from the loose `{field, operator, value}` and `{all|any|not}` shapes the
  * toolbar and tabs work in: each node gains the `variant` its keys name. Nothing else changes, and
  * `parseBrowseNode` still decides whether the result is valid. */
 export function completeBrowseNode(v:unknown):unknown{
  if(!obj(v)||v.variant!==undefined)return v;
- if('field' in v)return {variant:v.operator==='within-last-days'?'relative':'predicate',...v};
+ if('field' in v)return {variant:conditionVariant(v.operator),...v};
  const key=['all','any','not'].find(name=>name in v);
  if(!key)return v;
  const child=v[key];
