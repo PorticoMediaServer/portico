@@ -3,8 +3,8 @@ import type {RefObject} from 'react';
 import {startFailureHttp, type NativePlaybackStartFailure} from './start-failure';
 import {capacityRetryHttp, type NativePlaybackCapacityWait} from './capacity-retry';
 import {createNativeListeningReadPort} from './listening-controls';
-import {PlaybackService, type PlaybackSession} from '../../../../../packages/client-core/src/index';
-import {paintAuthorityHolds} from './paint-authority';
+import {PlaybackService, type LocalSession, type PlaybackSession} from '../../../../../packages/client-core/src/index';
+import {signInHolds} from './paint-authority';
 import {DetailService, type DetailProjection} from '../../../../../packages/client-core/src/detail';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {WholeGroupQuery} from '../../../../../packages/client-core/src/presentation/browse-groups';
@@ -60,9 +60,6 @@ import type {VideoSnapshotCapture, VideoSnapshotSource} from '../video-snapshot'
 import {retainNativeVideoExitImage} from './video-exit-permission';
 import type {NativeExternalPresentationLifetime, NativePictureInPictureState, NativePlaybackReadLifetime, NativeListeningReadPort, NativeOfflinePlaybackLifetime, NativePlaybackStart, NativePlaybackChannelStart, NativePlaybackVersionSelection, NativePlaybackRuntimeOptions, NativePlaybackRuntimeSnapshot, NativePlaybackVideoSnapshot, NativePlaybackStarting, NativePlaybackStartTimedOut, NativeStartDisplay, PlaybackAuthority} from './types';
 
-/** No credentials: exact admission principal generation for one original start. */
-const startupPrincipal = (session: import('../../../../../packages/client-core/src/index').LocalSession | undefined) => session
-  ? JSON.stringify([session.sessionFamilyId, session.tokenGeneration, session.authorizationHorizon, session.deviceId ?? null, session.installationId ?? null]) : undefined;
 const authorityKey = (value: PlaybackAuthority) => JSON.stringify([value.serverId, value.accountId, value.profileId, value.epoch, value.privacyFence ?? value.viewerFence]);
 /** The retained binding a native view reports, compared field by field. */
 const sameBindingFact = (fact: unknown, binding: NativeBinding): boolean => {
@@ -129,7 +126,9 @@ export class NativePlaybackRuntime {
   private startEpoch = 0;
   private startContext?: () => boolean;
   private startAdmission = false;
-  private startPrincipal?: string;
+  /** The sign-in the current start was pressed under. A routine refresh keeps it; the epoch, not
+   *  the token generation, keeps one press to one start. */
+  private startSession?: LocalSession;
   private readonly startLife = new AbortController();
   private startFailure?: NativePlaybackStartFailure;
   // O-159: the drawn start (the pressed card's facts, Stop only), its 5 s drawn check and its 20 s deadline.
@@ -246,10 +245,10 @@ export class NativePlaybackRuntime {
           && session.kind === 'vod' && session.role === 'local' && session.itemId === original.itemId && session.queue) original.session = session;
       },
       captureStartCurrent: () => {
-        const epoch = this.startEpoch, principal = startupPrincipal(this.o.session()), initial = this.startAdmission, original = this.startContext;
+        const epoch = this.startEpoch, principal = this.o.session(), initial = this.startAdmission, original = this.startContext;
         // The queue's own later start has its current core context, not the
         // route that originally opened playback. Initial user Play retains it.
-        const actor = () => this.currentAuthority() && epoch === this.startEpoch && principal !== undefined && startupPrincipal(this.o.session()) === principal;
+        const actor = () => this.currentAuthority() && epoch === this.startEpoch && signInHolds(principal, this.o.session());
         return () => actor() && (!initial || this.startContext === original && original?.() !== false) && actor()
           && (!initial || this.startContext === original);
       }});
@@ -421,7 +420,7 @@ export class NativePlaybackRuntime {
     // after this command's synchronous setup, so a subscriber cannot reenter it.
     if (previousPresentation) queueMicrotask(previousPresentation.retire);
     this.startContext = this.o.captureStartContext?.();
-    this.startPrincipal = startupPrincipal(this.o.session());
+    this.startSession = this.o.session();
     this.startFailure = undefined;this.capacityWait = undefined;this.startAdmission = false;
     this.externalController?.abort(); this.pictureBinding = undefined; this.pictureAttempt = undefined; this.pictureLeave = undefined; this.pictureState = 'idle';
     this.offlineLifetimeOff?.(); this.offlineLifetimeOff = undefined;
@@ -441,7 +440,7 @@ export class NativePlaybackRuntime {
   }
 
   private startOperationCurrent(epoch: number): boolean {
-    return epoch === this.startEpoch && this.startPrincipal !== undefined && startupPrincipal(this.o.session()) === this.startPrincipal;
+    return epoch === this.startEpoch && signInHolds(this.startSession, this.o.session());
   }
 
   /** The same exact Home document/route guard is supplied to its selection controller. */
@@ -590,8 +589,8 @@ export class NativePlaybackRuntime {
     // A zap's preflight still borrows the old output. Taking the operation below
     // closes that output itself, so only the owned epoch guards actual admission.
     let dispatching = !expected, epoch = expected ? this.startEpoch : this.beginOperation();
-    const principal = startupPrincipal(this.o.session());
-    const current = () => this.currentAuthority() && principal !== undefined && startupPrincipal(this.o.session()) === principal
+    const principal = this.o.session();
+    const current = () => this.currentAuthority() && signInHolds(principal, this.o.session())
       && epoch === this.startEpoch && !input.lifetime.signal.aborted && input.lifetime.isCurrent()
       && (dispatching ? this.startOperationCurrent(epoch) : !!expected && sameFence(this.snapshot.fence, expected));
     const scoped = this.selectionScope(input.lifetime.signal, current);
@@ -718,7 +717,7 @@ export class NativePlaybackRuntime {
     const connection = api.getRouteConnection(), pin = connection?.pin.publicKey, certificate = api.getCertificateSessionEpoch();
     const paintUntil = principal ? Math.min(Date.parse(principal.expiresAt), Date.parse(principal.authorizationHorizon)) : NaN;
     const paintCurrent = () => this.currentAuthority() && this.startOperationCurrent(epoch) && callerCurrent()
-      && !!principal && Number.isFinite(paintUntil) && Date.now() < paintUntil && paintAuthorityHolds(principal, this.o.session())
+      && !!principal && Number.isFinite(paintUntil) && Date.now() < paintUntil && signInHolds(principal, this.o.session())
       && api.getRouteConnection() === connection && !!pin && connection?.pin.publicKey === pin && api.getCertificateSessionEpoch() === certificate
       && this.startContext === originalContext && originalContext?.() !== false
       && this.o.api === api && (route ? api.getRouteSnapshot()?.phase === 'ready'
@@ -955,12 +954,12 @@ export class NativePlaybackRuntime {
     let epoch = this.startEpoch;
     const menu = ++this.versionMenuEpoch, lifetime = selection.lifetime;
     const authority = authorityKey(selection.authority), expected = selection.expectedFence ? playbackFence(selection.expectedFence) : undefined;
-    const versionId = selection.versionId, discTitle = parseDiscTitleRef(selection.discTitle), principal = startupPrincipal(this.o.session());
+    const versionId = selection.versionId, discTitle = parseDiscTitleRef(selection.discTitle), principal = this.o.session();
     const sameSource = () => expected ? sameFence(this.snapshot.fence, expected) : this.snapshot.fence === undefined;
     // A captured output belongs to preflight. Once this command owns the queue intent,
     // the core's generation/adoption guard must allow its own newly accepted output.
     let dispatching = false;
-    const current = () => !lifetime.signal.aborted && lifetime.isCurrent() && this.currentAuthority() && principal !== undefined && startupPrincipal(this.o.session()) === principal && epoch === this.startEpoch && menu === this.versionMenuEpoch && authority === authorityKey(this.bound) && (!dispatching || this.startOperationCurrent(epoch)) && (dispatching || sameSource());
+    const current = () => !lifetime.signal.aborted && lifetime.isCurrent() && this.currentAuthority() && signInHolds(principal, this.o.session()) && epoch === this.startEpoch && menu === this.versionMenuEpoch && authority === authorityKey(this.bound) && (!dispatching || this.startOperationCurrent(epoch)) && (dispatching || sameSource());
     if (!current()) return;
     if (!wireId(input.target.itemId) || !wireId(versionId) || selection.options.itemId !== input.target.itemId || selection.options.versions.filter(value => value.id === versionId).length !== 1) throw new Error(serviceText('queuePlayer.unsupported'));
     const drawnTitle = selection.options.versions.find(value => value.id === versionId)?.discTitle;
@@ -2142,8 +2141,7 @@ export class NativePlaybackRuntime {
     const session = this.o.session();
     const until = session ? Math.min(Date.parse(session.expiresAt), Date.parse(session.authorizationHorizon)) : NaN;
     const paintCurrent = () => this.currentAuthority() && !!context && context() === true
-      && !!session && Number.isFinite(until) && Date.now() < until && paintAuthorityHolds(session, this.o.session())
-      && this.o.session()?.authorizationHorizon === session.authorizationHorizon
+      && !!session && Number.isFinite(until) && Date.now() < until && signInHolds(session, this.o.session())
       && this.o.api === api && api.getRouteConnection() === connection && !!pin && connection?.pin.publicKey === pin
       && api.getCertificateSessionEpoch() === certificate && (route ? api.getRouteSnapshot()?.phase === 'ready'
         && api.getRouteSnapshot()?.revision === route.revision && api.getRouteSnapshot()?.origin === route.origin : api.getRouteSnapshot() === null);
