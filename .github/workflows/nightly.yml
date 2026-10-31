@@ -17,6 +17,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
       - run: python3 -m unittest discover -s ci -p 'test_*.py'
       - run: python3 ci/source_guard.py
       - run: bash ci/secret-scan.sh
@@ -30,6 +33,8 @@ jobs:
       js: ${{ steps.plan.outputs.js }}
       android: ${{ steps.plan.outputs.android }}
       js_matrix: ${{ steps.plan.outputs.js_matrix }}
+      js_static: ${{ steps.plan.outputs.js_static }}
+      js_static_matrix: ${{ steps.plan.outputs.js_static_matrix }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -104,6 +109,7 @@ jobs:
     if: needs.planner.outputs.js == 'true'
     strategy:
       fail-fast: false
+      max-parallel: 12
       matrix: ${{ fromJSON(needs.planner.outputs.js_matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -128,7 +134,7 @@ jobs:
           name: selection
       - env:
           COMPONENT: ${{ matrix.component }}
-        run: python3 ci/run.py ffmpeg --component "$COMPONENT"
+        run: python3 ci/run.py ffmpeg --component "$COMPONENT" --index '${{ matrix.index }}'
       - name: Install owning lockfiles
         env:
           COMPONENT: ${{ matrix.component }}
@@ -139,7 +145,52 @@ jobs:
           esac
       - env:
           COMPONENT: ${{ matrix.component }}
-        run: python3 ci/run.py js --component "$COMPONENT"
+        run: python3 ci/run.py js --component "$COMPONENT" --index '${{ matrix.index }}'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ !cancelled() }}
+        with:
+          name: js-${{ matrix.component == 'apps/native' && 'native' || matrix.component == 'apps/desktop' && 'desktop' || matrix.component == 'apps/vega' && 'vega' || matrix.component }}-${{ matrix.index }}
+          path: ci-results/js/
+          if-no-files-found: error
+  js_static:
+    needs: planner
+    if: needs.planner.outputs.js_static == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix: ${{ fromJSON(needs.planner.outputs.js_static_matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: '**/go.sum'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: ${{ matrix.component == 'apps/desktop' && 'apps/desktop/.node-version' || '.node-version' }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/*/package-lock.json
+            website/package-lock.json
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: selection
+      - name: Install owning lockfiles
+        env:
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          npm ci
+          case "$COMPONENT" in
+            apps/*|website) (cd "$COMPONENT" && npm ci --legacy-peer-deps --workspaces=false) ;;
+          esac
+      - env:
+          COMPONENT: ${{ matrix.component }}
+        run: python3 ci/run.py js-static --component "$COMPONENT"
   android:
     needs: planner
     if: needs.planner.outputs.android == 'true'
@@ -179,7 +230,7 @@ jobs:
   merge:
     name: ci/nightly/full
     if: ${{ !cancelled() }}
-    needs: [planner, hygiene, go_build, go_tests, js, android, diagnostic]
+    needs: [planner, hygiene, go_build, go_tests, js, js_static, android, diagnostic]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -189,6 +240,12 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: selection
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: needs.planner.outputs.js == 'true'
+        with:
+          pattern: js-*
+          path: ci-results/js
+          merge-multiple: false
       - env:
           RESULTS: ${{ toJSON(needs) }}
         run: |
