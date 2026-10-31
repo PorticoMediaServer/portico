@@ -136,6 +136,8 @@ class TransferTests(unittest.TestCase):
             line = next(x for x in (root / 'Dockerfile').read_text().splitlines() if x.startswith('ENV '))
             env = dict(os.environ)
             env.update(token.split('=', 1) for token in line[4:].split())
+            # The generated container path is not a host test directory.
+            env['TMPDIR'] = str(root)
             env.pop('MFLAGS', None)
             env.pop('MAKELEVEL', None)
             (root / 'Makefile').write_text('all:\n\t@echo $(MAKEFLAGS)\n')
@@ -143,6 +145,22 @@ class TransferTests(unittest.TestCase):
                 return subprocess.check_output(['make', '--no-print-directory', *args], cwd=root, env=env, text=True).split()
             self.assertIn('-j1', flags())
             self.assertIn('-j2', flags('-j2'))
+
+    def test_each_container_stage_has_created_scratch_before_build(self):
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            (root / 'makeimage.sh').write_text('max-parallelism = 4\nffbuilder --driver-opt network=host\n')
+            (root / 'build.sh').write_text('docker run --rm\n')
+            (root / 'Dockerfile').write_text('FROM base AS first\nRUN compile-first\nFROM base AS second\nRUN compile-second\n')
+            with patch.object(n.platform, 'system', return_value='Linux'), patch.dict(n.os.environ, {'GITHUB_ACTIONS':'true','RUNNER_ENVIRONMENT':'github-hosted','GITHUB_RUN_ID':'123'}):
+                n.prepare_recipe(root)
+            stages = (root / 'Dockerfile').read_text().split('FROM ')[1:]
+            self.assertEqual(len(stages), 2)
+            for stage in stages:
+                lines = stage.splitlines()
+                self.assertIn('TMPDIR=/var/tmp/portico-ci', lines[1].split())
+                self.assertEqual(lines[2], 'RUN mkdir -p "$TMPDIR"')
+                self.assertTrue(lines[3].startswith('RUN compile-'))
 
 
 if __name__ == '__main__':
