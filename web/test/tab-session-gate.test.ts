@@ -17,7 +17,7 @@ const future = new Date(Date.now() + 86_400_000).toISOString();
 test('a tab opens unasked only what it remembered or already opened in this page load', () => {
   gate.resetTabSessionGate(); tab.values.clear();
   assert.equal(gate.tabAdmits(held), false, 'nothing remembered, nothing opened');
-  gate.recordTabPick('s1', {...held, expiresAt: future});
+  gate.recordTabPick('s1', 'alex', {...held, expiresAt: future});
   assert.equal(gate.tabAdmits(held), true);
   // A reload keeps sessionStorage and loses what the page load had opened.
   gate.resetTabSessionGate();
@@ -27,21 +27,23 @@ test('a tab opens unasked only what it remembered or already opened in this page
   assert.equal(gate.tabAdmits(held, Date.parse(future) + 1), false, 'not after it expires');
 });
 
-test('a page load follows later sign-ins on a server it opened, without asking again', () => {
+test('a page load follows later sign-ins to the profile it opened, and never to another profile', () => {
   gate.resetTabSessionGate(); tab.values.clear();
-  gate.admitServer('s1');
+  gate.admitProfile('s1', 'alex');
   assert.equal(gate.tabAdmits({...held, familyId: 'another-tab-picked'}), true);
+  assert.equal(gate.tabAdmits({...held, familyId: 'another-tab-picked', profileId: 'parent'}), false, 'a different profile asks');
+  assert.equal(gate.admittedProfile('s1'), 'alex', 'and the picker can focus the profile this tab had open');
   gate.resetTabSessionGate();
   assert.equal(gate.tabAdmits({...held, familyId: 'another-tab-picked'}), false, 'the next reload asks');
 });
 
 test('a pick without remembering, a sign-out or a PIN asked again stop remembering in this tab', () => {
   gate.resetTabSessionGate(); tab.values.clear();
-  gate.recordTabPick('s1', {...held, expiresAt: future});
-  gate.recordTabPick('s1', undefined);
+  gate.recordTabPick('s1', 'alex', {...held, expiresAt: future});
+  gate.recordTabPick('s1', 'alex', undefined);
   gate.resetTabSessionGate();
   assert.equal(gate.tabAdmits(held), false);
-  gate.recordTabPick('s1', {...held, expiresAt: future});
+  gate.recordTabPick('s1', 'alex', {...held, expiresAt: future});
   gate.forgetTabServer('s1');
   assert.equal(gate.tabAdmits(held), false);
 });
@@ -58,7 +60,7 @@ test('an unreadable marker is not a marker, and is neither thrown nor erased (R-
 
 test('a new tab starts with nothing remembered', () => {
   gate.resetTabSessionGate(); tab.values.clear();
-  gate.recordTabPick('s1', {...held, expiresAt: future});
+  gate.recordTabPick('s1', 'alex', {...held, expiresAt: future});
   const other = new TabStorage();
   (globalThis as {sessionStorage?: unknown}).sessionStorage = other;
   gate.resetTabSessionGate();

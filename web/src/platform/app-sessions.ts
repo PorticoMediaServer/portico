@@ -47,7 +47,7 @@ export class BrowserAppSessionActions {
   try{await rememberNativeSession(api,chosen.session,env,entry.connection.hosted,()=>isCurrent()&&!signal.aborted);}
   catch(error){const cleanup=new HttpLocalApi(api.baseUrl,chosen.session.accessToken);const route=api.getRouteConnection();if(route)cleanup.useRoutes(route);await cleanup.logout().catch(()=>{});throw error;}
   // "Remember this profile in this browser tab": only when asked for and the server agreed.
-  recordTabPick(session.viewer.serverId,remember&&chosen.remembered?{serverId:session.viewer.serverId,familyId:chosen.session.sessionFamilyId,profileId,expiresAt:chosen.remembered.expiresAt}:undefined);
+  recordTabPick(session.viewer.serverId,profileId,remember&&chosen.remembered?{serverId:session.viewer.serverId,familyId:chosen.session.sessionFamilyId,profileId,expiresAt:chosen.remembered.expiresAt}:undefined);
   if(shouldRetireAccountSession(session,chosen.session)){
    const cleanup=new HttpLocalApi(api.baseUrl,session.accessToken);const route=api.getRouteConnection();if(route)cleanup.useRoutes(route);
    await cleanup.logout().catch(()=>{});
