@@ -2284,7 +2284,10 @@ CREATE TABLE authorization_session_families(
  current_generation INTEGER NOT NULL CHECK(current_generation>0),
  revoked INTEGER NOT NULL DEFAULT 0 CHECK(revoked IN (0,1))
 , revoked_reason TEXT NOT NULL DEFAULT ''
- CHECK(revoked_reason IN ('','refresh_reuse','explicit_signout','admin_revoke','membership_removed','password_change','signing_key_revoked','restored')), revoked_at TEXT NOT NULL DEFAULT '') STRICT;
+ CHECK(revoked_reason IN ('','refresh_reuse','explicit_signout','admin_revoke','membership_removed','password_change','signing_key_revoked','restored')), revoked_at TEXT NOT NULL DEFAULT '',
+ remember_until TEXT NOT NULL DEFAULT '',
+ manage_until TEXT NOT NULL DEFAULT '',
+ pin_gate INTEGER NOT NULL DEFAULT 0 CHECK(pin_gate IN (0,1))) STRICT;
 CREATE TABLE authorization_family_tokens(
  token_hash TEXT PRIMARY KEY,
  family_id TEXT NOT NULL REFERENCES authorization_session_families(id),
@@ -2963,12 +2966,6 @@ CREATE TABLE direct_profiles(
  pin_hash BLOB,
  allowed_libraries TEXT CHECK(allowed_libraries IS NULL OR json_valid(allowed_libraries)),
  deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN(0,1)), UNIQUE(account_id,id)
-) STRICT;
-CREATE TABLE direct_profile_trust(
- token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, profile_id TEXT NOT NULL,
- installation_id TEXT NOT NULL, pin_revision INTEGER NOT NULL, membership_revision INTEGER NOT NULL,
- profile_revision INTEGER NOT NULL, expires_at TEXT NOT NULL,
- FOREIGN KEY(account_id,profile_id) REFERENCES direct_profiles(account_id,id) ON DELETE CASCADE
 ) STRICT;
 CREATE TABLE profile_restrictions(
  profile_id TEXT PRIMARY KEY REFERENCES direct_profiles(id) ON DELETE CASCADE,
@@ -5005,7 +5002,6 @@ CREATE INDEX prepared_media_object_refs ON prepared_media_versions(digest,state)
 CREATE INDEX prepared_media_readers ON prepared_media_session_pins(version_id);
 CREATE UNIQUE INDEX direct_primary_profile ON direct_profiles(account_id) WHERE is_primary=1;
 CREATE INDEX direct_profiles_account ON direct_profiles(account_id,deleted,position,id);
-CREATE INDEX direct_profile_trust_account ON direct_profile_trust(account_id,profile_id);
 CREATE INDEX identity_devices_account ON identity_devices(authority,account_id,last_seen);
 CREATE INDEX identity_device_families_device ON identity_device_families(device_id);
 CREATE INDEX identity_browser_accounts_recent ON identity_browser_accounts(installation_id,last_used);
@@ -5544,10 +5540,6 @@ CREATE TRIGGER mount_revision_update AFTER UPDATE ON managed_mounts
  UPDATE mount_revision SET revision=revision+1 WHERE id=1; END;
 CREATE TRIGGER mount_revision_control AFTER UPDATE ON mount_controls BEGIN
  UPDATE mount_revision SET revision=revision+1 WHERE id=1; END;
-CREATE TRIGGER direct_account_epoch AFTER UPDATE OF epoch ON accounts
- WHEN NEW.epoch<>OLD.epoch BEGIN
- DELETE FROM direct_profile_trust WHERE account_id=NEW.id;
-END;
 CREATE TRIGGER networking_identity_no_replace BEFORE INSERT ON networking_server_identities WHEN EXISTS(SELECT 1 FROM networking_server_identities WHERE server_id=NEW.server_id OR public_key=NEW.public_key OR key_incarnation=NEW.key_incarnation) BEGIN SELECT RAISE(ABORT,'immutable server identity'); END;
 CREATE TRIGGER networking_identity_no_update BEFORE UPDATE ON networking_server_identities BEGIN SELECT RAISE(ABORT,'immutable server identity'); END;
 CREATE TRIGGER networking_identity_no_delete BEFORE DELETE ON networking_server_identities BEGIN SELECT RAISE(ABORT,'immutable server identity'); END;

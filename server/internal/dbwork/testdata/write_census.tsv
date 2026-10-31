@@ -213,8 +213,8 @@ internal/identity/direct_accounts.go	(*Service).directLoginOnce	Begin	ClassSecur
 internal/identity/direct_accounts.go	(*Service).rehashOldPassword	ExecWrite	ClassSecurityFence	-
 internal/identity/direct_profiles.go	(*Service).CreateDirectProfile	Begin	ClassSecurityFence	-
 internal/identity/direct_profiles.go	(*Service).EditDirectProfile	Begin	ClassSecurityFence	-
+internal/identity/direct_profiles.go	(*Service).ForgetRememberedDevices	Begin	ClassSecurityFence	-
 internal/identity/direct_profiles.go	(*Service).OrderDirectProfiles	Begin	ClassSecurityFence	-
-internal/identity/direct_profiles.go	(*Service).RevokeDirectTrust	Begin	ClassSecurityFence	-
 internal/identity/direct_profiles.go	(*Service).SelectDirectProfileFrom	Begin	ClassSecurityFence	-
 internal/identity/families.go	(*Service).PruneAuthorizationRenewals	ExecWrite	ClassMaintenance	-
 internal/identity/families.go	(*Service).RenewAuthorization	Begin	ClassSecurityFence	-

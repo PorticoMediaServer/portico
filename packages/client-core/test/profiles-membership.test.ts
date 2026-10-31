@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ManagedProfilesClient,parseManagedProfiles,parseDirectSnapshot,parseTrustedProfile,trustScopeKey} from '../src/profile-management.ts';
+import {ManagedProfilesClient,parseManagedProfiles,parseDirectSnapshot,selectDirectProfile} from '../src/profile-management.ts';
 import {resetSkippedParts,skippedParts} from '../src/tolerant.ts';
 const p=(i=0)=>({id:'profile-'+i,name:'Profile '+i,primary:i===0,position:i,art:'blue',revision:1,pinRevision:1,pinRequired:false});
 const scope={authority:'local' as const,accountId:'account',profileId:'profile',serverId:'server',installationId:'installation'};
@@ -16,13 +16,19 @@ test('Direct account DTO does not derive administration from a selected child pr
  assert.throws(()=>parseDirectSnapshot(raw,{accountId:'another'}));assert.throws(()=>parseDirectSnapshot(raw,{authority:'hosted'}));
  assert.throws(()=>parseDirectSnapshot({...raw,account:{...raw.account,primaryProfileId:'profile-1'}}));
 });
-test('trusted selection requires full installation scope, revisions and bounded expiry',()=>{
- const now=Date.now(),proof={...scope,token:'opaque',pinRevision:1,profileRevision:1,membershipRevision:1,expiresAt:new Date(now+86400000).toISOString()};
- assert.equal(parseTrustedProfile(proof,scope,now).token,'opaque');
- for(const patch of [{installationId:'other'},{accountId:'other'},{profileId:'other'},{serverId:'other'},{authority:'hosted'},{pinRevision:0},{membershipRevision:0},{expiresAt:new Date(now-1).toISOString()},{expiresAt:new Date(now+31*86400000).toISOString()}])assert.throws(()=>parseTrustedProfile({...proof,...patch},scope,now));
- assert.notEqual(trustScopeKey(scope),trustScopeKey({...scope,authority:'hosted'}));assert.notEqual(trustScopeKey(scope),trustScopeKey({...scope,installationId:'other'}));
- const hosted={...scope,authority:'hosted' as const};assert.throws(()=>parseTrustedProfile({...proof,...hosted},hosted,now));
- assert.equal(parseTrustedProfile({...proof,...hosted,policyRevision:4,trustRevision:1},hosted,now).policyRevision,4);
+test('profile selection sends remember and reads the remembered expiry; the snapshot says whether remembering is offered',async()=>{
+ const expiresAt=new Date(Date.now()+30*86400000).toISOString().replace(/\.\d+Z$/,'Z');
+ const session={accessToken:'access',expiresAt:new Date(Date.now()+600000).toISOString().replace(/\.\d+Z$/,'Z'),sessionFamilyId:'family',tokenGeneration:'1',authorizationHorizon:new Date(Date.now()+86400000).toISOString().replace(/\.\d+Z$/,'Z'),viewer:{accountId:'account',profileId:'profile',serverId:'server',authority:'local',role:'member'}};
+ const calls:any[]=[];
+ const chosen=await selectDirectProfile(apiFor({session,remembered:{expiresAt}},calls),{authority:'local',accountId:'account',serverId:'server'},'profile',{pin:'1234',installationId:'installation',remember:true});
+ assert.deepEqual(calls[0].body,{pin:'1234',installationId:'installation',remember:true});
+ assert.equal(chosen.remembered?.expiresAt,expiresAt);
+ const plain=await selectDirectProfile(apiFor({session},[]),{authority:'local',accountId:'account',serverId:'server'},'profile',{pin:'1234'});
+ assert.equal(plain.remembered,undefined);
+ const raw={authority:'local',serverId:'server',account:{id:'account',username:'owner',primaryProfileId:'profile-0',role:'owner',revision:1,disabled:false,allowedLibraries:[]},profiles:[p(),p(1)],canManage:true,capabilities:{manageAccount:true,managePeople:true,manageServer:true,manageSignIn:true}};
+ assert.equal(parseDirectSnapshot({...raw,rememberProfiles:true},{accountId:'account',serverId:'server'}).rememberProfiles,true);
+ assert.equal(parseDirectSnapshot(raw,{accountId:'account',serverId:'server'}).rememberProfiles,false);
+ assert.equal(parseDirectSnapshot({...raw,rememberProfiles:true,managePinRequired:true},{accountId:'account',serverId:'server'}).managePinRequired,true);
 });
 test('profile edits carry optimistic revision and refuse malformed PINs before sending',async()=>{
  const calls:any[]=[];const c=new ManagedProfilesClient(apiFor({},calls),scope);

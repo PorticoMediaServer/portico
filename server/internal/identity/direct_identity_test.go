@@ -202,7 +202,7 @@ func TestDirectCredentialProfileAndServerAuthorityAreIndependent(t *testing.T) {
 		t.Fatal("ending account grant ended independent viewing session", e)
 	}
 }
-func TestDirectPINRevisionRevokesFamiliesAndInstallationTrust(t *testing.T) {
+func TestDirectPINRevisionEndsOldFamiliesAndTheNewPINNeedsItsOwnSelection(t *testing.T) {
 	ctx := context.Background()
 	s, db, login := directFixture(t)
 	profiles, e := s.CreateDirectProfile(ctx, login.AccountToken, "Protected", "blue")
@@ -220,8 +220,8 @@ func TestDirectPINRevisionRevokesFamiliesAndInstallationTrust(t *testing.T) {
 		t.Fatal(e)
 	}
 	child = childProfile(t, profiles)
-	if _, e = s.Authenticate(old.Session.AccessToken); !errors.Is(e, ErrUnauthorized) {
-		t.Fatal("old profile family survived PIN change", e)
+	if _, e = s.Authenticate(old.Session.AccessToken); e == nil {
+		t.Fatal("old profile family still works after the PIN change")
 	}
 	if _, e = s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{PIN: "9999"}); !errors.Is(e, ErrProfilePIN) {
 		t.Fatal("wrong PIN accepted", e)
@@ -233,25 +233,34 @@ func TestDirectPINRevisionRevokesFamiliesAndInstallationTrust(t *testing.T) {
 	if _, e = db.Exec(`UPDATE direct_profile_pin_attempts SET locked_until_ms=0 WHERE profile_id=? AND lineage_id=(SELECT id FROM identity_pin_lineages WHERE origin_device_id=?)`, child.ID, login.DeviceID); e != nil {
 		t.Fatal(e)
 	}
-	selected, e := s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{PIN: pin, Trust: true, InstallationID: "installation"})
-	if e != nil || selected.TrustedSelection == nil {
-		t.Fatal("explicit trust selection", e)
+	selected, e := s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{PIN: pin, Remember: true, InstallationID: "installation"})
+	if e != nil || selected.Remembered == nil {
+		t.Fatal("explicit remember selection", e)
 	}
-	// Re-select from the profile's own session: remembered trust may spare a
-	// same-profile selection, but never a switch from another profile.
-	trusted, e := s.SelectDirectProfile(ctx, selected.Session.AccessToken, child.ID, DirectSelection{TrustToken: selected.TrustedSelection.Token, InstallationID: "installation"})
-	if e != nil || trusted.Session.SessionFamilyID == selected.Session.SessionFamilyID {
-		t.Fatal("trust did not issue independent viewing family", e)
+	// Re-selecting the same profile from its own session proves the PIN again:
+	// remembering keeps the device's family, it does not spare the PIN.
+	if _, e = s.SelectDirectProfile(ctx, selected.Session.AccessToken, child.ID, DirectSelection{InstallationID: "installation", Remember: true}); !errors.Is(e, ErrProfilePIN) {
+		t.Fatal("same-profile reselect without the PIN was admitted", e)
+	}
+	if _, e = db.Exec(`UPDATE direct_profile_pin_attempts SET locked_until_ms=0 WHERE profile_id=?`, child.ID); e != nil {
+		t.Fatal(e)
+	}
+	again, e := s.SelectDirectProfile(ctx, selected.Session.AccessToken, child.ID, DirectSelection{PIN: pin, InstallationID: "installation", Remember: true})
+	if e != nil || again.Session.SessionFamilyID == selected.Session.SessionFamilyID {
+		t.Fatal("same-profile selection with the PIN did not issue an independent viewing family", e)
 	}
 	replacement := "4567"
 	if _, e = s.EditDirectProfile(ctx, login.AccountToken, child.ID, DirectProfileEdit{ExpectedRevision: child.Revision, PIN: &replacement}); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = s.Authenticate(trusted.Session.AccessToken); !errors.Is(e, ErrUnauthorized) {
-		t.Fatal("trusted viewing family survived PIN revision", e)
+	if _, e = s.Authenticate(again.Session.AccessToken); e == nil {
+		t.Fatal("viewing family still works after the PIN revision")
 	}
-	if _, e = s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{TrustToken: selected.TrustedSelection.Token, InstallationID: "installation"}); !errors.Is(e, ErrProfilePIN) {
-		t.Fatal("old trust proof survived PIN change", e)
+	if _, e = db.Exec(`UPDATE direct_profile_pin_attempts SET locked_until_ms=0 WHERE profile_id=?`, child.ID); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = s.SelectDirectProfile(ctx, login.AccountToken, child.ID, DirectSelection{PIN: pin, InstallationID: "installation"}); !errors.Is(e, ErrProfilePIN) {
+		t.Fatal("the old PIN survived the PIN change", e)
 	}
 }
 func TestDirectMembershipIntersectionAndPrimaryNotOwner(t *testing.T) {

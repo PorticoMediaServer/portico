@@ -104,6 +104,10 @@ func v1ErrorDefinitions() []apierror.Definition {
 		{Code: "administration_unavailable", Status: 503, Message: "Administration is temporarily unavailable.", Retry: apierror.SameRequest},
 		{Code: "confirmation_mismatch", Status: 409, Message: "Type the name exactly as shown to confirm.", Retry: apierror.Never},
 		{Code: "password_change_required", Status: 403, Message: "Change your password before continuing.", Retry: apierror.Never},
+		// A PIN change elsewhere: this device enters the profile's PIN again (C-DESIGN §4).
+		{Code: "profile_pin_reentry", Status: 403, Message: identity.ErrProfilePINReentry.Error(), Retry: apierror.Never},
+		// A remembered main profile enters its PIN again before it manages the account.
+		{Code: "profile_pin_manage", Status: 403, Message: identity.ErrProfilePINManage.Error(), Retry: apierror.Never},
 		{Code: "no_tuner_available", Status: 409, Message: "Every tuner is in use.", Retry: apierror.AfterRefresh},
 		// Channels on v1 sessions (§18.6).
 		{Code: "channel_unavailable", Status: 503, Message: "This channel can't be played right now.", Retry: apierror.SameRequest},
@@ -165,6 +169,12 @@ func v1Error(err error) error {
 	var public *apierror.Error
 	if err == nil || errors.As(err, &public) {
 		return err
+	}
+	if errors.Is(err, identity.ErrProfilePINReentry) {
+		return &apierror.Error{Code: "profile_pin_reentry", Cause: err}
+	}
+	if errors.Is(err, identity.ErrProfilePINManage) {
+		return &apierror.Error{Code: "profile_pin_manage", Cause: err}
 	}
 	var field *playbackv1.FieldError
 	var refused playback.ErrDeliveryRefused

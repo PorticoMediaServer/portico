@@ -129,7 +129,7 @@ func accessFailure(w http.ResponseWriter, e error) {
 	if revisionFailure(w, e) {
 		return
 	}
-	if errors.Is(e, identity.ErrSignInKindLocal) || errors.Is(e, identity.ErrSignInKindPortico) || errors.Is(e, identity.ErrFactorSetupRequired) || errors.Is(e, identity.ErrAvatarMissing) {
+	if errors.Is(e, identity.ErrSignInKindLocal) || errors.Is(e, identity.ErrSignInKindPortico) || errors.Is(e, identity.ErrFactorSetupRequired) || errors.Is(e, identity.ErrAvatarMissing) || errors.Is(e, identity.ErrProfilePINReentry) || errors.Is(e, identity.ErrProfilePINManage) {
 		failure(w, e)
 		return
 	}

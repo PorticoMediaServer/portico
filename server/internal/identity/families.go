@@ -217,7 +217,7 @@ func (s *Service) familyRowTx(ctx context.Context, tx *sql.Tx, where, arg string
 	var r familyRecord
 	var horizon, expires string
 	var revoked, retired int
-	err := tx.QueryRowContext(ctx, `SELECT f.id,f.server_id,f.account_id,f.profile_id,f.authority,f.role,f.epoch,f.authorization_horizon,f.current_generation,f.revoked,t.token_hash,t.generation,t.expires_at,t.retired,COALESCE((SELECT g.grant_kind FROM authorization_family_grants g WHERE g.family_id=f.id),'') FROM authorization_family_tokens t JOIN authorization_session_families f ON f.id=t.family_id WHERE `+where, arg).Scan(&r.ID, &r.principal.ServerID, &r.principal.AccountID, &r.principal.ProfileID, &r.principal.Authority, &r.principal.Role, &r.principal.Epoch, &horizon, &r.currentGeneration, &revoked, &r.principal.Hash, &r.TokenGeneration, &expires, &retired, &r.principal.Grant)
+	err := tx.QueryRowContext(ctx, `SELECT f.id,f.server_id,f.account_id,f.profile_id,f.authority,f.role,f.epoch,f.authorization_horizon,f.current_generation,f.revoked,f.pin_gate,t.token_hash,t.generation,t.expires_at,t.retired,COALESCE((SELECT g.grant_kind FROM authorization_family_grants g WHERE g.family_id=f.id),'') FROM authorization_family_tokens t JOIN authorization_session_families f ON f.id=t.family_id WHERE `+where, arg).Scan(&r.ID, &r.principal.ServerID, &r.principal.AccountID, &r.principal.ProfileID, &r.principal.Authority, &r.principal.Role, &r.principal.Epoch, &horizon, &r.currentGeneration, &revoked, &r.principal.PINGated, &r.principal.Hash, &r.TokenGeneration, &expires, &retired, &r.principal.Grant)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return r, ErrUnauthorized

@@ -111,7 +111,7 @@ func TestOnlyAnAdministratorMayEditAMemberAndTheRefusalIsNotASignOut(t *testing.
 	_ = member
 }
 
-func TestAProfilesLibraryListChangesLiveAndANewPINStillSignsItOut(t *testing.T) {
+func TestAProfilesLibraryListChangesLiveAndANewPINAsksForItAgain(t *testing.T) {
 	ctx := context.Background()
 	s, _, _, login := memberWithSession(t)
 	profiles, err := s.CreateDirectProfile(ctx, login.AccountToken, "Child", "coral")
@@ -144,7 +144,8 @@ func TestAProfilesLibraryListChangesLiveAndANewPINStillSignsItOut(t *testing.T) 
 	if _, err = s.EditDirectProfile(ctx, login.AccountToken, child.ID, DirectProfileEdit{ExpectedRevision: childProfile(t, edited).Revision, PIN: &pin}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.Authenticate(selected.Session.AccessToken); !errors.Is(err, ErrUnauthorized) {
+	// The device never entered the new PIN: it is asked for it, not signed out.
+	if _, err = s.Authenticate(selected.Session.AccessToken); !errors.Is(err, ErrProfilePINReentry) {
 		t.Fatalf("a new PIN left a device on the profile that never entered it: %v", err)
 	}
 }

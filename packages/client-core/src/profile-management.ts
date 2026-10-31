@@ -22,7 +22,9 @@ export type DirectAccount=Readonly<{id:string;username:string;primaryProfileId:s
  * (retiring it, its certificates) is not with it yet: after a transfer to it, or after a direct
  * owner. Ask the owner to accept it (`acceptPorticoCustody`). */
 export type ManagementCapabilities=Readonly<{manageAccount:boolean;managePeople:boolean;manageServer:boolean;manageSignIn:boolean}>;
-export type DirectSnapshot=Readonly<{capabilities:ManagementCapabilities;authority:'local';serverId:string;account:DirectAccount;profiles:readonly ManagedProfile[];canManage:boolean;custodyPending?:boolean;twoStepSetupRequired?:true}>;
+/** `rememberProfiles`: the PIN screen may offer Remember this profile. `managePinRequired`: this remembered
+ * main profile enters its PIN again before it manages the account (profile_pin_manage). */
+export type DirectSnapshot=Readonly<{capabilities:ManagementCapabilities;authority:'local';serverId:string;account:DirectAccount;profiles:readonly ManagedProfile[];canManage:boolean;custodyPending?:boolean;twoStepSetupRequired?:true;rememberProfiles?:boolean;managePinRequired?:true}>;
 /**
  * C45 direct sign-in (Justin's account decisions). There is no separate account token any more:
  * - `signed-in`: one device-bound `session`. With several profiles or a PIN it has role `account`
@@ -43,10 +45,12 @@ export function directSignInContinuation(result:DirectSignIn):'challenge'|'passw
  return result.accountScoped?'profile-selection':'viewer';
 }
 export type ProfileScope=Readonly<{authority:ProfileAuthority;accountId:string;serverId?:string}>;
-export type ProfileSelectionInput=Readonly<{pin?:string;installationId?:string;trust?:boolean;trustToken?:string}>;
-export type TrustedProfile=Readonly<{token:string;authority:ProfileAuthority;accountId:string;profileId:string;serverId:string;installationId:string;pinRevision:number;profileRevision:number;policyRevision?:number;membershipRevision?:number;trustRevision?:number;expiresAt:string}>;
+/** `remember`: open this profile at launch while this device keeps the sign-in (the PIN screen's
+ * Remember this profile). The server honours it only when its "Remember PIN for" is not Off. */
+export type ProfileSelectionInput=Readonly<{pin?:string;installationId?:string;remember?:boolean}>;
 export type SignedProfileProof=Readonly<{payload:string;signature:string;keyId:string}>;
-export type DirectSelection=Readonly<{session:LocalSession;trustedSelection?:TrustedProfile}>;
+/** `remembered`: the new sign-in remembers its profile until `expiresAt`. */
+export type DirectSelection=Readonly<{session:LocalSession;remembered?:Readonly<{expiresAt:string}>}>;
 /** A deletion preview: the revision and the profile lifetime the server will retire. The lifetime is
  * generated once by the server and never reused, so a replayed delete names the same retirement. */
 export type ProfileDeletion=Readonly<{id?:string;profileId:string;revision:number;lifetime:string;name?:string;primary:boolean;status?:string;playlists?:number;savedResources?:number;servers?:readonly {id:string;name:string;acknowledged:boolean}[]}>;
@@ -119,7 +123,7 @@ export function parseDirectSnapshot(raw:unknown,expected:Partial<ProfileScope>={
  const capabilities:ManagementCapabilities=Object.freeze({manageAccount:c.manageAccount as boolean,managePeople:c.managePeople as boolean,manageServer:c.manageServer as boolean,manageSignIn:c.manageSignIn as boolean});
  if(raw.twoStepSetupRequired===true&&Object.values(capabilities).some(Boolean))invalid();
  const profiles=parseManagedProfiles(raw.profiles,readableProfiles);if(!profiles.some(p=>p.primary&&p.id===a.primaryProfileId))invalid();
- return Object.freeze({authority:'local',serverId:raw.serverId,account:Object.freeze({id:a.id,username:a.username,primaryProfileId:a.primaryProfileId,role:a.role as DirectAccount['role'],revision:a.revision,disabled:a.disabled,allowedLibraries:ids(a.allowedLibraries),...(a.hostedAccountId===undefined?{}:{hostedAccountId:a.hostedAccountId as string})}),profiles,capabilities,canManage:raw.canManage,...(raw.custodyPending===true?{custodyPending:true}:{}),...(raw.twoStepSetupRequired===true?{twoStepSetupRequired:true as const}:{})});
+ return Object.freeze({authority:'local',serverId:raw.serverId,account:Object.freeze({id:a.id,username:a.username,primaryProfileId:a.primaryProfileId,role:a.role as DirectAccount['role'],revision:a.revision,disabled:a.disabled,allowedLibraries:ids(a.allowedLibraries),...(a.hostedAccountId===undefined?{}:{hostedAccountId:a.hostedAccountId as string})}),profiles,capabilities,canManage:raw.canManage,rememberProfiles:raw.rememberProfiles===true,...(raw.custodyPending===true?{custodyPending:true}:{}),...(raw.twoStepSetupRequired===true?{twoStepSetupRequired:true as const}:{}),...(raw.managePinRequired===true?{managePinRequired:true as const}:{})});
 }
 export function parseDirectSignIn(raw:unknown):DirectSignIn{
  if(!obj(raw))invalid();
@@ -182,22 +186,12 @@ export async function completeDirectSignInChallenge(api:ProfileAPI,token:string,
 export async function changeRequiredPassword(api:ProfileAPI,currentPassword:string,newPassword:string,signal?:AbortSignal):Promise<void>{
  await api.request(routePath("post_direct_password"),'POST',routeBody("post_direct_password", {currentPassword,newPassword}),signal);
 }
-export function parseTrustedProfile(raw:unknown,scope:ProfileScope&{profileId:string;installationId:string},now=Date.now()):TrustedProfile{
- if(!obj(raw)||raw.authority!==scope.authority||raw.accountId!==scope.accountId||raw.profileId!==scope.profileId||raw.serverId!==scope.serverId||raw.installationId!==scope.installationId||!text(raw.token,4096)||!revision(raw.pinRevision)||!revision(raw.profileRevision)||!currentUTCTimestamp(raw.expiresAt)||Date.parse(raw.expiresAt)<=now||Date.parse(raw.expiresAt)>now+30*86400000+60000)invalid();
- for(const key of ['policyRevision','membershipRevision','trustRevision'])if(raw[key]!==undefined&&!revision(raw[key]))invalid();
- if(scope.authority==='hosted'&&(!revision(raw.policyRevision)||!revision(raw.trustRevision)))invalid();if(scope.authority==='local'&&!revision(raw.membershipRevision))invalid();
- return Object.freeze({token:raw.token,authority:scope.authority,accountId:scope.accountId,profileId:scope.profileId,serverId:scope.serverId!,installationId:scope.installationId,pinRevision:raw.pinRevision,profileRevision:raw.profileRevision,expiresAt:raw.expiresAt,...(raw.policyRevision===undefined?{}:{policyRevision:raw.policyRevision as number}),...(raw.membershipRevision===undefined?{}:{membershipRevision:raw.membershipRevision as number}),...(raw.trustRevision===undefined?{}:{trustRevision:raw.trustRevision as number})});
-}
 export async function selectDirectProfile(api:ProfileAPI,scope:ProfileScope&{serverId:string},profileId:string,input:ProfileSelectionInput,signal?:AbortSignal):Promise<DirectSelection>{
  if(scope.authority!=='local'||!text(profileId,128)||(input.pin!==undefined&&input.pin!==''&&!/^\d{4}$/.test(input.pin)))throw new CodedError('pin_format','Enter the four-digit profile PIN.');
  const raw=await api.request<RouteResponse<"post_direct_profiles_id_select">>(encodedRoutePath("post_direct_profiles_id_select", {"id": encodeURIComponent(profileId)}),'POST',input,signal);if(!obj(raw))invalid();
  const session=parseLocalSession(raw.session,{authority:'local',accountId:scope.accountId,serverId:scope.serverId,profileId});
- const trustedSelection=raw.trustedSelection===undefined?undefined:parseTrustedProfile(raw.trustedSelection,{...scope,profileId,installationId:input.installationId??''});
- return Object.freeze({session,...(trustedSelection?{trustedSelection}:{})});
-}
-export function trustScopeKey(scope:ProfileScope&{profileId:string;installationId:string}):string{
- if(!['hosted','local'].includes(scope.authority)||![scope.accountId,scope.serverId,scope.profileId,scope.installationId].every(v=>text(v,128)))throw new CodedError('invalid_scope','A complete installation and viewer scope is required.');
- return JSON.stringify(['portico-profile-trust-v1',scope.authority,scope.accountId,scope.serverId,scope.profileId,scope.installationId]);
+ const remembered=obj(raw.remembered)&&currentUTCTimestamp(raw.remembered.expiresAt)?Object.freeze({expiresAt:raw.remembered.expiresAt}):undefined;
+ return Object.freeze({session,...(remembered?{remembered}:{})});
 }
 /** Validation and revision-bound mutations are shared by web, iOS and tvOS. */
 /**

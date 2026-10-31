@@ -78,6 +78,12 @@ func (d Dependencies) foundationCaller(r *http.Request) (identity.Principal, err
 }
 
 func foundationAuthError(err error) error {
+	if errors.Is(err, identity.ErrProfilePINReentry) {
+		return &apierror.Error{Code: "profile_pin_reentry", Cause: err}
+	}
+	if errors.Is(err, identity.ErrProfilePINManage) {
+		return &apierror.Error{Code: "profile_pin_manage", Cause: err}
+	}
 	if errors.Is(err, identity.ErrNotVisible) {
 		return &apierror.Error{Code: "not_found", Cause: err}
 	}

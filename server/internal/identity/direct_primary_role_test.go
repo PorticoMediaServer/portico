@@ -57,11 +57,11 @@ func viewingProfileFixture(t *testing.T, name string) (*Service, *sql.DB, Direct
 const mainInstallation = "main-installation"
 
 // protectedMainFixture sets a PIN on the main profile through the real edit
-// path, which retires the owner's existing family as a new credential, signs in
-// again, and remembers the main profile on one real installation. It then
-// selects the viewing profile, so the caller is a member-scoped Guest or Kids
-// session while a valid remembered main token exists for the same device.
-func protectedMainFixture(t *testing.T, name, pin string) (*Service, *sql.DB, DirectSignIn, string, DirectTrust, DirectSelectionResult) {
+// path, signs in again, and remembers the main profile on one real
+// installation. It then selects the viewing profile, so the caller is a
+// member-scoped Guest or Kids session while the device also holds a remembered
+// main family.
+func protectedMainFixture(t *testing.T, name, pin string) (*Service, *sql.DB, DirectSignIn, string, DirectSelectionResult, DirectSelectionResult) {
 	t.Helper()
 	ctx := context.Background()
 	s, db, owner := directFixture(t)
@@ -74,15 +74,12 @@ func protectedMainFixture(t *testing.T, name, pin string) (*Service, *sql.DB, Di
 	if _, err = s.EditDirectProfile(ctx, owner.AccountToken, primary.ID, DirectProfileEdit{ExpectedRevision: primary.Revision, PIN: &pin}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.Authenticate(owner.AccountToken); !errors.Is(err, ErrUnauthorized) {
-		t.Fatalf("the owner's old session survived the new main PIN: %v", err)
-	}
 	login, err := s.DirectLogin(ctx, "owner", "Testing1!")
 	if err != nil || login.Session == nil || login.Session.Viewer.Role != "account" {
 		t.Fatalf("protected main sign-in: %+v %v", login.Session, err)
 	}
-	main, err := s.SelectDirectProfile(ctx, login.AccountToken, primary.ID, DirectSelection{PIN: pin, Trust: true, InstallationID: mainInstallation})
-	if err != nil || main.TrustedSelection == nil || main.Session.Viewer.Role != TierOwner {
+	main, err := s.SelectDirectProfile(ctx, login.AccountToken, primary.ID, DirectSelection{PIN: pin, Remember: true, InstallationID: mainInstallation})
+	if err != nil || main.Remembered == nil || main.Session.Viewer.Role != TierOwner {
 		t.Fatalf("main selection with its PIN: %+v %v", main, err)
 	}
 	selected, err := s.SelectDirectProfile(ctx, login.AccountToken, profile.ID, DirectSelection{})
@@ -92,7 +89,7 @@ func protectedMainFixture(t *testing.T, name, pin string) (*Service, *sql.DB, Di
 	if selected.Session.Viewer.Role != TierMember {
 		t.Fatalf("%s selection: %+v", name, selected.Session.Viewer)
 	}
-	return s, db, login, primary.ID, *main.TrustedSelection, selected
+	return s, db, login, primary.ID, main, selected
 }
 
 func TestSelectingNonPrimaryProfileIssuesMemberRole(t *testing.T) {
@@ -175,22 +172,20 @@ func TestGuestToPrimaryCorrectPINIssuesOwner(t *testing.T) {
 	}
 }
 
-func TestGuestToPrimaryRefusesMissingOrRememberedProofWithoutMintingFamily(t *testing.T) {
+func TestGuestToPrimaryRefusesMissingPINEvenWhenMainIsRememberedWithoutMintingFamily(t *testing.T) {
 	const pin = "4821"
 	for _, tc := range []struct {
 		name      string
-		selection func(main DirectTrust) DirectSelection
+		selection DirectSelection
 	}{
-		{"no proof", func(DirectTrust) DirectSelection { return DirectSelection{} }},
-		{"remembered main trust", func(main DirectTrust) DirectSelection {
-			return DirectSelection{TrustToken: main.Token, InstallationID: mainInstallation}
-		}},
+		{"no proof", DirectSelection{}},
+		{"remembered main", DirectSelection{InstallationID: mainInstallation, Remember: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s, db, _, primary, main, onGuest := protectedMainFixture(t, "Guest", pin)
+			s, db, _, primary, _, onGuest := protectedMainFixture(t, "Guest", pin)
 			ctx := context.Background()
 			before := liveFamilies(t, db)
-			result, err := s.SelectDirectProfile(ctx, onGuest.Session.AccessToken, primary, tc.selection(main))
+			result, err := s.SelectDirectProfile(ctx, onGuest.Session.AccessToken, primary, tc.selection)
 			// No fresh PIN was proved for the main profile. The existing
 			// contract charges the attempt and asks for the profile's PIN.
 			var wait *ProfilePINError
@@ -242,25 +237,25 @@ func TestGuestToPrimaryWrongPINIsChargedAndLocksWithoutMintingFamily(t *testing.
 	}
 }
 
-func TestKidsToPrimaryRefusesKidsTrustWithoutMintingFamily(t *testing.T) {
+func TestKidsToPrimaryRefusesKidsRememberedFamilyWithoutMintingFamily(t *testing.T) {
 	const pin = "4821"
 	s, db, _, primary, _, onKids := protectedMainFixture(t, "Kids", pin)
 	ctx := context.Background()
 	kids := onKids.Session.Viewer.ProfileID
-	remembered, err := s.SelectDirectProfile(ctx, onKids.Session.AccessToken, kids, DirectSelection{Trust: true, InstallationID: "kids-installation"})
-	if err != nil || remembered.TrustedSelection == nil {
-		t.Fatalf("Kids trust: %+v %v", remembered.TrustedSelection, err)
+	remembered, err := s.SelectDirectProfile(ctx, onKids.Session.AccessToken, kids, DirectSelection{Remember: true, InstallationID: "kids-installation"})
+	if err != nil || remembered.Remembered == nil {
+		t.Fatalf("Kids remembered: %+v %v", remembered.Remembered, err)
 	}
 	before := liveFamilies(t, db)
-	result, err := s.SelectDirectProfile(ctx, onKids.Session.AccessToken, primary, DirectSelection{TrustToken: remembered.TrustedSelection.Token, InstallationID: "kids-installation"})
+	result, err := s.SelectDirectProfile(ctx, remembered.Session.AccessToken, primary, DirectSelection{InstallationID: "kids-installation", Remember: true})
 	var wait *ProfilePINError
 	if !errors.Is(err, ErrProfilePIN) || !errors.As(err, &wait) || wait.RetryAfterSeconds != 2 {
-		t.Fatalf("Kids trust opened the protected main profile: %+v %v", wait, err)
+		t.Fatalf("a remembered Kids family opened the protected main profile: %+v %v", wait, err)
 	}
 	if result.Session.AccessToken != "" || liveFamilies(t, db) != before {
 		t.Fatal("a refused selection minted a family")
 	}
-	if kidsViewer, err := s.Authenticate(onKids.Session.AccessToken); err != nil || kidsViewer.Role != TierMember {
+	if kidsViewer, err := s.Authenticate(remembered.Session.AccessToken); err != nil || kidsViewer.Role != TierMember {
 		t.Fatalf("the Kids session changed: %+v %v", kidsViewer, err)
 	}
 }
@@ -288,17 +283,28 @@ func TestKidsToPrimaryCorrectPINIssuesOwner(t *testing.T) {
 	}
 }
 
-// The initial profile choice of an account-scoped sign-in is not a switch from
-// another profile, so a remembered main selection there keeps working.
-func TestAccountScopedInitialChoiceKeepsRememberedMainTrust(t *testing.T) {
+// The initial profile choice of an account-scoped sign-in needs a protected
+// main profile's PIN like any other choice: the remembered main family the
+// device may hold is how it resumes, not a way past the PIN.
+func TestAccountScopedInitialChoiceOfProtectedMainNeedsItsPIN(t *testing.T) {
 	const pin = "4821"
-	s, _, login, primary, main, _ := protectedMainFixture(t, "Guest", pin)
-	again, err := s.SelectDirectProfile(context.Background(), login.AccountToken, primary, DirectSelection{TrustToken: main.Token, InstallationID: mainInstallation})
+	s, db, login, primary, _, _ := protectedMainFixture(t, "Guest", pin)
+	ctx := context.Background()
+	before := liveFamilies(t, db)
+	result, err := s.SelectDirectProfile(ctx, login.AccountToken, primary, DirectSelection{InstallationID: mainInstallation, Remember: true})
+	var wait *ProfilePINError
+	if !errors.Is(err, ErrProfilePIN) || !errors.As(err, &wait) || result.Session.AccessToken != "" || liveFamilies(t, db) != before {
+		t.Fatalf("initial choice of the protected main profile without its PIN: %+v %v", wait, err)
+	}
+	if _, err = db.Exec(`UPDATE direct_profile_pin_attempts SET locked_until_ms=0 WHERE profile_id=?`, primary); err != nil {
+		t.Fatal(err)
+	}
+	again, err := s.SelectDirectProfile(ctx, login.AccountToken, primary, DirectSelection{PIN: pin, InstallationID: mainInstallation, Remember: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.Session.Viewer.Role != TierOwner {
-		t.Fatalf("remembered initial choice took %q", again.Session.Viewer.Role)
+	if again.Session.Viewer.Role != TierOwner || again.Remembered == nil {
+		t.Fatalf("initial choice with the PIN took %q remembered=%v", again.Session.Viewer.Role, again.Remembered)
 	}
 }
 

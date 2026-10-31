@@ -204,8 +204,10 @@ func ReplaceSignInPolicyTx(ctx context.Context, tx *sql.Tx, q SignInPolicyPatch)
 	if n, _ := r.RowsAffected(); n != 1 {
 		return old, ErrProfileChanged
 	}
-	if v.PINRememberDays != old.Values.PINRememberDays {
-		if _, e = tx.ExecContext(ctx, `DELETE FROM direct_profile_trust`); e != nil {
+	// Turning "Remember PIN for" Off ends every remembering: those devices show
+	// the picker at their next launch. A shorter period never lengthens one.
+	if v.PINRememberDays == 0 && old.Values.PINRememberDays != 0 {
+		if _, e = tx.ExecContext(ctx, `UPDATE authorization_session_families SET remember_until='' WHERE remember_until<>''`); e != nil {
 			return old, e
 		}
 	}

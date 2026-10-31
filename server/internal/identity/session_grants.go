@@ -21,6 +21,23 @@ const (
 )
 
 type playbackRequestKey struct{}
+type pinReentryRequestKey struct{}
+type runningPlaybackRequestKey struct{}
+
+// WithRunningPlaybackRequest marks a request on a playback that has already
+// started (its session or its media). A PIN change lets that playback finish;
+// starting a new one waits for the PIN.
+func WithRunningPlaybackRequest(ctx context.Context) context.Context {
+	return context.WithValue(ctx, runningPlaybackRequestKey{}, true)
+}
+
+// WithPINReentryRequest marks a request a PIN-gated session may still make: the
+// requests that let the device enter the profile's PIN again (the account's
+// profile list and choosing a profile), reading who it is, and signing out.
+// The HTTP edge decides this from the method and path before any handler runs.
+func WithPINReentryRequest(ctx context.Context) context.Context {
+	return context.WithValue(ctx, pinReentryRequestKey{}, true)
+}
 
 // WithPlaybackRequest marks a request as one a Cast target may make: starting,
 // controlling and reporting playback, fetching the media and the artwork for
@@ -34,6 +51,12 @@ func WithPlaybackRequest(ctx context.Context) context.Context {
 // The refusal is a 403, never a 401: the screen's session is fine, the request
 // is not one it may make.
 func (p Principal) PermitsRequest(ctx context.Context) error {
+	// A PIN change gates the profile's other sign-ins. A playback that has
+	// already started finishes; everything else, a new playback included, waits
+	// for the PIN.
+	if p.PINGated && ctx.Value(pinReentryRequestKey{}) != true && ctx.Value(runningPlaybackRequestKey{}) != true {
+		return ErrProfilePINReentry
+	}
 	switch p.Grant {
 	case "":
 		return nil

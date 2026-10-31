@@ -7,12 +7,10 @@ import (
 	"testing"
 )
 
-// P2-59 follow-up: a launch is not a switch. A client remembers the profile it
-// last used on this installation. Launching again signs the account in without a
-// profile choice, and that first choice must re-mint the remembered profile from
-// its remembered proof without asking for its PIN, whichever profile it is. An
-// actual switch away from a profile being viewed keeps needing the destination's
-// own PIN, even when a remembered proof for that destination exists.
+// P2-59 follow-up: remembering a profile is the device keeping its sign-in, not
+// a proof that skips the PIN. A remembered family resumes on launch because the
+// device still holds it (and refreshes without a PIN). A fresh account-scoped
+// sign-in, and any other choice of a profile with a PIN, proves that PIN.
 
 const launchResumeInstallation = "launch-resume-installation"
 
@@ -43,18 +41,15 @@ func launchResumeAttempts(t *testing.T, db *sql.DB, profile string) int {
 	return attempts
 }
 
-// rememberProfile is the real remember path: choose the profile with its PIN and
-// ask the server for a remembered proof bound to this installation's id.
-func rememberProfile(t *testing.T, s *Service, accountToken string, target DirectProfile, pin string) DirectTrust {
+// rememberProfile is the real remember path: choose the profile with its PIN
+// and ask the server to remember it for this installation.
+func rememberProfile(t *testing.T, s *Service, accountToken string, target DirectProfile, pin string) DirectSelectionResult {
 	t.Helper()
-	selected, err := s.SelectDirectProfile(context.Background(), accountToken, target.ID, DirectSelection{PIN: pin, Trust: true, InstallationID: launchResumeInstallation})
-	if err != nil || selected.TrustedSelection == nil {
-		t.Fatalf("remembering %s: %+v %v", target.Name, selected.TrustedSelection, err)
+	selected, err := s.SelectDirectProfile(context.Background(), accountToken, target.ID, DirectSelection{PIN: pin, Remember: true, InstallationID: launchResumeInstallation})
+	if err != nil || selected.Remembered == nil {
+		t.Fatalf("remembering %s: %+v %v", target.Name, selected.Remembered, err)
 	}
-	if selected.TrustedSelection.ProfileID != target.ID || selected.TrustedSelection.InstallationID != launchResumeInstallation {
-		t.Fatalf("remembered proof is not bound to this profile and installation: %+v", selected.TrustedSelection)
-	}
-	return *selected.TrustedSelection
+	return selected
 }
 
 // freshAccountSignIn is a client launching again: the account is proved on this
@@ -72,7 +67,7 @@ func freshAccountSignIn(t *testing.T, s *Service, placeholder string) DirectSign
 	return login
 }
 
-func TestRememberedProfileResumesFromFreshAccountScopedSignIn(t *testing.T) {
+func TestRememberedProfileKeepsItsFamilyButAFreshSignInNeedsThePIN(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
@@ -84,85 +79,88 @@ func TestRememberedProfileResumesFromFreshAccountScopedSignIn(t *testing.T) {
 			s, db, login, profiles := switchPINFixture(t, map[switchProfileKind]string{kind: pin})
 			target := profiles[kind]
 			remembered := rememberProfile(t, s, login.AccountToken, target, pin)
-			var stored int
-			if err := db.QueryRow(`SELECT count(*) FROM direct_profile_trust WHERE token_hash=? AND account_id=? AND profile_id=? AND installation_id=?`, Digest(remembered.Token), login.Account.ID, target.ID, launchResumeInstallation).Scan(&stored); err != nil || stored != 1 {
-				t.Fatalf("the remembered proof was not stored once: %d %v", stored, err)
-			}
-			fresh := freshAccountSignIn(t, s, profiles[switchMain].ID)
-			before := liveFamilies(t, db)
-			result, err := s.SelectDirectProfile(ctx, fresh.AccountToken, target.ID, DirectSelection{TrustToken: remembered.Token, InstallationID: launchResumeInstallation})
-			if err != nil {
-				t.Fatalf("the remembered %s profile asked for its PIN again on launch: %v", kind, err)
-			}
 			want := launchResumeRole(kind)
-			if result.Session.Viewer.ProfileID != target.ID || result.Session.Viewer.Role != want {
-				t.Fatalf("%s launch landed on %+v, want %s/%s", kind, result.Session.Viewer, target.ID, want)
+			// The device resumes by holding the family: it authenticates and
+			// refreshes with no PIN and no attempt charged.
+			if viewer, err := s.Authenticate(remembered.Session.AccessToken); err != nil || viewer.ProfileID != target.ID || viewer.Role != want {
+				t.Fatalf("%s remembered family did not authenticate: %+v %v", kind, viewer, err)
 			}
-			if result.Session.SessionFamilyID == "" || result.Session.SessionFamilyID == fresh.Session.SessionFamilyID || result.Session.AccessToken == "" {
-				t.Fatalf("%s launch reused the account family or issued no viewing session", kind)
-			}
-			if after := liveFamilies(t, db); after != before+1 {
-				t.Fatalf("%s launch minted %d->%d families", kind, before, after)
+			refreshed, err := s.RefreshSession(ctx, remembered.Session.RefreshToken, remembered.Session.InstallationID, Token())
+			if err != nil || refreshed.Viewer.ProfileID != target.ID || refreshed.Viewer.Role != want {
+				t.Fatalf("%s remembered family did not refresh: %+v %v", kind, refreshed.Viewer, err)
 			}
 			if attempts := launchResumeAttempts(t, db, target.ID); attempts != 0 {
-				t.Fatalf("%s launch charged a PIN attempt: %d", kind, attempts)
+				t.Fatalf("%s resume charged a PIN attempt: %d", kind, attempts)
 			}
-			if viewer, err := s.Authenticate(result.Session.AccessToken); err != nil || viewer.ProfileID != target.ID || viewer.Role != want {
-				t.Fatalf("%s launch did not authenticate: %+v %v", kind, viewer, err)
+			// A fresh account-scoped sign-in has no family to resume: choosing the
+			// profile needs its PIN, whatever was remembered before.
+			fresh := freshAccountSignIn(t, s, profiles[switchMain].ID)
+			before := liveFamilies(t, db)
+			result, err := s.SelectDirectProfile(ctx, fresh.AccountToken, target.ID, DirectSelection{InstallationID: launchResumeInstallation})
+			var wait *ProfilePINError
+			if !errors.Is(err, ErrProfilePIN) || !errors.As(err, &wait) || wait.Locked {
+				t.Fatalf("%s launch without its PIN: %+v %v", kind, wait, err)
+			}
+			if result.Session.AccessToken != "" || liveFamilies(t, db) != before {
+				t.Fatalf("%s refused launch issued a session", kind)
+			}
+			if attempts := launchResumeAttempts(t, db, target.ID); attempts != 1 {
+				t.Fatalf("%s refused launch was not charged once: %d", kind, attempts)
+			}
+			if _, err = db.Exec(`UPDATE direct_profile_pin_attempts SET locked_until_ms=0 WHERE profile_id=?`, target.ID); err != nil {
+				t.Fatal(err)
+			}
+			result, err = s.SelectDirectProfile(ctx, fresh.AccountToken, target.ID, DirectSelection{PIN: pin, InstallationID: launchResumeInstallation})
+			if err != nil || result.Session.Viewer.ProfileID != target.ID || result.Session.Viewer.Role != want {
+				t.Fatalf("%s launch with its PIN: %+v %v", kind, result.Session.Viewer, err)
+			}
+			if result.Remembered != nil {
+				t.Fatalf("%s launch remembered without being asked", kind)
 			}
 		})
 	}
 }
 
-func TestSameProfileTrustReMintAndRefreshStayPINless(t *testing.T) {
+func TestSameProfileReselectNeedsThePINButRefreshStaysPINless(t *testing.T) {
 	const pin = "4821"
 	ctx := context.Background()
 	s, db, login, profiles := switchPINFixture(t, map[switchProfileKind]string{switchGuest: pin})
 	target := profiles[switchGuest]
-	first, err := s.SelectDirectProfile(ctx, login.AccountToken, target.ID, DirectSelection{PIN: pin, Trust: true, InstallationID: launchResumeInstallation})
-	if err != nil || first.TrustedSelection == nil {
-		t.Fatalf("viewing %s with its PIN: %+v %v", target.Name, first.TrustedSelection, err)
-	}
+	first := rememberProfile(t, s, login.AccountToken, target, pin)
 	before := liveFamilies(t, db)
-	again, err := s.SelectDirectProfile(ctx, first.Session.AccessToken, target.ID, DirectSelection{TrustToken: first.TrustedSelection.Token, InstallationID: launchResumeInstallation})
-	if err != nil {
-		t.Fatalf("same-profile trust re-mint asked for the PIN: %v", err)
+	result, err := s.SelectDirectProfile(ctx, first.Session.AccessToken, target.ID, DirectSelection{InstallationID: launchResumeInstallation, Remember: true})
+	var wait *ProfilePINError
+	if !errors.Is(err, ErrProfilePIN) || !errors.As(err, &wait) || wait.Locked {
+		t.Fatalf("a same-profile reselect without the PIN: %+v %v", wait, err)
+	}
+	if result.Session.AccessToken != "" || liveFamilies(t, db) != before {
+		t.Fatal("a refused same-profile reselect issued a session")
+	}
+	if attempts := launchResumeAttempts(t, db, target.ID); attempts != 1 {
+		t.Fatalf("the refused reselect was not charged once: %d", attempts)
+	}
+	if _, err = db.Exec(`UPDATE direct_profile_pin_attempts SET locked_until_ms=0 WHERE profile_id=?`, target.ID); err != nil {
+		t.Fatal(err)
+	}
+	again, err := s.SelectDirectProfile(ctx, first.Session.AccessToken, target.ID, DirectSelection{PIN: pin, InstallationID: launchResumeInstallation, Remember: true})
+	if err != nil || again.Remembered == nil || again.Session.SessionFamilyID == first.Session.SessionFamilyID {
+		t.Fatalf("the same profile with its PIN: %+v %v", again, err)
 	}
 	if again.Session.Viewer.ProfileID != target.ID || again.Session.Viewer.Role != TierMember {
-		t.Fatalf("re-mint landed on %+v", again.Session.Viewer)
-	}
-	if again.Session.SessionFamilyID == first.Session.SessionFamilyID {
-		t.Fatal("re-mint reused the viewing family")
-	}
-	if after := liveFamilies(t, db); after != before+1 {
-		t.Fatalf("re-mint minted %d->%d families", before, after)
-	}
-	if attempts := launchResumeAttempts(t, db, target.ID); attempts != 0 {
-		t.Fatalf("re-mint charged a PIN attempt: %d", attempts)
-	}
-	refreshed, err := s.RefreshSession(ctx, first.Session.RefreshToken, first.Session.InstallationID, Token())
-	if err != nil {
-		t.Fatalf("refreshing the viewing session: %v", err)
-	}
-	if refreshed.Viewer.ProfileID != target.ID || refreshed.Viewer.Role != TierMember {
-		t.Fatalf("refresh left the profile it kept: %+v", refreshed.Viewer)
+		t.Fatalf("reselect landed on %+v", again.Session.Viewer)
 	}
 	renewed, err := s.RefreshSession(ctx, again.Session.RefreshToken, again.Session.InstallationID, Token())
 	if err != nil || renewed.Viewer.ProfileID != target.ID {
-		t.Fatalf("refreshing the re-minted session: %+v %v", renewed.Viewer, err)
+		t.Fatalf("refreshing the reselected session: %+v %v", renewed.Viewer, err)
 	}
 }
 
-func TestChangingProfilePINRetiresRememberedProofAndFamilies(t *testing.T) {
+func TestChangingProfilePINMakesTheOldSignInsAskForItAndTheNewPINOpensIt(t *testing.T) {
 	oldPIN, newPIN := "4821", "7153"
 	ctx := context.Background()
 	s, db, login, profiles := switchPINFixture(t, map[switchProfileKind]string{switchKids: oldPIN})
 	target := profiles[switchKids]
-	viewing, err := s.SelectDirectProfile(ctx, login.AccountToken, target.ID, DirectSelection{PIN: oldPIN, Trust: true, InstallationID: launchResumeInstallation})
-	if err != nil || viewing.TrustedSelection == nil {
-		t.Fatalf("remembering %s: %+v %v", target.Name, viewing.TrustedSelection, err)
-	}
-	oldTrust := *viewing.TrustedSelection
+	viewing := rememberProfile(t, s, login.AccountToken, target, oldPIN)
 	rotated, err := s.RefreshSession(ctx, viewing.Session.RefreshToken, viewing.Session.InstallationID, Token())
 	if err != nil {
 		t.Fatalf("the remembered family could not refresh before the PIN change: %v", err)
@@ -175,35 +173,35 @@ func TestChangingProfilePINRetiresRememberedProofAndFamilies(t *testing.T) {
 	if _, err = s.EditDirectProfile(ctx, login.AccountToken, target.ID, DirectProfileEdit{ExpectedRevision: current.Revision, PIN: &newPIN}); err != nil {
 		t.Fatalf("changing the %s PIN: %v", target.Name, err)
 	}
-	if _, err = s.Authenticate(viewing.Session.AccessToken); !errors.Is(err, ErrUnauthorized) {
-		t.Fatalf("the old viewing family survived the PIN change: %v", err)
+	if _, err = s.Authenticate(viewing.Session.AccessToken); err == nil {
+		t.Fatal("the old viewing family still works after the PIN change")
 	}
-	if _, err = s.RefreshSession(ctx, rotated.RefreshToken, rotated.InstallationID, Token()); !errors.Is(err, ErrUnauthorized) {
-		t.Fatalf("the old family's refresh credential survived the PIN change: %v", err)
+	if _, err = s.Authenticate(rotated.AccessToken); err == nil {
+		t.Fatal("the refreshed old viewing family still works after the PIN change")
 	}
 	fresh := freshAccountSignIn(t, s, profiles[switchMain].ID)
 	before := liveFamilies(t, db)
-	if result, err := s.SelectDirectProfile(ctx, fresh.AccountToken, target.ID, DirectSelection{TrustToken: oldTrust.Token, InstallationID: launchResumeInstallation}); !errors.Is(err, ErrProfilePIN) {
-		t.Fatalf("the old remembered proof resumed %s after its PIN changed: %+v %v", target.Name, result.Session, err)
+	if result, err := s.SelectDirectProfile(ctx, fresh.AccountToken, target.ID, DirectSelection{PIN: oldPIN, InstallationID: launchResumeInstallation}); !errors.Is(err, ErrProfilePIN) {
+		t.Fatalf("the old PIN opened %s after it changed: %+v %v", target.Name, result.Session, err)
 	} else {
 		var wait *ProfilePINError
 		if !errors.As(err, &wait) || wait.Locked || wait.RetryAfterSeconds < 1 {
-			t.Fatalf("the retired proof did not ask for the PIN: %+v", wait)
+			t.Fatalf("the old PIN was not charged as a miss: %+v", wait)
 		}
 	}
 	if after := liveFamilies(t, db); after != before {
-		t.Fatalf("a refused resume minted %d->%d families", before, after)
+		t.Fatalf("a refused choice minted %d->%d families", before, after)
 	}
 	if attempts := launchResumeAttempts(t, db, target.ID); attempts != 1 {
-		t.Fatalf("the refused resume was not charged once: %d", attempts)
+		t.Fatalf("the refused choice was not charged once: %d", attempts)
 	}
 	// The retry delay is real; let the same launch try again after it elapses.
 	if _, err = db.Exec(`UPDATE direct_profile_pin_attempts SET locked_until_ms=0 WHERE profile_id=?`, target.ID); err != nil {
 		t.Fatal(err)
 	}
-	selected, err := s.SelectDirectProfile(ctx, fresh.AccountToken, target.ID, DirectSelection{PIN: newPIN, Trust: true, InstallationID: launchResumeInstallation})
-	if err != nil || selected.TrustedSelection == nil {
-		t.Fatalf("the new %s PIN did not open it: %+v %v", target.Name, selected.TrustedSelection, err)
+	selected, err := s.SelectDirectProfile(ctx, fresh.AccountToken, target.ID, DirectSelection{PIN: newPIN, Remember: true, InstallationID: launchResumeInstallation})
+	if err != nil || selected.Remembered == nil {
+		t.Fatalf("the new %s PIN did not open it: %+v %v", target.Name, selected.Remembered, err)
 	}
 	if selected.Session.Viewer.ProfileID != target.ID || selected.Session.Viewer.Role != TierMember {
 		t.Fatalf("the new PIN landed on %+v", selected.Session.Viewer)
@@ -211,17 +209,12 @@ func TestChangingProfilePINRetiresRememberedProofAndFamilies(t *testing.T) {
 	if after := liveFamilies(t, db); after != before+1 {
 		t.Fatalf("the new PIN minted %d->%d families", before, after)
 	}
-	relaunch := freshAccountSignIn(t, s, profiles[switchMain].ID)
-	resumed, err := s.SelectDirectProfile(ctx, relaunch.AccountToken, target.ID, DirectSelection{TrustToken: selected.TrustedSelection.Token, InstallationID: launchResumeInstallation})
-	if err != nil {
-		t.Fatalf("the proof remembered with the new PIN did not resume on launch: %v", err)
-	}
-	if resumed.Session.Viewer.ProfileID != target.ID || resumed.Session.Viewer.Role != TierMember {
-		t.Fatalf("the new remembered proof resumed as %+v", resumed.Session.Viewer)
+	if viewer, err := s.Authenticate(selected.Session.AccessToken); err != nil || viewer.ProfileID != target.ID {
+		t.Fatalf("the family minted by the new PIN does not work: %+v %v", viewer, err)
 	}
 }
 
-func TestActualSwitchToProtectedProfileNeedsItsPINEvenWithRememberedProof(t *testing.T) {
+func TestActualSwitchToProtectedProfileNeedsItsPINEvenWithARememberedFamily(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
@@ -241,18 +234,19 @@ func TestActualSwitchToProtectedProfileNeedsItsPINEvenWithRememberedProof(t *tes
 			ctx := context.Background()
 			s, db, login, profiles := switchPINFixture(t, map[switchProfileKind]string{pair.to: pin})
 			target := profiles[pair.to]
-			remembered := rememberProfile(t, s, login.AccountToken, target, pin)
+			// The destination is remembered on this installation already.
+			rememberProfile(t, s, login.AccountToken, target, pin)
 			source, family := switchSourceSession(t, s, login, pair.from, profiles, nil)
 			if viewer, err := s.Authenticate(source); err != nil || viewer.ProfileID != profiles[pair.from].ID {
 				t.Fatalf("the %s source is not really viewing it: %+v %v", pair.from, viewer, err)
 			}
 			before := liveFamilies(t, db)
-			result, err := s.SelectDirectProfile(ctx, source, target.ID, DirectSelection{TrustToken: remembered.Token, InstallationID: launchResumeInstallation})
+			result, err := s.SelectDirectProfile(ctx, source, target.ID, DirectSelection{InstallationID: launchResumeInstallation, Remember: true})
 			var wait *ProfilePINError
 			if !errors.Is(err, ErrProfilePIN) || !errors.As(err, &wait) || wait.Locked || wait.RetryAfterSeconds < 1 {
-				t.Fatalf("the %s switch used a remembered proof instead of its own PIN: %+v %v", pair.to, wait, err)
+				t.Fatalf("the %s switch skipped its own PIN because it was remembered: %+v %v", pair.to, wait, err)
 			}
-			if result.Session.AccessToken != "" || result.Session.SessionFamilyID != "" {
+			if result.Session.AccessToken != "" || result.Session.SessionFamilyID != "" || result.Remembered != nil {
 				t.Fatal("a refused switch issued a session")
 			}
 			if after := liveFamilies(t, db); after != before {
@@ -268,9 +262,9 @@ func TestActualSwitchToProtectedProfileNeedsItsPINEvenWithRememberedProof(t *tes
 			if _, err = db.Exec(`UPDATE direct_profile_pin_attempts SET locked_until_ms=0 WHERE profile_id=?`, target.ID); err != nil {
 				t.Fatal(err)
 			}
-			switched, err := s.SelectDirectProfile(ctx, source, target.ID, DirectSelection{PIN: pin, Trust: true, InstallationID: launchResumeInstallation})
-			if err != nil || switched.TrustedSelection == nil {
-				t.Fatalf("the %s switch refused its own PIN: %+v %v", pair.to, switched.TrustedSelection, err)
+			switched, err := s.SelectDirectProfile(ctx, source, target.ID, DirectSelection{PIN: pin, Remember: true, InstallationID: launchResumeInstallation})
+			if err != nil || switched.Remembered == nil {
+				t.Fatalf("the %s switch refused its own PIN: %+v %v", pair.to, switched.Remembered, err)
 			}
 			want := launchResumeRole(pair.to)
 			if switched.Session.Viewer.ProfileID != target.ID || switched.Session.Viewer.Role != want {
@@ -282,13 +276,8 @@ func TestActualSwitchToProtectedProfileNeedsItsPINEvenWithRememberedProof(t *tes
 			if after := liveFamilies(t, db); after != before+1 {
 				t.Fatalf("the switch minted %d->%d families", before, after)
 			}
-			relaunch := freshAccountSignIn(t, s, profiles[switchMain].ID)
-			resumed, err := s.SelectDirectProfile(ctx, relaunch.AccountToken, target.ID, DirectSelection{TrustToken: switched.TrustedSelection.Token, InstallationID: launchResumeInstallation})
-			if err != nil {
-				t.Fatalf("the proof remembered by the switch did not resume on launch: %v", err)
-			}
-			if resumed.Session.Viewer.ProfileID != target.ID || resumed.Session.Viewer.Role != want {
-				t.Fatalf("the switch's remembered proof resumed as %+v", resumed.Session.Viewer)
+			if viewer, err := s.Authenticate(switched.Session.AccessToken); err != nil || viewer.ProfileID != target.ID || viewer.Role != want {
+				t.Fatalf("the family the switch minted does not work: %+v %v", viewer, err)
 			}
 		})
 	}
