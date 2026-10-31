@@ -332,6 +332,10 @@ export type SessionEndInfo = Readonly<{ reason: string; message?: string }>;
 export function transportJSON(value:unknown):string {return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'));}
 /** The selected server's HTTP API. Playback sessions are not started here: they are Playback
  * Protocol v1 sessions (`playback-v1/sessions.ts`), spoken through `requestRaw`. */
+/** A request refused with profile_pin_reentry, and the access token it was sent with (absent for a
+ * reply that wasn't sent from this API, such as a replayed durable change). */
+export type ProfileGateRefusal = Readonly<{error: ApiError; accessToken: string | undefined}>;
+
 export class HttpLocalApi {
   private ephemeralMutationBodies = new Map<string, unknown>();
   private mutationStore?: DurableUserMutationStore;
@@ -611,9 +615,12 @@ export class HttpLocalApi {
     return () => { this.certificateSessionListeners.delete(listener); };
   };
   // A request this session made was refused with profile_pin_reentry (the profile's PIN changed
-  // elsewhere): whoever holds the session hears it, whichever screen asked.
-  private profileGateListeners = new Set<(error: ApiError) => void>();
-  readonly subscribeProfileGate = (listener: (error: ApiError) => void) => {
+  // elsewhere): whoever holds the session hears it, whichever screen asked. The refusal names the
+  // access token its request went out with, so a reply to an earlier sign-in is never taken for
+  // the current one's.
+  private profileGateListeners = new Set<(refusal: ProfileGateRefusal) => void>();
+  private sentWith = new WeakMap<Response, string>();
+  readonly subscribeProfileGate = (listener: (refusal: ProfileGateRefusal) => void) => {
     this.profileGateListeners.add(listener);
     return () => { this.profileGateListeners.delete(listener); };
   };
@@ -793,9 +800,9 @@ export class HttpLocalApi {
   private auth?: AuthRecovery;
   /** Keep this transport's access token alive: refresh before expiry and once on a 401. */
   setAuthRecovery(auth: AuthRecovery | undefined) { this.auth = auth; }
-  private send(path: string, method: string, body: unknown, signal: AbortSignal | undefined, token: string, extra?: Readonly<Record<string, string>>, keepalive = false) {
+  private async send(path: string, method: string, body: unknown, signal: AbortSignal | undefined, token: string, extra?: Readonly<Record<string, string>>, keepalive = false) {
     const ownerStart = method === 'POST' && path === routePath('post_networking_claim_web_approval');
-    return this.fetcher(this.baseUrl + path, {
+    const response = await this.fetcher(this.baseUrl + path, {
       method,
       signal,
       ...(keepalive ? {keepalive: true} : {}),
@@ -812,6 +819,8 @@ export class HttpLocalApi {
       },
       ...(body === undefined ? {} : { body: transportJSON(body) }),
     });
+    if (token) this.sentWith.set(response, token);
+    return response;
   }
   /** Send with a live token; on a 401 renew once and resend (the server did not act on it). */
   private async exchange(path: string, method: string, body: unknown, signal: AbortSignal | undefined, extra?: Readonly<Record<string, string>>, singleAttempt = false): Promise<Response> {
@@ -960,7 +969,10 @@ export class HttpLocalApi {
         if(version)error.version=version;
         if(minimum)error.minimumVersion=minimum;
       }
-      if (error.code === 'profile_pin_reentry') for (const listener of [...this.profileGateListeners]) try { listener(error); } catch { /* the caller still gets its error */ }
+      if (error.code === 'profile_pin_reentry') {
+        const refusal: ProfileGateRefusal = Object.freeze({error, accessToken: this.sentWith.get(response)});
+        for (const listener of [...this.profileGateListeners]) try { listener(refusal); } catch { /* the caller still gets its error */ }
+      }
       throw error;
     }
     return response.status === 204 ? (undefined as T) : response.json();

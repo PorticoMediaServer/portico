@@ -224,7 +224,10 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     const local = api;
     trackNativeConnection(local);
     // Any screen's request refused for a PIN changed elsewhere asks for the PIN, as the shell's own reads do.
-    cleanups.push(local.subscribeProfileGate(error => queueMicrotask(() => refused(error))));
+    // Only a request sent with this shell's sign-in counts: its first token or one it renewed in
+    // place (same viewer). A switch builds a new shell, so a late reply from before can't gate it.
+    const ownTokens = new Set([restored.session.accessToken]);
+    cleanups.push(local.subscribeProfileGate(({error, accessToken}) => {if (accessToken && ownTokens.has(accessToken)) queueMicrotask(() => refused(error));}));
     session = restored.session;
     const accountBinding = createNativeShellAccountBinding(selected, session, {
       current: () => alive && installation.current() && !signal.signal.aborted,
@@ -378,6 +381,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     cleanups.push(context.subscribePreferences(publish));
     refresher = new LocalSessionRefresher({env, api: local, session, onRotated: renewed => {
       if (!current() || !sameViewer(session!, renewed)) {end(); return;}
+      ownTokens.add(renewed.accessToken);
       local.setUserMutationSession(renewed);
       if (renewed.viewer.role !== session!.viewer.role) {session = renewed; rebuild(); return;}
       if (renewed.authorizationHorizon !== session!.authorizationHorizon) {
