@@ -4,6 +4,9 @@
  * Honour `Retry-After` (seconds or HTTP-date) with bounded backoff and jitter,
  * retrying at most a few times before surfacing the error.
  */
+import {backoffDelay, parseRetryAfter as parseHeaderRetryAfter, type Backoff} from '../timer.ts';
+
+const rateLimitBackoff: Backoff = {baseMs: 500, maxMs: 10_000, jitter: 'none'};
 
 /** True when the failure is a rate limit (HTTP 429). */
 export function isRateLimited(error: unknown): boolean {
@@ -12,10 +15,8 @@ export function isRateLimited(error: unknown): boolean {
 
 function headerValue(headers: unknown): string | number | undefined {
   if (!headers || typeof headers !== 'object') return undefined;
-  const h = headers as Record<string, unknown>;
-  for (const key of ['Retry-After', 'retry-after', 'RETRY-AFTER']) {
-    const v = h[key];
-    if (typeof v === 'string' || typeof v === 'number') return v;
+  for (const [key, v] of Object.entries(headers)) {
+    if (key.toLowerCase() === 'retry-after' && (typeof v === 'string' || typeof v === 'number')) return v;
   }
   return undefined;
 }
@@ -34,10 +35,11 @@ export function parseRetryAfter(value: unknown, now: number = Date.now()): numbe
   }
   if (typeof value !== 'string' || !value) return undefined;
   const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) return Math.min(Number(trimmed) * 1000, 30_000);
-  const time = Date.parse(trimmed);
-  if (!Number.isFinite(time)) return undefined;
-  return Math.min(Math.max(time - now, 0), 30_000);
+  const ms = parseHeaderRetryAfter(trimmed, now);
+  if (ms !== undefined) return Math.min(ms, 30_000);
+  // The helper reports no floor for zero, a past date or a number past safe integers; here the first two mean "no wait".
+  if (/^\d+$/.test(trimmed)) return /^0+$/.test(trimmed) ? 0 : 30_000;
+  return /[a-z]/i.test(trimmed) && Number.isFinite(Date.parse(trimmed)) ? 0 : undefined;
 }
 
 /** Extracts the server-directed retry delay (ms) from a 429 failure, if any. */
@@ -58,8 +60,7 @@ export function retryAfterMs(error: unknown, now: number = Date.now()): number |
 export function rateLimitDelay(error: unknown, attempt: number, random: () => number = Math.random): number {
   const directed = retryAfterMs(error);
   if (directed !== undefined) return Math.min(directed + Math.floor(random() * 250), 30_000);
-  const backoff = Math.min(500 * 2 ** Math.max(attempt - 1, 0), 10_000);
-  return backoff + Math.floor(random() * 250);
+  return backoffDelay(rateLimitBackoff, attempt) + Math.floor(random() * 250);
 }
 
 /** Maximum rate-limit attempts per block (initial try + retries). */

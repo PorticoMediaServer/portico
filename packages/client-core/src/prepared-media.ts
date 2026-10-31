@@ -4,6 +4,7 @@ import {unreadableServerResponse} from './server-messages.ts';
 import type {ContentScope, LibraryContentApi} from './library-content.ts';
 import {firstOfEach, keepReadable} from './tolerant.ts';
 import {wireDurations} from './wire-units.ts';
+import {nextDelay, systemScheduler, type Scheduler} from './timer.ts';
 
 /** A derivative is neither a catalog edition nor an original source-version ID. */
 export type PreparedChoice = Readonly<{versionId: string; expectedRevision: number; offersRevision: string}>;
@@ -23,6 +24,8 @@ export type PreparedView = Readonly<{
   sources: readonly OptimizationSource[]; jobs: readonly OptimizationJob[]; versions: readonly PreparedVersion[]; pollAfterMs: number;
 }>;
 export type PreparedSnapshot = Readonly<{data: PreparedView|null; loading: boolean; busy: boolean; uncertain: boolean; error: string|null}>;
+/** The server's poll hint is held to this range rather than refused. */
+const POLL_MIN_MS = 1000, POLL_MAX_MS = 60000;
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const id = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(v);
 const text = (v: unknown, max=1024): v is string => typeof v === 'string' && v.length <= max && !/[\x00-\x1f\x7f]/.test(v);
@@ -50,7 +53,7 @@ function job(v: unknown, itemId: string): OptimizationJob {
   return Object.freeze({...v}) as OptimizationJob;
 }
 export function parsePreparedView(raw: unknown, itemId: string): PreparedView {
-  if (!object(raw) || raw.itemId!==itemId || typeof raw.canManage!=='boolean' || !digest(raw.preparedOffersRevision) || typeof raw.configured!=='boolean' || !text(raw.configurationReason,256) || !integer(raw.pollAfterMs) || raw.pollAfterMs<1000 || raw.pollAfterMs>60000) invalid();
+  if (!object(raw) || raw.itemId!==itemId || typeof raw.canManage!=='boolean' || !digest(raw.preparedOffersRevision) || typeof raw.configured!=='boolean' || !text(raw.configurationReason,256) || !integer(raw.pollAfterMs)) invalid();
   const profiles=rows('profiles',array(raw.profiles,16),v=>{
     if (!object(v)||!id(v.id)||!text(v.name,128)||!['audio','video'].includes(String(v.kind))||!integer(v.width)||!integer(v.height)||!integer(v.videoKbps)||!integer(v.audioKbps)||!text(v.description,1024)) invalid();
     return Object.freeze({...v}) as OptimizationProfile;
@@ -65,7 +68,7 @@ export function parsePreparedView(raw: unknown, itemId: string): PreparedView {
   const versions=rows('versions',array(raw.versions,128),v=>parsePreparedVersion(v,itemId));
   // Judged on what the server sent, so an unreadable job never makes a viewer's answer look permitted.
   if(!raw.canManage&&sentJobs.length) invalid();
-  return Object.freeze({...raw,profiles,targets,sources,jobs,versions}) as PreparedView;
+  return Object.freeze({...raw,profiles,targets,sources,jobs,versions,pollAfterMs:Math.min(POLL_MAX_MS,Math.max(POLL_MIN_MS,raw.pollAfterMs as number))}) as PreparedView;
 }
 export function preparedChoice(view: Pick<PreparedView,'preparedOffersRevision'>, version: PreparedVersion): PreparedChoice {
   if (!version.selectable) throw new Error('This prepared version is not currently available. Refresh the list.');
@@ -87,33 +90,41 @@ export class PreparedMediaService {
   private mutationSerial=0;
   private read?:AbortController;
   private mutation?:AbortController;
-  private timer?:ReturnType<typeof setTimeout>;
+  private timer?:unknown;
+  private failures=0;
+  private scheduler:Scheduler; private random:()=>number;
   private pending?:{path:string;body:unknown};
   private api:LibraryContentApi; readonly scope:ContentScope; readonly itemId:string;
   private requestId:()=>string;
-  constructor(options:{api:LibraryContentApi;scope:ContentScope;itemId:string;requestId:()=>string}) {
+  constructor(options:{api:LibraryContentApi;scope:ContentScope;itemId:string;requestId:()=>string;scheduler?:Scheduler;random?:()=>number}) {
     if (!id(options.itemId)||!id(options.scope.serverId)||!text(options.scope.viewerId,4096)||!options.scope.viewerId) throw new Error('Invalid prepared-media scope.');
-    this.api=options.api;this.scope=Object.freeze({...options.scope});this.itemId=options.itemId;this.requestId=options.requestId;
+    this.api=options.api;this.scope=Object.freeze({...options.scope});this.itemId=options.itemId;this.requestId=options.requestId;this.scheduler=options.scheduler??systemScheduler;this.random=options.random??Math.random;
   }
   // Effect reconnects (including React StrictMode) may reuse the scoped instance.
-  connect(){this.disposed=false;this.update({busy:false,loading:false,uncertain:!!this.pending});void this.refresh();}
+  connect(){this.disposed=false;this.failures=0;this.update({busy:false,loading:false,uncertain:!!this.pending});void this.refresh();}
   subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
   getSnapshot=()=>this.state;
   private update(change:Partial<PreparedSnapshot>) { if(this.disposed)return;this.state=Object.freeze({...this.state,...change});this.listeners.forEach(fn=>fn()); }
+  private cancelPoll(){this.scheduler.clearTimeout(this.timer);this.timer=undefined;}
+  /** Polls only while a job or a removal is active. The server's pollAfterMs is a floor that is never shortened;
+   * after failed refreshes the wait backs off, and the next read is armed only once this one has settled. */
   private schedule() {
-    clearTimeout(this.timer);if(this.disposed)return;
-    const v=this.state.data,active=v?.jobs.some(j=>['queued','running','cancelling'].includes(j.state))||v?.versions.some(v=>v.state==='deleting');
-    if(active){this.timer=setTimeout(()=>{void this.refresh();},v?.pollAfterMs??3000);(this.timer as any)?.unref?.();}
+    this.cancelPoll();if(this.disposed)return;
+    const v=this.state.data;
+    if(!v||!(v.jobs.some(j=>['queued','running','cancelling'].includes(j.state))||v.versions.some(x=>x.state==='deleting')))return;
+    const floor={pollAfterMs:v.pollAfterMs};
+    const delay=this.failures>0?nextDelay({baseMs:v.pollAfterMs*2,maxMs:POLL_MAX_MS},this.failures,floor,this.random):nextDelay({baseMs:v.pollAfterMs,maxMs:v.pollAfterMs,jitter:'none'},1,floor,this.random);
+    this.timer=this.scheduler.setTimeout(()=>{this.timer=undefined;void this.refresh();},delay);
   }
   async refresh():Promise<void> {
-    if(this.disposed)return;clearTimeout(this.timer);this.read?.abort();const serial=++this.serial,read=this.read=new AbortController();
-    const timeout=setTimeout(()=>read.abort(),12000);this.update({loading:true});
+    if(this.disposed)return;this.cancelPoll();this.read?.abort();const serial=++this.serial,read=this.read=new AbortController();
+    const timeout=this.scheduler.setTimeout(()=>read.abort(),12000);this.update({loading:true});
     try{
       const raw=await this.api.request(encodedRoutePath("get_items_id_prepared_versions", {"id": this.itemId}),'GET',undefined,read.signal);
       const data=parsePreparedView(raw,this.itemId);if(serial!==this.serial||this.disposed)return;
-      this.update({data,error:this.state.uncertain?this.state.error:null});
-    }catch(e){if(serial!==this.serial||this.disposed)return;const status=(e as {status?:number})?.status;this.update({...(status===401||status===403?{data:null}:{}),error:'Prepared versions could not be refreshed. Check the connection and retry.'});}
-    finally{clearTimeout(timeout);if(serial===this.serial&&!this.disposed){this.update({loading:false});this.schedule();}}
+      this.failures=0;this.update({data,error:this.state.uncertain?this.state.error:null});
+    }catch(e){if(serial!==this.serial||this.disposed)return;this.failures++;const status=(e as {status?:number})?.status;this.update({...(status===401||status===403?{data:null}:{}),error:'Prepared versions could not be refreshed. Check the connection and retry.'});}
+    finally{this.scheduler.clearTimeout(timeout);if(serial===this.serial&&!this.disposed){this.update({loading:false});this.schedule();}}
   }
   submit(source:OptimizationSource,profile:OptimizationProfile,targetId:string):Promise<void> {
     const v=this.state.data;if(!v?.canManage||!v.configured||!v.sources.some(s=>s.id===source.id&&s.revision===source.revision&&s.available)||!v.profiles.some(p=>p.id===profile.id)||!v.targets.some(t=>t.id===targetId))return this.reject('Refresh the source, profile and target before optimizing.');
@@ -137,7 +148,7 @@ export class PreparedMediaService {
     if(this.disposed||this.state.busy||!this.pending)return;const request=this.pending,serial=++this.mutationSerial,abort=this.mutation=new AbortController();const timeout=setTimeout(()=>abort.abort(),20000);
     // An earlier read may ignore AbortSignal and finish after this mutation.
     // Fence it before posting; it must not resurrect removed or unauthorized data.
-    this.read?.abort();++this.serial;clearTimeout(this.timer);
+    this.read?.abort();++this.serial;this.cancelPoll();
     this.update({busy:true,loading:false,uncertain:false,error:null});
     let rejected:string|null=null;let denied=false;
     try{
@@ -149,12 +160,12 @@ export class PreparedMediaService {
       const definitive=typeof status==='number'&&status>=400&&status<500&&![408,425,429].includes(status);
       if(definitive)this.pending=undefined;
       denied=status===401||status===403;
-      if(denied){this.read?.abort();++this.serial;clearTimeout(this.timer);}
+      if(denied){this.read?.abort();++this.serial;this.cancelPoll();}
       this.update({uncertain:!definitive,...(denied?{data:null,loading:false}:{}),error:definitive?(status===409?'The source or job changed. Refresh and choose again.':status===403?'Only the current server owner can manage prepared versions.':status===422?'The source, profile or server encoder configuration is unsupported.':'The optimization request was rejected. Refresh before trying again.'):'The request outcome is not confirmed. Retry the same request; this will not create a duplicate.'});
       if(definitive)rejected=this.state.error;
     }finally{
       clearTimeout(timeout);if(!this.disposed&&serial===this.mutationSerial){this.update({busy:false});if(!this.state.uncertain&&!denied){await this.refresh();if(rejected)this.update({error:rejected});}else if(!denied)this.schedule();}
     }
   }
-  dispose(){this.disposed=true;++this.serial;++this.mutationSerial;clearTimeout(this.timer);this.read?.abort();this.mutation?.abort();this.listeners.clear();}
+  dispose(){this.disposed=true;++this.serial;++this.mutationSerial;this.cancelPoll();this.read?.abort();this.mutation?.abort();this.listeners.clear();}
 }
