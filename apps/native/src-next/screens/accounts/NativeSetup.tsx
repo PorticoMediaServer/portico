@@ -90,7 +90,7 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
     }
     case 'form': case 'starting': {
       const starting = view.kind === 'starting';
-      if (starting ? view.mode === 'local' : view.mode === 'local') {
+      if (view.mode === 'local') {
         const valid = !!name.trim() && /^[^\s@]{3,64}$/.test(username.trim()) && passwordStrength(password).acceptable && password === confirm;
         return <Layout testID="accounts-setup" title={t('web.setup.ownerTitle')} body={t('web.setup.localSignInBody')}
           beforeActions={<View style={{alignSelf: 'stretch', gap: 14, marginBottom: 20}}>
