@@ -179,7 +179,7 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
   };
 
   const connect = async (serverId: string, signal: AbortSignal): Promise<ConnectedFacts> => {
-    releaseConnection(); context = undefined;
+    releaseConnection(); context = undefined; failed = undefined;
     const check = () => {if (signal.aborted) throw cancelled();};
     const borrowed = lent, installation = borrowed ?? deps.beginInstallation(signal);
     let api: HttpLocalApi | undefined;
@@ -396,7 +396,8 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
         .then(() => {if (!controller.signal.aborted) return deps.drainRevocations(serverId, live);})
         .catch(() => {});
     },
-    observeRecords: (listener: () => void) => deps.subscribeRecords(() => {if (!ownWrites) listener();}),
+    // Another owner's write (a new sign-in, a sign-out) makes the last connect's finding stale.
+    observeRecords: (listener: () => void) => deps.subscribeRecords(() => {if (!ownWrites) {failed = undefined; listener();}}),
     log: (record: TransitionRecord) => {deps.note(`portico_session ${JSON.stringify({t: record.t, from: record.from, event: record.event, to: record.to, row: record.row, generation: record.generation})}`);},
   }) as NativeLifecyclePorts;
 }

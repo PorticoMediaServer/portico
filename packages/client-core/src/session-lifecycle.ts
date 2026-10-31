@@ -291,6 +291,10 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
       // chose its profile: it opens once connected (as row 33), never with a second picker.
       return to({kind: 'connecting', server: held.server, held, ...(!server ? {admitted: true as const} : {})}, current.pending === 'switchServer' ? 28 : 34,
         [{kind: 'connect', serverId: held.server.serverId}], {authority: true});
+    // Signing in again from "sign-in ended" (or after an identity failure) chose its profile in the
+    // form: open that sign-in once connected, never with a second picker.
+    if ((s.kind === 'signInEnded' || s.kind === 'identityFailed') && !(s.held && same(s.held.viewer, held.viewer)))
+      return to({kind: 'connecting', server: held.server, held, admitted: true}, 34, [{kind: 'connect', serverId: held.server.serverId}], {authority: true});
     const viewer = 'viewer' in s ? s.viewer : undefined;
     if (!viewer || same(viewer, held.viewer)) return undefined;
     // Same server, another sign-in (another tab picked a profile): follow it, never sign out.
