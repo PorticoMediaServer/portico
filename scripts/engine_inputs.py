@@ -90,6 +90,32 @@ def verify_compiler_sources(root):
     return runpy.run_path(str(Path(__file__).with_name('capture-engine-compiler.py')))['verify'](root)
 
 
+def compiler_layout(layout, image_id):
+    """Bind BuildKit's exported OCI context to the source-inventoried image."""
+    def blob(entry):
+        value = entry.get('digest', '')
+        if not re.fullmatch('sha256:[a-f0-9]{64}', value):
+            raise ValueError('invalid compiler OCI digest')
+        path = layout / 'blobs/sha256' / value.removeprefix('sha256:')
+        if (path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= 2 * 1024**2 or
+                path.stat().st_size != entry.get('size') or digest(path) != value.removeprefix('sha256:')):
+            raise ValueError('compiler OCI metadata changed')
+        return json.loads(path.read_bytes())
+    index = json.loads((layout / 'index.json').read_bytes())
+    entries = index.get('manifests', [])
+    if index.get('schemaVersion') != 2 or len(entries) != 1:
+        raise ValueError('compiler OCI context must contain one unambiguous image')
+    manifest = blob(entries[0])
+    if manifest.get('schemaVersion') != 2 or 'config' not in manifest:
+        raise ValueError('compiler OCI context is not an image manifest')
+    blob(manifest['config'])
+    # Classic Docker identifies a loaded image by config; containerd's image
+    # store uses the image manifest. Both must describe this exact OCI context.
+    if image_id not in (entries[0]['digest'], manifest['config']['digest']):
+        raise ValueError('compiler OCI context differs from the source-inventoried image')
+    return {'manifestDigest': entries[0]['digest'], 'configDigest': manifest['config']['digest']}
+
+
 def compiler_inputs(recipe, report):
     root = recipe / 'portico-compiler-inputs'
     binding = json.loads((recipe / 'portico-compiler-image.json').read_text())
