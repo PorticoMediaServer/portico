@@ -16,6 +16,8 @@ export const statesMessages = {
   'next.states.retrying': 'Trying again',
   'next.states.triesSince': '{count, plural, one {# try} other {# tries}} since {time}',
   'next.states.tryAgain': 'Try again',
+  'next.states.actionFailed': 'That didn’t work.',
+  'next.states.actionUnconfirmed': 'That’s taking too long.',
   'next.states.tryNow': 'Try again now',
   'next.states.switchServer': 'Switch server',
   'next.states.goHome': 'Go to Home',

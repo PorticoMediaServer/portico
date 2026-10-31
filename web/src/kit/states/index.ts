@@ -10,3 +10,5 @@ export {keyboardShortcutSections} from './shortcuts';
 export type {ShortcutKey, ShortcutRow, ShortcutSection, ShortcutSectionId} from './shortcuts';
 export {StateSentence} from './StateSentence';
 export type {StateSentenceId, StateSentenceProps} from './StateSentence';
+export {ActionNotice, type ActionNoticeProps} from './ActionNotice';
+export {useUserAction} from './use-user-action';
