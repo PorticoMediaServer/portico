@@ -3,6 +3,8 @@ import {test} from 'node:test';
 import {ApiError} from '@core/index.ts';
 import {captureHostedSetupClaim, reviewHostedSetupClaim, decideHostedSetupClaim, completeHostedSetupClaim, validateHostedSetupReturn} from '../src/services/setup-claim.ts';
 import {claimStartView} from '../src/services/claim-start.ts';
+import {scopedHostedSetupClaim} from '../src/services/setup-pending.ts';
+import type {HostedOwnerPending, HostedOwnerPendingStore} from '../src/services/owner-pending.ts';
 import type {ServicesAccount} from '../src/services/session.ts';
 import type {ServerClaimLookupResponse} from '../../packages/contracts/src/hosted/types.ts';
 
@@ -47,7 +49,7 @@ test('authenticated lookup provides setup facts and never starts or approves any
   const f = fixture(), review = await reviewHostedSetupClaim(f.account, f.request, f.signal);
   assert.equal(review.name, 'Actual server'); assert.equal(review.transactionId, 'opaque_setup_transaction');
   assert(Object.isFrozen(review) && Object.isFrozen(review.identity) && Object.isFrozen(review.request));
-  assert.deepEqual(f.calls.map(value => [value.path, value.body]), [['/v1/server-claims/lookup', {code}]]);
+  assert.deepEqual(f.calls.map(value => [value.path, value.body]), [['/v1/server-claims/lookup', {code, phase: true}]]);
 });
 test('a setup claim 25 minutes from expiry reviews; one 31 minutes out is refused', async () => {
   const ok = fixture(); ok.patch({expiresAt: new Date(Date.now() + 25 * 60_000).toISOString()});
@@ -153,4 +155,46 @@ test('setupInstalled with a pending claim, a non-true value or a setup registrat
     {status: 'approved', returnRegistration: {id: 'ret_' + Buffer.alloc(32, 2).toString('base64url'), origin: 'https://managed.example'}}]) {
     const f = fixture(); f.patch(patch as never); await assert.rejects(reviewHostedSetupClaim(f.account, f.request, f.signal));
   }
+});
+
+test('every lookup asks for the phase, and an answer without one reads as before', async () => {
+  const f = fixture(), review = await reviewHostedSetupClaim(f.account, f.request, f.signal);
+  assert.equal(review.phase, undefined);
+  await decideHostedSetupClaim(f.account, review, 'approve', f.signal);
+  await completeHostedSetupClaim(f.account, review, f.signal);
+  assert.deepEqual(f.calls.filter(value => value.path.endsWith('/lookup')).map(value => value.body), [{code, phase: true}, {code, phase: true}, {code, phase: true}]);
+});
+test('a lookup carries the phase through, unknown variants and extra members included, and phase installed offers Return', async () => {
+  const seen = new Date().toISOString(), approved = new Date(Date.now() - 200000).toISOString();
+  const f = fixture(); f.patch({status: 'approved', phase: {variant: 'finishing', slow: true, approvedAt: approved, serverSeenAt: seen}});
+  const review = await reviewHostedSetupClaim(f.account, f.request, f.signal);
+  assert.deepEqual(review.phase, {variant: 'finishing', slow: true, approvedAt: approved, serverSeenAt: seen}); assert.equal(review.installed, false);
+  assert(Object.isFrozen(review.phase));
+  const g = fixture(); g.patch({status: 'approved', phase: {variant: 'installed'}});
+  assert.equal((await reviewHostedSetupClaim(g.account, g.request, g.signal)).installed, true);
+  const h = fixture(); h.patch({phase: {variant: 'something_new', extra: 1}} as never);
+  assert.equal((await reviewHostedSetupClaim(h.account, h.request, h.signal)).phase?.variant, 'something_new');
+  const i = fixture(); i.patch({phase: {variant: 'installed'}});
+  await assert.rejects(reviewHostedSetupClaim(i.account, i.request, i.signal), {code: 'invalid_return'});
+});
+test('a 429 on lookup reaches the caller with its Retry-After intact', async () => {
+  const f = fixture(); f.after(() => {throw new ApiError(429, 'rate_limited', 'rate_limited', true, 45);});
+  await assert.rejects(reviewHostedSetupClaim(f.account, f.request, f.signal), {status: 429, retryAfterSeconds: 45});
+  assert.equal(f.calls.length, 1);
+});
+test('the setup controller completes in one lookup: an answer that is not installed comes back without a second lookup', async () => {
+  const f = fixture(), now = Date.now();
+  let saved: HostedOwnerPending | undefined = {version: 1, kind: 'owner-approval', attemptId: Buffer.alloc(32, 9).toString('base64url'), capturedAt: now, deadline: now + 60000, request: f.request};
+  const store: HostedOwnerPendingStore = {assertAvailable: () => {}, read: async () => saved, change: async work => {saved = work(saved);}};
+  const controller = scopedHostedSetupClaim(f.account, store, saved);
+  await controller.review(); assert.equal(f.calls.length, 1);
+  f.patch({status: 'approved', phase: {variant: 'approved', approvedAt: new Date().toISOString()}});
+  const waiting = await controller.complete();
+  assert.equal(waiting.location, undefined); assert.equal(waiting.review?.phase?.variant, 'approved');
+  assert.equal(f.calls.length, 2, 'one lookup for that press');
+  f.installed();
+  const done = await controller.complete();
+  assert.equal(done.location, 'https://original.example:32500/auth/portico-return#transaction=opaque_setup_transaction');
+  assert.deepEqual(f.calls.slice(2).map(value => value.path), ['/v1/server-claims/lookup', '/v1/server-returns/opaque_setup_transaction/complete']);
+  controller.dispose();
 });

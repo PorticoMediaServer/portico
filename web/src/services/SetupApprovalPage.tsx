@@ -1,4 +1,4 @@
-import {useEffect, useLayoutEffect, useState, useSyncExternalStore, type ComponentType} from 'react';
+import {useLayoutEffect, useState, useSyncExternalStore, type ComponentType} from 'react';
 import {goTo} from '../platform/hosted-navigation';
 import {ApiError} from '@core/index.ts';
 import type {ServicesAccount} from './session';
@@ -13,7 +13,7 @@ import {SetupApprovalFlow, type SetupApprovalSnapshot} from './setup-approval-fl
  * facts and explicit actions, never a claim code, token or protected journal. */
 export type SetupApprovalViewProps = Readonly<{
   phase: SetupApprovalSnapshot['phase']; serverName: string; address: string; accountName: string; requestedAt: string;
-  approved: boolean; installed?: boolean; slow?: boolean; busy: boolean; error?: unknown; onApprove: () => void; onDeny: () => void; onReturn: () => void;
+  approved: boolean; installed?: boolean; slow?: boolean; retryIn?: number; busy: boolean; error?: unknown; onApprove: () => void; onDeny: () => void; onReturn: () => void;
 }>;
 const empty: SetupApprovalSnapshot = Object.freeze({phase: 'loading', busy: false});
 const emptySnapshot = () => empty;
@@ -36,11 +36,6 @@ export function SetupApprovalPage({account, bootstrap, Review}: {account: Servic
     } catch (error) {setInstance({scope, error});}
     return () => created?.dispose();
   }, [account, bootstrap, scope]);
-  useEffect(() => {
-    if (!flow || !state.display) return;
-    const timer = setTimeout(() => flow.expire(), Math.max(0, Date.parse(state.display.expiresAt) - Date.now()));
-    return () => clearTimeout(timer);
-  }, [flow, state.display]);
   const {t}=servicesI18n(), error=active?.error??state.error;
   if(!state.display){
     if(state.phase==='loading'&&!error)return <ServicesAuthStage><p role="status">{t('web.claim.loading')}</p></ServicesAuthStage>;
@@ -50,7 +45,7 @@ export function SetupApprovalPage({account, bootstrap, Review}: {account: Servic
   }
   const display=state.display, requested=Date.now()-Date.parse(display.requestedAt)<45000?t('services.claim.justNow'):servicesRelativeTime(servicesI18n(),display.requestedAt);
   return <Review phase={state.phase} serverName={display.name} address={new URL(display.address).host} accountName={display.accountName}
-    requestedAt={requested} approved={state.approved === true} installed={state.installed === true} slow={state.slow === true} busy={state.busy || state.phase === 'returning'}
+    requestedAt={requested} approved={state.approved === true} installed={state.installed === true} slow={state.slow === true} retryIn={state.retryIn} busy={state.busy || state.phase === 'returning'}
     error={error} onApprove={() => {void flow?.decide('approve');}} onDeny={() => {void flow?.decide('deny');}}
     onReturn={() => {if(state.approved)void flow?.complete();else flow?.returnReviewed();}} />;
 }
