@@ -8,6 +8,7 @@ import (
 	"github.com/PorticoMediaServer/portico/apikit/apierror"
 	"github.com/PorticoMediaServer/portico/server/internal/claimweb"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/networking"
 	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
 	"mime"
 	"net/http"
@@ -162,6 +163,10 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 		return err
 	}
 	err = apikit.RegisterRaw(registry, apikit.RawRoute[SetupAbandonRequest, SetupStateResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneAuth, ID: "post_setup_abandon", Method: "POST", Path: "/v1/setup/abandon", Summary: "Go back to the start of an unapproved Portico Account setup", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_state_changed", "setup_source_not_local", "internal"}}, Serve: d.serveSetupAbandon})
+	if err != nil {
+		return err
+	}
+	err = apikit.RegisterRaw(registry, apikit.RawRoute[networking.SetupApprovalRequest, networking.ClaimStatus]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneAuth, ID: "post_setup_approval", Method: "POST", Path: "/v1/setup/approval", Summary: "Ask a Portico Account to approve this setup", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 20 << 10, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_state_changed", "setup_source_not_local", "internal"}}, Serve: d.serveSetupApproval})
 	if err != nil {
 		return err
 	}
