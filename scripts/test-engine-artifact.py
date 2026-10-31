@@ -36,8 +36,12 @@ def fixture(root):
                      'provenance/scripts/build-ffmpeg.sh', 'provenance/portico-disc/LICENSE',
                      'provenance/portico-disc/portico-disc.c', 'provenance/contract/patches/fixture.patch',
                      'recipe/build.sh', 'recipe/makeimage.sh', 'recipe/scripts.d/10-library.sh',
-                     'recipe/.cache/downloads/10-library_fixture.tar.xz'):
+                     'recipe/.cache/downloads/10-library_' + 'a' * 64 + '.tar.xz', 'recipe/Dockerfile'):
             data = b'SCRIPT_REPO=fixture\n'
+            if name == 'recipe/Dockerfile':
+                data = ('FROM compiler AS base-layer\nRUN --mount=src=scripts.d/10-library.sh,dst=/stage.sh '
+                        '--mount=src=.cache/downloads/10-library_' + 'a' * 64 +
+                        '.tar.xz,dst=/cache.tar.xz run_stage /stage.sh\n').encode()
             info = tarfile.TarInfo(name)
             info.size = len(data)
             archive.addfile(info, io.BytesIO(data))
@@ -203,6 +207,38 @@ class EngineIntake(unittest.TestCase):
             pass
         with self.assertRaisesRegex(ValueError, 'incomplete'):
             M['verify_source'](self.root / 'empty.tar.xz', 'windows-x64')
+
+    def test_target_sources_follow_exact_generated_mounts_with_disabled_recipes_preserved(self):
+        source = self.root / 'input/bundle/corresponding-source.tar.xz'
+        with tarfile.open(source) as archive:
+            entries = {m.name: archive.extractfile(m).read() for m in archive if m.isfile()}
+        entries['recipe/scripts.d/50-linux-only.sh'] = b'SCRIPT_REPO=unused-on-Windows\n'
+        def verify(values):
+            path = self.root / 'selected-source.tar.xz'
+            with tarfile.open(path, 'w:xz') as archive:
+                for name, data in values.items():
+                    info = tarfile.TarInfo(name)
+                    info.size = len(data)
+                    archive.addfile(info, io.BytesIO(data))
+            M['verify_source'](path, 'windows-x64')
+        verify(entries)
+        exact = 'recipe/.cache/downloads/10-library_' + 'a' * 64 + '.tar.xz'
+        wrong = dict(entries)
+        wrong[exact.replace('a' * 64, 'b' * 64)] = wrong.pop(exact)
+        with self.assertRaisesRegex(ValueError, 'missing exact dependency source snapshot'):
+            verify(wrong)  # A same-prefix snapshot from a different command is insufficient.
+        missing = dict(entries)
+        missing.pop('recipe/scripts.d/10-library.sh')
+        with self.assertRaisesRegex(ValueError, 'missing selected dependency recipe'):
+            verify(missing)
+        missing = dict(entries)
+        missing.pop('recipe/Dockerfile')
+        with self.assertRaisesRegex(ValueError, 'missing Windows dependency source inventory'):
+            verify(missing)
+        missing_mount = dict(entries)
+        missing_mount['recipe/Dockerfile'] = b'RUN --mount=src=scripts.d/10-library.sh,dst=/stage.sh build\n'
+        with self.assertRaisesRegex(ValueError, 'missing selected dependency source mount'):
+            verify(missing_mount)
 
     def test_no_engine_means_explicit_block_and_no_native_jobs(self):
         actual = json.loads((ROOT / 'third_party/ffmpeg/artifacts.lock.json').read_text())
