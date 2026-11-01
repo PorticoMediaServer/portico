@@ -25,7 +25,7 @@ jobs:
         id: app
         with:
           path: ${{ runner.temp }}/portico-tvos/Build/Products/Debug-appletvsimulator/Portico.app
-          key: e2e-tvos-app-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          key: e2e-tvos-app-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/native/**', 'packages/**', 'package-lock.json', 'third_party/apple-subtitles/**') }}
       - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
         id: subtitles
         with:

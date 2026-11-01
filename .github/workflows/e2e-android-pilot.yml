@@ -25,7 +25,7 @@ jobs:
         id: app
         with:
           path: apps/native/android/app/build/outputs/apk/google/debug/app-google-debug.apk
-          key: e2e-android-app-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          key: e2e-android-app-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/native/**', 'packages/**', 'package-lock.json', 'third_party/media-engine/sources.lock.json', 'third_party/media-engine/build-android.sh', 'third_party/media-engine/lib/**', 'third_party/media-engine/patches/**') }}
       - name: Install tooling
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
