@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import re
 import subprocess
 import urllib.request
 
@@ -50,7 +51,7 @@ def control(work):
     (work / 'object.log').write_text(result.stdout + result.stderr); result.check_returncode()
     assert 'OBJCC' in result.stdout, result.stdout
     symbols = subprocess.check_output(['/usr/bin/nm', '-g', source / 'libavfilter/vf_transpose_vt.o'], text=True)
-    assert ' _ff_vf_transpose_vt' in symbols, symbols
+    assert re.search(r'(?m)^[0-9a-fA-F]+\s+[DSRT]\s+_ff_vf_transpose_vt$', symbols), symbols
     (work / 'control.json').write_text(json.dumps(dict(controlOnly=True, engineBuild=False, qualified=False,
         release=False, dependencyCompileInvocations=0, originalPatchKeptEmptyFile=original_kept_empty,
         correctedPatchRemovedFile=True, objectiveCRule=True, symbol=symbols), indent=2) + '\n')
