@@ -156,9 +156,18 @@ var similarTargetOrder = []int{1, 2, 3, 5, 4, 6}
 
 // Step runs one bounded pass: a manifest check when one is due, then up to
 // limit queued works matched. It returns whether there may be more to do.
+// While the owner has the dataset switched off it makes no request and
+// removes, in bounded batches, everything a download put on this server.
 func (s *Service) Step(ctx context.Context, limit int) (bool, error) {
 	if !s.Enabled() {
 		return false, nil
+	}
+	on, err := s.switchedOn(ctx)
+	if err != nil {
+		return false, err
+	}
+	if !on {
+		return s.purge(ctx, limit)
 	}
 	domains, err := s.neededDomains(ctx)
 	if err != nil {
@@ -276,6 +285,72 @@ func (s *Service) backOff(ctx context.Context) error {
 
 func (s *Service) recovered(ctx context.Context) error {
 	return s.writeState(ctx, `UPDATE enrichment_state SET failures=0,retry_at='' WHERE id=1`)
+}
+
+// switchedOn reads the owner's switch (Settings › Metadata › Recommendations,
+// recommendations.titleDataset). A server that never saved it has it on.
+func (s *Service) switchedOn(ctx context.Context) (bool, error) {
+	var on sql.NullBool
+	err := s.db.QueryRowContext(ctx, `SELECT "recommendations.titleDataset" FROM server_settings WHERE singleton=1`).Scan(&on)
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
+	}
+	return !on.Valid || on.Bool, err
+}
+
+// purge removes the dataset from this server: the domain files, then the
+// imported rows in batches of limit works, then the vocabulary, queue and
+// per-domain state. The install's seed and newest accepted manifest sequence
+// stay, so switching back on keeps the rollback guard. It returns whether
+// there is more to remove.
+func (s *Service) purge(ctx context.Context, limit int) (bool, error) {
+	for _, domain := range []string{"screen", "music", "books"} {
+		if err := os.Remove(s.path(domain)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return false, err
+		}
+	}
+	for _, pattern := range []string{"download-*.gz", "dataset-*.sqlite"} {
+		scratch, _ := filepath.Glob(filepath.Join(s.cfg.Dir, pattern))
+		for _, name := range scratch {
+			_ = os.Remove(name)
+		}
+	}
+	works, err := scanIDs(s.db.QueryContext(ctx, `SELECT entity_id FROM catalog_dataset_works ORDER BY entity_id LIMIT ?`, limit))
+	if err != nil {
+		return false, err
+	}
+	w, err := dbwork.Begin(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassBackgroundMedia))
+	if err != nil {
+		return false, err
+	}
+	defer w.Rollback()
+	tx := w.Tx()
+	raw, _ := json.Marshal(works)
+	statements := []string{
+		`DELETE FROM catalog_dataset_tags WHERE entity_id IN(SELECT value FROM json_each(?1))`,
+		`DELETE FROM catalog_similar WHERE source='portico-dataset' AND entity_id IN(SELECT value FROM json_each(?1))`,
+		`DELETE FROM catalog_dataset_works WHERE entity_id IN(SELECT value FROM json_each(?1))`,
+	}
+	if len(works) < limit {
+		// The last batch: nothing imported is left after it.
+		statements = append(statements, `DELETE FROM catalog_dataset_vocabulary`, `DELETE FROM enrichment_domains`)
+	}
+	// Works keep gaining provider ids while the switch is off; their queue
+	// entries mean nothing until it is on again, when every work is matched.
+	statements = append(statements, `DELETE FROM enrichment_jobs`)
+	if len(works) > 0 {
+		statements = append(statements, `UPDATE rec_data_revision SET revision=revision+1 WHERE id=1`)
+	}
+	for _, statement := range statements {
+		var args []any
+		if strings.Contains(statement, "?1") {
+			args = []any{string(raw)}
+		}
+		if _, err = tx.ExecContext(ctx, statement, args...); err != nil {
+			return false, err
+		}
+	}
+	return len(works) == limit, w.Commit()
 }
 
 func (s *Service) neededDomains(ctx context.Context) ([]string, error) {

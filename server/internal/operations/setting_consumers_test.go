@@ -183,6 +183,7 @@ var settingConsumers = map[string]settingConsumer{
 	"operations.Settings.hardwareDevice":                                     {"internal/playback/delivery_plan.go", "HardwareDevice", "Plan media delivery using owner policy"},
 	"operations.Settings.hdrToneMapping":                                     {"internal/httpapi/delivery_settings_adapter.go", "HDRToneMapping", "Project conversion policy to runtime delivery settings"},
 	"operations.Settings.hdrToneMappingAlgorithm":                            {"internal/httpapi/delivery_settings_adapter.go", "HDRToneMappingAlgorithm", "Project conversion policy to runtime delivery settings"},
+	"operations.Settings.recommendations.titleDataset": {"internal/enrichment/enrichment.go", "literal:recommendations.titleDataset", "Download the title dataset only while on; off makes no requests and removes the downloaded data"},
 	"operations.Settings.home.communityActivityEnabled":                      {"internal/httpapi/home_routes.go", "CommunityActivityEnabled", "Include community activity in home content"},
 	"operations.Settings.jobDays":                                            {"internal/operations/evidence.go", "JobDays", "Prune the corresponding history by its retention rule"},
 	"operations.Settings.lanDiscoveryEnabled":                                {"cmd/server/administration.go", "LANDiscoveryEnabled", "Start or stop LAN advertisement"},

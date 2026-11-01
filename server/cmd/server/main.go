@@ -1013,7 +1013,8 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 	if titles.Enabled() {
 		supervise.Supervise(ctx, "cmd.title-dataset", func(life context.Context) {
 			wake := worker.NewSignal()
-			unregister := dbwork.WakeOnTables(wake, "catalog_external_ids", "catalog_libraries")
+			// server_settings: the owner's switch takes effect at once.
+			unregister := dbwork.WakeOnTables(wake, "catalog_external_ids", "catalog_libraries", "server_settings")
 			defer unregister()
 			worker.Run(life, "cmd.title-dataset", wake, func(ctx context.Context) time.Duration {
 				more, err := titles.Step(dbwork.WithClass(ctx, dbwork.ClassBackgroundMedia), 500)
