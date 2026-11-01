@@ -80,7 +80,7 @@ def scan_libraries(server):
                  ('Anime', 'anime', 'shows', 1), ('Music', 'music', 'albums', 3),
                  ('Books', 'audiobook', 'books', 1), ('Reading', 'book', 'books', 1),
                  ('Comics', 'comic', 'comics', 1)]
-    required_titles = {'Movies': {'Arrival', 'HDR Tagged', 'Multiple Audio', '星の港'},
+    required_titles = {'Movies': {'Arrival', 'Moon', 'HDR Tagged', 'Multiple Audio', '星の港'},
                        'Shows': {'Example Show'}, 'Music': {'Example Album', 'Second Album'},
                        'Books': {'Example Book'}}
     for name, kind, pivot, count in libraries:

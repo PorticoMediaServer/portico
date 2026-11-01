@@ -11,6 +11,14 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def generate(media):
     base = media / 'base.mp4'
+    # Give interactive player assertions enough time to observe two distinct
+    # positions and open the subtitle panel, without a fixed readiness delay.
+    for movie in [media / 'Movies/Arrival (2016)/Arrival (2016) - 1080p.mp4',
+                  media / 'Movies/Arrival (2016)/Arrival (2016) - 720p.mkv']:
+        extended = movie.with_name('extended-' + movie.name)
+        subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-stream_loop', '4',
+                        '-i', str(movie), '-t', '60', '-c', 'copy', str(extended)], check=True)
+        extended.replace(movie)
     artwork = ROOT / 'fixtures/library-layout/Audiobooks/Test Listener/cover.png'
     shutil.copyfile(artwork, media / 'Movies/Arrival (2016)/poster.png')
     for title in ['The exceptionally long synthetic title that tests whether cards truncate without changing their geometry', '星の港']:

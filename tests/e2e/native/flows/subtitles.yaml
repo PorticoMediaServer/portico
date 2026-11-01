@@ -1,0 +1,62 @@
+appId: tv.getportico.app
+---
+- runFlow: sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      id: native-home
+    timeout: 60000
+- tapOn: 'Search'
+- tapOn:
+    id: search-input
+- inputText: Arrival
+- extendedWaitUntil:
+    visible:
+      id: search-top-result
+    timeout: 60000
+- hideKeyboard
+- tapOn:
+    id: search-top-result
+- extendedWaitUntil:
+    visible: 'Play'
+    timeout: 60000
+- tapOn: 'Play'
+- extendedWaitUntil:
+    visible:
+      id: watch-host
+    timeout: 60000
+- extendedWaitUntil:
+    visible: '0:0[1-4]'
+    timeout: 30000
+- takeScreenshot: 01-playing
+- extendedWaitUntil:
+    visible: '0:(0[5-9]|1[0-2])'
+    timeout: 15000
+- takeScreenshot: 02-progress
+- runFlow:
+    when:
+      notVisible:
+        id: watch-options
+    commands:
+      - tapOn:
+          id: watch-picture
+- extendedWaitUntil:
+    visible:
+      id: watch-options
+    timeout: 10000
+- tapOn:
+    id: watch-options
+- extendedWaitUntil:
+    visible:
+      id: watch-option-subtitles
+    timeout: 10000
+- takeScreenshot: 03-options
+- tapOn:
+    id: watch-option-subtitles
+- extendedWaitUntil:
+    visible:
+      id: watch-panels
+    timeout: 10000
+- assertVisible: 'English.*'
+- takeScreenshot: 04-subtitles
+- tapOn: 'English.*'
+- takeScreenshot: 05-subtitle-selected
