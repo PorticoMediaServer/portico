@@ -94,6 +94,20 @@ class ColdToolchain(unittest.TestCase):
             self.assertFalse(report['nativeEngineChecks'])
             self.assertIn('exact-run/target/hash mismatch', report['failure'])
 
+    def test_disk_samples_retain_peak_pressure_after_space_is_reclaimed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sampler = cold.DiskSampler(root, root / 'samples.json')
+            readings = [SimpleNamespace(free=1000, used=100), SimpleNamespace(free=600, used=500),
+                        SimpleNamespace(free=900, used=200)]
+            with patch('shutil.disk_usage', side_effect=readings):
+                for _ in readings:
+                    sampler.observe()
+            self.assertEqual(sampler.record['minimumFreeBytes'], 600)
+            self.assertEqual(sampler.record['maximumUsedBytes'], 500)
+            self.assertEqual(sampler.record['maximumAdditionalUsedBytes'], 400)
+            self.assertEqual(sampler.record['samples'], 3)
+
 
 if __name__ == '__main__':
     unittest.main()
