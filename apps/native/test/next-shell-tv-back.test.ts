@@ -9,7 +9,7 @@ import {HomeService} from '../../../packages/client-core/src/home-service';
 import type {ContentEntry} from '../../../packages/client-core/src/library-content';
 import {nativeHomeSelectionScope} from '../src-next/shell/selection-scope';
 import {NativeShellNavigation, nativeRailDestination, titleRoute} from '../src-next/shell/routes';
-import {planHomeWindows} from '../src-next/shell/home-windows';
+import {homeRegistrationLimit, planHomeWindows, planHomeWindowsReport} from '../src-next/shell/home-windows';
 import {homePlayTarget} from '../src-next/screens/home/model';
 import * as shellModel from '../src-next/shell/model';
 import * as readPlatform from '../src-next/screens/read/platform';
@@ -49,7 +49,7 @@ test('actual assembly sends Back to topmost Home menu before player, then TV pag
     './HomeSelectionBars': {HomeSelectionBars: 'Bars'}, './HomeSelectionOverlays': {HomeSelectionOverlays: 'Overlays'}, './account': {nativeAccountMenu() {}, nativeMenuRouteAvailable: () => true}, './library-scan': {libraryScanReadiness: () => ({ok: true})}, '../screens/downloads/DownloadSheet': {NativeDownloadSheet: 'NativeDownloadSheet'},
     '../screens/home/HomeEmpty': {NativeHomeEmpty: 'NativeHomeEmpty'},
     './model': shellModel,
-    './home-windows': {planHomeWindows},
+    './home-windows': {homeRegistrationLimit, planHomeWindows, planHomeWindowsReport},
     './listening-playlist': {createNativeListeningPlaylist: () => ({dispose() {}})},
     './listening-queue-policy': {createNativeListeningQueuePolicy: () => ({dispose() {}})},
     './listening-song-detail': {createNativeListeningSongDetail: () => ({dispose() {}})},

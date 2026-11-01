@@ -1,4 +1,5 @@
 export {HomeSelectionController, homeSelectionContext} from './controller.ts';
+export {homeSelectionWindowLimit} from './limits.ts';
 export type * from './types.ts';
 export {fetchBulkMetadataPreview, parseBulkMetadataPreview, metadataPreviewTargets} from './metadata-preview.ts';
 export type {BulkMetadataPreview, BulkMetadataPreviewRequest, BulkMetadataPreviewTarget, BulkMetadataField, BulkMetadataValueCount} from './metadata-preview.ts';

@@ -1,3 +1,4 @@
+import {homeSelectionWindowLimit} from './limits.ts';
 import {SelectionModel, selectionActions, selectionKey, summarizeSelection, type SelectionAction, type SelectionContext, type SelectionRegistration, type SelectionEnvironment, type SelectionIdentity, type SelectionKind, type SelectionOperation, type SelectionTarget} from '../selection-model/index.ts';
 import {selectionCapabilityNames} from '../selection-model/capabilities.ts';
 import {homeChannelSelection, homeCollectionCapabilities, homeCollectionSelection, homeEntryCapabilities, homeEntrySelection, type HomeActionPlatform} from '../home-selection.ts';
@@ -35,6 +36,7 @@ const sameSource = (a: WindowSource, b: WindowSource) => a.kind === 'spotlight' 
 type CurrentMember = Readonly<{member: HomeSelectionMember; row?: HomeRow; spotlight?: HomeSpotlight; index: number}>;
 type Ticket = {document: HomeDocument; epoch: number; context: SelectionContext; target: SelectionTarget; model?: SelectionOperation; controller: AbortController};
 /** Shared execution only: all renderer, locale, key, gesture and haptic ownership stays in the shell. */
+
 export class HomeSelectionController {
   readonly selection: SelectionModel;
   private state: HomeSelectionSnapshot;
@@ -67,7 +69,7 @@ export class HomeSelectionController {
     this.options = options;
     if (!options.playback || ['play', 'enqueue', 'playChannel'].some(command => typeof options.playback[command as keyof typeof options.playback] !== 'function')) throw selectionExecutionError('playback-runtime-required');
     this.environment = {...options.environment};
-    this.selection = new SelectionModel(options.context);
+    this.selection = new SelectionModel(options.context, {maxWindows: homeSelectionWindowLimit});
     this.state = {context: this.selection.getSnapshot().context, selection: this.selection.getSnapshot(), displayMembers: [], actions: selectionActions(this.selection.getSnapshot().summary, this.environment), menu: null, picker: null, editor: null, deletion: null, rating: null, mixedEdit: false, editExplanation: null, action: idle()};
     this.cleanups.push(this.selection.subscribe(() => {
       const snapshot = this.selection.getSnapshot();
