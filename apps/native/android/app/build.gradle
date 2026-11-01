@@ -22,7 +22,7 @@ def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 // porticoUploadKeyPassword, porticoVersionCode and porticoVersionName (or the matching
 // ORG_GRADLE_PROJECT_* environment variables) are read here; README's Android builds section says
 // how a store build supplies them without putting a password in the command line. Absent, every
-// build keeps the debug keystore and version 1 / "1.0" below, so local, emulator and sideload
+// build keeps the debug keystore and version 1 / "0.0.0" below, so local, emulator and sideload
 // packaging is unchanged.
 def uploadStoreFile = project.findProperty("porticoUploadStoreFile")?.toString()
 def uploadStorePassword = project.findProperty("porticoUploadStorePassword")?.toString()

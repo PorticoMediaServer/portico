@@ -9,6 +9,9 @@ is append-only, so it only rises, and the same commit always gets the same numbe
   release-version.py identity --version 0.0.1 --commit <sha> [--existing v0.0.1,...]
       Checks the version and that the commit is on origin/main; prints version=, tag= and
       build= lines (for $GITHUB_OUTPUT).
+  release-version.py identity --proof --commit <sha>
+      A proof run (a pull request, or a dispatch on a branch): version 0.0.0, no draft, and the
+      commit need not be on main; the build number is still its commit count.
   release-version.py stamp --version 0.0.1 --build N --product vega|desktop
       Writes the version into that product's manifest in this checkout (never committed).
       Android and Apple take theirs as build arguments instead (see RELEASING.md).
@@ -53,8 +56,8 @@ def git(*args):
     return subprocess.run(['git', '-C', str(ROOT), *args], check=True, capture_output=True, text=True).stdout.strip()
 
 
-def build_number(commit, main_ref='origin/main'):
-    if subprocess.run(['git', '-C', str(ROOT), 'merge-base', '--is-ancestor', commit, main_ref]).returncode != 0:
+def build_number(commit, main_ref='origin/main', proof=False):
+    if not proof and subprocess.run(['git', '-C', str(ROOT), 'merge-base', '--is-ancestor', commit, main_ref]).returncode != 0:
         fail(f'{commit} is not on {main_ref}; a release is built only from main')
     number = int(git('rev-list', '--count', commit))
     if not 1 <= number <= ANDROID_MAX_VERSION_CODE:
@@ -86,7 +89,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest='command', required=True)
     identity = sub.add_parser('identity')
-    identity.add_argument('--version', required=True)
+    identity.add_argument('--version')
+    identity.add_argument('--proof', action='store_true')
     identity.add_argument('--commit', required=True)
     identity.add_argument('--existing', default='', help='comma-separated existing tags and release tag names')
     identity.add_argument('--main-ref', default='origin/main')
@@ -96,8 +100,13 @@ def main(argv=None):
     stamping.add_argument('--product', required=True, choices=['vega', 'desktop'])
     args = parser.parse_args(argv)
     if args.command == 'identity':
-        version = check_version(args.version, [t for t in args.existing.split(',') if t])
-        build = build_number(args.commit, args.main_ref)
+        if args.proof:
+            version, build = '0.0.0', build_number(args.commit, proof=True)
+        else:
+            if not args.version:
+                fail('--version is required for a release')
+            version = check_version(args.version, [t for t in args.existing.split(',') if t])
+            build = build_number(args.commit, args.main_ref)
         print(f'version={version}\ntag=v{version}\nbuild={build}')
     else:
         if not ALLOWED.match(args.version):
