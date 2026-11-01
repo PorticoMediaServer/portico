@@ -37,6 +37,7 @@ jobs:
         run: |
           python scripts/test-build-engine.py
           python scripts/test-engine-final-cache.py
+          python scripts/test-repeat-btbn-ffmpeg.py
           python scripts/test-assemble-engine.py
           python scripts/test-compiler-custody.py
           python scripts/test-native-engine-context.py

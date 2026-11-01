@@ -127,6 +127,17 @@ controls are transport/refusal fixtures; actual repeated compilation must be
 proved by the next naturally required hosted Windows build, without restarting
 an otherwise usable development run solely for this receipt.
 
+The Linux ARM hosted producer also requests two terminal compiles. It records
+the actual completed native ARM dependency image ID once, then passes that
+immutable digest to both fresh BtbN build containers. Fresh raw archives and
+separate exports must match all three executable/source hashes; source and
+first-round bytes are rechecked after the second. The sealed repeat record
+contains the image ID and both raw-archive/compile-log hashes. Compiler source,
+native runtime and release acceptance remain separate holds. Source controls
+use declared inert archives and producer fixtures; real ARM compilation is
+proved only by the next naturally required engine run, without restarting an
+existing development build for metadata.
+
 The Dockerfile is hashed after final generation, copied to a content-addressed
 read-only file outside the recipe tree, and re-hashed. Docker consumes that copy;
 both the original and copy are checked around every build. Assembly seals its
