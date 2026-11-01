@@ -132,6 +132,15 @@ for name, directory in [('50-rkmpp.sh', 'rkmpp'), ('50-rkrga.sh', 'rkrga')]:
     text = text.replace('ninja install', 'DESTDIR="$FFBUILD_DESTDIR" ninja install')
     text = text.replace('>> "$FFBUILD_PREFIX"/lib/pkgconfig/', '>> "$FFBUILD_DESTPREFIX"/lib/pkgconfig/')
     (recipe / 'scripts.d' / name).write_text(text)
+if target == 'linux-arm64':
+    # BtbN's final image traverses explicit dependency roots. Injected scripts
+    # and --enable flags alone do not put their libraries in that prefix.
+    final = recipe / 'scripts.d/zz-final.sh'
+    text = final.read_text()
+    marker = 'ffbuild_depends() {\n'
+    if text.count(marker) != 1 or '    echo rkmpp\n' in text or '    echo rkrga\n' in text:
+        raise ValueError('Pinned ARM Rockchip final dependency roots changed')
+    final.write_text(text.replace(marker, marker + '    echo rkmpp\n    echo rkrga\n', 1))
 # Final command-line flags override recipe defaults without hiding omissions.
 path = recipe / 'build.sh'
 text = path.read_text()

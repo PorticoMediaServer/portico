@@ -198,3 +198,10 @@ repository Rust/cargo-c versions as Windows. The standalone Linux x64 builder
 and Windows default selection remain separate. This functional dependency
 addition does not establish complete ARM compiler-source or native media
 acceptance; those remain explicit qualification gates.
+
+The ARM Rockchip stages are explicit dependencies of BtbN's final image.
+Their original Jellyfin source commits and required feature flags are unchanged;
+source download alone cannot prove that a stage was compiled or merged into the
+prefix. The hosted source-only control uses the real pinned recipe/generator,
+checks both stage mounts and final-prefix copies, and removes the two roots as
+a negative control. It compiles no dependency and grants no engine acceptance.

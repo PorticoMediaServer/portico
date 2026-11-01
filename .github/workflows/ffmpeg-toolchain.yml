@@ -42,6 +42,7 @@ jobs:
           python scripts/test-native-engine-context.py
           python scripts/test-engine-artifact.py
           python scripts/test-windows-rav1e-custody.py
+          python scripts/test-arm-rockchip-recipe.py
           python scripts/test-windows-libdovi-recipe.py
           python scripts/test-libdovi-runtime-inventory.py
           python scripts/test-ci-ffmpeg-toolchain.py
