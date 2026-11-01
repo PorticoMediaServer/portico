@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   schema-and-tests:
-    if: ${{ !contains(github.event.head_commit.message, 'inventory probes') && !contains(github.event.head_commit.message, 'cleanup probes') }}
+    if: ${{ !contains(github.event.head_commit.message, 'inventory probes') && !contains(github.event.head_commit.message, 'cleanup probes') && !contains(github.event.head_commit.message, 'writer metadata') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -26,7 +26,7 @@ jobs:
         if: always()
         with: {name: schema-and-tests, path: '${{ runner.temp }}/reports', retention-days: 7}
   curves:
-    if: ${{ !contains(github.event.head_commit.message, 'inventory probes') && !contains(github.event.head_commit.message, 'cleanup probes') }}
+    if: ${{ !contains(github.event.head_commit.message, 'inventory probes') && !contains(github.event.head_commit.message, 'cleanup probes') && !contains(github.event.head_commit.message, 'writer metadata') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
@@ -188,3 +188,21 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with: {name: 'writer-integration-${{ matrix.kind }}', path: '${{ runner.temp }}/reports', retention-days: 7}
+  writer-metadata:
+    if: contains(github.event.head_commit.message, 'writer metadata')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - run: mkdir -p "$RUNNER_TEMP/reports"
+      - name: Generate writer census with its producer
+        working-directory: server
+        run: |
+          go test ./internal/dbwork -run '^TestWriteCensus$' -update-write-census -count=1 > "$RUNNER_TEMP/reports/census.log" 2>&1
+          git diff -- internal/dbwork/testdata/write_census.tsv > "$RUNNER_TEMP/reports/writer-metadata.patch"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: writer-metadata, path: '${{ runner.temp }}/reports', retention-days: 7}
