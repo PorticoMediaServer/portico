@@ -85,8 +85,17 @@ def scan_libraries(server):
                        'Books': {'Example Book'}}
     for name, kind, pivot, count in libraries:
         api = server.api
+        source_path = (server.directory / 'media' / name).resolve()
+        if not source_path.is_dir():
+            raise RuntimeError(f'{name} fixture root is not a directory')
+        probe = subprocess.run([str(server.binary), '--portico-storage-helper'],
+                               input=json.dumps({'operation': 'root', 'path': str(source_path)}),
+                               text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+        if probe.returncode != 0:
+            raise RuntimeError(f'{name} storage helper root probe failed: exit {probe.returncode}')
+        print(f'{name} fixture root and storage helper are accessible', flush=True)
         library = api.post('/v1/libraries', {'name': name, 'kind': kind,
-                           'path': str((server.directory / 'media' / name).resolve()),
+                           'path': str(source_path),
                            'metadataAgent': 'local'}, (201,))
         server.libs[name] = library['id']
         job = api.post('/v1/libraries/' + library['id'] + '/scans', expected=(202,))
