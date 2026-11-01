@@ -26,6 +26,7 @@ WINDOWS_CONFIGURE_SCRIPTS = {
     'provenance/scripts/build-engine.py', 'provenance/scripts/engine_inputs.py',
     'provenance/scripts/engine-recipe-adapter.py', 'provenance/scripts/configure-ffmpeg-recipe.py',
     'provenance/scripts/configure-windows-libdovi.py',
+    'provenance/scripts/engine-registry-cache.py',
     'provenance/scripts/patch-btbn-winarm64-system-error.sh',
     'provenance/scripts/prepare-ffmpeg-source.py', 'provenance/scripts/archive-ffmpeg-source.py',
     'provenance/scripts/ffmpeg-build-tools.py', 'provenance/scripts/requirements-ffmpeg-meson.txt',

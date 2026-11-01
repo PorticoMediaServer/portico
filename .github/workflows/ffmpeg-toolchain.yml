@@ -62,7 +62,7 @@ jobs:
           COLD_TARGET: ${{ inputs.target || 'all' }}
         run: echo "matrix=$(python scripts/ci-ffmpeg-toolchain.py plan --target "$COLD_TARGET")" >> "$GITHUB_OUTPUT"
   catalogue:
-    if: github.repository == 'PorticoMediaServer/portico' && inputs.controlsOnly
+    if: github.repository == 'PorticoMediaServer/portico' && inputs.controlsOnly && !inputs.cacheControls
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
