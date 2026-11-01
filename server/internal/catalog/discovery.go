@@ -80,12 +80,16 @@ type Category struct {
 	ArtworkPaths []string `json:"artworkPaths,omitempty"`
 }
 type DiscoverySection struct {
-	SeeAll    *ContentSeeAll `json:"seeAll,omitempty"`
-	Total     int            `json:"total"`
-	ID        string         `json:"id"`
-	Title     string         `json:"title"`
-	TitleText ServerText     `json:"titleText"`
-	Items     []ContentEntry `json:"items"`
+	SeeAll *ContentSeeAll `json:"seeAll,omitempty"`
+	// Why and WhyTitles explain a personal row, exactly as Home and the row's
+	// own page do.
+	Why       *ServerText        `json:"why,omitempty"`
+	WhyTitles []ContentEntityRef `json:"whyTitles,omitempty"`
+	Total     int                `json:"total"`
+	ID        string             `json:"id"`
+	Title     string             `json:"title"`
+	TitleText ServerText         `json:"titleText"`
+	Items     []ContentEntry     `json:"items"`
 }
 type Discovery struct {
 	Library  Library            `json:"library"`
@@ -454,7 +458,7 @@ func (s *Service) DiscoverWithRestrictions(library, profile string, restrictions
 		if e != nil {
 			return out, e
 		}
-		picks = append(picks, DiscoverySection{ID: row.spec.ID, Title: row.spec.Title, TitleText: row.spec.titleText(), Items: entries, Total: len(row.items), SeeAll: recSeeAll(lib.Kind, row.filter)})
+		picks = append(picks, DiscoverySection{ID: row.spec.ID, Title: row.spec.Title, TitleText: row.spec.titleText(), Items: entries, Total: len(row.items), SeeAll: recSeeAll(lib.Kind, row.filter), Why: row.spec.Why, WhyTitles: row.spec.WhyTitles})
 	}
 	at := 0
 	for i, section := range out.Sections {

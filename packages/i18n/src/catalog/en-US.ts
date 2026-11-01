@@ -338,6 +338,8 @@ export const enUS = {
   'home.row.shortPicks': 'Short picks for you',
   'home.row.moodForYou': '{mood} picks for you',
   'home.row.themeForYou': '{theme} for you',
+  'home.row.subgenreForYou': '{subgenre} for you',
+  'home.row.appealForYou': '{appeal} for you',
   'home.row.moreLike': 'More like {title}',
   'home.row.becauseYouWatched': 'Because you watched {title}',
   'home.row.starring': 'Starring {name}',
