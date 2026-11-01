@@ -158,12 +158,12 @@ const rows: readonly HomeRow[] = [
     subtitleText: {code: 'next.home.sourceName', params: {source: 'Synthetic Live TV'}, fallback: 'Synthetic Live TV'}, priority: 50, privacySensitivity: 'personal',
     seeAll: {type: 'guide'}, live,
   }),
-  row('community_watching', 'next.home.mostWatched', 'Most watched on this server', 'poster', mostWatched, {
+  row('community_watching', 'next.home.popularOnServer', 'Popular on this server', 'poster', mostWatched, {
     priority: 60, privacySensitivity: 'aggregated',
     period: {days: 30, start: instant(Date.parse(now) - 30 * 86_400_000), end: now, metric: 'distinct_eligible_viewers',
       text: {code: 'next.home.last30Days', fallback: 'Last 30 days'}},
   }),
-  row('listen_next', 'next.home.listenNext', 'Listen next', 'square', listen, {
+  row('listen_next', 'next.home.continueListening', 'Continue Listening', 'square', listen, {
     subtitleText: {code: 'next.home.audioKinds', fallback: 'Audiobooks and music'}, priority: 70, privacySensitivity: 'personal',
     seeAll: {type: 'row', rowId: 'listen_next'},
     resumes: [{entryId: 'bk-martian', target: {...listen[0], playback: {itemId: 'resume-martian', startSeconds: 4800}}}],

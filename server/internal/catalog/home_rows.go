@@ -221,7 +221,7 @@ func (spec homeRowSpec) destination() *HomeSeeAll {
 
 // homeRowTitleCodes are the client catalogue ids for the fixed Home rows.
 var homeRowTitleCodes = map[string]string{
-	"continue": "next.home.continueWatching", "new_on_server": "next.home.newOnServer", "because_you_watched": "next.home.becauseHeading", "featured_collection": "next.home.collection", "on_now": "next.home.onNow", "community_watching": "next.home.mostWatched", "listen_next": "next.home.listenNext", "continue_books": "next.home.continueBooks", "recommended": "home.row.recommended", "trending_now": "home.row.trending", recFamily: "home.row.moreRecommendations",
+	"continue": "next.home.continueWatching", "new_on_server": "next.home.newOnServer", "because_you_watched": "next.home.becauseHeading", "featured_collection": "next.home.collection", "on_now": "next.home.onNow", "community_watching": "next.home.popularOnServer", "listen_next": "next.home.continueListening", "continue_books": "next.home.continueBooks", "recommended": "home.row.recommended", "trending_now": "home.row.trending", recFamily: "home.row.moreRecommendations",
 }
 
 // titleText is the row title as {code, params, fallback} (CON-19).
@@ -392,8 +392,8 @@ func (s *Service) homeSpecs(r HomeRequest) ([]homeRowSpec, error) {
 		{ID: "new_on_server", Title: "New on your server", Kind: "recent", ArtworkShape: "poster", Priority: 20, CacheTTL: 120, Hideable: true, Reorderable: true, Cursors: true, Privacy: "catalog", PolicyState: "available"},
 		{ID: "because_you_watched", Title: "Because you watched", Kind: "recommendation", ArtworkShape: "poster", Direction: "asc", Priority: 30, CacheTTL: 60, Hideable: true, Reorderable: true, Cursors: true, Privacy: "personal", PolicyState: "available"},
 		{ID: "featured_collection", Title: "Collection", Kind: "collection_banner", ArtworkShape: "poster", Priority: 40, CacheTTL: 120, Hideable: true, Reorderable: true, Privacy: "catalog", PolicyState: "available"},
-		{ID: "community_watching", Title: "Most watched on this server", Kind: "community", ArtworkShape: "poster", Direction: "asc", Priority: 60, CacheTTL: 60, DefaultHidden: true, Hideable: true, Reorderable: true, Cursors: true, Privacy: "aggregated", PolicyState: "available"},
-		{ID: "listen_next", Title: "Listen next", Kind: "listening", ArtworkShape: "square", Direction: "desc", Priority: 70, CacheTTL: 45, Hideable: true, Reorderable: true, Cursors: true, Privacy: "personal", PolicyState: "available"},
+		{ID: "community_watching", Title: "Popular on this server", Kind: "community", ArtworkShape: "poster", Direction: "asc", Priority: 60, CacheTTL: 60, DefaultHidden: true, Hideable: true, Reorderable: true, Cursors: true, Privacy: "aggregated", PolicyState: "available"},
+		{ID: "listen_next", Title: "Continue Listening", Kind: "listening", ArtworkShape: "square", Direction: "desc", Priority: 70, CacheTTL: 45, Hideable: true, Reorderable: true, Cursors: true, Privacy: "personal", PolicyState: "available"},
 		{ID: "continue_books", Title: "Continue your books", Kind: "continue_books", ArtworkShape: "square", Direction: "desc", Priority: 80, CacheTTL: 45, Hideable: true, Reorderable: true, Cursors: true, Privacy: "personal", PolicyState: "available"},
 		{ID: "recommended", Title: "Recommended for you", Kind: "recommendation", ArtworkShape: "poster", Direction: "asc", Priority: 90, CacheTTL: 300, Hideable: true, Reorderable: true, Cursors: true, Privacy: "personal", PolicyState: "available"},
 		{ID: recFamily, Title: "More recommendations", Kind: "family", Family: recFamily, ArtworkShape: "poster", Direction: "asc", Priority: 91, CacheTTL: 300, Hideable: true, Reorderable: true, Privacy: "personal", PolicyState: "available"},
