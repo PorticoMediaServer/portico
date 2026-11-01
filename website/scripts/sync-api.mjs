@@ -1,7 +1,7 @@
 // Generate both API audiences from a pinned production OpenAPI contract.
 // Usage: node scripts/sync-api.mjs <server checkout> [git ref, default HEAD]
 import { execFileSync } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -66,6 +66,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const raw = git(['show', `${serverCommit}:server/api/portico.openapi.json`]);
   const reference = generateReference(JSON.parse(raw), { serverCommit, specSha256: createHash('sha256').update(raw).digest('hex') });
   const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  await mkdir(resolve(projectRoot, 'src/data/api'), { recursive: true });
   await writeFile(resolve(projectRoot, 'src/data/api/reference.json'), `${JSON.stringify(reference)}\n`);
   const native = reference.operations.filter((operation) => operation.audience === 'Integrations' && operation.protocol === 'native').length;
   console.log(`Wrote ${reference.operations.length} operations, ${native} native Integrations operations, from ${serverCommit}.`);
