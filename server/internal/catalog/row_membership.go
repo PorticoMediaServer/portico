@@ -77,7 +77,7 @@ func (s *Service) ResolveHomeRowMembership(r HomeRequest, id string) (HomeRowMem
 	return HomeRowMembership{
 		query: `SELECT e.id,ROW_NUMBER() OVER(ORDER BY candidate.ord ` + order + `,candidate.id ` + order + `)-1 AS pos FROM (` + source.base + `) candidate CROSS JOIN catalog_entities e ON e.public_id=pid_blob(candidate.id)`,
 		args:  source.args,
-		fence: fmt.Sprintf("%d:%d:%s", revision.Catalog, revision.Viewer, source.fingerprint),
+		fence: homeMembershipFence(revision, source.fingerprint),
 	}, nil
 }
 
@@ -185,4 +185,13 @@ func (s *Service) ProjectHomeRowDisplayTargets(r HomeRequest, rowID string, memb
 		out[i] = HomeProjectedEntry{MembershipID: membershipIDs[i], Entry: entry}
 	}
 	return out, nil
+}
+
+// homeMembershipFence is a See all's fence: a computed list's fingerprint and the
+// viewer, or for a keyset row the order and viewer revisions.
+func homeMembershipFence(revision ContentRevision, fingerprint string) string {
+	if fingerprint != "" {
+		return fmt.Sprintf("list:%d:%s", revision.Viewer, fingerprint)
+	}
+	return fmt.Sprintf("%d:%d:", revision.Catalog, revision.Viewer)
 }
