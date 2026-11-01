@@ -179,7 +179,8 @@ func TestTitleDatasetAtScale(t *testing.T) {
 		c.Drain()
 		return fmt.Sprintf("%d films", len(films))
 	})
-	if _, err = db.Exec(`ANALYZE`); err != nil {
+	// The server's own planner statistics, so Home is measured with the plans it gets in service.
+	if err = persistence.RefreshPlannerStatistics(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 
