@@ -2,7 +2,7 @@ import unittest
 from plan import go_matrix, vps_trusted
 
 class RunnerRouting(unittest.TestCase):
-    def test_only_declared_trusted_events_use_the_fixed_vps_share(self):
+    def test_trusted_event_guard_remains_but_go_is_hosted(self):
         env={'GITHUB_REPOSITORY':'PorticoMediaServer/portico'}
         for event in ['merge_group','schedule','workflow_dispatch']:
             self.assertTrue(vps_trusted({},dict(env,GITHUB_EVENT_NAME=event)))
@@ -12,7 +12,7 @@ class RunnerRouting(unittest.TestCase):
         plan={'shards':[[]]*10}
         rows=go_matrix(plan,{},dict(env,GITHUB_EVENT_NAME='merge_group'))['include']
         self.assertEqual([r['index'] for r in rows],list(range(10)))
-        self.assertEqual([r['runner'] for r in rows],['portico-vps-go']+['ubuntu-24.04']*9)
+        self.assertEqual([r['runner'] for r in rows],['ubuntu-24.04']*10)
 
     def test_forks_deleted_head_and_wrong_repository_fail_closed(self):
         env={'GITHUB_REPOSITORY':'PorticoMediaServer/portico','GITHUB_EVENT_NAME':'pull_request'}
@@ -38,7 +38,7 @@ class RunnerRouting(unittest.TestCase):
                 self.assertEqual(rows,[{'index':0,'runner':'ubuntu-24.04'},{'index':1,'runner':'ubuntu-24.04'}])
             for value in ['', 'false']:
                 rows=go_matrix(plan,event,dict(current,CI_HOSTED_ONLY=value))['include']
-                self.assertEqual(rows[0]['runner'],'portico-vps-go')
+                self.assertEqual([r['runner'] for r in rows],['ubuntu-24.04']*2)
         self.assertEqual([t[0]['name'] for t in plan['shards']],['TestA','TestB'])
 
     def test_override_is_wired_to_every_workflow_vps_selector(self):
