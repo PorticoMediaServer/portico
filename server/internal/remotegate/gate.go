@@ -2,7 +2,9 @@
 // from outside the home network is answered (O-169).
 //
 // Remote access On / Private only / Off says whether outside connections are
-// answered at all; Private only also counts the tailnet ranges as home.
+// answered at all. The tailnet ranges count as home under On and Private only
+// (an internet scanner can't come from them), so Private only means "home and
+// tailnet, nothing from the internet". Off means home only.
 // Remote security Enhanced answers outside connections only over HTTPS and
 // only at this server's own Portico names (whatever its certificate covers) or
 // an address the owner added; Standard answers outside connections at any
@@ -30,7 +32,7 @@ const (
 	AccessOff        = "off"
 )
 
-// Tailnet ranges count as home when remote access is Private only.
+// Tailnet ranges count as home unless remote access is Off.
 var tailnet = []netip.Prefix{netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("fd7a:115c:a1e0::/48")}
 
 // Policy is one immutable snapshot of the settings the gate reads. It is
@@ -67,7 +69,7 @@ func NewPolicy(s Settings) *Policy {
 		p.access = AccessOn
 	}
 	p.home = append([]netip.Prefix(nil), s.Home...)
-	if p.access == AccessPrivate {
+	if p.access != AccessOff {
 		p.home = append(p.home, tailnet...)
 	}
 	for _, raw := range s.Hosts {
