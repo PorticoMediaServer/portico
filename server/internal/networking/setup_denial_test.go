@@ -37,10 +37,18 @@ func TestADeniedSetupClaimEndsHereAndContinueStartsANewOne(t *testing.T) {
 	var once sync.Once
 	decide := func() { once.Do(func() { close(decided) }) }
 	t.Cleanup(decide)
+	// Portico Services denies the first request only. The claim Continue starts
+	// afterwards is a new request, still awaiting its own decision; answering it
+	// "denied" too raced the test's last check.
+	var denied atomic.Bool
 	events := func(r *http.Request) (*http.Response, error) {
 		select {
 		case <-decided:
-			return reply(200, `{"status":"denied"}`), nil
+			if denied.CompareAndSwap(false, true) {
+				return reply(200, `{"status":"denied"}`), nil
+			}
+			<-r.Context().Done()
+			return nil, r.Context().Err()
 		case <-r.Context().Done():
 			return nil, r.Context().Err()
 		}
@@ -243,7 +251,10 @@ func TestAnUnknownDecisionChangesNothing(t *testing.T) {
 	if code != 200 || first.Operation == nil {
 		t.Fatalf("approval: %d %s", code, body)
 	}
-	waitFor(t, func() bool { _, watching := f.h.webWatches.Load(first.Operation.OperationID); return asked.Load() > 0 && !watching })
+	waitFor(t, func() bool {
+		_, watching := f.h.webWatches.Load(first.Operation.OperationID)
+		return asked.Load() > 0 && !watching
+	})
 	if p := f.phase(); p.Phase != setupflow.AwaitingApproval || p.Outcome != "" || p.Operation == nil || p.Operation.ID != first.Operation.OperationID {
 		t.Fatalf("an unknown decision changed the setup: %+v", p)
 	}
