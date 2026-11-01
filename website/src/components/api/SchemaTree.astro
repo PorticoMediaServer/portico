@@ -1,0 +1,43 @@
+---
+import { childObject, constraints, typeLabel, type Schema } from '@/lib/api';
+
+type Props = { schema?: Schema; depth?: number };
+const { schema, depth = 0 } = Astro.props;
+const object = childObject(schema);
+const entries = Object.entries(object?.properties ?? {});
+const required = new Set(object?.required ?? []);
+---
+
+{entries.length === 0 ? (
+  <p class="schema-scalar"><code>{typeLabel(schema)}</code>{schema && constraints(schema).map((item) => <span class="schema-constraint">{item}</span>)}</p>
+) : (
+  <ul class="schema-tree">
+    {entries.map(([name, child]) => {
+      const nested = childObject(child);
+      const row = (
+        <>
+          <span class="schema-name">{name}</span>
+          <span class="schema-type">{typeLabel(child)}</span>
+          {required.has(name) && <span class="schema-required">required</span>}
+          {constraints(child).map((item) => <span class="schema-constraint">{item}</span>)}
+        </>
+      );
+      return (
+        <li>
+          {nested && depth < 6 ? (
+            <details open={depth === 0 && entries.length <= 6}>
+              <summary>{row}</summary>
+              {child.description && <p class="schema-description">{child.description}</p>}
+              <Astro.self schema={child} depth={depth + 1} />
+            </details>
+          ) : (
+            <div class="schema-row">
+              {row}
+              {child.description && <p class="schema-description">{child.description}</p>}
+            </div>
+          )}
+        </li>
+      );
+    })}
+  </ul>
+)}

@@ -1,18 +1,36 @@
 ---
 title: Choose audio and subtitles
-description: Select available tracks and set personal playback language preferences.
+description: Pick audio and subtitle tracks, and set your preferred playback languages.
 category: watch
 order: 4
 audience: Viewers
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Open the player's track controls to see the audio and subtitle streams available for the current item. Choose the track you want while playback is open.
+## Pick a track while you watch
 
-Some subtitles are stored inside the media file. Others are separate files beside it. Server owners can also configure supported metadata and subtitle sources.
+Open the player's audio or subtitle controls to see the tracks available for what you're playing. Choose a track while playback is open.
+
+## Where subtitles come from
+
+Subtitles can be embedded in the media file or stored beside it. Sidecar files need the same base name as the video, optionally followed by a language or track flag. For example:
+
+```text
+Arrival (2016).mkv
+Arrival (2016).en.srt
+Arrival (2016).fr.forced.srt
+```
+
+Portico recognizes sidecars including SRT, WebVTT, ASS and SSA. Playback depends on the subtitle format and your device. Server owners can also configure online subtitle search.
 
 ## Personal defaults
 
-Use Profile and Settings to choose preferred audio and subtitle languages. A preference helps Portico make an initial selection; it does not create a track that the media does not contain.
+1. Open **Settings → Account → Audio & subtitles**.
+2. Under **Audio**, set **Preferred audio languages** in order of preference.
+3. Under **Subtitles**, set **Preferred subtitle languages** and **Show subtitles**. The subtitle choices are **Off**, **Forced only** and **Always**.
 
-Subtitles that must be drawn into the picture can require video transcoding. If playback changes quality or the server begins transcoding after subtitles are enabled, try another available subtitle format or ask the server owner to review the playback decision.
+Portico uses the first preferred language available for the title. With no preferred audio languages, it uses the title's original track. These settings belong to your profile. A preference can't add a track the media doesn't have.
+
+## Subtitles and transcoding
+
+Some subtitles have to be drawn into the picture, which can require video transcoding. If quality changes or transcoding starts after you turn subtitles on, try another available subtitle format. Ask the server owner to review the playback decision if needed. [Direct play and transcoding](/docs/watch/direct-play-and-transcoding/) explains that decision.

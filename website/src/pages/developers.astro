@@ -2,23 +2,71 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="Developers" description="Portico architecture, API contracts, client integration, and contribution documentation.">
-  <header class="page-intro dark-intro">
-    <div>
-      <h1>Build with Portico.</h1>
-      <p>Portico publishes separate contracts for the local server and hosted control plane, with a shared product contract for client behaviour.</p>
+<BaseLayout title="Developers" description="Build on Portico: the server API, the Portico Services API, authentication, client architecture and security requirements.">
+  <header class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Developers</span>
+      <h1 class="display-1">Build with Portico.</h1>
+      <p class="lede">Portico's own apps use the same server API you can. Create a scoped API key, script your library, receive signed webhooks, or connect an assistant over MCP. All of it runs on your own server, with no Portico Account required.</p>
+      <div class="hero-actions">
+        <a class="button button-primary" href="/developers/api/">Start an integration</a>
+        <a class="button button-ghost" href="/docs/developers/api-overview/">API architecture overview</a>
+      </div>
     </div>
   </header>
-  <section class="developer-page section-light">
-    <div class="developer-intro">
-      <h2>Start with the authority you need.</h2>
-      <p>Portico Server owns media, libraries, playback, local permissions, and administration. Portico Cloud owns Portico Accounts, server membership, signed route discovery, and hosted account security.</p>
-    </div>
-    <div class="developer-links">
-      <a href="/docs/developers/api-overview/"><strong>API overview</strong><span>Choose the server or cloud contract and understand the authentication boundary.</span></a>
-      <a href="/docs/developers/client-architecture/"><strong>Client architecture</strong><span>Use the product contract and platform-appropriate playback integration.</span></a>
-      <a href="/docs/developers/security-requirements/"><strong>Security requirements</strong><span>Preserve direct-route verification, server authorization, and secret handling.</span></a>
-      <a href="/docs/developers/reporting-issues/"><strong>Report an issue</strong><span>Collect useful evidence without exposing media, credentials, or private routes.</span></a>
+  <section class="section">
+    <div class="container">
+      <div class="feature-grid dev-capabilities">
+        <article>
+          <span class="feature-index">REST</span>
+          <h3>Server API</h3>
+          <p>The server API under <code>/v1</code> on port 32500, described by a published OpenAPI contract: libraries, search, playback, Live TV, DVR and metadata.</p>
+        </article>
+        <article>
+          <span class="feature-index">KEYS</span>
+          <h3>API keys and tokens</h3>
+          <p>Create scoped keys under Settings → Server → Integrations. Send one as a bearer header from your tool or script.</p>
+        </article>
+        <article>
+          <span class="feature-index">EVENTS</span>
+          <h3>Signed webhooks</h3>
+          <p>The server posts events straight to your endpoint, signed with HMAC-SHA256, with retries and a delivery log.</p>
+        </article>
+        <article>
+          <span class="feature-index">MCP</span>
+          <h3>Assistants</h3>
+          <p>A Model Context Protocol endpoint at <code>/v1/mcp</code>. Tools follow the key's scopes and the member's permissions.</p>
+        </article>
+      </div>
+      <div class="split-panels">
+        <article>
+          <h3>Portico Server</h3>
+          <ul>
+            <li>Media and libraries</li>
+            <li>Playback decisions and streams</li>
+            <li>Server accounts and permissions</li>
+            <li>Server administration</li>
+          </ul>
+        </article>
+        <article>
+          <h3>Portico Services</h3>
+          <ul>
+            <li>Portico Accounts and sign-in security</li>
+            <li>Server membership and invitations</li>
+            <li>Signed route discovery for direct connections</li>
+          </ul>
+        </article>
+      </div>
+      <div class="developer-grid">
+        <a href="/developers/api/clients/"><strong>Building a Portico app</strong><span>The full generated reference for client applications.</span></a>
+        <a href="/developers/api/"><strong>Integrations</strong><span>Small task guides, tool setup and the native Integrations reference.</span></a>
+        <a href="/docs/developers/api-overview/"><strong>API architecture overview</strong><span>Choose the Server API or the Portico Services API and see where each one's authentication applies.</span></a>
+        <a href="/docs/developers/authentication/"><strong>Authentication</strong><span>Sign people in, keep sessions safe and use API keys.</span></a>
+        <a href="/docs/developers/client-architecture/"><strong>Client architecture</strong><span>Follow the shared client behaviour and use each platform's native playback.</span></a>
+        <a href="/docs/developers/security-requirements/"><strong>Security requirements</strong><span>Verify direct routes, respect server permissions and keep credentials out of logs and URLs you share.</span></a>
+        <a href="/docs/developers/reporting-issues/"><strong>Report an issue</strong><span>Send useful evidence without exposing media, credentials or private addresses.</span></a>
+        <a href="/docs/security/report-a-security-issue/"><strong>Report a security issue</strong><span>Tell us privately about a vulnerability.</span></a>
+      </div>
     </div>
   </section>
 </BaseLayout>

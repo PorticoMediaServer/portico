@@ -1,0 +1,50 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import DocsSearch from '@/components/DocsSearch.astro';
+import { apiGroups } from '@/lib/api';
+
+type Props = { title: string; description: string; currentGroup?: string; currentGuide?: string; clients?: boolean };
+const { title, description, currentGroup = '', currentGuide = '', clients = false } = Astro.props;
+const guides = (await getCollection('integrationGuides')).sort((a, b) => a.data.order - b.data.order);
+---
+<BaseLayout title={title} description={description} theme="docs">
+  <div class="docs-shell docs-shell-wide api-shell">
+    <nav class="docs-sidebar" aria-label="API documentation" data-docs-sidebar data-collapsed>
+      <button class="docs-sidebar-toggle" type="button" aria-expanded="false" data-docs-sidebar-toggle>
+        <span>Browse the API docs</span>
+        <svg class="toggle-open" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14" /></svg>
+        <svg class="toggle-close" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
+      </button>
+      <label class="docs-sidebar-filter"><span class="sr-only">Filter the API menu</span><input type="search" placeholder="Filter this menu" data-sidebar-search /></label>
+      <details class="docs-nav-group" open>
+        <summary>Integrations</summary>
+        <div>
+          <a href="/developers/api/" aria-current={!currentGroup && !currentGuide && !clients ? 'page' : undefined}>Start here</a>
+          <a href="/developers/api/integrations/quick-start/" aria-current={currentGuide === 'quick-start' ? 'page' : undefined}>Your first integration</a>
+          <a href="/developers/api/integrations/webhooks/" aria-current={currentGuide === 'webhooks' ? 'page' : undefined}>Webhooks</a>
+          <a href="/developers/api/integrations/" aria-current={currentGroup === 'integrations' ? 'page' : undefined}>Native API reference</a>
+        </div>
+      </details>
+      <details class="docs-nav-group" open={!clients}>
+        <summary>Tool setup</summary>
+        <div>{guides.filter((guide) => guide.data.kind === 'tool').map((guide) => (
+          <a href={`/developers/api/integrations/${guide.id}/`} aria-current={currentGuide === guide.id ? 'page' : undefined}>{guide.data.title}</a>
+        ))}</div>
+      </details>
+      <details class="docs-nav-group" open={clients}>
+        <summary>Clients</summary>
+        <div>
+          <a href="/developers/api/clients/" aria-current={clients && !currentGroup ? 'page' : undefined}>Building a Portico app</a>
+          {clients && apiGroups.map((group) => <a href={`/developers/api/clients/${group.id}/`} aria-current={currentGroup === group.id ? 'page' : undefined}>{group.title}</a>)}
+          <a href="/docs/developers/authentication/">Authentication</a>
+          <a href="/docs/developers/client-architecture/">Client architecture</a>
+        </div>
+      </details>
+    </nav>
+    <div class="docs-main api-main"><slot /></div>
+  </div>
+  <DocsSearch />
+  <script is:inline defer src="/scripts/docs-sidebar.js"></script>
+  <script is:inline defer src="/scripts/api-reference.js"></script>
+</BaseLayout>

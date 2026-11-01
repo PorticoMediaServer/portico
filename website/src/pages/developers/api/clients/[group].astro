@@ -1,0 +1,30 @@
+---
+import ApiLayout from '@/layouts/ApiLayout.astro';
+import ApiOperation from '@/components/api/ApiOperation.astro';
+import { apiGroups, operationsFor } from '@/lib/api';
+
+export function getStaticPaths() {
+  return apiGroups.map((group) => ({ params: { group: group.id }, props: { group } }));
+}
+
+const { group } = Astro.props;
+const operations = operationsFor(group.id);
+---
+
+<ApiLayout title={`${group.title} API`} description={group.description} currentGroup={group.id} clients>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/developers/api/">API docs</a><span aria-hidden="true">/</span><a href="/developers/api/clients/">Clients</a>
+  </nav>
+  <header class="api-group-head">
+    <h1>{group.title}</h1>
+    <p>{group.description}</p>
+    <label class="api-filter">
+      <span class="sr-only">Filter operations</span>
+      <input type="search" placeholder={`Filter ${operations.length} ${operations.length === 1 ? 'operation' : 'operations'}`} data-api-filter />
+    </label>
+  </header>
+  <div class="api-op-list">
+    {operations.map((operation) => <ApiOperation operation={operation} />)}
+  </div>
+  <p class="api-empty" hidden data-api-empty>No operations match that filter.</p>
+</ApiLayout>

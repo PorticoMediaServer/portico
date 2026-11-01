@@ -9,20 +9,24 @@ const { currentId = '', currentCategory = '' } = Astro.props as {
 const entries = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
 ---
 
-<nav class="docs-sidebar" aria-label="Documentation">
-  <a class="docs-home-link" href="/docs/">Documentation home</a>
-  <label class="docs-sidebar-search">
-    <span class="sr-only">Filter documentation navigation</span>
-    <input type="search" placeholder="Find an article" data-sidebar-search />
+<nav class="docs-sidebar" aria-label="Documentation" data-docs-sidebar data-collapsed>
+  <button class="docs-sidebar-toggle" type="button" aria-expanded="false" data-docs-sidebar-toggle>
+    <span>Browse the docs</span>
+    <svg class="toggle-open" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14" /></svg>
+    <svg class="toggle-close" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
+  </button>
+  <label class="docs-sidebar-filter">
+    <span class="sr-only">Filter the documentation menu</span>
+    <input type="search" placeholder="Filter this menu" data-sidebar-search />
   </label>
   {docCategories.map((category) => {
     const articles = entries.filter((entry) => entry.data.category === category.id);
     const active = currentCategory === category.id;
     return (
-      <details open={active}>
+      <details class="docs-nav-group" open={active}>
         <summary>{category.title}</summary>
         <div>
-          <a class="docs-category-link" href={`/docs/${category.id}/`} aria-current={active && !currentId ? 'page' : undefined}>Overview</a>
+          <a href={`/docs/${category.id}/`} aria-current={active && !currentId ? 'page' : undefined}>Overview</a>
           {articles.map((article) => (
             <a href={`/docs/${article.id}/`} aria-current={currentId === article.id ? 'page' : undefined}>{article.data.title}</a>
           ))}
@@ -32,4 +36,4 @@ const entries = (await getCollection('docs')).sort((a, b) => a.data.order - b.da
   })}
 </nav>
 
-<script is:inline src="/scripts/docs-sidebar.js"></script>
+<script is:inline defer src="/scripts/docs-sidebar.js"></script>

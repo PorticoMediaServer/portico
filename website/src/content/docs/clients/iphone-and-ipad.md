@@ -1,16 +1,26 @@
 ---
 title: Use Portico on iPhone and iPad
-description: Connect the Apple mobile app and choose playback behaviour for a phone or tablet.
+description: Install the Apple mobile app, connect to your server and set playback for a phone or tablet.
 category: clients
 order: 3
 audience: Viewers
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Install Portico from the [Downloads page](/download/) and sign in with the account that has access to your server.
+Install Portico from the [Download Portico](/download/) page and connect with the account that has access to your server. You can use a Portico Account or a server account. See [Connect a Portico app](/docs/clients/connect-a-client/).
 
-The app uses the same libraries, search, Saved items, progress, and permissions as other Portico clients. Playback uses the formats supported by the device and requests another stream when the selected media needs it.
+## Libraries and playback
 
-Review cellular-data and quality preferences before watching away from Wi-Fi. Lower remote quality reduces the upload required from the Portico Server and the data used by the phone.
+The app uses the same libraries, search, Saved items, My List, progress and permissions as other Portico apps. Playback uses the formats your device supports. When needed, the app requests a compatible stream. Use the device's volume buttons or the system volume slider in the player.
 
-When using a shared or managed device, remove the server account and revoke the device from account security when access should end.
+Allow local-network access when you want the app to find servers nearby. You can enter the server address manually if discovery is unavailable.
+
+## Watch away from Wi-Fi
+
+Review cellular data and quality preferences before watching away from Wi-Fi. Lower remote quality reduces the server's upload and the phone's data use.
+
+Apple apps allow plain HTTP only to local-network addresses. Use the server's HTTPS address for a remote public connection. The app can trust the owner's own certificate, including a self-signed certificate, after verifying the server's identity.
+
+## Shared or managed devices
+
+When access should end, sign out or remove the saved server connection and revoke the device from the account's security settings. For Portico Accounts, manage the device there; for server accounts, use that server's account settings. See [Protect your account](/docs/security/account-security/).

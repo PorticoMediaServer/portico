@@ -1,42 +1,56 @@
 ---
+import type { MarkdownHeading } from 'astro';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import DocsSidebar from '@/components/DocsSidebar.astro';
+import DocsSearch from '@/components/DocsSearch.astro';
+import DocsToc from '@/components/DocsToc.astro';
 
 type Props = {
   title: string;
   description: string;
-  category: string;
-  categoryTitle: string;
+  category?: string;
+  categoryTitle?: string;
   currentId?: string;
   audience?: string;
   updated?: Date;
+  headings?: MarkdownHeading[];
+  wide?: boolean;
 };
 
-const { title, description, category, categoryTitle, currentId = '', audience, updated } = Astro.props;
+const { title, description, category = '', categoryTitle, currentId = '', audience, updated, headings, wide = false } = Astro.props;
 ---
 
-<BaseLayout title={title} description={description}>
-  <div class="docs-shell">
+<BaseLayout title={title} description={description} theme="docs">
+  <div class:list={['docs-shell', { 'docs-shell-wide': wide }]}>
     <DocsSidebar currentId={currentId} currentCategory={category} />
-    <article class="docs-article">
-      <nav class="breadcrumbs" aria-label="Breadcrumb">
-        <a href="/docs/">Documentation</a>
-        <span aria-hidden="true">/</span>
-        <a href={`/docs/${category}/`}>{categoryTitle}</a>
-      </nav>
-      <header class="article-header">
-        <h1>{title}</h1>
-        <p>{description}</p>
-        {(audience || updated) && (
-          <div class="article-meta">
-            {audience && <span>{audience}</span>}
-            {updated && <span>Updated {updated.toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</span>}
-          </div>
-        )}
-      </header>
-      <div class="article-body">
+    <div class="docs-main">
+      {wide ? (
         <slot />
-      </div>
-    </article>
+      ) : (
+        <article class="docs-article">
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <a href="/docs/">Docs</a>
+            {categoryTitle && <span aria-hidden="true">/</span>}
+            {categoryTitle && <a href={`/docs/${category}/`}>{categoryTitle}</a>}
+          </nav>
+          <header class="article-header">
+            <h1>{title}</h1>
+            <p>{description}</p>
+            {(audience || updated) && (
+              <div class="article-meta">
+                {audience && <span>For {audience.toLowerCase()}</span>}
+                {updated && <span>Updated {updated.toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</span>}
+              </div>
+            )}
+          </header>
+          <div class="article-body">
+            <slot />
+          </div>
+          <slot name="after" />
+        </article>
+      )}
+    </div>
+    {!wide && <DocsToc headings={headings} />}
   </div>
+  <DocsSearch />
 </BaseLayout>

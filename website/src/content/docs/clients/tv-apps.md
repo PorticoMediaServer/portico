@@ -1,16 +1,28 @@
 ---
 title: Use Portico on a television
-description: Connect a remote-first app and keep navigation and playback comfortable at a distance.
+description: Set up Portico on a TV or streaming device, and get comfortable with remote navigation and playback.
 category: clients
 order: 4
 audience: Viewers
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Install the Portico app for the television or streaming device, sign in, and choose an authorized server.
+## Set up the app
 
-TV apps use the same account and server permissions as the web and mobile apps, but their navigation is designed for a remote. Keep focus on a visible control and use the Back button to close menus or return to the prior level.
+1. Install the Portico app for your television or streaming device.
+2. Sign in with your Portico Account, or choose **Sign in directly to a server** for a server account.
+3. Open a server you're authorized to use. For direct sign-in, enter its address and approve the TV's code from a signed-in phone or browser, or choose **Use a password instead**.
 
-Television hardware varies widely in codec, subtitle, audio, HDR, and network support. Portico requests direct play when the device can handle the source and a compatible stream when it cannot.
+See [Connect a Portico app](/docs/clients/connect-a-client/) for both account paths and connection requirements.
 
-For repeated playback problems on one television, compare the same item on another client and review the active playback decision on the server.
+## Navigate with a remote
+
+Use the directional buttons to move the highlighted selection, then press Select or OK to open it. Use Back to close a menu or return to the previous screen. Adjust sound with your TV, receiver or remote's volume controls.
+
+## How playback is chosen
+
+TV hardware varies in codec, subtitle, audio, HDR and network support. Portico uses direct play when the device can handle the source and requests a compatible stream when it can't.
+
+If one television keeps having problems, try the same item in another app. The owner can review the active playback decision under **Settings → Server → Dashboard → Watching now**.
+
+Apple TV requires HTTPS for remote public addresses; plain HTTP works only to local-network addresses. Other TV platforms allow HTTP from anywhere. Portico apps can use the owner's own certificate after checking the server's identity.

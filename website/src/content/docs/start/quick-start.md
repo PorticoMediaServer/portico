@@ -1,37 +1,53 @@
 ---
 title: Quick start
-description: Install a server, create the owner account, add a library, and test playback.
+description: Install Portico Server, create the owner account, add a library and test playback.
 category: start
 order: 2
 audience: Server owners
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-This is the shortest reliable path to a working Portico Server. Complete it on your home network before setting up remote access.
+This is the shortest path to a working Portico Server. Start on your home network and check local playback before you configure access from outside it.
 
 ## 1. Install Portico Server
 
-Download the package for the computer that stores or can reach your media. Keep the default service and data-folder settings unless you already have a reason to change them.
+Download the package for the computer that stores your media or can reach it. Then follow the guide for your system: [Install on Windows](/docs/install/windows/), [Install on macOS](/docs/install/macos/), [Install on Linux](/docs/install/linux/) or [Install with Docker](/docs/install/docker/).
+
+Open `http://127.0.0.1:32500/` on the server. From another device on the same network, replace `127.0.0.1` with the server's local IP address.
 
 ## 2. Choose how to sign in
 
-Open Portico on the server. The first-run screen offers two choices:
+Enter a **Server name**, then choose how people will sign in:
 
-1. Choose **Portico Account** for one account across Portico apps, invitations, and direct remote access. Select **Continue to Portico**, approve the short-lived claim, and return to the server.
-2. Choose **This Server only** to keep the owner identity on this server. Enter a username, display name, email, and a unique password with at least eight characters, uppercase and lowercase letters, and a number or special character. Confirm the local-account notice, then select **Create This Server owner**.
+1. **Use a Portico Account** gives you one sign-in across Portico apps and server invitations. Create a local recovery owner with a **Username**, **Password** and **Confirm password**. Check **I saved this password somewhere safe**, then select **Create recovery owner**. Approve the server in the Portico Account window. Portico then sets up its secure connection.
+2. **Keep accounts on this server** keeps sign-in on your server. Enter a **Username**, **Password** and **Confirm password**, then select **Create owner**.
 
-Either path creates the server owner. Do not share that owner identity with viewers.
+The local password must have at least eight characters and fit within 72 UTF-8 bytes. Choose a unique password and keep recovery credentials safe. See [Complete first-run setup](/docs/install/first-run/) for the full steps.
 
 ## 3. Add one library
 
-Open **Settings → Media**, choose **Add library**, and create a Movies or TV Shows library. Select a folder containing a small, well-organized set of files. Starting small makes naming and permission problems easier to spot.
+1. Open **Settings → Server → Libraries**.
+2. Select **Add library**.
+3. Enter a **Name** and choose **Movies** or **TV shows** under **Type**.
+4. Set **Folder on the server** to a small, well-organized media folder.
+5. Choose the metadata source and language, where offered, then select **Add library**.
+
+You can add more folders and review scanning options afterwards. See [Create a library](/docs/media/create-a-library/).
 
 ## 4. Wait for the first scan
 
-Portico reads the folder, creates media records, and adds available artwork and details. Open the library when the scan finishes and check a few items.
+Portico reads the folder, adds the media it recognizes and gathers available artwork and details. When the scan finishes, open the library and check a few items.
 
 ## 5. Test playback locally
 
-Play one item from a browser or another device on the same network. Confirm that playback starts, progress is saved, and the item can be resumed. At that point, the basic setup is complete.
+Play one item from a browser or another device on the same network. Check that:
 
-Once local playback works, add normal viewer accounts and configure [remote access](/docs/remote/enable-remote-access/) if it is needed.
+- playback starts,
+- progress is saved,
+- you can resume the item.
+
+If all three work, the basic setup is done.
+
+## Next steps
+
+[Add a person](/docs/people/add-a-person/) for each viewer. If you need access from outside your home, follow [Enable remote access](/docs/remote/enable-remote-access/).

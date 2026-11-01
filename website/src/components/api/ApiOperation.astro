@@ -1,0 +1,116 @@
+---
+import SchemaTree from '@/components/api/SchemaTree.astro';
+import { constraints, curlFor, jsonExample, jsonSchemaOf, scopeDescriptions, typeLabel, type ApiOperation } from '@/lib/api';
+
+type Props = { operation: ApiOperation; open?: boolean };
+const { operation, open = false } = Astro.props;
+const pathParts = operation.path.split(/(\{[^}]+\})/g).filter(Boolean);
+const rawBody = jsonSchemaOf(operation.requestBody?.content);
+// The generator attaches an empty object body to some read routes; don't present it as a real request body.
+const emptyObject = rawBody.schema?.type === 'object' && !rawBody.schema.properties && !rawBody.schema.additionalProperties;
+const body = ['get', 'head'].includes(operation.method) && emptyObject ? { mediaType: undefined, schema: undefined } : rawBody;
+const responses = Object.entries(operation.responses);
+const credential = operation.auth ?? (
+  operation.scope === 'open' || operation.access === 'public'
+    ? 'No credential needed'
+    : operation.protocol === 'integration-compatibility'
+      ? 'Dedicated integration credential; follow the tool setup guide for its connection and grant.'
+      : operation.scope === 'session'
+        ? 'Session only; API keys and personal access tokens are refused'
+        : `API key or personal access token with the ${operation.scope} scope, or a signed-in session`
+);
+const kib = (bytes: number) => (bytes >= 1048576 ? `${Math.round(bytes / 1048576)} MiB` : `${Math.round(bytes / 1024)} KiB`);
+---
+
+<details class={`api-op api-op-${operation.method}`} id={operation.operationId} open={open} data-api-op data-search={`${operation.method} ${operation.path} ${operation.title}`.toLowerCase()}>
+  <summary>
+    <span class="api-method">{operation.method.toUpperCase()}</span>
+    <code class="api-path">{pathParts.map((part) => (part.startsWith('{') ? <span class="api-path-param">{part}</span> : part))}</code>
+    <span class="api-title">{operation.title}</span>
+    {!(operation.auth && operation.scope === 'open') && (
+      <span class:list={['api-scope', `api-scope-${operation.scope}`]} title={scopeDescriptions[operation.scope]}>{operation.scope}</span>
+    )}
+  </summary>
+  <div class="api-op-body">
+    {operation.description && <p class="api-description">{operation.description}</p>}
+    {operation.notes.length > 0 && (
+      <ul class="api-notes">{operation.notes.map((note) => <li>{note}</li>)}</ul>
+    )}
+    <dl class="api-facts">
+      <div><dt>Audience</dt><dd>{operation.audience}{operation.protocol === 'integration-compatibility' ? ' · Tool compatibility' : ' · Native API'}</dd></div>
+      <div><dt>Authorization</dt><dd>{credential}</dd></div>
+      <div><dt>OpenAPI operation ID</dt><dd><code>{operation.operationId}</code></dd></div>
+      {operation.maxBodyBytes && <div><dt>Max body</dt><dd>{kib(operation.maxBodyBytes)}</dd></div>}
+    </dl>
+
+    {operation.parameters.length > 0 && (
+      <section>
+        <h4>Parameters</h4>
+        <table class="api-params">
+          <thead><tr><th>Name</th><th>In</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            {operation.parameters.map((parameter) => (
+              <tr>
+                <td><code>{parameter.name}</code>{parameter.required && <span class="schema-required">required</span>}</td>
+                <td>{parameter.in}</td>
+                <td><code>{typeLabel(parameter.schema)}</code>{constraints(parameter.schema).map((item) => <span class="schema-constraint">{item}</span>)}</td>
+                <td>{parameter.description}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    )}
+
+    {body.schema && (
+      <section>
+        <h4>Request body <span class="api-media-type">{body.mediaType}{operation.requestBody?.required ? ' · required' : ''}</span></h4>
+        <div class="api-pair">
+          <div class="api-pane">
+            <span class="api-pane-label">Example</span>
+            <pre><code>{jsonExample(body.schema)}</code></pre>
+          </div>
+          <div class="api-pane">
+            <span class="api-pane-label">Schema</span>
+            <SchemaTree schema={body.schema} />
+          </div>
+        </div>
+      </section>
+    )}
+
+    <section>
+      <h4>Responses</h4>
+      {responses.map(([code, response]) => {
+        const result = jsonSchemaOf(response.content);
+        return (
+          <div class="api-response">
+            <p class="api-response-head"><span class:list={['api-status', `api-status-${code[0]}`]}>{code}</span>{response.description}{result.mediaType && <span class="api-media-type">{result.mediaType}</span>}</p>
+            {result.schema && (
+              <div class="api-pair">
+                <div class="api-pane">
+                  <span class="api-pane-label">Example</span>
+                  <pre><code>{jsonExample(result.schema)}</code></pre>
+                </div>
+                <div class="api-pane">
+                  <span class="api-pane-label">Schema</span>
+                  <SchemaTree schema={result.schema} />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {operation.errorCodes.length > 0 && (
+        <p class="api-errors"><span>Error codes</span>{operation.errorCodes.map((code) => <code>{code}</code>)}</p>
+      )}
+    </section>
+
+    <section>
+      <h4>Example request</h4>
+      <div class="api-code">
+        <button type="button" class="api-copy" data-copy>Copy</button>
+        <pre><code>{curlFor(operation)}</code></pre>
+      </div>
+    </section>
+  </div>
+</details>

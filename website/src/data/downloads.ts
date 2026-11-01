@@ -8,7 +8,7 @@ export type PlatformIconName =
   | 'lg'
   | 'samsung'
   | 'fire-tv'
-  | 'xbox';
+  | 'web';
 
 export type DownloadItem = {
   name: string;
@@ -29,7 +29,7 @@ const serverRelease = 'https://github.com/PorticoMediaServer/portico-server/rele
 export const downloadGroups: DownloadGroup[] = [
   {
     title: 'Portico Server',
-    description: 'Install Portico on the computer that stores or can reach your media.',
+    description: 'Install it on the computer that holds your media, or one that can reach it over the network.',
     items: [
       { name: 'Windows x64', detail: 'Windows 10 and 11 · unsigned installer', icon: 'windows', action: 'Download', href: `${serverRelease}/Portico-Media-Server-Windows-x64-Setup.exe` },
       { name: 'Windows ARM64', detail: 'Windows 11 on ARM · unsigned installer', icon: 'windows', action: 'Download', href: `${serverRelease}/Portico-Media-Server-Windows-arm64-Setup.exe` },
@@ -45,7 +45,7 @@ export const downloadGroups: DownloadGroup[] = [
   },
   {
     title: 'Phones and tablets',
-    description: 'Keep your libraries, progress, and playback close at hand.',
+    description: 'Install Portico on iPhone, iPad or Android, then connect to your server.',
     items: [
       { name: 'iPhone and iPad', detail: 'iOS and iPadOS', icon: 'apple', action: 'Coming soon' },
       { name: 'Android', detail: 'Phones and tablets', icon: 'android', action: 'Coming soon' }
@@ -53,15 +53,14 @@ export const downloadGroups: DownloadGroup[] = [
   },
   {
     title: 'TV and streaming devices',
-    description: 'A remote-first Portico experience for the living room.',
+    description: 'Install the Portico app on your TV or streaming player, then connect to your server.',
     items: [
       { name: 'Apple TV', detail: 'tvOS', icon: 'apple', action: 'Coming soon' },
       { name: 'Android TV', detail: 'Android TV and Google TV', icon: 'android', action: 'Coming soon' },
       { name: 'Fire TV', detail: 'Fire OS and Vega OS', icon: 'fire-tv', action: 'Coming soon' },
       { name: 'Roku', detail: 'Roku streaming players and televisions', icon: 'roku', action: 'Coming soon' },
       { name: 'LG', detail: 'webOS televisions', icon: 'lg', action: 'Coming soon' },
-      { name: 'Samsung', detail: 'Tizen televisions', icon: 'samsung', action: 'Coming soon' },
-      { name: 'Xbox', detail: 'Xbox One and Xbox Series', icon: 'xbox', action: 'Coming soon' }
+      { name: 'Samsung', detail: 'Tizen televisions', icon: 'samsung', action: 'Coming soon' }
     ]
   }
 ];

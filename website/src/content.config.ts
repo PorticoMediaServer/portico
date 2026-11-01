@@ -15,4 +15,12 @@ const docs = defineCollection({
   })
 });
 
-export const collections = { docs };
+const integrationGuides = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/integrations' }),
+  schema: z.object({
+    title: z.string(), description: z.string(), order: z.number(),
+    kind: z.enum(['guide', 'tool'])
+  })
+});
+
+export const collections = { docs, integrationGuides };

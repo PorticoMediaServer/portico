@@ -1,18 +1,30 @@
 ---
 title: Use Portico on the web
-description: Open the hosted web app or the browser app served by a local Portico Server.
+description: Use Portico Web at web.getportico.tv or bundled with your own Portico Server.
 category: clients
 order: 2
 audience: Everyone
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Portico Web can run in two places.
+Portico Web is the browser app bundled with your Portico Server and hosted at [web.getportico.tv](https://web.getportico.tv).
 
-The bundled app is served by a Portico Server and connects to that same server. It is useful for local setup, owner access, and direct browser use on the server's network.
+## Bundled Portico Web
 
-The hosted app at [web.getportico.tv](https://web.getportico.tv) begins with a Portico Account, shows authorized server membership, verifies a direct route, and then connects to the selected server.
+Open your server's address in a browser, including its port. The default is 32500, for example `http://192.168.1.20:32500` on your home network. Portico Web bundled with your server connects to that server.
 
-The hosted app does not send media through Portico Cloud. After connection, the browser requests authorized media from the Portico Server.
+Use it for first-run setup and owner access. On a server that keeps sign-in local, enter your server username and password. On a server linked to a Portico Account, the start page offers Portico Account sign-in and **Owner recovery sign-in**; recovery is for the owner. For a normal server account on a linked server, use a native app or direct sign-in in hosted Portico Web with a reachable HTTPS address your browser trusts. See [Connect a Portico app](/docs/clients/connect-a-client/).
 
-Use a current browser and allow protected media, fullscreen, and local-network permissions only when the browser requests them for the action you chose.
+## Hosted Portico Web
+
+Sign in at [web.getportico.tv](https://web.getportico.tv) with your Portico Account to open servers shared with you. Portico verifies the server's route and identity before opening it.
+
+For a server account, choose **Sign in directly to a server** and enter a reachable HTTPS server address your browser trusts, then your server username and password. For local HTTP access, use Portico Web bundled with a server that keeps sign-in local.
+
+Hosted Portico Web doesn't relay your media. Your browser requests authorized media directly from the selected Portico Server.
+
+## Browser permissions and playback
+
+Use a current browser. Allow fullscreen, media playback or local-network access when requested for an action you chose. Browser codec support affects whether media can play directly or needs conversion.
+
+The Portico Web player has its own volume control in addition to your operating system's volume. Browser certificate and mixed-content rules still apply: native apps' support for an owner's certificate doesn't change what a browser trusts. For local HTTP access, open Portico Web at the server's address; its sign-in options depend on whether the server keeps sign-in local or uses a Portico Account.

@@ -1,16 +1,30 @@
 ---
 title: Permission basics
-description: Separate viewing, downloading, administration, and destructive actions.
+description: Keep viewing, downloading, administration and destructive actions separate.
 category: people
 order: 3
 audience: Server owners
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Permissions should match the action a person actually needs. Being allowed to play a library does not require permission to edit metadata, delete files, manage other people, or change the server.
+Give people the access they need. Library access, account roles and playback limits control different things.
 
-Pay particular attention to actions that affect the filesystem or other users. Deletion, file management, library administration, account administration, remote-access configuration, diagnostics export, and backup operations should remain restricted.
+## Roles and limits
 
-Portico Server is the final authorization point for every library and administrative request. Hiding a button is useful presentation, but it is not the security boundary.
+Open **Settings → Server → People → Accounts** and select a username to review the person's role, libraries, stream limits, content restrictions, downloads, Live TV access and viewing hours.
 
-Review permissions after changing a person's responsibilities and when enabling a new feature such as downloads or Live TV.
+Administrators can manage the member accounts and devices below their role. The owner controls server-wide configuration and actions reserved for ownership. Promoting someone to administrator doesn't make them the owner.
+
+## Keep risky actions restricted
+
+Take extra care with file deletion, file management, library administration, account administration, remote-access configuration and backups. File deletion also needs to be enabled for the library.
+
+**Support export** under **Settings → Server → Troubleshooting** is an owner-only action. There isn't a separate per-person “diagnostics export” permission to switch on. Backup creation, restore and deletion are also owner-only.
+
+Recording permission is separate from Live TV viewing. Under **Settings → Server → Live TV & Channels → Recording → Who can record**, choose the accounts and profiles that may schedule recordings. The owner isn't granted recording permission automatically.
+
+## The server makes the decision
+
+The server checks access on every library and administrative request. A hidden button isn't the security check. Saved items and old sessions don't grant permission to content that is no longer allowed.
+
+Review access when a person's responsibilities change and when you enable a feature such as downloads or Live TV. Test restricted access with a normal viewer account.

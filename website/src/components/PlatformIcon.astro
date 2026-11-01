@@ -22,14 +22,19 @@ const icons: Partial<Record<PlatformIconName, SimpleIcon>> = {
   samsung: siSamsung
 };
 const icon = icons[name];
+const crops: Partial<Record<PlatformIconName, string>> = { roku: '0 8.4 24 7.2', samsung: '0 9.3 24 5.4', lg: '0 6.5 24 11' };
 ---
 
-{name === 'windows' ? (
+{name === 'web' ? (
+  <svg class="platform-icon platform-icon-web platform-icon-stroke" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9M12 3C9.4 5.6 8.2 8.6 8.2 12s1.2 6.4 3.8 9" />
+  </svg>
+) : name === 'windows' ? (
   <svg class={`platform-icon platform-icon-${name}`} viewBox="0 0 48 48" aria-hidden="true">
     <path d="M7 10.5 22 8.4v14.2H7V10.5Zm18-2.5 16-2.3v16.9H25V8ZM7 25.6h15v14L7 37.5V25.6Zm18 0h16v16.7L25 40V25.6Z" />
   </svg>
 ) : icon ? (
-  <svg class={`platform-icon platform-icon-${name}`} viewBox="0 0 24 24" aria-hidden="true">
+  <svg class={`platform-icon platform-icon-${name}`} viewBox={crops[name] ?? '0 0 24 24'} aria-hidden="true">
     <path d={icon.path} />
   </svg>
 ) : (

@@ -1,0 +1,42 @@
+---
+import { getCollection } from 'astro:content';
+import ApiLayout from '@/layouts/ApiLayout.astro';
+const tools = (await getCollection('integrationGuides')).filter((entry) => entry.data.kind === 'tool').sort((a, b) => a.data.order - b.data.order);
+const tasks = [
+  ['get-an-api-key', 'Get an API key', 'Choose a named key and the scopes your tool needs.'],
+  ['notify-a-file-or-folder-change', 'Notify a file or folder change', 'Queue a strictly targeted update using a real server path.'],
+  ['list-libraries', 'List libraries', 'Read the libraries your key can access.'],
+  ['recently-added', 'Recently added', 'Read a small page of the newest titles.'],
+  ['whos-watching', 'Who’s watching', 'Read permitted active playback sessions.'],
+  ['refresh-subtitles', 'Refresh subtitles', 'Reread subtitle sidecars for one title.']
+];
+---
+<ApiLayout title="Portico API docs" description="Connect a tool, notify a file change, read your libraries or receive signed webhooks. Start with Portico Integrations.">
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/developers/">Developers</a><span aria-hidden="true">/</span><span>API docs</span></nav>
+  <header class="api-group-head">
+    <h1>Connect with Portico.</h1>
+    <p>Start with a task. Use a scoped key on your own server. No Portico Account required.</p>
+  </header>
+  <section class="api-section api-start" aria-labelledby="integrations-title">
+    <h2 id="integrations-title">Integrations</h2>
+    <p>A small, stable API for automation and monitoring.</p>
+    <div class="api-start-action">
+      <a class="api-primary-link" href="/developers/api/integrations/quick-start/">Build your first integration</a>
+      <a href="/developers/api/integrations/">Native API reference</a>
+    </div>
+    <div class="api-task-grid">
+      {tasks.map(([id, title, description]) => <a href={`/developers/api/integrations/quick-start/#${id}`}><strong>{title}</strong><span>{description}</span></a>)}
+      <a href="/developers/api/integrations/webhooks/"><strong>Receive webhooks</strong><span>Set up events, verify signatures and handle retries.</span></a>
+    </div>
+  </section>
+  <section class="api-section" aria-labelledby="tools-title">
+    <h2 id="tools-title">Connect a tool</h2>
+    <div class="api-tool-links">{tools.map((tool) => <a href={`/developers/api/integrations/${tool.id}/`}>{tool.data.title}</a>)}</div>
+  </section>
+  <section class="api-section api-client-entry" aria-labelledby="clients-title">
+    <span class="api-bucket-label">Clients</span>
+    <h2 id="clients-title">Building a Portico app</h2>
+    <p>The full generated API reference for apps that browse, play and manage media.</p>
+    <a href="/developers/api/clients/">Open the full reference</a>
+  </section>
+</ApiLayout>

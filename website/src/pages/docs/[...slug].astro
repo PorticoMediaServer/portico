@@ -9,7 +9,7 @@ export async function getStaticPaths() {
 }
 
 const { entry } = Astro.props;
-const { Content } = await render(entry);
+const { Content, headings } = await render(entry);
 const category = getDocCategory(entry.data.category);
 if (!category) throw new Error(`Unknown documentation category: ${entry.data.category}`);
 const categories = new Map(docCategories.map((item) => [item.id, item.order]));
@@ -20,6 +20,7 @@ const sequence = (await getCollection('docs')).sort((a, b) => {
 const currentIndex = sequence.findIndex((item) => item.id === entry.id);
 const previous = currentIndex > 0 ? sequence[currentIndex - 1] : undefined;
 const next = currentIndex < sequence.length - 1 ? sequence[currentIndex + 1] : undefined;
+const sourceUrl = `https://github.com/PorticoMediaServer/getportico-tv/blob/main/src/content/docs/${entry.id}.md`;
 ---
 
 <DocsLayout
@@ -30,10 +31,14 @@ const next = currentIndex < sequence.length - 1 ? sequence[currentIndex + 1] : u
   currentId={entry.id}
   audience={entry.data.audience}
   updated={entry.data.updated}
+  headings={headings}
 >
   <Content />
-  <nav class="article-pagination" aria-label="Documentation article navigation">
-    {previous ? <a href={`/docs/${previous.id}/`}><span>Previous</span><strong>{previous.data.title}</strong></a> : <span />}
-    {next ? <a href={`/docs/${next.id}/`}><span>Next</span><strong>{next.data.title}</strong></a> : <span />}
-  </nav>
+  <Fragment slot="after">
+    <nav class="article-pagination" aria-label="Previous and next articles">
+      {previous ? <a href={`/docs/${previous.id}/`}><span>Previous</span><strong>{previous.data.title}</strong></a> : <span />}
+      {next ? <a href={`/docs/${next.id}/`}><span>Next</span><strong>{next.data.title}</strong></a> : <span />}
+    </nav>
+    <p class="article-feedback">Something wrong or unclear on this page? <a href={sourceUrl}>Suggest a fix on GitHub</a>.</p>
+  </Fragment>
 </DocsLayout>

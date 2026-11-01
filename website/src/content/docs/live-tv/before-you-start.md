@@ -1,16 +1,32 @@
 ---
 title: Before you add Live TV
-description: Prepare a compatible source, guide data, storage, and account access.
+description: Prepare a channel source, guide data, storage and account access before you set up Live TV.
 category: live-tv
 order: 1
 audience: Server owners
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Live TV depends on a channel source the Portico Server can reach and guide information that can be mapped to those channels. Confirm that you are authorized to use the source in your location.
+Prepare a reachable channel source, guide data, recording storage and viewer access before scheduling recordings.
 
-Recordings need persistent storage with enough free space for the expected quality and duration. The Portico service account needs write access to that location.
+## Choose a source and guide
 
-Check server capacity before planning several simultaneous recordings or transcodes. Live playback and recording can compete for tuners, network bandwidth, disk throughput, and transcoding resources.
+Portico accepts M3U playlists, Xtream Codes sources and HDHomeRun tuners. You can enter a source URL, discover an HDHomeRun on your network, or upload an M3U playlist. HDHomeRun channels marked as DRM-protected are skipped.
 
-Decide which accounts can use Live TV, schedule recordings, and delete recordings before adding the source.
+Guide listings use XMLTV. Supply a guide URL or upload an XMLTV file with a playlist. Xtream Codes can provide its own XMLTV guide. Live channels can play without listings, but guide-based recording needs matching program data.
+
+Use only sources you're authorized to access where you live. See [Add a Live TV source](/docs/live-tv/add-a-source/) and [Add and map guide data](/docs/live-tv/guide-data/).
+
+## Prepare recording storage
+
+Open **Settings → Server → Live TV & Channels → Recording** to configure recording storage. The server service account needs write access. Leave enough free space for the expected quality and duration, and review storage limits and retention before relying on recordings.
+
+## Check capacity
+
+Live playback and recording share source capacity. They also use network bandwidth, disk throughput and, when conversion is needed, processing capacity. HDHomeRun capacity can be discovered; other sources need a limit that matches what the provider allows. Don't raise a limit beyond what the source can deliver.
+
+## Decide who can watch and record
+
+Review source visibility and each account's Live TV limits. Under **Recording → Who can record**, grant recording access to the intended accounts and profiles. Recording isn't granted to the owner automatically; an explicit profile decision takes priority over an inherited account permission.
+
+Viewers manage recordings they own. Sharing access to a channel doesn't grant access to someone else's recordings or permission to delete them.

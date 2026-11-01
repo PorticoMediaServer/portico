@@ -1,20 +1,28 @@
 ---
 title: Read the connection status
-description: Use Portico's local, public, certificate, and verification results to find the failed layer.
+description: Use the local, route, public reachability and certificate checks to find which part of remote access failed.
 category: remote
 order: 3
 audience: Server owners
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Remote access depends on several checks. A single green or red label cannot explain all of them, so Portico keeps the layers separate.
+Open **Settings → Server → Remote access** as the owner. Check reachability and encryption separately: a valid certificate doesn't open a blocked port.
 
-**Local connection** confirms that clients on the same network can reach the server.
+## Check reachability
 
-**Published route** confirms that the server has current signed connection information associated with the correct server identity.
+The status at the top says whether remote access is off, being checked, reachable at an address, or **Not reachable from outside.** Refresh it to run another check. Read any warning underneath before changing settings.
 
-**Public reachability** confirms that the route can be reached from outside the local network.
+Under **Home network**, **This server answers on** lists the server's addresses. **Router mappings** shows the router protocols, mapping state and external ports when mappings exist. **This device** shows whether your current connection counts as home or away according to **Home networks**.
 
-**Certificate** confirms that the public name and encryption state are valid for a browser or client connection.
+## Check the secure connection
 
-Work from the first failed layer. Changing certificate settings will not repair an offline server, and repeatedly publishing a route will not open a blocked firewall.
+Under **Secure connection**, read the status and check **Use a secure connection**. The **Certificate** details include its name, issuer, expiry, renewal time and secure address when available. A failed certificate request shows a problem and **Try again**.
+
+If you supply your own certificate, check the separate status under **Your own certificate**. Confirm that the domain and file paths are correct and readable by the server.
+
+## Check the route clients use
+
+A Portico Account connection uses current signed route information and verifies the server's identity. Successful account sign-in doesn't prove that the server is reachable. A direct connection also needs a reachable address and a successful identity check.
+
+Fix local reachability first, then the public route and firewall, then any certificate problem. Repeatedly refreshing a route won't open a blocked firewall. For network checks, see [Check router and firewall settings](/docs/remote/manual-networking/).
