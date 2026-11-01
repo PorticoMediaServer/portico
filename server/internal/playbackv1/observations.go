@@ -757,15 +757,62 @@ func (o *observations) takeLocked(now time.Time) (time.Time, []*observer) {
 	return next, batch
 }
 
-// observationBatchPlan is one batch's write budget: each session is an
-// independent unit no larger than the single report it replaces (one default
-// established-playback write), and they share one transaction only so 100
-// playing sessions take about 0.5 writer admissions a second instead of 100.
+// observationBatchPlan budgets routine checkpoints. A newly recorded play also
+// has atomic personal/history rows and their indexes; observationActivationPlan
+// declares that separate event after witnessing actual history creation.
 func observationBatchPlan(sessions int) dbwork.WritePlan {
 	unit := dbwork.DefaultPlan(dbwork.ClassEstablishedPlayback)
 	n := int64(max(sessions, 1))
 	return dbwork.WritePlan{Name: "playback-observation-batch", Rows: unit.Rows * n / 4, Pages: unit.Pages * n / 4, VMOps: unit.VMOps * n / 4,
 		Why: "up to 16 playing sessions' latest samples, one savepoint each; batching them is what keeps 1 Hz playback off the writer"}
+}
+
+// observationActivationPlan adds only the inherent index pages of a new history
+// unit. Hosted 10k/30k/100k activation probes measured 32 rows, ~20.5k VM and
+// 52–82 pages; WAL attribution found atomic rows/indexes alone exceed 32 pages.
+// 96 pages allows headroom for B-tree splits. Row/VM budgets and ordinary units
+// stay unchanged. One occurrence may create server and personal history together;
+// restoring paused/cleared personal history is another creation, not a checkpoint.
+func observationActivationPlan(sessions, activations int) dbwork.WritePlan {
+	plan := observationBatchPlan(sessions)
+	if activations == 0 {
+		return plan
+	}
+	plan.Name = "playback-history-activation-batch"
+	plan.Pages += 64 * int64(activations)
+	plan.Why = "96 pages per actual new playback-history unit for atomic history, personal state, snapshots and their indexes; other sessions retain the 32-page checkpoint unit"
+	return plan
+}
+
+const observationHistoryWitnessSQL = `SELECT
+ EXISTS(SELECT 1 FROM play_history WHERE playback_id=s.media_session_id),
+ EXISTS(SELECT 1 FROM personal_history WHERE profile_id=? AND id=s.media_session_id)
+ FROM playback_v1_sessions s WHERE s.id=?`
+
+// observationHistoryMask uses unique/primary-key witnesses. It never walks the
+// catalogue and never chooses a plan from measured cost. Read it before and
+// after the apply, inside its savepoint, so failed partial work is accounted for
+// before rollback too. Channels and liveness-only captures create no history.
+func observationHistoryMask(ctx context.Context, tx *sql.Tx, c observationCapture) (int, error) {
+	if !c.have || c.e.channel {
+		return 3, nil
+	}
+	var server, personal bool
+	err := tx.QueryRowContext(ctx, observationHistoryWitnessSQL, identity.PersonalKey(c.principal.Viewer), c.e.session).Scan(&server, &personal)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	mask := 0
+	if server {
+		mask |= 1
+	}
+	if personal {
+		mask |= 2
+	}
+	return mask, nil
 }
 
 // applyObservationBatch writes up to observationBatch owners in one writer
@@ -794,6 +841,7 @@ func (s *Service) applyObservationBatch(ctx context.Context, o *observations, ba
 	var after []func()
 	var failed []*observer
 	var failures error
+	activations := 0
 	for _, e := range batch {
 		o.mu.Lock()
 		c := o.captureLocked(e)
@@ -801,7 +849,25 @@ func (s *Service) applyObservationBatch(ctx context.Context, o *observations, ba
 		if _, err = tx.ExecContext(txCtx, `SAVEPOINT observation`); err != nil {
 			break
 		}
+		before, witnessErr := observationHistoryMask(txCtx, tx, c)
+		if witnessErr != nil {
+			err = witnessErr
+			break
+		}
 		res, post, applyErr := s.applyObservationTx(txCtx, tx, o, c, false)
+		if before != 3 {
+			afterMask, witnessErr := observationHistoryMask(txCtx, tx, c)
+			if witnessErr != nil {
+				err = witnessErr
+				break
+			}
+			if afterMask&^before != 0 {
+				activations++
+				if err = dbwork.UsePlan(tx, observationActivationPlan(len(batch), activations)); err != nil {
+					break
+				}
+			}
+		}
 		if applyErr != nil {
 			failures = errors.Join(failures, applyErr)
 			if _, err = tx.ExecContext(txCtx, `ROLLBACK TO observation`); err != nil {

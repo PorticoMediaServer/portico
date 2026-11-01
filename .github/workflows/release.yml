@@ -221,12 +221,20 @@ jobs:
     # Built natively, so it runs the plain (no -race) server suite for macOS; code-signed and the
     # app notarised when the Developer ID and App Store Connect secrets exist.
     needs: [identity, gate, web]
-    runs-on: macos-15
+    runs-on: macos-26
+    env: {DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer}
     # The macOS suite, then three notarisation waits (app, installer package, disk image).
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - name: Xcode 26.6
+        # App Store Connect takes only builds made with the iOS and tvOS 26 SDKs (ITMS-90725).
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -version | head -1 | grep -qx 'Xcode 26.6' || { echo 'expected Xcode 26.6' >&2; exit 1; }
+          xcodebuild -showsdks
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -433,11 +441,19 @@ jobs:
     # automatically through the App Store Connect key (-allowProvisioningUpdates creates the
     # profiles and assigns the app group); without them the archives are unsigned.
     needs: identity
-    runs-on: macos-15
+    runs-on: macos-26
+    env: {DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer}
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - name: Xcode 26.6
+        # App Store Connect takes only builds made with the iOS and tvOS 26 SDKs (ITMS-90725).
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -version | head -1 | grep -qx 'Xcode 26.6' || { echo 'expected Xcode 26.6' >&2; exit 1; }
+          xcodebuild -showsdks
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: {node-version-file: .node-version, cache: npm, cache-dependency-path: "package-lock.json\napps/native/package-lock.json"}
       # The subtitle engine's xcframeworks are built from their pinned sources, never checked in.
@@ -447,7 +463,8 @@ jobs:
           path: |
             third_party/apple-subtitles/apple/Frameworks
             third_party/apple-subtitles/out/apple
-          key: "apple-subtitles-${{ hashFiles('third_party/apple-subtitles/**', 'apps/native/ios/Portico.xcodeproj/project.pbxproj', 'apps/native/tvos/Portico.xcodeproj/project.pbxproj') }}"
+          # Keyed on the Xcode too: frameworks built by another toolchain are rebuilt, never reused.
+          key: "apple-subtitles-xcode26.6-${{ hashFiles('third_party/apple-subtitles/**', 'apps/native/ios/Portico.xcodeproj/project.pbxproj', 'apps/native/tvos/Portico.xcodeproj/project.pbxproj') }}"
       - name: Subtitle engine from pinned source
         if: steps.apple-subtitles.outputs.cache-hit != 'true'
         run: APPLE_SUBTITLE_JOBS=4 third_party/apple-subtitles/build-apple.sh
@@ -487,6 +504,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
+          # The SDK each app was built against, as App Store Connect reads it (DTSDKName): 26.x only.
+          archive_sdk() {
+            local plist name
+            plist="$(ls -d "$1"/Products/Applications/*.app | head -1)/Info.plist"
+            name="$(/usr/libexec/PlistBuddy -c 'Print :DTSDKName' "$plist")"
+            echo "$(basename "$1"): DTSDKName $name, DTXcode $(/usr/libexec/PlistBuddy -c 'Print :DTXcode' "$plist")"
+            [[ "$name" == "${2}26."* ]] || { echo "built with $name, not the $2 26 SDK" >&2; return 1; }
+          }
           for platform in ios tvos; do
             sdk=iphoneos; [ "$platform" = tvos ] && sdk=appletvos
             archive="$RUNNER_TEMP/Portico-$platform.xcarchive"
@@ -495,6 +520,7 @@ jobs:
             if [ "$SIGNED" = true ]; then
               auth=(-allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/asc-key.p8" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER")
               xcodebuild "${common[@]}" -archivePath "$archive" archive "${auth[@]}" DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic
+              archive_sdk "$archive" "$sdk"
               cat > "$RUNNER_TEMP/export-$platform.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -509,6 +535,7 @@ jobs:
               cp "$RUNNER_TEMP/export-$platform"/*.ipa "dist/Portico-$platform.ipa"
             else
               xcodebuild "${common[@]}" -archivePath "$archive" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+              archive_sdk "$archive" "$sdk"
               ditto -c -k --keepParent "$archive" "dist/Portico-$platform-UNSIGNED-NOT-FOR-USE.xcarchive.zip"
             fi
           done

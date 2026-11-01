@@ -419,10 +419,6 @@ func TestBrowseSelectionPublicRangeZeroPageStartsPreparation(t *testing.T) {
 }
 
 func TestBrowseSelectionHeldProofBindsPublicRangeZeroConversion(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
-	}
-
 	f := newSelectionHTTPFixture(t)
 	// The read proof supports the existing explicit-ID command bound (200),
 	// including views larger than the ordinary100-row page maximum.
@@ -444,8 +440,9 @@ func TestBrowseSelectionHeldProofBindsPublicRangeZeroConversion(t *testing.T) {
 	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &page) != nil || page.PageInfo.Revision != revision || page.PageInfo.HasMore || len(page.Entries) != descriptor.Total || page.WholeSelectionPreparing != nil {
 		t.Fatalf("proof conversion %d %s", w.Code, w.Body.String())
 	}
-	// Current exact predicate changes while P2-13's published page revision stays.
-	f.c.Exec(`INSERT INTO content_rating_ages(value_key,minimum_age) VALUES('public-held-proof-drift',18)`)
+	// Change only the held-selection predicate epoch; classification changes
+	// now correctly invalidate ordinary page revisions too (#221).
+	f.c.Exec(`UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1`)
 	ordinary := f.request("POST", "/v1/libraries/movies/browse", nil, map[string]any{"pivot": "movies", "limit": 200, "range": map[string]any{"start": 0, "revision": revision}})
 	if ordinary.Code != 200 || json.Unmarshal(ordinary.Body.Bytes(), &page) != nil || page.PageInfo.Revision != revision {
 		t.Fatalf("ordinary cursor regression %d %s", ordinary.Code, ordinary.Body.String())
