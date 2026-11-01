@@ -521,14 +521,28 @@ func (s *Service) refresh(ctx context.Context, domain string, m Manifest) error 
 		return err
 	}
 	if chain := deltaChain(d.Deltas, installed, d.DatasetVersion); installed != "" && chain != nil {
+		if err = indexDataset(ctx, s.path(domain)); err != nil {
+			return err
+		}
+		var changed deltaChanges
 		for _, delta := range chain {
 			stop := importStage("pass: apply delta")
-			err = s.applyDelta(ctx, domain, delta)
+			c, err := s.applyDelta(ctx, domain, delta)
 			stop()
 			if err != nil {
 				return err
 			}
+			changed.add(c)
 		}
+		// A delta re-matches only the works it touches; the library's own
+		// changes are matched as they are queued (drainJobs).
+		stop := importStage("pass: import changed works and vocabulary")
+		err = s.importChanged(ctx, domain, changed)
+		stop()
+		if err != nil {
+			return err
+		}
+		return s.noteChecked(ctx, domain, d.DatasetVersion, nil)
 	} else {
 		stop := importStage("pass: download")
 		tmp, err := s.download(ctx, d.Full)
@@ -544,6 +558,12 @@ func (s *Service) refresh(ctx context.Context, domain string, m Manifest) error 
 			return err
 		}
 		if err = os.Rename(tmp, s.path(domain)); err != nil {
+			return err
+		}
+		stop = importStage("pass: index")
+		err = indexDataset(ctx, s.path(domain))
+		stop()
+		if err != nil {
 			return err
 		}
 	}
@@ -691,27 +711,52 @@ func openDataset(path string, readOnly bool) (*sql.DB, error) {
 
 // applyDelta replaces the rows of every work a delta names in the installed
 // file, then applies its removals and redirects.
-func (s *Service) applyDelta(ctx context.Context, domain string, f ManifestFile) error {
+func (s *Service) applyDelta(ctx context.Context, domain string, f ManifestFile) (deltaChanges, error) {
+	var changed deltaChanges
 	tmp, err := s.download(ctx, f)
 	if err != nil {
-		return err
+		return changed, err
 	}
 	defer os.Remove(tmp)
 	if err = checkFile(tmp, "delta"); err != nil {
-		return err
+		return changed, err
 	}
 	db, err := openDataset(s.path(domain), false)
 	if err != nil {
-		return err
+		return changed, err
 	}
 	defer db.Close()
 	conn, err := db.Conn(ctx)
 	if err != nil {
-		return err
+		return changed, err
 	}
 	defer conn.Close()
 	if _, err = conn.ExecContext(ctx, `ATTACH DATABASE ? AS delta`, "file:"+filepath.ToSlash(tmp)+"?mode=ro"); err != nil {
-		return err
+		return changed, err
+	}
+	// What the delta touches: the works it replaces, removes or redirects (by
+	// either qid), and the provider ids it lists, which may match new works.
+	if changed.qids, err = scanIDs(conn.QueryContext(ctx, `SELECT qid FROM delta.works UNION SELECT qid FROM delta.removed UNION SELECT old_qid FROM delta.redirects UNION SELECT qid FROM delta.redirects`)); err != nil {
+		return changed, err
+	}
+	rows, err := conn.QueryContext(ctx, `SELECT provider,provider_id FROM delta.work_ids`)
+	if err != nil {
+		return changed, err
+	}
+	for rows.Next() {
+		var code int
+		var value any
+		if err = rows.Scan(&code, &value); err != nil {
+			rows.Close()
+			return changed, err
+		}
+		if p, ok := datasetProviders[code]; ok {
+			changed.ids = append(changed.ids, [3]string{p[0], p[1], fmt.Sprint(value)})
+		}
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return changed, err
 	}
 	statements := []string{`BEGIN`}
 	for _, table := range []string{"work_ids", "work_tags", "work_similar", "work_sources"} {
@@ -732,11 +777,60 @@ func (s *Service) applyDelta(ctx context.Context, domain string, f ManifestFile)
 	for _, statement := range statements {
 		if _, err = conn.ExecContext(ctx, statement); err != nil {
 			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
-			return datasetFailure("apply_failed", s.cfg.ManifestURL)
+			return changed, datasetFailure("apply_failed", s.cfg.ManifestURL)
 		}
 	}
 	_, err = conn.ExecContext(ctx, `DETACH DATABASE delta`)
+	return changed, err
+}
+
+// deltaChanges is what a chain of deltas touched.
+type deltaChanges struct {
+	qids []int64
+	ids  [][3]string // provider, provider kind, provider id
+}
+
+func (c *deltaChanges) add(o deltaChanges) {
+	c.qids = append(c.qids, o.qids...)
+	c.ids = append(c.ids, o.ids...)
+}
+
+// indexDataset gives the installed file the lookup the importer makes for every
+// similar title, a work's ids by its qid. Transport files key work_ids by
+// provider id only, so without it each similar title read the whole table:
+// hours for a release of a million works. The download's hash and integrity
+// check are done by then, and an index changes none of the file's rows.
+func indexDataset(ctx context.Context, path string) error {
+	db, err := openDataset(path, false)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	_, err = db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS work_ids_by_qid ON work_ids(qid,provider,provider_id)`)
 	return err
+}
+
+// importChanged re-matches the library works a delta touched: those matched
+// to a qid it changed, removed or redirected, and those holding a provider id
+// it lists. Then the vocabulary, as after a full import.
+func (s *Service) importChanged(ctx context.Context, domain string, c deltaChanges) error {
+	qids, _ := json.Marshal(c.qids)
+	ids, _ := json.Marshal(c.ids)
+	works, err := scanIDs(s.db.QueryContext(ctx, `SELECT entity_id FROM catalog_dataset_works WHERE domain=?1 AND qid IN(SELECT value FROM json_each(?2))
+	 UNION SELECT x.entity_id FROM json_each(?3) j CROSS JOIN catalog_external_ids x ON x.provider=json_extract(j.value,'$[0]') AND x.provider_kind=json_extract(j.value,'$[1]') AND x.provider_id=json_extract(j.value,'$[2]')
+	 ORDER BY 1`, domain, string(qids), string(ids)))
+	if err != nil {
+		return err
+	}
+	for len(works) > 0 {
+		part := works[:min(200, len(works))]
+		works = works[len(part):]
+		if err = s.importWorks(ctx, domain, part); err != nil {
+			return err
+		}
+	}
+	defer importStage("vocabulary")()
+	return s.importVocabulary(ctx, domain)
 }
 
 // noteFailure records a failed check without moving the domain's last check,
