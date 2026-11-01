@@ -35,8 +35,12 @@ export function TVChoiceRow({testID, label, description, value, options, disable
 export function TVSwitchRow({testID, label, description, checked, disabled, dependent, onChange}: {
   testID: string; label: string; description?: string; checked: boolean; disabled?: boolean; dependent?: boolean; onChange: (value: boolean) => void;
 }) {
-  return <SettingsRow label={label} description={description} dependent={dependent}
-    control={<Switch testID={testID} accessibilityLabel={label} checked={checked} disabled={disabled} onCheckedChange={onChange}/>}/>;
+  // As in Settings on TV: the whole row is the stop and OK flips it; the switch is drawn, never
+  // focused. A focused row scrolls fully into view (a focused switch alone stopped at the screen
+  // edge with its row cut off, walk 1 Nov).
+  return <SettingsRow testID={testID} label={label} description={description} dependent={dependent} readable={disabled}
+    toggle={{checked, visual: <Switch checked={checked} focusable={false} accessibilityLabel={label} disabled={disabled}/>}}
+    onPress={disabled ? undefined : () => onChange(!checked)}/>;
 }
 
 export type TVEntryKind = 'text' | 'secret' | 'number';
