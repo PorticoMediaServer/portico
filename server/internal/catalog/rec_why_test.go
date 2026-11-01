@@ -113,10 +113,10 @@ func TestTagRowsForSubgenreAndAppeal(t *testing.T) {
 		if err := x.recWhy(row); err != nil {
 			t.Fatal(err)
 		}
-		if row.spec.Why == nil || row.spec.Why.Code != recWhyFacet {
+		if row.spec.Why == nil || row.spec.Why.Code != recWhyFacetTitles || row.spec.Why.Params["titles"] != row.spec.WhyTitles[0].Name+" and "+row.spec.WhyTitles[1].Name {
 			t.Fatalf("%s why: %+v", row.spec.ID, row.spec.Why)
 		}
-		if len(row.spec.WhyTitles) != 3 {
+		if len(row.spec.WhyTitles) != recWhyNamed {
 			t.Fatalf("%s names %d of the profile's titles", row.spec.ID, len(row.spec.WhyTitles))
 		}
 		watched := publicSet(w.scifi[:3])
@@ -182,7 +182,7 @@ func TestPersonalRowsCarryWhyOnHomePagesAndDiscover(t *testing.T) {
 	w.c.Drain()
 	r := HomeRequest{Viewer: Viewer{Profile: "p", Fence: "p", Libraries: []string{"m"}}, ServerID: "s", Profile: "p", ViewerFence: "p", Libraries: []string{"m"}, Now: time.Now(), RowOrder: []string{"recommended", "for_you"}}
 	personal := homePersonalRows(t, w.s, r)
-	codes := map[string]bool{recWhyFacet: true, recWhyPerson: true, recWhyNext: true, recWhyLikes: true, recWhyRediscover: true}
+	codes := map[string]bool{recWhyFacet: true, recWhyFacetTitles: true, recWhyPerson: true, recWhyPersonTitles: true, recWhyNext: true, recWhyLikes: true, recWhyRediscover: true}
 	for id, row := range personal {
 		if row.Why == nil || !codes[row.Why.Code] {
 			t.Fatalf("%s has no agreed Why: %+v", id, row.Why)
@@ -407,21 +407,24 @@ func TestWhyPersonCountAndPlural(t *testing.T) {
 		}
 		return out
 	}
+	// The person's titles the profile watched are named in the sentence, two at most.
 	one := row("one")
-	if one.spec.Why == nil || one.spec.Why.Code != recWhyPerson || one.spec.Why.Params["count"] != "1" || one.spec.Why.Params["name"] != "Dana Villeneuve" ||
-		one.spec.Why.Fallback != "Because you’ve watched 1 title with Dana Villeneuve." {
-		t.Fatalf("one watched title: %+v", one.spec.Why)
-	}
 	if len(one.spec.WhyTitles) != 1 || one.spec.WhyTitles[0].ID != w.scifi[0].Public {
 		t.Fatalf("one watched title names %+v", one.spec.WhyTitles)
 	}
-	many := row("many")
-	if many.spec.Why == nil || many.spec.Why.Code != recWhyPerson || many.spec.Why.Params["count"] != "5" ||
-		many.spec.Why.Fallback != "Because you’ve watched 5 titles with Dana Villeneuve." {
-		t.Fatalf("five watched titles: %+v", many.spec.Why)
+	first := one.spec.WhyTitles[0].Name
+	if one.spec.Why == nil || one.spec.Why.Code != recWhyPersonTitles || one.spec.Why.Params["titles"] != first || one.spec.Why.Params["name"] != "Dana Villeneuve" ||
+		one.spec.Why.Fallback != "Because you’ve watched "+first+" with Dana Villeneuve." {
+		t.Fatalf("one watched title: %+v", one.spec.Why)
 	}
-	if len(many.spec.WhyTitles) != 3 {
-		t.Fatalf("five watched titles names %d, want 3", len(many.spec.WhyTitles))
+	many := row("many")
+	if len(many.spec.WhyTitles) != recWhyNamed {
+		t.Fatalf("five watched titles names %d, want %d", len(many.spec.WhyTitles), recWhyNamed)
+	}
+	list := many.spec.WhyTitles[0].Name + " and " + many.spec.WhyTitles[1].Name
+	if many.spec.Why == nil || many.spec.Why.Code != recWhyPersonTitles || many.spec.Why.Params["titles"] != list ||
+		many.spec.Why.Fallback != "Because you’ve watched "+list+" with Dana Villeneuve." {
+		t.Fatalf("five watched titles: %+v", many.spec.Why)
 	}
 }
 
@@ -453,5 +456,30 @@ func TestSimilarLinksWeighTheDatasetRelation(t *testing.T) {
 	}
 	if got[creator.ID] <= got[style.ID] {
 		t.Fatal("the same creator at rank 2 should outweigh a shared style at rank 1", got)
+	}
+}
+
+// The sentences name up to two titles; with none the plain copy stays, and a
+// person row falls back to its count.
+func TestWhySentencesNameUpToTwoTitles(t *testing.T) {
+	heat, thief, ronin := ContentEntityRef{ID: "a", Name: "Heat"}, ContentEntityRef{ID: "b", Name: "Thief"}, ContentEntityRef{ID: "c", Name: "Ronin"}
+	for _, c := range []struct {
+		titles   []ContentEntityRef
+		code     string
+		fallback string
+		named    int
+	}{
+		{nil, recWhyFacet, "Because you often watch Heists.", 0},
+		{[]ContentEntityRef{heat}, recWhyFacetTitles, "Because you often watch Heists, like Heat.", 1},
+		{[]ContentEntityRef{heat, thief}, recWhyFacetTitles, "Because you often watch Heists, like Heat and Thief.", 2},
+		{[]ContentEntityRef{heat, thief, ronin}, recWhyFacetTitles, "Because you often watch Heists, like Heat and Thief.", 2},
+	} {
+		why, named := recWhyFacetText("Heists", c.titles)
+		if why.Code != c.code || why.Fallback != c.fallback || len(named) != c.named || why.Params["label"] != "Heists" {
+			t.Fatalf("%d titles: %+v %+v", len(c.titles), why, named)
+		}
+	}
+	if fallback := recWhyPersonFallback(5, "Michael Mann"); fallback != "Because you’ve watched 5 titles with Michael Mann." {
+		t.Fatal(fallback)
 	}
 }

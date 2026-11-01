@@ -7,7 +7,7 @@ import {Button} from '../../kit/controls';
 import {StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
 import {LibraryBrowse, type LibraryBrowseBindings} from './Library';
-import {homeRowReasonParts} from './home-row-reason';
+import {homeRowReasonParts} from '@core/presentation/home-row-reason.ts';
 import styles from './home-row-r46.module.css';
 
 export type HomeRowBindings = Readonly<{row: HomeRow; browse: LibraryBrowseBindings; onBack: () => void; onPlay?: () => void; onShuffle?: () => void;

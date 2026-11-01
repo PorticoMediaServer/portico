@@ -478,7 +478,7 @@ test('Home See all actual toolbar binds sort/filter/kind/quick leaves without ch
   const {HomeSeeAll} = await screenModule(new URL('../src-next/screens/home/HomeSeeAll.tsx', import.meta.url), {
     react: b.react, 'react-native': b.native, '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => toolbar},
-    '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: () => ''}, '../../../../../packages/client-core/src/home-selection': {},
+    '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: () => ''}, '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined}, '../../../../../packages/client-core/src/home-selection': {},
     '../../kit/controls': {Button: o.Button, Chip, Focusable: b.Focusable}, '../../kit/browse': browse, '../../kit/cards/primitives': {CardFrame: 'Card', Parts: 'Parts'},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', MediaArt: 'Art', AmbientArt: 'Ambient'}, '../../kit/browse/presentation': presentation, '../../kit/cards': {PosterCard: 'Poster'},
     '../../kit/focus': b.focus, '../../kit/layout': {WindowedGrid: 'Grid'}, '../../kit/Icon': {Icon: 'Icon'},

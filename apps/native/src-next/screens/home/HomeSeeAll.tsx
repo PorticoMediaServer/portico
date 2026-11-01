@@ -3,6 +3,7 @@ import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {browseToolbarModel} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
+import {homeRowReasonParts} from '../../../../../packages/client-core/src/presentation/home-row-reason';
 import {homeEntryCapabilities} from '../../../../../packages/client-core/src/home-selection';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {Button, Chip, Focusable} from '../../kit/controls';
@@ -102,6 +103,8 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
   const total = state.counts.find(value => value.id === (state.selectedKind ?? 'all'));
   const title = serverTextLabel(labels, row.titleText, row.title);
   const reason = row.reason?.text ?? row.why ?? row.subtitleText;
+  // The server's why sentence, with the titles it names in bold (as web and desktop-browse frame 6 draw it).
+  const reasonParts = !row.reason?.text && row.why ? homeRowReasonParts(row, labels) : undefined;
   const artwork = row.entries.find(entry => entry.backdropUrl || entry.posterUrl);
   const tv = theme.isTV, phone = !tv && theme.platform === 'phone', gutter = tv ? 200 : theme.gutter, cardScale = (runtime.appearanceCardSizePercent ?? 100) / 100,
     width = homeSeeAllCardWidth(surface, gutter, tv ? 200 : theme.spec.card.width.poster[theme.platform], cardScale, phone);
@@ -110,7 +113,9 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
           <Icon name="i-left" size={tv ? 22 : 16} color={theme.colors.textTertiary}/><Text style={[nativeType({size: tv ? 22 : 14, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{t('next.home.shell.home')}</Text>
         </Focusable>
         <Text accessibilityRole="header" style={[nativeType({size: tv ? 62 : phone ? 34 : 30, weight: 800, tracking: -.04, lineHeight: tv ? 62 : phone ? 35.7 : 30}, theme.textScale), {color: theme.colors.text, marginBottom: phone ? 8 : 12}]}>{title}</Text>
-        {reason && <Text style={[nativeType({size: tv ? 24 : phone ? 14 : 15, weight: 400, tracking: 0, lineHeight: tv ? 34.8 : phone ? 21 : 22}, theme.textScale), {maxWidth: tv ? 1100 : undefined, color: theme.colors.textSecondary, marginBottom: 24}]}>{serverTextLabel(labels, reason)}</Text>}
+        {reason && <Text style={[nativeType({size: tv ? 24 : phone ? 14 : 15, weight: 400, tracking: 0, lineHeight: tv ? 34.8 : phone ? 21 : 22}, theme.textScale), {maxWidth: tv ? 1100 : undefined, color: theme.colors.textSecondary, marginBottom: 24}]}>{reasonParts
+          ? reasonParts.map((part, index) => part.titleId ? <Text key={index} style={{color: theme.colors.text, fontWeight: '700'}}>{part.text}</Text> : part.text)
+          : serverTextLabel(labels, reason)}</Text>}
         <View style={{flexDirection: 'row', gap: tv ? 16 : 10}}><Button focusId="play" icon="i-play" size={tv ? 'hero' : undefined} style={phone ? {flex: 1} : undefined} onPress={() => onPlay(false)}>{t('entry.play')}</Button>
           <Button focusId="shuffle" variant="glass" icon="i-shuffle" size={tv ? 'hero' : undefined} style={phone ? {flex: 1} : undefined} onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></View>
       </View>;
