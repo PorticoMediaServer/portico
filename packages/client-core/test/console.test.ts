@@ -13,7 +13,7 @@ const values:RuntimeSettings={'integrations.compatibilityEnabled':false,name:'My
  hardwareBackend:'auto',hardwareDevice:'',hardwareSelection:'auto',hardwareDecode:true,hdrToneMapping:false,hdrToneMappingAlgorithm:'hable',x264Preset:'veryfast',directStreamRemux:true,
  analysisStorageGiB:32,analysisStageStorageMiB:256,subtitleTrackLimit:128,subtitleFileLimitMiB:128,planningPolicy:'maximum_fidelity',throttleBufferMs:60000,playedRetentionMs:180000,temporaryDirectory:'',ffmpegPath:'',sessionStorageMiB:4096,memoryCap:'quarter',transcodeLocation:'memory',
  maxConcurrentSessions:0,maxHardwareSessions:0,maxSoftwareSessions:0,maxBackgroundSessions:0,
- playHistoryDays:0,'home.communityActivityEnabled':false,'updates.releaseChannel':'stable','updates.feedUrl':'','library.missingTitles':'after_days','library.missingTitlesDays':30,'library.segmentDetection':'standard',
+ playHistoryDays:0,'home.communityActivityEnabled':false,'recommendations.titleDataset':true,'updates.releaseChannel':'stable','updates.feedUrl':'','library.missingTitles':'after_days','library.missingTitlesDays':30,'library.segmentDetection':'standard',
  remoteSignInPolicy:'allow',remoteBitrateLimitKbps:0,lanNetworks:[],accessUrls:[],lanDiscoveryEnabled:true,dlnaEnabled:false,
  trustedProxies:[],uploadCapacityKbps:0,pausedSessionTimeoutMinutes:0,advertisedInterface:'',customCertificatePath:'',customCertificateKeyPath:'',customCertificateDomain:'',secureConnections:'preferred',remoteSecurity:'enhanced',remoteAccess:'on',connectionLimit:0,advertiseUrl:'',apiRequestsPerMinute:0,logLevel:'info',logRetention:[]};
 const settings=(revision=1)=>({revision,digest:'b'.repeat(64),requested:values,effective:values,activeRevision:revision,restartFields:[],registryRevision:'p08.0'});

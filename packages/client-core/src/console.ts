@@ -33,6 +33,8 @@ export type TranscodingSettings={
 export type RuntimeSettings=TranscodingSettings&{
  analysisStorageGiB:number;analysisStageStorageMiB:number;subtitleTrackLimit:number;subtitleFileLimitMiB:number;name:string;conversionMode:'all'|'sound'|'never';outputFormat:'auto'|'h264';downloadMaxQuality:string;musicAwayQuality:string;perAccountCap:number|null;serverCap:number|null;
  diagnosticDays:number;notificationDays:number;jobDays:number;playHistoryDays:number;'home.communityActivityEnabled':boolean;
+ /** Settings › Metadata › Recommendations: download the Portico title dataset. */
+ 'recommendations.titleDataset':boolean;
  'updates.releaseChannel':string;'updates.feedUrl':string;'library.missingTitles':MissingTitlesRule;'library.missingTitlesDays':number;
  /** Intro and credits detection for the whole server; each library may follow it or choose its own. */
  'library.segmentDetection':SegmentDetectionMode;

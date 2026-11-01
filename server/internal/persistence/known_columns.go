@@ -6656,6 +6656,7 @@ server_settings.people.invitation_role
 server_settings.planningPolicy
 server_settings.playHistoryDays
 server_settings.playedRetentionMs
+server_settings.recommendations.titleDataset
 server_settings.remoteAccess
 server_settings.remoteBitrateLimitKbps
 server_settings.remoteSecurity
