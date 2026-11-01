@@ -24,7 +24,7 @@ if [[ "${PORTICO_UNSEALED:-}" == 1 ]]; then
   SUFFIX="-UNSEALED-NOT-FOR-USE"
   if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("engine",{}).get("development") else 1)' "$STAGE/manifest.json"; then SUFFIX="$SUFFIX-ENGINE"; fi
 fi
-for required in "$STAGE/$EXE" "$STAGE/manifest.json" "${SEALED_FILES[@]}" "$STAGE/third_party/ffmpeg/toolchain-manifest.json" "$STAGE/third_party/rclone/bundle-manifest.json" "$WEB/index.html"; do
+for required in "$STAGE/$EXE" "$STAGE/manifest.json" ${SEALED_FILES[@]+"${SEALED_FILES[@]}"} "$STAGE/third_party/ffmpeg/toolchain-manifest.json" "$STAGE/third_party/rclone/bundle-manifest.json" "$WEB/index.html"; do
   [[ -s "$required" ]] || { echo "missing release input: $required" >&2; exit 1; }
 done
 if [[ "${PORTICO_UNSEALED:-}" == 1 ]]; then
@@ -32,7 +32,7 @@ if [[ "${PORTICO_UNSEALED:-}" == 1 ]]; then
 else
   python3 "$ROOT/scripts/rclone-bundle.py" verify-release "$STAGE" --target "$OS-$ARCH" --public-key "${PORTICO_RELEASE_PUBLIC_KEY_FILE:?A pinned release public key is required}"
 fi
-cp "$STAGE/$EXE" "$STAGE/manifest.json" "${SEALED_FILES[@]}" "$PAYLOAD/"
+cp "$STAGE/$EXE" "$STAGE/manifest.json" ${SEALED_FILES[@]+"${SEALED_FILES[@]}"} "$PAYLOAD/"
 cp -R "$STAGE/third_party" "$PAYLOAD/third_party"
 cp -R "$WEB/." "$PAYLOAD/web/"
 cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$PAYLOAD/"
