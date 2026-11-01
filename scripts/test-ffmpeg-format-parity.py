@@ -157,7 +157,10 @@ class Contract(unittest.TestCase):
                 if target.startswith('windows'):
                     for feature in ('dxva2', 'mediafoundation', 'schannel'): self.assertIn('--enable-' + feature, flags, target)
                 self.assertNotIn('--enable-libfdk-aac', flags)
-                if target.startswith('windows'): self.assertNotIn('--enable-libsrt', flags)
+                # Windows SRT is not a new requirement or forced Portico
+                # override; retain any existing BtbN optional stage superset.
+                if target.startswith('windows'):
+                    self.assertNotIn('--enable-libsrt', (recipe / 'build.sh').read_text())
                 print('actual format flags checked: ' + target, flush=True)
 
 
