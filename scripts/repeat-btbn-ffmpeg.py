@@ -51,6 +51,31 @@ def image_identity(recipe, env):
     return name, values[0]['Id']
 
 
+def take_artifact(artifacts, work, index, actions):
+    entries = list(artifacts.iterdir())
+    archives = [p for p in entries if p.name.endswith('.tar.xz')]
+    selector = artifacts / 'linuxarm64-gpl-8.1.txt'
+    if (len(archives) != 1 or archives[0].is_symlink() or not archives[0].is_file() or
+            set(entries) != ({archives[0], selector} if actions else {archives[0]})):
+        raise ValueError('one fresh ARM archive and only its expected Actions selector required')
+    record = {}
+    if actions:
+        if (selector.is_symlink() or not selector.is_file() or selector.stat().st_size > 1024 or
+                selector.read_bytes() != (archives[0].name + '\n').encode('ascii')):
+            raise ValueError('Actions selector must name exactly the fresh archive basename')
+        record = dict(selectorName=selector.name, selectorSHA256=digest(selector))
+    archive = work / ('round-' + str(index) + '.tar.xz')
+    archives[0].rename(archive)
+    if actions:
+        saved = work / ('round-' + str(index) + '.selector.txt')
+        selector.rename(saved)
+        if digest(saved) != record['selectorSHA256']:
+            raise ValueError('Actions selector changed during staging')
+    if list(artifacts.iterdir()):
+        raise ValueError('round artifact staging must be empty before the next compile')
+    return archive, record
+
+
 def build(recipe, source, work):
     if 'IMAGE="$PORTICO_ENGINE_REPEAT_IMAGE"' not in (recipe / 'build.sh').read_text():
         raise ValueError('explicit immutable runtime image guard required')
@@ -75,10 +100,7 @@ def build(recipe, source, work):
         with log.open('wb') as output:
             subprocess.run(['bash', './build.sh', 'linuxarm64', 'gpl', '8.1'], cwd=recipe,
                            env=env, stdout=output, stderr=subprocess.STDOUT, check=True)
-        archives = list(artifacts.iterdir())
-        if len(archives) != 1 or archives[0].is_symlink() or not archives[0].is_file() or not archives[0].name.endswith('.tar.xz'):
-            raise ValueError('exactly one fresh ARM raw artifact required')
-        archive = work / ('round-' + str(index) + '.tar.xz'); archives[0].rename(archive)
+        archive, companion = take_artifact(artifacts, work, index, bool(env.get('GITHUB_ACTIONS')))
         expanded = work / ('round-' + str(index)); extractor.extract(archive, expanded)
         roots = list(expanded.iterdir())
         if len(roots) != 1 or roots[0].is_symlink() or not roots[0].is_dir():
@@ -90,7 +112,7 @@ def build(recipe, source, work):
         for tool in TOOLS:
             (prefix / 'bin' / tool).chmod(0o755)
         prefixes.append(prefix); fingerprints.append(fingerprint)
-        records.append(dict(round=index, rawArchiveSHA256=digest(archive), compileLogSHA256=digest(log)))
+        records.append(dict(round=index, rawArchiveSHA256=digest(archive), compileLogSHA256=digest(log), **companion))
     rounds = cache.repeat_rounds(*prefixes, recipe / 'portico-ffmpeg-source.tar.xz', fingerprints[0], 'linux-arm64')
     if digest(source) != source_sha:
         raise ValueError('checked prepared source changed during the repeat')
