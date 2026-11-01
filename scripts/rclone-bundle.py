@@ -133,6 +133,19 @@ def verify_release(directory, target, public_key_file):
     except InvalidSignature as error:
         raise ValueError('Release manifest signature does not match the pinned key') from error
     manifest = json.loads(raw)
+    return check_payload(directory, target, manifest)
+
+
+def verify_unsealed(directory, target):
+    # An internal NOT-FOR-USE build: the same payload checks, with no signature to check. It is
+    # accepted only when its manifest says it is unsealed and carries no signature file.
+    manifest = json.loads((directory / 'manifest.json').read_bytes())
+    if manifest.get('sealed') is not False or (directory / 'manifest.sig').exists():
+        raise ValueError('Not an unsealed build')
+    return check_payload(directory, target, manifest)
+
+
+def check_payload(directory, target, manifest):
     name = 'portico-server.exe' if target.startswith('windows-') else 'portico-server'
     if manifest.get('component') != 'server' or manifest.get('target') != target or manifest['artifact']['path'] != name:
         raise ValueError('Release target or server artifact path changed')
@@ -147,7 +160,7 @@ def verify_release(directory, target, public_key_file):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['prepare', 'verify', 'verify-release'])
+    parser.add_argument('operation', choices=['prepare', 'verify', 'verify-release', 'verify-unsealed'])
     parser.add_argument('directory', type=pathlib.Path)
     parser.add_argument('--target', required=True)
     parser.add_argument('--cache', type=pathlib.Path, default=ROOT / '.cache/rclone')
@@ -160,6 +173,10 @@ def main():
                 raise ValueError('A pinned release public key is required')
             verify_release(args.directory, args.target, args.public_key)
             print('rclone release payload verified: ' + args.target)
+            return
+        if args.operation == 'verify-unsealed':
+            verify_unsealed(args.directory, args.target)
+            print('rclone payload of an UNSEALED, NOT FOR USE build verified: ' + args.target)
             return
         if args.operation == 'prepare':
             prepare(args.directory, args.target, args.cache)
