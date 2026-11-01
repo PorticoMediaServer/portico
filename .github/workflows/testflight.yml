@@ -12,7 +12,9 @@ permissions:
   contents: read
 jobs:
   upload:
-    runs-on: macos-15
+    # The same Xcode as release.yml's apple job; altool comes from it.
+    runs-on: macos-26
+    env: {DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer}
     timeout-minutes: 45
     environment: release-seal
     steps:
