@@ -12,6 +12,12 @@ M = importlib.util.module_from_spec(spec); spec.loader.exec_module(M)
 
 
 class CompilerPreservation(unittest.TestCase):
+    def test_metadata_probe_imports_from_its_container_root_mount(self):
+        source = Path(__file__).with_name('preserve-ffmpeg-compilers.py').read_text()
+        namespace = {'__file__': '/inspect.py', '__name__': 'container_import_control'}
+        exec(compile(source, '/inspect.py', 'exec'), namespace)
+        self.assertEqual(namespace['ROOT'], Path('/'))
+
     def test_committed_pin_contains_exact_same_source_and_destination_digest(self):
         pins = M.lock()
         for row in pins['images'].values():
