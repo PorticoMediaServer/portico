@@ -145,6 +145,7 @@ func TestKindScanMemoryMeasurement(t *testing.T) {
 		}
 		paceStart := time.Now()
 		dbwork.PaceBackground(context.Background(), at)
+		pacingNS += time.Since(paceStart).Nanoseconds()
 	}
 	report["completed"] = true
 	if got := f.count(`SELECT count(*) FROM catalog_assets`); got != n {
