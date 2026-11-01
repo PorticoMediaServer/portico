@@ -113,7 +113,7 @@ func (p *publisher) build(name, kind, version string, fill func(t *testing.T, db
 	zw.Close()
 	sum := sha256.Sum256(gz.Bytes())
 	p.files["/"+name+".sqlite.gz"] = gz.Bytes()
-	return ManifestFile{URL: name + ".sqlite.gz", SHA256: hex.EncodeToString(sum[:]), Bytes: int64(gz.Len())}
+	return ManifestFile{URL: name + ".sqlite.gz", SHA256: hex.EncodeToString(sum[:]), Bytes: int64(gz.Len()), UncompressedBytes: int64(len(raw))}
 }
 
 func mustExec(t *testing.T, db *sql.DB, q string, args ...any) {

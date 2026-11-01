@@ -308,7 +308,7 @@ func (p *publisher) publish(name string, raw []byte) ManifestFile {
 	gz := gzipBytes(p.t, raw)
 	sum := sha256.Sum256(gz)
 	p.files["/"+name+".sqlite.gz"] = gz
-	return ManifestFile{URL: name + ".sqlite.gz", SHA256: hex.EncodeToString(sum[:]), Bytes: int64(len(gz))}
+	return ManifestFile{URL: name + ".sqlite.gz", SHA256: hex.EncodeToString(sum[:]), Bytes: int64(len(gz)), UncompressedBytes: int64(len(raw))}
 }
 
 func gzipBytes(t *testing.T, raw []byte) []byte {
@@ -335,4 +335,32 @@ func gunzip(t *testing.T, gz []byte) []byte {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+// The lead's follow-up (1 Nov): decompression stops at the signed size, so a
+// damaged but signed file can't fill the disk; any other size is refused.
+func TestDecompressionStopsAtTheSignedSize(t *testing.T) {
+	for name, change := range map[string]func(*ManifestFile){
+		"larger than signed":  func(f *ManifestFile) { f.UncompressedBytes -= 4096 },
+		"smaller than signed": func(f *ManifestFile) { f.UncompressedBytes += 1 },
+		"no signed size":      func(f *ManifestFile) { f.UncompressedBytes = 0 },
+		"over the cap":        func(f *ManifestFile) { f.UncompressedBytes = MaxFileBytes + 1 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newReleaseFixture(t)
+			d := f.p.domains["screen"]
+			change(&d.Full)
+			f.p.domains["screen"] = d
+			if err := f.step(t); err == nil || !(strings.Contains(err.Error(), "asset_integrity") || strings.Contains(err.Error(), "asset_too_large")) {
+				t.Fatal("a file of the wrong size was accepted", err)
+			}
+			if f.installed(t) != "" {
+				t.Fatal("installed")
+			}
+			left, _ := filepath.Glob(filepath.Join(f.dir, "*"))
+			if len(left) != 0 {
+				t.Fatal("scratch files left behind", left)
+			}
+		})
+	}
 }
