@@ -91,7 +91,7 @@ internal/catalog/rec_feedback.go	(*Service).ResetRecommendations	Begin	ClassFrom
 internal/catalog/resource_pins.go	(*Service).MutateSavedPin	Begin	ClassFrom(s.Context(), dbwork.ClassInteractive)	-
 internal/catalog/resources.go	(*Service).MutateSavedResource	Begin	ClassFrom(s.Context(), dbwork.ClassInteractive)	-
 internal/catalog/restrictions.go	(*Service).ClassifyPendingRatings	ExecWrite	ClassBackgroundMedia	-
-internal/catalog/restrictions.go	reclassifyRatings	WithWriteTx	ClassBackgroundMedia	-
+internal/catalog/restrictions.go	reclassifyRatingPage	WithWriteTx	ClassBackgroundMedia	-
 internal/catalog/scalebench/bulk_reference.go	seedBulkFactsDensity	WithWriteTx	ClassBackgroundMedia	-	×2
 internal/catalog/scalebench/copy_facts.go	copyReferenceFacts	WithWriteTx	ClassBackgroundMedia	-
 internal/catalog/scalebench/exercise.go	exerciseContainer	WithWriteTx	ClassBackgroundMedia	-	×2
