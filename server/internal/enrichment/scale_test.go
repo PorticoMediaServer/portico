@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"slices"
 	"strconv"
 	"strings"
@@ -238,6 +239,13 @@ func TestTitleDatasetAtScale(t *testing.T) {
 		slices.Sort(durations)
 		return fmt.Sprintf("p50 %s p95 %s max %s, %d dataset rows", durations[len(durations)/2].Round(time.Millisecond), durations[len(durations)*95/100].Round(time.Millisecond), durations[len(durations)-1].Round(time.Millisecond), rows)
 	})
+
+	// Home latency's own breakdown (opt-in): cold (a fresh service, the profile's first
+	// Home) against warm (the same request again), each row on its own, the document's
+	// JSON, and a CPU profile of each pass written to the directory given.
+	if dir := os.Getenv("PORTICO_DATASET_SCALE_HOME_PROFILE"); dir != "" {
+		measure("Home profile", func() string { return profileHome(t, db, profiles, dir) })
+	}
 
 	// A weekly delta changing 1% of works.
 	measure("weekly delta (1%)", func() string {
@@ -479,4 +487,87 @@ func databaseSize(t *testing.T, db *sql.DB, path string) (database, wal int64) {
 	}
 	t.Logf("database %d MiB after a checkpoint; write-ahead log %d MiB before it", info.Size()>>20, wal>>20)
 	return info.Size(), wal
+}
+
+func homeScaleRequest(profile string) catalog.HomeRequest {
+	return catalog.HomeRequest{Viewer: catalog.Viewer{Profile: profile, Fence: profile, Libraries: []string{"films"}}, ServerID: "s", Profile: profile, ViewerFence: profile, Libraries: []string{"films"}, Now: time.Now()}
+}
+
+// profileHome measures Home for each profile cold and warm, every row on its own and
+// the document's JSON, and writes home-cold.pprof and home-warm.pprof to dir.
+func profileHome(t *testing.T, db *sql.DB, profiles int, dir string) string {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pct := func(d []time.Duration, q int) time.Duration {
+		slices.Sort(d)
+		return d[min(len(d)-1, len(d)*q/100)].Round(100 * time.Microsecond)
+	}
+	services := make([]*catalog.Service, profiles)
+	pass := func(name string, run func(p int)) []time.Duration {
+		f, err := os.Create(filepath.Join(dir, "home-"+name+".pprof"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		if err = pprof.StartCPUProfile(f); err != nil {
+			t.Fatal(err)
+		}
+		defer pprof.StopCPUProfile()
+		var out []time.Duration
+		for p := 0; p < profiles; p++ {
+			start := time.Now()
+			run(p)
+			out = append(out, time.Since(start))
+		}
+		return out
+	}
+	docs := make([]catalog.HomeDocument, profiles)
+	cold := pass("cold", func(p int) {
+		services[p] = catalog.New(db)
+		doc, err := services[p].HomeRows(homeScaleRequest(fmt.Sprintf("p%d", p)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		docs[p] = doc
+	})
+	warm := pass("warm", func(p int) {
+		if _, err := services[p].HomeRows(homeScaleRequest(fmt.Sprintf("p%d", p))); err != nil {
+			t.Fatal(err)
+		}
+	})
+	// Each row on its own (warm), grouped by row family, and the JSON of the document.
+	rows := map[string][]time.Duration{}
+	var encode []time.Duration
+	for p := 0; p < profiles; p++ {
+		r := homeScaleRequest(fmt.Sprintf("p%d", p))
+		for _, row := range docs[p].Rows {
+			id, group := row.ID, row.ID
+			if row.Family != "" && row.Family != row.ID {
+				group = row.Family + ":*"
+			}
+			start := time.Now()
+			if _, err := services[p].HomeSingleRow(r, id, catalog.HomeRowPage{Limit: row.Limit}); err != nil {
+				t.Logf("row %s: %v", id, err)
+				continue
+			}
+			rows[group] = append(rows[group], time.Since(start))
+		}
+		start := time.Now()
+		if _, err := json.Marshal(docs[p]); err != nil {
+			t.Fatal(err)
+		}
+		encode = append(encode, time.Since(start))
+	}
+	names := make([]string, 0, len(rows))
+	for name := range rows {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		t.Logf("    row %-28s p50 %8s  p95 %8s  (%d)", name, pct(rows[name], 50), pct(rows[name], 95), len(rows[name]))
+	}
+	t.Logf("    JSON of the document      p50 %8s  p95 %8s", pct(encode, 50), pct(encode, 95))
+	return fmt.Sprintf("cold p50 %s p95 %s; warm p50 %s p95 %s; %d rows in a document", pct(cold, 50), pct(cold, 95), pct(warm, 50), pct(warm, 95), len(docs[0].Rows))
 }
