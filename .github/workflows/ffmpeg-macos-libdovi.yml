@@ -1,6 +1,12 @@
 name: Native Mac libdovi source controls
 on:
   workflow_dispatch:
+    inputs:
+      nativeTarget:
+        description: Exercise the real native dependency build (never an engine qualification)
+        type: choice
+        options: [none, macos-arm64, macos-x64]
+        default: none
   pull_request:
     paths:
       - '.github/workflows/ffmpeg-macos-libdovi.yml'
@@ -45,3 +51,50 @@ jobs:
           name: macos-rust-pin-licence-catalogue-${{ github.sha }}
           path: web/src/generated/licences.json
           retention-days: 7
+  native:
+    if: github.repository == 'PorticoMediaServer/portico' && github.event_name == 'workflow_dispatch' && inputs.nativeTarget != 'none'
+    needs: controls
+    runs-on: ${{ inputs.nativeTarget == 'macos-arm64' && 'macos-15' || 'macos-15-intel' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - name: Build the native dependency with its real source and ABI controls
+        env: {NATIVE_TARGET: '${{ inputs.nativeTarget }}'}
+        run: |
+          mkdir -p "$RUNNER_TEMP/native-libdovi"
+          python3 - <<'PY' > "$RUNNER_TEMP/native-libdovi/build.log" 2>&1
+          import json, os, pathlib, runpy, shutil, time
+          root = pathlib.Path.cwd()
+          work = pathlib.Path(os.environ['RUNNER_TEMP']) / 'native-libdovi'
+          recipe, prefix = work / 'recipe', work / 'prefix'
+          recipe.mkdir(); prefix.mkdir()
+          helper = runpy.run_path('scripts/build-macos-libdovi.py')
+          helper['configure'](recipe)
+          shutil.copyfile(root / 'third_party/ffmpeg/sources.lock.json', recipe / 'portico-ffmpeg-sources.lock.json')
+          started = time.monotonic()
+          receipt = {'release': False, 'engineQualified': False, 'kind': 'native-dependency-build',
+                     'sourceSHA': os.environ['GITHUB_SHA'], 'target': os.environ['NATIVE_TARGET']}
+          try:
+              helper['build'](os.environ['NATIVE_TARGET'], recipe, prefix, work / 'tools')
+              receipt['buildPassed'] = True
+          except BaseException as error:
+              receipt['failure'] = str(error)
+              raise
+          finally:
+              receipt['wallSeconds'] = round(time.monotonic() - started, 3)
+              (work / 'native-dependency.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: native-libdovi-${{ inputs.nativeTarget }}-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/native-libdovi/build.log
+            ${{ runner.temp }}/native-libdovi/native-dependency.json
+            ${{ runner.temp }}/native-libdovi/prefix/libdovi-build.json
+            ${{ runner.temp }}/native-libdovi/recipe/packages/portico-libdovi/native-tools.json
+            ${{ runner.temp }}/native-libdovi/recipe/packages/portico-libdovi/compiler-and-licenses.json
+          retention-days: 14
