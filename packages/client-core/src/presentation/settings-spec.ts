@@ -8408,6 +8408,22 @@ export const settingsSpec: readonly SettingsSection[] = [
             }
           }
         ]
+      },
+      {
+        "title": "next.settingsSpec.server.metadata.groups.5.title",
+        "rows": [
+          {
+            "id": "metadata.titleDataset",
+            "scope": "server",
+            "key": "recommendations.title_dataset",
+            "label": "next.settingsSpec.server.metadata.groups.5.rows.0.label",
+            "help": "next.settingsSpec.server.metadata.groups.5.rows.0.help",
+            "control": {
+              "type": "toggle",
+              "default": true
+            }
+          }
+        ]
       }
     ],
     "advanced": {

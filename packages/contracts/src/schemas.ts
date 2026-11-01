@@ -11086,6 +11086,9 @@ export const schemas = {
             "minimum": -9007199254740991,
             "type": "integer"
           },
+          "recommendations.titleDataset": {
+            "type": "boolean"
+          },
           "remoteBitrateLimitKbps": {
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
@@ -11315,6 +11318,7 @@ export const schemas = {
           "playHistoryDays",
           "apiRequestsPerMinute",
           "integrations.compatibilityEnabled",
+          "recommendations.titleDataset",
           "home.communityActivityEnabled",
           "updates.releaseChannel",
           "updates.feedUrl",
@@ -11590,6 +11594,9 @@ export const schemas = {
                 "minimum": -9007199254740991,
                 "type": "integer"
               },
+              "recommendations.titleDataset": {
+                "type": "boolean"
+              },
               "remoteBitrateLimitKbps": {
                 "maximum": 9007199254740991,
                 "minimum": -9007199254740991,
@@ -11819,6 +11826,7 @@ export const schemas = {
               "playHistoryDays",
               "apiRequestsPerMinute",
               "integrations.compatibilityEnabled",
+              "recommendations.titleDataset",
               "home.communityActivityEnabled",
               "updates.releaseChannel",
               "updates.feedUrl",
@@ -12110,6 +12118,9 @@ export const schemas = {
                 "minimum": -9007199254740991,
                 "type": "integer"
               },
+              "recommendations.titleDataset": {
+                "type": "boolean"
+              },
               "remoteBitrateLimitKbps": {
                 "maximum": 9007199254740991,
                 "minimum": -9007199254740991,
@@ -12339,6 +12350,7 @@ export const schemas = {
               "playHistoryDays",
               "apiRequestsPerMinute",
               "integrations.compatibilityEnabled",
+              "recommendations.titleDataset",
               "home.communityActivityEnabled",
               "updates.releaseChannel",
               "updates.feedUrl",
@@ -42939,6 +42951,9 @@ export const schemas = {
                 "minimum": -9007199254740991,
                 "type": "integer"
               },
+              "recommendations.titleDataset": {
+                "type": "boolean"
+              },
               "remoteBitrateLimitKbps": {
                 "maximum": 9007199254740991,
                 "minimum": -9007199254740991,
@@ -43168,6 +43183,7 @@ export const schemas = {
               "playHistoryDays",
               "apiRequestsPerMinute",
               "integrations.compatibilityEnabled",
+              "recommendations.titleDataset",
               "home.communityActivityEnabled",
               "updates.releaseChannel",
               "updates.feedUrl",
@@ -43459,6 +43475,9 @@ export const schemas = {
                 "minimum": -9007199254740991,
                 "type": "integer"
               },
+              "recommendations.titleDataset": {
+                "type": "boolean"
+              },
               "remoteBitrateLimitKbps": {
                 "maximum": 9007199254740991,
                 "minimum": -9007199254740991,
@@ -43688,6 +43707,7 @@ export const schemas = {
               "playHistoryDays",
               "apiRequestsPerMinute",
               "integrations.compatibilityEnabled",
+              "recommendations.titleDataset",
               "home.communityActivityEnabled",
               "updates.releaseChannel",
               "updates.feedUrl",
