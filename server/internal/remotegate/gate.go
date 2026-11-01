@@ -237,10 +237,11 @@ func (p *Policy) Request(client netip.Addr, proxied bool, serverName, forwardedP
 	return false, ReasonHTTP
 }
 
-// Gate holds the live Policy and the refused-name record.
+// Gate holds the live Policy, the refused-name record and the refusal counts.
 type Gate struct {
-	policy  atomic.Pointer[Policy]
-	Refused *Refused
+	policy   atomic.Pointer[Policy]
+	Refused  *Refused
+	Refusals *Refusals
 }
 
 // New starts with the startup policy: until the settings document is
@@ -248,7 +249,7 @@ type Gate struct {
 // link-local and this machine's own private subnets (the default home
 // networks), so the people at home aren't locked out if settings can't load.
 func New() *Gate {
-	g := &Gate{Refused: NewRefused()}
+	g := &Gate{Refused: NewRefused(), Refusals: NewRefusals()}
 	g.policy.Store(StartupPolicy())
 	return g
 }
@@ -286,6 +287,14 @@ func (g *Gate) Record(name, reason string) {
 		return
 	}
 	g.Refused.Record(name, reason)
+}
+
+// Count notes one refused connection from outside, in every mode, for the
+// owner's security summary.
+func (g *Gate) Count(reason string) {
+	if g != nil {
+		g.Refusals.Count(reason)
+	}
 }
 
 // RecordProxy notes that a trusted proxy forwarded a request without a name,

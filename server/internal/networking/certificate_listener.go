@@ -97,10 +97,15 @@ func newDirectListener(inner net.Listener, manager *CertificateManager, override
 			// config holds no static certificates. From outside, in Enhanced,
 			// the name is noted for the owner's "refused addresses".
 			if errors.Is(err, errUnknownName) && l.config.Certificates == nil {
-				if g := l.gate.Load(); g != nil && hello.ServerName != "" && hello.Conn != nil {
+				if g := l.gate.Load(); g != nil && hello.Conn != nil {
 					peer := remotegate.PeerAddr(hello.Conn.RemoteAddr())
 					if p := g.Policy(); p != nil && !p.Home(peer) && !p.Proxy(peer) {
-						g.Record(hello.ServerName, remotegate.ReasonCertificate)
+						if hello.ServerName == "" {
+							g.Count(remotegate.ReasonIP)
+						} else {
+							g.Count(remotegate.ReasonCertificate)
+							g.Record(hello.ServerName, remotegate.ReasonCertificate)
+						}
 					}
 				}
 				return nil, nil
@@ -221,6 +226,7 @@ func (l *DirectListener) classifyConnection(c *countedTLSConn) {
 		peer := remotegate.PeerAddr(c.RemoteAddr())
 		switch g.Policy().Socket(peer, first[0] == 0x16) {
 		case remotegate.Refuse:
+			g.Count(remotegate.ReasonAccess)
 			l.forget(c)
 			c.Close()
 			return
@@ -230,8 +236,13 @@ func (l *DirectListener) classifyConnection(c *countedTLSConn) {
 			// with nothing written.
 			if first[0] >= 'A' && first[0] <= 'Z' {
 				if request, err := http.ReadRequest(bufio.NewReader(&limitedReader{r: reader, n: 8 << 10})); err == nil {
+					g.Count(remotegate.NameReason(request.Host, remotegate.ReasonHTTP))
 					g.Record(request.Host, remotegate.ReasonHTTP)
+				} else {
+					g.Count(remotegate.ReasonHTTP)
 				}
+			} else {
+				g.Count(remotegate.ReasonHTTP)
 			}
 			l.forget(c)
 			c.Close()

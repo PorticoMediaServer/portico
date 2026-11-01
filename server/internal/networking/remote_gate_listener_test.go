@@ -117,6 +117,25 @@ func overTLS(t *testing.T, s gatedServer, serverName string) (string, error) {
 	return string(body), nil
 }
 
+// counted waits briefly for the listener's own goroutines to finish counting.
+func counted(t *testing.T, g *remotegate.Gate, want map[string]int64) {
+	t.Helper()
+	var by map[string]int64
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		_, by = g.Refusals.Totals(24)
+		same := true
+		for _, reason := range remotegate.RefusalReasons {
+			if by[reason] != want[reason] {
+				same = false
+			}
+		}
+		if same {
+			return
+		}
+	}
+	t.Fatalf("refusals by reason: %v, want %v", by, want)
+}
+
 func refused(g *remotegate.Gate) []string {
 	names, _ := g.Refused.Snapshot()
 	out := []string{}
@@ -134,6 +153,10 @@ func TestRemoteGateEnhancedRefusesPlainHTTPFromOutsideWithNothing(t *testing.T) 
 	if got := refused(s.gate); len(got) != 1 || got[0] != "myserver.mydomain.example" {
 		t.Fatalf("refused names: %v", got)
 	}
+	if got := plain(t, s.addr, "203.0.113.1"); got != "" {
+		t.Fatalf("a refused connection by IP wrote %q", got)
+	}
+	counted(t, s.gate, map[string]int64{remotegate.ReasonHTTP: 1, remotegate.ReasonIP: 1})
 }
 
 func TestRemoteGateEnhancedAnswersHome(t *testing.T) {
@@ -171,6 +194,7 @@ func TestRemoteGateTLSNames(t *testing.T) {
 	if got := refused(s.gate); len(got) != 1 || got[0] != "media.example.org" {
 		t.Fatalf("refused names: %v", got)
 	}
+	counted(t, s.gate, map[string]int64{remotegate.ReasonCertificate: 1, remotegate.ReasonIP: 1})
 }
 
 func TestRemoteGateClosedRefusesEverythingFromOutside(t *testing.T) {
@@ -183,6 +207,7 @@ func TestRemoteGateClosedRefusesEverythingFromOutside(t *testing.T) {
 			if _, err := overTLS(t, s, "own.example.com"); err == nil {
 				t.Fatalf("%s/%s TLS answered", security, access)
 			}
+			counted(t, s.gate, map[string]int64{remotegate.ReasonAccess: 2})
 		}
 	}
 	// The tailnet counts as home in Private only and On; Off is home only.

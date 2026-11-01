@@ -350,6 +350,11 @@ type SecuritySummaryCounts struct {
 	FailedSignIns    int64 `json:"failedSignIns"`
 	BlockedSources   int64 `json:"blockedSources"`
 	NewRemoteDevices int64 `json:"newRemoteDevices"`
+	// Connections from outside the remote gate refused, in total and by
+	// reason (remotegate.RefusalReasons). The gate keeps them in memory, so
+	// the HTTP layer fills them in; they restart with the server.
+	RefusedConnections int64            `json:"refusedConnections"`
+	RefusedByReason    map[string]int64 `json:"refusedByReason"`
 }
 
 // SecurityBlock is one source the server is refusing right now. Network is the

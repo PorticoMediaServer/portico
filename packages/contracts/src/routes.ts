@@ -19825,7 +19825,7 @@ export const routes = [
     "id": "get_admin_security_summary",
     "method": "GET",
     "path": "/v1/admin/security/summary",
-    "summary": "Read failed sign-ins, blocked sources and new remote devices for the last day and week",
+    "summary": "Read refused connections, failed sign-ins, blocked sources and new remote devices for the last day and week",
     "access": "admin_scope",
     "adminScope": "security",
     "requires": "admin",

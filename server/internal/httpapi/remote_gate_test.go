@@ -305,3 +305,56 @@ func TestLegitimateSetups(t *testing.T) {
 		t.Fatal("Standard still refuses the DDNS name")
 	}
 }
+
+// Every refusal from outside is counted for the owner's security summary, by
+// reason, in any mode; home requests and admitted ones count nothing.
+func TestRefusedConnectionsReachTheSecuritySummary(t *testing.T) {
+	gate := remotegate.New()
+	f := administrationFixtureNewWith(t, func(d *Dependencies) { d.RemoteGate = gate })
+	const outside, proxy = "198.51.100.1:42", "203.0.113.9:42"
+	patchConnectivity(t, f, map[string]any{"accessUrls": []string{"https://media.example.com"}, "trustedProxies": []string{"203.0.113.9/32"}})
+	path := "/v1/networking/connection"
+	for _, q := range []gateRequest{
+		{url: "https://own.ns.portico.direct" + path, remote: outside, serverName: "own.ns.portico.direct"},
+		{url: "https://evil.example" + path, remote: outside, serverName: "own.ns.portico.direct"},
+		{url: "http://media.example.com" + path, remote: outside},
+		{url: "http://198.51.100.200" + path, remote: outside},
+		{url: "http://10.0.0.5:8080" + path, remote: proxy, headers: map[string]string{"X-Forwarded-Proto": "https", "X-Forwarded-For": "198.51.100.77"}},
+		{url: "http://anything" + path, remote: "127.0.0.1:42"},
+	} {
+		serveGated(t, f.handler, q)
+	}
+	patchConnectivity(t, f, map[string]any{"remoteAccess": "off"})
+	serveGated(t, f.handler, gateRequest{url: "https://own.ns.portico.direct" + path, remote: outside, serverName: "own.ns.portico.direct"})
+
+	var summary struct {
+		Counts struct {
+			Last24Hours, Last7Days struct {
+				RefusedConnections int64            `json:"refusedConnections"`
+				RefusedByReason    map[string]int64 `json:"refusedByReason"`
+			}
+		} `json:"counts"`
+	}
+	w := home(f, "GET", "/v1/admin/security/summary", f.owner, "")
+	if w.Code != 200 {
+		t.Fatalf("summary %d %s", w.Code, w.Body)
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &summary); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]int64{"name": 1, "http": 1, "certificate": 0, "proxy": 1, "ip": 1, "access": 1}
+	for _, window := range []struct {
+		name string
+		got  map[string]int64
+		n    int64
+	}{{"24 h", summary.Counts.Last24Hours.RefusedByReason, summary.Counts.Last24Hours.RefusedConnections}, {"7 d", summary.Counts.Last7Days.RefusedByReason, summary.Counts.Last7Days.RefusedConnections}} {
+		if window.n != 5 || len(window.got) != len(want) {
+			t.Fatalf("%s: %d %v", window.name, window.n, window.got)
+		}
+		for reason, n := range want {
+			if window.got[reason] != n {
+				t.Errorf("%s %s: %d, want %d", window.name, reason, window.got[reason], n)
+			}
+		}
+	}
+}
