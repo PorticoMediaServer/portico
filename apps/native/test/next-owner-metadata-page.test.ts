@@ -32,6 +32,7 @@ async function fixture(legacy = false) {
     '../../../kit/theme': {useTheme: () => ({colors: {text: '#fff', textSecondary: '#aaa'}, type: {caption: {}}})},
     '../use-settings-request-scope': {useSettingsRequestScope: () => scope}, '../owner-libraries/controls': {LibraryGroup: 'LibraryGroup', LibraryRow: 'LibraryRow', SectionTitle: 'SectionTitle'},
     './AdvancedSection': {NativeAdvancedSection: 'NativeAdvancedSection'}, './metadata-controller': {NativeMetadataController: Controller},
+    './TitleDatasetGroup': {NativeTitleDatasetGroup: 'NativeTitleDatasetGroup'},
   });
   const props = {ports: {context: {serverName: 'Server', account: {canManage: true, account: {role: 'owner', primaryProfileId: 'owner'}}}},
     runtime: {text: {t}, reportError() {}, error: () => ({title: 'Error'})}, onLibraries: () => calls.push('libraries')};
@@ -48,6 +49,10 @@ test('Metadata exposes only published settings and routes row edits through the 
   assert.deepEqual(f.writes, [{includeAdult: false}, {defaultLanguage: 'fr'}]);
   const libraryLink = nodes(tree).find(value => value.props.label === t(settingsRowIndex.get('metadata.perLibrary')!.row.label))!;
   libraryLink.props.onPress(); assert.deepEqual(f.calls, ['libraries']);
+  // Recommendations (the title dataset switch) sits after Subtitle search, before Advanced.
+  const children = nodes(tree).map(value => value.type);
+  assert.ok(children.includes('NativeTitleDatasetGroup'));
+  assert.ok(children.indexOf('NativeTitleDatasetGroup') < children.indexOf('NativeAdvancedSection'));
   const legacy = await fixture(true), older = legacy.render();
   assert.equal(byId(older, 'metadata.online'), undefined); assert.equal(byId(older, 'metadata.language'), undefined); assert.ok(byId(older, 'metadata.adult'));
 });

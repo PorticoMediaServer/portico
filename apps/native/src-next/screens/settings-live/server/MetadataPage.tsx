@@ -16,6 +16,7 @@ import type {NativeSettingsLivePorts} from '../ports';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
 import {LibraryGroup, LibraryRow, SectionTitle} from '../owner-libraries/controls';
 import {NativeAdvancedSection} from './AdvancedSection';
+import {NativeTitleDatasetGroup} from './TitleDatasetGroup';
 import {NativeMetadataController, type MetadataPatch} from './metadata-controller';
 import {settingsPageHeading, settingsPageInset} from './page-layout';
 
@@ -110,6 +111,7 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
         <LibraryRow label={t(row('metadata.osStatus').label)} help={subtitles.downloads} value={subtitles.text}/>
         <LibraryRow label={t(row('metadata.osTest').label)} trailing={<Button variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) void controller.checkOpenSubtitles(settings);}}>{t(row('metadata.osTest').control.label!)}</Button>}/>
       </LibraryGroup>
+      <NativeTitleDatasetGroup ports={ports} runtime={runtime}/>
       <NativeAdvancedSection testID="server-metadata-advanced" summary={`${artworkLimitText(settings.localArtworkLimitBytes)} GB · ${settings.artworkMaxEdge} px`}>
         {advanced && <><SectionTitle>{advancedTitle(0)}</SectionTitle><LibraryGroup>
           {select('metadata.refresh', advanced.refreshPolicy, value => ({refreshPolicy: value as typeof advanced.refreshPolicy}), true)}

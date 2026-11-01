@@ -13,6 +13,7 @@ import type {NativeSettingsLivePorts} from '../ports';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
 import {NativeMetadataController, type MetadataPatch} from './metadata-controller';
 import {TVChoiceRow, TVEntryRow, TVSwitchRow} from './TVSettingRows';
+import {NativeTitleDatasetGroup} from './TitleDatasetGroup';
 
 type Translate = typeof defaultI18n.t;
 const section = settingsSpec.find(value => value.scope === 'server' && value.id === 'metadata');
@@ -31,10 +32,10 @@ export function TVMetadataPanel({ports, runtime}: {ports: NativeSettingsLivePort
     const controller = new NativeMetadataController(scope.api, current); setOwned({controller, scope}); void controller.load();
     return () => controller.dispose();
   }, [scope, current]);
-  return owned && owned.scope === scope ? <Panel controller={owned.controller} current={current} runtime={runtime}/> : <StateView title={runtime.text.t('status.loading')}/>;
+  return owned && owned.scope === scope ? <Panel controller={owned.controller} current={current} runtime={runtime} ports={ports}/> : <StateView title={runtime.text.t('status.loading')}/>;
 }
 
-function Panel({controller, current, runtime}: {controller: NativeMetadataController; current: () => boolean; runtime: NativeShellRuntime}) {
+function Panel({controller, current, runtime, ports}: {controller: NativeMetadataController; current: () => boolean; runtime: NativeShellRuntime; ports: NativeSettingsLivePorts}) {
   const theme = useTheme(), t = runtime.text.t as Translate;
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), settings = state.data;
   const [advanced, setAdvanced] = useState(false);
@@ -94,6 +95,7 @@ function Panel({controller, current, runtime}: {controller: NativeMetadataContro
       <Row key="metadata.osTest" label={t(row('metadata.osTest').label)} control={<Button testID="metadata.osTest" variant="glass" size="small" disabled={blocked}
         onPress={() => {if (current()) void controller.checkOpenSubtitles(settings);}}>{t(row('metadata.osTest').control.label!)}</Button>}/>,
     ])}
+    <NativeTitleDatasetGroup ports={ports} runtime={runtime} tv/>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 24}}>
       <Button testID="tv-server-metadata-advanced" variant="glass" size="small" trailingIcon={advanced ? 'i-up' : 'i-down'} onPress={() => setAdvanced(value => !value)}>{t('settings.section.advanced')}</Button>
     </View>
