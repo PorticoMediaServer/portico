@@ -90,9 +90,11 @@ func TestRetiredCleanupCheckInCannotEraseOrRetireServerData(t *testing.T) {
 	if _, err := f.db.Exec(`INSERT INTO hosted_membership_sync(singleton,acked,full_pending) VALUES(1,0,0) ON CONFLICT(singleton) DO UPDATE SET full_pending=0`); err != nil {
 		t.Fatal(err)
 	}
+	// The retired cleanup fields are unknown to this server. Hosted's plain responses decode open
+	// (R-09b), so they are ignored like any added field: the check-in succeeds and they never act.
 	err = f.runner.Do(ctx, func(ctx context.Context) error { _, err := f.service.ordinaryControlStep(ctx); return err })
-	if !errors.Is(err, networking.ErrInvalid) || transport.calls != 1 {
-		t.Fatalf("retired heartbeat fields were not refused: calls=%d, error=%v", transport.calls, err)
+	if err != nil || transport.calls != 1 {
+		t.Fatalf("a check-in carrying retired fields: calls=%d, error=%v", transport.calls, err)
 	}
 	if after := departureRetentionState(t, f); after != before {
 		t.Fatalf("retired directives changed data: %s -> %s", before, after)
