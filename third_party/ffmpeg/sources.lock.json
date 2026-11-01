@@ -665,6 +665,6 @@
   },
   "autodetectPolicy": {
     "path": "third_party/ffmpeg/autodetect.v1.json",
-    "sha256": "db864cf2515029badcab264d4b7f27570027633e88028e06f70807d22480bcc6"
+    "sha256": "515bd58e6ffd784a2110465b22a13d69f846b9b42141268382206c9cc974b02b"
   }
 }

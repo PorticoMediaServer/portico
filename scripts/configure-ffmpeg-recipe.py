@@ -29,7 +29,7 @@ if target.startswith('windows'):
     # HAVE_OPENCL_DXVA2 block (where FFmpeg defines this macro) is disabled.
     flags += ' --enable-dxva2 --enable-mediafoundation --enable-schannel --enable-d3d11va --enable-d3d12va --enable-opencl --extra-cflags=-DCOBJMACROS'
 if target == 'linux-arm64':
-    flags += ' --enable-rkmpp --enable-rkrga --enable-v4l2-m2m'
+    flags += ' --enable-rkmpp --enable-rkrga --enable-v4l2-m2m --enable-amf'
 if target.startswith('macos'):
     import runpy
     mac_source = runpy.run_path(str(root / 'scripts/macos-ffmpeg-source.py'))
