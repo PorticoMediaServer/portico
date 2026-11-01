@@ -43,15 +43,19 @@ PYPATCH
  fi
 }
 export PKG_CONFIG_PATH="$WORKSPACE/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+source "$CWD/portico-build-macos-zvbi.sh"
+if declare -F portico_time_start >/dev/null; then portico_time_start portico-libdovi; fi
+python3 "$CWD/portico-build-macos-libdovi.py" build --recipe "$CWD" --prefix "$WORKSPACE" \
+ --target "${PORTICO_FFMPEG_TARGET:?}" --tools "$CWD/../native-rust-tools"
 portico_clone soxr
 portico_cmake -DWITH_OPENMP=OFF -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 portico_clone fontconfig
 portico_meson -Dtests=disabled -Dtools=disabled -Ddoc=disabled -Dxml-backend=libxml2
 portico_clone dvdread
 portico_disc_patch libdvdread-no-decryption.patch
-portico_meson -Ddefault_library=static -Dlibdvdcss=disabled
+portico_meson -Dlibdvdcss=disabled
 portico_clone dvdnav
-portico_meson -Ddefault_library=static
+portico_meson
 portico_clone udfread
 portico_meson -Denable_examples=false
 portico_clone bluray

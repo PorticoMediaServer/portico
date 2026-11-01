@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -14,6 +15,40 @@ REQUIREMENTS = Path(__file__).with_name('requirements-ffmpeg-meson.txt')
 
 
 class MesonPin(unittest.TestCase):
+    def test_every_mac_extra_passes_the_wrapper_static_option_exactly_once(self):
+        import re
+        script = Path(__file__).with_name('build-macos-ffmpeg-extras.sh').read_text()
+        start = script.index('portico_meson() {\n')
+        function = script[start:script.index('\n}\n', start) + 3]
+        def arguments(text):
+            with tempfile.TemporaryDirectory() as temporary:
+                trace = Path(temporary) / 'arguments'
+                stub = ('meson(){ printf "%s\\0" "$@" >> "$TRACE"; printf "\\036" >> "$TRACE"; }; '
+                        'ninja(){ :; }; WORKSPACE="/prefix with spaces"; PORTICO_BUILD_JOBS=2; TRACE="$1";\n')
+                calls = '\n'.join(re.findall(r'(?m)^portico_meson(?: .*)?$', text))
+                subprocess.run(['bash', '-eu', '-c', stub + function + '\n' + calls, 'control', str(trace)], check=True)
+                return [row.rstrip(b'\0').split(b'\0') for row in trace.read_bytes().split(b'\x1e') if row]
+        rows = arguments(script)
+        self.assertGreaterEqual(len(rows), 6)
+        for row in rows:
+            self.assertEqual(sum(x.startswith((b'--default-library=', b'-Ddefault_library=')) for x in row), 1)
+            self.assertIn(b'--default-library=static', row)
+            self.assertIn(b'--prefix=/prefix with spaces', row)
+        old = script.replace('\nportico_meson\n', '\nportico_meson -Ddefault_library=static\n')
+        self.assertNotEqual(old, script)
+        self.assertTrue(any(sum(x.startswith((b'--default-library=', b'-Ddefault_library=')) for x in row) > 1
+                            for row in arguments(old)))
+
+    def test_source_lock_shared_media_engine_and_actual_wheel_cannot_drift(self):
+        M.shared_meson(REQUIREMENTS)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); source = root / 'source.json'; media = root / 'media.json'
+            for ffmpeg_version, media_version in [('1.7.0', '1.12.1'), ('1.12.1', '1.7.0')]:
+                source.write_text(json.dumps({'macosRecipe': {'pythonBuildTools': {'meson': ffmpeg_version}}}))
+                media.write_text(json.dumps({'tools': {'meson': {'version': media_version}}}))
+                with self.subTest(source=ffmpeg_version, media=media_version), self.assertRaises(ValueError):
+                    M.shared_meson(REQUIREMENTS, source, media)
+
     def test_windows_and_arm_linux_use_shared_versions_without_changing_x64_linux(self):
         canonical = Path(__file__).resolve().parents[1] / 'third_party/media-engine/sources.lock.json'
         versions = json.loads(canonical.read_text())['tools']
@@ -86,6 +121,7 @@ class MesonPin(unittest.TestCase):
             with self.assertRaises(ValueError):
                 M.recipe(recipe, REQUIREMENTS)
 
+    @unittest.skipUnless(os.environ.get('PORTICO_NETWORK_BUILD_TOOL_CONTROL') == '1', 'Separate hosted wheel installation control')
     def test_actual_hashed_wheel_install_and_installed_receipt(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); env = root / 'python'
