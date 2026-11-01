@@ -19,6 +19,8 @@ if target.startswith('windows'):
     flags += ' --enable-d3d11va --enable-d3d12va --enable-opencl --extra-cflags=-DCOBJMACROS'
 if target == 'linux-arm64':
     flags += ' --enable-rkmpp --enable-rkrga --enable-v4l2-m2m'
+    import runpy
+    runpy.run_path(str(root / 'scripts/repeat-btbn-ffmpeg.py'))['configure'](recipe)
 if target.startswith('macos'):
     flags += ' --enable-videotoolbox --enable-metal'
     # Extras are built from the pinned source recipes into this private prefix.

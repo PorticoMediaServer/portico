@@ -6,14 +6,16 @@ import subprocess
 import zipfile
 
 
-def round_fingerprint(prefix, source):
+def round_fingerprint(prefix, source, target='windows-x64'):
+    if target not in ('windows-x64', 'linux-arm64'):
+        raise ValueError('unsupported repeat compile target')
     no_links(prefix)
     def digest(path):
         with path.open('rb') as stream:
             return hashlib.file_digest(stream, 'sha256').hexdigest()
     binaries = {}
     for name in ('ffmpeg', 'ffprobe', 'portico-disc'):
-        path = prefix / 'bin' / (name + '.exe')
+        path = prefix / 'bin' / (name + ('.exe' if target == 'windows-x64' else ''))
         if not path.is_file() or path.stat().st_size == 0:
             raise ValueError('repeat compile missing executable: ' + name)
         binaries[name] = digest(path)
@@ -22,12 +24,12 @@ def round_fingerprint(prefix, source):
     return {'sourceArchiveSHA256': digest(source), 'binaries': binaries}
 
 
-def repeat_rounds(first, second, source, first_fingerprint):
+def repeat_rounds(first, second, source, first_fingerprint, target='windows-x64'):
     if first.resolve() == second.resolve():
         raise ValueError('independent compiler output directories required')
-    if round_fingerprint(first, source) != first_fingerprint:
+    if round_fingerprint(first, source, target) != first_fingerprint:
         raise ValueError('first compile or source changed during the repeat')
-    if round_fingerprint(second, source) != first_fingerprint:
+    if round_fingerprint(second, source, target) != first_fingerprint:
         raise ValueError('repeated engine executable fingerprints differ')
     return [dict(round=index, **first_fingerprint) for index in (1, 2)]
 
