@@ -25,7 +25,7 @@ func TestPlaybackV1SessionConditionalGetIncludesLeaseAndObservedOutput(t *testin
 
 	// A same-state report changes the lease and renderer facts without
 	// invalidating a controller's command revision.
-	f.v1.Now = func() time.Time { return time.Now().Add(10 * time.Second) }
+	f.clockOffset.Store(int64(10 * time.Second))
 	actual := &playback.ObservedPlayback{Video: &playback.ObservedVideo{Width: 1280, Height: 720}}
 	h := newHTTPObserver(t, f.db, func(method, path string, body any) *httptest.ResponseRecorder {
 		return f.raw(method, path, f.owner.AccessToken, nil, body)

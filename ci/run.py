@@ -48,7 +48,7 @@ def classify(events, expected, returncode, allowed):
 def execute(args,cwd=ROOT):
     subprocess.run(args,cwd=cwd,check=True,timeout=900)
 
-def go(plan,index):
+def go(plan,index,report=None):
     validate_tags(plan)
     helper=ROOT/'ci-tools/portico-server'
     if not helper.is_file(): build_helper(plan)
@@ -61,9 +61,16 @@ def go(plan,index):
         workers=os.environ.get('PORTICO_CI_GO_PACKAGE_JOBS','4')
         if workers not in ('1','2','4'): raise ValueError('invalid Go package worker budget')
         args=['go','test','-json','-count=1','-p='+workers,'-timeout=780s','-tags',plan['tags']]
+        if os.environ.get('PORTICO_CI_GO_RACE')=='1': args+=['-race']
         if plan.get('tier')=='short': args+=['-short']
         if not whole: args+=['-run','^(?:'+'|'.join(re.escape(t['name']) for t in groups[0][1])+')$']
         args += [package for package,tests in groups]
+        if report is not None:
+            # A separate nightly observer retains the raw output and reports
+            # timing/incomplete execution; required CI keeps its strict verdict.
+            result,timed_out=report.run(args,ROOT/module)
+            report(module,groups,result,timed_out)
+            continue
         result=subprocess.run(args,cwd=ROOT/module,capture_output=True,text=True,timeout=900)
         try: events=[json.loads(line) for line in result.stdout.splitlines()]
         except ValueError: events=[]
