@@ -142,7 +142,7 @@ func searchRevision(ctx context.Context, q interface {
 }, r SearchRequest, ids string) (ContentRevision, string, error) {
 	var rev ContentRevision
 	var rows string
-	e := q.QueryRowContext(ctx, `SELECT COALESCE(sum(c),0),COALESCE(sum(v),0),COALESCE(json_group_array(json_array(id,c,v)),'[]') FROM (SELECT l.id,r.revision c,COALESCE(v.revision,0) v FROM libraries l JOIN library_revisions r ON r.library_id=l.id LEFT JOIN viewer_revisions v ON v.library_id=l.id AND v.profile_id=? WHERE (? OR l.id IN(SELECT value FROM json_each(?))) ORDER BY l.id)`, r.Profile, r.AllLibraries, ids).Scan(&rev.Catalog, &rev.Viewer, &rows)
+	e := q.QueryRowContext(ctx, `SELECT COALESCE(sum(c),0),COALESCE(sum(v),0),COALESCE(json_group_array(json_array(id,c,v)),'[]') FROM (SELECT l.id,r.revision+(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1) c,COALESCE(v.revision,0) v FROM libraries l JOIN library_revisions r ON r.library_id=l.id LEFT JOIN viewer_revisions v ON v.library_id=l.id AND v.profile_id=? WHERE (? OR l.id IN(SELECT value FROM json_each(?))) ORDER BY l.id)`, r.Profile, r.AllLibraries, ids).Scan(&rev.Catalog, &rev.Viewer, &rows)
 	return rev, fmt.Sprintf("%x", sha256.Sum256([]byte(rows))), e
 }
 

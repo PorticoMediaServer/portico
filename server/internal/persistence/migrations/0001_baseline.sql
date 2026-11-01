@@ -7206,21 +7206,6 @@ CREATE TRIGGER tvdb_publication_show_description AFTER UPDATE OF title,year,libr
 CREATE TRIGGER tvdb_publication_show_local_key AFTER UPDATE OF local_key ON catalog_shows BEGIN UPDATE tvdb_publication_heads SET descriptive_revision=descriptive_revision+1 WHERE show_id IN(OLD.entity_id,NEW.entity_id);END;
 CREATE TRIGGER tvdb_publication_show_scope AFTER UPDATE OF library_id ON catalog_entities WHEN NEW.kind=2 AND OLD.library_id IS NOT NEW.library_id BEGIN UPDATE tvdb_publication_heads SET source_revision=source_revision+1,hierarchy_revision=hierarchy_revision+1 WHERE show_id IN(OLD.id,NEW.id);END;
 CREATE TRIGGER tvdb_show_created AFTER INSERT ON catalog_entities WHEN NEW.kind=2 BEGIN INSERT OR IGNORE INTO tvdb_jobs(show_id) VALUES(NEW.id);END;
-CREATE TRIGGER visibility_dirty_rating_age_delete AFTER DELETE ON content_rating_ages BEGIN
- UPDATE library_revisions SET revision=revision+1 WHERE library_id IN
- (SELECT DISTINCT cl.library_id FROM catalog_item_attribute_edges e JOIN catalog_attribute_terms t ON t.id=e.term_id JOIN catalog_attribute_fields f ON f.id=t.field_id JOIN catalog_entities ce ON ce.id=e.item_id JOIN catalog_libraries cl ON cl.id=ce.library_id
-  WHERE f.field='contentRating' AND t.value_key=OLD.value_key);
-END;
-CREATE TRIGGER visibility_dirty_rating_age_insert AFTER INSERT ON content_rating_ages BEGIN
- UPDATE library_revisions SET revision=revision+1 WHERE library_id IN
- (SELECT DISTINCT cl.library_id FROM catalog_item_attribute_edges e JOIN catalog_attribute_terms t ON t.id=e.term_id JOIN catalog_attribute_fields f ON f.id=t.field_id JOIN catalog_entities ce ON ce.id=e.item_id JOIN catalog_libraries cl ON cl.id=ce.library_id
-  WHERE f.field='contentRating' AND t.value_key=NEW.value_key);
-END;
-CREATE TRIGGER visibility_dirty_rating_age_update AFTER UPDATE OF minimum_age ON content_rating_ages WHEN OLD.minimum_age IS NOT NEW.minimum_age BEGIN
- UPDATE library_revisions SET revision=revision+1 WHERE library_id IN
- (SELECT DISTINCT cl.library_id FROM catalog_item_attribute_edges e JOIN catalog_attribute_terms t ON t.id=e.term_id JOIN catalog_attribute_fields f ON f.id=t.field_id JOIN catalog_entities ce ON ce.id=e.item_id JOIN catalog_libraries cl ON cl.id=ce.library_id
-  WHERE f.field='contentRating' AND t.value_key=NEW.value_key);
-END;
 CREATE INDEX audio_local_evidence_asset_id_fk ON audio_local_evidence(asset_id);
 CREATE INDEX book_resume_item_id_fk ON book_resume(item_id);
 CREATE INDEX book_resume_book_id_fk ON book_resume(book_id);

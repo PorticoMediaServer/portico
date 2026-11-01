@@ -59,6 +59,8 @@ type restrictionProjection struct {
 	mu       sync.Mutex
 	revision int64
 	loaded   bool
+	after    string
+	started  bool
 }
 
 // refreshRatingAges classifies the content-rating spellings the catalogue has
@@ -91,8 +93,13 @@ func (s *Service) ClassifyPendingRatings(ctx context.Context) (bool, error) {
 	// reads one differently, corrects them here, once.
 	if !s.state.ratings.loaded {
 		if persistence.Get(s.db, ratingTableKey) != identity.RatingTableVersion {
-			if err := reclassifyRatings(ctx, s.db); err != nil {
+			after, more, err := reclassifyRatingPage(ctx, s.db, s.state.ratings.after, s.state.ratings.started)
+			if err != nil {
 				return false, err
+			}
+			s.state.ratings.after, s.state.ratings.started = after, true
+			if more {
+				return true, nil
 			}
 			if _, err := dbwork.ExecWrite(ctx, s.db, dbwork.ClassBackgroundMedia, `INSERT INTO configuration VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, ratingTableKey, identity.RatingTableVersion); err != nil {
 				return false, err
@@ -105,26 +112,39 @@ func (s *Service) ClassifyPendingRatings(ctx context.Context) (bool, error) {
 
 const ratingTableKey = "rating_table_version"
 
-// reclassifyRatings judges every spelling already classified against the
-// current rating table and corrects the ones whose age changed. It runs once
-// after the table changes, so a title rated in a spelling the table has since
-// learned stops counting as unrated without a rescan. It reads the whole table
-// of spellings on purpose: that table has one row per distinct rating in the
-// library, not per title, and this is not a per-item step.
-func reclassifyRatings(ctx context.Context, db *sql.DB) error {
+// reclassifyRatingPage resumes the spelling-key walk after a rating table
+// change. The cursor advances only after the page's writes commit. A restarted
+// service may repeat pages safely; it records the table version only at EOF.
+func reclassifyRatingPage(ctx context.Context, db *sql.DB, after string, started bool) (string, bool, error) {
 	ctx = dbwork.WithClass(ctx, dbwork.ClassBackgroundMedia)
-	rows, err := dbwork.ReadHandle(ctx, db).QueryContext(ctx, `SELECT value_key,minimum_age FROM content_rating_ages`)
+	query := `SELECT value_key,minimum_age FROM content_rating_ages`
+	args := []any{}
+	if started {
+		query += ` WHERE value_key>?`
+		args = append(args, after)
+	}
+	query += ` ORDER BY value_key LIMIT ?`
+	args = append(args, compactcatalog.RatingClassificationBatch+1)
+	rows, err := dbwork.ReadHandle(ctx, db).QueryContext(ctx, query, args...)
 	if err != nil {
-		return err
+		return after, false, err
 	}
 	changed := map[string]int{}
+	n, last := 0, after
+	more := false
 	for rows.Next() {
 		var key string
 		var stored int
 		if err = rows.Scan(&key, &stored); err != nil {
 			rows.Close()
-			return err
+			return after, false, err
 		}
+		if n == compactcatalog.RatingClassificationBatch {
+			more = true
+			break
+		}
+		n++
+		last = key
 		minimum := -1
 		if resolved, ok := identity.RatingAge(key); ok {
 			minimum = resolved
@@ -135,10 +155,13 @@ func reclassifyRatings(ctx context.Context, db *sql.DB) error {
 	}
 	err = rows.Err()
 	rows.Close()
-	if err != nil || len(changed) == 0 {
-		return err
+	if err != nil {
+		return after, false, err
 	}
-	return dbwork.WithWriteTx(ctx, db, dbwork.ClassBackgroundMedia, func(tx *sql.Tx) error {
+	if len(changed) == 0 {
+		return last, more, nil
+	}
+	err = dbwork.WithWriteTx(ctx, db, dbwork.ClassBackgroundMedia, func(tx *sql.Tx) error {
 		for key, minimum := range changed {
 			if _, err := tx.ExecContext(ctx, `UPDATE content_rating_ages SET minimum_age=? WHERE value_key=?`, minimum, key); err != nil {
 				return err
@@ -146,6 +169,10 @@ func reclassifyRatings(ctx context.Context, db *sql.DB) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return after, false, err
+	}
+	return last, more, nil
 }
 
 // itemRestrictionClause compiles the three clauses for one item-id expression.
