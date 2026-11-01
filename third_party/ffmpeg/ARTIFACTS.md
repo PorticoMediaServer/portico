@@ -189,3 +189,12 @@ acceptance hold; this version alignment is not a claim of fully pinned bootstrap
 inputs. It applies to the next required build, without restarting a running one.
 The toolchain's `controlsOnly` dispatch exercises source/refusal tests and skips
 both construction and native qualification; it cannot produce an engine.
+
+ARM64 Linux's BtbN recipe also builds the required libdovi from the existing
+checked archive, both Cargo locks and complete offline vendor. It uses the
+shared C ABI hash and crate/Rust notice collector, preserves its runtime receipt
+and notice tree through the static packaging variant, and selects the same
+repository Rust/cargo-c versions as Windows. The standalone Linux x64 builder
+and Windows default selection remain separate. This functional dependency
+addition does not establish complete ARM compiler-source or native media
+acceptance; those remain explicit qualification gates.

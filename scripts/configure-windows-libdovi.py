@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add the already locked libdovi dependency to the Windows source recipe."""
+"""Add checked libdovi to Windows or ARM64 Linux BtbN source recipes."""
 import argparse
 import hashlib
 import json
@@ -14,7 +14,9 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def configure(recipe):
+def configure(recipe, target='windows-x64'):
+    if target not in ('windows-x64', 'windows-arm64', 'linux-arm64'):
+        raise ValueError('unsupported BtbN libdovi target')
     lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())['libdovi']
     contract = ROOT / lock['contract']
     supplements = ROOT / lock['licenseSupplements']['path']
@@ -39,7 +41,7 @@ def configure(recipe):
 SCRIPT_REPO="https://github.com/quietvoid/dovi_tool.git"
 SCRIPT_COMMIT="@COMMIT@"
 
-ffbuild_enabled() { [[ $TARGET == win* ]]; }
+ffbuild_enabled() { @ENABLED@; }
 ffbuild_depends() { echo base; }
 
 ffbuild_dockerdl() {
@@ -86,7 +88,7 @@ stage, prefix, target = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sy
 contract = json.loads((stage / 'contract.json').read_text())
 header = prefix / 'include/libdovi/rpu_parser.h'
 if hashlib.sha256(header.read_bytes()).hexdigest() != contract['cAbi']['headerSha256']:
-    raise ValueError('Windows libdovi C ABI header differs from the checked contract')
+    raise ValueError('libdovi C ABI header differs from the checked contract')
 runpy.run_path(str(stage / 'collect.py'))['inside'](stage, prefix, target)
 record = json.loads((stage / 'compiler-and-licenses.json').read_text())
 record.pop('oracleFeatures', None)
@@ -103,6 +105,7 @@ ffbuild_configure() { echo --enable-libdovi; }
 ffbuild_unconfigure() { echo --disable-libdovi; }
 '''
     values = {'COMMIT': lock['commit'], 'URL': lock['source'], 'SOURCE_SHA': lock['sha256'],
+              'ENABLED': '[[ $TARGET == linuxarm64 ]]' if target == 'linux-arm64' else '[[ $TARGET == win* ]]',
               'ROOT_LOCK': lock['cargoLocks']['Cargo.lock'], 'CRATE_LOCK': lock['cargoLocks']['dolby_vision/Cargo.lock'],
               'COLLECTOR_SHA': digest(stage / 'collect.py'), 'CONTRACT_SHA': lock['contractSHA256'],
               'SUPPLEMENTS_SHA': lock['licenseSupplements']['sha256']}
@@ -126,15 +129,17 @@ ffbuild_unconfigure() { echo --disable-libdovi; }
         raise ValueError('pinned final notice copy hook changed')
     build.write_text(text.replace(marker, marker + '    cp -R /opt/ffbuild/LICENSES /ffbuild/prefix/\n'
         '    cp /opt/ffbuild/share/doc/ffmpeg/libdovi-build.json /ffbuild/prefix/share/doc/ffmpeg/\n', 1))
-    variant = recipe / 'variants/windows-install-static.sh'
+    variant = recipe / ('variants/linux-install-static.sh' if target == 'linux-arm64' else 'variants/windows-install-static.sh')
     text = variant.read_text()
     marker = '    cp "$IN"/bin/* "$OUT"/bin\n'
     if text.count(marker) != 1:
-        raise ValueError('pinned static Windows notice hook changed')
+        raise ValueError('pinned static BtbN notice hook changed')
     variant.write_text(text.replace(marker, marker + '    cp -R "$IN"/LICENSES "$OUT"/\n', 1))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('recipe', type=Path)
-    configure(parser.parse_args().recipe.resolve())
+    parser.add_argument('--target', choices=('windows-x64', 'windows-arm64', 'linux-arm64'), default='windows-x64')
+    args = parser.parse_args()
+    configure(args.recipe.resolve(), args.target)

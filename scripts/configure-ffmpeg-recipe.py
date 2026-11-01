@@ -47,9 +47,10 @@ if target.startswith('macos'):
 import subprocess
 subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'recipe', '--recipe', recipe,
                 '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt', '--target', target], check=True)
-if target.startswith('windows'):
+if target.startswith('windows') or target == 'linux-arm64':
     import subprocess
-    subprocess.run([sys.executable, root / 'scripts/configure-windows-libdovi.py', recipe], check=True)
+    subprocess.run([sys.executable, root / 'scripts/configure-windows-libdovi.py', recipe, '--target', target], check=True)
+if target.startswith('windows'):
     subprocess.run([sys.executable, root / 'scripts/configure-windows-rav1e.py', recipe], check=True)
 # Shaderc's install staging predates TMPDIR support. Keep even that temporary
 # tree in the job's on-disk bind mount, including inside the compiler container.
