@@ -627,17 +627,15 @@ jobs:
     if: needs.identity.outputs.release == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    # Provenance attestations go to the public Sigstore log, so they are written only when the
+    # release is published (release-published.yml), never for a draft.
     permissions:
       contents: write
-      id-token: write
-      attestations: write
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with: {name: release-files, path: dist}
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with: {name: release-seal, path: dist}
-      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
-        with: {subject-path: 'dist/*'}
       - name: Draft release
         env:
           GH_TOKEN: ${{ github.token }}
