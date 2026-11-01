@@ -104,9 +104,25 @@ class Contract(unittest.TestCase):
             self.assertIn('SCRIPT_COMMIT="' + pin['commit'] + '"', raw)
         with tempfile.TemporaryDirectory(dir=os.environ.get('RUNNER_TEMP')) as temporary:
             work = Path(temporary)
-            source = work / 'jellyfin/builder/scripts.d'; source.mkdir(parents=True)
-            for name in ('50-rkmpp.sh', '50-rkrga.sh'):
-                (source / name).write_text(upstream('jellyfin/jellyfin-ffmpeg', lock['ffmpeg']['commit'], 'builder/scripts.d/' + name))
+            archive = work / 'source.tar.gz'
+            with urllib.request.urlopen(lock['ffmpeg']['source'], timeout=60) as response, archive.open('wb') as output:
+                total = 0
+                while chunk := response.read(1024**2):
+                    total += len(chunk)
+                    if total > 64 * 1024**2: raise ValueError('source-control archive bound exceeded')
+                    output.write(chunk)
+            spec = importlib.util.spec_from_file_location('prepare', ROOT / 'scripts/prepare-ffmpeg-source.py')
+            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+            module.prepare(archive, work / 'jellyfin', lock)
+            # --list exits before compiler/dependency probes. These are real
+            # pinned configure component lists, not fabricated config headers.
+            # The generated pre-make gate separately checks effective headers.
+            for kind, expected in [('encoders', ['libopus', 'libtheora', 'libmp3lame', 'h264_mf']),
+                    ('decoders', ['h264_cuvid', 'hevc_cuvid']), ('filters', ['drawtext']),
+                    ('protocols', ['https', 'tls', 'libsrt']), ('hwaccels', ['h264_dxva2', 'h264_nvdec'])]:
+                available = subprocess.check_output(['bash', 'configure', '--list-' + kind],
+                                                   cwd=work / 'jellyfin', text=True, timeout=30).split()
+                self.assertTrue(set(expected) <= set(available), kind + ': ' + str(expected))
             pristine = work / 'btbn'; pristine.mkdir()
             for args in (('init', '--quiet'), ('remote', 'add', 'origin', lock['btbn']['repository']),
                     ('fetch', '--quiet', '--depth=1', 'origin', lock['btbn']['commit']), ('checkout', '--quiet', '--detach', 'FETCH_HEAD')):
