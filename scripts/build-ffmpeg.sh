@@ -224,7 +224,7 @@ if [[ -f "$WORK/meson-tool.json" ]]; then cp "$WORK/meson-tool.json" "$WORK/prov
 cp -R "$ROOT/third_party/ffmpeg/patches" "$WORK/provenance/contract/"
 cp "$ROOT/scripts/build-ffmpeg.sh" "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$ROOT/scripts/patch-btbn-winarm64-system-error.sh" "$ROOT/scripts/prepare-ffmpeg-source.py" "$ROOT/scripts/archive-ffmpeg-source.py" "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/build-portico-disc.py" "$ROOT/scripts/build-macos-ffmpeg-extras.sh" "$WORK/provenance/scripts/"
-cp "$ROOT/scripts/engine-prefix-cache.py" "$ROOT/scripts/macos-dependency-cache.py" "$WORK/provenance/scripts/"
+cp "$ROOT/scripts/engine-prefix-cache.py" "$ROOT/scripts/engine-dependency-cache.py" "$ROOT/scripts/macos-dependency-cache.py" "$WORK/provenance/scripts/"
 if [[ "$TARGET" == linux-arm64 ]]; then cp "$ROOT/scripts/engine-registry-cache.py" "$ROOT/scripts/repeat-btbn-ffmpeg.py" "$ROOT/scripts/engine-final-cache.py" "$ROOT/scripts/fetch-engine.py" "$WORK/provenance/scripts/"; fi
 cp "$ROOT/scripts/verify-ffmpeg-bundle.sh" "$ROOT/scripts/verify-ffmpeg-manifest.py" "$ROOT/scripts/verify-ffmpeg-features.py" "$ROOT/scripts/verify-disc-bundle.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-bluray.py" "$WORK/provenance/scripts/"
