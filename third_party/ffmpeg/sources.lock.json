@@ -507,7 +507,7 @@
   ],
   "sourceDateEpoch": 1790508678,
   "linuxSourceBuild": {
-    "compilerImage": "ghcr.io/btbn/ffmpeg-builds/base-linux64@sha256:b25a69b08be0bf5feee8315740259f53caf5e8cc9e01e5bf9ff351cd0b550f0f",
+    "compilerImage": "ghcr.io/porticomediaserver/ffmpeg-base-linux64@sha256:fa86b2845524170871766de2061b54974e1ef0ac5b4bdc2401b494c3f46d5968",
     "compilerImagePolicy": "Immutable compiler only; FFmpeg and linked media dependencies are built from the pinned sources. No prebuilt FFmpeg.",
     "roots": [
       "libiconv",
@@ -637,5 +637,9 @@
   "sourceAuthority": {
     "path": "third_party/ffmpeg/source-authority.v1.json",
     "sha256": "b18fe5233d355b158c4f59d18962484e092973437a663befd4a5ac95d2ddc554"
+  },
+  "compilerImages": {
+    "path": "third_party/ffmpeg/compiler-images.lock.json",
+    "sha256": "9c830e8ca8ce2fadae4f0da241101466eeabfa09649b62a679c773bebd89d0fe"
   }
 }

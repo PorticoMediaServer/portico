@@ -1,0 +1,111 @@
+name: Preserve pinned FFmpeg compilers
+on:
+  workflow_dispatch:
+    inputs:
+      preserve:
+        description: Copy the reviewed exact indexes to Portico GHCR (main only)
+        type: boolean
+        default: false
+  push:
+    branches: [rebuild/D-compiler-pins-r1]
+    paths:
+      - '.github/workflows/ffmpeg-compiler-custody.yml'
+      - 'scripts/preserve-ffmpeg-compilers.py'
+      - 'scripts/test-preserve-ffmpeg-compilers.py'
+      - 'third_party/ffmpeg/compiler-images.lock.json'
+      - 'third_party/ffmpeg/sources.lock.json'
+permissions:
+  contents: read
+concurrency:
+  group: ffmpeg-compiler-custody-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  metadata:
+    if: github.repository == 'PorticoMediaServer/portico'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {target: linux64, runner: ubuntu-24.04}
+          - {target: win64, runner: ubuntu-24.04}
+          - {target: linuxarm64, runner: ubuntu-24.04-arm}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - run: python scripts/test-preserve-ffmpeg-compilers.py
+      - name: Inspect the exact upstream index and installed compiler metadata
+        env: {COMPILER_TARGET: '${{ matrix.target }}'}
+        run: python scripts/preserve-ffmpeg-compilers.py inspect --target "$COMPILER_TARGET" --work "$RUNNER_TEMP/compiler-metadata"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: compiler-metadata-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/compiler-metadata/*.json
+          retention-days: 14
+  catalogue:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache: false}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - working-directory: server
+        run: go mod download
+      - name: Regenerate the licence catalogue from the new source-lock input
+        env: {GOMAXPROCS: '2', GOFLAGS: '-p=2'}
+        run: node --experimental-strip-types web/scripts/licences.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: compiler-pin-licence-catalogue-${{ github.sha }}
+          path: web/src/generated/licences.json
+          retention-days: 7
+  preserve:
+    needs: metadata
+    if: github.repository == 'PorticoMediaServer/portico' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.preserve
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux64, win64, linuxarm64]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - name: Install the registry-copy utility and record its package version
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y skopeo
+          skopeo --version
+          dpkg-query -W skopeo
+      - name: Preserve exact compiler indexes without replacing any existing tag
+        env:
+          REGISTRY_AUTH_FILE: ${{ runner.temp }}/registry-auth.json
+          GH_TOKEN: ${{ github.token }}
+          COMPILER_TARGET: ${{ matrix.target }}
+        run: |
+          trap 'skopeo logout --authfile "$REGISTRY_AUTH_FILE" ghcr.io >/dev/null 2>&1 || true' EXIT
+          printf '%s' "$GH_TOKEN" | skopeo login --authfile "$REGISTRY_AUTH_FILE" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          python scripts/preserve-ffmpeg-compilers.py preserve --target "$COMPILER_TARGET" --work "$RUNNER_TEMP/compiler-preserved"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: compiler-preservation-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/compiler-preserved/*.json
+            ${{ runner.temp }}/compiler-preserved/*.digest
+            ${{ runner.temp }}/compiler-preserved/*.tar
+          compression-level: 0
+          retention-days: 14

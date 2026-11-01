@@ -216,6 +216,7 @@ if [[ "$TARGET" == linux-x64 ]]; then
   cp "$ROOT/scripts/reuse-ffmpeg-protocol-objects.py" "$WORK/provenance/scripts/"
   cp "$ROOT/scripts/capture-ffmpeg-compiler.py" "$WORK/provenance/scripts/"
   cp "$ROOT/scripts/collect-ffmpeg-licenses.py" "$WORK/provenance/scripts/"
+  cp "$ROOT/scripts/preserve-ffmpeg-compilers.py" "$WORK/provenance/scripts/"
   cp "$ROOT/scripts/build-linux-libdovi.py" "$WORK/provenance/scripts/"
   mkdir -p "$WORK/provenance/libdovi"
   cp -a "$LANE_SCRATCH/libdovi/sources" "$WORK/provenance/libdovi/sources"

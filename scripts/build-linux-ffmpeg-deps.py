@@ -62,7 +62,7 @@ def container(recipe, work, config, stages, jobs):
     source_network = os.environ.get('PORTICO_BUILD_SOURCE_NETWORK', 'bridge')
     if source_network not in ('bridge', 'host'):
         raise ValueError('Unsupported public source-intake container network')
-    if not re.fullmatch(r'ghcr\.io/btbn/ffmpeg-builds/base-linux64@sha256:[0-9a-f]{64}', image):
+    if not re.fullmatch(r'ghcr\.io/porticomediaserver/ffmpeg-base-linux64@sha256:[0-9a-f]{64}', image):
         raise ValueError('An immutable Linux compiler image is required')
     for directory in ['sources', 'build', 'prefix', 'dest', 'tmp', 'licenses', 'receipts', 'extra']:
         (work / directory).mkdir(parents=True, exist_ok=True)
@@ -254,6 +254,10 @@ def main():
         return
     root = Path(__file__).resolve().parent.parent
     lock = json.loads((root / 'third_party/ffmpeg/sources.lock.json').read_text())
+    import runpy
+    compiler_pins = runpy.run_path(str(root / 'scripts/preserve-ffmpeg-compilers.py'))['lock']()
+    if lock['linuxSourceBuild']['compilerImage'] != compiler_pins['images']['linux64']['mirror']:
+        raise ValueError('Linux compiler image differs from its reviewed preservation pin')
     config = {**lock['linuxSourceBuild'], 'sourceDateEpoch': lock['sourceDateEpoch']}
     jobs = int(os.environ.get('PORTICO_BUILD_JOBS', '2'))
     if jobs not in (1, 2):
