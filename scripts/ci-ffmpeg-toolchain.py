@@ -202,6 +202,8 @@ def stage_timings(work, scratch, target):
 
 
 def build(target, work):
+    if os.environ.get('PORTICO_ENGINE_BUILD_CONTEXT', 'development') != 'development':
+        raise ValueError('development-only producer refuses qualified/release/publisher contexts')
     receipt = dict(schemaVersion=1, target=target, **context(), qualified=False, release=False,
                    cold=True, startedUTC=time.strftime('%FT%TZ', time.gmtime()), phases={})
     work.mkdir(parents=True, exist_ok=False)

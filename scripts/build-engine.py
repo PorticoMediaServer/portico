@@ -189,8 +189,8 @@ def main():
     p.add_argument('--repeat-compiles', action='store_true',
                    help='force two actual final compiles and compare all three executable hashes')
     a = p.parse_args()
-    provenance = execution_context(a.context)
     registry = registry_cache.RegistryCache(a.target)
+    provenance = execution_context(a.context)
     # Re-exec the entire lifetime under the machine's existing lock. No queue.
     if a.context == 'local' and os.environ.get('PORTICO_ENGINE_LOCKED') != '1':
         env = dict(os.environ, PORTICO_ENGINE_LOCKED='1')
