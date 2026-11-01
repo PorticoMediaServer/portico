@@ -1267,6 +1267,7 @@ table dvr_rules
 table dvr_storage_policy
 table enrichment_domains
 table enrichment_jobs
+table enrichment_state
 table episode_asset_boundaries
 table episodic_sources
 table feedback_details

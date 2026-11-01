@@ -72,7 +72,7 @@ func TestScreenLinksFollowTheAcceptedMovieIdentity(t *testing.T) {
 		t.Fatalf("refreshed links: %q / %q", similar, external)
 	}
 	// Other sources' lists are not the screen publication's to replace.
-	publicationExec(t, db, `INSERT INTO catalog_similar VALUES(?,'portico-dataset',1,'tmdb','movie','5')`, item.ID)
+	publicationExec(t, db, `INSERT INTO catalog_similar(entity_id,source,rank,provider,provider_kind,provider_id) VALUES(?,'portico-dataset',1,'tmdb','movie','5')`, item.ID)
 
 	// An explicit unmatch retires the identity and its links with it.
 	tx, err := db.BeginTx(ctx, nil)
@@ -190,7 +190,7 @@ func TestScreenLinksRetireWhenTheOwnerPicksAnotherTVDBShow(t *testing.T) {
 		t.Fatal(e)
 	}
 	publicationExec(t, db, `UPDATE screen_metadata_work SET provider='tvdb',provider_type='show',provider_id='42' WHERE target_kind='show' AND target_id=?;
-INSERT INTO catalog_similar VALUES(?,'tmdb',1,'tmdb','tv','1396');
+INSERT INTO catalog_similar(entity_id,source,rank,provider,provider_kind,provider_id) VALUES(?,'tmdb',1,'tmdb','tv','1396');
 INSERT INTO catalog_external_ids VALUES(?,'tvdb','series','42')`, show.ID, show.ID, show.ID)
 	state, e := s.TVDBState(show.Public)
 	if e != nil {

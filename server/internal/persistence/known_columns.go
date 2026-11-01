@@ -1966,6 +1966,7 @@ catalog_similar.provider
 catalog_similar.provider_id
 catalog_similar.provider_kind
 catalog_similar.rank
+catalog_similar.relation
 catalog_similar.source
 catalog_song_artists.artist_id
 catalog_song_artists.song_id
@@ -2673,6 +2674,11 @@ enrichment_domains.domain
 enrichment_domains.error
 enrichment_domains.version
 enrichment_jobs.entity_id
+enrichment_state.failures
+enrichment_state.id
+enrichment_state.retry_at
+enrichment_state.seed
+enrichment_state.sequence
 episode_asset_boundaries.asset_id
 episode_asset_boundaries.item_id
 episode_asset_boundaries.status

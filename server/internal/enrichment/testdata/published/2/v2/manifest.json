@@ -1,0 +1,27 @@
+{
+ "domains": {
+  "screen": {
+   "dataset_version": "2026.45",
+   "deltas": [
+    {
+     "base_version": "2026.44",
+     "bytes": 2340,
+     "sha256": "0a1e138fb956d223dcf451f246b6c88aa2de08d58fedd0422ece8bc42dd73c95",
+     "url": "screen/2026.44..2026.45.sqlite.gz",
+     "version": "2026.45"
+    }
+   ],
+   "full": {
+    "bytes": 2328,
+    "sha256": "a464d67b0721634ec87bd7a31cf07ba057dbbc1d793b3064b30f18bc810f6ed9",
+    "url": "screen/2026.45.sqlite.gz",
+    "version": "2026.45"
+   },
+   "vocabulary_version": 2
+  }
+ },
+ "issued_at": "2026-11-01T02:37:38Z",
+ "key_id": "cfe00e9efea2cd1d",
+ "schema_version": 2,
+ "sequence": 2
+}

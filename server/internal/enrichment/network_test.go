@@ -53,7 +53,7 @@ func TestDatasetManifestSignaturePreservesEscapedPathAndQuery(t *testing.T) {
 	for _, path := range []string{"/releases%2F2026/manifest.json", "/releases%2f2026/manifest%2ejson"} {
 		t.Run(path, func(t *testing.T) {
 			publisher := newPublisher(t)
-			body, err := json.Marshal(Manifest{SchemaVersion: SchemaVersion, Domains: map[string]ManifestDomain{}})
+			body, err := json.Marshal(Manifest{SchemaVersion: SchemaVersion, Sequence: 1, KeyID: KeyID(publisher.public), Domains: map[string]ManifestDomain{}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -99,13 +99,11 @@ func TestDatasetRedirectsAndAssetsRequireTheHTTPSPublicOrigin(t *testing.T) {
 			if _, err := s.get(context.Background(), s.cfg.ManifestURL, 4096); err == nil || requests != 1 {
 				t.Fatal("unsafe redirect reached a second request", err, requests)
 			}
-			// Independent signed HTTPS asset origins and ports remain valid;
-			// the other forms fail before their first request too.
-			if destination != "https://other.example/asset" && destination != "https://dataset.example:444/asset" {
-				requests = 0
-				if _, err := s.download(context.Background(), ManifestFile{URL: destination, Bytes: 1}); err == nil || requests != 0 {
-					t.Fatal("unsafe signed asset URL reached transport", err, requests)
-				}
+			// A signed file URL is relative to the manifest: every absolute
+			// form fails before its first request.
+			requests = 0
+			if _, err := s.download(context.Background(), ManifestFile{URL: destination, Bytes: 1}); err == nil || requests != 0 {
+				t.Fatal("absolute signed asset URL reached transport", err, requests)
 			}
 		})
 	}

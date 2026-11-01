@@ -29,6 +29,13 @@ type publisher struct {
 	files   map[string][]byte
 	domains map[string]ManifestDomain
 	tamper  bool
+	// sequence and keyID go into the signed manifest (defaults: 1 and the
+	// publisher's own key); signer, when set, signs instead of key.
+	sequence int64
+	keyID    string
+	signer   ed25519.PrivateKey
+	status   int            // when set, every request answers it
+	requests map[string]int // by path
 }
 
 func newPublisher(t *testing.T) *publisher {
@@ -36,11 +43,25 @@ func newPublisher(t *testing.T) *publisher {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &publisher{t: t, key: private, public: public, files: map[string][]byte{}, domains: map[string]ManifestDomain{}}
+	return &publisher{t: t, key: private, public: public, files: map[string][]byte{}, domains: map[string]ManifestDomain{}, sequence: 1, requests: map[string]int{}}
+}
+
+func (p *publisher) manifest() []byte {
+	keyID := p.keyID
+	if keyID == "" {
+		keyID = KeyID(p.public)
+	}
+	manifest, _ := json.Marshal(Manifest{SchemaVersion: SchemaVersion, Sequence: p.sequence, IssuedAt: "2026-11-01T00:00:00Z", KeyID: keyID, Domains: p.domains})
+	return manifest
 }
 
 func (p *publisher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	manifest, _ := json.Marshal(Manifest{SchemaVersion: SchemaVersion, Domains: p.domains})
+	p.requests[r.URL.Path]++
+	if p.status != 0 {
+		w.WriteHeader(p.status)
+		return
+	}
+	manifest := p.manifest()
 	switch r.URL.Path {
 	case "/manifest.json":
 		if p.tamper {
@@ -48,7 +69,11 @@ func (p *publisher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Write(manifest)
 	case "/manifest.json.sig":
-		w.Write([]byte(base64.StdEncoding.EncodeToString(ed25519.Sign(p.key, manifest)) + "\n"))
+		signer := p.key
+		if p.signer != nil {
+			signer = p.signer
+		}
+		w.Write([]byte(base64.StdEncoding.EncodeToString(ed25519.Sign(signer, manifest)) + "\n"))
 	default:
 		body, ok := p.files[r.URL.Path]
 		if !ok {
@@ -75,7 +100,7 @@ func (p *publisher) build(name, kind, version string, fill func(t *testing.T, db
 	}
 	mustExec(p.t, db, `INSERT INTO kinds VALUES(1,'movie'),(2,'show'),(3,'artist'),(4,'album'),(5,'book')`)
 	mustExec(p.t, db, `INSERT INTO providers VALUES(1,'tmdb','movie'),(2,'tmdb','tv'),(3,'tvdb','series'),(4,'tvdb','movie'),(5,'anilist','anime'),(6,'imdb','title')`)
-	mustExec(p.t, db, `INSERT INTO meta VALUES('kind',?),('dataset_version',?),('schema_version','1')`, kind, version)
+	mustExec(p.t, db, `INSERT INTO meta VALUES('kind',?),('dataset_version',?),('schema_version','2')`, kind, version)
 	fill(p.t, db)
 	db.Close()
 	raw, err := os.ReadFile(path)
@@ -104,7 +129,7 @@ func screenV1(t *testing.T, db *sql.DB) {
 	mustExec(t, db, `INSERT INTO works VALUES(47703,1,0,0,1,2,1995,70,'Heat'),(1197379,1,0,0,1,2,1981,30,'Thief'),(223596,1,0,0,1,2,2004,60,'Collateral')`)
 	mustExec(t, db, `INSERT INTO work_ids VALUES(1,949,47703),(6,'tt0113277',47703),(1,11524,1197379),(1,1538,223596)`)
 	mustExec(t, db, `INSERT INTO work_tags VALUES(47703,1,3),(47703,2,3),(47703,3,1),(1197379,2,2),(223596,1,2)`)
-	mustExec(t, db, `INSERT INTO work_similar VALUES(47703,1,223596),(47703,2,1197379)`)
+	mustExec(t, db, `INSERT INTO work_similar VALUES(47703,1,223596,1),(47703,2,1197379,5)`)
 	mustExec(t, db, `INSERT INTO work_sources VALUES(47703,1,'en',123456)`)
 }
 
@@ -122,8 +147,6 @@ func TestDatasetImportMatchesByProviderIdAndFeedsRecommendations(t *testing.T) {
 	c.Drain()
 	p := newPublisher(t)
 	full := p.build("screen-1", "full", "2026.09.26", screenV1)
-	// The signed manifest may publish assets on a separate HTTPS CDN origin.
-	full.URL = "https://cdn.example/" + full.URL
 	p.domains["screen"] = ManifestDomain{DatasetVersion: "2026.09.26", VocabularyVersion: 1, Full: full}
 	s := publisherService(c.DB, p, t.TempDir())
 	if _, err := s.Step(context.Background(), 100); err != nil {
@@ -154,14 +177,14 @@ func TestDatasetImportMatchesByProviderIdAndFeedsRecommendations(t *testing.T) {
 	// Similar titles by the target's provider id (Collateral isn't in the
 	// library: the link is kept and resolves when it arrives).
 	var similar []string
-	rows, _ = c.DB.Query(`SELECT provider||':'||provider_kind||':'||provider_id FROM catalog_similar WHERE entity_id=? AND source='portico-dataset' ORDER BY rank`, heat.ID)
+	rows, _ = c.DB.Query(`SELECT provider||':'||provider_kind||':'||provider_id||':'||relation FROM catalog_similar WHERE entity_id=? AND source='portico-dataset' ORDER BY rank`, heat.ID)
 	for rows.Next() {
 		var v string
 		rows.Scan(&v)
 		similar = append(similar, v)
 	}
 	rows.Close()
-	if len(similar) != 2 || similar[0] != "tmdb:movie:1538" || similar[1] != "tmdb:movie:11524" {
+	if len(similar) != 2 || similar[0] != "tmdb:movie:1538:tone" || similar[1] != "tmdb:movie:11524:creator" {
 		t.Fatalf("Heat's similar titles: %v", similar)
 	}
 	var label string
