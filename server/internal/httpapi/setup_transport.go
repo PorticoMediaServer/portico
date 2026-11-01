@@ -181,7 +181,9 @@ func (d Dependencies) setupStartOver(ctx context.Context, r *http.Request) (Brow
 		return BrowserSetupResponse{}, setupTransportError(err)
 	}
 	if d.Networking != nil {
-		if _, err := d.Networking.RetireSetupClaim(ctx); err != nil {
+		if _, err := d.Networking.RetireSetupClaim(ctx); errors.Is(err, networking.ErrSetupComplete) {
+			return BrowserSetupResponse{}, setupTransportError(identity.ErrConflict)
+		} else if err != nil {
 			return BrowserSetupResponse{}, &apierror.Error{Code: "portico_services_unavailable", Cause: err}
 		}
 	}
