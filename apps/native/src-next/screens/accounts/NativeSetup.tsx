@@ -42,6 +42,9 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
   const [username, setUsername] = useState(''), [password, setPassword] = useState(''), [confirm, setConfirm] = useState('');
   const [notNow, setNotNow] = useState(false);
   const [chosen, setChosen] = useState<'hosted' | 'local'>(target.server.hostedConfigured ? 'hosted' : 'local');
+  // O-169, step 1 continued: unset follows the sign-in kind (On for Portico Accounts, Off for local sign-in).
+  const [accessChoice, setAccessChoice] = useState<'on' | 'private' | 'off'>(), [securityChoice, setSecurityChoice] = useState<'enhanced' | 'standard'>('enhanced');
+
   // Admitted: setup's own part is over, and the first library follows in the shell.
   useEffect(() => {if (view.kind === 'library' || view.kind === 'done') onAdmitted(target.server.id);}, [view.kind, onAdmitted, target.server.id]);
   useEffect(() => {if (view.kind !== 'awaiting_approval') setNotNow(false);}, [view.kind]);
@@ -93,6 +96,8 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
     }
     case 'form': case 'starting': {
       const starting = view.kind === 'starting';
+      const remoteAccess = accessChoice ?? (view.mode === 'local' || chosen === 'local' ? 'off' : 'on');
+      const remote = {remoteAccess, remoteSecurity: securityChoice} as const;
       if (view.mode === 'local') {
         const valid = !!name.trim() && /^[^\s@]{3,64}$/.test(username.trim()) && passwordStrength(password).acceptable && password === confirm;
         return <Layout testID="accounts-setup" title={t('web.setup.ownerTitle')} body={t('web.setup.localSignInBody')}
@@ -101,7 +106,7 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
             <PasswordStrengthMeter key="strength" password={password}/>{field(t('accounts.signIn.confirmPassword'), confirm, setConfirm, 'new-password')}
             {caption(t('accounts.setup.localRecovery'), 'recovery')}</View>}
           primaryAction={{id: 'create-owner', label: t('web.setup.createOwner'), disabled: busy || starting || !valid, loading: busy || starting,
-            onPress: () => {const secret = password; setPassword(''); setConfirm(''); controller.submitLocal(name.trim(), username.trim(), secret);}}}
+            onPress: () => {const secret = password; setPassword(''); setConfirm(''); controller.submitLocal(name.trim(), username.trim(), secret, remote);}}}
           secondaryAction={back}/>;
       }
       return <Layout testID="accounts-setup" title={t('accounts.setup.title')} body={t('accounts.setup.at', {address: new URL(target.origin).host})}
@@ -112,9 +117,25 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
               onPress={() => setChosen(mode)} style={{padding: 14, borderWidth: 1, borderRadius: 14, borderColor: chosen === mode ? theme.colors.accentStrong : theme.colors.line}}>
               <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{t(mode === 'hosted' ? 'accounts.settings.portico' : 'web.setup.localSignIn')}{mode === 'hosted' ? ' · ' + t('web.setup.recommended') : ''}</Text>
               {caption(t(mode === 'hosted' ? 'web.setup.porticoBody' : 'web.setup.localSignInBody'))}
-            </Focusable>)}</View></View>}
+            </Focusable>)}</View>
+          {caption(t('web.setup.remoteAccess'), 'remote-access')}
+          <View key="remote-access-choices" style={{flexDirection: 'row', gap: 8}}>{(['on', 'private', 'off'] as const).map(value =>
+            <Focusable key={value} testID={`setup-remote-${value}`} accessibilityRole="radio" accessibilityState={{checked: remoteAccess === value}} disabled={busy || starting}
+              onPress={() => setAccessChoice(value)} style={{flex: 1, alignItems: 'center', paddingVertical: 10, borderWidth: 1, borderRadius: 12, borderColor: remoteAccess === value ? theme.colors.accentStrong : theme.colors.line}}>
+              <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{t(value === 'on' ? 'web.setup.remoteOn' : value === 'private' ? 'web.setup.remotePrivate' : 'web.setup.remoteOff')}</Text>
+            </Focusable>)}</View>
+          {caption(t(remoteAccess === 'private' ? 'web.setup.remotePrivateHelp' : 'web.setup.remoteHomeHelp'), 'remote-help')}
+          {remoteAccess === 'on' && <View key="remote-security" style={{gap: 12}}>
+            {caption(t('web.setup.remoteSecurity'), 'remote-security-title')}
+            {(['enhanced', 'standard'] as const).map(value =>
+              <Focusable key={value} testID={`setup-security-${value}`} accessibilityRole="radio" accessibilityState={{checked: securityChoice === value}} disabled={busy || starting}
+                onPress={() => setSecurityChoice(value)} style={{padding: 14, borderWidth: 1, borderRadius: 14, borderColor: securityChoice === value ? theme.colors.accentStrong : theme.colors.line}}>
+                <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{t(value === 'enhanced' ? 'web.setup.enhanced' : 'web.setup.standard')}{value === 'enhanced' ? ' · ' + t('web.setup.recommended') : ''}</Text>
+                {caption(t(value === 'enhanced' ? 'web.setup.enhancedBody' : 'web.setup.standardBody'))}
+              </Focusable>)}
+          </View>}</View>}
         primaryAction={{id: 'setup-continue', label: t('action.continue'), disabled: busy || starting || !name.trim(), loading: busy || starting,
-          onPress: () => {if (chosen === 'local') controller.chooseKind('local'); else controller.submitHosted(name.trim(), {navigate: !signedIn});}}}
+          onPress: () => {if (chosen === 'local') controller.chooseKind('local'); else controller.submitHosted(name.trim(), {navigate: !signedIn, remote});}}}
         secondaryAction={back}/>;
     }
   }

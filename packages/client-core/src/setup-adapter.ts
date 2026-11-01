@@ -193,7 +193,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
-    async initializeHosted(name, context) {
+    async initializeHosted(name, context, remote) {
       const p = await pair(context.signal);
       if (!issued || issued.serverId !== p.pin.serverId) throw changed();
       const token = issued.setupToken, store = records(p);
@@ -201,14 +201,15 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
       let record = (await store.read()).record;
       await assertPaired(p);
       if (!record || record.setupToken !== token || record.authMode !== 'hosted') {
-        const fresh: SetupRecord = Object.freeze({version: 2, serverId: p.pin.serverId, requestId: newRequestId(), setupToken: token, tokenAt: now(), name, authMode: 'hosted'});
+        const fresh: SetupRecord = Object.freeze({version: 2, serverId: p.pin.serverId, requestId: newRequestId(), setupToken: token, tokenAt: now(), name, authMode: 'hosted', ...remote});
         if (!await store.change({requestId: record?.requestId}, {record: fresh})) throw changed();
         record = fresh;
       }
       await assertPaired(p);
       try {
         const session = parseSetupSession(await tokenApi(p, token).request(routePath('setup_server'), 'POST',
-          routeBody('setup_server', {requestId: record.requestId, setupToken: token, name: record.name, authMode: 'hosted', interactive: true}), context.signal), p.pin.serverId);
+          routeBody('setup_server', {requestId: record.requestId, setupToken: token, name: record.name, authMode: 'hosted', interactive: true,
+            ...(record.remoteAccess ? {remoteAccess: record.remoteAccess} : {}), ...(record.remoteSecurity ? {remoteSecurity: record.remoteSecurity} : {})}), context.signal), p.pin.serverId);
         await assertPaired(p);
         if (!('claimRequired' in session) || session.requestId !== record.requestId) throw changed();
         own = {requestId: session.requestId, revision: session.revision};
@@ -219,13 +220,13 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
-    async initializeLocal(name, credentials: SetupCredentials, context) {
+    async initializeLocal(name, credentials: SetupCredentials, context, remote) {
       const p = await pair(context.signal);
       if (!issued || issued.serverId !== p.pin.serverId) throw changed();
       try {
         const session = parseSetupSession(await tokenApi(p, issued.setupToken).request(routePath('setup_server'), 'POST',
           routeBody('setup_server', {requestId: newRequestId(), setupToken: issued.setupToken, name, username: credentials.username.trim(), password: credentials.password,
-            authMode: 'local', interactive: true}), context.signal), p.pin.serverId);
+            authMode: 'local', interactive: true, ...remote}), context.signal), p.pin.serverId);
         await assertPaired(p);
         if ('claimRequired' in session) throw changed();
         pendingLocal = session;

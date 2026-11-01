@@ -33,7 +33,7 @@ function fakeController(initialView: any) {
     subscribe(listener: () => void) {listeners.add(listener); return () => {listeners.delete(listener);};},
     start: () => record('start'),
     submitHosted: (name: string, options: any) => record('submitHosted', name, options),
-    submitLocal: (name: string, username: string, password: string) => record('submitLocal', name, username, password),
+    submitLocal: (name: string, username: string, password: string, remote?: unknown) => record('submitLocal', name, username, password, remote),
     chooseKind: (mode: string) => record('chooseKind', mode),
     back: () => record('back'),
     startAgain: () => record('startAgain'),
@@ -102,7 +102,8 @@ async function fixture(options: FixtureOptions) {
     fake: () => made.at(-1)!,
     find, all,
     layout: () => find('PhoneAccountForm'),
-    radios: () => all('Focusable').filter(node => node.props.accessibilityRole === 'radio'),
+    radios: () => all('Focusable').filter(node => node.props.accessibilityRole === 'radio' && !String(node.props.testID ?? '').startsWith('setup-')),
+    choice: (id: string) => all('Focusable').find(node => node.props.testID === id),
     act: async (work: () => any) => {await work(); await host.settle();},
   };
 }
@@ -122,13 +123,22 @@ test('the choice preselects Portico Accounts and Continue submits hosted, naviga
     assert.match(textOf(radios[1]), /Local sign-in/);
     await hosted.act(() => hosted.layout().props.primaryAction.onPress());
     assert.equal(hosted.fake().count('submitHosted'), 1);
-    assert.deepEqual(hosted.fake().last('submitHosted')!.args, ['Studio', {navigate: true}]);
+    assert.deepEqual(hosted.fake().last('submitHosted')!.args, ['Studio', {navigate: true, remote: {remoteAccess: 'on', remoteSecurity: 'enhanced'}}]);
+    // O-169: Remote access On (Portico Accounts' default) shows Remote security, Enhanced preselected.
+    assert.equal(hosted.choice('setup-remote-on')!.props.accessibilityState.checked, true);
+    assert.equal(hosted.choice('setup-security-enhanced')!.props.accessibilityState.checked, true);
+    assert.match(textOf(hosted.choice('setup-security-enhanced')), /Remote connections require HTTPS, and Portico is only accessible from outside your network via Portico domains and addresses you add explicitly/);
+    await hosted.act(() => hosted.choice('setup-security-standard')!.props.onPress());
+    await hosted.act(() => hosted.choice('setup-remote-private')!.props.onPress());
+    assert.equal(hosted.choice('setup-security-enhanced'), undefined, 'Private only: no Remote security');
+    await hosted.act(() => hosted.layout().props.primaryAction.onPress());
+    assert.deepEqual(hosted.fake().last('submitHosted')!.args, ['Studio', {navigate: true, remote: {remoteAccess: 'private', remoteSecurity: 'standard'}}]);
   } finally {await hosted.host.unmount();}
 
   const signedIn = await fixture({view: view('form', {mode: 'choose', name: 'Studio'}), session: {account: {displayName: 'Justin', username: 'justin'}}});
   try {
     await signedIn.act(() => signedIn.layout().props.primaryAction.onPress());
-    assert.deepEqual(signedIn.fake().last('submitHosted')!.args, ['Studio', {navigate: false}],
+    assert.deepEqual(signedIn.fake().last('submitHosted')!.args, ['Studio', {navigate: false, remote: {remoteAccess: 'on', remoteSecurity: 'enhanced'}}],
       'an app Portico Account approves in place, so there is no browser trip');
   } finally {await signedIn.host.unmount();}
 });
@@ -173,7 +183,8 @@ test('the local owner form enables Create owner only for a valid username and a 
     assert.equal(f.layout().props.primaryAction.disabled, false);
     await f.act(() => f.layout().props.primaryAction.onPress());
     assert.equal(f.fake().count('submitLocal'), 1);
-    assert.deepEqual(f.fake().last('submitLocal')!.args, ['Studio', 'owner', password]);
+    assert.deepEqual(f.fake().last('submitLocal')!.args, ['Studio', 'owner', password, {remoteAccess: 'off', remoteSecurity: 'enhanced'}],
+      'local sign-in: Remote access Off unless chosen (O-169)');
     assert.equal(field(f, t('auth.password')).props.value, '');
     assert.equal(field(f, t('accounts.signIn.confirmPassword')).props.value, '');
     assert.equal(field(f, t('auth.username')).props.value, 'owner');

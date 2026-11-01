@@ -5,7 +5,7 @@ import type {LibraryContentApi} from '@core/library-content.ts';
 import type {SetupController} from '@core/setup-controller.ts';
 import type {SetupView} from '@core/setup-machine.ts';
 import {FolderPicker} from '../settings/libraries/FolderPicker';
-import {Button, TextField} from '../../kit/controls';
+import {Button, Segmented, TextField} from '../../kit/controls';
 import {AuthLoading, AuthStage} from '../../kit/accounts/AuthStage';
 import {ServicesStrength} from '../../kit/accounts/ServicesAuth';
 import {Icon} from '../../kit/Icon';
@@ -22,7 +22,9 @@ export type SetupScreenProps = Readonly<{
   libraryFolders?: LibraryContentApi;
   hostname?: string;
 }>;
-type Form = Readonly<{name?: string; username: string; password: string; confirm: string}>;
+type Form = Readonly<{name?: string; username: string; password: string; confirm: string;
+  /** O-169, step 1 continued. Unset follows the sign-in kind's default (On for Portico Accounts, Off for local sign-in). */
+  remoteAccess?: 'on' | 'private' | 'off'; remoteSecurity?: 'enhanced' | 'standard'}>;
 type Library = Readonly<{kind: SetupLibraryKind; name: string; path: string; folders?: readonly string[]; folderClasses?: Readonly<Record<string, 'local' | 'network'>>}>;
 
 /** First run (auth frames 1, 1c, 1d and 3), drawn from the setup controller's snapshot. The server decides every phase;
@@ -122,10 +124,12 @@ function SetupForm({controller, view, form, setForm, name, mode}: {controller: S
   const busy = view.kind === 'starting', hosted = mode === 'hosted', local = !hosted;
   const nameOk = setupNameValid(name), usernameOk = validLocalUsername(form.username), match = form.confirm === form.password;
   const canSubmit = nameOk && (hosted || usernameOk && localPasswordValid(form.password, form.confirm)) && !busy;
+  const remoteAccess = form.remoteAccess ?? (hosted ? 'on' : 'off'), remoteSecurity = form.remoteSecurity ?? 'enhanced';
+  const remote = {remoteAccess, remoteSecurity} as const;
   const submit = () => {
     if (!canSubmit) return;
-    if (hosted) controller.submitHosted(name.trim(), {navigate: true});
-    else controller.submitLocal(name.trim(), form.username.trim(), form.password);
+    if (hosted) controller.submitHosted(name.trim(), {navigate: true, remote});
+    else controller.submitLocal(name.trim(), form.username.trim(), form.password, remote);
   };
   return <form onSubmit={event => {event.preventDefault(); submit();}}>
     <h1 className={styles.one}>{t('web.setup.welcome')}</h1>
@@ -162,6 +166,23 @@ function SetupForm({controller, view, form, setForm, name, mode}: {controller: S
           autoComplete="new-password" required disabled={busy} error={Boolean(form.confirm) && !match ? t('web.setup.mismatch') : undefined}
           onChange={event => {const value = event.currentTarget.value; setForm(old => ({...old, confirm: value}));}}/></div>
       </div>
+    </>}
+    <div className={[styles.legend, styles.formLegend].join(' ')}>{t('web.setup.remoteAccess')}</div>
+    <Segmented aria-label={t('web.setup.remoteAccess')} value={remoteAccess} disabled={busy} className={styles.remoteAccess}
+      items={[{value: 'on', label: t('web.setup.remoteOn')}, {value: 'private', label: t('web.setup.remotePrivate')}, {value: 'off', label: t('web.setup.remoteOff')}]}
+      onValueChange={value => {if (value === 'on' || value === 'private' || value === 'off') setForm(old => ({...old, remoteAccess: value}));}}/>
+    <p className={styles.quiet}>{t(remoteAccess === 'private' ? 'web.setup.remotePrivateHelp' : 'web.setup.remoteHomeHelp')}</p>
+    {remoteAccess === 'on' && <>
+      <div className={[styles.legend, styles.formLegend].join(' ')}>{t('web.setup.remoteSecurity')}</div>
+      <RadioGroup.Root orientation="vertical" aria-label={t('web.setup.remoteSecurity')} value={remoteSecurity} disabled={busy}
+        onValueChange={value => {if (value === 'enhanced' || value === 'standard') setForm(old => ({...old, remoteSecurity: value}));}}>
+        {(['enhanced', 'standard'] as const).map(value => <RadioGroup.Item key={value} value={value} className={remoteSecurity === value ? styles.choice : styles.qopt}>
+          <span className={styles.choiceIcon} aria-hidden="true"><Icon name={value === 'enhanced' ? 'i-shield' : 'i-globe'} size={22}/></span>
+          <span className={styles.choiceCopy}><b>{t(value === 'enhanced' ? 'web.setup.enhanced' : 'web.setup.standard')}{value === 'enhanced' && <span className={styles.rec}>{t('web.setup.recommended')}</span>}</b>
+            <p>{t(value === 'enhanced' ? 'web.setup.enhancedBody' : 'web.setup.standardBody')}</p></span>
+          <span className={remoteSecurity === value ? styles.rad : styles.radOff} aria-hidden="true"/>
+        </RadioGroup.Item>)}
+      </RadioGroup.Root>
     </>}
     <div className={[styles.btnRow, local ? styles.btnRowTight : ''].filter(Boolean).join(' ')}>
       <Button variant="primary" size="hero" type="submit" loading={busy} disabled={!canSubmit}>

@@ -19,6 +19,8 @@ type Of<K extends SetupInput['kind']> = Extract<SetupInput, {kind: K}>;
 export type SetupPortContext = Readonly<{signal: AbortSignal; intentId: string}>;
 /** Handed to the one effect that needs them and held in memory only until that effect succeeds or the person leaves. */
 export type SetupCredentials = Readonly<{username: string; password: string}>;
+/** Step 1's choices about outside connections (O-169), sent with setup's initialize request. */
+export type SetupRemoteChoices = Readonly<{remoteAccess: 'on' | 'private' | 'off'; remoteSecurity: 'enhanced' | 'standard'}>;
 /** The first library, as entered: a folder path, or folders picked from the owner's own listing. */
 export type SetupLibrary = Readonly<{kind: string; name: string; path: string; folders?: readonly string[]}>;
 
@@ -35,9 +37,9 @@ export interface SetupPorts {
   /** S1. */
   start(context: SetupPortContext): Promise<Of<'startDone' | 'notLocalSource' | 'addressNotAllowed' | 'setupInProgress' | 'alreadyComplete' | 'tokenRefused'>>;
   /** S4. */
-  initializeHosted(name: string, context: SetupPortContext): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
+  initializeHosted(name: string, context: SetupPortContext, remote?: SetupRemoteChoices): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
   /** S5. */
-  initializeLocal(name: string, credentials: SetupCredentials, context: SetupPortContext): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
+  initializeLocal(name: string, credentials: SetupCredentials, context: SetupPortContext, remote?: SetupRemoteChoices): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
   /** S6, then binds the handoff in the store. */
   requestApproval(navigate: boolean, context: SetupPortContext): Promise<Of<'approvalReady' | 'tokenRefused' | 'alreadyComplete'>>;
   approveInApp(context: SetupPortContext): Promise<Of<'approvedInApp'>>;
@@ -77,9 +79,10 @@ export interface SetupController {
   subscribe(listener: () => void): () => void;
   /** Pair, read the local record and the server, and land where the reducer's reconcile rows say. */
   start(): void;
-  submitHosted(name: string, options: Readonly<{navigate: boolean}>): void;
+  /** `remote`: step 1's Remote access and Remote security (O-169); the server's defaults when absent. */
+  submitHosted(name: string, options: Readonly<{navigate: boolean; remote?: SetupRemoteChoices}>): void;
   /** The credentials go to the S5 port call and nowhere else. */
-  submitLocal(name: string, username: string, password: string): void;
+  submitLocal(name: string, username: string, password: string, remote?: SetupRemoteChoices): void;
   chooseKind(mode: SetupFormMode): void;
   back(): void;
   startAgain(): void;
@@ -126,7 +129,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
   const scheduler = options.scheduler ?? systemScheduler, wallNow = options.wallNow ?? Date.now, random = options.random ?? Math.random;
   const life = new AbortController();
   let view: SetupView = initialSetupView, foreground = options.foreground !== false, disposed = false;
-  let credentials: SetupCredentials | undefined, library: SetupLibrary | undefined;
+  let credentials: SetupCredentials | undefined, library: SetupLibrary | undefined, remote: SetupRemoteChoices | undefined;
   // The ids this controller last saw in the store: what a retire expects, so another tab's successor is never removed.
   let known: {requestId?: string; attemptId?: string} = {};
   let readWait: AbortController | undefined, readDueAt: number | undefined, readDeferred = false;
@@ -213,10 +216,10 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
     switch (effect.kind) {
       case 'read-state': return readServer(context);
       case 'start': return written(ports.start(context));
-      case 'initialize-hosted': return written(ports.initializeHosted(effect.name, context));
+      case 'initialize-hosted': return written(ports.initializeHosted(effect.name, context, remote));
       case 'initialize-local': {
         if (!credentials) return failureOf(effect, {code: 'credentials_missing', retryable: false});
-        const result = await written(ports.initializeLocal(effect.name, credentials, context));
+        const result = await written(ports.initializeLocal(effect.name, credentials, context, remote));
         credentials = undefined;
         return result;
       }
@@ -332,10 +335,14 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
       system.seed = {kind: 'start'};
       system.action.start();
     },
-    submitHosted(name, {navigate}) {intent({kind: 'submitHosted', name, navigate});},
-    submitLocal(name, username, password) {
+    submitHosted(name, {navigate, remote: choices}) {
+      if (!working(user)) remote = choices;
+      intent({kind: 'submitHosted', name, navigate});
+    },
+    submitLocal(name, username, password, choices) {
       if (disposed || working(user)) return;
       credentials = Object.freeze({username, password});
+      remote = choices;
       intent({kind: 'submitLocal', name});
     },
     chooseKind: mode => direct({kind: 'chooseKind', mode}),

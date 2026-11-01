@@ -6,7 +6,7 @@ import {HttpLocalApi, transportJSON, type LocalSession} from '../src/index.ts';
 import {AppSessionStore, type AppSessionRecord} from '../src/app-sessions.ts';
 import {setInstallationIdentity} from '../src/installation.ts';
 import {routeBase64, routeBytes, webRouteCrypto, type ServerPin} from '../src/route-identity.ts';
-import {createMemorySetupStore, type SetupAttempt, type SetupLocal, type SetupRecord, type SetupStore} from '../src/setup-store.ts';
+import {createMemorySetupStore, isUnreadable, parseSetupRecord, type SetupAttempt, type SetupLocal, type SetupRecord, type SetupStore} from '../src/setup-store.ts';
 import type {SetupPortContext} from '../src/setup-controller.ts';
 import {createSetupAdapter, type SetupAdapterDeps} from '../src/setup-adapter.ts';
 import {routePath} from '../../contracts/src/routes.ts';
@@ -295,4 +295,30 @@ test('the setup code the app shares uses no abort helper the app runtime lacks (
     const source = readFileSync(new URL('../src/' + file, import.meta.url), 'utf8').replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, '');
     assert.doesNotMatch(source, /AbortSignal\.(any|timeout)\s*\(/, file);
   }
+});
+
+test('setup sends step 1\'s Remote access and Remote security, and a retry sends the same (O-169)', async t => {
+  const f = await fixture(t);
+  await f.ports.readState(f.context());
+  assert.deepEqual(await f.ports.start(f.context()), {kind: 'startDone'});
+  assert.deepEqual(await f.ports.initializeHosted('Den', f.context(), {remoteAccess: 'private', remoteSecurity: 'standard'}), {kind: 'initializeDone'});
+  const setup = () => f.calls.filter(call => call.method === 'POST' && call.path === '/v1/setup');
+  const first = setup()[0]!.body as Record<string, unknown>;
+  assert.equal(first.remoteAccess, 'private');
+  assert.equal(first.remoteSecurity, 'standard');
+  // The saved record keeps them, so a retry (whatever the caller passes now) repeats the original request.
+  assert.deepEqual(await f.ports.initializeHosted('Den', f.context(), {remoteAccess: 'on', remoteSecurity: 'enhanced'}), {kind: 'initializeDone'});
+  assert.deepEqual(setup()[1]!.body, setup()[0]!.body);
+  // Without choices the request carries none, and the server applies its defaults.
+  const g = await fixture(t);
+  await g.ports.readState(g.context());
+  await g.ports.start(g.context());
+  await g.ports.initializeHosted('Den', g.context());
+  const plain = g.calls.find(call => call.method === 'POST' && call.path === '/v1/setup')!.body as Record<string, unknown>;
+  assert.equal('remoteAccess' in plain || 'remoteSecurity' in plain, false);
+});
+
+test('a setup record with an unknown remote choice is unreadable', () => {
+  assert.equal(isUnreadable(parseSetupRecord({...hostedRecord, remoteAccess: 'sometimes'})), true);
+  assert.deepEqual(parseSetupRecord({...hostedRecord, remoteAccess: 'off', remoteSecurity: 'enhanced'}), {...hostedRecord, remoteAccess: 'off', remoteSecurity: 'enhanced'});
 });
