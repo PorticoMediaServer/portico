@@ -733,10 +733,10 @@ func TestAnalysisEnqueueWindowStatementsAreBounded(t *testing.T) {
 	}
 	// Strict reports add the actual mode and platform path separator bindings
 	// before the unchanged probe/policy bindings in the issued window query.
-	needsPlan := explainIssued(t, f.db, needs, job.ID, string(idsJSON), strictReportMode, string(filepath.Separator), false, policy.Revision,
+	needsPlan := explainIssued(t, f.db, needs, string(idsJSON), job.ID, strictReportMode, string(filepath.Separator), false, policy.Revision,
 		mediaanalysis.Algorithm, f.library, string(requiredJSON), string(requiredJSON),
 		mediaanalysis.Algorithm, "strm_target:0", job.ID)
-	pointSet := "SEARCH o USING INDEX inventory_objects_source (source_id=? AND retired=? AND id=?)"
+	pointSet := "SEARCH o USING INDEX sqlite_autoindex_inventory_objects_1 (id=?)"
 	if !strings.Contains(needsPlan, pointSet) {
 		t.Fatalf("needs statement does not reach the source by id: %s", needsPlan)
 	}
