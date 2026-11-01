@@ -26,6 +26,13 @@ def checked(path, expected):
         raise ValueError('Native libdovi input changed: ' + str(path))
 
 
+def shared_versions(pin, media_lock):
+    versions = json.loads(media_lock.read_text())['tools']
+    if (pin['rust']['version'] != versions['rust']['version'] or
+            pin['cargoC']['version'].split('+', 1)[0] != versions['cargo-c']['version']):
+        raise ValueError('Native Rust/cargo-c pins differ from the repository media-engine tools')
+
+
 def download(entry, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
@@ -121,6 +128,7 @@ def build(target, recipe, prefix, work):
     tools_file = recipe / 'portico-macos-rust-tools.lock.json'
     checked(tools_file, lock['macosRustTools']['sha256'])
     pin = json.loads(tools_file.read_text())
+    shared_versions(pin, recipe / 'portico-media-engine-sources.lock.json')
     source = lock['libdovi']
     stage = recipe / 'packages/portico-libdovi'
     stage.mkdir(parents=True)
@@ -180,6 +188,9 @@ def configure(recipe):
         'runpy.run_path(str(pathlib.Path(__file__).with_name("shared-collector.py")))["inside"]('
         'pathlib.Path(sys.argv[2]),pathlib.Path(sys.argv[3]),sys.argv[4])\n')
     tools_pin = ROOT / lock['macosRustTools']['path']; checked(tools_pin, lock['macosRustTools']['sha256'])
+    media_lock = ROOT / 'third_party/media-engine/sources.lock.json'
+    shared_versions(json.loads(tools_pin.read_text()), media_lock)
+    shutil.copyfile(media_lock, recipe / 'portico-media-engine-sources.lock.json')
     shutil.copyfile(tools_pin, recipe / 'portico-macos-rust-tools.lock.json')
     shutil.copyfile(Path(__file__), recipe / 'portico-build-macos-libdovi.py')
 
