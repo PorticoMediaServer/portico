@@ -20,6 +20,9 @@ on:
       e2e_tvos:
         type: boolean
         default: false
+      e2e_lan_setup:
+        type: boolean
+        default: false
       e2e_remote_probe:
         type: boolean
         default: false
@@ -30,6 +33,9 @@ on:
 permissions:
   contents: read
 jobs:
+  lan-local-setup:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e_lan_setup
+    uses: ./.github/workflows/e2e-lan-local.yml
   remote-endpoint-probe:
     if: github.event_name == 'workflow_dispatch' && inputs.e2e_remote_probe
     runs-on: ubuntu-24.04
