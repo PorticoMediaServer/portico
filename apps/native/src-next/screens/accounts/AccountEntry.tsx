@@ -73,6 +73,7 @@ type RequiredSetup = Readonly<{kind: 'required-setup'; requirement: 'password' |
 type Result = {kind: 'profiles'; profiles: readonly ManagedProfile[]} | {kind: 'challenge'; expiresAt: string} | {kind: 'complete'} | RequiredSetup;
 const t = defaultI18n.t;
 // Development bundles only (PORTICO_DEV_SIGN_IN=1); folded to undefined, with its module, everywhere else.
+declare const __PORTICO_DEV_SIGN_IN__: boolean | undefined;
 const devSignIn: typeof import('../../platform/dev-sign-in') | undefined = typeof __PORTICO_DEV_SIGN_IN__ === 'boolean' && __PORTICO_DEV_SIGN_IN__ ? require('../../platform/dev-sign-in') : undefined;
 /** TV reached a server nobody has set up. It is set up from a phone or a browser, not here. */
 const SETUP_ELSEWHERE = 'setup_elsewhere';
