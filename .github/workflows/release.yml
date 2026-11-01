@@ -325,7 +325,16 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" > /dev/null
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.1.12297006" >> "$GITHUB_ENV"
+      - name: The pinned Rust toolchain (the media engine refuses any other)
+        run: |
+          rust="$(python3 -c "import json;print(json.load(open('third_party/media-engine/sources.lock.json'))['tools']['rust']['version'])")"
+          rustup toolchain install "$rust" --profile minimal --target aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      # Keyed on the whole recipe. A run on main never reads a cache made on another branch.
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        id: media-engine
+        with: {path: third_party/media-engine/out/android, key: "media-engine-android-${{ hashFiles('third_party/media-engine/**') }}"}
       - name: Media engine from pinned source
+        if: steps.media-engine.outputs.cache-hit != 'true'
         run: MEDIA_ENGINE_JOBS=4 third_party/media-engine/build-android.sh
       - name: Dependencies
         run: |
@@ -391,8 +400,20 @@ jobs:
         with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: {node-version-file: .node-version, cache: npm, cache-dependency-path: "package-lock.json\napps/native/package-lock.json"}
+      # The subtitle engine's xcframeworks are built from their pinned sources, never checked in.
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        id: apple-subtitles
+        with:
+          path: |
+            third_party/apple-subtitles/apple/Frameworks
+            third_party/apple-subtitles/out/apple
+          key: "apple-subtitles-${{ hashFiles('third_party/apple-subtitles/**', 'apps/native/ios/Portico.xcodeproj/project.pbxproj', 'apps/native/tvos/Portico.xcodeproj/project.pbxproj') }}"
+      - name: Subtitle engine from pinned source
+        if: steps.apple-subtitles.outputs.cache-hit != 'true'
+        run: APPLE_SUBTITLE_JOBS=4 third_party/apple-subtitles/build-apple.sh
       - name: Dependencies
         run: |
+          python3 -I third_party/apple-subtitles/verify.py third_party/apple-subtitles/out/apple
           npm ci --no-audit --no-fund
           (cd apps/native && npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false)
           (cd apps/native/ios && pod install) && (cd apps/native/tvos && pod install)
