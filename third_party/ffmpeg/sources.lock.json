@@ -641,5 +641,9 @@
   "compilerImages": {
     "path": "third_party/ffmpeg/compiler-images.lock.json",
     "sha256": "9c830e8ca8ce2fadae4f0da241101466eeabfa09649b62a679c773bebd89d0fe"
+  },
+  "macosRustTools": {
+    "path": "third_party/ffmpeg/macos-rust-tools.lock.json",
+    "sha256": "a4d60f221341fb4d92c7d97e218fbd3fb8fb9a40c03e9330e5c039bd7196691e"
   }
 }
