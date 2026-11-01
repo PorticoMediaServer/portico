@@ -8,6 +8,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import shutil
@@ -93,12 +94,14 @@ def scan_libraries(server):
         print(f'Waiting for {name} library scan', flush=True)
         def done():
             current, _ = api.call('GET', '/v1/admin/ingestion/jobs/' + job['id'], expected=(200, 503))
-            if current.get('error', {}).get('retryable') is True:
-                return False
-            if current.get('error'):
+            error = current.get('error')
+            if isinstance(error, dict):
+                if error.get('retryable') is True:
+                    return False
                 raise RuntimeError(f'{name} scan status returned a non-retryable error')
             if current['status'] in ('failed', 'cancelled'):
-                raise RuntimeError(f'{name} scan failed')
+                code = error if isinstance(error, str) and re.fullmatch(r'[a-z0-9_]{1,80}', error) else 'unknown'
+                raise RuntimeError(f'{name} scan {current["status"]}: {code}')
             return current['status'] in ('complete', 'complete_with_warnings')
         fixture.wait(done, 360)
         elapsed = time.monotonic() - started
