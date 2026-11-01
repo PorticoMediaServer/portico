@@ -21,7 +21,7 @@ func TestRestartListenerGapPreservesBothFamiliesAndLANWithoutRepublish(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.db.Exec(`UPDATE networking_remote_settings SET enabled=1,mapping=0`); err != nil {
+	if _, err = f.db.Exec(`UPDATE networking_remote_settings SET mapping=0`); err != nil {
 		t.Fatal(err)
 	}
 	topo.Public = []string{"188.68.34.120", "2605:a144:2327:3137::1"}

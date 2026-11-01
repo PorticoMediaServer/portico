@@ -33,7 +33,7 @@ func accessURLsFixture(t *testing.T, list func(context.Context) []string) (*sqlF
 	} else {
 		clear(key)
 	}
-	if _, err := f.db.Exec(`UPDATE networking_remote_settings SET enabled=1,mapping=0`); err != nil {
+	if _, err := f.db.Exec(`UPDATE networking_remote_settings SET mapping=0`); err != nil {
 		t.Fatal(err)
 	}
 	return f, m, topo, ctx
@@ -273,12 +273,10 @@ func TestManualHTTPPublishedWithAutomaticRemoteDisabled(t *testing.T) {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
 
-	f, m, _, ctx := accessURLsFixture(t, func(context.Context) []string {
+	_, m, _, ctx := accessURLsFixture(t, func(context.Context) []string {
 		return []string{"http://owner.example.com:8080", "https://owner.example.com"}
 	})
-	if _, err := f.db.Exec(`UPDATE networking_remote_settings SET enabled=0`); err != nil {
-		t.Fatal(err)
-	}
+	useRemoteAccess(m, "off")
 	capture := captureAccessURLs(t, m, ctx)
 	if err := m.step(ctx); err != nil {
 		t.Fatal(err)

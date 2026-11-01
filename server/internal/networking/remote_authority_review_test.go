@@ -64,9 +64,10 @@ func TestW2I02RemoteIntentAndPublicationRejectStaleConfigRevision(t *testing.T) 
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.db.Exec(`UPDATE networking_remote_settings SET revision=revision+1,enabled=0`); e != nil {
+	if _, e = f.db.Exec(`UPDATE networking_remote_settings SET revision=revision+1`); e != nil {
 		t.Fatal(e)
 	}
+	useRemoteAccess(m, "off")
 	row := reviewMapping()
 	row.ID = "stale-config"
 	row.Authority = authority
