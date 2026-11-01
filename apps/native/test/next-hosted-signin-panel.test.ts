@@ -1,4 +1,5 @@
 import test from 'node:test';
+import * as hostedSecurity from '../../../packages/client-core/src/hosted-security';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime.ts';
@@ -40,7 +41,7 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
   const shared = await screenModule(new URL('../src-next/screens/accounts/PhoneAccountSecurity.tsx', import.meta.url), {
     react: host.react, 'react-native': {NativeModules: {PorticoAccountAuth: bridge}, Text: 'Text', View: 'View'},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'presented'})},
+    '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'presented'})},
     '../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
     '../../kit/theme': {useTheme: () => theme}, '../../platform/clipboard': {copyText: async () => {}}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
   });
@@ -55,8 +56,7 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
   const {NativeHostedSignInPanel} = await screenModule(new URL('../src-next/screens/settings-live/NativeHostedSignInPanel.tsx', import.meta.url), {
     react: host.react, 'react-native': {NativeModules: {PorticoAccountAuth: bridge}, Text: 'Text', View: 'View', Linking: {openURL: async (url: string) => {if (openFails) throw new Error('no_browser'); opened.push(url);}}},
     '../../../../../packages/client-core/src': {HttpLocalApi: class {constructor(readonly origin: string, readonly token: string) {} async request(...args: any[]) {calls.push([this.origin, this.token, ...args]); return reply();}}},
-    '../../../../../packages/client-core/src/hosted-security': {parseSecurityState},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: unknown, audience: string) => {presented.push([error, audience]); return {body: 'Security read failed'};}},
+    '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: unknown, audience: string) => {presented.push([error, audience]); return {body: 'Security read failed'};}},
     '../../../../../packages/contracts/src/hosted/routes': {routePath},
     '../../kit/controls': {Button: 'Button'}, '../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
     '../../platform/accounts': {nativeAccounts: {accountCredentials: () => {credentialReads++; return credentials;}}},
@@ -152,5 +152,25 @@ test('R-21: a Portico Account page that cannot open says so instead of doing not
     f.failOpening(); f.find('settings-manage-portico-account').props.onPress(); await f.settle();
     assert.ok(nodes(f.tree()).some(node => node.type === 'Text' && node.props.accessibilityRole === 'alert' && [node.props.children].flat().includes('Security read failed')));
     assert.equal(f.presented.at(-1)?.[1], 'portico-account');
+  } finally {f.dispose();}
+});
+
+// Justin, 1 Nov: a Google- or Apple-only account never sees Set a password in Settings either.
+test('A Google-only account: the Password row says how it signs in, and Add a password waits behind More sign-in options', async () => {
+  const f = await fixture({hasPassword: false, kind: 'password'});
+  try {
+    const row = f.find('settings-panel-password');
+    assert.equal(row.props.value, 'web.hostedSecurity.signsInWith', 'how it signs in, from the linked providers');
+    assert.equal(row.props.control, undefined, 'no button');
+    assert.equal(f.find('account-security-password'), undefined);
+    const more = f.find('settings-more-sign-in');
+    assert.ok(more); assert.equal(more.props.variant, 'text');
+    more.props.onPress(); await f.settle();
+    assert.equal(f.find('settings-more-sign-in'), undefined, 'the link gives way to the row');
+    const added = f.find('settings-panel-add-password');
+    assert.equal(added.props.label, 'web.hostedSecurity.moreSignInOptions');
+    const add = f.find('account-security-password');
+    assert.deepEqual([add.props.children].flat(), ['web.hostedSecurity.addPassword']);
+    add.props.onPress(); assert.deepEqual(f.controllers.at(-1)!.opened, ['password'], 'the set-password task');
   } finally {f.dispose();}
 });
