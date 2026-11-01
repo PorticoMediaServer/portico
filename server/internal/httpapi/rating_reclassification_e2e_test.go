@@ -194,10 +194,15 @@ func TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan(t *tes
 			time.Sleep(20 * time.Millisecond)
 		}
 	}
+	retainedQueue := ""
 	queue := func(key string, want int64) playbackv1.QueueReply {
 		t.Helper()
 		var out playbackv1.QueueReply
-		f.callAs(member, "POST", "/v1/queues", map[string]string{"Idempotency-Key": key}, map[string]any{"segments": []any{map[string]any{"source": containerSource("show", show.Public)}}}, 201, &out)
+		body := map[string]any{"segments": []any{map[string]any{"source": containerSource("show", show.Public)}}}
+		if retainedQueue != "" {
+			body["retainQueueIds"] = []string{retainedQueue}
+		}
+		f.callAs(member, "POST", "/v1/queues", map[string]string{"Idempotency-Key": key}, body, 201, &out)
 		if out.Queue.Total != want {
 			t.Fatalf("queue count=%d want=%d", out.Queue.Total, want)
 		}
@@ -229,6 +234,9 @@ func TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan(t *tes
 	}
 	checkReads(true)
 	warmQueue := queue("rating-warm-queue-0001", 22)
+	// Creating a replacement normally retires previous device queues. Keep
+	// this one explicitly so its warmed summary survives all three phases.
+	retainedQueue = warmQueue.Queue.ID
 	warmDownload := finishCapture(submit("rating-warm-download").RequestID, 22)
 	if len(warmDownload.Items) == 0 || warmDownload.Items[0].ItemID != ratedEpisode.Public {
 		t.Fatal("download positive control did not include the changing first episode")
