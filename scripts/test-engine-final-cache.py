@@ -95,6 +95,10 @@ EOF
         source = self.root / 'source'
         source.mkdir()
         (source / 'COPYING.GPLv3').write_text('GPL text fixture')
+        # Windows packages its owned BuildKit prefix directly; BtbN's Actions
+        # selector sits outside that input and cannot enter the output ZIP.
+        (self.recipe / 'artifacts').mkdir()
+        (self.recipe / 'artifacts/win64-gpl-8.1.txt').write_text('unused-btbn.zip\n')
         output = self.root / 'package'
         cache.package(self.recipe, 'win64', prefix, source, output, os.environ)
         archive = self.root / 'engine.zip'
@@ -102,6 +106,7 @@ EOF
         with zipfile.ZipFile(archive) as zipped:
             self.assertEqual(zipped.read('package/LICENSE.txt'), b'GPL text fixture')
             self.assertIn('package/LICENSES/dependency.txt', zipped.namelist())
+            self.assertFalse(any(name.endswith('.txt') and 'win64-gpl' in name for name in zipped.namelist()))
             self.assertTrue(all('\\' not in name for name in zipped.namelist()))
         (prefix / 'bin/link').symlink_to('ffmpeg.exe')
         with self.assertRaisesRegex(ValueError, 'links'):
