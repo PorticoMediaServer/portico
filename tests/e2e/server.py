@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from augment_media import generate as augment_media
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -88,6 +89,7 @@ def scan_libraries(server):
                            'metadataAgent': 'local'}, (201,))
         server.libs[name] = library['id']
         job = api.post('/v1/libraries/' + library['id'] + '/scans', expected=(202,))
+        started = time.monotonic()
         print(f'Waiting for {name} library scan', flush=True)
         def done():
             current = api.get('/v1/admin/ingestion/jobs/' + job['id'])
@@ -95,6 +97,8 @@ def scan_libraries(server):
                 raise RuntimeError(f'{name} scan failed')
             return current['status'] in ('complete', 'complete_with_warnings')
         fixture.wait(done, 360)
+        elapsed = time.monotonic() - started
+        print(f'{name} library scan completed in {elapsed:.1f}s' + (' (possible performance item: over 120s)' if elapsed > 120 else ''), flush=True)
         if pivot:
             query = None
             def published():
