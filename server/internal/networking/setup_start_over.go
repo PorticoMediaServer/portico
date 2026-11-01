@@ -20,6 +20,11 @@ import (
 //
 // pending reports whether a withdrawal is still waiting for Portico Services. A transport
 // failure is not an error here: the queued cancellation is the record.
+//
+// "Still unconfigured" is checked again inside every write that withdraws or queues the
+// cancellation, under the writer reservation the owner exchange also takes, so an exchange
+// that completes after the first read wins and this refuses with ErrSetupComplete, leaving
+// the now-owned server's installed claim untouched.
 func (h *ClaimHandler) RetireSetupClaim(parent context.Context) (pending bool, err error) {
 	if h == nil {
 		return false, nil
@@ -34,6 +39,13 @@ func (h *ClaimHandler) RetireSetupClaim(parent context.Context) (pending bool, e
 		}
 		operation = active
 		v, err := h.store.Load(ctx, active)
+		if err != nil {
+			return err
+		}
+		if retireSetupClaimBeforeWrite != nil {
+			retireSetupClaimBeforeWrite()
+		}
+		ctx, err = guardedClaimRequest(ctx, h.store, stillUnconfigured)
 		if err != nil {
 			return err
 		}
@@ -68,6 +80,24 @@ func (h *ClaimHandler) RetireSetupClaim(parent context.Context) (pending bool, e
 	}
 	return pending, err
 }
+
+// ErrSetupComplete: the server gained an owner, so there is no setup to start over.
+var ErrSetupComplete = errors.New("setup already complete")
+
+// stillUnconfigured is the guard every start-over write runs in its own transaction.
+func stillUnconfigured(ctx context.Context, tx *sql.Tx) error {
+	var accounts int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM accounts`).Scan(&accounts); err != nil {
+		return err
+	}
+	if accounts != 0 {
+		return ErrSetupComplete
+	}
+	return ctx.Err()
+}
+
+// retireSetupClaimBeforeWrite runs between the read and the first write (tests only).
+var retireSetupClaimBeforeWrite func()
 
 // activeSetupOperation is the claim the server's identity row names as active, or "",
 // and always "" once the server has an owner: a set-up server's installed claim is its

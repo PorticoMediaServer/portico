@@ -34,14 +34,34 @@ import (
 // (the server's own deny-only cancellation, committed mode, acknowledged by Portico
 // Services), ends the old setup so its return can never complete, and a fresh claim at
 // another address then completes setup with an owner. Once set up, start over refuses.
-func TestSetupStartOverAfterAnInstalledClaimLapsed(t *testing.T) {
+type startOverHarness struct {
+	db       *sql.DB
+	id       *identity.Service
+	h        *ClaimHandler
+	offline  *bool
+	cancels  func() []string
+	install  func(token, request, address string) startOverAttempt
+	exchange func(startOverAttempt) (identity.DirectSignIn, error)
+	phase    func() setupflow.Phase
+}
+
+type startOverAttempt struct {
+	pending  identity.PendingAccountSetup
+	proof    string
+	intent   Intent
+	start    claimweb.SetupStart
+	verifier string
+}
+
+func newStartOverHarness(t *testing.T) *startOverHarness {
+	t.Helper()
 	ctx := context.Background()
 	root := t.TempDir()
 	db, err := persistence.Open(filepath.Join(root, "server.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	t.Cleanup(func() { db.Close() })
 	gate, err := authoritygate.NewAuthorityGate(strings.Repeat("a", 64), false)
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +74,7 @@ func TestSetupStartOverAfterAnInstalledClaimLapsed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer keys.Close()
+	t.Cleanup(func() { keys.Close() })
 	id, err := identity.New(db, root)
 	if err != nil {
 		t.Fatal(err)
@@ -150,14 +170,7 @@ func TestSetupStartOverAfterAnInstalledClaimLapsed(t *testing.T) {
 	})}
 
 	// One setup attempt, from start to an installed, acknowledged claim at address.
-	type attempt struct {
-		pending  identity.PendingAccountSetup
-		proof    string
-		intent   Intent
-		start    claimweb.SetupStart
-		verifier string
-	}
-	setupInstalled := func(token, request, address string) attempt {
+	setupInstalled := func(token, request, address string) startOverAttempt {
 		t.Helper()
 		if out, err := id.SetupWithOptions(ctx, identity.SetupOptions{RequestID: request, SetupToken: token, Name: "Setup server", AuthMode: "hosted"}, true); err != nil || out.Pending == nil {
 			t.Fatal("pending hosted setup", err)
@@ -239,7 +252,7 @@ func TestSetupStartOverAfterAnInstalledClaimLapsed(t *testing.T) {
 		if err = withWrite(ctx, db, func(tx *sql.Tx) error { return id.MarkSetupInstalledTx(ctx, tx, pending, proof, v.OperationID) }); err != nil {
 			t.Fatal("mark installed", err)
 		}
-		return attempt{pending: pending, proof: proof, intent: v, start: starts[len(starts)-1], verifier: verifier}
+		return startOverAttempt{pending: pending, proof: proof, intent: v, start: starts[len(starts)-1], verifier: verifier}
 	}
 	phase := func() setupflow.Phase {
 		t.Helper()
@@ -249,7 +262,7 @@ func TestSetupStartOverAfterAnInstalledClaimLapsed(t *testing.T) {
 		}
 		return state.Phase
 	}
-	exchange := func(a attempt) (identity.DirectSignIn, error) {
+	exchange := func(a startOverAttempt) (identity.DirectSignIn, error) {
 		q := serverreturn.SetupExchange{TransactionID: fmt.Sprintf("setup_transaction_%d", len(starts)), State: a.start.State, Verifier: a.verifier, InstallationID: a.start.InstallationID, ServerChallenge: a.start.ServerChallenge, Purpose: "setup"}
 		var out identity.DirectSignIn
 		err := withWrite(ctx, db, func(tx *sql.Tx) error {
@@ -265,6 +278,20 @@ func TestSetupStartOverAfterAnInstalledClaimLapsed(t *testing.T) {
 		return out, err
 	}
 
+	return &startOverHarness{db: db, id: id, h: h, offline: &offline, install: setupInstalled, exchange: exchange, phase: phase,
+		cancels: func() []string {
+			out := []string{}
+			for _, c := range cancels {
+				out = append(out, c.operation+" "+c.mode+" "+c.generation)
+			}
+			return out
+		}}
+}
+
+func TestSetupStartOverAfterAnInstalledClaimLapsed(t *testing.T) {
+	ctx := context.Background()
+	x := newStartOverHarness(t)
+	db, id, h, offline, setupInstalled, exchange, phase := x.db, x.id, x.h, x.offline, x.install, x.exchange, x.phase
 	token, err := id.BrowserSetupToken(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -279,7 +306,7 @@ func TestSetupStartOverAfterAnInstalledClaimLapsed(t *testing.T) {
 	}
 
 	// Start over while Portico Services is unreachable: the withdrawal waits in the outbox.
-	offline = true
+	*offline = true
 	pending, err := h.RetireSetupClaim(ctx)
 	if err != nil || !pending {
 		t.Fatal("an offline withdrawal stays queued", pending, err)
@@ -308,12 +335,12 @@ func TestSetupStartOverAfterAnInstalledClaimLapsed(t *testing.T) {
 		t.Fatal("the old setup's return completed after start over")
 	}
 	// Back online: the queued withdrawal is delivered, committed, for the installed claim.
-	offline = false
+	*offline = false
 	if pending, err = h.RetireSetupClaim(ctx); err != nil || pending {
 		t.Fatal("withdrawal delivered", pending, err)
 	}
-	if len(cancels) != 1 || cancels[0].operation != first.intent.OperationID || cancels[0].mode != "committed" || cancels[0].generation != "1" {
-		t.Fatal("Portico Services got one committed cancellation for the installed claim", cancels)
+	if got := x.cancels(); len(got) != 1 || got[0] != first.intent.OperationID+" committed 1" {
+		t.Fatal("Portico Services got one committed cancellation for the installed claim", got)
 	}
 	var active sql.NullString
 	if err = db.QueryRow(`SELECT active_operation_id FROM networking_claim_identity WHERE singleton=1`).Scan(&active); err != nil || active.Valid {
@@ -339,11 +366,58 @@ func TestSetupStartOverAfterAnInstalledClaimLapsed(t *testing.T) {
 	if pending, err = h.RetireSetupClaim(ctx); err != nil || pending {
 		t.Fatal("no claim to withdraw once set up", pending, err)
 	}
-	if len(cancels) != 1 {
-		t.Fatal("a set-up server's claim was cancelled", cancels)
+	if got := x.cancels(); len(got) != 1 {
+		t.Fatal("a set-up server's claim was cancelled", got)
 	}
 }
 
 func withWrite(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
 	return dbwork.WithWriteTx(ctx, db, dbwork.ClassSecurityFence, fn)
+}
+
+// The lead's race: the owner exchange commits after start over read "no owner yet" but
+// before its first write. The write re-checks under the same writer reservation the
+// exchange takes, so start over refuses and the now-owned server keeps its installed claim.
+func TestSetupStartOverLosesToAnOwnerExchangeBetweenReadAndWrite(t *testing.T) {
+	ctx := context.Background()
+	x := newStartOverHarness(t)
+	token, err := x.id.BrowserSetupToken(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := x.install(token, "82a879b3-abf5-48c6-bba0-02ffd762f99c", "http://192.168.1.50:32500")
+	if got := x.phase(); got != setupflow.Installed {
+		t.Fatal("installed, owner exchange still open", got)
+	}
+	exchanged := false
+	retireSetupClaimBeforeWrite = func() {
+		out, err := x.exchange(live)
+		exchanged = err == nil && out.Session != nil
+	}
+	t.Cleanup(func() { retireSetupClaimBeforeWrite = nil })
+	pending, err := x.h.RetireSetupClaim(ctx)
+	if !exchanged {
+		t.Fatal("the seam did not complete the owner exchange")
+	}
+	if !errors.Is(err, ErrSetupComplete) || pending {
+		t.Fatal("start over must lose to the owner exchange", pending, err)
+	}
+	if got := x.phase(); got != setupflow.Completed {
+		t.Fatal("setup stays complete", got)
+	}
+	var stage string
+	var credentials, queued int
+	if err = x.db.QueryRow(`SELECT stage FROM networking_claim_intents WHERE operation_id=?`, live.intent.OperationID).Scan(&stage); err != nil || stage != string(Installed) {
+		t.Fatal("the installed claim is intact", stage, err)
+	}
+	if err = x.db.QueryRow(`SELECT (SELECT count(*) FROM networking_claim_credentials WHERE operation_id=?),(SELECT count(*) FROM networking_claim_cancellations)`, live.intent.OperationID).Scan(&credentials, &queued); err != nil || credentials != 1 || queued != 0 {
+		t.Fatal("no credential lost and no cancellation queued", credentials, queued, err)
+	}
+	if got := x.cancels(); len(got) != 0 {
+		t.Fatal("Portico Services was asked to cancel an owned server's claim", got)
+	}
+	// And the identity half refuses on its own, in its own write.
+	if _, err = x.id.StartOverSetup(ctx); !errors.Is(err, identity.ErrConflict) {
+		t.Fatal("identity start over on a set-up server", err)
+	}
 }
