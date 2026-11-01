@@ -41,6 +41,9 @@ func (s *Service) ResolveHomeRowMembership(r HomeRequest, id string) (HomeRowMem
 		return HomeRowMembership{}, err
 	}
 	s = s.WithRecommendationRestrictions(r.Restrictions)
+	// As HomeSingleRow: this request's own source memo and composition.
+	s.recSources = map[string]homeSource{}
+	s.recComposition = newRecCompositionSources(s.Context())
 	var spec *homeRowSpec
 	for i := range specs {
 		if specs[i].ID == id && specs[i].PolicyState == "available" {
@@ -53,6 +56,10 @@ func (s *Service) ResolveHomeRowMembership(r HomeRequest, id string) (HomeRowMem
 		if e != nil {
 			return HomeRowMembership{}, e
 		}
+		// A personal row's titles are the row the generator ranked, as the
+		// row's own page serves them (HomeRow seeds the same source): the
+		// engine has no source of its own for these rows.
+		s.recSources[id+":"+idsJSON(r.Libraries)] = candidateSource(row.items)
 		spec = &row.spec
 	}
 	if spec == nil || id == recFamily || id == "on_now" || id == "featured_collection" {
