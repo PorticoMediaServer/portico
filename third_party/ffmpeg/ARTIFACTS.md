@@ -69,11 +69,14 @@ link on an Intel Mac. It skips installer jobs and retains only dependency
 evidence/source for seven days. Passing that probe does not qualify an engine
 or installer. Intel Mac remains an engine/compiler target only.
 
-Windows rav1e source preparation checks its original upstream Cargo.lock and
-replaces it with the committed resolution pinned in `sources.lock.json`. Both
-locks and their hashes remain in the source snapshot, together with every
-vendored registry source and licence. Compilation uses `--locked --offline`;
-changing the resolution requires a deliberate reviewed lock update.
+Portico follows pinned Jellyfin8.1.3-1's SVT-AV1 choice instead of rav1e.
+Every BtbN target removes the exact pinned rav1e stage before graph generation
+and explicitly disables librav1e; SVT-AV1 and required libdovi remain enabled.
+The old rav1e Cargo resolution, vendor builder and committed lock are removed.
+Mac already skips rav1e. Corresponding source still keeps every other enabled
+stage and its exact snapshot; the sealed graph/recipe/script receipt checks
+remain in force. Hosted controls generate all four BtbN targets and inspect
+both Mac final configure option sets, without claiming actual compilation.
 
 
 ## Preserved compiler inputs
