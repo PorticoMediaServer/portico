@@ -325,9 +325,11 @@ func (w *Worker) batchFor(domain, limit int) int {
 		limit = min(limit, max(1, 2*last))
 	}
 	if rows := w.unitRows[domain]; rows > 0 {
-		// Rows are the harder bound: a domain whose units each change many rows
-		// gets fewer of them, down to one, whatever the clock says.
-		limit = min(limit, max(1, int(float64(dbwork.DefaultPlan(dbwork.ClassMaintenance).Rows)/rows)))
+		// Keep a raw unit's allowance for batch bookkeeping and a changing
+		// mix of insert/update/delete effects. Filling the estimate to 160
+		// caused repeated 170/176-row turns as those mixes alternated.
+		budget := dbwork.DefaultPlan(dbwork.ClassMaintenance).Rows - 32
+		limit = min(limit, max(1, int(float64(budget)/rows)))
 	}
 	cost, ok := w.unitCost[domain]
 	if !ok || cost <= 0 {
