@@ -3,6 +3,8 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -12,11 +14,20 @@ M = importlib.util.module_from_spec(spec); spec.loader.exec_module(M)
 
 
 class CompilerPreservation(unittest.TestCase):
+    def test_probe_mount_name_does_not_shadow_a_python_standard_module(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / M.PROBE_NAME).write_text(Path(__file__).with_name('preserve-ffmpeg-compilers.py').read_text())
+            subprocess.run([sys.executable, '-c', 'import inspect; assert callable(inspect.signature)'],
+                           cwd=root, check=True, capture_output=True)
+            subprocess.run([sys.executable, str(root / M.PROBE_NAME), '--help'],
+                           cwd=root, check=True, capture_output=True)
+
     def test_metadata_probe_imports_from_its_container_root_mount(self):
         source = Path(__file__).with_name('preserve-ffmpeg-compilers.py').read_text()
         namespace = {'__file__': '/inspect.py', '__name__': 'container_import_control'}
         exec(compile(source, '/inspect.py', 'exec'), namespace)
-        self.assertEqual(namespace['ROOT'], Path('/'))
+        self.assertEqual(namespace['ROOT'], Path('/').resolve())
 
     def test_committed_pin_contains_exact_same_source_and_destination_digest(self):
         pins = M.lock()

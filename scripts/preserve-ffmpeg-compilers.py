@@ -12,6 +12,7 @@ import sys
 import tarfile
 
 ROOT = Path(__file__).resolve().parent.parent
+PROBE_NAME = 'portico-compiler-probe.py'
 
 
 def digest(data):
@@ -78,8 +79,8 @@ def inspect(name, work):
     (work / 'upstream-index.json').write_bytes(verified_manifest(row))
     subprocess.run(['docker', 'pull', row['upstream']], check=True)
     value = subprocess.check_output(['docker', 'run', '--rm', '--network', 'none', '--cpus', '1', '--memory', '512m',
-        '--mount', 'type=bind,src=' + str(Path(__file__).resolve()) + ',dst=/inspect.py,readonly',
-        row['upstream'], 'python3', '/inspect.py', 'inside'])
+        '--mount', 'type=bind,src=' + str(Path(__file__).resolve()) + ',dst=/' + PROBE_NAME + ',readonly',
+        row['upstream'], 'python3', '/' + PROBE_NAME, 'inside'])
     json.loads(value)
     (work / 'installed-metadata.json').write_bytes(value)
 
