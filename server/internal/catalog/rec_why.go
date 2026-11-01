@@ -14,14 +14,19 @@ import (
 // nothing the viewer may not see now is named.
 
 const (
-	recWhyFacet      = "next.home.whyFacet"
-	recWhyPerson     = "next.home.whyPerson"
-	recWhyNext       = "next.home.whyNext"
-	recWhyLikes      = "next.home.whyLikes"
-	recWhyRediscover = "next.home.whyRediscover"
+	recWhyFacet        = "next.home.whyFacet"
+	recWhyFacetTitles  = "next.home.whyFacetTitles"
+	recWhyPerson       = "next.home.whyPerson"
+	recWhyPersonTitles = "next.home.whyPersonTitles"
+	recWhyNext         = "next.home.whyNext"
+	recWhyLikes        = "next.home.whyLikes"
+	recWhyRediscover   = "next.home.whyRediscover"
 
 	// recWhyTitlesMax is the client's bound on the titles behind a row.
 	recWhyTitlesMax = 3
+	// recWhyNamed is how many of them a genre, tag or person sentence names
+	// ("Because you often watch Heists, like Heat and Thief.").
+	recWhyNamed = 2
 	// recWhyOwned bounds one read of the profile's own recent positive signals
 	// before the viewer's visibility and restriction are applied. The row's
 	// evidence is what the profile watched recently, like the seeds the
@@ -44,29 +49,33 @@ func (x *recSession) recWhy(row *recRow) error {
 		if err != nil {
 			return err
 		}
-		spec.Why = &ServerText{Code: recWhyFacet, Params: map[string]string{"label": label}, Fallback: "Because you often watch " + label + "."}
-		spec.WhyTitles = titles
+		spec.Why, spec.WhyTitles = recWhyFacetText(label, titles)
 	case strings.HasPrefix(spec.ID, "for_you:tag:"):
 		label := recWhyTagLabel(*spec)
 		titles, err := x.recWhyFacet("x:" + strings.TrimPrefix(spec.ID, "for_you:tag:"))
 		if err != nil {
 			return err
 		}
-		spec.Why = &ServerText{Code: recWhyFacet, Params: map[string]string{"label": label}, Fallback: "Because you often watch " + label + "."}
-		spec.WhyTitles = titles
+		spec.Why, spec.WhyTitles = recWhyFacetText(label, titles)
 	case strings.HasPrefix(spec.ID, "for_you:person:"):
 		facet := strings.TrimPrefix(spec.ID, "for_you:person:")
 		name := spec.TitleParams["name"]
-		count, err := x.recWhyPersonCount(facet)
-		if err != nil {
-			return err
-		}
 		titles, err := x.recWhyFacet(facet)
 		if err != nil {
 			return err
 		}
+		if named, list := recWhyNamedTitles(titles); list != "" {
+			spec.Why = &ServerText{Code: recWhyPersonTitles, Params: map[string]string{"titles": list, "name": name}, Fallback: "Because you’ve watched " + list + " with " + name + "."}
+			spec.WhyTitles = named
+			break
+		}
+		// None of the titles is one the viewer may see now: the count says it.
+		count, err := x.recWhyPersonCount(facet)
+		if err != nil {
+			return err
+		}
 		spec.Why = &ServerText{Code: recWhyPerson, Params: map[string]string{"count": strconv.Itoa(count), "name": name}, Fallback: recWhyPersonFallback(count, name)}
-		spec.WhyTitles = titles
+		spec.WhyTitles = nil
 	case spec.ID == "for_you:series" || spec.ID == "for_you:franchise":
 		titles, err := x.recWhyNext(row)
 		if err != nil {
@@ -104,6 +113,28 @@ func (x *recSession) recWhyFacet(facet string) ([]ContentEntityRef, error) {
 		return nil, e
 	}
 	return refs, nil
+}
+
+// recWhyNamedTitles is the titles a sentence names (at most recWhyNamed) and
+// their list as the sentence spells it: "Heat" or "Heat and Thief".
+func recWhyNamedTitles(titles []ContentEntityRef) ([]ContentEntityRef, string) {
+	if len(titles) > recWhyNamed {
+		titles = titles[:recWhyNamed]
+	}
+	names := make([]string, len(titles))
+	for i, title := range titles {
+		names[i] = title.Name
+	}
+	return titles, strings.Join(names, " and ")
+}
+
+// recWhyFacetText is a genre or tag row's reason: with the profile's titles
+// when it has some the viewer may see ("…, like Heat and Thief."), else plain.
+func recWhyFacetText(label string, titles []ContentEntityRef) (*ServerText, []ContentEntityRef) {
+	if named, list := recWhyNamedTitles(titles); list != "" {
+		return &ServerText{Code: recWhyFacetTitles, Params: map[string]string{"label": label, "titles": list}, Fallback: "Because you often watch " + label + ", like " + list + "."}, named
+	}
+	return &ServerText{Code: recWhyFacet, Params: map[string]string{"label": label}, Fallback: "Because you often watch " + label + "."}, nil
 }
 
 // recWhyTagLabel is a tag row's dataset label, whichever family named it.

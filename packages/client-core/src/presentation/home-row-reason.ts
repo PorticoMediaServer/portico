@@ -1,7 +1,9 @@
-import type {HomeRow} from '@core/home.ts';
-import {serverTextLabel} from '@core/presentation/server-text.ts';
-import type {I18n} from '@i18n';
+import type {HomeRow} from '../home.ts';
+import {serverTextLabel} from './server-text.ts';
+import type {I18n} from '../../../i18n/src/index.ts';
 
+/** A See all reason line (web HomeRowScreen, native HomeSeeAll): the server's one sentence, with the
+ * titles it names marked so both clients draw them bold. */
 export type RowReasonPart = Readonly<{text: string; titleId?: string}>;
 /** Emphasis decorates only the producer's actual title-list parameter. The
  * localized sentence, title spelling, punctuation and order stay byte-for-byte. */
