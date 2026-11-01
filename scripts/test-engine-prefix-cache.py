@@ -5,6 +5,10 @@ import json
 from pathlib import Path
 import shutil
 import tempfile
+import os
+import shlex
+import sys
+from unittest.mock import patch
 import unittest
 
 spec = importlib.util.spec_from_file_location('prefix', Path(__file__).with_name('engine-prefix-cache.py'))
@@ -70,6 +74,39 @@ class PrefixCache(unittest.TestCase):
         manifest = M.checked_blob(layout, index['manifests'][0]); manifest.write_bytes(b'corrupt blob')
         with self.assertRaisesRegex(ValueError, 'blob changed'): self.cache.begin(self.inputs, self.roots)
         self.assertEqual(list(self.roots['prefix'].iterdir()), [])
+
+    @unittest.skipUnless(sys.platform == 'linux', 'native Linux dependency-runner integration')
+    def test_actual_linux_dependency_runner_reuses_source_licence_receipt_and_prefix(self):
+        script = Path(__file__).with_name('build-linux-ffmpeg-deps.py')
+        spec = importlib.util.spec_from_file_location('native_deps', script)
+        runner = importlib.util.module_from_spec(spec); spec.loader.exec_module(runner)
+        work = self.root / 'native'; recipe = self.root / 'recipe'
+        for directory in ('sources', 'build', 'prefix', 'dest', 'tmp', 'licenses', 'receipts', 'extra'):
+            (work / directory).mkdir(parents=True)
+        (recipe / 'util').mkdir(parents=True); (recipe / 'scripts.d').mkdir()
+        variables = 'export FFBUILD_PREFIX=' + shlex.quote(str(work / 'prefix')) + '\n'
+        variables += 'export FFBUILD_DESTPREFIX=' + shlex.quote(str(work / 'absent-install-prefix')) + '\n'
+        (recipe / 'util/vars.sh').write_text(variables)
+        (recipe / 'util/dl_functions.sh').write_text('# No network in this owned source fixture.\n')
+        calls = self.root / 'compile-calls'
+        commands = "printf 'Copyright Justin. Permission to use this fixture.\n' > LICENSE; printf source-fixture > input.txt"
+        stage = 'ffbuild_dockerdl(){ printf "%s\n" ' + shlex.quote(commands) + '; }\n'
+        stage += 'ffbuild_dockerbuild(){ printf dependency-output > "$FFBUILD_PREFIX/library.dat"; echo compile >> ' + shlex.quote(str(calls)) + '; }\n'
+        (recipe / 'scripts.d/fixture.sh').write_text(stage)
+        (work / 'stage-plan.json').write_text(json.dumps(dict(stages=['scripts.d/fixture.sh'], compilerImage='ghcr.io/fixture@sha256:' + 'a' * 64, sourceFetchNetwork='host')))
+        env = dict(PORTICO_ENGINE_STAGE_CACHE=str(self.root / 'native-cache'), SOURCE_DATE_EPOCH='1', FFBUILD_PREFIX=str(work / 'prefix'), FFBUILD_DESTPREFIX=str(work / 'absent-install-prefix'))
+        with patch.dict(os.environ, env):
+            runner.inside(work, recipe)
+            first = (work / 'prefix/library.dat').read_bytes()
+            for name in ('prefix', 'sources', 'licenses', 'receipts', 'extra'):
+                shutil.rmtree(work / name); (work / name).mkdir()
+            runner.inside(work, recipe)
+        self.assertEqual(calls.read_text().splitlines(), ['compile'])
+        self.assertEqual((work / 'prefix/library.dat').read_bytes(), first)
+        self.assertTrue(list((work / 'sources').glob('*.tar.xz')))
+        self.assertTrue((work / 'licenses/fixture/LICENSE').is_file())
+        receipt = json.loads((work / 'dependency-cache-receipts/fixture.json').read_text())
+        self.assertTrue(receipt['cacheHit']); self.assertFalse(receipt['qualified'])
 
     def test_escape_special_and_failed_stage_never_create_a_cache_entry(self):
         outside = self.root / 'outside'; outside.write_bytes(b'outside')
