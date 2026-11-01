@@ -235,10 +235,10 @@ func TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan(t *tes
 	}
 	// Warm the persisted queue's duration summary, then require it to change
 	// despite identical members, predicate text, arguments and raw revisions.
-	var warm playbackv1.QueueReply
+	var warm playbackv1.QueueView
 	call("/v1/queues/"+warmQueue.Queue.ID, &warm)
-	if warm.Queue.TotalDurationMs == nil || !warm.Queue.DurationKnown {
-		t.Fatalf("duration positive control: %+v", warm.Queue)
+	if warm.TotalDurationMs == nil || !warm.DurationKnown {
+		t.Fatalf("duration positive control: %+v", warm)
 	}
 	setAge := func(age int) {
 		t.Helper()
@@ -249,10 +249,10 @@ func TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan(t *tes
 	setAge(18)
 	checkReads(false)
 	queue("rating-hidden-queue-01", 21)
-	var hidden playbackv1.QueueReply
+	var hidden playbackv1.QueueView
 	call("/v1/queues/"+warmQueue.Queue.ID, &hidden)
-	if hidden.Queue.TotalDurationMs == nil || *hidden.Queue.TotalDurationMs >= *warm.Queue.TotalDurationMs || hidden.Queue.DurationKnown {
-		t.Fatalf("cached queue duration survived 18+ policy: warm=%+v hidden=%+v", warm.Queue, hidden.Queue)
+	if hidden.TotalDurationMs == nil || *hidden.TotalDurationMs >= *warm.TotalDurationMs || hidden.DurationKnown {
+		t.Fatalf("cached queue duration survived 18+ policy: warm=%+v hidden=%+v", warm, hidden)
 	}
 	var hiddenDownload downloads.RequestView
 	call("/v1/downloads/requests/"+warmDownload.RequestID+"?limit=12", &hiddenDownload)
@@ -274,10 +274,10 @@ func TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan(t *tes
 	if len(restored.Items) == 0 || restored.Items[0].ItemID != ratedEpisode.Public {
 		t.Fatal("classification fence did not restart capture before the previously hidden first member")
 	}
-	var after playbackv1.QueueReply
+	var after playbackv1.QueueView
 	call("/v1/queues/"+warmQueue.Queue.ID, &after)
-	if after.Queue.TotalDurationMs == nil || *after.Queue.TotalDurationMs != *warm.Queue.TotalDurationMs || !after.Queue.DurationKnown {
-		t.Fatalf("queue summary did not recover after 7+: %+v", after.Queue)
+	if after.TotalDurationMs == nil || *after.TotalDurationMs != *warm.TotalDurationMs || !after.DurationKnown {
+		t.Fatalf("queue summary did not recover after 7+: %+v", after)
 	}
 	for id, before := range generations {
 		var after int64
