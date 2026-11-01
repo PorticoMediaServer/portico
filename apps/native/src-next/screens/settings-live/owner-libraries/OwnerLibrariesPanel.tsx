@@ -287,21 +287,20 @@ function ContinueWatchingGroup({document, busy, t, save}: {document: LibraryAdmi
     [...values, ...(values.includes(current) ? [] : [current])].map(n => ({value: String(n), label: label(n), disabled: !values.includes(n)}));
   const ids = ['libraries.cwWeeks', 'libraries.cwMax', 'libraries.cwPremieres', 'libraries.cwWatched', 'libraries.cwRule'];
   if (!ids.some(eligible)) return null;
-  const selectStyle = {backgroundColor: 'transparent', paddingHorizontal: 0};
   return <>
     <SectionTitle>{t('next.ownerLibraries.continueWatching')}</SectionTitle>
     <LibraryGroup>
       {eligible('libraries.cwWeeks') && <LibraryRow first label={t('next.ownerLibraries.continue.weeks')} trailing={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.weeks')} value={String(value.weeks)}
-        options={numericOptions([4, 8, 16, 26, 52, 104], value.weeks, weekLabel)} onValueChange={next => update({weeks: Number(next)})} style={selectStyle}/>}/>}
+        options={numericOptions([4, 8, 16, 26, 52, 104], value.weeks, weekLabel)} onValueChange={next => update({weeks: Number(next)})}/>}/>}
       {eligible('libraries.cwMax') && <LibraryRow first={!eligible('libraries.cwWeeks')} label={t('next.ownerLibraries.continue.maximum')} trailing={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.maximum')} value={String(value.maximumItems)}
-        options={numericOptions([20, 40, 100, 200], value.maximumItems, n => defaultI18n.number(n))} onValueChange={next => update({maximumItems: Number(next)})} style={selectStyle}/>}/>}
+        options={numericOptions([20, 40, 100, 200], value.maximumItems, n => defaultI18n.number(n))} onValueChange={next => update({maximumItems: Number(next)})}/>}/>}
       {eligible('libraries.cwPremieres') && <LibraryRow label={t('next.ownerLibraries.continue.premieres')} help={t('next.ownerLibraries.continue.premieresHelp')}
         trailing={<Switch disabled={busy} checked={value.includeSeasonPremieres} accessibilityLabel={t('next.ownerLibraries.continue.premieres')} onCheckedChange={next => update({includeSeasonPremieres: next})}/>}/>}
       {eligible('libraries.cwWatched') && <LibraryRow label={t('next.ownerLibraries.continue.watchedAt')} help={t('next.ownerLibraries.continue.watchedAtHelp')} trailing={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.watchedAt')} value={String(value.videoPlayedThreshold)}
-        options={numericOptions([80, 85, 90, 95, 100], value.videoPlayedThreshold, percentLabel)} onValueChange={next => update({videoPlayedThreshold: Number(next)})} style={selectStyle}/>}/>}
+        options={numericOptions([80, 85, 90, 95, 100], value.videoPlayedThreshold, percentLabel)} onValueChange={next => update({videoPlayedThreshold: Number(next)})}/>}/>}
       {eligible('libraries.cwRule') && <LibraryRow label={t('next.ownerLibraries.continue.rule')} help={t('next.ownerLibraries.continue.ruleHelp')} trailing={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.rule')} value={value.videoCompletion}
         options={[{value: 'earliest', label: t('next.ownerLibraries.continue.earliest')}, {value: 'threshold', label: t('next.ownerLibraries.continue.threshold')}, {value: 'credits', label: t('next.ownerLibraries.continue.credits'), description: t('next.ownerLibraries.continue.creditsHelp')}]}
-        onValueChange={next => {if (next === 'earliest' || next === 'threshold' || next === 'credits') update({videoCompletion: next});}} style={selectStyle}/>}/>}
+        onValueChange={next => {if (next === 'earliest' || next === 'threshold' || next === 'credits') update({videoCompletion: next});}}/>}/>}
     </LibraryGroup>
   </>;
 }
@@ -371,7 +370,7 @@ function ScanningTab({api, library, document, metadata, state, t, locale, skippe
     <LibraryGroup style={{marginTop: 12}}>
       <LibraryRow first label={t('next.ownerLibraries.introsAndCredits')} trailing={<Select testID="owner-libraries-segments" accessibilityLabel={t('next.ownerLibraries.introsAndCredits')} value={settings.segmentDetection}
         options={[{value: 'server', label: t('next.ownerLibraries.introsFollow')}, {value: 'standard', label: t('settings.server.segmentMode.standard')}, {value: 'thorough', label: t('settings.server.segmentMode.thorough')}, {value: 'off', label: t('settings.server.segmentMode.off')}]}
-        onValueChange={value => save({segmentDetection: value as LibrarySettings['segmentDetection']})} style={{backgroundColor: 'transparent', paddingHorizontal: 0}}/>}/>
+        onValueChange={value => save({segmentDetection: value as LibrarySettings['segmentDetection']})}/>}/>
       <LibraryRow label={t('next.ownerLibraries.metadataSource')} value={metadata?.agent === 'local' ? t('next.ownerLibraries.metadataLocal') : t('next.ownerLibraries.on')}/>
     </LibraryGroup>
     <LibrarySettingsRows tab="scanning" document={document} busy={state.busy} t={t} save={save}/>

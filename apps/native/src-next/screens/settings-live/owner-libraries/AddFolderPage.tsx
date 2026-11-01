@@ -42,7 +42,7 @@ export function AddFolderPage({api, serverName, source, expectedRevision, onSave
       <LibraryGroup><LibraryRow first label={t('next.ownerLibraries.addFolder.location')}
         trailing={<Select testID="owner-libraries-folder-location" accessibilityLabel={t('next.ownerLibraries.addFolder.location')} value={classification} options={[
           {value: 'local', label: t('web.libraries.localDisk'), description: t('next.ownerLibraries.addFolder.localHint')},
-          {value: 'network', label: t('web.libraries.networkShare'), description: t('next.ownerLibraries.addFolder.networkHint')}]} onValueChange={value => setClassification(value === 'network' ? 'network' : 'local')} style={{backgroundColor: 'transparent', paddingHorizontal: 0}}/>}/></LibraryGroup>
+          {value: 'network', label: t('web.libraries.networkShare'), description: t('next.ownerLibraries.addFolder.networkHint')}]} onValueChange={value => setClassification(value === 'network' ? 'network' : 'local')}/>}/></LibraryGroup>
 
       <SectionTitle>{t('next.ownerLibraries.addFolder.links')}</SectionTitle>
       <LibraryGroup><LibraryRow first label={t('next.ownerLibraries.addFolder.follow')} help={t('next.ownerLibraries.addFolder.followHelp')}
@@ -50,7 +50,7 @@ export function AddFolderPage({api, serverName, source, expectedRevision, onSave
 
       <SectionTitle>{t('next.ownerLibraries.addFolder.rescan')}</SectionTitle>
       <LibraryGroup><LibraryRow first label={t('next.ownerLibraries.addFolder.rescan')}
-        trailing={<Select testID="owner-libraries-folder-interval" accessibilityLabel={t('next.ownerLibraries.addFolder.rescan')} value={String(interval)} options={ownerLibraryIntervals.map(value => ({value: String(value.seconds), label: t(value.label, value.values)}))} onValueChange={value => setInterval(Number(value))} style={{backgroundColor: 'transparent', paddingHorizontal: 0}}/>}/></LibraryGroup>
+        trailing={<Select testID="owner-libraries-folder-interval" accessibilityLabel={t('next.ownerLibraries.addFolder.rescan')} value={String(interval)} options={ownerLibraryIntervals.map(value => ({value: String(value.seconds), label: t(value.label, value.values)}))} onValueChange={value => setInterval(Number(value))}/>}/></LibraryGroup>
 
       {error !== undefined && <Text accessibilityRole="alert" style={[shellType(13, 600, 18), {color: theme.colors.record, marginTop: 16}]}>{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</Text>}
     </FormScrollView>
