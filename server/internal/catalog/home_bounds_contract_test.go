@@ -31,7 +31,9 @@ func TestHomeDocumentBoundsKeepRequiredRowsAndCatalogue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(doc.Rows) != 2 || homeRowByID(doc.Rows, "continue") == nil {
+	// The default Home (collections frame 23): Continue Watching, the newest
+	// titles and Recommended for you; the rest overflow into the catalogue.
+	if len(doc.Rows) != 3 || homeRowByID(doc.Rows, "continue") == nil || homeRowByID(doc.Rows, "recommended") == nil {
 		t.Fatalf("rows %d required missing", len(doc.Rows))
 	}
 	catalogue, err := s.HomeRowCatalogue(req)
