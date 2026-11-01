@@ -58,8 +58,22 @@ chmod +x "$ROOT/packaging/macos/package-scripts/"* "$PKG_ROOT/Applications/Porti
 sign=()
 if [[ -n "${PORTICO_MACOS_INSTALLER_IDENTITY:-}" ]]; then sign=(--sign "$PORTICO_MACOS_INSTALLER_IDENTITY"); fi
 pkgbuild --component-plist "$ROOT/packaging/macos/components.plist" --root "$PKG_ROOT" --identifier tv.getportico.server --version "$VERSION" --install-location / --scripts "$ROOT/packaging/macos/package-scripts" "${sign[@]}" "$OUT/Portico-Media-Server-macOS-arm64$SUFFIX.pkg"
+# With a Developer ID Installer identity the PKG is signed above; notarise and staple it too.
+notarize() {
+  xcrun notarytool submit "$1" --key "$PORTICO_NOTARY_KEY_FILE" --key-id "${PORTICO_NOTARY_KEY_ID:?}" --issuer "${PORTICO_NOTARY_ISSUER:?}" --wait --timeout 30m
+  xcrun stapler staple "$1"
+}
+if [[ -n "${PORTICO_NOTARY_KEY_FILE:-}" && -n "${PORTICO_MACOS_INSTALLER_IDENTITY:-}" ]]; then
+  pkgutil --check-signature "$OUT/Portico-Media-Server-macOS-arm64$SUFFIX.pkg"
+  notarize "$OUT/Portico-Media-Server-macOS-arm64$SUFFIX.pkg"
+fi
 
 rm -rf "${DMG_ROOT:?}"
 mkdir -p "$DMG_ROOT"
 cp "$OUT/Portico-Media-Server-macOS-arm64$SUFFIX.pkg" "$DMG_ROOT/"
 hdiutil create -quiet -volname "Portico Media Server" -srcfolder "$DMG_ROOT" -ov -format UDZO "$OUT/Portico-Media-Server-macOS-arm64$SUFFIX.dmg"
+# The disk image is signed with the Developer ID Application identity and notarised as well.
+if [[ -n "${PORTICO_NOTARY_KEY_FILE:-}" && -n "${PORTICO_MACOS_SIGNING_IDENTITY:-}" ]]; then
+  codesign --force --timestamp --sign "$PORTICO_MACOS_SIGNING_IDENTITY" "$OUT/Portico-Media-Server-macOS-arm64$SUFFIX.dmg"
+  notarize "$OUT/Portico-Media-Server-macOS-arm64$SUFFIX.dmg"
+fi
