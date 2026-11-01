@@ -139,6 +139,10 @@ type ConnectionFacts struct {
 	Secure               bool   `json:"secure"`
 	Remote               bool   `json:"remote"`
 	PlainHTTPOutsideHome bool   `json:"plainHttpOutsideHome"`
+	// LANNetworks is the owner's home networks, only for a signed-in caller:
+	// apps learn them after the first sign-in, so a VPN or tailnet range the
+	// owner added counts as home for routing from then on.
+	LANNetworks []string `json:"lanNetworks,omitempty"`
 }
 
 func (c ConnectionDocument) facts() ConnectionFacts {
@@ -224,7 +228,12 @@ func connectivityIdentityCodeTx(ctx context.Context, tx *sql.Tx) (string, error)
 
 func registerConnectivity(registry *apikit.Registry, d Dependencies) error {
 	err := apikit.Register(registry, apikit.Route[struct{}, ConnectionFacts]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "get_connection", Method: "GET", Path: "/v1/networking/connection", Summary: "Read what this connection is", Access: apikit.Public, Requires: apikit.ScopeOpen, Lane: apikit.Default, Cost: apikit.Constant, Status: 200, Errors: []string{"internal"}}, Handler: func(ctx context.Context, r *http.Request, _ struct{}) (ConnectionFacts, error) {
-		return d.connectionDocument(r).facts(), nil
+		document := d.connectionDocument(r)
+		facts := document.facts()
+		if d.signedIn(r) {
+			facts.LANNetworks = document.LANNetworks
+		}
+		return facts, nil
 	}})
 	if err != nil {
 		return err

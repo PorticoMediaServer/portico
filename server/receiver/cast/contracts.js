@@ -31626,11 +31626,6 @@ var PorticoCastContracts = (function(exports) {
 		},
 		"GetConnectionResponse": {
 			"properties": {
-				"accessUrls": {
-					"items": { "type": "string" },
-					"type": "array"
-				},
-				"clientAddress": { "type": "string" },
 				"lanNetworks": {
 					"items": { "type": "string" },
 					"type": "array"
@@ -31641,13 +31636,10 @@ var PorticoCastContracts = (function(exports) {
 				"secureConnections": { "type": "string" }
 			},
 			"required": [
-				"lanNetworks",
 				"secureConnections",
 				"secure",
 				"remote",
-				"plainHttpOutsideHome",
-				"clientAddress",
-				"accessUrls"
+				"plainHttpOutsideHome"
 			],
 			"type": "object"
 		},
@@ -151464,7 +151456,6 @@ var PorticoCastContracts = (function(exports) {
 				"setupRequired",
 				"hostedConfigured",
 				"hostedAttached",
-				"version",
 				"apiLevel",
 				"apiVersion",
 				"apiMajors",
@@ -164968,8 +164959,6 @@ var PorticoCastContracts = (function(exports) {
 		},
 		"PostAuthOwnerResetRequestResponse": {
 			"properties": {
-				"dataDirectory": { "type": "string" },
-				"fileDirectory": { "type": "string" },
 				"fileName": {
 					"const": "reset-code.txt",
 					"type": "string"
@@ -164978,24 +164967,9 @@ var PorticoCastContracts = (function(exports) {
 					"maximum": 60,
 					"minimum": 0,
 					"type": "integer"
-				},
-				"systemKind": {
-					"enum": [
-						"linux",
-						"windows",
-						"macos",
-						"docker"
-					],
-					"type": "string"
 				}
 			},
-			"required": [
-				"systemKind",
-				"dataDirectory",
-				"fileDirectory",
-				"fileName",
-				"retryAfterSeconds"
-			],
+			"required": ["fileName", "retryAfterSeconds"],
 			"type": "object"
 		},
 		"PostAuthOwnerResetVerifyRequest": {

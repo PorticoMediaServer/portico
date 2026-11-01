@@ -44686,6 +44686,12 @@
       },
       "GetConnectionResponse": {
         "properties": {
+          "lanNetworks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "plainHttpOutsideHome": {
             "type": "boolean"
           },
@@ -216012,6 +216018,9 @@
               "portico",
               "local"
             ],
+            "type": "string"
+          },
+          "version": {
             "type": "string"
           }
         },
@@ -665961,6 +665970,12 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "lanNetworks": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
                     "plainHttpOutsideHome": {
                       "type": "boolean"
                     },
@@ -774560,6 +774575,9 @@
                         "portico",
                         "local"
                       ],
+                      "type": "string"
+                    },
+                    "version": {
                       "type": "string"
                     }
                   },

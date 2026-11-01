@@ -42,6 +42,16 @@ passwords and PINs remain one-way hashes. TV shared screens never display these
 secrets. Revoking an app password also revokes its derived integration tokens.
 Disabling compatibility prevents those tokens from being used.
 
+### Reported version
+
+Compatibility clients ask the server for its version before signing in
+(`System/Info/Public`). Portico never publishes its own build before sign-in, so
+it reports the fixed compatibility version **10.10.0** (product name "Portico").
+The tools covered here (Sonarr, Radarr, Lidarr, Bazarr, Jellyseerr/Seerr and
+Home Assistant) don't gate on a server version; the Jellyfin SDKs treat
+anything older than 10.10.0 as unsupported, so this is the lowest value they
+accept. Signed-in people see Portico's real version in About.
+
 Setup instructions sometimes name the connection type offered by another tool.
 That label describes which option to select in that tool, rather than changing
 Portico's accounts or API model.

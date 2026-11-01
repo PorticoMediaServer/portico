@@ -89,11 +89,12 @@ export type CustomCertificateStatus=Readonly<{serving:boolean;state:'none'|'read
 export type ConnectivityTLS=Readonly<{configured:boolean;state?:string;errorCode?:string;dnsName?:string;issuer?:string;
  notAfter?:string;tlsReady:boolean;publiclyTrusted:boolean;listenerBound:boolean;listenPort:number;routeUrl?:string;reachability?:string;customCertificate?:CustomCertificateStatus}>;
 export type ConnectivityDiscovery=Readonly<{enabled:boolean;supported:boolean;state:DiscoveryState;detail?:string;serviceType?:string}>;
-/** What any caller may learn about its own connection before sign-in (O-169). */
-export type ConnectionFacts=Readonly<{secure:boolean;remote:boolean;plainHttpOutsideHome:boolean;secureConnections?:'preferred'|'required'}>;
-export type ConnectionDocument=ConnectionFacts&Readonly<{clientAddress:string;accessUrls:readonly string[];
+/** What a caller learns about its own connection (O-169). The owner's home networks come only
+ * to a signed-in caller, so an app learns them from its first sign-in on. */
+export type ConnectionFacts=Readonly<{secure:boolean;remote:boolean;plainHttpOutsideHome:boolean;secureConnections?:'preferred'|'required';
  /** The owner's LAN networks (the one definition of home), when the server says. */
  lanNetworks?:readonly string[]}>;
+export type ConnectionDocument=ConnectionFacts&Readonly<{clientAddress:string;accessUrls:readonly string[]}>;
 export type ConnectivityStatus=Readonly<{connection:ConnectionDocument;observedAt:string;policy:ConnectivityPolicy;tls:ConnectivityTLS;discovery:ConnectivityDiscovery;
  identityCode?:string;localUrl?:string;addresses:readonly ConnectivityAddress[];interfaces:readonly ConnectivityInterface[];warnings:readonly string[];omittedAddresses:number;omittedInterfaces:number}>;
 export type AdministrationPage<T>=Readonly<{limit:number;nextCursor:string;items:readonly T[]}>;
@@ -410,7 +411,8 @@ export function parseConnectionFacts(raw:unknown):ConnectionFacts {
  if(!obj(raw))return invalid();
  const secure=raw.secure===true;
  return Object.freeze({secure,remote:raw.remote===true,plainHttpOutsideHome:raw.plainHttpOutsideHome===true&&!secure,
-  ...(raw.secureConnections==='preferred'||raw.secureConnections==='required'?{secureConnections:raw.secureConnections}:{})});
+  ...(raw.secureConnections==='preferred'||raw.secureConnections==='required'?{secureConnections:raw.secureConnections}:{}),
+  ...(Array.isArray(raw.lanNetworks)&&raw.lanNetworks.length<=64?{lanNetworks:Object.freeze(raw.lanNetworks.filter((x):x is string=>typeof x==='string'&&!!parseCIDR(x)))}:{})});
 }
 /**
  * The owner's fuller connection document (the connectivity status). It adds
@@ -423,6 +425,5 @@ export function parseConnectionDocument(raw:unknown):ConnectionDocument {
  const facts=parseConnectionFacts(raw);
  const address=typeof raw.clientAddress==='string'&&raw.clientAddress.length<=128&&!/[\x00-\x1f]/.test(raw.clientAddress)?raw.clientAddress:'';
  const offered=raw.accessUrls===undefined||raw.accessUrls===null?[]:raw.accessUrls;if(!Array.isArray(offered)||offered.length>16)return invalid();
- return Object.freeze({...facts,clientAddress:address,accessUrls:Object.freeze(keepReadable('server-administration','connection.accessUrls',offered,x=>typeof x==='string'&&x.length>0&&x.length<=300&&!/[\x00-\x1f]/.test(x)?x:undefined)),
-  ...(Array.isArray(raw.lanNetworks)&&raw.lanNetworks.length<=64?{lanNetworks:Object.freeze(raw.lanNetworks.filter((x):x is string=>typeof x==='string'&&!!parseCIDR(x)))}:{})});
+ return Object.freeze({...facts,clientAddress:address,accessUrls:Object.freeze(keepReadable('server-administration','connection.accessUrls',offered,x=>typeof x==='string'&&x.length>0&&x.length<=300&&!/[\x00-\x1f]/.test(x)?x:undefined))});
 }

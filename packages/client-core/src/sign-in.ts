@@ -8,8 +8,8 @@ export type ServerSignIn = Readonly<SystemInfo & {signIn: SignInKind}>;
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max && !/[\p{Cc}\p{Cf}]/u.test(v);
 /** A missing or unknown kind never grants a password form. No claim/Hosted inference.
- * The exact server build is not public (O-169): the owner reads it from the
- * authenticated updates report, so this parser never asks for it. */
+ * The server version is served only to a signed-in caller (O-169), so it is
+ * optional here and carried when present. */
 export function parseServerSignIn(raw: unknown): ServerSignIn {
   if (!object(raw) || !text(raw.id, 256) || !text(raw.name, 120) ||
       !['portico', 'local'].includes(String(raw.signIn)) || raw.move!==null&&!['to_portico','to_local'].includes(String(raw.move)) || typeof raw.setupRequired !== 'boolean' ||
@@ -20,7 +20,7 @@ export function parseServerSignIn(raw: unknown): ServerSignIn {
   if(moveEndsAt===undefined)throw new RouteError('invalid_system','The server reported an unreadable move window.');
   return Object.freeze({id: raw.id, name: raw.name, signIn: raw.signIn as SignInKind,move:raw.move as ServerSignIn['move'],
     setupRequired: raw.setupRequired, hostedConfigured: raw.hostedConfigured, hostedAttached: raw.hostedAttached, apiLevel: raw.apiLevel as number, moveEndsAt,
-    ...serverAPI(raw)});
+    ...(text(raw.version, 256) ? {version: raw.version} : {}), ...serverAPI(raw)});
 }
 /** O-159: the negotiation facts. A server without them, or with a shape this client can't read,
  * is pre-release: it carries none, and negotiation refuses it. Nothing is guessed from `apiLevel`. */
