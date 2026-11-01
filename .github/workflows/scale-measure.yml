@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   smoke:
-    if: ${{ !contains(github.event.head_commit.message, 'nested pages using') && !contains(github.event.head_commit.message, 'paced scan controls') }}
+    if: ${{ !contains(github.event.head_commit.message, 'nested pages using') && !contains(github.event.head_commit.message, 'paced scan controls') && !contains(github.event.head_commit.message, 'cached profile activity') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -196,3 +196,33 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with: {name: 'paced-scan-${{ matrix.items }}', path: '${{ runner.temp }}/reports', retention-days: 7}
+  cached-http:
+    if: ${{ contains(github.event.head_commit.message, 'cached profile activity') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [films20]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - run: mkdir -p "$RUNNER_TEMP/scale-cache" "$RUNNER_TEMP/reports"
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/scale-cache/portico-fixture-*.sqlite
+          key: scale-F-v1-${{ matrix.mode }}-${{ hashFiles('server/internal/persistence/**', 'server/internal/compactcatalog/**', 'server/internal/httpapi/fixture/**', 'server/internal/dbwork/**', 'server/go.sum') }}
+      - name: Measure actual personal keys using the completed seed
+        working-directory: server
+        env:
+          PORTICO_FIXTURE_SEED_HASH: ${{ hashFiles('server/internal/httpapi/fixture/**', 'server/internal/compactcatalog/**', 'server/internal/persistence/**', 'server/internal/dbwork/**', 'server/go.sum') }}
+          TMPDIR: ${{ runner.temp }}/scale-cache
+          PORTICO_REQUIRE_SCALE_SEED: 1
+          PORTICO_SCALE_MODE: ${{ matrix.mode }}
+          PORTICO_SCALE_REPORT: ${{ runner.temp }}/reports
+        run: go test -vet=off ./internal/httpapi -run '^TestServerScaleMeasurement$' -count=1 -v -timeout=15m > "$RUNNER_TEMP/reports/measure.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: 'cached-scale-${{ matrix.mode }}', path: '${{ runner.temp }}/reports', retention-days: 7}

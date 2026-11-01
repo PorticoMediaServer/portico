@@ -25,6 +25,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/httpapi/fixture"
+	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/playbackv1"
 )
@@ -176,6 +177,12 @@ func TestServerScaleMeasurement(t *testing.T) {
 		t.Fatal("unknown mode")
 	}
 	scaleSave(t, "environment", map[string]any{"mode": mode, "shape": shape, "cpus": runtime.NumCPU(), "go": runtime.Version(), "baseline": "444a7087", "cache": "schema and shape keyed fixture; OS cache warm"})
+	if os.Getenv("PORTICO_REQUIRE_SCALE_SEED") == "1" {
+		matches, e := filepath.Glob(filepath.Join(os.Getenv("TMPDIR"), "portico-fixture-*.sqlite"))
+		if e != nil || len(matches) != 1 {
+			t.Fatal("exactly one compatible completed seed required")
+		}
+	}
 	at := time.Now()
 	f := newLoadFixture(t, performanceTier{name: "F-" + mode, shape: shape, catalogItems: shape.Items(), concurrentViewers: users, capabilities: true})
 	scaleSave(t, "fixture", map[string]any{"setup_seconds": time.Since(at).Seconds(), "peak_rss_mib": scaleRSS()})
@@ -185,9 +192,17 @@ func TestServerScaleMeasurement(t *testing.T) {
 	// New HTTP profiles carry the same sparse meaningful history as a real viewer.
 	c := catalogtest.New(t, f.db)
 	for p, env := range f.viewers {
-		c.Write(func(ctx context.Context, tx *sql.Tx) error { return scalePersonal(ctx, tx, env.Viewer.ProfileID, p) })
+		c.Write(func(ctx context.Context, tx *sql.Tx) error {
+			return scalePersonal(ctx, tx, identity.PersonalKey(env.Viewer), p)
+		})
 	}
 	c.Drain()
+	for _, env := range f.viewers {
+		var count int
+		if e := f.db.QueryRow(`SELECT count(*) FROM personal_history WHERE profile_id=?`, identity.PersonalKey(env.Viewer)).Scan(&count); e != nil || count != 30 {
+			t.Fatalf("HTTP personal key history: %d (%v)", count, e)
+		}
+	}
 	if e := persistence.RefreshPlannerStatistics(context.Background(), f.db); e != nil {
 		t.Fatal(e)
 	}
@@ -269,7 +284,7 @@ func TestServerScaleMeasurement(t *testing.T) {
 	for _, name := range []string{"home", "see_all", "browse"} {
 		ctx, read := dbwork.Measure(context.Background())
 		s := f.catalog.WithContext(ctx)
-		profile := f.viewers[0].Viewer.ProfileID
+		profile := identity.PersonalKey(f.viewers[0].Viewer)
 		v := catalog.Viewer{Profile: profile, Fence: profile, Libraries: []string{f.library}}
 		r := catalog.HomeRequest{Viewer: v, ServerID: "s", Profile: profile, ViewerFence: profile, Libraries: v.Libraries, Now: time.Now()}
 		var e error
@@ -409,16 +424,20 @@ func TestServerScaleMeasurement(t *testing.T) {
 }
 
 func scalePersonal(ctx context.Context, tx *sql.Tx, profile string, p int) error {
-	_, e := tx.ExecContext(ctx, `INSERT INTO personal_history(id,profile_id,item_id,started_at,updated_at,sequence,position,unit,completed) SELECT ?||'-'||id,?,id,'2026-10-01T00:00:00.000Z','2026-10-01T00:00:00.000Z',1,5400000,0,1 FROM catalog_entities WHERE kind=1 AND retired=0 ORDER BY id LIMIT 30 OFFSET ?`, profile, profile, p*31)
+	at := time.Now().UTC().Add(-time.Hour).Format("2006-01-02T15:04:05.000Z")
+	_, e := tx.ExecContext(ctx, `INSERT INTO personal_history(id,profile_id,item_id,started_at,updated_at,sequence,position,unit,completed) SELECT ?||'-'||id,?,id,?,?,1,5400000,0,1 FROM catalog_entities WHERE kind=1 AND retired=0 ORDER BY id LIMIT 30 OFFSET ?`, profile, profile, at, at, p*31)
 	if e != nil {
 		return e
 	}
-	for _, query := range []string{
-		`INSERT INTO personal_items(profile_id,item_id,watched,favorite,watchlisted,last_played_at,revision) SELECT ?,id,0,1,0,'2026-10-01T00:00:00.000Z',1 FROM catalog_entities WHERE kind=1 AND retired=0 ORDER BY id LIMIT 10 OFFSET ?`,
-		`INSERT INTO progress(profile_id,item_id,position,unit,playback_id) SELECT ?,id,120000,0,'F-fixture' FROM catalog_entities WHERE kind=1 AND retired=0 ORDER BY id LIMIT 10 OFFSET ?`,
-		`INSERT INTO progress_activity(profile_id,library_id,item_id,updated_at,state) SELECT ?,l.library_id,e.id,'2026-10-01T00:00:00.000Z','paused' FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.kind=1 AND e.retired=0 ORDER BY e.id LIMIT 10 OFFSET ?`,
+	for _, statement := range []struct {
+		q    string
+		args []any
+	}{
+		{`INSERT INTO personal_items(profile_id,item_id,watched,favorite,watchlisted,last_played_at,revision) SELECT ?,id,0,1,0,?,1 FROM catalog_entities WHERE kind=1 AND retired=0 ORDER BY id LIMIT 10 OFFSET ?`, []any{profile, at, p * 31}},
+		{`INSERT INTO progress(profile_id,item_id,position,unit,playback_id) SELECT ?,id,120000,0,'F-fixture' FROM catalog_entities WHERE kind=1 AND retired=0 ORDER BY id LIMIT 10 OFFSET ?`, []any{profile, p * 31}},
+		{`INSERT INTO progress_activity(profile_id,library_id,item_id,updated_at,state) SELECT ?,l.library_id,e.id,?,'paused' FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.kind=1 AND e.retired=0 ORDER BY e.id LIMIT 10 OFFSET ?`, []any{profile, at, p * 31}},
 	} {
-		if _, e = tx.ExecContext(ctx, query, profile, p*31); e != nil {
+		if _, e = tx.ExecContext(ctx, statement.q, statement.args...); e != nil {
 			return e
 		}
 	}
