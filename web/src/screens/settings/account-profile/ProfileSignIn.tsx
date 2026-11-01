@@ -4,6 +4,7 @@ import {defaultI18n} from '@i18n';
 import {IdentityClient, type TwoFactorEnrolment} from '@core/identity-client.ts';
 import type {TwoFactorState} from '@core/identity-restrictions.ts';
 import type {SecurityState, IdentityProvider} from '@core/hosted-security.ts';
+import {providerOnlyLabel, providerOnlySignIn} from '@core/hosted-security.ts';
 import type {LocalSession} from '@core/index.ts';
 import type {ProfileAPI} from '@core/profile-management.ts';
 import {passwordStrength} from '@core/password-strength.ts';
@@ -84,6 +85,8 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onEnded,onFac
  const [task,setTask]=useState<Task>(),[hostedTask,setHostedTask]=useState<HostedIntent>();
  const [enrolment,setEnrolment]=useState<TwoFactorEnrolment>(),[codes,setCodes]=useState<readonly string[]>();
  const [password,setPassword]=useState(''),[next,setNext]=useState(''),[code,setCode]=useState('');
+ // A Google- or Apple-only Portico Account (Justin, 1 Nov): Add a password waits behind More sign-in options.
+ const [moreSignIn,setMoreSignIn]=useState(false);
  const [busy,setBusy]=useState(false),[error,setError]=useState<unknown>(),[retry,setRetry]=useState(0);
  const clearSecrets=()=>{setPassword('');setNext('');setCode('');};
  // Publish only at commit, then sample once for this setup's original lifetime.
@@ -190,6 +193,7 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onEnded,onFac
  const guardField=(change:(value:string)=>void)=>(value:string)=>{if(intentCurrent(intent)&&!held!.busy)change(value);};
  const ready=!!held&&!busy&&(task==='password'?!!password&&passwordStrength(next).acceptable&&(!factor?.enabled||!!code.trim()):task==='enrol'?enrolment?!!intent?.enrolPassword&&code.length===6:!!password:!!password&&!!code.trim());
  const title=t(task==='password'?'account.changePasswordTitle':task==='disable'?'web.twoStep.turnOffConfirmTitle':task==='codes'||codes?'web.hostedSecurity.newCodesTitle':enrolment?'web.hostedSecurity.addToAuthenticator':'web.twoStep.turnOnTitle');
+ const providerOnly=signIn==='portico'&&hostedState?providerOnlySignIn(hostedState):undefined;
  if(!scope||!document?.canManage)return null;
  return <SettingsGroup title={t('next.settingsSpec.account.profile.groups.5.title')}>
   {error&&!task&&!hostedTask&&!codes?<HostedError error={error}/>:null}
@@ -197,15 +201,19 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onEnded,onFac
   {signIn==='portico'&&<SettingsRow id="profile.email" label={t('next.settingsSpec.account.profile.groups.5.rows.0.label')} help={<>{hostedState?.contactAddress}<br/>{t('services.security.emailHelp')}</>}>
    <HostedSecurityAction label={t('next.settingsSpec.account.profile.groups.5.rows.0.control.label')} disabled={!available||busy} onOpen={()=>{openHosted('email_change');}}/>
   </SettingsRow>}
+  {providerOnly?<SettingsRow id="profile.passwordProvider" label={t('next.settingsSpec.account.profile.groups.5.rows.1.label')} help={providerOnlyLabel(providerOnly,t)}>{null}</SettingsRow>:
   <SettingsRow id="profile.password" label={t('next.settingsSpec.account.profile.groups.5.rows.1.label')}>
-   <HostedSecurityAction label={t(signIn==='portico'&&hostedState?.hasPassword===false?'account.setPassword':'next.settingsSpec.account.profile.groups.5.rows.1.control.label')} disabled={!available||busy} onOpen={()=>open('password')}/>
-  </SettingsRow>
+   <HostedSecurityAction label={t('next.settingsSpec.account.profile.groups.5.rows.1.control.label')} disabled={!available||busy} onOpen={()=>open('password')}/>
+  </SettingsRow>}
   <SettingsRow id="profile.twoStep" label={t('next.settingsSpec.account.profile.groups.5.rows.2.label')} help={t('next.settingsSpec.account.profile.groups.5.rows.2.help')}>
    {mfa===undefined?<span role="status">{t('web.claim.loading')}</span>:<Switch aria-label={t('next.settingsSpec.account.profile.groups.5.rows.2.label')} checked={mfa===true} disabled={!available||busy} onCheckedChange={()=>open(mfa?'disable':'enrol')}/>}
   </SettingsRow>
   {mfa&&<SettingsRow id="profile.recoveryCodes" dependent label={t('next.settingsSpec.account.profile.groups.5.rows.2.children.0.label')} help={remaining===undefined?undefined:t('web.hostedSecurity.codesLeft',{count:remaining})}>
    <HostedSecurityAction label={t('next.settingsSpec.account.profile.groups.5.rows.2.children.0.control.label')} disabled={!available||busy} onOpen={()=>open('codes')}/>
   </SettingsRow>}
+  {providerOnly&&(moreSignIn?<SettingsRow id="profile.addPassword" label={t('web.hostedSecurity.moreSignInOptions')}>
+   <HostedSecurityAction label={t('web.hostedSecurity.addPassword')} disabled={!available||busy} onOpen={()=>open('password')}/>
+  </SettingsRow>:<Button size="small" variant="text" onClick={()=>setMoreSignIn(true)}>{t('web.hostedSecurity.moreSignInOptions')}</Button>)}
   {hostedState&&!hostedState.hasPassword&&<ServicesQuiet>{t(held?.providerReady&&hostedState.providers.some(v=>v.revision&&held.enabledProviders?.includes(v.provider))?'web.hostedSecurity.providerConfirm':'web.hostedSecurity.providerOnly')}</ServicesQuiet>}
   {held&&held.hosted&&held.identity&&hostedState&&!hostedState.hasPassword&&hostedTask&&hostedTask.current()&&<ProviderSecurityStartDialog key={hostedTask.id} account={held.hosted} identity={held.identity} state={hostedState} task={hostedTask.kind} enabledProviders={held.enabledProviders??[]} isCurrent={hostedTask.current} onClose={()=>{if(hostedTask.current()){hostedIntentRef.current=undefined;setHostedTask(undefined);setRetry(value=>value+1);}}}/>}
   {held&&held.hosted&&held.identity&&hostedState&&hostedState.hasPassword&&hostedTask&&hostedTask.current()&&<HostedSecurityTask key={hostedTask.id} account={held.hosted} identity={held.identity} state={hostedState} task={hostedTask.kind} isCurrent={hostedTask.current}

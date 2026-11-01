@@ -1,7 +1,7 @@
 import React, {useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Linking, NativeModules, Text, View} from 'react-native';
 import {HttpLocalApi} from '../../../../../packages/client-core/src';
-import {parseSecurityState} from '../../../../../packages/client-core/src/hosted-security';
+import {parseSecurityState, providerOnlyLabel, providerOnlySignIn} from '../../../../../packages/client-core/src/hosted-security';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {routePath} from '../../../../../packages/contracts/src/hosted/routes';
 import {Button} from '../../kit/controls';
@@ -28,6 +28,8 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
   const theme = useTheme(), navigation = useSyncExternalStore(context.navigation.subscribe, context.navigation.getSnapshot);
   const retirement = runtime.retirementSignal;
   const [opening, setOpening] = useState<Opening>(), openingRef = useRef<Opening | undefined>(undefined);
+  // A Google- or Apple-only account (Justin, 1 Nov): Add a password waits behind More sign-in options.
+  const [moreSignIn, setMoreSignIn] = useState(false);
   const [source, setSource] = useState<NativeAccountSecurity>(), [failure, setFailure] = useState<string>();
   useLayoutEffect(() => {
     setOpening(undefined); setSource(undefined); setFailure(undefined);
@@ -103,14 +105,19 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
   const locked = security ? accountSecurityAvailability(security, NativeModules.PorticoAccountAuth).credentialLocked : true;
   const action = (task: NativeAccountSecurityKind, label: string) => ready && <Button testID={`account-security-${task}`} variant="glass" size="compact" disabled={locked}
     onPress={() => {if (!locked && opening?.current() && ready.current()) ready.open(task);}}>{label}</Button>;
+  const providerOnly = kind === 'password' && security ? providerOnlySignIn(security) : undefined;
   return <>
     <SettingsRow first testID={`settings-panel-${kind}`} label={t(kind === 'password' ? 'settings.row.password' : 'settings.row.twoStep')}
-      value={kind === 'twoStep' && security ? t(security.mfaEnabled ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off') : undefined}
-      control={security ? kind === 'password' ? action('password', t(security.hasPassword ? 'web.hostedSecurity.change' : 'account.setPassword'))
+      value={kind === 'twoStep' && security ? t(security.mfaEnabled ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off') : providerOnly ? providerOnlyLabel(providerOnly, t) : undefined}
+      control={security ? kind === 'password' ? providerOnly ? undefined : action('password', t(security.hasPassword ? 'web.hostedSecurity.change' : 'account.setPassword'))
         : <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}><Text style={[shellType(14.5), {color: theme.colors.textSecondary}]}>{t(security.mfaEnabled ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off')}</Text>
           {action(security.mfaEnabled ? 'mfa-off' : 'mfa-on', t(security.mfaEnabled ? 'web.hostedSecurity.turnOff' : 'web.twoStep.turnOn'))}</View> : undefined}/>
     {kind === 'twoStep' && security?.mfaEnabled && <SettingsRow testID="settings-panel-recovery-codes" label={t('web.hostedSecurity.recoveryCodes')}
       control={action('codes', t('web.hostedSecurity.makeCodes'))}/>}
+    {providerOnly && (moreSignIn ? <SettingsRow testID="settings-panel-add-password" label={t('web.hostedSecurity.moreSignInOptions')}
+      control={action('password', t('web.hostedSecurity.addPassword'))}/>
+      : <View style={{padding: 14}}><Button testID="settings-more-sign-in" variant="text" size="compact" style={{alignSelf: 'flex-start'}}
+        onPress={() => setMoreSignIn(true)}>{t('web.hostedSecurity.moreSignInOptions')}</Button></View>)}
     {failure && <View style={{padding: 14, gap: 12}}><Text accessibilityRole="alert" style={[shellType(14, 400, 20), {color: theme.colors.danger}]}>{failure}</Text>
       {opening?.current() && <Button variant="glass" size="compact" onPress={() => {void opening.refresh();}}>{t('action.tryAgain')}</Button>}</View>}
     {security && <AccountSecuritySheet security={security} source={ready} onFinished={() => {if (opening?.current()) void opening.refresh();}}/>}

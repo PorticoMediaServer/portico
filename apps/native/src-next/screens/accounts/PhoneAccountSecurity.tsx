@@ -7,7 +7,7 @@ import {useTheme} from '../../kit/theme';
 import {copyText} from '../../platform/clipboard';
 import type {NativeAccountWorkspace} from '../../platform/account-workspace';
 import type {NativeAccountSecurity, NativeAccountSecurityKind, NativeAccountSecuritySnapshot} from '../../platform/account-security';
-import type {SecurityState} from '../../../../../packages/client-core/src/hosted-security';
+import {providerOnlyLabel, providerOnlySignIn, type SecurityState} from '../../../../../packages/client-core/src/hosted-security';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {PasswordStrengthMeter} from './PasswordStrengthMeter';
 
@@ -24,6 +24,8 @@ export function PhoneAccountSecurity({workspace, security}: {workspace: NativeAc
   const theme = useTheme(), t = defaultI18n.t;
   const [source, setSource] = useState<NativeAccountSecurity>();
   const [unavailable, setUnavailable] = useState<string>();
+  // A Google- or Apple-only account (Justin, 1 Nov): Add a password waits behind More sign-in options.
+  const [moreSignIn, setMoreSignIn] = useState(false);
   useLayoutEffect(() => {
     if (!workspace.current()) return;
     let controller: NativeAccountSecurity;
@@ -42,12 +44,16 @@ export function PhoneAccountSecurity({workspace, security}: {workspace: NativeAc
     <View style={{flex: 1, minWidth: 150, gap: 4}}>{text(name)}{text(detail, true)}</View>{control}
   </View>;
   const {providerProof, credentialLocked} = accountSecurityAvailability(security, NativeModules.PorticoAccountAuth);
+  const providerOnly = providerOnlySignIn(security);
   return <>
     {unavailable && <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.danger}]}>{unavailable}</Text>}
     {group(t('web.hostedSecurity.signingIn'), <>
-      {row(t('web.password'), t(security.hasPassword ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off'), action('password', security.hasPassword ? t('web.hostedSecurity.change') : t('account.setPassword'), credentialLocked))}
+      {providerOnly ? row(t('web.password'), providerOnlyLabel(providerOnly, t))
+        : row(t('web.password'), t(security.hasPassword ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off'), action('password', security.hasPassword ? t('web.hostedSecurity.change') : t('account.setPassword'), credentialLocked))}
       {row(t('web.hostedSecurity.email'), security.contactAddress || t('web.hostedSecurity.notSet'), action('email', t('web.hostedSecurity.change'), credentialLocked))}
       {security.providers.map(provider => <View key={provider.id}>{text(t(provider.provider === 'apple' ? 'accounts.provider.apple' : 'accounts.provider.google'))}{text(t('web.hostedSecurity.connected'), true)}</View>)}
+      {providerOnly && (moreSignIn ? row(t('web.hostedSecurity.moreSignInOptions'), '', action('password', t('web.hostedSecurity.addPassword'), credentialLocked))
+        : <Button testID="account-security-more-sign-in" variant="text" size="compact" style={{alignSelf: 'flex-start'}} onPress={() => setMoreSignIn(true)}>{t('web.hostedSecurity.moreSignInOptions')}</Button>)}
       {!security.hasPassword && text(t(providerProof ? 'web.hostedSecurity.providerConfirm' : 'web.hostedSecurity.providerOnly'), true)}
     </>)}
     {group(t('web.twoStep.title'), <>
