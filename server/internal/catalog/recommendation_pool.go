@@ -240,7 +240,11 @@ var relatedPoolQueries = []string{
 // are at most limit of them (whole=true), found by one capped index read;
 // otherwise it reports whole=false after reading limit+1 keys.
 func (s *Service) smallLibraryItems(r HomeRequest, limit int) ([]string, bool, error) {
-	rows, err := s.read().QueryContext(s.Context(), `SELECT pid(e.public_id) FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id JOIN catalog_kinds k ON k.id=e.kind WHERE l.library_id IN(SELECT value FROM json_each(?)) AND k.playable=1 AND e.kind<>11 LIMIT ?`, idsJSON(r.Libraries), limit+1)
+	rows, err := s.read().QueryContext(s.Context(), `SELECT pid(e.public_id) FROM json_each(?) requested
+ CROSS JOIN catalog_libraries l ON l.library_id=requested.value
+ CROSS JOIN catalog_kinds k
+ CROSS JOIN catalog_entities e INDEXED BY catalog_entities_library ON e.library_id=l.id AND e.kind=k.id
+ WHERE k.playable=1 AND k.id<>11 LIMIT ?`, idsJSON(r.Libraries), limit+1)
 	if err != nil {
 		return nil, false, err
 	}

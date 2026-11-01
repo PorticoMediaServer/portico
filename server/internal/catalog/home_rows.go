@@ -1059,12 +1059,12 @@ func (s *Service) HomeLayoutRows(r HomeRequest) (HomeLayoutView, error) {
 // Home composes every visible row with an inline preview. Rows with no entries
 // are omitted unless they are critical; hidden rows are dropped unless the row
 // is required, which no layout may hide.
-func (s *Service) HomeRows(r HomeRequest) (HomeDocument, error) {
+func (s *Service) homeRowsFresh(r HomeRequest) (HomeDocument, error) {
 	if dbwork.Snapshot(s.Context()) == nil {
 		var out HomeDocument
 		err := dbwork.WithReadSnapshot(s.Context(), s.db, func(ctx context.Context) error {
 			var readErr error
-			out, readErr = s.WithContext(ctx).HomeRows(r)
+			out, readErr = s.WithContext(ctx).homeRowsFresh(r)
 			return readErr
 		})
 		return out, err
@@ -1186,12 +1186,12 @@ func (s *Service) HomeRows(r HomeRequest) (HomeDocument, error) {
 
 // HomeSingleRow pages one row. A supplied revision that no longer matches the
 // live projection is a stale continuation, not a silently different page.
-func (s *Service) HomeSingleRow(r HomeRequest, id string, page HomeRowPage) (HomeRow, error) {
+func (s *Service) homeSingleRowFresh(r HomeRequest, id string, page HomeRowPage) (HomeRow, error) {
 	if dbwork.Snapshot(s.Context()) == nil {
 		var out HomeRow
 		err := dbwork.WithReadSnapshot(s.Context(), s.db, func(ctx context.Context) error {
 			var readErr error
-			out, readErr = s.WithContext(ctx).HomeSingleRow(r, id, page)
+			out, readErr = s.WithContext(ctx).homeSingleRowFresh(r, id, page)
 			return readErr
 		})
 		return out, err

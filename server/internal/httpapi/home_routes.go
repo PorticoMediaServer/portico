@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"github.com/PorticoMediaServer/portico/apikit"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/operations"
+	"net/http"
 	"strconv"
 )
 
@@ -358,7 +358,8 @@ func (d Dependencies) serveHomeDocument(w http.ResponseWriter, r *http.Request) 
 			return scopeErr
 		}
 		request.Limit = limit
-		// Spotlight and current permission facts are recomposed on every read.
+		// Catalogue composition may share a scan's bounded freshness window;
+		// command offers and permission facts below are always current.
 		var composeErr error
 		out, composeErr = cat.HomeManifest(request)
 		if composeErr != nil {
