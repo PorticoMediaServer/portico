@@ -65,6 +65,11 @@ func (d Dependencies) remoteAdmits(r *http.Request) bool {
 	host := r.Host
 	forwardedHTTPS := false
 	if proxied {
+		// The client is the rightmost hop the trusted proxies didn't add
+		// (networkpolicy.Forwarded), never a value the client wrote at the
+		// left. A proxied request without a usable chain is judged as from
+		// outside: the proxy's own address (often at home) never stands in.
+		client = netip.Addr{}
 		if forwarded, ok := networkpolicy.Client(r, d.trustedProxyPrefixes(r.Context())); ok {
 			client = forwarded
 		}

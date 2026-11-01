@@ -81,13 +81,25 @@ func TestRequest(t *testing.T) {
 }
 
 func TestDefaultsAreSafe(t *testing.T) {
+	// Before the settings are installed, the startup policy refuses every
+	// outside connection, TLS or not, and still answers loopback.
 	g := New()
-	if g.Policy() != nil {
-		t.Fatal("a gate judges nothing until its policy is installed")
+	p0 := g.Policy()
+	if p0 == nil || p0.Access() != AccessOff {
+		t.Fatalf("startup policy: %+v", p0)
+	}
+	if p0.Socket(outside, true) != Refuse || p0.Socket(outside, false) != Refuse {
+		t.Fatal("the startup policy admitted an outside connection")
+	}
+	if admit, _ := p0.Request(outside, false, "own.example.com", false, "own.example.com"); admit {
+		t.Fatal("the startup policy admitted an outside request")
+	}
+	if p0.Socket(netip.MustParseAddr("127.0.0.1"), false) != Admit || p0.Socket(netip.MustParseAddr("::1"), true) != Admit {
+		t.Fatal("the startup policy refused loopback")
 	}
 	g.Record("media.example.com", "http")
 	if len(g.Refused.entries) != 0 {
-		t.Fatal("recorded without a policy")
+		t.Fatal("recorded before the settings were installed")
 	}
 	p := NewPolicy(Settings{})
 	if p.Security() != SecurityEnhanced || p.Access() != AccessOn {

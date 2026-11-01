@@ -18,6 +18,8 @@ import (
 	"net/netip"
 	"strings"
 	"sync/atomic"
+
+	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
 )
 
 const (
@@ -210,13 +212,29 @@ type Gate struct {
 	Refused *Refused
 }
 
-// New starts with no policy. Until the settings document is installed the
-// gate doesn't know the home networks, so it judges nothing rather than
-// guessing (a guess would refuse people at home); the server installs the
-// policy while it starts, before it serves anything but the startup page.
-func New() *Gate { return &Gate{Refused: NewRefused()} }
+// New starts with the startup policy: until the settings document is
+// installed, every connection from outside is refused, and home is loopback,
+// link-local and this machine's own private subnets (the default home
+// networks), so the people at home aren't locked out if settings can't load.
+func New() *Gate {
+	g := &Gate{Refused: NewRefused()}
+	g.policy.Store(StartupPolicy())
+	return g
+}
 
-// Policy is nil until the first Set.
+// StartupPolicy refuses every outside connection and records nothing.
+func StartupPolicy() *Policy {
+	var home []netip.Prefix
+	for _, raw := range networkpolicy.DefaultHomeNetworks() {
+		if p, err := netip.ParsePrefix(raw); err == nil {
+			home = append(home, p)
+		}
+	}
+	return NewPolicy(Settings{Security: SecurityEnhanced, Access: AccessOff, Home: home})
+}
+
+// Policy is the live policy (the startup policy until the first Set); nil
+// only on a nil Gate.
 func (g *Gate) Policy() *Policy {
 	if g == nil {
 		return nil
@@ -229,9 +247,11 @@ func (g *Gate) Set(p *Policy) {
 	}
 }
 
-// Record notes a refused name, in Enhanced only.
+// Record notes a refused name, only while remote access is On in Enhanced
+// (with access Off or Private only, or before the settings are installed,
+// a name is never the reason for a refusal).
 func (g *Gate) Record(name, via string) {
-	if p := g.Policy(); p == nil || g.Refused == nil || p.security != SecurityEnhanced {
+	if p := g.Policy(); p == nil || g.Refused == nil || p.security != SecurityEnhanced || p.access != AccessOn {
 		return
 	}
 	g.Refused.Record(name, via)
