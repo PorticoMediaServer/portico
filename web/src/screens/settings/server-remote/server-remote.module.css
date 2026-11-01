@@ -14,11 +14,14 @@
 .refusedText { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .refusedText strong { overflow-wrap: anywhere; }
 .refusedText small { font-size: var(--type-fixed-size-14px); color: var(--color-text-secondary); }
-.securityLine { font-size: var(--type-fixed-size-14px); color: var(--color-text-secondary); text-align: right; }
+.securityLine { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-secondary); text-align: right; overflow-wrap: anywhere; }
+.securityLine::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-tertiary); align-self: center; }
+.securityLine:empty { display: none; }
 .refusedEmpty { margin: 0; font-size: var(--type-fixed-size-14px); color: var(--color-text-secondary); }
 .certificateStatus { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 12px; font-size: var(--type-fixed-size-14px); }
 .certificateStatus[data-problem] { color: var(--color-amber); }
 @media (max-width: 599px) {
+  .securityLine { text-align: left; }
   .reach { grid-template-columns: minmax(0, 1fr); padding: 18px; }
   .reach > button { justify-self: start; margin-left: 23px; }
   .reachTitle { font-size: var(--type-fixed-size-20px); }
