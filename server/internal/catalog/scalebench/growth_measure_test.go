@@ -55,7 +55,7 @@ func TestCrossKindGrowthMeasurement(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		if _, _, e = seedReference(db, n, 0, n, 500, false); e != nil {
+		if _, _, e = seedBulkFacts(db, n); e != nil {
 			db.Close()
 			t.Fatal(e)
 		}
@@ -67,16 +67,27 @@ func TestCrossKindGrowthMeasurement(t *testing.T) {
 			db.Close()
 			t.Fatal(e)
 		}
-		for {
-			more, err := catalog.New(db).RefreshListeningGroups(context.Background())
+		groupService := catalog.New(db)
+		groupCtx, cancelGroup := context.WithTimeout(context.Background(), 30*time.Second)
+		settled := false
+		for pass := 0; pass < max(10, n/20)+2; pass++ {
+			more, err := groupService.RefreshListeningGroups(groupCtx)
 			if err != nil {
+				cancelGroup()
 				db.Close()
 				t.Fatal(err)
 			}
 			if !more {
+				settled = true
 				break
 			}
 		}
+		cancelGroup()
+		if !settled {
+			db.Close()
+			t.Fatal("fixture listening-group pass did not finish")
+		}
+
 		if e = compactcatalog.Drain(context.Background(), db); e != nil {
 			db.Close()
 			t.Fatal(e)
