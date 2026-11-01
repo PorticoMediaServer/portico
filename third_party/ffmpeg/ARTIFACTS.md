@@ -136,7 +136,7 @@ inventory. The complete corresponding source ships alongside the collected texts
 ARM64 builds in parallel, with an optional Intel Mac attempt. Mac uses macos-15
 (or macos-15-intel). Windows ARM64 is deferred. The initial workflow deliberately
 measures cold builds before adding cross-job checkpoint caching. Its branch-only
-push trigger bootstraps the first run; it is removed before publication is added.
+push trigger bootstrapped the first run and is now removed. New runs use manual dispatch.
 There is no publisher or release pin in this slice.
 
 The explicit GitHub context checks the repository, workflow, hosted runner,

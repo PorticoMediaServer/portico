@@ -40,6 +40,7 @@ jobs:
           python scripts/test-windows-rav1e-custody.py
           python scripts/test-ci-ffmpeg-toolchain.py
           python scripts/test-ffmpeg-build-tools.py
+          python scripts/test-preserve-ffmpeg-compilers.py
       - id: plan
         env:
           COLD_TARGET: ${{ inputs.target || 'all' }}
