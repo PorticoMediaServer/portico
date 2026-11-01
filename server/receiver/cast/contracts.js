@@ -96438,7 +96438,30 @@ var PorticoCastContracts = (function(exports) {
 								"minimum": -9007199254740991,
 								"type": "integer"
 							},
-							"type": { "type": "string" }
+							"type": { "type": "string" },
+							"why": {
+								"properties": {
+									"code": { "type": "string" },
+									"fallback": { "type": "string" },
+									"params": {
+										"additionalProperties": { "type": "string" },
+										"type": "object"
+									}
+								},
+								"required": ["code", "fallback"],
+								"type": "object"
+							},
+							"whyTitles": {
+								"items": {
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" }
+									},
+									"required": ["id", "name"],
+									"type": "object"
+								},
+								"type": "array"
+							}
 						},
 						"required": [
 							"id",
@@ -97809,6 +97832,29 @@ var PorticoCastContracts = (function(exports) {
 								"maximum": 9007199254740991,
 								"minimum": -9007199254740991,
 								"type": "integer"
+							},
+							"why": {
+								"properties": {
+									"code": { "type": "string" },
+									"fallback": { "type": "string" },
+									"params": {
+										"additionalProperties": { "type": "string" },
+										"type": "object"
+									}
+								},
+								"required": ["code", "fallback"],
+								"type": "object"
+							},
+							"whyTitles": {
+								"items": {
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" }
+									},
+									"required": ["id", "name"],
+									"type": "object"
+								},
+								"type": "array"
 							}
 						},
 						"required": [
@@ -100795,7 +100841,30 @@ var PorticoCastContracts = (function(exports) {
 										"minimum": -9007199254740991,
 										"type": "integer"
 									},
-									"type": { "type": "string" }
+									"type": { "type": "string" },
+									"why": {
+										"properties": {
+											"code": { "type": "string" },
+											"fallback": { "type": "string" },
+											"params": {
+												"additionalProperties": { "type": "string" },
+												"type": "object"
+											}
+										},
+										"required": ["code", "fallback"],
+										"type": "object"
+									},
+									"whyTitles": {
+										"items": {
+											"properties": {
+												"id": { "type": "string" },
+												"name": { "type": "string" }
+											},
+											"required": ["id", "name"],
+											"type": "object"
+										},
+										"type": "array"
+									}
 								},
 								"required": [
 									"id",
@@ -116563,7 +116632,30 @@ var PorticoCastContracts = (function(exports) {
 								"minimum": -9007199254740991,
 								"type": "integer"
 							},
-							"type": { "type": "string" }
+							"type": { "type": "string" },
+							"why": {
+								"properties": {
+									"code": { "type": "string" },
+									"fallback": { "type": "string" },
+									"params": {
+										"additionalProperties": { "type": "string" },
+										"type": "object"
+									}
+								},
+								"required": ["code", "fallback"],
+								"type": "object"
+							},
+							"whyTitles": {
+								"items": {
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" }
+									},
+									"required": ["id", "name"],
+									"type": "object"
+								},
+								"type": "array"
+							}
 						},
 						"required": [
 							"id",
@@ -122732,7 +122824,30 @@ var PorticoCastContracts = (function(exports) {
 								"minimum": -9007199254740991,
 								"type": "integer"
 							},
-							"type": { "type": "string" }
+							"type": { "type": "string" },
+							"why": {
+								"properties": {
+									"code": { "type": "string" },
+									"fallback": { "type": "string" },
+									"params": {
+										"additionalProperties": { "type": "string" },
+										"type": "object"
+									}
+								},
+								"required": ["code", "fallback"],
+								"type": "object"
+							},
+							"whyTitles": {
+								"items": {
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" }
+									},
+									"required": ["id", "name"],
+									"type": "object"
+								},
+								"type": "array"
+							}
 						},
 						"required": [
 							"id",
