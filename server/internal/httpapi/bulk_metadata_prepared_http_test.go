@@ -483,7 +483,9 @@ func TestBulkMetadataPreparedHTTPBasisRevisionAndAuthority(t *testing.T) {
 	}
 	// This changes the full predicate witness without changing the original
 	// Browse page revision. Passing only the page revision would accept it.
-	f.c.Exec(`INSERT INTO content_rating_ages(value_key,minimum_age) VALUES('prepared-http-drift',18)`)
+	// Rating classification now also advances the ordinary revision. Exercise
+	// independent predicate drift so this still proves the stronger basis fence.
+	f.c.Exec(`UPDATE catalog_browse_predicate_epoch SET revision=revision+1 WHERE singleton=1`)
 	r := httptest.NewRequest("POST", "/v1/libraries/movies/browse", nil)
 	r.Header.Set("Authorization", "Bearer "+f.token)
 	r.SetPathValue("id", "movies")
