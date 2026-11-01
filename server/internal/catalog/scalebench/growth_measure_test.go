@@ -55,6 +55,43 @@ func TestCrossKindGrowthMeasurement(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
+		// The server runs a checkpoint supervisor; Drain by itself does not.
+		// Keep the real schedule alive across fixture writes and derivation.
+		// Otherwise a long offline build can fill the runner with its WAL.
+		seedCtx, cancelSeed := context.WithCancel(context.Background())
+		schedule, e := dbwork.NewCheckpointSchedule(seedCtx, db)
+		if e != nil {
+			cancelSeed()
+			db.Close()
+			t.Fatal(e)
+		}
+		checkpointDone := make(chan struct{})
+		go func() {
+			defer close(checkpointDone)
+			tick := time.NewTicker(100 * time.Millisecond)
+			defer tick.Stop()
+			lastReport := time.Now()
+			for {
+				select {
+				case <-seedCtx.Done():
+					return
+				case <-tick.C:
+					schedule.Tick(seedCtx)
+					if time.Since(lastReport) >= 30*time.Second {
+						files := map[string]int64{}
+						for _, suffix := range []string{"", "-wal"} {
+							if info, err := os.Stat(seed + ".building" + suffix); err == nil {
+								files[suffix] = info.Size()
+							}
+						}
+						save("seed-progress", map[string]any{"base_items": n, "seconds": time.Since(began).Seconds(), "peak_rss_kb": growthPeakRSS(), "files_bytes": files})
+						lastReport = time.Now()
+					}
+				}
+			}
+		}()
+		stopCheckpoints := func() { cancelSeed(); <-checkpointDone }
+		defer stopCheckpoints()
 		if _, _, e = seedBulkFacts(db, n); e != nil {
 			db.Close()
 			t.Fatal(e)
@@ -97,6 +134,7 @@ func TestCrossKindGrowthMeasurement(t *testing.T) {
 			db.Close()
 			t.Fatal(e)
 		}
+		stopCheckpoints()
 		if _, e = db.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`); e != nil {
 			db.Close()
 			t.Fatal(e)
