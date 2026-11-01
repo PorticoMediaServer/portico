@@ -20,6 +20,9 @@ on:
       e2e_tvos:
         type: boolean
         default: false
+      e2e_remote_probe:
+        type: boolean
+        default: false
       e2e_remote_build:
         type: boolean
         default: false
@@ -27,6 +30,19 @@ on:
 permissions:
   contents: read
 jobs:
+  remote-endpoint-probe:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e_remote_probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe isolated remote test endpoint from the public runner
+        run: |
+          set +e
+          for scheme in http https; do
+            echo "PROBE $scheme"
+            curl -v --connect-timeout 15 --max-time 25 "$scheme://66.94.102.39:32520/" -o /dev/null
+            echo "RESULT $scheme exit=$?"
+          done
   remote-test-server-build:
     if: github.event_name == 'workflow_dispatch' && inputs.e2e_remote_build
     uses: ./.github/workflows/e2e-remote-build.yml
