@@ -16,21 +16,21 @@ import (
 // fixed limit.
 func TestBatchesAreSizedToTheHoldTarget(t *testing.T) {
 	w := NewWorker(nil)
-	if got := w.batchFor(DomainSearch, 500); got != 500 {
+	if got := w.batchFor(DomainCategories, 500); got != 500 {
 		t.Fatalf("unpaced batch %d, want the caller's limit", got)
 	}
 	w.PaceToHold(20 * time.Millisecond)
-	if got := w.batchFor(DomainSearch, BatchMax); got != 1 {
+	if got := w.batchFor(DomainCategories, BatchMax); got != 1 {
 		t.Fatalf("first paced batch %d, want one unit", got)
 	}
 	// Cheap units (0.1 ms a unit) grow the batch by doubling up to BatchMax.
 	for _, want := range []int{16, 32, 64} {
-		w.observeBatch(DomainSearch, want/2, time.Duration(want/2)*100*time.Microsecond, int64(want/2))
-		if got := w.batchFor(DomainSearch, BatchMax); got != want {
+		w.observeBatch(DomainCategories, want/2, time.Duration(want/2)*100*time.Microsecond, int64(want/2))
+		if got := w.batchFor(DomainCategories, BatchMax); got != want {
 			t.Fatalf("cheap units: batch %d, want %d", got, want)
 		}
 	}
-	if got := w.batchFor(DomainSearch, 16); got != 16 {
+	if got := w.batchFor(DomainCategories, 16); got != 16 {
 		t.Fatalf("batch %d exceeds the caller's limit", got)
 	}
 	for i := 0; i < 8; i++ {
@@ -45,20 +45,20 @@ func TestBatchesAreSizedToTheHoldTarget(t *testing.T) {
 	if got := w.batchFor(DomainBrowseRows, BatchMax); got < 16 || got > 24 {
 		t.Fatalf("1 ms units: batch %d, want about 20", got)
 	}
-	if got := w.batchFor(DomainSearch, BatchMax); got != BatchMax {
+	if got := w.batchFor(DomainCategories, BatchMax); got != BatchMax {
 		t.Fatal("one domain's cost changed another's batch")
 	}
 	// Cheap units that each change many rows are bounded by the write plan's
-	// 160 rows instead: 40 rows a unit fits four, 400 fits one.
+	// 160 rows less the bookkeeping reserve: 40 rows fits three, 400 fits one.
 	for i := 0; i < 8; i++ {
-		w.observeBatch(DomainSearch, 8, 8*100*time.Microsecond, 8*40)
+		w.observeBatch(DomainCategories, 8, 8*100*time.Microsecond, 8*40)
 	}
-	if got := w.batchFor(DomainSearch, BatchMax); got != 4 {
-		t.Fatalf("40-row units: batch %d, want 4", got)
+	if got := w.batchFor(DomainCategories, BatchMax); got != 3 {
+		t.Fatalf("40-row units: batch %d, want 3", got)
 	}
 	// One spike shrinks the next batch at once.
-	w.observeBatch(DomainSearch, 1, 100*time.Microsecond, 400)
-	if got := w.batchFor(DomainSearch, BatchMax); got != 1 {
+	w.observeBatch(DomainCategories, 1, 100*time.Microsecond, 400)
+	if got := w.batchFor(DomainCategories, BatchMax); got != 1 {
 		t.Fatalf("400-row units: batch %d, want 1", got)
 	}
 }
