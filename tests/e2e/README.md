@@ -44,8 +44,10 @@ image subtitles, long and non-Latin titles, HDR-tagged media and multiple audio
 tracks. Generate legal short, low-resolution samples and local metadata sidecars;
 never depend on remote metadata. Keep the full generated library to a few hundred
 MB at most and key its cache by all generator inputs and versions. The inherited
-generator is provisional: it contains a 180-second 720p load fixture, lacks
-some requested media, and cannot generate PGS subtitles with ordinary FFmpeg.
+generator is provisional: the E2E variant shortens its load fixture to twelve
+seconds and adds synthetic seasons, music, EPUB, CBZ, PGS, HDR tags and audio
+tracks. The generated files and their scanned catalogue still need hosted
+verification; HDR tagging does not imply a visually representative HDR sample.
 
 Cache a pre-scanned library snapshot only after proving it can be restored on
 each runner OS and path without carrying usable credentials, sessions, keys or
@@ -53,3 +55,18 @@ cross-run identities. Provision fresh accounts after restoring the sanitized
 snapshot; verify the restored media paths and scan readiness rather than assuming
 they survive relocation. Until that exists, scanning on each run is a temporary
 limitation, not fulfillment of the snapshot requirement.
+
+## Waits, retries and evidence
+
+Wait for an observable state with a bounded timeout; do not use fixed delays as
+proof of readiness. Capture a screenshot at each tour step and retain screenshots,
+video and sanitized logs as CI artifacts for 14 days. Do not upload credentials,
+session stores or server state. A playback step must verify an advancing playback
+position, not just an open player.
+
+Keep the first failure visible. Permit at most one fresh-run retry for diagnosis,
+record both outcomes, and never turn a retry pass into an unqualified pass. A
+reproduced intermittent failure may be quarantined only with a linked finding,
+owner and expiry; quarantined tests still run and report independently. They must
+not mask other tests or become required merge checks. Remove quarantine after a
+fix is verified in repeated clean hosted runs.

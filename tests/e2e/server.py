@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from augment_media import generate as augment_media
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('portico_e2e_server', ROOT / 'scripts/e2e-server.py')
@@ -72,6 +73,37 @@ def provision_member(server):
     return credentials
 
 
+def scan_libraries(server):
+    server.libs = {}
+    libraries = [('Movies', 'movie', 'movies', 16), ('Shows', 'tv', 'shows', 2),
+                 ('Anime', 'anime', 'shows', 1), ('Music', 'music', 'albums', 3),
+                 ('Books', 'audiobook', 'books', 1), ('Reading', 'book', None, None),
+                 ('Comics', 'comic', None, None)]
+    for name, kind, pivot, count in libraries:
+        api = server.api
+        library = api.post('/v1/libraries', {'name': name, 'kind': kind,
+                           'path': str(server.directory / 'media' / name),
+                           'metadataAgent': 'local'}, (201,))
+        server.libs[name] = library['id']
+        job = api.post('/v1/libraries/' + library['id'] + '/scans', expected=(202,))
+        def done():
+            current = api.get('/v1/admin/ingestion/jobs/' + job['id'])
+            if current['status'] in ('failed', 'cancelled'):
+                raise RuntimeError(f'{name} scan failed')
+            return current['status'] in ('complete', 'complete_with_warnings')
+        fixture.wait(done, 120)
+        if pivot:
+            def published():
+                page, _ = api.call('POST', '/v1/libraries/' + library['id'] + '/browse',
+                                   {'pivot': pivot, 'limit': 100}, expected=(200, 503))
+                if page.get('error', {}).get('code') == 'visibility_building':
+                    return False
+                if 'entries' not in page:
+                    raise RuntimeError(f'{name} browse failed: {page}')
+                return len(page['entries']) == count
+            fixture.wait(published, 120)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
@@ -91,7 +123,8 @@ def main():
         # cache that appears usable in the next attempt.
         with tempfile.TemporaryDirectory(prefix='portico-media-', dir=media.parent) as tmp:
             generated = Path(tmp) / 'media'
-            fixture.generate(generated)
+            fixture.generate(generated, load_seconds=12)
+            augment_media(generated)
             generated.rename(media)
     if not (media / 'Movies/Arrival (2016)/Arrival (2016) - 1080p.mp4').is_file():
         raise RuntimeError('incomplete media cache')
@@ -105,7 +138,7 @@ def main():
             user = api.get('/v1/dev/e2e')['username']
             signed = api.post('/v1/dev/e2e/sign-in', {'username': user})
             api.token = signed['session']['accessToken']
-            server.scan()
+            scan_libraries(server)
             credentials = provision_member(server)
             command = args.command
             if command and command[0] == '--':

@@ -21,7 +21,7 @@ jobs:
       - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: ${{ runner.temp }}/portico-e2e-media
-          key: e2e-media-${{ runner.os }}-${{ hashFiles('scripts/e2e-server.py') }}
+          key: e2e-media-${{ runner.os }}-${{ hashFiles('scripts/e2e-server.py', 'tests/e2e/augment_media.py', 'third_party/apple-subtitles/test/make-pgs.py', 'fixtures/library-layout/Audiobooks/Test Listener/cover.png') }}
       - name: Install fixture media tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Build dev-only server
