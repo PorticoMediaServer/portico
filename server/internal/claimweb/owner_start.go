@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/serverreturn"
@@ -118,10 +117,10 @@ func VerifyOwnerStart(original, signed Signed, audience string, now time.Time) (
 	return claim, start, nil
 }
 
-// The owner browser may start on the server's secure address or on literal
-// localhost (ruling17.5). This is syntax only: it cannot attest a secure browser,
-// protected storage or a trusted native channel. Registered returns keep their
-// existing HTTPS-only Origin predicate.
+// The owner browser may start on the server's secure address or on a local plain-HTTP
+// address, under the same rule as a setup start (LocalHTTPAddress). This is syntax
+// only: it cannot attest a secure browser, protected storage or a trusted native
+// channel. Registered returns keep their existing HTTPS-only Origin predicate.
 func ownerStartAddress(value string) bool {
 	u, e := url.Parse(value)
 	if e != nil {
@@ -136,8 +135,7 @@ func ownerStartAddress(value string) bool {
 	if serverreturn.Origin(value) {
 		return true
 	}
-	return strings.HasPrefix(value, "http://") && u.Hostname() == "localhost" &&
-		serverreturn.Origin("https://"+strings.TrimPrefix(value, "http://"))
+	return LocalHTTPAddress(value)
 }
 
 func ownerStartBase64(value string, size int) ([]byte, error) {
@@ -175,3 +173,6 @@ func ownerStartJSON(raw []byte, target any) error {
 	}
 	return nil
 }
+
+// secureOrigin is the registered-return HTTPS origin grammar, shared with setup starts.
+func secureOrigin(value string) bool { return serverreturn.Origin(value) }

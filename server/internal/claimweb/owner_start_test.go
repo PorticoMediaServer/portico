@@ -247,7 +247,9 @@ func TestOwnerStartKeepsClaimExpiryAndExactLargeGeneration(t *testing.T) {
 	}
 }
 
-func TestOwnerStartLiteralLocalhostIsSeparateFromRegistration(t *testing.T) {
+// An owner start takes the same plain-HTTP addresses as a setup start (LocalHTTPAddress),
+// and none of them is ever a registered return.
+func TestOwnerStartLocalHTTPIsSeparateFromRegistration(t *testing.T) {
 	cases := []struct {
 		address string
 		valid   bool
@@ -257,10 +259,15 @@ func TestOwnerStartLiteralLocalhostIsSeparateFromRegistration(t *testing.T) {
 		{"http://localhost:65535", true},
 		{"https://server.example.test", true},
 		{"https://server.example.test:32500", true},
-		{"http://127.0.0.1:32500", false},
-		{"http://[::1]:32500", false},
-		{"http://server.localhost:32500", false},
-		{"http://localhost.example.test:32500", false},
+		{"http://127.0.0.1:32500", true},
+		{"http://[::1]:32500", true},
+		{"http://192.168.1.50:32500", true},
+		{"http://10.0.0.5:32500", true},
+		{"http://[fd00::5]:32500", true},
+		{"http://tower.local:32500", true},
+		{"http://203.0.113.5:32500", false},
+		{"http://[2001:db8::1]:32500", false},
+		{"http://[::ffff:192.168.1.2]:32500", false},
 		{"http://localhost.:32500", false},
 		{"http://LOCALHOST:32500", false},
 		{"HTTP://localhost:32500", false},
@@ -279,6 +286,9 @@ func TestOwnerStartLiteralLocalhostIsSeparateFromRegistration(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.address, func(t *testing.T) {
+			if strings.HasPrefix(c.address, "http://") && c.valid != SetupStartAddress(c.address) {
+				t.Fatal("owner start and setup start disagree on", c.address)
+			}
 			key, claim, start, now := ownerStartFixture(t)
 			claim.Address, start.Address = c.address, c.address
 			raw, _ := json.Marshal(claim)
