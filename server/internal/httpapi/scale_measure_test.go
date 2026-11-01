@@ -572,6 +572,11 @@ func TestReadingGrowthMeasurement(t *testing.T) {
 }
 
 func scalePreparedReading(t *testing.T, r *readingFixture, n int, format string) {
+	scalePreparedReadingPass(t, r, n, format, false)
+	scalePreparedReadingPass(t, r, n, format, true)
+}
+
+func scalePreparedReadingPass(t *testing.T, r *readingFixture, n int, format string, handlerOnly bool) {
 	t.Helper()
 	store, e := readprep.New(readprep.DefaultConfig())
 	if e != nil {
@@ -581,6 +586,16 @@ func scalePreparedReading(t *testing.T, r *readingFixture, n int, format string)
 	r.d.Catalog.UseReadPreparations(store)
 	r.d.PrepareReadingBrowse, r.d.PrepareReadingFacets = true, true
 	h := New(r.d)
+	costScope := "outer cost counter is replaced by admission; use handler-only companion for VM counts"
+	if handlerOnly {
+		mux := http.NewServeMux()
+		mux.HandleFunc("POST /v1/libraries/{id}/browse", r.d.browseHandler)
+		mux.HandleFunc("GET /v1/libraries/{id}/facets", r.d.facetsHandler)
+		mux.HandleFunc("GET /v1/libraries/{id}/reading-browse-queries/{queryId}", r.d.readingBrowseQueryHandler)
+		mux.HandleFunc("GET /v1/libraries/{id}/reading-facet-queries/{queryId}", r.d.readingFacetQuery)
+		h = mux
+		costScope = "actual dispatch handler including its authentication; excludes outer route/admission middleware"
+	}
 	call := func(method, path string, body any) (*httptest.ResponseRecorder, float64, dbwork.Cost) {
 		var raw []byte
 		if body != nil {
@@ -671,6 +686,10 @@ func scalePreparedReading(t *testing.T, r *readingFixture, n int, format string)
 			observedBytes = max(observedBytes, store.Stats().Bytes)
 		}
 		results[route] = map[string]any{"initial_status": initialStatus, "initial_ms": initialMS, "initial_cost": initialCost, "time_to_ready_ms": readyMS, "ready_total": readyTotal, "ready_entries": readyEntries, "poll": scalePct(pollMS), "poll_costs": pollCosts, "warm": scalePct(warmMS), "warm_costs": warmCosts, "statuses": statuses, "observed_store_bytes": observedBytes, "store_max_bytes": store.MaxBytes()}
-		scaleSave(t, "reading-prepared-"+format, map[string]any{"base_items": n, "publications": max(10, n/20) + 1, "routes": results, "peak_rss_mib": scaleRSS(), "boundary": "shipped preparation-enabled HTTP dispatch; initial/poll/ready measured separately; no legacy synchronous browse claim"})
+		name := "reading-prepared-" + format
+		if handlerOnly {
+			name = "reading-prepared-vm-" + format
+		}
+		scaleSave(t, name, map[string]any{"base_items": n, "publications": max(10, n/20) + 1, "routes": results, "peak_rss_mib": scaleRSS(), "cost_scope": costScope, "boundary": "shipped preparation-enabled HTTP dispatch; initial/poll/ready measured separately; no legacy synchronous browse claim"})
 	}
 }
