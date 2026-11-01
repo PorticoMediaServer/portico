@@ -15,6 +15,15 @@ M = runpy.run_path(str(ROOT / 'scripts/build-macos-libdovi.py'))
 
 
 class MacDovi(unittest.TestCase):
+    def test_rust_and_cargo_c_cannot_drift_from_the_shared_media_engine_versions(self):
+        pin = json.loads((ROOT / 'third_party/ffmpeg/macos-rust-tools.lock.json').read_text())
+        canonical = ROOT / 'third_party/media-engine/sources.lock.json'
+        M['shared_versions'](pin, canonical)
+        for tool, field in [('rust', 'version'), ('cargoC', 'version')]:
+            changed = json.loads(json.dumps(pin)); changed[tool][field] = '999.0.0'
+            with self.subTest(tool=tool), self.assertRaises(ValueError):
+                M['shared_versions'](changed, canonical)
+
     def test_component_must_match_the_sealed_official_manifest_before_install(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); manifest = root / 'distribution.toml'
