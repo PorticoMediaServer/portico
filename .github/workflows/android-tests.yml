@@ -20,6 +20,9 @@ on:
       e2e_tvos:
         type: boolean
         default: false
+      e2e_macos_storage:
+        type: boolean
+        default: false
       e2e_lan_setup:
         type: boolean
         default: false
@@ -33,6 +36,18 @@ on:
 permissions:
   contents: read
 jobs:
+  macos-storage-diagnostic:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e_macos_storage
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
+      - name: Exercise real portable inventory helpers on macOS
+        working-directory: server
+        run: go test ./internal/storage -run '^(TestRetainedPortableHelperVisitsRealDirectory|TestRealHelperInventoryAndMissingSource)$' -count=1 -v -timeout=12m
   lan-local-setup:
     if: github.event_name == 'workflow_dispatch' && inputs.e2e_lan_setup
     uses: ./.github/workflows/e2e-lan-local.yml
