@@ -229,10 +229,13 @@ def main():
     env = dict(os.environ, TMPDIR=str(scratch), PORTICO_BUILD_JOBS='2', MAKEFLAGS='-j1',
                NUMJOBS='2', CARGO_BUILD_JOBS='2', CMAKE_BUILD_PARALLEL_LEVEL='2', RAYON_NUM_THREADS='2')
     def run(name, command, cwd=ROOT, command_env=None):
+        started = time.monotonic()
         with (state / (name + '.log')).open('w') as log:
             code = subprocess.call([str(x) for x in command], cwd=cwd,
                                    env=env if command_env is None else command_env,
                                    stdout=log, stderr=subprocess.STDOUT)
+        report.setdefault('phaseTimingsSeconds', {})[name] = round(time.monotonic() - started, 3)
+        atomic(state / 'report.json', report)
         if code:
             raise RuntimeError(f'{name} exit {code}; see {state / (name + ".log")}')
     def telemetry(label):
@@ -291,6 +294,13 @@ def main():
         run('compiler', common + ['--load', '-t', compiler, '--build-arg', 'GH_REPO=local/' + owner + '/engine',
             '--build-context', base + '=oci-layout://' + str(base_oci), 'images/base-win64'], recipe, compiler_env)
         compiler_id = subprocess.check_output(['docker', 'image', 'inspect', '-f', '{{.Id}}', compiler], text=True).strip()
+        d3d11_control = state / 'd3d11-c-interface.c'
+        d3d11_control.write_text('#include <d3d11.h>\nvoid portico_control(ID3D11DeviceContext *context, '
+                                'ID3D11Texture2D *texture) { ID3D11DeviceContext_Flush(context); '
+                                'ID3D11Texture2D_Release(texture); }\n')
+        run('d3d11-c-interface', ['docker', 'run', '--rm', '--network', 'none', '--cpus', '1', '--memory', '512m',
+            '--mount', 'type=bind,src=' + str(d3d11_control) + ',dst=/control.c,readonly', compiler_id,
+            'bash', '-c', 'exec "$CC" -DCOBJMACROS -Werror=implicit-function-declaration -fsyntax-only /control.c'])
         # Export from the completed, exact image, never from BuildKit's private
         # executor filesystem or an independently fetched compiler snapshot.
         source_export = state / 'custody' / ('compiler-' + compiler_id.removeprefix('sha256:'))

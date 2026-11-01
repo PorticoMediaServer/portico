@@ -14,7 +14,9 @@ if target.startswith('linux'):
 if target in ('linux-x64', 'windows-x64', 'windows-arm64'):
     flags += ' --enable-libvpl --enable-ffnvcodec --enable-cuda-llvm --enable-nvenc --enable-nvdec --enable-amf'
 if target.startswith('windows'):
-    flags += ' --enable-d3d11va --enable-d3d12va --enable-opencl'
+    # OpenCL's D3D11 path needs the C COM helpers even when the independent
+    # HAVE_OPENCL_DXVA2 block (where FFmpeg defines this macro) is disabled.
+    flags += ' --enable-d3d11va --enable-d3d12va --enable-opencl --extra-cflags=-DCOBJMACROS'
 if target == 'linux-arm64':
     flags += ' --enable-rkmpp --enable-rkrga --enable-v4l2-m2m'
 if target.startswith('macos'):

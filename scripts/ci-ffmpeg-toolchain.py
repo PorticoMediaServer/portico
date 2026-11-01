@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import tarfile
+import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -107,6 +108,44 @@ def resources(path):
     return result
 
 
+class DiskSampler:
+    """Sample filesystem pressure; state explicitly that short spikes may escape."""
+    def __init__(self, work, output):
+        self.work, self.output = work, output
+        self.stop = threading.Event()
+        self.record = {'intervalSeconds': 5, 'samples': 0, 'scope':
+                       'Filesystem usage sampled during this build; not an exact continuous peak.'}
+        self.thread = threading.Thread(target=self.sample, daemon=True)
+
+    def observe(self):
+        usage = shutil.disk_usage(self.work)
+        if not self.record['samples']:
+            self.record['initialFreeBytes'] = usage.free
+            self.record['minimumFreeBytes'] = usage.free
+            self.record['maximumUsedBytes'] = usage.used
+        self.record.update(samples=self.record['samples'] + 1,
+                           minimumFreeBytes=min(usage.free, self.record['minimumFreeBytes']),
+                           maximumUsedBytes=max(usage.used, self.record['maximumUsedBytes']))
+        self.record['maximumAdditionalUsedBytes'] = max(0, self.record['initialFreeBytes'] - self.record['minimumFreeBytes'])
+        atomic(self.output, self.record)
+
+    def sample(self):
+        try:
+            self.observe()
+            while not self.stop.wait(5):
+                self.observe()
+        except Exception as error:
+            self.record['samplingFailure'] = str(error)
+
+    def finish(self):
+        self.stop.set(); self.thread.join(timeout=10)
+        if self.thread.is_alive():
+            self.record['samplingFailure'] = 'sampler did not stop'
+        else:
+            self.observe()
+        return dict(self.record)
+
+
 def preserve_diagnostics(directories, evidence):
     for directory in directories:
         if not directory.exists():
@@ -129,6 +168,7 @@ def build(target, work):
     product = work / 'product'; product.mkdir()
     started = time.monotonic()
     receipt['resourcesBefore'] = resources(work)
+    sampler = DiskSampler(work, evidence / 'disk-samples.json'); sampler.thread.start()
     env = dict(os.environ, PORTICO_BUILD_JOBS='2', MAKEFLAGS='-j1', NUMJOBS='2',
                CMAKE_BUILD_PARALLEL_LEVEL='2', CARGO_BUILD_JOBS='2', RAYON_NUM_THREADS='2')
     scratch = work / '.scratch/hardware-r29'
@@ -200,6 +240,7 @@ def build(target, work):
             receipt['diagnosticCollectionFailure'] = type(error).__name__ + ': ' + str(error)
             receipt['constructionPassed'] = False
         receipt.update(elapsedSeconds=round(time.monotonic() - started, 3), resourcesAfter=resources(work))
+        receipt['sampledDisk'] = sampler.finish()
         atomic(evidence / 'cold-build.json', receipt)
     print(json.dumps(receipt), flush=True)
     return int(not receipt.get('constructionPassed'))
