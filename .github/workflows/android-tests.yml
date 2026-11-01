@@ -5,6 +5,9 @@ on:
 permissions:
   contents: read
 jobs:
+  e2e-probe:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/e2e-groundwork.yml
   unit-and-transport:
     runs-on: ubuntu-24.04
     timeout-minutes: 40

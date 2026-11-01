@@ -1,0 +1,29 @@
+name: E2E server groundwork
+on:
+  workflow_dispatch:
+  workflow_call:
+  schedule:
+    - cron: '43 5 * * *'
+permissions:
+  contents: read
+jobs:
+  server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: '**/go.sum'
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/portico-e2e-media
+          key: e2e-media-${{ runner.os }}-${{ hashFiles('scripts/e2e-server.py') }}
+      - name: Build dev-only server
+        working-directory: server
+        run: go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server
+      - name: Verify server and generated library
+        run: python3 tests/e2e/server.py --binary "$RUNNER_TEMP/portico-e2e-server" --media-cache "$RUNNER_TEMP/portico-e2e-media"
