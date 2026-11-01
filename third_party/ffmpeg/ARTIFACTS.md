@@ -42,7 +42,7 @@ be hashed by the externally pinned bundle manifest. It records schema version 1,
 `recipeTreeSHA256`. The latter hashes the sorted compact JSON map of all recipe
 files (`kind: file`, `sha256`, permission `mode`) and symlinks (`kind: symlink`,
 `target`, permission `mode`), relative to `recipe/`; directories are omitted.
-All eight engine/configuration/source-preparation scripts listed in intake are
+All nine engine/configuration/source-preparation scripts listed in intake are
 required. Removing a stage and its source, or changing a script, cannot rewrite
 the manifest-sealed build history. Intake never executes bundled build scripts.
 
@@ -68,3 +68,9 @@ GMP PIC assembly, upstream `make check`, and the unchanged Nettle `pkcs1-conv`
 link on an Intel Mac. It skips installer jobs and retains only dependency
 evidence/source for seven days. Passing that probe does not qualify an engine
 or installer. Intel Mac remains an engine/compiler target only.
+
+Windows rav1e source preparation checks its original upstream Cargo.lock and
+replaces it with the committed resolution pinned in `sources.lock.json`. Both
+locks and their hashes remain in the source snapshot, together with every
+vendored registry source and licence. Compilation uses `--locked --offline`;
+changing the resolution requires a deliberate reviewed lock update.

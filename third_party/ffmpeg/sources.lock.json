@@ -448,7 +448,26 @@
       "third_party/ffmpeg/patches/btbn-gnu-ncurses-mirror.patch",
       "third_party/ffmpeg/patches/btbn-verified-source.patch",
       "scripts/patch-btbn-winarm64-system-error.sh"
-    ]
+    ],
+    "rav1eCargo": {
+      "targets": [
+        "windows-x64",
+        "windows-arm64"
+      ],
+      "repository": "https://github.com/xiph/rav1e.git",
+      "commit": "564ae3b0007ae2b06893fd7166bf88c5a84c5b63",
+      "originalCargoLockSHA256": "e2e4f3af1fd8178f4d76ea40c5c610a59818e2f763a73fb6345ee04dadebd020",
+      "resolvedCargoLock": {
+        "path": "third_party/ffmpeg/locks/rav1e-Cargo.lock",
+        "sha256": "45f409437b815eb71b4bb113396d98e8e8923f79d9d79cd098fe73c50ba6ac7b"
+      },
+      "resolvedPackages": {
+        "cc": "1.10.0",
+        "find-msvc-tools": "0.1.15",
+        "shlex": "2.0.1"
+      },
+      "sourcePolicy": "Retain original and committed resolved Cargo.lock with their hashes; vendor all registry source and licences during source preparation; compile --locked --offline. Re-resolve only through a reviewed lock change."
+    }
   },
   "macosRecipe": {
     "repository": "https://github.com/homebridge/ffmpeg-for-homebridge.git",
