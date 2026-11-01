@@ -6,6 +6,8 @@ import {parseConnectivityStatus, type ConnectivityStatus} from '../../../../../.
 import {parseCertificateStatus, type CertificateStatus} from '../../../../../../packages/client-core/src/certificates';
 import {certificateClaimed, secureConnectionView} from '../../../../../../packages/client-core/src/server-admin/secure-connection';
 import {remoteStatusLine} from '../../../../../../packages/client-core/src/server-admin/status-words';
+import {parseSecuritySummary, securityBlockLine, securitySummaryLine, type SecuritySummary} from '../../../../../../packages/client-core/src/server-admin/security-summary';
+import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {MessageId} from '../../../../../../packages/i18n/src';
 import {Focusable} from '../../../kit/controls';
 import {shellType} from '../../../kit/shell/visual';
@@ -16,7 +18,8 @@ import type {NativeScreenLifetime} from '../lifetime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {createTVServerReader} from './tv-server-reader';
 
-type Snapshot = {remote: RemoteAccess; connectivity: ConnectivityStatus; certificate?: CertificateStatus};
+type Snapshot = {remote: RemoteAccess; connectivity: ConnectivityStatus; certificate?: CertificateStatus; security?: SecuritySummary};
+const words = {t: defaultI18n.t as never, time: defaultI18n.time, dateTime: defaultI18n.dateTime};
 /** TV38 exposes only selected public settings. Certificate material, mapping internals,
  * trusted proxies and credentials never enter a row or the accessibility label. */
 export function TVRemoteAccessPanel({ports, runtime, lifetime, statusOnly = false}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; lifetime: NativeScreenLifetime; statusOnly?: boolean}) {
@@ -34,7 +37,9 @@ export function TVRemoteAccessPanel({ports, runtime, lifetime, statusOnly = fals
       api.request<unknown>(routePath('get_networking_remote'), 'GET', undefined, abort.signal).then(parseRemoteAccess),
       api.request<unknown>(routePath('get_connectivity_status'), 'GET', undefined, abort.signal).then(parseConnectivityStatus),
       certificate,
-    ]).then(([remote, connectivity, certificate]) => {if (!abort.signal.aborted && lifetime.current()) setState({remote, connectivity, certificate});}, error => {if (!abort.signal.aborted && lifetime.current()) setError(error);});
+      // Security is read-only here; an unreadable summary leaves its rows out rather than failing the page.
+      statusOnly ? Promise.resolve(undefined) : api.request<unknown>(routePath('get_admin_security_summary'), 'GET', undefined, abort.signal).then(parseSecuritySummary).catch(() => undefined),
+    ]).then(([remote, connectivity, certificate, security]) => {if (!abort.signal.aborted && lifetime.current()) setState({remote, connectivity, certificate, security});}, error => {if (!abort.signal.aborted && lifetime.current()) setError(error);});
     const retire = () => {abort.abort(); setState(undefined); setError(undefined);};
     lifetime.signal.addEventListener('abort', retire, {once: true});
     return () => {abort.abort(); lifetime.signal.removeEventListener('abort', retire);};
@@ -57,6 +62,8 @@ export function TVRemoteAccessPanel({ports, runtime, lifetime, statusOnly = fals
     {row('secure', 'settings.server.secure.title', t(secure.badge), t(secure.body, secure.address ? {address: secure.address} : undefined), secure.tone === 'healthy')}
     {/* An owner changes these rows below, in the page's own settings. */}
     {!statusOnly && policy.remoteAccess !== 'off' && row('policy', 'web.connectivity.whoMaySignIn', t(`settings.server.signIn.${state.connectivity.policy.remoteSignInPolicy}`))}
+    {!statusOnly && state.security && row('security-summary', 'next.settingsSpec.server.remote.groups.2.rows.1.label', '', securitySummaryLine(state.security, words))}
+    {!statusOnly && state.security?.blocks.map(block => row(`blocked-${block.id}`, 'next.settingsSpec.server.remote.groups.2.rows.1.children.0.label', block.network, securityBlockLine(block, words)))}
     {!statusOnly && row('dlna', 'settings.server.dlna', t(state.connectivity.policy.dlnaEnabled ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off'), t('settings.server.dlnaHelp'), state.connectivity.policy.dlnaEnabled)}
     {state.certificate && row('account', 'account.portico', t(certificateClaimed(state.certificate) ? 'web.settings.throughAccount' : 'settings.server.secure.notSetUp'))}
   </View>;
