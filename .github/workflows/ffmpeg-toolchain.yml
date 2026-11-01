@@ -10,7 +10,7 @@ on:
   # Bootstrap the first cold run before the manual workflow is on main.
   # Remove this branch-only trigger before adding a publisher.
   push:
-    branches: [rebuild/D-hosted-toolchain-r1]
+    branches: [rebuild/D-hosted-toolchain-r2]
     paths: ['.github/workflows/ffmpeg-toolchain.yml']
 permissions:
   contents: read
