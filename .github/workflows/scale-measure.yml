@@ -1,0 +1,80 @@
+name: Server scale measurement
+on:
+  push:
+    branches: ['rebuild/F-scale-measure-r1']
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod}
+      - run: mkdir -p "$RUNNER_TEMP/scale-cache" "$RUNNER_TEMP/reports"
+      - name: Pilot fixture, HTTP mix and scan before scale
+        working-directory: server
+        env:
+          TMPDIR: ${{ runner.temp }}/scale-cache
+          PORTICO_SCALE_MODE: smoke
+          PORTICO_SCALE_SCAN: smoke
+          PORTICO_SCALE_REPORT: ${{ runner.temp }}/reports
+        run: go test -vet=off ./internal/httpapi ./internal/ingestion -run 'Test(Server|Filesystem)ScaleMeasurement$' -count=1 -v -timeout=15m > "$RUNNER_TEMP/reports/pilot.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: scale-smoke, path: '${{ runner.temp }}/reports', retention-days: 7}
+  measure:
+    needs: smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [films20, films100, million]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod}
+      - run: mkdir -p "$RUNNER_TEMP/scale-cache" "$RUNNER_TEMP/reports"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/scale-cache/portico-fixture-*.sqlite
+          key: scale-F-v1-${{ matrix.mode }}-${{ hashFiles('server/internal/persistence/**', 'server/internal/compactcatalog/**', 'server/internal/httpapi/fixture/**') }}
+      - name: Machine evidence
+        run: |
+          lscpu > "$RUNNER_TEMP/reports/machine.txt"
+          free -h >> "$RUNNER_TEMP/reports/machine.txt"
+          df -h >> "$RUNNER_TEMP/reports/machine.txt"
+      - name: Measure unchanged server
+        working-directory: server
+        env:
+          TMPDIR: ${{ runner.temp }}/scale-cache
+          PORTICO_SCALE_MODE: ${{ matrix.mode }}
+          PORTICO_SCALE_REPORT: ${{ runner.temp }}/reports
+        run: go test -vet=off ./internal/httpapi -run '^TestServerScaleMeasurement$' -count=1 -v -timeout=170m > "$RUNNER_TEMP/reports/measure.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: 'scale-${{ matrix.mode }}', path: '${{ runner.temp }}/reports', retention-days: 7}
+  scan:
+    needs: smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod}
+      - run: mkdir -p "$RUNNER_TEMP/scale-cache" "$RUNNER_TEMP/reports"
+      - name: Scan real synthetic file tree
+        working-directory: server
+        env:
+          TMPDIR: ${{ runner.temp }}/scale-cache
+          PORTICO_SCALE_SCAN: million
+          PORTICO_SCALE_REPORT: ${{ runner.temp }}/reports
+        run: go test -vet=off ./internal/ingestion -run '^TestFilesystemScaleMeasurement$' -count=1 -v -timeout=170m > "$RUNNER_TEMP/reports/scan.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: scale-scan, path: '${{ runner.temp }}/reports', retention-days: 7}
