@@ -1,0 +1,154 @@
+name: Cold FFmpeg toolchain
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Cold target (all includes the optional Intel Mac)
+        type: choice
+        default: all
+        options: [all, windows-x64, linux-x64, linux-arm64, macos-arm64, macos-x64]
+  # Bootstrap the first cold run before the manual workflow is on main.
+  # Remove this branch-only trigger before adding a publisher.
+  push:
+    branches: [rebuild/D-hosted-toolchain-r1]
+    paths: ['.github/workflows/ffmpeg-toolchain.yml']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: ffmpeg-toolchain-${{ github.ref }}-${{ inputs.target || 'all' }}
+  cancel-in-progress: false
+jobs:
+  controls:
+    if: github.repository == 'PorticoMediaServer/portico'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.17'
+      - name: Check runner, custody, transport and native-context refusals
+        run: |
+          python scripts/test-build-engine.py
+          python scripts/test-engine-final-cache.py
+          python scripts/test-assemble-engine.py
+          python scripts/test-compiler-custody.py
+          python scripts/test-native-engine-context.py
+          python scripts/test-engine-artifact.py
+          python scripts/test-windows-rav1e-custody.py
+          python scripts/test-ci-ffmpeg-toolchain.py
+      - id: plan
+        env:
+          COLD_TARGET: ${{ inputs.target || 'all' }}
+        run: echo "matrix=$(python scripts/ci-ffmpeg-toolchain.py plan --target "$COLD_TARGET")" >> "$GITHUB_OUTPUT"
+  build:
+    name: Cold build (${{ matrix.target }})
+    needs: controls
+    continue-on-error: ${{ matrix.optional }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.controls.outputs.matrix) }}
+    runs-on: ${{ matrix.buildRunner }}
+    timeout-minutes: 330
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.17'
+      - name: Reclaim unused SDK space on this disposable Linux runner
+        if: runner.os == 'Linux'
+        run: |
+          df -h
+          sudo python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          for name in ('/usr/local/lib/android', '/usr/share/dotnet', '/opt/ghc', '/usr/local/.ghcup'):
+              path = Path(name)
+              if path.is_dir() and not path.is_symlink():
+                  shutil.rmtree(path)
+          PY
+          df -h
+      - name: Prepare Mac shell and archive tools
+        if: runner.os == 'macOS'
+        run: |
+          brew install bash gnu-tar coreutils
+          echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix gnu-tar)/libexec/gnubin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix coreutils)/libexec/gnubin" >> "$GITHUB_PATH"
+      - name: Build once from pinned source, retaining custody and cold timing
+        env:
+          ENGINE_TARGET: ${{ matrix.target }}
+        run: python scripts/ci-ffmpeg-toolchain.py build --target "$ENGINE_TARGET" --work "$RUNNER_TEMP/engine-cold"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: engine-cold-evidence-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/engine-cold/evidence/**/*.json
+            ${{ runner.temp }}/engine-cold/evidence/**/*.log
+          retention-days: 14
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: engine-cold-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/engine-cold/product/*
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+  native:
+    name: Native cold gates (${{ matrix.target }})
+    needs: [controls, build]
+    if: always() && needs.controls.result == 'success'
+    continue-on-error: ${{ matrix.optional }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.controls.outputs.matrix) }}
+    runs-on: ${{ matrix.nativeRunner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Enable long checkout paths on the disposable Windows runner
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.17'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: engine-cold-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/engine-transfer
+      - name: Verify exact-run bytes and run matching native gates
+        env:
+          ENGINE_TARGET: ${{ matrix.target }}
+        run: python scripts/ci-ffmpeg-toolchain.py native --target "$ENGINE_TARGET" --transfer "$RUNNER_TEMP/engine-transfer" --work "$RUNNER_TEMP/engine-native"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: engine-cold-native-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/engine-native/*.json
+            ${{ runner.temp }}/engine-native/gates/*.json
+            ${{ runner.temp }}/engine-native/gates/*.log
+          retention-days: 14
+          if-no-files-found: warn

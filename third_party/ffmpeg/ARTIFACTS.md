@@ -128,3 +128,28 @@ on matching hardware before proposing any accepted engine pin.
 
 Notice collection by filename is a convenience and is not an exhaustive legal
 inventory. The complete corresponding source ships alongside the collected texts.
+
+
+## Hosted cold toolchain runs
+
+`ffmpeg-toolchain.yml` starts Windows x64, Linux x64/ARM64 and native macOS
+ARM64 builds in parallel, with an optional Intel Mac attempt. Mac uses macos-15
+(or macos-15-intel). Windows ARM64 is deferred. The initial workflow deliberately
+measures cold builds before adding cross-job checkpoint caching. Its branch-only
+push trigger bootstraps the first run; it is removed before publication is added.
+There is no publisher or release pin in this slice.
+
+The explicit GitHub context checks the repository, workflow, hosted runner,
+branch, exact checkout SHA and run/attempt. It does not call portico-heavy or
+claim a local host is GitHub. Retained NOT-FOR-USE artifacts include cold phase
+and total timings, resource observations, source/compiler receipts, failure logs
+and complete constructed bundles with corresponding source and licences. Native
+jobs consume only their exact run/target transfer and execute existing gates on
+matching Windows/Linux/Mac hardware. Construction and successful native checks
+still do not grant compiler, repeat-build, installer or release acceptance.
+
+A later reviewed slice adds a main-only manual publisher, immutable prerelease
+assets with latest=false and an exact asset/hash release intake path. Its generated
+intake-lock change receives separate review. Existing qualification expiry and
+NOT-FOR-USE policy remain unchanged. mini-1 is reserved for the Windows VM; the
+already-running r7 engine is the sole exception and is not interrupted.
