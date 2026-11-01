@@ -24,6 +24,32 @@ def upstream(repository, commit, path):
 
 
 class Contract(unittest.TestCase):
+    def test_effective_configure_gate_stops_before_compile_when_a_requested_component_is_off(self):
+        spec = importlib.util.spec_from_file_location('config_checks', ROOT / 'scripts/ffmpeg-configure-checks.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        for target in ('linux-x64', 'linux-arm64', 'windows-x64', 'windows-arm64', 'macos-arm64', 'macos-x64'):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary); header = root / 'config.h'; (root / 'config_components.h').touch()
+                enabled = '\n'.join('#define ' + name + ' 1' for name in module.macros(target)) + '\n'
+                header.write_text(enabled)
+                command = module.shell(target) + '\nprintf compiled > compile-marker\n'
+                subprocess.run(['bash', '-c', command], cwd=root, check=True)
+                (root / 'compile-marker').unlink()
+                missing = 'CONFIG_OPENSSL' if not target.startswith('windows') else 'CONFIG_SCHANNEL'
+                header.write_text(enabled.replace('#define ' + missing + ' 1', '#define ' + missing + ' 0'))
+                result = subprocess.run(['bash', '-c', command], cwd=root, capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(missing, result.stderr); self.assertFalse((root / 'compile-marker').exists())
+
+    def test_cuda_device_registration_is_checked_separately_from_the_hwaccel_list(self):
+        spec = importlib.util.spec_from_file_location('features', ROOT / 'scripts/verify-ffmpeg-features.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        contract = dict(features=[dict(id='cuda-device', kind='hwdevice', required=True, acceptable=['cuda'])])
+        self.assertEqual(module.missing_features(contract, 'linux-amd64',
+            dict(hwaccel={'cuda'}, hwdevice=set())), ['cuda-device:cuda'])
+        devices = module.entries('Supported hardware device types:\ncuda\nvaapi\n', 'hwdevice')
+        self.assertEqual(module.missing_features(contract, 'linux-amd64', dict(hwdevice=devices)), [])
+
     def test_same_stem_c_shadow_is_refused_before_source_reuse_or_compilation(self):
         spec = importlib.util.spec_from_file_location('prepare', ROOT / 'scripts/prepare-ffmpeg-source.py')
         module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
@@ -56,7 +82,7 @@ class Contract(unittest.TestCase):
         lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
         self.assertTrue({'libvorbis', 'libwebp', 'openmpt', 'chromaprint', 'srt'} <= set(lock['linuxSourceBuild']['roots']))
         terminal = (ROOT / 'scripts/build-linux-ffmpeg.py').read_text()
-        for library in LIBRARIES + ['libsrt']:
+        for library in LIBRARIES + ['libsrt', 'bzlib', 'libopus', 'libtheora', 'libfreetype', 'libfribidi', 'libharfbuzz', 'cuda', 'cuvid', 'openssl']:
             self.assertIn('--enable-' + library, terminal)
         extras = ROOT / lock['macosRecipe']['extrasLock']['path']
         self.assertEqual(hashlib.sha256(extras.read_bytes()).hexdigest(), lock['macosRecipe']['extrasLock']['sha256'])
@@ -65,6 +91,11 @@ class Contract(unittest.TestCase):
     def test_all_six_real_recipe_configurations_and_four_existing_source_pins(self):
         lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
         extras = json.loads((ROOT / 'third_party/ffmpeg/macos-extras.lock.json').read_text())
+        policy = json.loads((ROOT / 'third_party/ffmpeg/autodetect.v1.json').read_text())
+        configure = upstream('jellyfin/jellyfin-ffmpeg', lock['ffmpeg']['commit'], 'configure')
+        for name, category in [('EXTERNAL_AUTODETECT_LIBRARY_LIST', 'external'), ('HWACCEL_AUTODETECT_LIBRARY_LIST', 'hardware')]:
+            self.assertEqual(re.search(name + r'="(.*?)"', configure, re.S)[1].split(), policy['lists'][category])
+        names = set(policy['lists']['external'] + policy['lists']['hardware'])
         for name in ('xz', 'openmpt', 'chromaprint', 'srt'):
             pin = extras[name]; authority = pin['sourceAuthority']
             self.assertEqual(authority['commit'], lock['btbn']['commit'])
@@ -101,14 +132,30 @@ class Contract(unittest.TestCase):
                 if native:
                     subprocess.run(['bash', 'generate.sh', native, 'gpl', '8.1'], cwd=recipe, env=env, check=True,
                                    timeout=60, stdout=subprocess.DEVNULL)
-                    flags = (recipe / 'build.sh').read_text()
+                    flags = (recipe / 'Dockerfile').read_text() + '\n' + (recipe / 'build.sh').read_text()
                 else:
                     flags = (recipe / 'build-ffmpeg').read_text().split('build "ffmpeg" "${FFMPEG_VERSION}"')[0].rstrip().splitlines()[-1]
                     subprocess.run(['bash', '-n', recipe / 'portico-macos-extras.sh'], check=True)
                     self.assertTrue((recipe / 'portico-macos-system-libs.py').is_file())
-                for library in LIBRARIES + ([] if target.startswith('windows') else ['libsrt']):
+                for library in LIBRARIES + ['bzlib', 'libopus', 'libtheora', 'libfreetype', 'libfribidi', 'libharfbuzz'] + ([] if target.startswith('windows') else ['libsrt']):
                     if library == 'libopenmpt' and target == 'windows-arm64': continue
                     self.assertIn('--enable-' + library, flags, target)
+                self.assertEqual(set(policy['targets'][target]), names)
+                for name, decision in policy['targets'][target].items():
+                    self.assertIn(decision['action'], ('enable', 'skip'))
+                    self.assertTrue(decision['reason'])
+                    if decision['action'] == 'enable': self.assertIn(decision['flag'], flags, target + ':' + name)
+                terminal = (recipe / ('build.sh' if native else 'build-ffmpeg')).read_text()
+                self.assertIn('Effective configure component missing: CONFIG_BZLIB', terminal)
+                self.assertLess(terminal.index('Effective configure component missing: CONFIG_BZLIB'),
+                                terminal.index('make -j', terminal.index('Effective configure component missing: CONFIG_BZLIB')))
+                if not target.startswith('macos'):
+                    for feature in ('cuda', 'cuvid', 'ffnvcodec', 'cuda-llvm', 'nvdec', 'nvenc'):
+                        self.assertIn('--enable-' + feature, flags, target)
+                    self.assertIn('scripts.d/20-portico-bzip2.sh', (recipe / 'Dockerfile').read_text())
+                if target.startswith('linux'): self.assertIn('--enable-openssl', flags, target)
+                if target.startswith('windows'):
+                    for feature in ('dxva2', 'mediafoundation', 'schannel'): self.assertIn('--enable-' + feature, flags, target)
                 self.assertNotIn('--enable-libfdk-aac', flags)
                 if target.startswith('windows'): self.assertNotIn('--enable-libsrt', flags)
                 print('actual format flags checked: ' + target, flush=True)

@@ -24,7 +24,7 @@ MAX_FILES = 200000
 README = 'Qualification engine intermediate; NOT-FOR-USE; not a Portico release.\n'
 WINDOWS_CONFIGURE_SCRIPTS = {
     'provenance/scripts/build-engine.py', 'provenance/scripts/engine_inputs.py',
-    'provenance/scripts/engine-recipe-adapter.py', 'provenance/scripts/configure-ffmpeg-recipe.py',
+    'provenance/scripts/engine-recipe-adapter.py', 'provenance/scripts/configure-ffmpeg-recipe.py', 'provenance/scripts/configure-ffmpeg-bzip2.py', 'provenance/scripts/ffmpeg-configure-checks.py',
     'provenance/scripts/configure-windows-libdovi.py',
     'provenance/scripts/engine-registry-cache.py',
     'provenance/scripts/patch-btbn-winarm64-system-error.sh',

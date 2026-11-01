@@ -227,7 +227,7 @@ cp "$ROOT/third_party/ffmpeg/"*.json "$ROOT/third_party/ffmpeg/NOTICE.md" "$WORK
 cp "$WORK/build-source-authority.json" "$WORK/provenance/contract/"
 if [[ -f "$WORK/meson-tool.json" ]]; then cp "$WORK/meson-tool.json" "$WORK/provenance/"; fi
 cp -R "$ROOT/third_party/ffmpeg/patches" "$WORK/provenance/contract/"
-cp "$ROOT/scripts/build-ffmpeg.sh" "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$ROOT/scripts/patch-btbn-winarm64-system-error.sh" "$ROOT/scripts/prepare-ffmpeg-source.py" "$ROOT/scripts/archive-ffmpeg-source.py" "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/provenance/scripts/"
+cp "$ROOT/scripts/build-ffmpeg.sh" "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$ROOT/scripts/patch-btbn-winarm64-system-error.sh" "$ROOT/scripts/prepare-ffmpeg-source.py" "$ROOT/scripts/archive-ffmpeg-source.py" "$ROOT/scripts/configure-ffmpeg-recipe.py" "$ROOT/scripts/configure-ffmpeg-bzip2.py" "$ROOT/scripts/ffmpeg-configure-checks.py" "$WORK/provenance/scripts/"
 if [[ "$TARGET" == macos-* ]]; then cp "$ROOT/scripts/build-macos-libdovi.py" "$ROOT/scripts/build-linux-libdovi.py" "$ROOT/scripts/build-macos-zvbi.sh" "$ROOT/scripts/ffmpeg-rust-tools.py" "$ROOT/scripts/macos-engine-runtime.py" "$ROOT/scripts/configure-macos-shaderc.py" "$ROOT/scripts/macos-ffmpeg-source.py" "$ROOT/scripts/prepare-macos-system-libs.py" "$WORK/provenance/scripts/"; fi
 cp "$ROOT/scripts/build-portico-disc.py" "$ROOT/scripts/build-macos-ffmpeg-extras.sh" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/engine-prefix-cache.py" "$ROOT/scripts/engine-dependency-cache.py" "$ROOT/scripts/macos-dependency-cache.py" "$WORK/provenance/scripts/"
