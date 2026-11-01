@@ -65,7 +65,9 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
     if (value === undefined) return null;
     const definition = row(id);
     return <LibraryRow key={id} first={first} label={t(definition.label)} help={help ?? (definition.help ? t(definition.help) : undefined)}
-      trailing={<Select testID={id} accessibilityLabel={t(definition.label)} value={value} disabled={disabled} options={options(definition, value)} onValueChange={next => {
+      // settings.html `.sel`: a pill at least 176 wide showing the value. Without a width the
+      // value collapsed to nothing beside a long row label.
+      trailing={<Select testID={id} accessibilityLabel={t(definition.label)} value={value} disabled={disabled} options={options(definition, value)} style={{minWidth: 176, maxWidth: 220}} onValueChange={next => {
         if (definition.control.options?.some(option => String(option.value) === next)) save(patch(next));
       }}/>} />;
   };

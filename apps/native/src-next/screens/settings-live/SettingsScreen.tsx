@@ -370,7 +370,8 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
       </View>}
     </View>
   </Screen>;
-  return !theme.isTV ? <SettingsSheet open={!closing} onExited={finishClose} host="inline" presentation={compact ? 'sheet' : 'page'} profile={null} shortcuts={null} scrollable={false} testID="settings-sheet"
+  // A pushed phone page's header draws the sheet's one grabber (owner-server.html `.mh .grab`).
+  return !theme.isTV ? <SettingsSheet open={!closing} onExited={finishClose} host="inline" presentation={compact ? 'sheet' : 'page'} profile={null} shortcuts={null} scrollable={false} testID="settings-sheet" showGrabber={!(compact && pushed)}
     onOpenChange={(open, reason) => {
       if (open || !viewCurrent() || closingRef.current) return;
       if (pushed && (reason === 'back' || reason === 'escape')) {
