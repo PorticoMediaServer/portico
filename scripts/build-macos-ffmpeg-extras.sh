@@ -43,6 +43,9 @@ PYPATCH
  fi
 }
 export PKG_CONFIG_PATH="$WORKSPACE/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+if declare -F portico_time_start >/dev/null; then portico_time_start portico-libdovi; fi
+python3 "$CWD/portico-build-macos-libdovi.py" build --recipe "$CWD" --prefix "$WORKSPACE" \
+ --target "${PORTICO_FFMPEG_TARGET:?}" --tools "$CWD/../native-rust-tools"
 portico_clone soxr
 portico_cmake -DWITH_OPENMP=OFF -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 portico_clone fontconfig

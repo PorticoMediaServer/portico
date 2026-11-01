@@ -1,0 +1,47 @@
+name: Native Mac libdovi source controls
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/ffmpeg-macos-libdovi.yml'
+      - 'scripts/build-macos-libdovi.py'
+      - 'scripts/test-macos-libdovi.py'
+      - 'scripts/test-libdovi-runtime-inventory.py'
+      - 'third_party/ffmpeg/macos-rust-tools.lock.json'
+permissions:
+  contents: read
+jobs:
+  controls:
+    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - run: |
+          python scripts/test-macos-libdovi.py
+          python scripts/test-libdovi-runtime-inventory.py
+          bash -n scripts/build-ffmpeg.sh scripts/build-macos-ffmpeg-extras.sh
+  catalogue:
+    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache: false}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - working-directory: server
+        run: go mod download
+      - env: {GOMAXPROCS: '2', GOFLAGS: '-p=2'}
+        run: node --experimental-strip-types web/scripts/licences.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: macos-rust-pin-licence-catalogue-${{ github.sha }}
+          path: web/src/generated/licences.json
+          retention-days: 7
