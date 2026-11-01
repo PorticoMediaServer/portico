@@ -139,16 +139,14 @@ python3 /build-linux-ffmpeg-deps.py --inside
         '-e', 'TMPDIR=/portico/tmp', *cache_arguments, image, 'bash', '/portico/dependencies.sh')
 
 
-def inside():
+def inside(work=Path('/portico'), recipe=Path('/recipe')):
     global CURRENT_STAGE
     import shutil
     import tarfile
-    work = Path('/portico')
-    recipe = Path('/recipe')
     os.environ['ACLOCAL_PATH'] = '/opt/ffbuild/share/aclocal'
     plan = json.loads((work / 'stage-plan.json').read_text())
     cache = None
-    cache_roots = dict(prefix=Path('/opt/ffbuild'), sources=work / 'sources',
+    cache_roots = dict(prefix=Path(os.environ.get('FFBUILD_PREFIX', '/opt/ffbuild')), sources=work / 'sources',
                        licenses=work / 'licenses', receipts=work / 'receipts', extra=work / 'extra')
     if os.environ.get('PORTICO_ENGINE_STAGE_CACHE'):
         spec = importlib.util.spec_from_file_location('prefix_cache', Path(__file__).with_name('engine-prefix-cache.py'))
@@ -249,9 +247,9 @@ def inside():
         print('BUILD ' + name, flush=True)
         run('bash', '-e', '-o', 'pipefail', '-c', '''
 stage_source="$PWD"
-cd /recipe
-source /recipe/util/vars.sh linux64 gpl 8.1
-source /recipe/"$1"
+cd "$2"
+source util/vars.sh linux64 gpl 8.1
+source "$2/$1"
 cd "$stage_source"
 case "$1" in
   *libbluray.sh|*libdvdread.sh|*libdvdnav.sh|*libudfread.sh)
@@ -261,7 +259,7 @@ export RAW_CFLAGS="$CFLAGS" RAW_CXXFLAGS="$CXXFLAGS" RAW_LDFLAGS="$LDFLAGS"
 export CFLAGS="$CFLAGS ${STAGE_CFLAGS:-}" CXXFLAGS="$CXXFLAGS ${STAGE_CXXFLAGS:-}"
 export LDFLAGS="$LDFLAGS ${STAGE_LDFLAGS:-}"
 ffbuild_dockerbuild
-''', 'dependency-build', source, cwd=stage)
+''', 'dependency-build', source, str(recipe), cwd=stage)
         # Each stage installs into the same static prefix. No OCI stage/cache
         # duplication, and its compiler intermediates are removed immediately.
         destination = Path(os.environ['FFBUILD_DESTPREFIX'])
