@@ -273,3 +273,15 @@ input is unqualified, unreleased and not ready for publication. It is not an
 engine intake artifact. A future repacker must verify the exact artifact and
 receipt hashes and restore safely before running normal packing and native gates;
 this slice does not add a repacker or waive those gates.
+
+The working Mac recipe retries the **same URL** at most five times, with a
+15-second limit per attempt and 5/10/15/20-second backoff (125 seconds maximum
+network/backoff budget). It never substitutes a mirror or floating source.
+Archive pins in the sealed Mac extras lock are checked before extraction for
+both newly downloaded and cached files; zlib 1.3.1 is pinned for this retry.
+The remaining legacy Homebridge archives are not yet all pinned. **All Mac
+sources pinned** is a required publication condition: a qualified Mac engine
+cannot be published until the complete archive table has upstream hash checks
+where available, unpinned downloads refuse, and publication preflight enforces
+that condition. Working build success does not satisfy it. Complete pinning and
+source caching follow the first green engine set.
