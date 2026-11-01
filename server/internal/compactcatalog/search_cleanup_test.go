@@ -9,6 +9,34 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 )
 
+func TestPacedSearchReplacementKeepsOneAtomicDocument(t *testing.T) {
+	db := cc1OpenDB(t, "search-unit.sqlite")
+	lib := cc1Library(t, db, "films", "Films", "movie", "/films")
+	for i := 0; i < 2; i++ {
+		title := "Amber Birch Cypress Dogwood Elm Fir Garden Hazel Iris Juniper Kiwi Laurel Maple Nettle Olive Pine Quince Rose Spruce Tulip"
+		cc1Entity(t, db, Entity{Library: lib, Kind: Movie, Key: fmt.Sprintf("film-%d", i), Title: title}, nil)
+	}
+	w := NewWorker(db)
+	w.PaceToHold(BatchHoldTarget)
+	if err := w.prepare(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	cc1Exec(t, db, `UPDATE catalog_derivations SET rebuilding=0 WHERE domain<>17`)
+	cc1Exec(t, db, `DELETE FROM catalog_dirty WHERE domain<>17`)
+	visibilityFanoutReset(t, db, 1)
+	w.observeBatch(DomainSearch, 2, 2*time.Nanosecond, 2)
+	dbwork.ResetPlans()
+	if n, err := w.Step(context.Background(), 500); err != nil || n != 1 {
+		t.Fatalf("paced document turn=%d: %v", n, err)
+	}
+	if got := cc1Scalar(t, db, `SELECT count(*) FROM catalog_search_documents`); got != 1 {
+		t.Fatalf("published %d documents in one turn, want 1", got)
+	}
+	if plans := dbwork.Plans(); plans.Overruns != 0 || plans.Largest.Rows > derivationUnitPlan.Rows {
+		t.Fatalf("single document exceeded its existing unit plan: %+v", plans)
+	}
+}
+
 func TestSearchCleanupPagesLeavesBeforeDeletingDocuments(t *testing.T) {
 	for _, slot := range []int{0, 1} {
 		t.Run(fmt.Sprint(slot), func(t *testing.T) {
