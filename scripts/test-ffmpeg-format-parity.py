@@ -56,7 +56,7 @@ class Contract(unittest.TestCase):
         lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
         self.assertTrue({'libvorbis', 'libwebp', 'openmpt', 'chromaprint', 'srt'} <= set(lock['linuxSourceBuild']['roots']))
         terminal = (ROOT / 'scripts/build-linux-ffmpeg.py').read_text()
-        for library in LIBRARIES + ['libsrt']:
+        for library in LIBRARIES + ['libsrt', 'bzlib', 'libopus', 'libtheora', 'libfreetype', 'libfribidi', 'libharfbuzz', 'cuda', 'cuvid', 'openssl']:
             self.assertIn('--enable-' + library, terminal)
         extras = ROOT / lock['macosRecipe']['extrasLock']['path']
         self.assertEqual(hashlib.sha256(extras.read_bytes()).hexdigest(), lock['macosRecipe']['extrasLock']['sha256'])
@@ -106,9 +106,16 @@ class Contract(unittest.TestCase):
                     flags = (recipe / 'build-ffmpeg').read_text().split('build "ffmpeg" "${FFMPEG_VERSION}"')[0].rstrip().splitlines()[-1]
                     subprocess.run(['bash', '-n', recipe / 'portico-macos-extras.sh'], check=True)
                     self.assertTrue((recipe / 'portico-macos-system-libs.py').is_file())
-                for library in LIBRARIES + ([] if target.startswith('windows') else ['libsrt']):
+                for library in LIBRARIES + ['bzlib', 'libopus', 'libtheora', 'libfreetype', 'libfribidi', 'libharfbuzz'] + ([] if target.startswith('windows') else ['libsrt']):
                     if library == 'libopenmpt' and target == 'windows-arm64': continue
                     self.assertIn('--enable-' + library, flags, target)
+                if not target.startswith('macos'):
+                    for feature in ('cuda', 'cuvid', 'ffnvcodec', 'cuda-llvm', 'nvdec', 'nvenc'):
+                        self.assertIn('--enable-' + feature, flags, target)
+                    self.assertIn('scripts.d/20-portico-bzip2.sh', (recipe / 'Dockerfile').read_text())
+                if target.startswith('linux'): self.assertIn('--enable-openssl', flags, target)
+                if target.startswith('windows'):
+                    for feature in ('dxva2', 'mediafoundation', 'schannel'): self.assertIn('--enable-' + feature, flags, target)
                 self.assertNotIn('--enable-libfdk-aac', flags)
                 if target.startswith('windows'): self.assertNotIn('--enable-libsrt', flags)
                 print('actual format flags checked: ' + target, flush=True)

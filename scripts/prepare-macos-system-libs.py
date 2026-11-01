@@ -18,7 +18,8 @@ def prepare(prefix, receipt):
     sdk = Path(subprocess.check_output(['/usr/bin/xcrun', '--show-sdk-path'], text=True).strip()).resolve(strict=True)
     paths = dict(xmlHeader=sdk / 'usr/include/libxml2/libxml/xmlversion.h',
                  xmlLinkStub=sdk / 'usr/lib/libxml2.tbd',
-                 iconvHeader=sdk / 'usr/include/iconv.h', iconvLinkStub=sdk / 'usr/lib/libiconv.tbd')
+                 iconvHeader=sdk / 'usr/include/iconv.h', iconvLinkStub=sdk / 'usr/lib/libiconv.tbd',
+                 bzlibHeader=sdk / 'usr/include/bzlib.h', bzlibLinkStub=sdk / 'usr/lib/libbz2.tbd')
     for path in paths.values():
         if not path.resolve(strict=True).is_relative_to(sdk) or not path.is_file():
             raise ValueError('system library input escaped the selected SDK')

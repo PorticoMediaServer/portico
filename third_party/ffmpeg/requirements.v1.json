@@ -156,7 +156,8 @@
         "http",
         "https",
         "tcp",
-        "udp"
+        "udp",
+        "tls"
       ]
     },
     {
@@ -495,7 +496,8 @@
       "platforms": [
         "linux-amd64",
         "windows-amd64",
-        "windows-arm64"
+        "windows-arm64",
+        "linux-arm64"
       ]
     },
     {
@@ -510,7 +512,8 @@
       "platforms": [
         "linux-amd64",
         "windows-amd64",
-        "windows-arm64"
+        "windows-arm64",
+        "linux-arm64"
       ]
     },
     {
@@ -526,7 +529,8 @@
       "platforms": [
         "linux-amd64",
         "windows-amd64",
-        "windows-arm64"
+        "windows-arm64",
+        "linux-arm64"
       ]
     },
     {
@@ -861,6 +865,101 @@
         "linux-arm64",
         "darwin-amd64",
         "darwin-arm64"
+      ]
+    },
+    {
+      "id": "encode.opus-theora",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "libopus",
+        "libtheora"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "filter.drawtext",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "drawtext"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "library.bzip2",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "bzlib"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "hw.nvidia.cuvid",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "h264_cuvid",
+        "hevc_cuvid"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64"
+      ]
+    },
+    {
+      "id": "hw.windows.dxva2",
+      "kind": "hwaccel",
+      "required": true,
+      "acceptable": [
+        "dxva2"
+      ],
+      "platforms": [
+        "windows-amd64"
+      ]
+    },
+    {
+      "id": "encode.windows.mediafoundation",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "h264_mf"
+      ],
+      "platforms": [
+        "windows-amd64"
+      ]
+    },
+    {
+      "id": "hw.nvidia.device",
+      "kind": "hwdevice",
+      "required": true,
+      "acceptable": [
+        "cuda"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64"
       ]
     }
   ],

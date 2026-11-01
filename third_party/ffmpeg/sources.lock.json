@@ -547,7 +547,9 @@
       "libwebp",
       "openmpt",
       "chromaprint",
-      "srt"
+      "srt",
+      "libtheora",
+      "portico-bzip2"
     ],
     "sourcePatches": [
       {
@@ -654,5 +656,11 @@
   "nativeRustTools": {
     "path": "third_party/ffmpeg/native-rust-tools.lock.json",
     "sha256": "6c0ed580147ac5f43ff5f3cb86132fe04d8bb9f589cb5607e605bfca00d8179f"
+  },
+  "bzip2": {
+    "version": "1.0.8",
+    "source": "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+    "sha256": "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+    "scope": "Static libbz2 for all BtbN targets; Mac uses selected SDK system libbz2"
   }
 }
