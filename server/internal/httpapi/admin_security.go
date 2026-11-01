@@ -9,6 +9,7 @@ import (
 	"github.com/PorticoMediaServer/portico/apikit"
 	"github.com/PorticoMediaServer/portico/apikit/apierror"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/remotegate"
 )
 
 // The owner's remote-security summary. Brute-force protection is always on and
@@ -21,7 +22,7 @@ import (
 func registerAdminSecurity(registry *apikit.Registry, d Dependencies) error {
 	if err := apikit.Register(registry, apikit.Route[struct{}, identity.SecuritySummary]{Metadata: apikit.Metadata{
 		Audience: apikit.Clients, Admission: laneAdmin, ID: "get_admin_security_summary", Method: "GET", Path: "/v1/admin/security/summary",
-		Summary: "Read failed sign-ins, blocked sources and new remote devices for the last day and week", Access: apikit.Admin, Requires: apikit.ScopeAdmin, AdminScope: "security",
+		Summary: "Read refused connections, failed sign-ins, blocked sources and new remote devices for the last day and week", Access: apikit.Admin, Requires: apikit.ScopeAdmin, AdminScope: "security",
 		Lane: apikit.Default, Cost: apikit.Constant, Status: 200, Errors: []string{"unauthorized", "not_permitted", "internal"},
 	}, Handler: func(ctx context.Context, r *http.Request, _ struct{}) (identity.SecuritySummary, error) {
 		var out identity.SecuritySummary
@@ -36,6 +37,12 @@ func registerAdminSecurity(registry *apikit.Registry, d Dependencies) error {
 		if err != nil {
 			return out, &apierror.Error{Code: "internal", Cause: err}
 		}
+		var refusals *remotegate.Refusals
+		if d.RemoteGate != nil {
+			refusals = d.RemoteGate.Refusals
+		}
+		out.Counts.Last24Hours.RefusedConnections, out.Counts.Last24Hours.RefusedByReason = refusals.Totals(24)
+		out.Counts.Last7Days.RefusedConnections, out.Counts.Last7Days.RefusedByReason = refusals.Totals(7 * 24)
 		again, err := d.administrator(r)
 		if err != nil {
 			return out, v1AuthError(err)

@@ -27507,12 +27507,27 @@ var PorticoCastContracts = (function(exports) {
 									"maximum": 9007199254740991,
 									"minimum": -9007199254740991,
 									"type": "integer"
+								},
+								"refusedByReason": {
+									"additionalProperties": {
+										"maximum": 9007199254740991,
+										"minimum": -9007199254740991,
+										"type": "integer"
+									},
+									"type": "object"
+								},
+								"refusedConnections": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
 								}
 							},
 							"required": [
 								"failedSignIns",
 								"blockedSources",
-								"newRemoteDevices"
+								"newRemoteDevices",
+								"refusedConnections",
+								"refusedByReason"
 							],
 							"type": "object"
 						},
@@ -27532,12 +27547,27 @@ var PorticoCastContracts = (function(exports) {
 									"maximum": 9007199254740991,
 									"minimum": -9007199254740991,
 									"type": "integer"
+								},
+								"refusedByReason": {
+									"additionalProperties": {
+										"maximum": 9007199254740991,
+										"minimum": -9007199254740991,
+										"type": "integer"
+									},
+									"type": "object"
+								},
+								"refusedConnections": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
 								}
 							},
 							"required": [
 								"failedSignIns",
 								"blockedSources",
-								"newRemoteDevices"
+								"newRemoteDevices",
+								"refusedConnections",
+								"refusedByReason"
 							],
 							"type": "object"
 						}

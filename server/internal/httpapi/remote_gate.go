@@ -86,9 +86,13 @@ func (d Dependencies) remoteAdmits(r *http.Request) bool {
 	if !admit && reason == remotegate.ReasonName && proxied && !remotegate.Plausible(remotegate.HostName(host)) {
 		// The proxy passed its upstream address, not the name people used:
 		// show the owner the proxy, since there's no name to allow.
+		d.RemoteGate.Count(remotegate.ReasonProxy)
 		d.RemoteGate.RecordProxy(peer)
 	} else if !admit && reason != "" {
+		d.RemoteGate.Count(remotegate.NameReason(host, reason))
 		d.RemoteGate.Record(host, reason)
+	} else if !admit {
+		d.RemoteGate.Count(remotegate.ReasonAccess)
 	}
 	return admit
 }
