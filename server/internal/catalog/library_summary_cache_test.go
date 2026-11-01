@@ -239,10 +239,10 @@ func TestLibrarySummaryCoreClassificationAndConservativeBypass(t *testing.T) {
 		priorKey := summaryKeyRead(t, s, v, lib)
 		c.Exec(step.query)
 		nextKey := summaryKeyRead(t, s, v, lib)
-		// Normal insert/delete/minimum_age changes synchronously advance the
-		// affected library's RAW revision (not order_revision), as well as the new
-		// complete classification epoch. Assert the actual producer effects.
-		if nextKey.Revision != priorKey.Revision+1 || priorKey.OrderRevision != nextKey.OrderRevision || nextKey.Classification != priorKey.Classification+1 {
+		// Rating publication advances the global classification epoch without
+		// walking matching libraries. That epoch still invalidates the summary
+		// synchronously, before its deferred visibility fan-out is processed.
+		if nextKey.Revision != priorKey.Revision || priorKey.OrderRevision != nextKey.OrderRevision || nextKey.Classification != priorKey.Classification+1 {
 			t.Fatalf("classification revisions lib %d -> %d order %d -> %d class %d -> %d", priorKey.Revision, nextKey.Revision, priorKey.OrderRevision, nextKey.OrderRevision, priorKey.Classification, nextKey.Classification)
 		}
 		got, scans := summaryRead(t, s, v, lib)
@@ -477,7 +477,6 @@ func TestLibrarySummaryCoreFlightsCancellationAndBounds(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
-
 
 	t.Run("successful-flight-reasons", func(t *testing.T) {
 		var cache librarySummaryCache
