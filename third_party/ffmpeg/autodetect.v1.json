@@ -302,8 +302,9 @@
         "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
       },
       "amf": {
-        "action": "skip",
-        "reason": "Exact upstream ARM inventory has no AMF hardware device or AMF encoder; x64-only selection retained."
+        "action": "enable",
+        "flag": "--enable-amf",
+        "reason": "Existing BtbN ARM AMF stage retained as a superset; exact Jellyfin ARM hardware/encoder inventory omits AMF."
       },
       "audiotoolbox": {
         "action": "skip",
