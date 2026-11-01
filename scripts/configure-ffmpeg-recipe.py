@@ -46,7 +46,7 @@ if target.startswith('macos'):
 # BtbN disables Linux ARM VAAPI by default, although libva supports it.
 import subprocess
 subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'recipe', '--recipe', recipe,
-                '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt'], check=True)
+                '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt', '--target', target], check=True)
 if target.startswith('windows'):
     import subprocess
     subprocess.run([sys.executable, root / 'scripts/configure-windows-libdovi.py', recipe], check=True)
