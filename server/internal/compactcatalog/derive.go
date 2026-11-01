@@ -979,13 +979,19 @@ func acknowledgeDerived(ctx context.Context, tx *sql.Tx, domain int, id, revisio
 // steps are the derived workers that keep their own job tables (fed by
 // triggers on the derived tables above them). They run round-robin when no
 // domain has work it can finish.
-const readingAttributionStep = 8
+const (
+	bookEvidenceStep        = 4
+	bookVisibleStep         = 5
+	recommendationTasteStep = 7
+	readingAttributionStep  = 8
+)
 
 var steps = [...]func(context.Context, *sql.Tx, int) (int, error){StepCollectionVisibleCounts, StepCategoryVisibility, StepVisibilitySortBuckets, StepPersonalSortBuckets, StepBookContextEvidence, StepBookGroupVisibleCounts, StepContentEligible, StepRecProfiles, readingAttributionStep: StepReadingAttribution, StepReadingPaths, StepVisibilitySourceFanout}
 
 func (w *Worker) runSteps(ctx context.Context, tx *sql.Tx, limit int) (int, int, error) {
 	w.mu.Lock()
 	kind := w.stepTurn % len(steps)
+	paced := w.holdTarget > 0
 	w.mu.Unlock()
 	total, idle, lastKind := 0, 0, -1
 	// Stop adding steps once the batch has changed a write plan's worth of
@@ -1004,6 +1010,16 @@ func (w *Worker) runSteps(ctx context.Context, tx *sql.Tx, limit int) (int, int,
 			break
 		}
 		stepLimit := limit - total
+		if paced {
+			// One raw quantum of one family per writer. Seven-axis sort
+			// replacement costs at most 37 row effects per pair; four pairs
+			// fit with bookkeeping. Evidence/taste/group jobs remain atomic
+			// units under their existing single-unit plan.
+			stepLimit = min(stepLimit, 4)
+			if kind == bookEvidenceStep || kind == bookVisibleStep || kind == recommendationTasteStep {
+				stepLimit = 1
+			}
+		}
 		if kind == readingAttributionStep {
 			w.mu.Lock()
 			paced := w.holdTarget > 0
@@ -1021,7 +1037,7 @@ func (w *Worker) runSteps(ctx context.Context, tx *sql.Tx, limit int) (int, int,
 		if n > 0 {
 			lastKind = kind
 			total += n
-			if kind == readingAttributionStep || kind == readingAttributionStep+1 {
+			if paced || kind == readingAttributionStep || kind == readingAttributionStep+1 {
 				// Its EOF, obsolete cleanup and ready publication must be
 				// separate committed batches, including an empty library. Do
 				// not re-enter this step in the same writer transaction.
