@@ -2153,7 +2153,7 @@
   "server/internal/mediaexec/fonts/NotoSansDevanagari-LICENSE": "a216f6f8d85c7228093e0ee5e258d9d377e6671f68acb4db1930b29583d0f331",
   "server/internal/mediaexec/fonts/NotoSansThai-LICENSE": "2e98fd23a52d253db8612cd5942c8f2ff4111b21d2367050fdca91d8ccc374a0",
   "server/internal/thirdparty/sqlite/LICENSE": "c6fe05491a60ae13bcd223088d2705e36dede24e5587226231d2459ada5c4822",
-  "third_party/ffmpeg/sources.lock.json": "3a4698e93fa9d59254539ba0bb39e95e14ce78536b5da9d99cc6d47dda97bebf",
+  "third_party/ffmpeg/sources.lock.json": "e025e8bfff2ea346670985e629e550e6024f6c385f4b0b535bc080a24bfd2cad",
   "third_party/hls.js/LICENSE": "ca8773cf798c7ed997d4dd7c8e23c348699f8d5b7462636694cc14de6cda12db",
   "third_party/libass-wasm/COPYRIGHT": "ab5c01d34e1f19e2bb99c893d2bd6693dc35da8c8a029f8e4aafd78af93b527a",
   "third_party/libass-wasm/LICENSE": "352fbab9abdf49eff4cb1bb010fe307022dc3f05a4d821afe1d2ebdc0e3db10e",
