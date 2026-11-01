@@ -176,8 +176,8 @@ function SetupForm({controller, view, form, setForm, name, mode}: {controller: S
       <div className={[styles.legend, styles.formLegend].join(' ')}>{t('web.setup.remoteSecurity')}</div>
       <RadioGroup.Root orientation="vertical" aria-label={t('web.setup.remoteSecurity')} value={remoteSecurity} disabled={busy}
         onValueChange={value => {if (value === 'enhanced' || value === 'standard') setForm(old => ({...old, remoteSecurity: value}));}}>
-        {(['enhanced', 'standard'] as const).map(value => <RadioGroup.Item key={value} value={value} className={remoteSecurity === value ? styles.choice : styles.qopt}>
-          {remoteSecurity === value && <span className={styles.choiceIcon} aria-hidden="true"><Icon name={value === 'enhanced' ? 'i-shield' : 'i-globe'} size={22}/></span>}
+        {(['enhanced', 'standard'] as const).map(value => <RadioGroup.Item key={value} value={value} className={remoteSecurity === value ? styles.choice : styles.choiceOff}>
+          <span className={styles.choiceIcon} aria-hidden="true"><Icon name={value === 'enhanced' ? 'i-shield' : 'i-globe'} size={22}/></span>
           <span className={styles.choiceCopy}><b>{t(value === 'enhanced' ? 'web.setup.enhanced' : 'web.setup.standard')}{value === 'enhanced' && <span className={styles.rec}>{t('web.setup.recommended')}</span>}</b>
             <p>{t(value === 'enhanced' ? 'web.setup.enhancedBody' : 'web.setup.standardBody')}</p></span>
           <span className={remoteSecurity === value ? styles.rad : styles.radOff} aria-hidden="true"/>

@@ -78,7 +78,7 @@ async function fixture(options: FixtureOptions) {
     '../../../../../packages/client-core/src/presentation/setup-messages': {setupEndedMessage, setupErrorMessage, setupNewerMessage},
     '../../../../../packages/client-core/src/password-strength': {passwordStrength},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {Focusable: 'Focusable', TextField: 'TextField'},
+    '../../kit/controls': {Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/states': {StateLayout: 'StateLayout'},
     '../../kit/theme': {useTheme: () => theme},
     '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}},
