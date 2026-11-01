@@ -15,6 +15,19 @@ M = runpy.run_path(str(ROOT / 'scripts/build-macos-libdovi.py'))
 
 
 class MacDovi(unittest.TestCase):
+    def test_component_must_match_the_sealed_official_manifest_before_install(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); manifest = root / 'distribution.toml'
+            manifest.write_text('[pkg.rustc]\ngit_commit_hash="checked-commit"\n'
+                '[pkg.rustc.target.aarch64-apple-darwin]\nxz_url="https://example.invalid/checked"\nxz_hash="checked-hash"\n')
+            pin = {'rust': {'commit': 'checked-commit', 'distributionManifest': {}, 'source': {},
+                           'targets': {'aarch64-apple-darwin': {'rustc': {'url': 'https://example.invalid/replaced',
+                                                                        'sha256': 'checked-hash'}}}}}
+            with patch.dict(M['tools'].__globals__, download=lambda *args: manifest), patch('subprocess.run') as install:
+                with self.assertRaises(ValueError):
+                    M['tools'](pin, 'aarch64-apple-darwin', root / 'tools', root)
+                install.assert_not_called()
+
     def test_wrong_native_architecture_refuses_before_creating_inputs(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
