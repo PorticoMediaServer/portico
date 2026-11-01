@@ -49,7 +49,16 @@ func TestObservationHistoryActivationAndRoutineBudgets(t *testing.T) {
 	if len(plans) == 0 {
 		t.Fatal("missing witness plans")
 	}
-	for seq := int64(1); seq <= 5; seq++ {
+	for seq := int64(1); seq <= 7; seq++ {
+		// A viewer clearing personal history may create it again while the
+		// owner history remains. That is a real new-history unit too.
+		if seq == 6 {
+			f.catalog.Exec(`DELETE FROM personal_history WHERE profile_id=? AND id=(SELECT media_session_id FROM playback_v1_sessions WHERE id=?)`, profile, id)
+			var ownerHistory int
+			if err := f.catalog.DB.QueryRow(`SELECT count(*) FROM play_history WHERE playback_id=(SELECT media_session_id FROM playback_v1_sessions WHERE id=?)`, id).Scan(&ownerHistory); err != nil || ownerHistory != 1 {
+				t.Fatalf("owner history witness: %d (%v)", ownerHistory, err)
+			}
+		}
 		f.clock.add(time.Second)
 		_, err := f.service.Observe(context.Background(), f.caller, id, Observation{Epoch: epoch, Seq: seq, Generation: f.generation, State: "playing", PositionMs: seq * 1000, MonotonicMs: seq * 1000, PlayClockMs: seq * 1000, Rate: 1})
 		if err != nil {
@@ -61,7 +70,7 @@ func TestObservationHistoryActivationAndRoutineBudgets(t *testing.T) {
 		}
 		measured := dbwork.Plans()
 		budget := observationBatchPlan(1)
-		if seq == 3 {
+		if seq == 3 || seq == 6 {
 			budget = observationActivationPlan(1, 1)
 		}
 		cost := measured.Largest
