@@ -19,6 +19,10 @@ on:
         description: Bootstrap or full inventory (no base required)
         type: boolean
         default: false
+      hosted_only:
+        description: Use GitHub-hosted Ubuntu for every job
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -26,7 +30,7 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
   hygiene:
-    runs-on: ${{ github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'portico-vps' || 'ubuntu-24.04' }}
+    runs-on: ${{ !inputs.hosted_only && github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'portico-vps' || 'ubuntu-24.04' }}
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -41,7 +45,7 @@ jobs:
       - run: python3 ci/engineering_rules.py
   planner:
     # Bootstrap trusted plans without waiting for the saturated hosted pool.
-    runs-on: ${{ github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'portico-vps' || 'ubuntu-24.04' }}
+    runs-on: ${{ !inputs.hosted_only && github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'portico-vps' || 'ubuntu-24.04' }}
     timeout-minutes: 8
     outputs:
       go_matrix: ${{ steps.plan.outputs.go_matrix }}
@@ -68,6 +72,7 @@ jobs:
             apikit/go.sum
       - id: plan
         env:
+          CI_HOSTED_ONLY: ${{ inputs.hosted_only }}
           CI_FULL_PLAN: ${{ inputs.full }}
           CI_TIER: ${{ github.event_name == 'merge_group' && 'merge' || inputs.tier || 'short' }}
           CI_BASE: ${{ inputs.base }}
@@ -145,7 +150,6 @@ jobs:
     if: needs.planner.outputs.js == 'true'
     strategy:
       fail-fast: false
-      max-parallel: 12
       matrix: ${{ fromJSON(needs.planner.outputs.js_matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -197,7 +201,6 @@ jobs:
     if: needs.planner.outputs.js_static == 'true'
     strategy:
       fail-fast: false
-      max-parallel: 6
       matrix: ${{ fromJSON(needs.planner.outputs.js_static_matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -239,7 +242,7 @@ jobs:
     name: ci/required
     if: ${{ !cancelled() }}
     needs: [planner, hygiene, go_build, go_tests, js, js_static, android]
-    runs-on: ${{ github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'portico-vps' || 'ubuntu-24.04' }}
+    runs-on: ${{ !inputs.hosted_only && github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'portico-vps' || 'ubuntu-24.04' }}
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -261,7 +264,7 @@ jobs:
     name: ${{ (github.event_name == 'merge_group' || inputs.full || inputs.tier == 'merge') && 'ci/merge-queue' || 'ci/short' }}
     if: ${{ !cancelled() }}
     needs: merge
-    runs-on: ${{ github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'portico-vps' || 'ubuntu-24.04' }}
+    runs-on: ${{ !inputs.hosted_only && github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'portico-vps' || 'ubuntu-24.04' }}
     steps:
       - env:
           RESULT: ${{ needs.merge.result }}
