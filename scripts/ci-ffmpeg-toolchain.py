@@ -322,6 +322,18 @@ def native(target, transfer, evidence):
         if (digest(bundle / 'toolchain-manifest.json') != sender['toolchainManifestSHA256'] or
                 digest(bundle / 'corresponding-source.tar.xz') != sender['correspondingSourceSHA256']):
             raise ValueError('cold bundle/source changed in transfer')
+        # Small sealed metadata survives separately from the large opaque
+        # bundle. Missing release-only metadata does not stop app/media testing.
+        receipt['releaseMetadataHolds'] = []
+        for name in ('toolchain-manifest.json', 'repeat-build.json'):
+            path = bundle / name
+            try:
+                if path.is_file() and not path.is_symlink() and path.stat().st_size <= 4 * 1024**2:
+                    shutil.copyfile(path, evidence / name)
+                else:
+                    receipt['releaseMetadataHolds'].append(name + ' missing, linked or exceeds 4MiB')
+            except OSError as error:
+                receipt['releaseMetadataHolds'].append(name + ' capture failed: ' + type(error).__name__)
         for tool in (bundle / 'bin').iterdir():
             tool.chmod(0o755)
         module('verify-native-engine').verify(target, bundle, evidence / 'gates', 'github-actions')
