@@ -35,9 +35,10 @@ jobs:
           printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           python3 - <<'PY'
           import json, os, pathlib, runpy, subprocess
+          assert os.environ['GITHUB_EVENT_NAME'] == 'pull_request'
           target = os.environ['COMPILER_TARGET']
           row = runpy.run_path('scripts/preserve-ffmpeg-compilers.py')['lock']()['images'][target]
-          report = {'context': 'pull_request', 'target': target, 'compiler': row['mirror'],
+          report = {'context': os.environ['GITHUB_EVENT_NAME'], 'target': target, 'compiler': row['mirror'],
                     'pullRequestSHA': os.environ['GITHUB_SHA'],
                     'pinSourceSHA': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()}
           result = subprocess.run(['docker', 'pull', row['mirror']], capture_output=True, text=True)
