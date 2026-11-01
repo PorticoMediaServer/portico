@@ -1,0 +1,22 @@
+appId: tv.getportico.app
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: 'Use a local server'
+    timeout: 60000
+- tapOn: 'Use a local server'
+- tapOn: 'Server address'
+- inputText: ${SERVER_ADDRESS}
+- tapOn: 'Continue'
+- extendedWaitUntil:
+    visible: 'Username'
+    timeout: 60000
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: accounts-dev-test-owner
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: accounts-dev-test-owner

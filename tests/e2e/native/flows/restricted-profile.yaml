@@ -1,0 +1,46 @@
+appId: tv.getportico.app
+---
+- runFlow: sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      id: lifecycle-profiles
+    timeout: 60000
+- takeScreenshot: 01-profiles
+- tapOn: 'Locked E2E'
+- extendedWaitUntil:
+    visible:
+      id: lifecycle-profile-pin
+    timeout: 60000
+- takeScreenshot: 02-pin
+- back
+- extendedWaitUntil:
+    visible:
+      id: lifecycle-profiles
+    timeout: 10000
+- tapOn: 'Restricted E2E'
+- extendedWaitUntil:
+    visible:
+      id: native-home
+    timeout: 60000
+- takeScreenshot: 03-restricted-home
+- tapOn: 'Search'
+- tapOn:
+    id: search-input
+- inputText: Arrival
+- extendedWaitUntil:
+    visible:
+      id: search-top-result
+    timeout: 60000
+- hideKeyboard
+- assertVisible: 'Arrival'
+- takeScreenshot: 04-allowed
+- tapOn:
+    id: search-input
+- eraseText
+- inputText: Moon
+- extendedWaitUntil:
+    visible:
+      id: search-no-matches
+    timeout: 60000
+- hideKeyboard
+- takeScreenshot: 05-blocked

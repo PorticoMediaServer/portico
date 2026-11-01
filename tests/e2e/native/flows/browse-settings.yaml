@@ -1,0 +1,46 @@
+appId: tv.getportico.app
+---
+- runFlow: sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      id: native-home
+    timeout: 60000
+- runFlow:
+    when:
+      visible:
+        id: phone-tab-libraries
+    commands:
+      - tapOn:
+          id: phone-tab-libraries
+      - extendedWaitUntil:
+          visible:
+            id: native-libraries-overview
+          timeout: 60000
+      - takeScreenshot: 01-libraries
+- extendedWaitUntil:
+    visible: 'Movies'
+    timeout: 60000
+- tapOn: 'Movies'
+- extendedWaitUntil:
+    visible:
+      id: library-grid
+    timeout: 60000
+- takeScreenshot: 02-movies
+- tapOn: 'Home'
+- extendedWaitUntil:
+    visible:
+      id: native-home
+    timeout: 60000
+- tapOn: 'Settings'
+- extendedWaitUntil:
+    visible:
+      id: settings-sheet
+    timeout: 60000
+- takeScreenshot: 03-settings
+- tapOn:
+    id: settings-page-quality
+- extendedWaitUntil:
+    visible:
+      id: quality.home
+    timeout: 60000
+- takeScreenshot: 04-quality
