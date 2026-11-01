@@ -24,23 +24,27 @@ export type DownloadGroup = {
   items: DownloadItem[];
 };
 
-const serverRelease = 'https://github.com/PorticoMediaServer/portico-server/releases/latest/download';
+// The latest published release on the monorepo. Internal 0.0.x builds carry a development engine,
+// so their file names end in -UNSEALED-NOT-FOR-USE-ENGINE; drop the suffix here once a release ships
+// the qualified engine (the E2E link check fails if a link stops resolving).
+const serverRelease = 'https://github.com/PorticoMediaServer/portico/releases/latest/download';
+const unsealed = '-UNSEALED-NOT-FOR-USE-ENGINE';
 
 export const downloadGroups: DownloadGroup[] = [
   {
     title: 'Portico Server',
     description: 'Install it on the computer that holds your media, or one that can reach it over the network.',
     items: [
-      { name: 'Windows x64', detail: 'Windows 10 and 11 · unsigned installer', icon: 'windows', action: 'Download', href: `${serverRelease}/Portico-Media-Server-Windows-x64-Setup.exe` },
-      { name: 'Windows ARM64', detail: 'Windows 11 on ARM · unsigned installer', icon: 'windows', action: 'Download', href: `${serverRelease}/Portico-Media-Server-Windows-arm64-Setup.exe` },
-      { name: 'macOS', detail: 'Apple silicon · unsigned DMG', icon: 'apple', action: 'Download', href: `${serverRelease}/Portico-Media-Server-macOS-arm64.dmg` },
-      { name: 'Linux archive (x64)', detail: 'Distribution-neutral · tar.gz', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-x64.tar.gz` },
-      { name: 'Linux archive (ARM64)', detail: 'Distribution-neutral · tar.gz', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-arm64.tar.gz` },
-      { name: 'Debian and Ubuntu (x64)', detail: 'Installable · DEB', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-x64.deb` },
-      { name: 'Debian and Ubuntu (ARM64)', detail: 'Installable · DEB', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-arm64.deb` },
-      { name: 'Fedora and RPM Linux (x64)', detail: 'Installable · RPM', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-x64.rpm` },
-      { name: 'Fedora and RPM Linux (ARM64)', detail: 'Installable · RPM', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-arm64.rpm` },
-      { name: 'Docker', detail: 'Multi-architecture image · amd64 and arm64', icon: 'docker', action: 'Download', href: 'https://github.com/PorticoMediaServer/portico-server/pkgs/container/portico-server' }
+      { name: 'Windows x64', detail: 'Windows 10 and 11 · unsigned installer', icon: 'windows', action: 'Download', href: `${serverRelease}/Portico-Media-Server-Windows-x64-Setup${unsealed}.exe` },
+      { name: 'Windows ARM64', detail: 'Windows 11 on ARM · unsigned installer', icon: 'windows', action: 'Coming soon' },
+      { name: 'macOS', detail: 'Apple silicon · unsigned DMG', icon: 'apple', action: 'Download', href: `${serverRelease}/Portico-Media-Server-macOS-arm64${unsealed}.dmg` },
+      { name: 'Linux archive (x64)', detail: 'Distribution-neutral · tar.gz', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-x64${unsealed}.tar.gz` },
+      { name: 'Linux archive (ARM64)', detail: 'Distribution-neutral · tar.gz', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-arm64${unsealed}.tar.gz` },
+      { name: 'Debian and Ubuntu (x64)', detail: 'Installable · DEB', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-x64${unsealed}.deb` },
+      { name: 'Debian and Ubuntu (ARM64)', detail: 'Installable · DEB', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-arm64${unsealed}.deb` },
+      { name: 'Fedora and RPM Linux (x64)', detail: 'Installable · RPM', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-x64${unsealed}.rpm` },
+      { name: 'Fedora and RPM Linux (ARM64)', detail: 'Installable · RPM', icon: 'linux', action: 'Download', href: `${serverRelease}/portico-media-server-linux-arm64${unsealed}.rpm` },
+      { name: 'Docker', detail: 'Multi-architecture image · amd64 and arm64', icon: 'docker', action: 'Download', href: 'https://github.com/PorticoMediaServer/portico/pkgs/container/portico-server' }
     ]
   },
   {
