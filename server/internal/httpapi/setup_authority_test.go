@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -100,6 +101,7 @@ func TestRebindingCannotReadBootstrapOrWriteOrResumeOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	control, err := hosted.New(db, id, "", "", "")
 	if err != nil {
 		t.Fatal(err)

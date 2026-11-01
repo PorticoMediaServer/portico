@@ -4,19 +4,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/hosted"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/ingestion"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/playback"
 	"github.com/PorticoMediaServer/portico/server/internal/playbackv1"
 	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -69,6 +70,7 @@ func TestSetupRangePlaybackStopAndOrigin(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	operations.WireSetupRemote(id)
 	cat := catalog.New(db)
 	host, e := hosted.New(db, id, "", "", "")
 	if e != nil {

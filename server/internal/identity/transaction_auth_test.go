@@ -23,6 +23,7 @@ func transactionAuthorityFixture(t *testing.T) (*sql.DB, *Service, Principal) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	stubSetupRemote(s)
 	if _, err = db.Exec(`INSERT INTO accounts(id,username,password_hash,profile_id,epoch) VALUES('account','owner',X'00','profile',1)`); err != nil {
 		t.Fatal(err)
 	}

@@ -33,6 +33,9 @@ type SetupOptions struct {
 	RemoteSecurity string `json:"remoteSecurity,omitempty"`
 }
 
+// ErrSetupRemoteUnwired: this server has no writer for setup's remote choices.
+var ErrSetupRemoteUnwired = errors.New("setup cannot record its remote access choices")
+
 // setupRemoteDefaults fills the O-169 choices setup didn't make.
 func setupRemoteDefaults(q *SetupOptions) {
 	if q.RemoteAccess == "" {
@@ -132,11 +135,14 @@ func (s *Service) SetupWithOptions(ctx context.Context, q SetupOptions, private 
 	if _, e = tx.ExecContext(ctx, `INSERT INTO configuration(key,value) VALUES('name',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, q.Name); e != nil {
 		return SetupResult{}, e
 	}
-	// Remote access and Remote security (O-169) commit with setup itself.
-	if s.SetupRemoteTx != nil {
-		if e = s.SetupRemoteTx(ctx, tx, q.RemoteAccess, q.RemoteSecurity); e != nil {
-			return SetupResult{}, e
-		}
+	// Remote access and Remote security (O-169) commit with setup itself. A
+	// server without the writer can't be set up (fail closed, as for
+	// SetupClaimReadyTx): it would be set up without the person's choices.
+	if s.SetupRemoteTx == nil {
+		return SetupResult{}, ErrSetupRemoteUnwired
+	}
+	if e = s.SetupRemoteTx(ctx, tx, q.RemoteAccess, q.RemoteSecurity); e != nil {
+		return SetupResult{}, e
 	}
 	kind := SignInPortico
 	if q.AuthMode == "local" {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"path/filepath"
 	"testing"
 	"time"
@@ -45,6 +46,7 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(s)
 	if _, err = db.Exec(`INSERT INTO identity_state(singleton,sign_in_kind) VALUES(1,'portico') ON CONFLICT(singleton) DO NOTHING`); err != nil {
 		t.Fatal(err)
 	}

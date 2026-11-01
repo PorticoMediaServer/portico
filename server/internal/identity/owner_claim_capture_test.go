@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -75,6 +76,7 @@ func newOwnerCaptureFixture(t *testing.T, verifiers ...networking.ApprovalVerifi
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(s)
 	const installation = "d297a1dc-3adc-4b1c-a7f2-fbd4640f69e8"
 	ctx, err = identity.WithIssuingDevice(ctx, identity.DeviceRegistration{InstallationID: installation, Name: "Owner browser", Platform: "web", App: "portico"}, "127.0.0.1:1234")
 	if err != nil {

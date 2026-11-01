@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -32,6 +33,7 @@ func completedLocalFoundationFixture(t *testing.T) (Dependencies, identity.Envel
 	if e != nil {
 		t.Fatal(e)
 	}
+	operations.WireSetupRemote(id)
 	secret, e := id.BrowserSetupToken(context.Background())
 	if e != nil {
 		t.Fatal(e)

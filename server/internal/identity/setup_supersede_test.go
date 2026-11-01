@@ -23,6 +23,7 @@ func pendingHostedSetup(t *testing.T, claim string) (*Service, *sql.DB, string) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	stubSetupRemote(s)
 	ctx := context.Background()
 	token, err := s.BrowserSetupToken(ctx)
 	if err != nil {

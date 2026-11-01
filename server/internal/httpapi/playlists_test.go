@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
@@ -27,6 +28,7 @@ func TestPlaylistHTTPShareNeverGrantsMedia(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	operations.WireSetupRemote(ident)
 	secret, e := ident.BrowserSetupToken(context.Background())
 	if e != nil {
 		t.Fatal(e)

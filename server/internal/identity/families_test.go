@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"sync"
 	"testing"
 	"time"
@@ -34,6 +34,7 @@ func familyFixture(t *testing.T) (*Service, *sql.DB, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	stubSetupRemote(service)
 	if _, err = db.Exec(`INSERT INTO identity_state(singleton,sign_in_kind) VALUES(1,'local')`); err != nil {
 		t.Fatal(err)
 	}

@@ -41,6 +41,7 @@ func TestOperatorProxySetupUsesPersistentRealTransportConfiguration(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	control, err := hosted.New(db, id, "", "", "")
 	if err != nil {
 		t.Fatal(err)

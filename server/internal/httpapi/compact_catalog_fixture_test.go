@@ -9,11 +9,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"strconv"
 	"strings"
 	"testing"
@@ -111,6 +111,7 @@ func newTL6V1Fixture(t *testing.T, films int) *tl6V1Fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	cat := catalog.New(db)
 	host, err := hosted.New(db, id, "", "", "")
 	if err != nil {
@@ -356,6 +357,7 @@ func tl6CurrentPlaybackHTTP(t *testing.T) *tl6CurrentPlaybackHTTPFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	if _, err = db.Exec(`INSERT INTO accounts(id,username,password_hash,profile_id,epoch) VALUES('account','owner',X'00','profile',1)`); err != nil {
 		t.Fatal(err)
 	}
@@ -434,6 +436,7 @@ func tl6SupportFixture(t *testing.T) (Dependencies, identity.Envelope, identity.
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	if _, err = db.Exec(`INSERT INTO accounts(id,username,password_hash,profile_id,epoch) VALUES('owner','PRIVATE-OWNER',x'00','profile',1),('member','PRIVATE-MEMBER',x'00','member-profile',1)`); err != nil {
 		t.Fatal(err)
 	}
@@ -470,6 +473,7 @@ func tl6NotificationFixture(t *testing.T) (Dependencies, *http.ServeMux, identit
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	if _, err = db.Exec(`INSERT INTO accounts(id,username,password_hash,profile_id,epoch) VALUES('owner','owner',x'00','owner-profile',1),('member','member',x'00','member-profile',1)`); err != nil {
 		t.Fatal(err)
 	}

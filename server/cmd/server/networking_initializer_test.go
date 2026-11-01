@@ -7,8 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"net/http/httptest"
-	"os"
 	"github.com/PorticoMediaServer/portico/server/internal/hosted"
 	"github.com/PorticoMediaServer/portico/server/internal/hostedtrust"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
@@ -16,6 +14,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
+	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 )
@@ -44,6 +44,7 @@ func TestCurrentNetworkingStartupOwnerAndRestart(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	operations.WireSetupRemote(ident)
 	var server string
 	var pub []byte
 	if e = db.QueryRow(`SELECT server_id,public_key FROM networking_claim_identity`).Scan(&server, &pub); e != nil {

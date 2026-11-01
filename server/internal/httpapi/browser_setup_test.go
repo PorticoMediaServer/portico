@@ -3,13 +3,14 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/hosted"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"testing"
 )
 
@@ -24,6 +25,7 @@ func TestBrowserSetupLocalOriginAndSingleUse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	host, err := hosted.New(db, id, "", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -138,6 +140,7 @@ func TestAppSetupWithoutOriginAndNeverFromABrowser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	host, err := hosted.New(db, id, "", "", "")
 	if err != nil {
 		t.Fatal(err)

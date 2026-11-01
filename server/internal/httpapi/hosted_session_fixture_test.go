@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"testing"
 	"time"
 
@@ -60,6 +61,9 @@ func issuePorticoFixture(t *testing.T, db *sql.DB, ident *identity.Service, acco
 		return identity.Envelope{}, err
 	}
 	if accounts == 0 {
+		if ident.SetupRemoteTx == nil {
+			operations.WireSetupRemote(ident)
+		}
 		secret, err := ident.BrowserSetupToken(ctx)
 		if err != nil {
 			return identity.Envelope{}, err

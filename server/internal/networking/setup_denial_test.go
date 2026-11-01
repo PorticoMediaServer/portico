@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -123,6 +124,7 @@ func setupDecisionFixture(t *testing.T, events func(*http.Request) (*http.Respon
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	secret, err := id.BrowserSetupToken(ctx)
 	if err != nil {
 		t.Fatal(err)

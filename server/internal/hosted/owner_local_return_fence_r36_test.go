@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -36,6 +37,7 @@ func TestLocalPreviewCannotAuthorizeOrdinaryReturnEgress(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
+			operations.WireSetupRemote(id)
 			ctx, e := identity.WithIssuingDevice(context.Background(), identity.DeviceRegistration{InstallationID: identity.Token(), Name: "Owner browser", Platform: "web", App: "portico"}, "127.0.0.1:1234")
 			if e != nil {
 				t.Fatal(e)

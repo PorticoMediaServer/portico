@@ -96,7 +96,7 @@ test('Continue: start, the record written before initialize, one approval call, 
   const writes: unknown[] = [];
   const change = f.store.change.bind(f.store);
   f.store.change = async (expect, next) => {writes.push({expect, next, sentSoFar: f.calls.length}); return change(expect, next);};
-  assert.deepEqual(await f.ports.initializeHosted('Den', f.context()), {kind: 'initializeDone'});
+  assert.deepEqual(await f.ports.initializeHosted('Den', undefined, f.context()), {kind: 'initializeDone'});
   const setupCall = f.calls.findIndex(c => c.path === '/v1/setup' && c.method === 'POST');
   assert.ok((writes[0] as {sentSoFar: number}).sentSoFar <= setupCall, 'the record is saved before the request');
   assert.deepEqual(f.calls[setupCall]!.body, {requestId: REQUEST, setupToken: 'issued-setup-token', name: 'Den', authMode: 'hosted', interactive: true});
@@ -119,7 +119,7 @@ test('a server selection change during Continue stops it before anything is boun
   const f = await fixture(t);
   await f.ports.readState(f.context());
   await f.ports.start(f.context());
-  await f.ports.initializeHosted('Den', f.context());
+  await f.ports.initializeHosted('Den', undefined, f.context());
   await f.bumpSelection();
   await assert.rejects(f.ports.requestApproval(true, f.context()), /changed/);
   assert.equal(f.calls.filter(c => c.path === '/v1/setup/approval').length, 0);
@@ -141,7 +141,7 @@ test('the exchange on the web needs the Return: the person is sent back to Porti
   const f = await fixture(t);
   await f.ports.readState(f.context());
   await f.ports.start(f.context());
-  await f.ports.initializeHosted('Den', f.context());
+  await f.ports.initializeHosted('Den', undefined, f.context());
   const ready = await f.ports.requestApproval(true, f.context()) as {approvalUrl: string};
   const abort = new AbortController();
   const leaving = f.ports.exchange({signal: abort.signal, intentId: 'i'});

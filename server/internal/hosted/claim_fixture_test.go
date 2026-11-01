@@ -7,9 +7,10 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"os"
 	"github.com/PorticoMediaServer/portico/server/internal/hostedtrust"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -61,6 +62,7 @@ func newClaimFixture(t *testing.T, beforeInstall ...func(*claimFixture)) *claimF
 	if e != nil {
 		t.Fatal(e)
 	}
+	operations.WireSetupRemote(id)
 	token, _ := os.ReadFile(storagepaths.Path(state, "setup-token"))
 	owner, e := id.Setup(string(token), "owner", "test-password-long", "Server")
 	if e != nil {

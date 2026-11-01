@@ -383,6 +383,7 @@ func runActualOwnerContinuation(t *testing.T, mode string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	const installation = "f89bfbc4-cd90-4cda-a925-a123bb4a8b8a"
 	issuing, err := identity.WithIssuingDevice(ctx, identity.DeviceRegistration{InstallationID: installation, Name: "Owner browser", Platform: "web", App: "portico"}, "127.0.0.1:1234")
 	if err != nil {

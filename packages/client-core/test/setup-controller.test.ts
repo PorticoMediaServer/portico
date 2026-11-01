@@ -578,3 +578,21 @@ test('the port is told when a read fails to even start: a store that throws is a
   const failed = t.controller.getSnapshot() as Extract<SetupView, {kind: 'failed'}>;
   assert.deepEqual([failed.kind, failed.error.code, failed.hold], ['failed', 'failed', 'none']);
 });
+
+test('O-169: Back after initialize, a changed remote choice and Continue send the new choice', async () => {
+  const t = rig();
+  t.controller.start();
+  await t.settle();
+  t.controller.submitHosted('Den', {navigate: false, remote: {remoteAccess: 'on', remoteSecurity: 'enhanced'}});
+  await t.settle();
+  const inits = () => t.calls.filter(c => c.name === 'initializeHosted');
+  assert.equal(inits().length, 1);
+  assert.deepEqual(inits()[0]!.args.slice(0, 2), ['Den', {remoteAccess: 'on', remoteSecurity: 'enhanced'}]);
+  t.controller.back();
+  await t.settle();
+  assert.equal(t.kind(), 'form', 'Back returns to the form');
+  t.controller.submitHosted('Den', {navigate: false, remote: {remoteAccess: 'private', remoteSecurity: 'standard'}});
+  await t.settle();
+  assert.equal(inits().length, 2);
+  assert.deepEqual(inits()[1]!.args.slice(0, 2), ['Den', {remoteAccess: 'private', remoteSecurity: 'standard'}]);
+});

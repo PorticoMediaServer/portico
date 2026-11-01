@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -63,6 +65,7 @@ func newV1Fixture(t *testing.T, films int) *v1Fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	cat := catalog.New(db)
 	host, err := hosted.New(db, id, "", "", "")
 	if err != nil {

@@ -37,9 +37,9 @@ export interface SetupPorts {
   /** S1. */
   start(context: SetupPortContext): Promise<Of<'startDone' | 'notLocalSource' | 'addressNotAllowed' | 'setupInProgress' | 'alreadyComplete' | 'tokenRefused'>>;
   /** S4. */
-  initializeHosted(name: string, context: SetupPortContext, remote?: SetupRemoteChoices): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
+  initializeHosted(name: string, remote: SetupRemoteChoices | undefined, context: SetupPortContext): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
   /** S5. */
-  initializeLocal(name: string, credentials: SetupCredentials, context: SetupPortContext, remote?: SetupRemoteChoices): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
+  initializeLocal(name: string, credentials: SetupCredentials, remote: SetupRemoteChoices | undefined, context: SetupPortContext): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
   /** S6, then binds the handoff in the store. */
   requestApproval(navigate: boolean, context: SetupPortContext): Promise<Of<'approvalReady' | 'tokenRefused' | 'alreadyComplete'>>;
   approveInApp(context: SetupPortContext): Promise<Of<'approvedInApp'>>;
@@ -216,10 +216,10 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
     switch (effect.kind) {
       case 'read-state': return readServer(context);
       case 'start': return written(ports.start(context));
-      case 'initialize-hosted': return written(ports.initializeHosted(effect.name, context, remote));
+      case 'initialize-hosted': return written(ports.initializeHosted(effect.name, remote, context));
       case 'initialize-local': {
         if (!credentials) return failureOf(effect, {code: 'credentials_missing', retryable: false});
-        const result = await written(ports.initializeLocal(effect.name, credentials, context, remote));
+        const result = await written(ports.initializeLocal(effect.name, credentials, remote, context));
         credentials = undefined;
         return result;
       }

@@ -9,9 +9,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"testing"
 	"time"
 
@@ -252,6 +253,7 @@ func qcSetupFixture(t *testing.T) (*tl6V1Fixture, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	cat := catalog.New(db)
 	f := &tl6V1Fixture{t: t, db: db, id: id, cat: cat, root: root, v1: &playbackv1.Service{}}
 	player := playback.New(db)

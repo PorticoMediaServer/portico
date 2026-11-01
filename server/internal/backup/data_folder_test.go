@@ -3,10 +3,11 @@ package backup
 import (
 	"bytes"
 	"context"
+	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/identity"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"runtime"
 	"strings"
 	"testing"
@@ -88,6 +89,7 @@ func TestBackupPortableAuthenticationFiles(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			operations.WireSetupRemote(ident)
 			if err = ident.ConfigureResetFile(layout.Data, layout.Keys, true); err != nil {
 				t.Fatal(err)
 			}
