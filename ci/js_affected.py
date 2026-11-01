@@ -29,6 +29,13 @@ def select(root, paths, candidates, diagnostics=None):
             name = json.loads(p.read_text()).get('name')
             if name: workspaces[name] = p.parent
     edges = {p: scope['dependencies'](p, known, workspaces) for p in known if p.suffix != '.json'}
+    # A computed import retains its entire owner. Index those owners once,
+    # rather than walking every known path's parents for every such consumer.
+    owner_files = {}
+    for p in known:
+        relative = p.relative_to(root)
+        owner = relative.parts[:2] if relative.parts[0] in {'apps', 'packages'} else relative.parts[:1]
+        owner_files.setdefault(owner, set()).add(p)
     # Computed imports and unrecognized aliases cannot be safely resolved. Retain all
     # component tests when such a consumer exists (literal dynamic imports are resolved).
     for p in edges:
@@ -36,8 +43,9 @@ def select(root, paths, candidates, diagnostics=None):
         if (re.search(r'(?:import|require)\s*\(\s*[^\s\x27\"]', source)
             or (re.search(r'[\x27\"](?:~|#[^\x27\"]*|@/)', source) and not p.is_relative_to(root/'web'))):
             relative = p.relative_to(root)
-            owner = root.joinpath(*relative.parts[:2]) if relative.parts[0] in {'apps','packages'} else root/relative.parts[0]
-            edges[p].update(q for q in known if q.is_relative_to(owner))
+            owner_parts = relative.parts[:2] if relative.parts[0] in {'apps', 'packages'} else relative.parts[:1]
+            owner = root.joinpath(*owner_parts)
+            edges[p].update(owner_files[owner_parts])
             if diagnostics is not None:
                 diagnostics.setdefault('conservative_edges',[]).append({'consumer':str(relative),'scope':str(owner.relative_to(root)),'reason':'computed import or unresolved alias'})
     impacted = set(changed); parents={}
