@@ -101,7 +101,7 @@ const VIEWS: Record<string, SetupView> = {
   renewing: {kind: 'renewing'},
   library: {kind: 'library'},
   done: {kind: 'done'},
-  'ended.denied': {kind: 'ended', outcome: 'denied', name: 'Den'},
+  'ended.cancelled': {kind: 'ended', outcome: 'cancelled', name: 'Den'},
   'ended.superseded': {kind: 'ended', outcome: 'superseded', name: 'Den'},
   'failed.none': failedView('none', true, initialSetupView, [{kind: 'read-state'}]),
   'failed.unapproved': failedView('unapproved', true, hostedStarting('initialize'), [{kind: 'initialize-hosted', name: 'Den'}]),
@@ -166,14 +166,14 @@ const ALLOWED: Record<string, Record<string, string>> = {
   'starting.local.initialize': {initializeDone: '=|adopt-owner', 'failed.initialize': 'failed|', alreadyComplete: `refused|${RETIRES}`},
   'starting.local.adopt': {ownerAdopted: `library|${RETIRES}`, 'failed.adopt-owner': 'failed|', alreadyComplete: `refused|${RETIRES}`},
   'awaiting.started': AWAITING,
-  'awaiting.live': {...AWAITING, 'state.started': 'ended|'},
+  'awaiting.live': {...AWAITING, 'state.started': 'failed|'},
   finishing: {...DELIVERY},
   exhausted: {...DELIVERY, retry: '=|retry-delivery', deliveryRetried: 'finishing|schedule-read', 'failed.retry-delivery': 'failed|'},
   admitting: {exchangeDone: '=|adopt-owner', 'exchangeRefused.lapsed': 'renewing|renew', 'exchangeRefused.other': 'failed|', ownerAdopted: `library|${RETIRES}`, tokenRefused: `ended|${RETIRES}`, 'failed.exchange': 'failed|', 'failed.adopt-owner': 'failed|'},
   renewing: {renewDone: 'admitting|exchange', tokenRefused: `ended|${RETIRES}`, 'failed.renew': 'failed|'},
   library: {addLibrary: '=|add-library', libraryAdded: 'done|', skip: 'done|', 'failed.add-library': 'failed|'},
   done: {},
-  'ended.denied': {back: 'form|cancel-pending abandon', startAgain: 'form|cancel-pending abandon'},
+  'ended.cancelled': {back: 'form|cancel-pending abandon', startAgain: 'form|cancel-pending abandon'},
   'ended.superseded': {back: 'form|cancel-pending', startAgain: 'form|cancel-pending'},
   'failed.none': {retry: 'connecting|read-state', back: 'form|cancel-pending'},
   'failed.unapproved': {retry: 'starting|initialize-hosted', back: 'form|cancel-pending abandon'},
@@ -222,10 +222,12 @@ test('every table row names a real view and a real input', () => {
 
 // ---- focused ------------------------------------------------------------------------------------------------------------------
 const step = (view: SetupView, input: SetupInput) => stepSetup(view, input, NOW);
+/** A failed view's kind and error, for asserting a protocol error without its retry plan. */
+const pick = (view: SetupView) => view.kind === 'failed' ? {kind: view.kind, code: view.error.code, retryable: view.retryable} : {kind: view.kind};
 const kinds = (effects: readonly SetupEffect[]) => effects.map(e => e.kind);
 
 test('back from an own unapproved attempt abandons it and offers both kinds, keeping the name', () => {
-  for (const view of [VIEWS['awaiting.started'], VIEWS['awaiting.live'], VIEWS['ended.denied'], VIEWS['failed.unapproved']]) {
+  for (const view of [VIEWS['awaiting.started'], VIEWS['awaiting.live'], VIEWS['ended.cancelled'], VIEWS['failed.unapproved']]) {
     const out = step(view, {kind: 'back'});
     assert.deepEqual(kinds(out.effects), ['cancel-pending', 'abandon']);
     assert.deepEqual(out.view, {kind: 'form', mode: 'choose', name: 'Den'});
@@ -266,7 +268,7 @@ test('back while Continue is in flight: nothing held leaves quietly, a hosted at
 });
 
 test('start again after an ended attempt is the same S8 abandon, except when the attempt was superseded', () => {
-  assert.deepEqual(kinds(step(VIEWS['ended.denied'], {kind: 'startAgain'}).effects), ['cancel-pending', 'abandon']);
+  assert.deepEqual(kinds(step(VIEWS['ended.cancelled'], {kind: 'startAgain'}).effects), ['cancel-pending', 'abandon']);
   assert.deepEqual(kinds(step(VIEWS['ended.superseded'], {kind: 'startAgain'}).effects), ['cancel-pending']);
   for (const outcome of ['expired', 'approval_lapsed', 'cancelled'] as const) {
     assert.deepEqual(kinds(step({kind: 'ended', outcome, name: 'n'}, {kind: 'back'}).effects), ['cancel-pending', 'abandon'], outcome);
@@ -385,11 +387,11 @@ test('reconcile: the server fact "slow" and the web reload both land in the righ
   assert.deepEqual(reload.view, {kind: 'awaiting_approval', name: 'Den', serverPhase: 'awaiting_approval', polls: 0, expiresAt: '2026-10-31T12:30:00Z'});
 });
 
-test('a denial is the server going back to started after an approval request; before one it is just waiting', () => {
+test('started after an approval request without an outcome is a protocol error, never a guessed denial; before one it is just waiting', () => {
   const waitingStarted = step(VIEWS['awaiting.started'], INPUTS['state.started']);
   assert.equal(waitingStarted.view.kind, 'awaiting_approval');
-  assert.equal(step(VIEWS['awaiting.live'], INPUTS['state.started']).view.kind, 'ended');
-  assert.deepEqual(step(VIEWS['awaiting.live'], INPUTS['state.started']).view, {kind: 'ended', outcome: 'denied', name: 'Den'});
+  assert.equal(step(VIEWS['awaiting.live'], INPUTS['state.started']).view.kind, 'failed');
+  assert.deepEqual(pick(step(VIEWS['awaiting.live'], INPUTS['state.started']).view), {kind: 'failed', code: 'invalid_response', retryable: true});
   assert.deepEqual(step(VIEWS['awaiting.live'], INPUTS['state.expired']).view, {kind: 'ended', outcome: 'expired', name: 'Den'});
   assert.deepEqual(step(VIEWS.finishing, INPUTS['state.expired']).view, {kind: 'ended', outcome: 'approval_lapsed', name: 'Den'});
   assert.deepEqual(step(VIEWS['awaiting.live'], INPUTS['state.other']).view, {kind: 'ended', outcome: 'superseded', name: 'Den'});
@@ -481,6 +483,6 @@ test('the server saying the Portico Account declined shows the same page with on
   assert.equal(step(live.view, {kind: 'retry'}).view.kind, 'starting');
   const asked = step(live.view, INPUTS['state.awaiting']);
   assert.equal((asked.view as {declined?: true}).declined, undefined);
-  // Without the outcome (an older server) a live page still infers the denial as before.
-  assert.deepEqual(step(VIEWS['awaiting.live'], INPUTS['state.started']).view, {kind: 'ended', outcome: 'denied', name: 'Den'});
+  // Without the outcome the reading is a protocol error, not a guessed denial.
+  assert.deepEqual(pick(step(VIEWS['awaiting.live'], INPUTS['state.started']).view), {kind: 'failed', code: 'invalid_response', retryable: true});
 });

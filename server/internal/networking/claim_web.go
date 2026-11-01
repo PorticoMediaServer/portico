@@ -6,14 +6,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/claimweb"
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"sync/atomic"
-	"github.com/PorticoMediaServer/portico/server/internal/claimweb"
-	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
-	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"time"
 )
 
@@ -149,7 +150,6 @@ func (h *ClaimHandler) awaitWebClaim(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
-
 
 // watchWebClaim returns the running watch for this operation, starting one
 // (checked against the current claim under the owner's guard) when there is
@@ -317,12 +317,20 @@ func (h *ClaimHandler) runWebClaimWatch(parent context.Context, expected ClaimEx
 	if e = json.NewDecoder(io.LimitReader(response.Body, 32<<10)).Decode(&d); e != nil {
 		return nil, false
 	}
-	if d.Status != "approved" {
-		if d.Status == "denied" {
-			h.endDeniedSetup(expected.OperationID)
-		}
+	// Portico Services answers exactly approved, denied or closed. Anything else decides
+	// nothing: the claim is left as it is and the wait ends unanswered, to be asked again.
+	switch d.Status {
+	case "approved":
+	case "denied":
+		h.endDeniedSetup(expected.OperationID)
 		withdraw()
 		return webClaimAnswer("approval_closed"), true
+	case "closed":
+		withdraw()
+		return webClaimAnswer("approval_closed"), true
+	default:
+		log.Printf("Waiting for the Portico Account approval failed: %v", stepFailure("hosted approval events", fmt.Errorf("unknown decision %q", d.Status)))
+		return nil, false
 	}
 	var status ClaimStatus
 	recorded := false
