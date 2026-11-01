@@ -21,7 +21,7 @@ const runtimeValues={name:'My server',conversionMode:'all',outputFormat:'auto',d
  maxConcurrentSessions:0,maxHardwareSessions:0,maxSoftwareSessions:0,maxBackgroundSessions:0,
  playHistoryDays:0,'home.communityActivityEnabled':false,'updates.releaseChannel':'stable','updates.feedUrl':'','library.missingTitles':'after_days','library.missingTitlesDays':30,'library.segmentDetection':'standard',
  remoteSignInPolicy:'allow',remoteBitrateLimitKbps:0,lanNetworks:[],accessUrls:[],lanDiscoveryEnabled:true,dlnaEnabled:false,
- trustedProxies:[],uploadCapacityKbps:0,pausedSessionTimeoutMinutes:0,advertisedInterface:'',customCertificatePath:'',customCertificateKeyPath:'',customCertificateDomain:'',secureConnections:'preferred',connectionLimit:0,advertiseUrl:'',apiRequestsPerMinute:0,logLevel:'info',logRetention:[]};
+ trustedProxies:[],uploadCapacityKbps:0,pausedSessionTimeoutMinutes:0,advertisedInterface:'',customCertificatePath:'',customCertificateKeyPath:'',customCertificateDomain:'',secureConnections:'preferred',remoteSecurity:'enhanced',remoteAccess:'on',connectionLimit:0,advertiseUrl:'',apiRequestsPerMinute:0,logLevel:'info',logRetention:[]};
 const settingsDocument=(revision=1)=>({revision,digest:'b'.repeat(64),requested:runtimeValues,effective:runtimeValues,activeRevision:revision,restartFields:[],registryRevision:'p08.0'});
 
 const draft={'search.rememberHistory':false};

@@ -100,7 +100,7 @@ func newDirectListener(inner net.Listener, manager *CertificateManager, override
 				if g := l.gate.Load(); g != nil && hello.ServerName != "" && hello.Conn != nil {
 					peer := remotegate.PeerAddr(hello.Conn.RemoteAddr())
 					if p := g.Policy(); p != nil && !p.Home(peer) && !p.Proxy(peer) {
-						g.Record(hello.ServerName, "tls")
+						g.Record(hello.ServerName, remotegate.ReasonCertificate)
 					}
 				}
 				return nil, nil
@@ -230,7 +230,7 @@ func (l *DirectListener) classifyConnection(c *countedTLSConn) {
 			// with nothing written.
 			if first[0] >= 'A' && first[0] <= 'Z' {
 				if request, err := http.ReadRequest(bufio.NewReader(&limitedReader{r: reader, n: 8 << 10})); err == nil {
-					g.Record(request.Host, "http")
+					g.Record(request.Host, remotegate.ReasonHTTP)
 				}
 			}
 			l.forget(c)

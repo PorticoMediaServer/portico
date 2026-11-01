@@ -176,7 +176,7 @@ func TestRefusedAddressesAndAllow(t *testing.T) {
 	if w := home(f, "GET", "/v1/admin/connectivity/refused-addresses", f.member, ""); w.Code == 200 {
 		t.Fatal("a member read the refused addresses")
 	}
-	gate.Record("media.mine.example", "tls")
+	gate.Record("media.mine.example", remotegate.ReasonName)
 	doc, _ := f.deps.Console.Settings(context.Background(), operations.AllowServerScope)
 	allow := func(name string, revision int64) *httptest.ResponseRecorder {
 		raw, _ := json.Marshal(map[string]any{"name": name, "expectedRevision": revision, "operationId": "allow-" + strings.ReplaceAll(name, ".", "-")})
@@ -207,5 +207,100 @@ func TestRefusedAddressesAndAllow(t *testing.T) {
 	again, _ := f.deps.Console.Settings(context.Background(), operations.AllowServerScope)
 	if len(again.Effective.AccessURLs) != 1 {
 		t.Fatalf("duplicated %v", again.Effective.AccessURLs)
+	}
+}
+
+// TestLegitimateSetups walks what real owners run, through the real router,
+// in Enhanced and in Standard. Anything a real setup hits either works, or is
+// refused with a reason the owner sees under Refused addresses (whose fix the
+// reason names). TLS handshake cases (no certificate for a name, or none at
+// all) are in networking's TestRemoteGateLegitimateSetupsTLS.
+func TestLegitimateSetups(t *testing.T) {
+	gate := remotegate.New()
+	f := administrationFixtureNewWith(t, func(d *Dependencies) { d.RemoteGate = gate })
+	// The owner's settings: a custom domain (its own certificate, or behind
+	// the home proxy), the home proxy at 192.168.1.5, home is 192.168.1.0/24.
+	patchConnectivity(t, f, map[string]any{"accessUrls": []string{"https://media.example.com"}, "trustedProxies": []string{"192.168.1.5/32"}, "lanNetworks": []string{"192.168.1.0/24"}})
+	const (
+		own      = "own.ns.portico.direct"
+		outside  = "198.51.100.1:42"
+		hosted   = "203.0.113.50:42"
+		lan      = "192.168.1.20:42"
+		proxy    = "192.168.1.5:42"
+		tailnet  = "100.101.102.103:42"
+		loopback = "127.0.0.1:42"
+		path     = "/v1/networking/connection"
+	)
+	type outcome struct {
+		answered bool
+		recorded string // name recorded with its reason, "name reason"; "" for none
+	}
+	for _, c := range []struct {
+		setup              string
+		access             string
+		q                  gateRequest
+		enhanced, standard outcome
+	}{
+		{"Portico app at its portico.direct name", "on", gateRequest{url: "https://" + own + path, remote: outside, serverName: own}, outcome{true, ""}, outcome{true, ""}},
+		{"Portico Services' reachability check", "on", gateRequest{url: "https://" + own + "/v1/networking/endpoint-proof", remote: hosted, serverName: own}, outcome{true, ""}, outcome{true, ""}},
+		{"LAN client by IP over HTTP", "on", gateRequest{url: "http://192.168.1.10:32500" + path, remote: lan}, outcome{true, ""}, outcome{true, ""}},
+		{"LAN client at the portico.direct name over HTTPS", "on", gateRequest{url: "https://" + own + path, remote: lan, serverName: own}, outcome{true, ""}, outcome{true, ""}},
+		{"Tailscale client, Private only", "private", gateRequest{url: "http://100.64.1.1:32500" + path, remote: tailnet}, outcome{true, ""}, outcome{true, ""}},
+		{"Tailscale client by IP, Remote access On", "on", gateRequest{url: "http://100.64.1.1:32500" + path, remote: tailnet}, outcome{false, ""}, outcome{true, ""}},
+		{"cloudflared (or another tunnel) on this machine", "on", gateRequest{url: "http://media.example.com" + path, remote: loopback, headers: map[string]string{"X-Forwarded-For": "198.51.100.77", "Cf-Connecting-Ip": "198.51.100.77", "X-Forwarded-Proto": "https"}}, outcome{true, ""}, outcome{true, ""}},
+		{"Caddy at home (XFF and XFP)", "on", gateRequest{url: "http://media.example.com" + path, remote: proxy, headers: map[string]string{"X-Forwarded-For": "198.51.100.77", "X-Forwarded-Proto": "https"}}, outcome{true, ""}, outcome{true, ""}},
+		{"Traefik at home (XFF, XFP and X-Forwarded-Host)", "on", gateRequest{url: "http://media.example.com" + path, remote: proxy, headers: map[string]string{"X-Forwarded-For": "198.51.100.77", "X-Forwarded-Proto": "https", "X-Forwarded-Host": "media.example.com"}}, outcome{true, ""}, outcome{true, ""}},
+		{"nginx at home (XFF, no XFP)", "on", gateRequest{url: "http://media.example.com" + path, remote: proxy, headers: map[string]string{"X-Forwarded-For": "198.51.100.77"}}, outcome{true, ""}, outcome{true, ""}},
+		{"proxy with no XFF at all", "on", gateRequest{url: "http://media.example.com" + path, remote: proxy}, outcome{true, ""}, outcome{true, ""}},
+		{"proxy passing its upstream address as Host", "on", gateRequest{url: "http://192.168.1.10:32500" + path, remote: proxy, headers: map[string]string{"X-Forwarded-For": "198.51.100.77"}}, outcome{false, "192.168.1.5 proxy"}, outcome{true, ""}},
+		{"proxy forwarding a name not added yet", "on", gateRequest{url: "http://myhome.example.net" + path, remote: proxy, headers: map[string]string{"X-Forwarded-For": "198.51.100.77", "X-Forwarded-Proto": "https"}}, outcome{false, "myhome.example.net name"}, outcome{true, ""}},
+		{"custom domain with the owner's own certificate", "on", gateRequest{url: "https://media.example.com" + path, remote: outside, serverName: "media.example.com"}, outcome{true, ""}, outcome{true, ""}},
+		{"DDNS name, no certificate, plain HTTP", "on", gateRequest{url: "http://myserver.duckdns.org:32500" + path, remote: outside}, outcome{false, "myserver.duckdns.org http"}, outcome{true, ""}},
+		{"outside client by raw IP over HTTP", "on", gateRequest{url: "http://203.0.113.1:32500" + path, remote: outside}, outcome{false, ""}, outcome{true, ""}},
+	} {
+		for _, mode := range []string{"enhanced", "standard"} {
+			want := c.enhanced
+			if mode == "standard" {
+				want = c.standard
+			}
+			patchConnectivity(t, f, map[string]any{"remoteSecurity": mode, "remoteAccess": c.access})
+			before, _ := gate.Refused.Snapshot()
+			_, aborted := serveGated(t, f.handler, c.q)
+			if aborted == want.answered {
+				t.Errorf("%s, %s: answered %v, want %v", c.setup, mode, !aborted, want.answered)
+			}
+			after, _ := gate.Refused.Snapshot()
+			got := ""
+			for _, n := range after {
+				fresh := true
+				for _, b := range before {
+					if b.Name == n.Name && b.Count == n.Count {
+						fresh = false
+					}
+				}
+				if fresh {
+					got = n.Name + " " + n.Reason
+				}
+			}
+			if got != want.recorded {
+				t.Errorf("%s, %s: recorded %q, want %q", c.setup, mode, got, want.recorded)
+			}
+		}
+	}
+	// The fix each reason names works. A name the proxy forwarded: Allow this
+	// address, and it's answered.
+	patchConnectivity(t, f, map[string]any{"remoteSecurity": "enhanced", "remoteAccess": "on"})
+	doc, _ := f.deps.Console.Settings(context.Background(), operations.AllowServerScope)
+	raw, _ := json.Marshal(map[string]any{"name": "myhome.example.net", "expectedRevision": doc.Revision, "operationId": "allow-myhome"})
+	if w := home(f, "POST", "/v1/admin/connectivity/refused-addresses/allow", f.owner, string(raw)); w.Code != 200 {
+		t.Fatalf("allow %d %s", w.Code, w.Body)
+	}
+	if _, aborted := serveGated(t, f.handler, gateRequest{url: "http://myhome.example.net" + path, remote: proxy, headers: map[string]string{"X-Forwarded-For": "198.51.100.77", "X-Forwarded-Proto": "https"}}); aborted {
+		t.Fatal("an allowed name through the proxy is still refused")
+	}
+	// A DDNS name over plain HTTP: Standard, and it's answered.
+	patchConnectivity(t, f, map[string]any{"remoteSecurity": "standard"})
+	if _, aborted := serveGated(t, f.handler, gateRequest{url: "http://myserver.duckdns.org:32500" + path, remote: outside}); aborted {
+		t.Fatal("Standard still refuses the DDNS name")
 	}
 }

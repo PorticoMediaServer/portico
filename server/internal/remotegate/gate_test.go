@@ -49,33 +49,38 @@ func TestSocket(t *testing.T) {
 }
 
 func TestRequest(t *testing.T) {
-	type want struct{ admit, record bool }
+	type want struct {
+		admit  bool
+		reason string
+	}
 	for _, c := range []struct {
 		name             string
 		security, access string
 		client           netip.Addr
 		proxied          bool
 		serverName       string
-		https            bool
+		proto            string
 		host             string
 		want             want
 	}{
-		{"home, any name, plain", SecurityEnhanced, AccessOn, homePeer, false, "", false, "anything", want{true, false}},
-		{"own TLS name", SecurityEnhanced, AccessOn, outside, false, "x-1.ns.portico.direct", false, "X-1.ns.portico.direct:32500", want{true, false}},
-		{"Host differs from SNI", SecurityEnhanced, AccessOn, outside, false, "x-1.ns.portico.direct", false, "evil.example", want{false, true}},
-		{"Host a listed name over own TLS", SecurityEnhanced, AccessOn, outside, false, "x-1.ns.portico.direct", false, "media.example.com", want{true, false}},
-		{"no SNI (by IP)", SecurityEnhanced, AccessOn, outside, false, "", false, "203.0.113.1", want{false, true}},
-		{"proxy, https, listed", SecurityEnhanced, AccessOn, outside, true, "", true, "media.example.com", want{true, false}},
-		{"proxy, http, listed", SecurityEnhanced, AccessOn, outside, true, "", false, "media.example.com", want{false, true}},
-		{"proxy, https, unlisted", SecurityEnhanced, AccessOn, outside, true, "", true, "other.example.com", want{false, true}},
-		{"plain HTTP outside", SecurityEnhanced, AccessOn, outside, false, "", false, "media.example.com", want{false, true}},
-		{"standard plain any", SecurityStandard, AccessOn, outside, false, "", false, "myserver.mydomain.com", want{true, false}},
-		{"standard, closed", SecurityStandard, AccessOff, outside, false, "", false, "media.example.com", want{false, false}},
-		{"private, tailnet client", SecurityEnhanced, AccessPrivate, tailnetP, false, "", false, "box", want{true, false}},
+		{"home, any name, plain", SecurityEnhanced, AccessOn, homePeer, false, "", "", "anything", want{true, ""}},
+		{"own TLS name", SecurityEnhanced, AccessOn, outside, false, "x-1.ns.portico.direct", "", "X-1.ns.portico.direct:32500", want{true, ""}},
+		{"Host differs from SNI", SecurityEnhanced, AccessOn, outside, false, "x-1.ns.portico.direct", "", "evil.example", want{false, ReasonName}},
+		{"Host a listed name over own TLS", SecurityEnhanced, AccessOn, outside, false, "x-1.ns.portico.direct", "", "media.example.com", want{true, ""}},
+		{"no SNI (by IP)", SecurityEnhanced, AccessOn, outside, false, "", "", "203.0.113.1", want{false, ReasonHTTP}},
+		{"proxy, https, listed", SecurityEnhanced, AccessOn, outside, true, "", "https", "media.example.com", want{true, ""}},
+		{"proxy, no proto (nginx), listed", SecurityEnhanced, AccessOn, outside, true, "", "", "media.example.com", want{true, ""}},
+		{"proxy, explicit http, listed", SecurityEnhanced, AccessOn, outside, true, "", "HTTP", "media.example.com", want{false, ReasonHTTP}},
+		{"proxy, https, unlisted", SecurityEnhanced, AccessOn, outside, true, "", "https", "other.example.com", want{false, ReasonName}},
+		{"proxy, no proto, unlisted", SecurityEnhanced, AccessOn, outside, true, "", "", "other.example.com", want{false, ReasonName}},
+		{"plain HTTP outside", SecurityEnhanced, AccessOn, outside, false, "", "", "media.example.com", want{false, ReasonHTTP}},
+		{"standard plain any", SecurityStandard, AccessOn, outside, false, "", "", "myserver.mydomain.com", want{true, ""}},
+		{"standard, closed", SecurityStandard, AccessOff, outside, false, "", "", "media.example.com", want{false, ""}},
+		{"private, tailnet client", SecurityEnhanced, AccessPrivate, tailnetP, false, "", "", "box", want{true, ""}},
 	} {
-		admit, record := policy(c.security, c.access).Request(c.client, c.proxied, c.serverName, c.https, c.host)
-		if (want{admit, record}) != c.want {
-			t.Errorf("%s: got admit=%v record=%v, want %+v", c.name, admit, record, c.want)
+		admit, reason := policy(c.security, c.access).Request(c.client, c.proxied, c.serverName, c.proto, c.host)
+		if (want{admit, reason}) != c.want {
+			t.Errorf("%s: got admit=%v reason=%q, want %+v", c.name, admit, reason, c.want)
 		}
 	}
 }
@@ -91,13 +96,13 @@ func TestDefaultsAreSafe(t *testing.T) {
 	if p0.Socket(outside, true) != Refuse || p0.Socket(outside, false) != Refuse {
 		t.Fatal("the startup policy admitted an outside connection")
 	}
-	if admit, _ := p0.Request(outside, false, "own.example.com", false, "own.example.com"); admit {
+	if admit, _ := p0.Request(outside, false, "own.example.com", "", "own.example.com"); admit {
 		t.Fatal("the startup policy admitted an outside request")
 	}
 	if p0.Socket(netip.MustParseAddr("127.0.0.1"), false) != Admit || p0.Socket(netip.MustParseAddr("::1"), true) != Admit {
 		t.Fatal("the startup policy refused loopback")
 	}
-	g.Record("media.example.com", "http")
+	g.Record("media.example.com", ReasonHTTP)
 	if len(g.Refused.entries) != 0 {
 		t.Fatal("recorded before the settings were installed")
 	}
@@ -134,14 +139,14 @@ func TestRefusedNoiseAndBudget(t *testing.T) {
 		return []netip.Addr{netip.MustParseAddr("192.0.2.200")}, nil
 	}
 	for _, noise := range []string{"203.0.113.9", "localhost", "box", "", "bad_name.example", "[2001:db8::1]"} {
-		r.Record(noise, "http")
+		r.Record(noise, ReasonHTTP)
 	}
 	if len(r.entries) != 0 {
 		t.Fatalf("noise recorded: %v", r.entries)
 	}
-	r.Record("media.mine.example", "tls")
-	r.Record("random-abc.scanner.example", "http")
-	r.Record("media.mine.example:443", "tls")
+	r.Record("media.mine.example", ReasonCertificate)
+	r.Record("random-abc.scanner.example", ReasonHTTP)
+	r.Record("media.mine.example:443", ReasonCertificate)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { r.Run(ctx); close(done) }()
@@ -165,12 +170,19 @@ func TestRefusedNoiseAndBudget(t *testing.T) {
 		t.Fatalf("listed: %+v", listed)
 	}
 	// Another refusal the same day doesn't look the name up again.
-	r.Record("media.mine.example", "tls")
+	r.Record("media.mine.example", ReasonCertificate)
 	if len(r.queue) != 0 {
 		t.Fatal("re-queued within a day")
 	}
-	// Allowed names drop out of the list.
-	if got := r.List([]netip.Addr{ownIP}, func(n string) bool { return n == "media.mine.example" }); len(got) != 0 {
+	// Allowing a name doesn't fix a missing certificate, so it stays listed,
+	// with its reason.
+	allowed := func(n string) bool { return n == "media.mine.example" }
+	if got := r.List([]netip.Addr{ownIP}, allowed); len(got) != 1 || got[0].Reason != ReasonCertificate {
+		t.Fatalf("certificate refusal hidden by allowing: %+v", got)
+	}
+	// A name refused only for not being listed drops out once allowed.
+	r.Record("media.mine.example", ReasonName)
+	if got := r.List([]netip.Addr{ownIP}, allowed); len(got) != 0 {
 		t.Fatalf("allowed name still listed: %+v", got)
 	}
 }
@@ -179,7 +191,7 @@ func TestRefusedBounded(t *testing.T) {
 	r := NewRefused()
 	r.resolve = func(context.Context, string) ([]netip.Addr, error) { return nil, nil }
 	for i := 0; i < refusedMax*3; i++ {
-		r.Record("n"+itoa(i)+".flood.example", "http")
+		r.Record("n"+itoa(i)+".flood.example", ReasonHTTP)
 	}
 	if len(r.entries) > refusedMax || len(r.queue) > lookupQueue {
 		t.Fatalf("unbounded: %d entries, %d queued", len(r.entries), len(r.queue))

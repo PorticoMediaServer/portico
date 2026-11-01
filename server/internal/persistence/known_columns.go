@@ -6040,7 +6040,7 @@ remote_refused_names.count
 remote_refused_names.first_seen_ms
 remote_refused_names.last_seen_ms
 remote_refused_names.name
-remote_refused_names.via
+remote_refused_names.reason
 remote_scan_cursors.cursor
 remote_scan_cursors.job_id
 remote_scan_cursors.listing_id

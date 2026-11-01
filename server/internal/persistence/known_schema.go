@@ -1708,6 +1708,7 @@ table remote_listing_sessions
 table remote_native_listings
 table remote_object_refs
 table remote_playback
+table remote_refused_names
 table remote_scan_cursors
 table remote_scan_generations
 table remote_scan_observation_hashes

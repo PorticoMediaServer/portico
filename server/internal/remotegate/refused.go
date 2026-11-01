@@ -36,8 +36,10 @@ type Refused struct {
 
 // RefusedName is one name, as the owner sees it.
 type RefusedName struct {
-	Name      string    `json:"name"`
-	Via       string    `json:"via"`
+	Name string `json:"name"`
+	// Reason is why it was last refused (ReasonName, ReasonHTTP or
+	// ReasonCertificate), which says what fixes it.
+	Reason    string    `json:"reason"`
 	FirstSeen time.Time `json:"firstSeen"`
 	LastSeen  time.Time `json:"lastSeen"`
 	Count     int       `json:"count"`
@@ -82,7 +84,7 @@ func Plausible(name string) bool {
 }
 
 // Record notes one refusal. It never blocks and never does network work.
-func (r *Refused) Record(raw, via string) {
+func (r *Refused) Record(raw, reason string) {
 	name := HostName(raw)
 	if !Plausible(name) {
 		return
@@ -95,10 +97,10 @@ func (r *Refused) Record(raw, via string) {
 		if len(r.entries) >= refusedMax {
 			r.evictLocked()
 		}
-		e = &RefusedName{Name: name, Via: via, FirstSeen: now}
+		e = &RefusedName{Name: name, Reason: reason, FirstSeen: now}
 		r.entries[name] = e
 	}
-	e.LastSeen, e.Count, e.Via = now, e.Count+1, via
+	e.LastSeen, e.Count, e.Reason = now, e.Count+1, reason
 	r.dirty = true
 	if l, ok := r.lookups[name]; (!ok || now.Sub(l.at) >= lookupEvery) && !r.queued[name] {
 		select {
@@ -108,6 +110,29 @@ func (r *Refused) Record(raw, via string) {
 			// The queue is full: this name waits for its next refusal.
 		}
 	}
+}
+
+// RecordProxy notes a trusted proxy that forwarded a request without a name.
+// It's the owner's own proxy, so no lookup is needed to show it.
+func (r *Refused) RecordProxy(proxy netip.Addr) {
+	proxy = proxy.Unmap().WithZone("")
+	if !proxy.IsValid() {
+		return
+	}
+	name := proxy.String()
+	now := r.now()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	e := r.entries[name]
+	if e == nil {
+		if len(r.entries) >= refusedMax {
+			r.evictLocked()
+		}
+		e = &RefusedName{Name: name, Reason: ReasonProxy, FirstSeen: now}
+		r.entries[name] = e
+	}
+	e.LastSeen, e.Count = now, e.Count+1
+	r.dirty = true
 }
 
 func (r *Refused) evictLocked() {
@@ -134,7 +159,9 @@ func (r *Refused) Forget(raw string) {
 }
 
 // List returns the refused names that resolve to one of this server's public
-// addresses and that the owner hasn't allowed since, most recent first.
+// addresses, most recent first. A name refused because it wasn't listed is
+// left out once the owner allows it; a name refused for HTTP or for want of a
+// certificate stays, since allowing it doesn't fix that.
 func (r *Refused) List(own []netip.Addr, allowed func(string) bool) []RefusedName {
 	ours := map[netip.Addr]bool{}
 	for _, a := range own {
@@ -144,7 +171,11 @@ func (r *Refused) List(own []netip.Addr, allowed func(string) bool) []RefusedNam
 	defer r.mu.Unlock()
 	out := []RefusedName{}
 	for name, e := range r.entries {
-		if allowed != nil && allowed(name) {
+		if allowed != nil && e.Reason == ReasonName && allowed(name) {
+			continue
+		}
+		if e.Reason == ReasonProxy {
+			out = append(out, *e)
 			continue
 		}
 		matches := false
@@ -235,6 +266,12 @@ func (r *Refused) Restore(names []RefusedName) {
 	for _, n := range names {
 		if len(r.entries) >= refusedMax {
 			break
+		}
+		if a, err := netip.ParseAddr(n.Name); err == nil && n.Reason == ReasonProxy {
+			copy := n
+			copy.Name = a.Unmap().String()
+			r.entries[copy.Name] = &copy
+			continue
 		}
 		if name := HostName(n.Name); Plausible(name) {
 			copy := n

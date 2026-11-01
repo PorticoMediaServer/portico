@@ -3562,7 +3562,7 @@ CREATE TABLE identity_credential_attempts(
 -- only; bounded by the gate (256), saved at most once a minute.
 CREATE TABLE remote_refused_names(
  name TEXT PRIMARY KEY,
- via TEXT NOT NULL CHECK(via IN('tls','http')),
+ reason TEXT NOT NULL CHECK(reason IN('name','http','certificate','proxy')),
  first_seen_ms INTEGER NOT NULL,
  last_seen_ms INTEGER NOT NULL,
  count INTEGER NOT NULL

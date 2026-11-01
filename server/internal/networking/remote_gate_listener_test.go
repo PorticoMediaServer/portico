@@ -222,3 +222,57 @@ func TestRemoteGateBeforeSettingsRefusesOutside(t *testing.T) {
 		t.Fatalf("loopback, before settings: %q", got)
 	}
 }
+
+// TestRemoteGateLegitimateSetupsTLS is the handshake half of httpapi's
+// TestLegitimateSetups: real TCP and TLS through the DirectListener, in
+// Enhanced and Standard. The certificate here covers own.example.com only.
+func TestRemoteGateLegitimateSetupsTLS(t *testing.T) {
+	for _, c := range []struct {
+		setup              string
+		peer, serverName   string
+		enhanced, standard bool   // answered
+		recorded           string // in Enhanced, "name reason"
+	}{
+		{"Portico app at its own name", "203.0.113.9", "own.example.com", true, true, ""},
+		{"LAN client at its own name", "192.168.1.20", "own.example.com", true, true, ""},
+		// No certificate can name an IP, so HTTPS by IP fails the handshake
+		// in both modes, at home and outside (as before O-169). HTTP by IP
+		// works at home; the browser names the alert.
+		{"LAN client by IP over HTTPS", "192.168.1.20", "", false, false, ""},
+		{"outside client by raw IP over HTTPS", "203.0.113.9", "", false, false, ""},
+		// A DDNS name with no certificate fails the handshake in both modes;
+		// in Enhanced the owner sees it with reason certificate.
+		{"DDNS name, no certificate, HTTPS", "203.0.113.9", "myserver.duckdns.example", false, false, "myserver.duckdns.example certificate"},
+	} {
+		for _, mode := range []string{remotegate.SecurityEnhanced, remotegate.SecurityStandard} {
+			s := startGated(t, c.peer, mode, remotegate.AccessOn)
+			_, err := overTLS(t, s, c.serverName)
+			want := c.enhanced
+			if mode == remotegate.SecurityStandard {
+				want = c.standard
+			}
+			if (err == nil) != want {
+				t.Errorf("%s, %s: answered %v (%v), want %v", c.setup, mode, err == nil, err, want)
+			}
+			got := ""
+			if names, _ := s.gate.Refused.Snapshot(); len(names) == 1 {
+				got = names[0].Name + " " + names[0].Reason
+			}
+			wantRecorded := c.recorded
+			if mode == remotegate.SecurityStandard {
+				wantRecorded = ""
+			}
+			if got != wantRecorded {
+				t.Errorf("%s, %s: recorded %q, want %q", c.setup, mode, got, wantRecorded)
+			}
+		}
+	}
+	// Plain HTTP by raw IP from outside: closed in Enhanced (not recorded, an
+	// IP isn't a name to allow), answered in Standard.
+	if got := plain(t, startGated(t, "203.0.113.9", remotegate.SecurityEnhanced, remotegate.AccessOn).addr, "203.0.113.1:32500"); got != "" {
+		t.Fatalf("Enhanced, raw IP over HTTP: %q", got)
+	}
+	if got := plain(t, startGated(t, "203.0.113.9", remotegate.SecurityStandard, remotegate.AccessOn).addr, "203.0.113.1:32500"); !strings.HasSuffix(got, "ok") {
+		t.Fatalf("Standard, raw IP over HTTP: %q", got)
+	}
+}
