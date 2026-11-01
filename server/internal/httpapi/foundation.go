@@ -326,11 +326,18 @@ func FoundationRegistry(d Dependencies) (*apikit.Registry, error) {
 		return nil, err
 	}
 	err = apikit.Register(registry, apikit.Route[access.InvitationPreviewRequest, access.InvitationPreview]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault,
-		ID: "preview_invitation", Method: "POST", Path: "/v1/access/invitations/preview", Summary: "Preview an invitation without consuming its code", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, BodyLimit: 4096, Status: 200, Errors: []string{"invitation_not_found", "rate_limited", "invalid_request", "internal"},
+		ID: "preview_invitation", Method: "POST", Path: "/v1/access/invitations/preview", Summary: "Preview an invitation without consuming its code", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, BodyLimit: 4096, Status: 200, Errors: []string{"invitation_not_found", "rate_limited", "source_blocked", "invalid_request", "internal"},
 	}, Handler: func(ctx context.Context, r *http.Request, body access.InvitationPreviewRequest) (access.InvitationPreview, error) {
 		var empty access.InvitationPreview
 		if d.Identity == nil || d.Access.Access == nil {
 			return empty, &apierror.Error{Code: "internal"}
+		}
+		if err := d.Identity.SourceBlocked(ctx); err != nil {
+			var blocked *identity.SourceBlockError
+			if errors.As(err, &blocked) {
+				return empty, &apierror.Error{Code: "source_blocked", RetryAfterSeconds: int(blocked.RetryAfter)}
+			}
+			return empty, &apierror.Error{Code: "internal", Cause: err}
 		}
 		if err := d.Identity.SetupLimit(ctx, d.setupPeerSubject(r), "invitation", 10); err != nil {
 			var rate *identity.SetupProtocolError
@@ -341,6 +348,9 @@ func FoundationRegistry(d Dependencies) (*apikit.Registry, error) {
 		}
 		preview, err := d.Access.Access.PreviewCapability(ctx, body)
 		if errors.Is(err, access.ErrInvitationNotFound) {
+			// A code that names no invitation is a guess against a credential
+			// that creates an account; charge it to the source.
+			_ = d.Identity.RecordSourceFailure(ctx)
 			return empty, &apierror.Error{Code: "invitation_not_found"}
 		}
 		if err != nil {
@@ -401,6 +411,9 @@ func FoundationRegistry(d Dependencies) (*apikit.Registry, error) {
 		return nil, err
 	}
 	if err = registerActivitySummary(registry, d); err != nil {
+		return nil, err
+	}
+	if err = registerAdminSecurity(registry, d); err != nil {
 		return nil, err
 	}
 	if err = registerBackgroundPause(registry, d); err != nil {

@@ -8,6 +8,21 @@ import (
 
 type issuingDeviceKey struct{}
 
+// newDeviceNoticeKey marks a device creation that is a person's sign-in, so the
+// account holder (and, when it came from outside the home network, the owner)
+// are told. Internal issuance — a test fixture, a descendant grant — does not
+// claim to be a sign-in and stays silent.
+type newDeviceNoticeKey struct{}
+
+func withNewDeviceNotice(ctx context.Context) context.Context {
+	return context.WithValue(ctx, newDeviceNoticeKey{}, true)
+}
+
+func wantsNewDeviceNotice(ctx context.Context) bool {
+	value, _ := ctx.Value(newDeviceNoticeKey{}).(bool)
+	return value
+}
+
 // vouchedDeviceKey marks a paired Cast target. Its playback grant is narrow.
 type vouchedDeviceKey struct{}
 
@@ -60,12 +75,17 @@ func (s *Service) issuingDeviceTx(ctx context.Context, tx *sql.Tx, authority, ac
 	if !q.valid() {
 		return Device{}, ErrDeviceInput
 	}
-	device, err := s.registerDeviceTx(ctx, tx, caller, q, claim.peer)
+	device, created, err := s.registerDeviceTx(ctx, tx, caller, q, claim.peer)
 	if err != nil {
 		return device, err
 	}
 	if _, err = tx.ExecContext(ctx, `UPDATE identity_devices SET last_seen=? WHERE id=?`, time.Now().UTC().Format(time.RFC3339), device.ID); err != nil {
 		return Device{}, err
+	}
+	if created && wantsNewDeviceNotice(ctx) {
+		if err = s.newDeviceNoticeTx(ctx, tx, authority, account, device); err != nil {
+			return Device{}, err
+		}
 	}
 	return device, nil
 }

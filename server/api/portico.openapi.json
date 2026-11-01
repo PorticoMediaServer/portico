@@ -38896,6 +38896,115 @@
         ],
         "type": "object"
       },
+      "GetAdminSecuritySummaryRequest": {
+        "properties": {},
+        "type": "object"
+      },
+      "GetAdminSecuritySummaryResponse": {
+        "properties": {
+          "blocks": {
+            "items": {
+              "properties": {
+                "blockCount": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "blockedUntil": {
+                  "type": "string"
+                },
+                "failedAttempts": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "lastFailure": {
+                  "type": "string"
+                },
+                "network": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "network",
+                "failedAttempts",
+                "blockCount",
+                "blockedUntil"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "counts": {
+            "properties": {
+              "last24Hours": {
+                "properties": {
+                  "blockedSources": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "failedSignIns": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "newRemoteDevices": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "failedSignIns",
+                  "blockedSources",
+                  "newRemoteDevices"
+                ],
+                "type": "object"
+              },
+              "last7Days": {
+                "properties": {
+                  "blockedSources": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "failedSignIns": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "newRemoteDevices": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "failedSignIns",
+                  "blockedSources",
+                  "newRemoteDevices"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "last24Hours",
+              "last7Days"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "counts",
+          "blocks"
+        ],
+        "type": "object"
+      },
       "GetAdminSegmentsRequest": {
         "properties": {},
         "type": "object"
@@ -250187,6 +250296,14 @@
         "properties": {},
         "type": "object"
       },
+      "PostAdminSecurityUnblockRequest": {
+        "properties": {},
+        "type": "object"
+      },
+      "PostAdminSecurityUnblockResponse": {
+        "properties": {},
+        "type": "object"
+      },
       "PostAdminSegmentsTitlesIdApproveRequest": {
         "properties": {
           "kinds": {
@@ -397170,6 +397287,7 @@
           "unauthorized",
           "not_permitted",
           "not_found",
+          "source_blocked",
           "sign_in_kind_local",
           "sign_in_kind_portico",
           "factor_setup_required",
@@ -397330,6 +397448,7 @@
         "x-error-codes": [
           "invitation_not_found",
           "rate_limited",
+          "source_blocked",
           "invalid_request",
           "internal",
           "database_busy",
@@ -446520,6 +446639,240 @@
         ],
         "x-lane": "default",
         "x-max-body-bytes": 4096,
+        "x-scope": "admin"
+      }
+    },
+    "/v1/admin/security/blocks/{id}/unblock": {
+      "post": {
+        "operationId": "post_admin_security_unblock",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request refused or unavailable"
+          }
+        },
+        "summary": "Clear one blocked source and its failure count",
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "admin_scope",
+        "x-admission": "security-fence",
+        "x-audience": "Clients",
+        "x-cost": "constant",
+        "x-error-codes": [
+          "unauthorized",
+          "not_permitted",
+          "not_found",
+          "invalid_request",
+          "internal",
+          "database_busy",
+          "writer_capacity"
+        ],
+        "x-lane": "security",
+        "x-scope": "admin"
+      }
+    },
+    "/v1/admin/security/summary": {
+      "get": {
+        "operationId": "get_admin_security_summary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "blocks": {
+                      "items": {
+                        "properties": {
+                          "blockCount": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "blockedUntil": {
+                            "type": "string"
+                          },
+                          "failedAttempts": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "lastFailure": {
+                            "type": "string"
+                          },
+                          "network": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "network",
+                          "failedAttempts",
+                          "blockCount",
+                          "blockedUntil"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "counts": {
+                      "properties": {
+                        "last24Hours": {
+                          "properties": {
+                            "blockedSources": {
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "failedSignIns": {
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "newRemoteDevices": {
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "failedSignIns",
+                            "blockedSources",
+                            "newRemoteDevices"
+                          ],
+                          "type": "object"
+                        },
+                        "last7Days": {
+                          "properties": {
+                            "blockedSources": {
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "failedSignIns": {
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "newRemoteDevices": {
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "failedSignIns",
+                            "blockedSources",
+                            "newRemoteDevices"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "last24Hours",
+                        "last7Days"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "counts",
+                    "blocks"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request refused or unavailable"
+          }
+        },
+        "summary": "Read failed sign-ins, blocked sources and new remote devices for the last day and week",
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "admin_scope",
+        "x-admission": "admin",
+        "x-audience": "Clients",
+        "x-cost": "constant",
+        "x-error-codes": [
+          "unauthorized",
+          "not_permitted",
+          "internal",
+          "database_busy"
+        ],
+        "x-lane": "default",
         "x-scope": "admin"
       }
     },

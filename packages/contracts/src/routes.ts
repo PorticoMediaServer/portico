@@ -19822,6 +19822,27 @@ export const routes = [
   },
   {
     "audience": "Clients",
+    "id": "get_admin_security_summary",
+    "method": "GET",
+    "path": "/v1/admin/security/summary",
+    "summary": "Read failed sign-ins, blocked sources and new remote devices for the last day and week",
+    "access": "admin_scope",
+    "adminScope": "security",
+    "requires": "admin",
+    "lane": "default",
+    "cost": "constant",
+    "bodyLimit": 0,
+    "errors": [
+      "unauthorized",
+      "not_permitted",
+      "internal",
+      "database_busy"
+    ],
+    "status": 200,
+    "admission": "admin"
+  },
+  {
+    "audience": "Clients",
     "id": "get_admin_segments",
     "method": "GET",
     "path": "/v1/admin/segments",
@@ -30687,6 +30708,7 @@ export const routes = [
       "unauthorized",
       "not_permitted",
       "not_found",
+      "source_blocked",
       "sign_in_kind_local",
       "sign_in_kind_portico",
       "factor_setup_required",
@@ -31874,6 +31896,31 @@ export const routes = [
     "status": 202,
     "optionalBody": true,
     "admission": "admin"
+  },
+  {
+    "audience": "Clients",
+    "id": "post_admin_security_unblock",
+    "method": "POST",
+    "path": "/v1/admin/security/blocks/{id}/unblock",
+    "summary": "Clear one blocked source and its failure count",
+    "access": "admin_scope",
+    "adminScope": "security",
+    "requires": "admin",
+    "lane": "security",
+    "cost": "constant",
+    "bodyLimit": 0,
+    "noResponseBody": true,
+    "errors": [
+      "unauthorized",
+      "not_permitted",
+      "not_found",
+      "invalid_request",
+      "internal",
+      "database_busy",
+      "writer_capacity"
+    ],
+    "status": 204,
+    "admission": "security-fence"
   },
   {
     "audience": "Clients",
@@ -35761,6 +35808,7 @@ export const routes = [
     "errors": [
       "invitation_not_found",
       "rate_limited",
+      "source_blocked",
       "invalid_request",
       "internal",
       "database_busy",

@@ -235,6 +235,9 @@ func (s *Service) RequestOwnerReset(ctx context.Context, _ OwnerResetRequest) (O
 }
 
 func (s *Service) VerifyOwnerReset(ctx context.Context, q OwnerResetVerify) (DirectSignIn, error) {
+	if e := s.sourceBlocked(ctx); e != nil {
+		return DirectSignIn{}, e
+	}
 	if len(q.Code) > 128 {
 		q.Code = ""
 	}
@@ -261,6 +264,11 @@ func (s *Service) VerifyOwnerReset(ctx context.Context, q OwnerResetVerify) (Dir
 		match := subtle.ConstantTimeCompare([]byte(stored), []byte(s.setupHash("owner-reset", q.Code))) == 1
 		if e != nil || hash == "" || expires <= time.Now().Unix() || tries >= 5 || !match {
 			invalid = true
+			if !match && e == nil && hash != "" {
+				if err := s.chargeSourceFailureTx(ctx, tx); err != nil {
+					return err
+				}
+			}
 			// Expiry is disclosed only for possession of the exact still-stored
 			// original code AND unchanged owner identity. Arbitrary, used and
 			// unknown inputs retain the one neutral invalid-code outcome.
@@ -557,6 +565,9 @@ func (s *Service) VerifyMemberReset(ctx context.Context, q MemberResetVerify) (D
 	if e := s.RequireSignInKind(ctx, SignInLocal); e != nil {
 		return DirectSignIn{}, e
 	}
+	if e := s.sourceBlocked(ctx); e != nil {
+		return DirectSignIn{}, e
+	}
 	if len(q.Username) > 64 || len(q.Code) > 128 {
 		q.Username = ""
 		q.Code = ""
@@ -587,6 +598,13 @@ func (s *Service) VerifyMemberReset(ctx context.Context, q MemberResetVerify) (D
 		match := subtle.ConstantTimeCompare([]byte(stored), []byte(s.setupHash("member-reset", q.Code))) == 1
 		if e != nil || hash == "" || !match || expires <= time.Now().Unix() || tries >= 5 {
 			invalid = true
+			if !match && e == nil && hash != "" {
+				// A wrong reset code is an evaluated guess against a name and
+				// a proof; it belongs to the source's budget like a password.
+				if err := s.chargeSourceFailureTx(ctx, tx); err != nil {
+					return err
+				}
+			}
 			if e == nil && hash != "" {
 				_, e = tx.ExecContext(ctx, `UPDATE member_password_resets SET failed_attempts=MIN(5,failed_attempts+1),code_hash=CASE WHEN failed_attempts>=4 OR expires_at<=? THEN '' ELSE code_hash END WHERE account_id=?`, time.Now().Unix(), account)
 			}

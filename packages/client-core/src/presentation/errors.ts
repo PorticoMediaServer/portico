@@ -118,6 +118,9 @@ const exact: Record<string, ErrorCategory> = {
   forbidden: 'permission', permission_changed: 'permission', access_revoked: 'permission', owner_required: 'permission', remote_denied: 'permission', remote_sign_in_not_allowed: 'permission', outside_allowed_hours: 'permission',
   not_found: 'not-found', gone: 'not-found',
   rate_limited: 'rate-limited', too_many_requests: 'rate-limited',
+  // A source blocked after failures across many accounts is a rate limit with a
+  // truthful wait; its own code must read that way, not as an unknown failure.
+  source_blocked: 'rate-limited',
   unsupported_version: 'unsupported-version', client_too_old: 'unsupported-version',
   storage_full: 'storage-full', insufficient_storage: 'storage-full',
   invalid_request: 'invalid-input', validation_failed: 'invalid-input', method_not_allowed: 'invalid-input',

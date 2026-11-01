@@ -535,6 +535,8 @@ export type GetAdminPlaybackSessionsRequest = {  };
 export type GetAdminPlaybackSessionsResponse = { "items": Array<{ "actions": Array<string>; "authorizationStopped": boolean; "cleanupStatus": string; "createdAt": string | null; "delivery": string; "expiresAt": string; "generation": number; "itemId": string; "libraryId": string; "libraryKind": string; "libraryName": string; "positionMs": number | null; "reportedAt": string | null; "sessionId": string; "state": string; "title": string }>; "nextCursor": string; "observedAt": string; "scope": { "serverId": string; "viewerFence": string }; "status": string };
 export type GetAdminResourceUsageRequest = {  };
 export type GetAdminResourceUsageResponse = { "analysis": { "limitBytes": number; "measured": boolean; "trackedBytes": number }; "connections": { "consoleReserve": number; "ordinary": number; "ordinaryLimit": number; "total": number } | null; "localArtwork": { "limitBytes": number; "measured": boolean; "trackedBytes": number }; "streamLimit": number | null; "streams": number; "subtitleFileLimitMiB": number; "subtitleTracksPerFile": number };
+export type GetAdminSecuritySummaryRequest = {  };
+export type GetAdminSecuritySummaryResponse = { "blocks": Array<{ "blockCount": number; "blockedUntil": string; "failedAttempts": number; "id": string; "lastFailure"?: string; "network": string }>; "counts": { "last24Hours": { "blockedSources": number; "failedSignIns": number; "newRemoteDevices": number }; "last7Days": { "blockedSources": number; "failedSignIns": number; "newRemoteDevices": number } } };
 export type GetAdminSegmentsRequest = {  };
 export type GetAdminSegmentsResponse = { "protocolVersion": string; "result": { "catchUpComplete": boolean; "choices": Array<string>; "failures": Array<{ "errorCode": string; "itemId": string; "state": string; "title": string; "updatedMS": number }>; "files": { "complete": number; "failed": number; "pending": number; "unsupported": number }; "lastFullPassMS": number; "libraries": Array<{ "choice": string; "files": { "complete": number; "failed": number; "pending": number; "unsupported": number }; "itemKind": string; "libraryId": string; "mode": string; "name": string }>; "mode": string; "modes": Array<string>; "showsWaiting": number }; "serverId": string };
 export type GetAdminSegmentsTitlesRequest = {  };
@@ -1315,6 +1317,8 @@ export type PostAdminPlaybackSessionsIdStopRequest = { "expectedGeneration": num
 export type PostAdminPlaybackSessionsIdStopResponse = { "authorizationStopped": boolean; "cleanupStatus": string; "generation": number; "operationId": string; "scope": { "serverId": string; "viewerFence": string }; "sessionId": string; "state": string };
 export type PostAdminRestartRequest = {  };
 export type PostAdminRestartResponse = {  };
+export type PostAdminSecurityUnblockRequest = {  };
+export type PostAdminSecurityUnblockResponse = {  };
 export type PostAdminSegmentsTitlesIdApproveRequest = { "kinds": Array<string>; "season": number | null };
 export type PostAdminSegmentsTitlesIdApproveResponse = { "protocolVersion": string; "result": { "changed": number }; "serverId": string };
 export type PostAdminSegmentsTitlesIdRedetectRequest = {  };
@@ -2194,6 +2198,7 @@ export type RouteContracts = {
 "get_admin_playback_operations_operationId": { request: GetAdminPlaybackOperationsOperationIdRequest; response: GetAdminPlaybackOperationsOperationIdResponse };
 "get_admin_playback_sessions": { request: GetAdminPlaybackSessionsRequest; response: GetAdminPlaybackSessionsResponse };
 "get_admin_resource_usage": { request: GetAdminResourceUsageRequest; response: GetAdminResourceUsageResponse };
+"get_admin_security_summary": { request: GetAdminSecuritySummaryRequest; response: GetAdminSecuritySummaryResponse };
 "get_admin_segments": { request: GetAdminSegmentsRequest; response: GetAdminSegmentsResponse };
 "get_admin_segments_titles": { request: GetAdminSegmentsTitlesRequest; response: GetAdminSegmentsTitlesResponse };
 "get_admin_segments_titles_id": { request: GetAdminSegmentsTitlesIdRequest; response: GetAdminSegmentsTitlesIdResponse };
@@ -2584,6 +2589,7 @@ export type RouteContracts = {
 "post_admin_notifications_broadcast": { request: PostAdminNotificationsBroadcastRequest; response: PostAdminNotificationsBroadcastResponse };
 "post_admin_playback_sessions_id_stop": { request: PostAdminPlaybackSessionsIdStopRequest; response: PostAdminPlaybackSessionsIdStopResponse };
 "post_admin_restart": { request: PostAdminRestartRequest; response: PostAdminRestartResponse };
+"post_admin_security_unblock": { request: PostAdminSecurityUnblockRequest; response: PostAdminSecurityUnblockResponse };
 "post_admin_segments_titles_id_approve": { request: PostAdminSegmentsTitlesIdApproveRequest; response: PostAdminSegmentsTitlesIdApproveResponse };
 "post_admin_segments_titles_id_redetect": { request: PostAdminSegmentsTitlesIdRedetectRequest; response: PostAdminSegmentsTitlesIdRedetectResponse };
 "post_admin_state_permissions_fix": { request: PostAdminStatePermissionsFixRequest; response: PostAdminStatePermissionsFixResponse };

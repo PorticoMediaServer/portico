@@ -15,7 +15,8 @@ import (
 // for, and a count of foreign objects is how an owner finds out that is what
 // they have. Nothing is ever dropped automatically: a build that does not define
 // a table cannot know what removing it would cost.
-const knownSchemaObjects = `index access_invitation_page
+const knownSchemaObjects = `
+index access_invitation_page
 index accounts_people_username
 index admin_channel_presets_page
 index admin_dvr_groups_page
@@ -429,7 +430,10 @@ index identity_refresh_device
 index identity_refresh_predecessors_family
 index identity_refresh_receipts_expiry
 index identity_refresh_receipts_family
+index identity_security_alerts_age
 index identity_setup_one_active
+index identity_source_attempts_age
+index identity_source_attempts_id
 index identity_unknown_attempts_age
 index integration_ids_expiry
 index inventory_analysis_object
@@ -1306,9 +1310,13 @@ table identity_recovery_codes
 table identity_refresh_credentials
 table identity_refresh_predecessors
 table identity_refresh_receipts
+table identity_security_alerts
+table identity_security_counts
+table identity_security_minutes
 table identity_service_outbox
 table identity_setup_completions
 table identity_sign_in_policy
+table identity_source_attempts
 table identity_state
 table identity_unknown_attempts
 table integration_ids
@@ -4034,7 +4042,8 @@ view inventory_asset_availability
 view inventory_item_availability
 view inventory_library_availability
 view listening_book_context
-view mb_recording_accounting`
+view mb_recording_accounting
+`
 
 // subsystemSchemaObjects lists the runtime schema declarations outside
 // persistence. The only one is not in the server database: work_ids_by_qid

@@ -218,6 +218,9 @@ owner broadcast). The complete set:
 | `downloads` | `download.finished`, `download.failed` | profile | the download |
 | `dvr` | `dvr.conflict` | account-admin | the recording |
 | `security` | `security.new-device` | profile | the device |
+| `security` | `security.new-device` | account-admin | the device, remote sign-ins only |
+| `security` | `security.source-blocked` | account-admin | the /24 or /48, once a day |
+| `security` | `security.sign-in-burst` | account-admin | one notice an hour |
 | `security` | `security.password-change` | profile | the moment |
 | `scan` | `scan.failed` | account-admin | the source |
 | `networking` | `networking.certificate-expiring`, `…-expired` | account-admin | the certificate scope |
