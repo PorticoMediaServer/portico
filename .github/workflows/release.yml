@@ -1,0 +1,602 @@
+name: Release
+
+# Builds one Portico release from one commit and leaves it as a DRAFT GitHub release. Publishing
+# (pressing Publish on the draft) is Justin's act; release-published.yml then pushes the container
+# image. See RELEASING.md.
+#
+#  - A dispatch on main with `version` (0.0.N until v0.1.0) is a release: signed where the secrets
+#    exist, then the inventory seal in the `release-seal` environment (Justin approves), then the
+#    draft. The draft names its commit; GitHub creates the tag when the draft is published.
+#  - A pull request that changes the release machinery, or a dispatch on another branch, is a
+#    proof: the same builds, version 0.0.0, no signing, no seal and no draft.
+#
+# Internal 0.0.N releases carry a development FFmpeg engine (scripts/development-engine.py), so
+# every server build is --unsealed and its assets say UNSEALED-NOT-FOR-USE-ENGINE. The sealed
+# server build (the first release-seal approval) arrives with the qualified FFmpeg toolchain.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, 0.0.N (leave empty for a proof run on a branch)'
+        required: false
+      testflight:
+        description: Also upload the signed iPhone/iPad and Apple TV builds to TestFlight
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/workflows/release-published.yml
+      - scripts/release-version.py
+      - scripts/development-engine.py
+      - scripts/build-server-release.py
+      - scripts/package-release.sh
+      - scripts/package-macos.sh
+      - scripts/seal-release-artifacts.py
+      - scripts/write-public-update-manifest.mjs
+      - scripts/rclone-bundle.py
+      - packaging/**
+      - Dockerfile
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Intermediate files are visible to anyone who can read this public repository's runs, so they
+  # are kept for a day only. Signed builds pass through them only in a release run.
+  RETENTION_DAYS: 1
+
+jobs:
+  identity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      release: ${{ steps.id.outputs.release }}
+      version: ${{ steps.id.outputs.version }}
+      tag: ${{ steps.id.outputs.tag }}
+      build: ${{ steps.id.outputs.build }}
+      sha: ${{ steps.id.outputs.sha }}
+      built_at: ${{ steps.id.outputs.built_at }}
+      android_signing: ${{ steps.secrets.outputs.android }}
+      apple_signing: ${{ steps.secrets.outputs.apple }}
+      mac_signing: ${{ steps.secrets.outputs.mac }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {fetch-depth: 0, persist-credentials: false}
+      - id: id
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          RELEASE: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.version != '' }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          if [ "$RELEASE" = true ]; then
+            git fetch -q origin main
+            # Every earlier release and tag, drafts included, so a number is never reused.
+            existing="$( (git tag -l 'v*'; gh api --paginate "repos/$GITHUB_REPOSITORY/releases" -q '.[].tag_name') | sort -u | paste -sd, -)"
+            python3 scripts/release-version.py identity --version "$VERSION" --commit "$sha" --existing "$existing" >> "$GITHUB_OUTPUT"
+          else
+            python3 scripts/release-version.py identity --proof --commit "$sha" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "release=$RELEASE"
+            echo "sha=$sha"
+            echo "built_at=$(git show -s --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ HEAD)"
+          } >> "$GITHUB_OUTPUT"
+      - id: secrets
+        # Which signing a release run can do. A proof run never signs.
+        env:
+          RELEASE: ${{ steps.id.outputs.release }}
+          ANDROID: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 != '' && secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD != '' && secrets.ANDROID_RELEASE_KEY_ALIAS != '' }}
+          APPLE: ${{ secrets.APPLE_TEAM_ID != '' && secrets.APPLE_DISTRIBUTION_P12_BASE64 != '' && secrets.APP_STORE_CONNECT_KEY_P8 != '' }}
+          MAC: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 != '' && secrets.APP_STORE_CONNECT_KEY_P8 != '' }}
+        run: |
+          for name in android apple mac; do
+            value=false
+            if [ "$RELEASE" = true ]; then eval "value=\${${name^^}}"; fi
+            echo "$name=$value" >> "$GITHUB_OUTPUT"
+            [ "$value" = true ] || echo "not signed: $name (proof run, or its secrets are not set)"
+          done
+
+  gate:
+    # The full -race server suite, once per release, on the commit being released. Every server
+    # build needs it; those builds then run only their own platform's plain suite, or nothing.
+    needs: identity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: true
+      matrix: {shard: [0, 1, 2, 3, 4, 5]}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - name: The engine the release ships
+        run: |
+          python3 scripts/development-engine.py fetch --target linux-x64 --output "$RUNNER_TEMP/engine"
+          echo "PORTICO_FFMPEG=$RUNNER_TEMP/engine/bin/ffmpeg" >> "$GITHUB_ENV"
+          echo "PORTICO_FFPROBE=$RUNNER_TEMP/engine/bin/ffprobe" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/engine/bin" >> "$GITHUB_PATH"
+      - name: Server suite with -race, shard ${{ matrix.shard }} of 6
+        env: {SHARD: '${{ matrix.shard }}'}
+        working-directory: server
+        run: |
+          set -euo pipefail
+          tags="$(python3 ../scripts/release-build-tags.py --capability)"
+          go build -tags "$tags" -o "$RUNNER_TEMP/portico-server" ./cmd/server
+          export PORTICO_PLAYBACK_TEST_HELPER="$RUNNER_TEMP/portico-server"
+          go list -tags "$tags" ./... | awk -v n=6 -v i="$SHARD" '(NR-1) % n == i' > "$RUNNER_TEMP/packages"
+          go test -race -count=1 -timeout=55m -tags "$tags" $(cat "$RUNNER_TEMP/packages")
+
+  web:
+    needs: identity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build --workspace portico-web
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: web, path: web/dist, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+
+  server:
+    # Cross-compiled on Linux (CGO off), so these run no tests of their own: the gate tested this
+    # commit. Windows gets its NSIS installer here.
+    needs: [identity, gate, web]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: linux, arch: amd64, target: linux-x64}
+          - {os: linux, arch: arm64, target: linux-arm64}
+          - {os: windows, arch: amd64, target: windows-x64}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: web, path: .release/web}
+      - name: Release tools
+        run: |
+          python3 -m pip install --user -r scripts/requirements-release.txt
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.43.4
+          sudo apt-get update -qq && sudo apt-get install -y -qq nsis zip
+      - name: Development engine (NOT FOR USE)
+        run: python3 scripts/development-engine.py fetch --target '${{ matrix.target }}' --output .release/engine
+      - name: Build (unsealed) and package
+        env: {VERSION: '${{ needs.identity.outputs.version }}', BUILD: '${{ needs.identity.outputs.build }}', PORTICO_UNSEALED: '1'}
+        run: |
+          set -euo pipefail
+          result="$(python3 scripts/build-server-release.py --version "$VERSION" --os '${{ matrix.os }}' --arch '${{ matrix.arch }}' --ffmpeg-bundle .release/engine --unsealed --tests none | tail -1)"
+          stage="$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['directory'])" "$result")"
+          scripts/package-release.sh '${{ matrix.os }}' '${{ matrix.arch }}' "$VERSION" "$stage" .release/web dist "$BUILD"
+          mkdir -p manifests && cp "$stage/manifest.json" "manifests/server-${{ matrix.target }}.json"
+          rm -rf dist/nfpm-*.yaml dist/portable-*
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: 'assets-server-${{ matrix.target }}', path: 'dist/*NOT-FOR-USE*', if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: 'manifest-server-${{ matrix.target }}', path: manifests/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: matrix.os == 'linux'
+        with: {name: 'payload-${{ matrix.target }}', path: 'dist/payload-linux-*', if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+
+  server-macos:
+    # Built natively, so it runs the plain (no -race) server suite for macOS; code-signed and the
+    # app notarised when the Developer ID and App Store Connect secrets exist.
+    needs: [identity, gate, web]
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: web, path: .release/web}
+      - name: Release tools
+        run: |
+          python3 -m venv .release/venv && .release/venv/bin/pip install -q -r scripts/requirements-release.txt
+          echo "$PWD/.release/venv/bin" >> "$GITHUB_PATH"
+      - name: Developer ID signing identity
+        if: needs.identity.outputs.mac_signing == 'true'
+        env:
+          P12: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          ASC_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/signing.keychain-db"; password="$(openssl rand -hex 24)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 7200 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          (umask 077; printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/developer-id.p12")
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/developer-id.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity="$(security find-identity -v -p codesigning "$keychain" | awk -F'"' '/Developer ID Application/ {print $2; exit}')"
+          test -n "$identity"
+          (umask 077; printf '%s' "$ASC_KEY" > "$RUNNER_TEMP/asc-key.p8")
+          {
+            echo "PORTICO_MACOS_SIGNING_IDENTITY=$identity"
+            echo "PORTICO_NOTARY_KEY_FILE=$RUNNER_TEMP/asc-key.p8"
+            echo "PORTICO_NOTARY_KEY_ID=$ASC_KEY_ID"
+            echo "PORTICO_NOTARY_ISSUER=$ASC_ISSUER"
+          } >> "$GITHUB_ENV"
+      - name: Development engine (NOT FOR USE)
+        run: python3 scripts/development-engine.py fetch --target macos-arm64 --output .release/engine
+      - name: Build (unsealed, plain macOS suite) and package
+        env: {VERSION: '${{ needs.identity.outputs.version }}', BUILD: '${{ needs.identity.outputs.build }}', PORTICO_UNSEALED: '1'}
+        run: |
+          set -euo pipefail
+          # The plain suite's media tests use the engine the release ships.
+          export PORTICO_FFMPEG="$PWD/.release/engine/bin/ffmpeg" PORTICO_FFPROBE="$PWD/.release/engine/bin/ffprobe"
+          result="$(python3 scripts/build-server-release.py --version "$VERSION" --os darwin --arch arm64 --ffmpeg-bundle .release/engine --unsealed --tests plain | tail -1)"
+          stage="$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['directory'])" "$result")"
+          payload="$(scripts/package-release.sh darwin arm64 "$VERSION" "$stage" .release/web dist "$BUILD" | tail -1)"
+          scripts/package-macos.sh "$VERSION" "$payload" dist "$BUILD"
+          mkdir -p manifests && cp "$stage/manifest.json" manifests/server-macos-arm64.json
+      - name: Forget the signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/asc-key.p8"
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: assets-server-macos-arm64, path: 'dist/Portico-Media-Server-macOS-arm64*', if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: manifest-server-macos-arm64, path: manifests/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+
+  docker:
+    # The tested unsealed Linux payloads, both architectures, as one OCI image archive attached to
+    # the draft. Nothing is pushed here: release-published.yml pushes it once Justin publishes.
+    needs: [identity, server]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {pattern: 'payload-linux-*', path: .release/payloads, merge-multiple: true}
+      - name: Payload context
+        run: |
+          set -euo pipefail
+          mkdir -p .release/context
+          mv .release/payloads/payload-linux-x64 .release/context/linux-amd64
+          mv .release/payloads/payload-linux-arm64 .release/context/linux-arm64
+          chmod +x .release/context/*/portico-server .release/context/*/third_party/ffmpeg/bin/* .release/context/*/third_party/rclone/rclone
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - name: Image archive (not pushed)
+        env: {VERSION: '${{ needs.identity.outputs.version }}'}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          docker buildx build --target unsealed --platform linux/amd64,linux/arm64 \
+            --build-context payload=.release/context \
+            --label org.opencontainers.image.version="$VERSION" \
+            --label org.opencontainers.image.revision='${{ needs.identity.outputs.sha }}' \
+            --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
+            --output "type=oci,dest=dist/portico-server-image-UNSEALED-NOT-FOR-USE-ENGINE.oci.tar,name=ghcr.io/porticomediaserver/portico-server:$VERSION" .
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: assets-docker, path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+
+  android:
+    needs: identity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm, cache-dependency-path: "package-lock.json\napps/native/package-lock.json"}
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with: {distribution: temurin, java-version: '17', cache: gradle}
+      - name: Android SDK and NDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.1.12297006" >> "$GITHUB_ENV"
+      - name: Media engine from pinned source
+        run: MEDIA_ENGINE_JOBS=4 third_party/media-engine/build-android.sh
+      - name: Dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          (cd apps/native && npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false)
+      - name: The app signing key
+        if: needs.identity.outputs.android_signing == 'true'
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          (umask 077; printf '%s' "$KEYSTORE" | base64 --decode > "$RUNNER_TEMP/release.keystore")
+          # The one key both Play and GitHub installs use; assetlinks.json names its fingerprint.
+          fingerprint="$(keytool -list -v -keystore "$RUNNER_TEMP/release.keystore" -storepass "$PASSWORD" -alias "$ALIAS" | awk '/SHA256:/ {print $2; exit}')"
+          test "$fingerprint" = "$(python3 -c "import json;print(json.load(open('web/public/.well-known/assetlinks.json'))[0]['target']['sha256_cert_fingerprints'][0])")"
+          {
+            echo "ORG_GRADLE_PROJECT_porticoUploadStoreFile=$RUNNER_TEMP/release.keystore"
+            echo "ORG_GRADLE_PROJECT_porticoUploadStorePassword=$PASSWORD"
+            echo "ORG_GRADLE_PROJECT_porticoUploadKeyAlias=$ALIAS"
+            echo "ORG_GRADLE_PROJECT_porticoUploadKeyPassword=$PASSWORD"
+          } >> "$GITHUB_ENV"
+      - name: APKs and App Bundle
+        working-directory: apps/native/android
+        env: {VERSION: '${{ needs.identity.outputs.version }}', BUILD: '${{ needs.identity.outputs.build }}'}
+        run: ./gradlew --no-daemon -PporticoAbiSplits=true -PporticoVersionName="$VERSION" -PporticoVersionCode="$BUILD" assembleGoogleRelease bundleGoogleRelease assembleFiretvRelease
+      - name: Collect
+        env: {SIGNED: '${{ needs.identity.outputs.android_signing }}'}
+        run: |
+          set -euo pipefail
+          suffix=""; [ "$SIGNED" = true ] || suffix="-DEBUG-SIGNED-NOT-FOR-USE"
+          out=apps/native/android/app/build/outputs; mkdir -p dist
+          for flavor in google firetv; do
+            name=$([ "$flavor" = google ] && echo Portico-Android || echo Portico-FireTV)
+            for apk in "$out"/apk/"$flavor"/release/app-"$flavor"-*-release.apk; do
+              abi="${apk##*/app-$flavor-}"; abi="${abi%-release.apk}"
+              cp "$apk" "dist/$name-$abi$suffix.apk"
+            done
+          done
+          cp "$out"/bundle/googleRelease/app-google-release.aab "dist/Portico-Android$suffix.aab"
+          cp third_party/media-engine/out/android/source/*.tar dist/
+          cp third_party/media-engine/out/android/notices/THIRD-PARTY-NOTICES.txt dist/media-engine-android-THIRD-PARTY-NOTICES.txt
+          if [ "$SIGNED" = true ]; then
+            for apk in dist/*.apk; do "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | grep -qi 'SHA-256 digest: db88a3178d498603feb663b967990c76392e37cd43e1b95344ae2ea987ef56fa'; done
+          fi
+          ls dist
+      - name: Forget the signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: assets-android, path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+
+  apple:
+    # iPhone/iPad and Apple TV share tv.getportico.app. With the secrets, xcodebuild signs
+    # automatically through the App Store Connect key (-allowProvisioningUpdates creates the
+    # profiles and assigns the app group); without them the archives are unsigned.
+    needs: identity
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm, cache-dependency-path: "package-lock.json\napps/native/package-lock.json"}
+      - name: Dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          (cd apps/native && npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false)
+          (cd apps/native/ios && pod install) && (cd apps/native/tvos && pod install)
+      - name: Signing material
+        if: needs.identity.outputs.apple_signing == 'true'
+        env:
+          P12: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          ASC_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/signing.keychain-db"; password="$(openssl rand -hex 24)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 7200 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          (umask 077; printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/distribution.p12")
+          security import "$RUNNER_TEMP/distribution.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/distribution.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          (umask 077; printf '%s' "$ASC_KEY" > "$RUNNER_TEMP/asc-key.p8")
+      - name: Archives
+        env:
+          SIGNED: ${{ needs.identity.outputs.apple_signing }}
+          VERSION: ${{ needs.identity.outputs.version }}
+          BUILD: ${{ needs.identity.outputs.build }}
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for platform in ios tvos; do
+            sdk=iphoneos; [ "$platform" = tvos ] && sdk=appletvos
+            archive="$RUNNER_TEMP/Portico-$platform.xcarchive"
+            common=(-workspace "apps/native/$platform/Portico.xcworkspace" -scheme Portico -configuration Release -sdk "$sdk"
+                    MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD")
+            if [ "$SIGNED" = true ]; then
+              auth=(-allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/asc-key.p8" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER")
+              xcodebuild "${common[@]}" -archivePath "$archive" archive "${auth[@]}" DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic
+              cat > "$RUNNER_TEMP/export-$platform.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$TEAM</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>destination</key><string>export</string>
+          </dict></plist>
+          PLIST
+              xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$RUNNER_TEMP/export-$platform.plist" -exportPath "$RUNNER_TEMP/export-$platform" "${auth[@]}"
+              cp "$RUNNER_TEMP/export-$platform"/*.ipa "dist/Portico-$platform.ipa"
+            else
+              xcodebuild "${common[@]}" -archivePath "$archive" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+              ditto -c -k --keepParent "$archive" "dist/Portico-$platform-UNSIGNED-NOT-FOR-USE.xcarchive.zip"
+            fi
+          done
+      - name: TestFlight
+        if: needs.identity.outputs.apple_signing == 'true' && inputs.testflight
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.appstoreconnect/private_keys
+          cp "$RUNNER_TEMP/asc-key.p8" ~/.appstoreconnect/private_keys/AuthKey_"$ASC_KEY_ID".p8
+          xcrun altool --upload-app -f dist/Portico-ios.ipa -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
+          xcrun altool --upload-app -f dist/Portico-tvos.ipa -t appletvos --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
+      - name: Forget the signing material
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/asc-key.p8" ~/.appstoreconnect
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: assets-apple, path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+
+  desktop:
+    # "If it builds": the desktop app's Linux build, unsigned. A failure here never blocks the
+    # draft; the draft's notes say whether it is attached.
+    needs: identity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: apps/desktop/.node-version, cache: npm, cache-dependency-path: apps/desktop/package-lock.json}
+      - name: Build
+        env: {VERSION: '${{ needs.identity.outputs.version }}', BUILD: '${{ needs.identity.outputs.build }}'}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libmpv-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+          python3 scripts/release-version.py stamp --version "$VERSION" --build "$BUILD" --product desktop
+          npm ci --no-audit --no-fund
+          (cd apps/desktop && npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false && npm run build:unsigned)
+          mkdir -p dist
+          tar -C apps/desktop/src-tauri/target/debug -czf dist/portico-desktop-linux-x64-UNSIGNED-NOT-FOR-USE.tar.gz portico-desktop
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: assets-desktop, path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+
+  assemble:
+    # Everything the draft will carry, checked against what this run was able to produce.
+    needs: [identity, server, server-macos, docker, android, apple, desktop]
+    if: ${{ !cancelled() && needs.server.result == 'success' && needs.server-macos.result == 'success' && needs.docker.result == 'success' && needs.android.result == 'success' && needs.apple.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {pattern: 'assets-*', path: dist, merge-multiple: true}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {pattern: 'manifest-server-*', path: manifests, merge-multiple: true}
+      - name: Engine source, update feed and checksums
+        env:
+          VERSION: ${{ needs.identity.outputs.version }}
+          DESKTOP: ${{ needs.desktop.result }}
+          ANDROID_SIGNED: ${{ needs.identity.outputs.android_signing }}
+          APPLE_SIGNED: ${{ needs.identity.outputs.apple_signing }}
+        run: |
+          set -euo pipefail
+          python3 scripts/development-engine.py source --output dist/jellyfin-ffmpeg-8.1.3-1-source.tar.gz
+          node scripts/write-public-update-manifest.mjs "$VERSION" "$GITHUB_REPOSITORY" unsealed
+          s=-UNSEALED-NOT-FOR-USE-ENGINE
+          expected=(
+            "portico-media-server-linux-x64$s.tar.gz" "portico-media-server-linux-x64$s.deb" "portico-media-server-linux-x64$s.rpm"
+            "portico-media-server-linux-arm64$s.tar.gz" "portico-media-server-linux-arm64$s.deb" "portico-media-server-linux-arm64$s.rpm"
+            "Portico-Media-Server-Windows-x64-Setup$s.exe" "Portico-Media-Server-Windows-x64-Portable$s.zip"
+            "Portico-Media-Server-macOS-arm64$s.pkg" "Portico-Media-Server-macOS-arm64$s.dmg"
+            "portico-server-image$s.oci.tar" jellyfin-ffmpeg-8.1.3-1-source.tar.gz portico-update-manifest.json
+            media-engine-android-THIRD-PARTY-NOTICES.txt
+          )
+          a=""; [ "$ANDROID_SIGNED" = true ] || a=-DEBUG-SIGNED-NOT-FOR-USE
+          expected+=("Portico-Android$a.aab" "Portico-Android-universal$a.apk" "Portico-FireTV-universal$a.apk")
+          if [ "$APPLE_SIGNED" = true ]; then expected+=(Portico-ios.ipa Portico-tvos.ipa); else expected+=(Portico-ios-UNSIGNED-NOT-FOR-USE.xcarchive.zip Portico-tvos-UNSIGNED-NOT-FOR-USE.xcarchive.zip); fi
+          [ "$DESKTOP" = success ] && expected+=(portico-desktop-linux-x64-UNSIGNED-NOT-FOR-USE.tar.gz)
+          for asset in "${expected[@]}"; do [[ -s "dist/$asset" ]] || { echo "missing release asset: $asset" >&2; exit 1; }; done
+          ls dist/*.tar >/dev/null  # the Android media engine's corresponding source
+          (cd dist && sha256sum -- * | sort -k2 > SHA256SUMS)
+          ls -l dist
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610
+        with: {path: dist, format: spdx-json, output-file: dist/portico-release.spdx.json}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: release-files, path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: release-server-manifests, path: manifests/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+
+  seal:
+    # The second release-seal approval (the first, the sealed server builds, arrives with the
+    # qualified toolchain): Justin approves, and the key signs the inventory of exactly these files.
+    # The inventory states each server build's own sealed state; it never makes a build trusted.
+    needs: [identity, assemble]
+    if: needs.identity.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release-seal
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: release-files, path: dist}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: release-server-manifests, path: manifests}
+      - name: Seal the inventory
+        env: {KEY: '${{ secrets.PORTICO_RELEASE_SIGNING_KEY_BASE64 }}', SHA: '${{ needs.identity.outputs.sha }}'}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user -q -r scripts/requirements-release.txt
+          install -d -m 700 "$RUNNER_TEMP/seal"
+          (umask 077; printf '%s' "$KEY" | base64 --decode > "$RUNNER_TEMP/seal/private-key")
+          test "$(wc -c < "$RUNNER_TEMP/seal/private-key")" -eq 32
+          args=(); for m in manifests/*.json; do args+=(--server-manifest "$m"); done
+          python3 scripts/seal-release-artifacts.py dist --key "$RUNNER_TEMP/seal/private-key" --public-key trust/release-public-key.bin --source "$SHA" "${args[@]}"
+          python3 scripts/seal-release-artifacts.py dist --public-key trust/release-public-key.bin --source "$SHA" --verify
+      - name: Forget the key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/seal"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: release-seal, path: 'dist/release-manifest.*', if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+
+  draft:
+    needs: [identity, assemble, seal, desktop]
+    if: needs.identity.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: release-files, path: dist}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: release-seal, path: dist}
+      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
+        with: {subject-path: 'dist/*'}
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.identity.outputs.tag }}
+          VERSION: ${{ needs.identity.outputs.version }}
+          SHA: ${{ needs.identity.outputs.sha }}
+          BUILD: ${{ needs.identity.outputs.build }}
+          DESKTOP: ${{ needs.desktop.result }}
+          ANDROID_SIGNED: ${{ needs.identity.outputs.android_signing }}
+          APPLE_SIGNED: ${{ needs.identity.outputs.apple_signing }}
+          MAC_SIGNED: ${{ needs.identity.outputs.mac_signing }}
+        run: |
+          set -euo pipefail
+          cat > notes.md <<EOF
+          **Internal build, NOT FOR USE.** Portico $VERSION, build $BUILD, from $SHA.
+
+          - **Server:** unsealed, with a development FFmpeg engine (upstream jellyfin-ffmpeg 8.1.3-1; its source is attached). No disc reading, no qualified HDR features, no music analysis (Sonic). Linux x64 and ARM64, Windows x64, and macOS Apple Silicon only (no Intel Mac yet). The update feed lists no build, so no server offers this as an update.
+          - **macOS server:** $([ "$MAC_SIGNED" = true ] && echo 'app code-signed (Developer ID) and notarised; the installer package is unsigned until a Developer ID Installer certificate exists' || echo 'unsigned').
+          - **Android and Fire TV:** $([ "$ANDROID_SIGNED" = true ] && echo 'signed with the Portico app signing key' || echo 'debug-signed') (tv.getportico.app). Sideloaded APKs on certified Android devices need tv.getportico.app and this key registered in Android developer verification.
+          - **iPhone, iPad and Apple TV:** $([ "$APPLE_SIGNED" = true ] && echo 'App Store-signed .ipa files' || echo 'unsigned archives').
+          - **Desktop:** $([ "$DESKTOP" = success ] && echo 'an unsigned Linux build is attached' || echo 'not built this time').
+          - **Container image:** attached as an OCI archive; it is pushed to GHCR only when this draft is published.
+          - \`release-manifest.json\` and \`.sig\` (the release key) list exactly these files. They don't make any server build trusted: each server build carries its own manifest, here marked unsealed.
+          EOF
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --target "$SHA" --title "Portico $VERSION (internal, NOT FOR USE)" --notes-file notes.md dist/*

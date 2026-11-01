@@ -54,6 +54,7 @@ class BuildNumber(unittest.TestCase):
         self.assertEqual(build_number(main + '~1'), 2, 'the same commit always gets the same number')
         with self.assertRaises(SystemExit):
             build_number(side)
+        self.assertEqual(build_number(side, proof=True), 3, 'a proof run may build a branch')
 
 
 class Stamp(unittest.TestCase):
