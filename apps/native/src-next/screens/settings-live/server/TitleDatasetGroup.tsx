@@ -35,10 +35,12 @@ function Group({group, runtime, tv}: {group: StorageForms; runtime: NativeShellR
   };
   const label = t(row.label), help = row.help ? t(row.help) : undefined;
   // TV draws the Metadata panel's own group: a heading over one raised card of focusable rows.
+  // Like the panel's other switches it stays enabled while saving: a disabled row loses focus,
+  // which would jump to the next control. change() ignores presses until the save ends.
   if (tv) return <View style={{marginBottom: 30}}>
     {title && <Text style={[shellType(20, 700), {color: theme.colors.textTertiary, marginLeft: 24, marginBottom: 10}]}>{t(title)}</Text>}
     <View style={{backgroundColor: theme.colors.raised, borderRadius: 18}}>
-      <TVSwitchRow testID={ROW} label={label} description={help} checked={on} disabled={save.saving} onChange={change}/>
+      <TVSwitchRow testID={ROW} label={label} description={help} checked={on} onChange={change}/>
     </View>
   </View>;
   return <>
