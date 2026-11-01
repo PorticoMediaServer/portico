@@ -570,5 +570,19 @@ func profileHome(t *testing.T, db *sql.DB, profiles int, dir string) string {
 		t.Logf("    row %-28s p50 %8s  p95 %8s  (%d)", name, pct(rows[name], 50), pct(rows[name], 95), len(rows[name]))
 	}
 	t.Logf("    JSON of the document      p50 %8s  p95 %8s", pct(encode, 50), pct(encode, 95))
+	// One Browse first page per sort a library opens on, warm, for comparison with Home.
+	for _, sort := range []catalog.BrowseSortSelection{{Field: "title", Direction: "asc"}, {Field: "added", Direction: "desc"}} {
+		var browse []time.Duration
+		for p := 0; p < profiles; p++ {
+			profile := fmt.Sprintf("p%d", p)
+			viewer := catalog.Viewer{Profile: profile, Fence: profile, Libraries: []string{"films"}}
+			start := time.Now()
+			if _, err := services[p].BrowseEntities(viewer, catalog.BrowseRequest{Library: "films", Profile: profile, ViewerFence: profile, Pivot: "movies", Sort: []catalog.BrowseSortSelection{sort}, Limit: 40}); err != nil {
+				t.Fatal(err)
+			}
+			browse = append(browse, time.Since(start))
+		}
+		t.Logf("    Browse by %-15s p50 %8s  p95 %8s", sort.Field, pct(browse, 50), pct(browse, 95))
+	}
 	return fmt.Sprintf("cold p50 %s p95 %s; warm p50 %s p95 %s; %d rows in a document", pct(cold, 50), pct(cold, 95), pct(warm, 50), pct(warm, 95), len(docs[0].Rows))
 }
