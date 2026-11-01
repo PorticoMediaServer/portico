@@ -256,6 +256,11 @@ func TestServerScaleMeasurement(t *testing.T) {
 	server := httptest.NewServer(f.handler)
 	defer server.Close()
 	client := server.Client()
+	transport := client.Transport.(*http.Transport).Clone()
+	transport.MaxIdleConns = users*8 + 64
+	transport.MaxIdleConnsPerHost = users*8 + 64
+	client.Transport = transport
+	defer transport.CloseIdleConnections()
 	client.Timeout = 30 * time.Second
 	_, shapeBody := scaleCall(client, server.URL, f.viewers[0].AccessToken, "", "GET", "/v1/home", nil, nil, nil)
 	var shapeDoc catalog.HomeDocument

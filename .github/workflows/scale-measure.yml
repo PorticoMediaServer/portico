@@ -128,7 +128,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        items: [10000]
+        items: [30000]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
@@ -203,7 +203,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [films20]
+        mode: [films100]
+        provider_ids: [0, 1]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
@@ -220,13 +221,14 @@ jobs:
           PORTICO_FIXTURE_SEED_HASH: ${{ hashFiles('server/internal/httpapi/fixture/**', 'server/internal/compactcatalog/**', 'server/internal/persistence/**', 'server/internal/dbwork/**', 'server/go.sum') }}
           TMPDIR: ${{ runner.temp }}/scale-cache
           PORTICO_REQUIRE_SCALE_SEED: 1
+          PORTICO_SCALE_PROVIDER_IDS: ${{ matrix.provider_ids }}
           PORTICO_SCALE_HOME_ROWS: 1
           PORTICO_SCALE_MODE: ${{ matrix.mode }}
           PORTICO_SCALE_REPORT: ${{ runner.temp }}/reports
         run: go test -vet=off ./internal/httpapi -run '^TestServerScaleMeasurement$' -count=1 -v -timeout=35m > "$RUNNER_TEMP/reports/measure.log" 2>&1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
-        with: {name: 'cached-scale-${{ matrix.mode }}', path: '${{ runner.temp }}/reports', retention-days: 7}
+        with: {name: 'cached-scale-${{ matrix.mode }}-provider${{ matrix.provider_ids }}', path: '${{ runner.temp }}/reports', retention-days: 7}
   growth-pilot:
     if: ${{ contains(github.event.head_commit.message, 'growth curves only') }}
     runs-on: ubuntu-24.04

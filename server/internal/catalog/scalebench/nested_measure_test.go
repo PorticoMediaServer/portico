@@ -101,6 +101,37 @@ func TestNestedGrowthMeasurement(t *testing.T) {
 		root.EntityID = entry.ID
 		measure("audio/page/"+root.View, root)
 	}
+	// Attribute the growing root paths using the completed seed, before the
+	// provider-identity control changes this copy. These profiles are diagnostic
+	// only; the ten-sample growth matrix remains the source of curve values.
+	profileRoutes = true
+	for _, library := range []string{"movies", "tv", "music", "audio", "reading"} {
+		v := catalog.Viewer{Profile: "viewer", Fence: "growth", Libraries: []string{library}}
+		homeRead := func(s *catalog.Service) error {
+			_, e := s.HomeRows(catalog.HomeRequest{Viewer: v, ServerID: "s", Profile: v.Profile, ViewerFence: v.Fence, Libraries: v.Libraries, Now: time.Now()})
+			return e
+		}
+		explainRoute(db, "diagnostic/"+library+"/home", homeRead, s)
+		if _, e := exerciseRead(db, s, "diagnostic/"+library+"/home", 3, func(ctx context.Context, s *catalog.Service) error { return homeRead(s) }); e != nil {
+			t.Fatal(e)
+		}
+	}
+	vReading := catalog.Viewer{Profile: "viewer", Fence: "growth", Libraries: []string{"reading"}}
+	for _, route := range []string{"browse", "author"} {
+		read := func(s *catalog.Service) error {
+			if route == "browse" {
+				_, e := s.BrowseEntities(vReading, catalog.BrowseRequest{Library: "reading", Profile: "viewer", ViewerFence: "growth", Pivot: "books", Limit: 40})
+				return e
+			}
+			_, e := s.Facets(vReading, catalog.FacetRequest{Library: "reading", Pivot: "authors", Field: "author", Limit: 40})
+			return e
+		}
+		explainRoute(db, "diagnostic/reading/"+route, read, s)
+		if _, e := exerciseRead(db, s, "diagnostic/reading/"+route, 3, func(ctx context.Context, s *catalog.Service) error { return read(s) }); e != nil {
+			t.Fatal(e)
+		}
+	}
+	profileRoutes = false
 	// The reference catalogue contains no provider identities. Populate only
 	// this writable copy to expose edition lookup work hidden by empty tables.
 	if e := dbwork.WithWriteTx(context.Background(), db, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
