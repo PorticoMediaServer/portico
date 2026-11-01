@@ -19,7 +19,10 @@ class RunnerRouting(unittest.TestCase):
             workflow=(root/'.github/workflows'/name).read_text()
             selectors=re.findall(r'^    runs-on: (.+)$',workflow,re.M)
             self.assertTrue(selectors, name)
-            self.assertEqual(set(selectors), {'ubuntu-24.04'}, name)
+            # GitHub-hosted only. Nightly also runs the report-only macOS suite on hosted macOS.
+            allowed={'ubuntu-24.04','macos-15'} if name=='nightly.yml' else {'ubuntu-24.04'}
+            self.assertLessEqual(set(selectors), allowed, name)
+            self.assertIn('ubuntu-24.04', set(selectors), name)
             self.assertNotIn('portico-vps',workflow)
             self.assertNotIn('self-hosted',workflow)
             self.assertNotIn('max-parallel:',workflow)

@@ -18,7 +18,7 @@ class PolicyTests(unittest.TestCase):
         self.assertIn('apps/native',components(['packages/client-core/src/auth.ts'])[0])
     def test_stream(self): self.assertEqual(decode_stream('{}\n{}'),[{},{}])
     def test_aggregate_absent_cancelled_skipped(self):
-        p={'packages':[],'js':[]}; n={k:{'result':v} for k,v in [('planner','success'),('hygiene','success'),('go_build','skipped'),('go_tests','skipped'),('js','skipped'),('js_static','skipped'),('android','skipped')]}
+        p={'packages':[],'js':[]}; n={k:{'result':v} for k,v in [('planner','success'),('hygiene','success'),('go_build','skipped'),('go_vet_cross','skipped'),('go_tests','skipped'),('js','skipped'),('js_static','skipped'),('android','skipped')]}
         import tempfile
         from pathlib import Path
         from unittest.mock import patch

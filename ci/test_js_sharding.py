@@ -117,7 +117,7 @@ class Accounting(unittest.TestCase):
     def test_required_static_outcome_and_receipts(self):
         p = dict(plan(), packages=[])
         needs = {k: {'result': 'success' if k in ['planner', 'hygiene', 'js', 'js_static'] else 'skipped'}
-                 for k in ['planner', 'hygiene', 'go_build', 'go_tests', 'js', 'js_static', 'android']}
+                 for k in ['planner', 'hygiene', 'go_build', 'go_vet_cross', 'go_tests', 'js', 'js_static', 'android']}
         with tempfile.TemporaryDirectory() as d:
             root = Path(d); folder = root/'ci-results/js'; folder.mkdir(parents=True); receipts(p, folder)
             with patch('run.ROOT', root):
