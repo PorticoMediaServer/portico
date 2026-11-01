@@ -22,6 +22,24 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def seal_disc_identity(bundle, target, linked_sha256):
+    """Preserve link provenance, then bind it to the final relocated binary."""
+    path = bundle / 'portico-disc-build.json'
+    if path.is_symlink():
+        raise ValueError('Disc build identity must be an owned regular file')
+    document = json.loads(path.read_text())
+    if (document.get('schema') != 1 or document.get('tool') != 'portico-disc' or
+            document.get('target') != target or document.get('decryption') is not False or
+            document.get('binarySha256') != linked_sha256):
+        raise ValueError('Disc build identity differs from the original linked binary')
+    document['binarySha256'] = digest(bundle / 'bin/portico-disc')
+    temporary = path.with_suffix('.json.tmp')
+    with temporary.open('x') as stream:
+        stream.write(json.dumps(document, indent=2, sort_keys=True) + '\n')
+    temporary.replace(path)
+    return {'linkedSHA256': linked_sha256, 'relocatedSHA256': document['binarySha256']}
+
+
 def run(command):
     result = subprocess.run([str(x) for x in command], check=True, capture_output=True, text=True, timeout=30)
     if len(result.stdout) > 4 * 1024**2:
@@ -221,6 +239,10 @@ def pack(prefix, bundle, target):
     record = {'runtimeInputs': inputs, 'originalLoadCommands': originals,
               'originalICDSHA256': digest(original_icd), 'rewritten': verify(bundle, target),
               'signingOrder': 'Rewrite before app signing/notarisation; this stage uses no signing identity or credentials.'}
+    # install_name_tool changes every executable, even the statically linked
+    # disc reader (its LC_RPATH is added above). Hash only after all rewrites
+    # and closure checks; the normalizer seals its manifest after pack returns.
+    record['discIdentity'] = seal_disc_identity(bundle, target, originals['bin/portico-disc']['sha256'])
     (bundle / 'macos-runtime-build.json').write_text(json.dumps(record, indent=2) + '\n')
     return record
 

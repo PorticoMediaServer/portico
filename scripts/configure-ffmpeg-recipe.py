@@ -7,22 +7,33 @@ import sys
 
 recipe, source, target = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 root = Path(__file__).resolve().parent.parent
-common = '--disable-autodetect --enable-gpl --enable-version3 --enable-libdav1d --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-libzimg --enable-libdovi --enable-libass --enable-fontconfig --enable-libsoxr --enable-libbluray --enable-libdvdnav --enable-libdvdread --enable-libplacebo --enable-vulkan --disable-nonfree --disable-libfdk-aac'
+import runpy
+configure_checks = runpy.run_path(str(root / 'scripts/ffmpeg-configure-checks.py'))['shell'](target)
+common = '--disable-sdl2 --disable-autodetect --enable-gpl --enable-version3 --enable-libdav1d --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-libzimg --enable-libdovi --enable-libass --enable-fontconfig --enable-libsoxr --enable-libbluray --enable-libdvdnav --enable-libdvdread --enable-libplacebo --enable-vulkan --disable-nonfree --disable-libfdk-aac'
+# Explicit broad-format parity with pinned Jellyfin; autodetection stays off.
+common += ' --enable-bzlib --enable-libopus --enable-libtheora --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-zlib --enable-iconv --enable-lzma --enable-libxml2 --enable-libmp3lame --enable-libvorbis --enable-libvpx --enable-libwebp --enable-chromaprint'
+if target != 'windows-arm64':
+    # The optional/deferred BtbN Windows ARM recipe disables OpenMPT itself.
+    common += ' --enable-libopenmpt'
+if not target.startswith('windows'):
+    common += ' --enable-libsrt'
 flags = common
 if target.startswith('linux'):
-    flags += ' --enable-vaapi --enable-libdrm --enable-opencl'
+    flags += ' --enable-openssl --enable-vaapi --enable-libdrm --enable-opencl --enable-v4l2-m2m'
+if not target.startswith('macos'):
+    flags += ' --enable-cuda --enable-cuvid --enable-ffnvcodec --enable-cuda-llvm --enable-nvdec --enable-nvenc'
 if target in ('linux-x64', 'windows-x64', 'windows-arm64'):
-    flags += ' --enable-libvpl --enable-ffnvcodec --enable-cuda-llvm --enable-nvenc --enable-nvdec --enable-amf'
+    flags += ' --enable-libvpl --enable-amf'
 if target.startswith('windows'):
     # OpenCL's D3D11 path needs the C COM helpers even when the independent
     # HAVE_OPENCL_DXVA2 block (where FFmpeg defines this macro) is disabled.
-    flags += ' --enable-d3d11va --enable-d3d12va --enable-opencl --extra-cflags=-DCOBJMACROS'
+    flags += ' --enable-dxva2 --enable-mediafoundation --enable-schannel --enable-d3d11va --enable-d3d12va --enable-opencl --extra-cflags=-DCOBJMACROS'
 if target == 'linux-arm64':
-    flags += ' --enable-rkmpp --enable-rkrga --enable-v4l2-m2m'
+    flags += ' --enable-rkmpp --enable-rkrga --enable-v4l2-m2m --enable-amf'
 if target.startswith('macos'):
     import runpy
     mac_source = runpy.run_path(str(root / 'scripts/macos-ffmpeg-source.py'))
-    flags += ' --enable-videotoolbox --enable-metal --enable-coreimage --enable-libshaderc --enable-openssl --enable-libzvbi'
+    flags += ' --enable-videotoolbox --enable-metal --enable-coreimage --enable-libshaderc --enable-openssl --enable-libzvbi --enable-gmp --enable-audiotoolbox --enable-appkit --enable-avfoundation --enable-runtime-cpudetect --enable-opencl'
     # Extras are built from the pinned source recipes into this private prefix.
     build = recipe / 'build-ffmpeg'
     text = build.read_text()
@@ -33,12 +44,19 @@ if target.startswith('macos'):
     text = text.replace(marker, addition + marker, 1)
     build.write_text(text)
     mac_source['configure'](recipe)
+    text = build.read_text()
+    start = text.index('build "ffmpeg" "${FFMPEG_VERSION}"')
+    terminal = text[start:]
+    marker = 'execute make -j ${MJOBS}'
+    if terminal.count(marker) != 1: raise ValueError('pinned Mac pre-compile boundary changed')
+    build.write_text(text[:start] + terminal.replace(marker, configure_checks + '\n' + marker, 1))
     import subprocess
     subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'macos-timing', '--recipe', recipe,
                     '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt'], check=True)
     subprocess.run([sys.executable, root / 'scripts/build-macos-libdovi.py', 'configure', '--recipe', recipe], check=True)
     import shutil
     shutil.copy2(root / 'scripts/build-macos-ffmpeg-extras.sh', recipe / 'portico-macos-extras.sh')
+    shutil.copy2(root / 'scripts/prepare-macos-system-libs.py', recipe / 'portico-macos-system-libs.py')
     shutil.copy2(root / 'scripts/build-macos-zvbi.sh', recipe / 'portico-build-macos-zvbi.sh')
     shutil.copy2(root / 'scripts/configure-macos-shaderc.py', recipe / 'portico-configure-macos-shaderc.py')
     shutil.copy2(root / 'scripts/macos-ffmpeg-source.py', recipe / 'portico-macos-ffmpeg-source.py')
@@ -52,6 +70,9 @@ if target.startswith('macos'):
     for name in ['libdvdread-no-decryption.patch', 'libbluray-no-decryption.patch']:
         shutil.copy2(root / 'third_party/ffmpeg/patches' / name, patches / name)
     sys.exit(0)
+
+import runpy
+runpy.run_path(str(root / 'scripts/configure-ffmpeg-bzip2.py'))['configure'](recipe)
 
 # BtbN disables Linux ARM VAAPI by default, although libva supports it.
 import subprocess
@@ -148,7 +169,7 @@ needle = '--extra-version="\\$(date +%Y%m%d)"'
 if needle not in text:
     raise ValueError('BtbN configure invocation changed')
 text = text.replace(needle, '--extra-version="Portico-Jellyfin" ' + flags)
-text = text.replace('make -j\\$(nproc) V=1', 'make -j' + str(max(1, int(__import__('os').environ.get('PORTICO_BUILD_JOBS', '4')))) + ' V=1')
+text = text.replace('make -j\\$(nproc) V=1', configure_checks + '\nmake -j' + str(max(1, int(__import__('os').environ.get('PORTICO_BUILD_JOBS', '4')))) + ' V=1')
 if __import__('os').environ.get('PORTICO_FFMPEG_DEPS_ONLY') == '1':
     path.write_text(text)
     print('Configured dependency source recipe for ' + target)

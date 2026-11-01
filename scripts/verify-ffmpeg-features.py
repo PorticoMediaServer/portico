@@ -52,7 +52,7 @@ def entries(raw, kind):
     result = set()
     for line in raw.splitlines():
         words = line.split()
-        if kind in ('hwaccel', 'bsf', 'protocol'):
+        if kind in ('hwaccel', 'hwdevice', 'bsf', 'protocol'):
             if len(words) == 1 and re.fullmatch(r'[a-zA-Z0-9_]+', words[0]):
                 result.add(words[0])
         elif len(words) >= 2 and words[1] != '=' and re.fullmatch(r'[.A-Z|]{1,8}', words[0]):
@@ -104,6 +104,7 @@ def main():
         'encoder': 'encoders', 'decoder': 'decoders', 'filter': 'filters',
         'demuxer': 'demuxers', 'muxer': 'muxers', 'protocol': 'protocols',
         'hwaccel': 'hwaccels', 'bsf': 'bsfs'}.items()}
+    raw['hwdevice'] = run('-init_hw_device', 'list')
     config, license_text = run('-buildconf'), run('-L')
     lock = json.loads((args.root / 'sources.lock.json').read_text())
     for flag in lock['requiredConfigure']:

@@ -1,0 +1,1031 @@
+{
+  "schemaVersion": 1,
+  "source": "jellyfin/jellyfin-ffmpeg@253db2a7b0a8045c54ce68ce33d7f601229b1822/configure plus locked patch series",
+  "evidence": {
+    "runId": 41313883932,
+    "comparisonOnly": true,
+    "artifactPins": "scripts/inspect-jellyfin-autodetect.py",
+    "windowsRuntime": {
+      "runId": 41314529638,
+      "artifactId": 13086940779,
+      "artifactSHA256": "b8341abfcee8ecfa6ce1654b9efd19cb52b6efd4e92502b1ab72e8fd3e179328"
+    },
+    "windowsARM64": "deferred"
+  },
+  "lists": {
+    "external": [
+      "alsa",
+      "appkit",
+      "avfoundation",
+      "bzlib",
+      "coreimage",
+      "iconv",
+      "libxcb",
+      "libxcb_shm",
+      "libxcb_shape",
+      "libxcb_xfixes",
+      "lzma",
+      "mediafoundation",
+      "metal",
+      "schannel",
+      "sdl2",
+      "securetransport",
+      "sndio",
+      "xlib",
+      "zlib"
+    ],
+    "hardware": [
+      "amf",
+      "audiotoolbox",
+      "cuda",
+      "cuda_llvm",
+      "cuvid",
+      "d3d11va",
+      "d3d12va",
+      "dxva2",
+      "ffnvcodec",
+      "libdrm",
+      "nvdec",
+      "nvenc",
+      "vaapi",
+      "vdpau",
+      "videotoolbox",
+      "vulkan",
+      "v4l2_m2m"
+    ]
+  },
+  "targets": {
+    "linux-x64": {
+      "alsa": {
+        "action": "skip",
+        "reason": "No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "appkit": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "avfoundation": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "bzlib": {
+        "action": "enable",
+        "flag": "--enable-bzlib",
+        "reason": "Pinned official static bzip2 source on BtbN; selected SDK system library on Mac."
+      },
+      "coreimage": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "iconv": {
+        "action": "enable",
+        "flag": "--enable-iconv",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "libxcb": {
+        "action": "enable",
+        "flag": "--enable-libxcb",
+        "reason": "Existing BtbN Linux dependency flag, retained superset; Jellyfin disables this parent library."
+      },
+      "libxcb_shm": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_shape": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_xfixes": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "lzma": {
+        "action": "enable",
+        "flag": "--enable-lzma",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "mediafoundation": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "metal": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "schannel": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "sdl2": {
+        "action": "skip",
+        "reason": "Official Jellyfin configure explicitly disables SDL2 on every measured platform."
+      },
+      "securetransport": {
+        "action": "skip",
+        "reason": "OpenSSL is explicitly selected on Mac; pinned configure securetransport_conflict excludes it. No second TLS backend is lost."
+      },
+      "sndio": {
+        "action": "skip",
+        "reason": "No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "xlib": {
+        "action": "enable",
+        "flag": "--enable-xlib",
+        "reason": "Existing BtbN Linux dependency flag, retained superset; Jellyfin disables this parent library."
+      },
+      "zlib": {
+        "action": "enable",
+        "flag": "--enable-zlib",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "amf": {
+        "action": "enable",
+        "flag": "--enable-amf",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "audiotoolbox": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "cuda": {
+        "action": "enable",
+        "flag": "--enable-cuda",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "cuda_llvm": {
+        "action": "enable",
+        "flag": "--enable-cuda-llvm",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "cuvid": {
+        "action": "enable",
+        "flag": "--enable-cuvid",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "d3d11va": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "d3d12va": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "dxva2": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "ffnvcodec": {
+        "action": "enable",
+        "flag": "--enable-ffnvcodec",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "libdrm": {
+        "action": "enable",
+        "flag": "--enable-libdrm",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "nvdec": {
+        "action": "enable",
+        "flag": "--enable-nvdec",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "nvenc": {
+        "action": "enable",
+        "flag": "--enable-nvenc",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "vaapi": {
+        "action": "enable",
+        "flag": "--enable-vaapi",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "vdpau": {
+        "action": "skip",
+        "reason": "No VDPAU hardware device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "videotoolbox": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "vulkan": {
+        "action": "enable",
+        "flag": "--enable-vulkan",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "v4l2_m2m": {
+        "action": "enable",
+        "flag": "--enable-v4l2-m2m",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      }
+    },
+    "linux-arm64": {
+      "alsa": {
+        "action": "skip",
+        "reason": "No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "appkit": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "avfoundation": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "bzlib": {
+        "action": "enable",
+        "flag": "--enable-bzlib",
+        "reason": "Pinned official static bzip2 source on BtbN; selected SDK system library on Mac."
+      },
+      "coreimage": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "iconv": {
+        "action": "enable",
+        "flag": "--enable-iconv",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "libxcb": {
+        "action": "enable",
+        "flag": "--enable-libxcb",
+        "reason": "Existing BtbN Linux dependency flag, retained superset; Jellyfin disables this parent library."
+      },
+      "libxcb_shm": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_shape": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_xfixes": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "lzma": {
+        "action": "enable",
+        "flag": "--enable-lzma",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "mediafoundation": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "metal": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "schannel": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "sdl2": {
+        "action": "skip",
+        "reason": "Official Jellyfin configure explicitly disables SDL2 on every measured platform."
+      },
+      "securetransport": {
+        "action": "skip",
+        "reason": "OpenSSL is explicitly selected on Mac; pinned configure securetransport_conflict excludes it. No second TLS backend is lost."
+      },
+      "sndio": {
+        "action": "skip",
+        "reason": "No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "xlib": {
+        "action": "enable",
+        "flag": "--enable-xlib",
+        "reason": "Existing BtbN Linux dependency flag, retained superset; Jellyfin disables this parent library."
+      },
+      "zlib": {
+        "action": "enable",
+        "flag": "--enable-zlib",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "amf": {
+        "action": "enable",
+        "flag": "--enable-amf",
+        "reason": "Existing BtbN ARM AMF stage retained as a superset; exact Jellyfin ARM hardware/encoder inventory omits AMF."
+      },
+      "audiotoolbox": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "cuda": {
+        "action": "enable",
+        "flag": "--enable-cuda",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "cuda_llvm": {
+        "action": "enable",
+        "flag": "--enable-cuda-llvm",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "cuvid": {
+        "action": "enable",
+        "flag": "--enable-cuvid",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "d3d11va": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "d3d12va": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "dxva2": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "ffnvcodec": {
+        "action": "enable",
+        "flag": "--enable-ffnvcodec",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "libdrm": {
+        "action": "enable",
+        "flag": "--enable-libdrm",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "nvdec": {
+        "action": "enable",
+        "flag": "--enable-nvdec",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "nvenc": {
+        "action": "enable",
+        "flag": "--enable-nvenc",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "vaapi": {
+        "action": "enable",
+        "flag": "--enable-vaapi",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "vdpau": {
+        "action": "skip",
+        "reason": "No VDPAU hardware device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "videotoolbox": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "vulkan": {
+        "action": "enable",
+        "flag": "--enable-vulkan",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "v4l2_m2m": {
+        "action": "enable",
+        "flag": "--enable-v4l2-m2m",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      }
+    },
+    "windows-x64": {
+      "alsa": {
+        "action": "skip",
+        "reason": "No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "appkit": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "avfoundation": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "bzlib": {
+        "action": "enable",
+        "flag": "--enable-bzlib",
+        "reason": "Pinned official static bzip2 source on BtbN; selected SDK system library on Mac."
+      },
+      "coreimage": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "iconv": {
+        "action": "enable",
+        "flag": "--enable-iconv",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "libxcb": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_shm": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_shape": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_xfixes": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "lzma": {
+        "action": "enable",
+        "flag": "--enable-lzma",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "mediafoundation": {
+        "action": "enable",
+        "flag": "--enable-mediafoundation",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "metal": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "schannel": {
+        "action": "enable",
+        "flag": "--enable-schannel",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "sdl2": {
+        "action": "skip",
+        "reason": "Official Jellyfin configure explicitly disables SDL2 on every measured platform."
+      },
+      "securetransport": {
+        "action": "skip",
+        "reason": "OpenSSL is explicitly selected on Mac; pinned configure securetransport_conflict excludes it. No second TLS backend is lost."
+      },
+      "sndio": {
+        "action": "skip",
+        "reason": "No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "xlib": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "zlib": {
+        "action": "enable",
+        "flag": "--enable-zlib",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "amf": {
+        "action": "enable",
+        "flag": "--enable-amf",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "audiotoolbox": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "cuda": {
+        "action": "enable",
+        "flag": "--enable-cuda",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "cuda_llvm": {
+        "action": "enable",
+        "flag": "--enable-cuda-llvm",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "cuvid": {
+        "action": "enable",
+        "flag": "--enable-cuvid",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "d3d11va": {
+        "action": "enable",
+        "flag": "--enable-d3d11va",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "d3d12va": {
+        "action": "enable",
+        "flag": "--enable-d3d12va",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "dxva2": {
+        "action": "enable",
+        "flag": "--enable-dxva2",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "ffnvcodec": {
+        "action": "enable",
+        "flag": "--enable-ffnvcodec",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "libdrm": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "nvdec": {
+        "action": "enable",
+        "flag": "--enable-nvdec",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "nvenc": {
+        "action": "enable",
+        "flag": "--enable-nvenc",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "vaapi": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "vdpau": {
+        "action": "skip",
+        "reason": "No VDPAU hardware device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "videotoolbox": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "vulkan": {
+        "action": "enable",
+        "flag": "--enable-vulkan",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "v4l2_m2m": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      }
+    },
+    "windows-arm64": {
+      "alsa": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "appkit": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "avfoundation": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "bzlib": {
+        "action": "enable",
+        "flag": "--enable-bzlib",
+        "reason": "Pinned official static bzip2 source on BtbN; selected SDK system library on Mac."
+      },
+      "coreimage": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "iconv": {
+        "action": "enable",
+        "flag": "--enable-iconv",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "libxcb": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_shm": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_shape": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_xfixes": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "lzma": {
+        "action": "enable",
+        "flag": "--enable-lzma",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "mediafoundation": {
+        "action": "enable",
+        "flag": "--enable-mediafoundation",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "metal": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "schannel": {
+        "action": "enable",
+        "flag": "--enable-schannel",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "sdl2": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Official Jellyfin configure explicitly disables SDL2 on every measured platform."
+      },
+      "securetransport": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. OpenSSL is explicitly selected on Mac; pinned configure securetransport_conflict excludes it. No second TLS backend is lost."
+      },
+      "sndio": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "xlib": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "zlib": {
+        "action": "enable",
+        "flag": "--enable-zlib",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "amf": {
+        "action": "enable",
+        "flag": "--enable-amf",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "audiotoolbox": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "cuda": {
+        "action": "enable",
+        "flag": "--enable-cuda",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "cuda_llvm": {
+        "action": "enable",
+        "flag": "--enable-cuda-llvm",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "cuvid": {
+        "action": "enable",
+        "flag": "--enable-cuvid",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "d3d11va": {
+        "action": "enable",
+        "flag": "--enable-d3d11va",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "d3d12va": {
+        "action": "enable",
+        "flag": "--enable-d3d12va",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "dxva2": {
+        "action": "enable",
+        "flag": "--enable-dxva2",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "ffnvcodec": {
+        "action": "enable",
+        "flag": "--enable-ffnvcodec",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "libdrm": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "nvdec": {
+        "action": "enable",
+        "flag": "--enable-nvdec",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "nvenc": {
+        "action": "enable",
+        "flag": "--enable-nvenc",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "vaapi": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "vdpau": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. No VDPAU hardware device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "videotoolbox": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "vulkan": {
+        "action": "enable",
+        "flag": "--enable-vulkan",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "v4l2_m2m": {
+        "action": "skip",
+        "reason": "Runtime qualification deferred; Windows x64 family policy is the reference. Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      }
+    },
+    "macos-arm64": {
+      "alsa": {
+        "action": "skip",
+        "reason": "No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "appkit": {
+        "action": "enable",
+        "flag": "--enable-appkit",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "avfoundation": {
+        "action": "enable",
+        "flag": "--enable-avfoundation",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "bzlib": {
+        "action": "enable",
+        "flag": "--enable-bzlib",
+        "reason": "Pinned official static bzip2 source on BtbN; selected SDK system library on Mac."
+      },
+      "coreimage": {
+        "action": "enable",
+        "flag": "--enable-coreimage",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "iconv": {
+        "action": "enable",
+        "flag": "--enable-iconv",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "libxcb": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_shm": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_shape": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_xfixes": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "lzma": {
+        "action": "enable",
+        "flag": "--enable-lzma",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "mediafoundation": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "metal": {
+        "action": "enable",
+        "flag": "--enable-metal",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "schannel": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "sdl2": {
+        "action": "skip",
+        "reason": "Official Jellyfin configure explicitly disables SDL2 on every measured platform."
+      },
+      "securetransport": {
+        "action": "skip",
+        "reason": "OpenSSL is explicitly selected on Mac; pinned configure securetransport_conflict excludes it. No second TLS backend is lost."
+      },
+      "sndio": {
+        "action": "skip",
+        "reason": "No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "xlib": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "zlib": {
+        "action": "enable",
+        "flag": "--enable-zlib",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "amf": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "audiotoolbox": {
+        "action": "enable",
+        "flag": "--enable-audiotoolbox",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "cuda": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "cuda_llvm": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "cuvid": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "d3d11va": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "d3d12va": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "dxva2": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "ffnvcodec": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "libdrm": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "nvdec": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "nvenc": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "vaapi": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "vdpau": {
+        "action": "skip",
+        "reason": "No VDPAU hardware device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "videotoolbox": {
+        "action": "enable",
+        "flag": "--enable-videotoolbox",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "vulkan": {
+        "action": "enable",
+        "flag": "--enable-vulkan",
+        "reason": "Approved Portico Vulkan/MoltenVK superset; upstream Mac inventory lacks Vulkan."
+      },
+      "v4l2_m2m": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      }
+    },
+    "macos-x64": {
+      "alsa": {
+        "action": "skip",
+        "reason": "No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "appkit": {
+        "action": "enable",
+        "flag": "--enable-appkit",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "avfoundation": {
+        "action": "enable",
+        "flag": "--enable-avfoundation",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "bzlib": {
+        "action": "enable",
+        "flag": "--enable-bzlib",
+        "reason": "Pinned official static bzip2 source on BtbN; selected SDK system library on Mac."
+      },
+      "coreimage": {
+        "action": "enable",
+        "flag": "--enable-coreimage",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "iconv": {
+        "action": "enable",
+        "flag": "--enable-iconv",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "libxcb": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_shm": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_shape": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "libxcb_xfixes": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "lzma": {
+        "action": "enable",
+        "flag": "--enable-lzma",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "mediafoundation": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "metal": {
+        "action": "enable",
+        "flag": "--enable-metal",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "schannel": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "sdl2": {
+        "action": "skip",
+        "reason": "Official Jellyfin configure explicitly disables SDL2 on every measured platform."
+      },
+      "securetransport": {
+        "action": "skip",
+        "reason": "OpenSSL is explicitly selected on Mac; pinned configure securetransport_conflict excludes it. No second TLS backend is lost."
+      },
+      "sndio": {
+        "action": "skip",
+        "reason": "No ALSA/sndio device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "xlib": {
+        "action": "skip",
+        "reason": "Official Linux/Mac configure disables Xlib/XCB capture parents; native upstream inventories have no x11grab device. Windows native family has no selected X11 dependency."
+      },
+      "zlib": {
+        "action": "enable",
+        "flag": "--enable-zlib",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "amf": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "audiotoolbox": {
+        "action": "enable",
+        "flag": "--enable-audiotoolbox",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "cuda": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "cuda_llvm": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "cuvid": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "d3d11va": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "d3d12va": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "dxva2": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "ffnvcodec": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "libdrm": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      },
+      "nvdec": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "nvenc": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "vaapi": {
+        "action": "skip",
+        "reason": "Exact upstream native Mac hardware/encoder inventory lacks this backend; VideoToolbox/OpenCL retained."
+      },
+      "vdpau": {
+        "action": "skip",
+        "reason": "No VDPAU hardware device in exact upstream native inventories; no demonstrated upstream feature omitted."
+      },
+      "videotoolbox": {
+        "action": "enable",
+        "flag": "--enable-videotoolbox",
+        "reason": "Explicit target request; verified generated recipe/graph and effective config header gate before compilation."
+      },
+      "vulkan": {
+        "action": "enable",
+        "flag": "--enable-vulkan",
+        "reason": "Approved Portico Vulkan/MoltenVK superset; upstream Mac inventory lacks Vulkan."
+      },
+      "v4l2_m2m": {
+        "action": "skip",
+        "reason": "Native target OS lacks this platform API; the corresponding exact upstream native hardware/device inventory does not expose it."
+      }
+    }
+  },
+  "deliberateDifferences": [
+    "fdk-aac permanently disabled",
+    "Portico libplacebo/Vulkan retained on Mac",
+    "existing LTO policy retained",
+    "NEON/pthreads/static defaults retained"
+  ]
+}

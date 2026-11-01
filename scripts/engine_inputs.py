@@ -9,7 +9,7 @@ import os
 import stat
 
 CONFIGURE_SCRIPTS = ('build-engine.py', 'engine_inputs.py', 'engine-recipe-adapter.py',
-    'configure-ffmpeg-recipe.py', 'configure-windows-libdovi.py', 'configure-windows-rav1e.py',
+    'configure-ffmpeg-recipe.py', 'configure-ffmpeg-bzip2.py', 'ffmpeg-configure-checks.py', 'configure-windows-libdovi.py', 'configure-windows-rav1e.py',
     'patch-btbn-winarm64-system-error.sh', 'prepare-ffmpeg-source.py', 'archive-ffmpeg-source.py',
     'ffmpeg-build-tools.py', 'requirements-ffmpeg-meson.txt')
 

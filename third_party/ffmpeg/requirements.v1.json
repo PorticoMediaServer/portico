@@ -156,7 +156,8 @@
         "http",
         "https",
         "tcp",
-        "udp"
+        "udp",
+        "tls"
       ]
     },
     {
@@ -495,7 +496,8 @@
       "platforms": [
         "linux-amd64",
         "windows-amd64",
-        "windows-arm64"
+        "windows-arm64",
+        "linux-arm64"
       ]
     },
     {
@@ -510,7 +512,8 @@
       "platforms": [
         "linux-amd64",
         "windows-amd64",
-        "windows-arm64"
+        "windows-arm64",
+        "linux-arm64"
       ]
     },
     {
@@ -526,7 +529,8 @@
       "platforms": [
         "linux-amd64",
         "windows-amd64",
-        "windows-arm64"
+        "windows-arm64",
+        "linux-arm64"
       ]
     },
     {
@@ -763,6 +767,199 @@
       "required": true,
       "acceptable": [
         "libdovi"
+      ]
+    },
+    {
+      "id": "library.formats",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "zlib",
+        "iconv",
+        "lzma",
+        "libxml2",
+        "libmp3lame",
+        "libvorbis",
+        "libvpx",
+        "libwebp",
+        "libopenmpt",
+        "chromaprint"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "encode.mp3",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "libmp3lame"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "container.format-libraries",
+      "kind": "demuxer",
+      "required": true,
+      "acceptable": [
+        "dash",
+        "libopenmpt"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "fingerprint.chromaprint",
+      "kind": "muxer",
+      "required": true,
+      "acceptable": [
+        "chromaprint"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "library.srt",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "libsrt"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "protocol.srt",
+      "kind": "protocol",
+      "required": true,
+      "acceptable": [
+        "srt"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "encode.opus-theora",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "libopus",
+        "libtheora"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "filter.drawtext",
+      "kind": "filter",
+      "required": true,
+      "acceptable": [
+        "drawtext"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "library.bzip2",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "bzlib"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "hw.nvidia.cuvid",
+      "kind": "decoder",
+      "required": true,
+      "acceptable": [
+        "h264_cuvid",
+        "hevc_cuvid"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64"
+      ]
+    },
+    {
+      "id": "hw.windows.dxva2",
+      "kind": "hwaccel",
+      "required": true,
+      "acceptable": [
+        "dxva2"
+      ],
+      "platforms": [
+        "windows-amd64"
+      ]
+    },
+    {
+      "id": "encode.windows.mediafoundation",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "h264_mf"
+      ],
+      "platforms": [
+        "windows-amd64"
+      ]
+    },
+    {
+      "id": "hw.nvidia.device",
+      "kind": "hwdevice",
+      "required": true,
+      "acceptable": [
+        "cuda"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64"
       ]
     }
   ],

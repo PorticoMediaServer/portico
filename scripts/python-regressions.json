@@ -37,6 +37,8 @@
     {"path": "scripts/test-macos-shaderc.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
     {"path": "scripts/test-macos-engine-runtime.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
     {"path": "scripts/test-macos-libdovi.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
+    {"path": "scripts/test-ffmpeg-bzip2.py", "timeoutSeconds": 120, "testTimeoutSeconds": 60},
+    {"path": "scripts/test-ffmpeg-format-parity.py", "timeoutSeconds": 120, "testTimeoutSeconds": 90},
     {"path": "scripts/test-macos-zvbi.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30}
   ]
 }

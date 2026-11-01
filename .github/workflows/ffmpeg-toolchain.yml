@@ -11,6 +11,14 @@ on:
         description: Run source/refusal controls without compiling an engine
         type: boolean
         default: false
+      staticControlsOnly:
+        description: Configure/graph/source checks without native object fixtures
+        type: boolean
+        default: false
+      upstreamComparison:
+        description: Read official upstream effective inventories only
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -19,12 +27,15 @@ concurrency:
   cancel-in-progress: false
 jobs:
   controls:
-    if: github.repository == 'PorticoMediaServer/portico'
+    if: github.repository == 'PorticoMediaServer/portico' && !inputs.upstreamComparison
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
+      - name: Allow the checked monorepo's long fixture paths
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
@@ -53,6 +64,8 @@ jobs:
           python scripts/test-macos-engine-runtime.py
           python scripts/test-macos-libdovi.py
           python scripts/test-macos-zvbi.py
+          python scripts/test-ffmpeg-format-parity.py
+          python scripts/test-ffmpeg-bzip2.py
           python scripts/test-libdovi-runtime-inventory.py
           python scripts/test-preserve-ffmpeg-compilers.py
       - id: plan
@@ -60,10 +73,13 @@ jobs:
           COLD_TARGET: ${{ inputs.target || 'all' }}
         run: echo "matrix=$(python scripts/ci-ffmpeg-toolchain.py plan --target "$COLD_TARGET")" >> "$GITHUB_OUTPUT"
   catalogue:
-    if: github.repository == 'PorticoMediaServer/portico' && inputs.controlsOnly
+    if: github.repository == 'PorticoMediaServer/portico' && inputs.controlsOnly && !inputs.upstreamComparison
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
+      - name: Allow the checked monorepo's long fixture paths
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -83,7 +99,7 @@ jobs:
   build:
     name: Cold build (${{ matrix.target }})
     needs: controls
-    if: '!inputs.controlsOnly'
+    if: '!inputs.controlsOnly && !inputs.upstreamComparison'
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
@@ -94,6 +110,9 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Allow the checked monorepo's long fixture paths
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
@@ -153,7 +172,7 @@ jobs:
   native:
     name: Native cold gates (${{ matrix.target }})
     needs: [controls, build]
-    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly
+    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.upstreamComparison
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
@@ -165,6 +184,9 @@ jobs:
         shell: bash
     steps:
       - name: Enable long checkout paths on the disposable Windows runner
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+      - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
         run: git config --global core.longpaths true
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -193,3 +215,64 @@ jobs:
             ${{ runner.temp }}/engine-native/gates/*.log
           retention-days: 14
           if-no-files-found: warn
+
+  system-library-control:
+    if: inputs.controlsOnly && !inputs.staticControlsOnly && !inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
+    strategy:
+      fail-fast: false
+      matrix: {runner: [macos-15, macos-15-intel]}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - name: Allow the checked monorepo's long fixture paths
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - run: python scripts/control-macos-system-libs.py --work "$RUNNER_TEMP/format-system-control"
+      - run: python scripts/control-macos-transpose-source.py --work "$RUNNER_TEMP/transpose-source-control"
+      - name: Prove final disc identity after native Mach-O relocation
+        env: {PORTICO_RUNTIME_FIXTURE_REPORT: '${{ runner.temp }}/format-system-control/runtime-relocation.json'}
+        run: python scripts/test-macos-engine-runtime.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: sdk-format-control-${{ matrix.runner }}-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/format-system-control/*.json
+            ${{ runner.temp }}/transpose-source-control/*.json
+            ${{ runner.temp }}/transpose-source-control/*.log
+          retention-days: 7
+
+  upstream-comparison:
+    if: inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {target: linux-x64, runner: ubuntu-24.04}
+          - {target: linux-arm64, runner: ubuntu-24.04-arm}
+          - {target: windows-x64, runner: windows-2025}
+          - {target: macos-arm64, runner: macos-15}
+          - {target: macos-x64, runner: macos-15-intel}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - name: Allow the checked monorepo's long fixture paths
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - shell: bash
+        env: {COMPARE_TARGET: '${{ matrix.target }}'}
+        run: python scripts/inspect-jellyfin-autodetect.py --target "$COMPARE_TARGET" --work "$RUNNER_TEMP/upstream-comparison"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: upstream-effective-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/upstream-comparison/*.json
+          retention-days: 7

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Offline refusal controls plus a real native delete-the-prefix fixture."""
+import ast
 import json
 import os
 from pathlib import Path
@@ -14,6 +15,51 @@ M = runpy.run_path(str(Path(__file__).with_name('macos-engine-runtime.py')))
 
 
 class RuntimeControls(unittest.TestCase):
+    def test_disc_identity_seal_follows_all_binary_mutations_and_precedes_manifest(self):
+        tree = ast.parse(Path(__file__).with_name('macos-engine-runtime.py').read_text())
+        pack = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'pack')
+        calls = [node for node in ast.walk(pack) if isinstance(node, ast.Call)]
+        seal = [node for node in calls if isinstance(node.func, ast.Name) and node.func.id == 'seal_disc_identity']
+        self.assertEqual(len(seal), 1)
+        # All commands/copies/thinning in this producer must finish before the
+        # identity seal, including future strip, install-name or signing steps.
+        mutations = [node for node in calls if
+            (isinstance(node.func, ast.Name) and node.func.id in ('run', 'copy_runtime')) or
+            (isinstance(node.func, ast.Attribute) and node.func.attr in
+             ('run', 'copyfile', 'copy2', 'copy', 'move', 'replace', 'write_bytes'))]
+        self.assertTrue(mutations)
+        self.assertTrue(all(node.end_lineno < seal[0].lineno for node in mutations))
+        normalizer = ast.parse(Path(__file__).with_name('normalize-ffmpeg-bundle.py').read_text())
+        packing = next(node for node in ast.walk(normalizer) if isinstance(node, ast.Call) and
+            isinstance(node.func, ast.Subscript) and isinstance(node.func.slice, ast.Constant) and node.func.slice.value == 'pack')
+        inventory = next(node for node in normalizer.body if isinstance(node, ast.Assign) and
+            any(isinstance(t, ast.Name) and t.id == 'files' for t in node.targets))
+        self.assertLess(packing.end_lineno, inventory.lineno)
+        later_calls = [call for statement in normalizer.body if statement.lineno > packing.end_lineno
+                       for call in ast.walk(statement) if isinstance(call, ast.Call)]
+        self.assertFalse(any(isinstance(call.func, ast.Attribute) and
+            call.func.attr in ('run', 'copyfile', 'copy2', 'copy', 'write_bytes') for call in later_calls))
+
+    def test_disc_identity_preserves_provenance_and_refuses_stale_original(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = Path(temporary); (bundle / 'bin').mkdir()
+            binary = bundle / 'bin/portico-disc'; binary.write_bytes(b'linked')
+            original = M['digest'](binary)
+            identity = {'schema': 1, 'tool': 'portico-disc', 'target': 'macos-arm64',
+                        'decryption': False, 'binarySha256': original,
+                        'sourceCommit': 'a' * 40, 'sourceSha256': 'b' * 64,
+                        'sourceFiles': {'portico-disc.c': 'b' * 64}, 'staticLibraries': {'kept': 'unchanged'}}
+            path = bundle / 'portico-disc-build.json'; path.write_text(json.dumps(identity))
+            binary.write_bytes(b'relocated')
+            M['seal_disc_identity'](bundle, 'macos-arm64', original)
+            final = json.loads(path.read_text())
+            self.assertEqual(final, dict(identity, binarySha256=M['digest'](binary)))
+            with self.assertRaisesRegex(ValueError, 'original linked binary'):
+                M['seal_disc_identity'](bundle, 'macos-arm64', original)
+            path.write_text(json.dumps(dict(identity, target='macos-x64')))
+            with self.assertRaisesRegex(ValueError, 'original linked binary'):
+                M['seal_disc_identity'](bundle, 'macos-arm64', original)
+
     def test_metadata_preserves_paths_with_spaces_and_refuses_embedded_environment(self):
         text = '''file:
 Load command 0
@@ -71,12 +117,21 @@ class NativeRuntime(unittest.TestCase):
         bundle = root / 'bundle'; (bundle / 'bin').mkdir(parents=True)
         for name in M['TOOLS']:
             shutil.copy2(prefix / 'bin/ffmpeg', bundle / 'bin' / name)
+        identity = {'schema': 1, 'tool': 'portico-disc', 'target': target, 'decryption': False,
+                    'binarySha256': M['digest'](bundle / 'bin/portico-disc'),
+                    'sourceCommit': 'a' * 40, 'sourceSha256': 'b' * 64,
+                    'sourceFiles': {'portico-disc.c': 'b' * 64}, 'staticLibraries': {}}
+        (bundle / 'portico-disc-build.json').write_text(json.dumps(identity))
         return prefix, bundle, target
 
     def test_real_library_chain_executes_after_original_prefix_is_deleted(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get('RUNNER_TEMP')) as temporary:
             root = Path(temporary); prefix, bundle, target = self.fixture(root)
             record = M['pack'](prefix, bundle, target)
+            identity = json.loads((bundle / 'portico-disc-build.json').read_text())
+            self.assertEqual(identity['binarySha256'], M['digest'](bundle / 'bin/portico-disc'))
+            self.assertEqual(identity['binarySha256'], record['rewritten']['executablesAndLibraries']['bin/portico-disc']['sha256'])
+            self.assertNotEqual(identity['binarySha256'], record['originalLoadCommands']['bin/portico-disc']['sha256'])
             shutil.rmtree(prefix)
             elsewhere = root / 'unrelated working directory'; elsewhere.mkdir()
             env = {k: v for k, v in os.environ.items() if not k.startswith(('DYLD_', 'VK_', 'VULKAN_'))}
@@ -86,7 +141,8 @@ class NativeRuntime(unittest.TestCase):
                 self.assertEqual(result.stdout.strip(), '7')
             M['verify'](bundle, target)
             report = dict(record, originalPrefixDeleted=True, cleanLoaderEnvironment=True,
-                          realNativeLibraryChainExecuted=True, engineQualified=False, release=False)
+                          realNativeLibraryChainExecuted=True, discIdentityMatchesFinalBinary=True,
+                          discBinaryChangedDuringRelocation=True, engineQualified=False, release=False)
             destination = os.environ.get('PORTICO_RUNTIME_FIXTURE_REPORT')
             if destination:
                 Path(destination).write_text(json.dumps(report, indent=2) + '\n')

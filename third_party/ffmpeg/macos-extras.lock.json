@@ -63,5 +63,45 @@
     "url": "https://ftp.gnu.org/gnu/gettext/gettext-0.26.tar.xz",
     "sha256": "d1fb86e260cfe7da6031f94d2e44c0da55903dbae0a2fa0fae78c91ae1b56f00",
     "scope": "Private build tools for ZVBI autoreconf; no gettext runtime is added to the engine"
+  },
+  "xz": {
+    "repository": "https://github.com/tukaani-project/xz.git",
+    "commit": "c8b8ab2ef1eb0a0217ad2027d7f5d242ceb944d3",
+    "sourceAuthority": {
+      "repository": "https://github.com/BtbN/FFmpeg-Builds",
+      "commit": "48576f197ad1c2afb2e0b8efe204919a1afbff54",
+      "script": "scripts.d/25-xz.sh"
+    },
+    "nativeSettingsAuthority": "jellyfin/jellyfin-ffmpeg@253db2a7b0a8045c54ce68ce33d7f601229b1822/builder/scripts.d/25-xz.sh"
+  },
+  "openmpt": {
+    "repository": "https://github.com/OpenMPT/openmpt.git",
+    "commit": "1b000d4bca071364157b5d35940efe4feecd2e0a",
+    "sourceAuthority": {
+      "repository": "https://github.com/BtbN/FFmpeg-Builds",
+      "commit": "48576f197ad1c2afb2e0b8efe204919a1afbff54",
+      "script": "scripts.d/50-openmpt.sh"
+    },
+    "nativeSettingsAuthority": "jellyfin/jellyfin-ffmpeg@253db2a7b0a8045c54ce68ce33d7f601229b1822/builder/scripts.d/50-openmpt.sh"
+  },
+  "chromaprint": {
+    "repository": "https://github.com/acoustid/chromaprint.git",
+    "commit": "aed8eba2202dd9d7b3b0a56c77904cc805490d72",
+    "sourceAuthority": {
+      "repository": "https://github.com/BtbN/FFmpeg-Builds",
+      "commit": "48576f197ad1c2afb2e0b8efe204919a1afbff54",
+      "script": "scripts.d/50-chromaprint.sh"
+    },
+    "nativeSettingsAuthority": "jellyfin/jellyfin-ffmpeg@253db2a7b0a8045c54ce68ce33d7f601229b1822/builder/scripts.d/50-chromaprint.sh"
+  },
+  "srt": {
+    "repository": "https://github.com/Haivision/srt.git",
+    "commit": "fcae57145c000a9e7b72aa777adb8f85c2463242",
+    "sourceAuthority": {
+      "repository": "https://github.com/BtbN/FFmpeg-Builds",
+      "commit": "48576f197ad1c2afb2e0b8efe204919a1afbff54",
+      "script": "scripts.d/50-srt.sh"
+    },
+    "nativeSettingsAuthority": "jellyfin/jellyfin-ffmpeg@253db2a7b0a8045c54ce68ce33d7f601229b1822/builder/scripts.d/50-srt.sh"
   }
 }

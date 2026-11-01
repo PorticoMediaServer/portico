@@ -294,7 +294,7 @@ def main():
             '--build-context', base + '=oci-layout://' + str(base_oci), 'images/base-win64'], recipe, compiler_env)
         compiler_id = subprocess.check_output(['docker', 'image', 'inspect', '-f', '{{.Id}}', compiler], text=True).strip()
         d3d11_control = state / 'd3d11-c-interface.c'
-        d3d11_control.write_text('#include <d3d11.h>\nvoid portico_control(ID3D11DeviceContext *context, '
+        d3d11_control.write_text('#include <d3d11.h>\n#include <d3dcompiler.h>\nvoid portico_control(ID3D11DeviceContext *context, '
                                 'ID3D11Texture2D *texture) { ID3D11DeviceContext_Flush(context); '
                                 'ID3D11Texture2D_Release(texture); }\n')
         run('d3d11-c-interface', ['docker', 'run', '--rm', '--network', 'none', '--cpus', '1', '--memory', '512m',

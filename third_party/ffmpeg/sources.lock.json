@@ -497,7 +497,7 @@
     },
     "extrasLock": {
       "path": "third_party/ffmpeg/macos-extras.lock.json",
-      "sha256": "72b9ee8abb449d483b11f6f170c4716829f3f521d3f19e016f7f68bdf305f06e"
+      "sha256": "016751986606cb6f6dbf4c5c4ab9d17e63ef95fdb3779f2d5c7227f4e4e30403"
     }
   },
   "requiredConfigure": [
@@ -542,7 +542,14 @@
       "x265",
       "zimg",
       "zvbi",
-      "rpath"
+      "rpath",
+      "libvorbis",
+      "libwebp",
+      "openmpt",
+      "chromaprint",
+      "srt",
+      "libtheora",
+      "portico-bzip2"
     ],
     "sourcePatches": [
       {
@@ -649,5 +656,15 @@
   "nativeRustTools": {
     "path": "third_party/ffmpeg/native-rust-tools.lock.json",
     "sha256": "6c0ed580147ac5f43ff5f3cb86132fe04d8bb9f589cb5607e605bfca00d8179f"
+  },
+  "bzip2": {
+    "version": "1.0.8",
+    "source": "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+    "sha256": "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+    "scope": "Static libbz2 for all BtbN targets; Mac uses selected SDK system libbz2"
+  },
+  "autodetectPolicy": {
+    "path": "third_party/ffmpeg/autodetect.v1.json",
+    "sha256": "515bd58e6ffd784a2110465b22a13d69f846b9b42141268382206c9cc974b02b"
   }
 }
