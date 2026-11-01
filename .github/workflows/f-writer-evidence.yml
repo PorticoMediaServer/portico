@@ -1,0 +1,62 @@
+name: F writer evidence
+on:
+  push:
+    branches: ['rebuild/F-writer-evidence-r1']
+permissions:
+  contents: read
+jobs:
+  schema-and-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - run: mkdir -p "$RUNNER_TEMP/reports"
+      - name: Generate schema metadata using its producers
+        run: |
+          python3 scripts/schema-sync.py > "$RUNNER_TEMP/reports/schema.log" 2>&1
+          git diff -- server/internal/persistence/known_schema.go server/internal/persistence/known_columns.go server/internal/persistence/schema_test.go > "$RUNNER_TEMP/reports/schema-generated.patch"
+      - name: Targeted writer and response freshness tests
+        working-directory: server
+        run: go test ./internal/compactcatalog ./internal/catalog ./internal/httpapi ./internal/persistence -count=1 -run 'Rating|VisibilitySource|Restriction|Revision|ETag|Schema|KnownSchema' -timeout=15m > "$RUNNER_TEMP/reports/tests.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: schema-and-tests, path: '${{ runner.temp }}/reports', retention-days: 7}
+  curves:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        items: [10000, 30000, 100000]
+        version: [before, after]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false, fetch-depth: 0}
+      - name: Restore unchanged baseline for before probes
+        if: matrix.version == 'before'
+        run: |
+          git diff --name-only --diff-filter=M 3ad4b5de c4c9e639 -- server/ > "$RUNNER_TEMP/before-paths"
+          xargs -a "$RUNNER_TEMP/before-paths" git restore --source=3ad4b5de --
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - run: mkdir -p "$RUNNER_TEMP/seeds" "$RUNNER_TEMP/reports"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: '${{ runner.temp }}/seeds/*.sqlite'
+          key: F-rating-${{ matrix.items }}-${{ matrix.version }}-${{ hashFiles('server/internal/compactcatalog/rating_scale_measure_test.go', 'server/internal/persistence/migrations/**') }}
+      - name: Record hardware
+        run: lscpu > "$RUNNER_TEMP/reports/machine.txt"
+      - name: Measure one spelling publication and one source page
+        working-directory: server
+        env:
+          PORTICO_RATING_SCALE_ITEMS: '${{ matrix.items }}'
+          PORTICO_SCALE_SEEDS: '${{ runner.temp }}/seeds'
+          PORTICO_SCALE_REPORT: '${{ runner.temp }}/reports'
+          PORTICO_EXPECT_RATING_FAILURE: "${{ matrix.version == 'before' && '1' || '' }}"
+        run: go test ./internal/compactcatalog -run '^TestRatingWriterGrowthMeasurement$' -count=1 -v -timeout=20m > "$RUNNER_TEMP/reports/measure.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: 'rating-${{ matrix.version }}-${{ matrix.items }}', path: '${{ runner.temp }}/reports', retention-days: 7}
