@@ -148,7 +148,10 @@ export function ServerHeader({serverName, viewerRole, audience, facts = [], vari
   const visibility = serverVisibilityKey(viewerRole, audience);
   if (!visibility) return null;
   const text = (size: number, weight: 600 | 700 | 800 = 600, tracking = 0) => shellType(size, weight, 'normal', tracking, textScale);
-  if (variant !== 'page') return <View testID={testID} style={[styles.groupHeader, {gap: isTV ? 16 : 12, padding: variant === 'phone' ? 14 : 0}, style]}>
+  // owner-server.html `.msrv`: on phone the header is its own raised, rounded card with an inset
+  // accent edge, its gradient clipped inside (unclipped it read as a stray lighter box, walk 1 Nov).
+  if (variant !== 'page') return <View testID={testID} style={[styles.groupHeader, {gap: isTV ? 16 : 12, padding: variant === 'phone' ? 14 : 0},
+    variant === 'phone' ? {borderRadius: 14, overflow: 'hidden', backgroundColor: colors.raised, borderWidth: 1, borderColor: alpha(colors.accentStrong, .28)} : null, style]}>
     {variant === 'phone' && <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} accessible={false} pointerEvents="none"><Defs><LinearGradient id="server-phone-header" x1="0%" y1="0%" x2="100%" y2="57.735%"><Stop offset="0" stopColor={colors.accent} stopOpacity=".3"/><Stop offset="0.7" stopColor={colors.accent} stopOpacity=".06"/></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#server-phone-header)"/></Svg>}
     <ServerMark variant={isTV ? 'tv' : variant === 'phone' ? 'phone' : 'settings'}/>
     <View style={{flex: 1, minWidth: 0}}>
