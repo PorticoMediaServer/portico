@@ -35,7 +35,7 @@ import {nativeShellRoutes} from './route-registry';
 import {sameAuthority, nativeServerHost, type ShellDestination} from './model';
 import {createNativeMusicDiscoverNavigation} from './music-discover-navigation';
 import {homePlayTarget} from '../screens/home/model';
-import {planHomeWindows} from './home-windows';
+import {homeRegistrationLimit, planHomeWindowsReport} from './home-windows';
 import {isReadingLibraryKind} from '../screens/read/platform';
 import {openNativeReadingBookEntry} from '../screens/read/reading-books-open';
 import {nativeDispatchedPlayLifetime, nativeHomeEntryLifetime, reportDispatchedPlayFailure} from '../screens/home/entry-lifetime';
@@ -45,6 +45,7 @@ import {createNativeMusicMixes, type NativeMusicMixesCaller} from '../screens/de
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const failure = (code: string) => Object.assign(new Error(code), {code});
+
 type Registration = {row: HomeRow; order: number; context: string; coordinate: number; first: number; last: number};
 type Window = {registration?: Registration; row: HomeRow; order: number; first: number; last: number; cleanup?: () => void; keys: Map<string, string>; memberWindows: Map<string, string>; physicalIds?: readonly string[]; retainedIds?: readonly string[]; visible: boolean; visibleIds?: readonly string[]};
 
@@ -70,6 +71,9 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
   const reportError = (error: unknown, origin: 'assembly-error' | 'home-registration' | 'artwork-error' = 'assembly-error') => {
     homeActionDiagnostics.error(origin, error);
     if (!alive || !context.current()) return;
+    // Running out of selection registrations is Home's own budget, not something the viewer
+    // did or can retry: it is recorded above and never shown as an error toast.
+    if (homeRegistrationLimit(error)) return;
     feedback.reportError(error, 'home');
   };
   const open = (route: NativeShellRoute) => {if (alive && context.current()) context.navigation.open(route, context.authority());};
@@ -211,7 +215,9 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     if (!Platform.isTV) {for (const window of windows.values()) register(window); return;}
     const populations = [...windows.values()].map(window => ({id: window.row.id, visible: window.visible, first: window.first, last: window.last,
       physicalIds: window.row.collection ? [window.row.collection.collection.id] : window.physicalIds ?? [], retainedIds: window.retainedIds, visibleIds: window.visibleIds}));
-    const plan = planHomeWindows(populations, spotlightCount);
+    const {plan, overflow} = planHomeWindowsReport(populations, spotlightCount);
+    // Diagnostics only: an overflow is never the viewer's to fix (see reportError).
+    if (overflow > 0) homeActionDiagnostics.error('home-registration', failure('home-visible-registration-limit'));
     const desired = new Set<string>();
     for (const window of windows.values()) {
       if (window.row.collection) continue;
