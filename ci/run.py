@@ -250,7 +250,7 @@ def js_static(plan,component):
     if component=='apps/desktop': execute(['npm','run','test:rust'],ROOT/component)
 
 def aggregate(plan,needs):
-    expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_tests':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False)}
+    expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_vet_cross':bool(plan['packages']),'go_tests':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False)}
     for job,required in expected.items():
         actual=needs.get(job,{}).get('result')
         if actual != ('success' if required else 'skipped'): raise ValueError(f'{job}: unexpected {actual}')
@@ -258,6 +258,18 @@ def aggregate(plan,needs):
 
 def validate_tags(plan):
     execute(['python3','scripts/release-build-tags.py','--capability','--check',plan['tags']])
+
+def vet_cross(plan, goos):
+    # CI tests and builds only on Linux, so a file that is Linux-only by accident (a helper behind
+    # //go:build linux, syscall.Getrusage) used to surface first in a macOS or Windows release build.
+    # Static only: cross-vet compiles every package and test for the other OS, nothing runs.
+    if goos not in ('darwin','windows'): raise ValueError('vet-cross: darwin or windows')
+    validate_tags(plan)
+    env=dict(os.environ,GOOS=goos,GOARCH='arm64' if goos=='darwin' else 'amd64')
+    for module in ['server','apikit']:
+        for tags in ['',plan['tags']]:
+            print(f'vet {module} GOOS={goos} tags={tags or "(none)"}',flush=True)
+            subprocess.run(['sh',str(ROOT/'scripts/vet-go.sh'),'--tags',tags],cwd=ROOT/module,env=env,check=True)
 
 def build(plan):
     validate_tags(plan)
@@ -274,11 +286,12 @@ def build(plan):
     build_helper(plan)
 
 if __name__=='__main__':
-    ap=argparse.ArgumentParser(); ap.add_argument('kind',choices=['go','build','js','js-static','aggregate','download','helper','ffmpeg']); ap.add_argument('--plan',default='ci-plan.json'); ap.add_argument('--index',type=int,default=0); ap.add_argument('--component'); ap.add_argument('--needs'); a=ap.parse_args(); plan=json.loads(Path(a.plan).read_text())
+    ap=argparse.ArgumentParser(); ap.add_argument('kind',choices=['go','build','vet-cross','js','js-static','aggregate','download','helper','ffmpeg']); ap.add_argument('--goos'); ap.add_argument('--plan',default='ci-plan.json'); ap.add_argument('--index',type=int,default=0); ap.add_argument('--component'); ap.add_argument('--needs'); a=ap.parse_args(); plan=json.loads(Path(a.plan).read_text())
     if a.kind=='download': download()
     elif a.kind=='helper': build_helper(plan)
     elif a.kind=='ffmpeg': ensure_ffmpeg(plan,a.index,a.component)
     elif a.kind=='go': go(plan,a.index)
+    elif a.kind=='vet-cross': vet_cross(plan,a.goos)
     elif a.kind=='js': js(plan,a.component,a.index)
     elif a.kind=='js-static': js_static(plan,a.component)
     elif a.kind=='aggregate': aggregate(plan,json.loads(a.needs))
