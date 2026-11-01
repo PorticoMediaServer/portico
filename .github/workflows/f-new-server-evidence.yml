@@ -17,7 +17,7 @@ jobs:
         os: [linux, darwin, windows]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {persist-credentials: false, ref: 2c1c0df7}
+        with: {persist-credentials: false, ref: 2c1c0df70a3636f298d993601c2c445bf466e5ec}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
       - name: Apply unpublished exact candidate
@@ -57,7 +57,7 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {persist-credentials: false, ref: 2c1c0df7}
+        with: {persist-credentials: false, ref: 2c1c0df70a3636f298d993601c2c445bf466e5ec}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
       - name: Apply validated measurement extension
@@ -99,7 +99,7 @@ jobs:
         items: [10000, 30000, 100000]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {persist-credentials: false, ref: 2c1c0df7}
+        with: {persist-credentials: false, ref: 2c1c0df70a3636f298d993601c2c445bf466e5ec}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
       - name: Restore the validated film shape and probe
