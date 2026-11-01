@@ -284,10 +284,14 @@ func alertDueTx(ctx context.Context, tx *sql.Tx, now int64, key string, gap int6
 }
 
 // countSecurityEventTx advances one of the summary's bounded counters. The
-// minutely counter feeds the burst alert; the hourly one feeds the summary.
+// hourly counter feeds the summary; failed sign-ins alone also feed the
+// minutely counter behind the burst alert, which is about failures.
 func countSecurityEventTx(ctx context.Context, tx *sql.Tx, now int64, kind string) error {
 	if _, err := tx.ExecContext(ctx, `INSERT INTO identity_security_counts(hour,kind,count) VALUES(?,?,1) ON CONFLICT(hour,kind) DO UPDATE SET count=count+1`, now/3600, kind); err != nil {
 		return err
+	}
+	if kind != "failed_sign_in" {
+		return nil
 	}
 	_, err := tx.ExecContext(ctx, `INSERT INTO identity_security_minutes(minute,count) VALUES(?,1) ON CONFLICT(minute) DO UPDATE SET count=count+1`, now/60)
 	return err
