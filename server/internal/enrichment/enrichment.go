@@ -798,17 +798,20 @@ func (s *Service) importVocabulary(ctx context.Context, domain string) error {
 	if err = rows.Err(); err != nil {
 		return err
 	}
-	w, err := dbwork.Begin(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassBackgroundMedia))
-	if err != nil {
-		return err
-	}
-	defer w.Rollback()
+	// A release's vocabulary is a few hundred rows, each also moving the
+	// table's bound: more than one transaction may hold.
+	batch := s.boundedWrites(ctx)
+	defer batch.rollback()
 	for _, e := range all {
-		if _, err = w.Tx().ExecContext(ctx, `INSERT INTO catalog_dataset_vocabulary(tag,family,label) VALUES(?,?,?) ON CONFLICT(tag) DO UPDATE SET family=excluded.family,label=excluded.label`, e.tag, e.family, e.label); err != nil {
+		tx, err := batch.next(rowCost)
+		if err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO catalog_dataset_vocabulary(tag,family,label) VALUES(?,?,?) ON CONFLICT(tag) DO UPDATE SET family=excluded.family,label=excluded.label`, e.tag, e.family, e.label); err != nil {
 			return err
 		}
 	}
-	return w.Commit()
+	return batch.commit()
 }
 
 // drainJobs matches works queued since the last pass.
