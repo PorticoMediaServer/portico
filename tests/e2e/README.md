@@ -76,3 +76,14 @@ reproduced intermittent failure may be quarantined only with a linked finding,
 owner and expiry; quarantined tests still run and report independently. They must
 not mask other tests or become required merge checks. Remove quarantine after a
 fix is verified in repeated clean hosted runs.
+
+## Redeploy the persistent test server
+
+Dispatch the `E2E remote server build` workflow on `main`. After that hosted
+run finishes successfully, invoke `python3 tests/e2e/deploy-remote.py RUN_ID`
+from an authorized machine with GitHub access and the `portico-runner` SSH alias.
+The helper requires that the artifact's commit still equals current `main`,
+validates the archive and checksums, installs a separate release for the E2E
+service and checks readiness. The existing server data is preserved, and a
+failed restart restores the previous service configuration. This path handles
+only the built artifact locally; it does not build or run a browser or emulator.
