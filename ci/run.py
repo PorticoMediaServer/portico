@@ -14,11 +14,17 @@ import time
 from js_shards import digest, receipt_name, reconcile, validate_selection
 from plan import ROOT
 
-def policy(data, today=None):
+def policy(data, today=None, engine=None):
     today=today or datetime.date.today(); entries={}
+    # An entry scoped to an engine ("development": the release gate on a development-engine
+    # release, PORTICO_CI_ENGINE=development) applies only to runs on that engine; everywhere else,
+    # merge CI and qualified-engine releases included, the test runs and must pass.
+    engine=os.environ.get('PORTICO_CI_ENGINE','') if engine is None else engine
     for e in data['entries']:
         if not all(e.get(k) for k in ['package','test','owner','expires','reason']): raise ValueError('incomplete quarantine')
+        if e.get('engine') not in (None,'development'): raise ValueError('unknown quarantine engine')
         if datetime.date.fromisoformat(e['expires']) < today: raise ValueError('expired quarantine')
+        if e.get('engine') and e['engine']!=engine: continue
         key=(e['package'],e['test'])
         if key in entries: raise ValueError('duplicate quarantine')
         entries[key]=e

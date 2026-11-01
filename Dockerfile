@@ -132,7 +132,7 @@ RUN apt-get update \
  && python3 /tmp/install-intel-opencl.py /usr/share/doc/portico/intel-drivers.lock.json \
  && rm -rf /var/lib/apt/lists/* /tmp/install-intel-opencl.py
 
-FROM runtime-drivers
+FROM runtime-drivers AS runtime-base
 
 # Runtime writes use /config, disk /transcode and a separate bounded tmpfs.
 # Docker supplies bounded /dev/shm (64 MiB by default). Portico discovers it
@@ -150,15 +150,6 @@ COPY server/internal/mediaexec/fonts/LICENSE /usr/share/doc/portico/licenses/dec
 COPY third_party/hls.js/LICENSE /usr/share/doc/portico/licenses/hls-js.txt
 COPY web/src/kit/fonts/OFL.txt /usr/share/doc/portico/licenses/manrope.txt
 COPY packages/design/LICENSE-LUCIDE /usr/share/doc/portico/licenses/lucide.txt
-COPY --from=rclone /rclone/LICENSE /usr/share/doc/portico/licenses/rclone.txt
-COPY --from=rclone /rclone/DEPENDENCY-NOTICES.txt /usr/share/doc/portico/licenses/rclone-dependencies.txt
-COPY --from=rclone /rclone/ /opt/portico/third_party/rclone/
-COPY --from=build /out/portico-server /usr/local/bin/portico-server
-COPY --from=web /out/web /opt/portico/web
-COPY --from=web /out/release.json /opt/portico/release.json
-# Supply the qualified bundle from the manual toolchain workflow (see the
-# ffmpeg stage above for where it goes).
-COPY --from=media-tools /ffmpeg/ /opt/portico/third_party/ffmpeg/
 
 ENV PORTICO_WEB_DIR=/opt/portico/web \
     PORTICO_DATA_DIR=/config \
@@ -187,3 +178,28 @@ CMD ["/usr/local/bin/portico-server"]
 # makes it usable as a container health check rather than only as a liveness one.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD ["/usr/local/bin/portico-server", "--health-check"]
+
+# Internal NOT-FOR-USE images (scripts/release-version.py; .github/workflows/release.yml): the
+# release workflow's already-built, already-tested unsealed Linux payload for each architecture,
+# with its development FFmpeg engine, from the build context `payload` (payload/linux-amd64,
+# payload/linux-arm64). The qualified image is the final stage below; this one is never the default.
+FROM runtime-base AS unsealed
+ARG TARGETOS
+ARG TARGETARCH
+LABEL tv.getportico.release="NOT-FOR-USE: unsealed, development FFmpeg engine"
+COPY --from=payload ${TARGETOS}-${TARGETARCH}/portico-server /usr/local/bin/portico-server
+COPY --from=payload ${TARGETOS}-${TARGETARCH}/manifest.json /opt/portico/manifest.json
+COPY --from=payload ${TARGETOS}-${TARGETARCH}/web/ /opt/portico/web/
+COPY --from=payload ${TARGETOS}-${TARGETARCH}/third_party/ /opt/portico/third_party/
+COPY --from=payload ${TARGETOS}-${TARGETARCH}/licenses/ /usr/share/doc/portico/licenses/
+
+FROM runtime-base
+COPY --from=rclone /rclone/LICENSE /usr/share/doc/portico/licenses/rclone.txt
+COPY --from=rclone /rclone/DEPENDENCY-NOTICES.txt /usr/share/doc/portico/licenses/rclone-dependencies.txt
+COPY --from=rclone /rclone/ /opt/portico/third_party/rclone/
+COPY --from=build /out/portico-server /usr/local/bin/portico-server
+COPY --from=web /out/web /opt/portico/web
+COPY --from=web /out/release.json /opt/portico/release.json
+# Supply the qualified bundle from the manual toolchain workflow (see the
+# ffmpeg stage above for where it goes).
+COPY --from=media-tools /ffmpeg/ /opt/portico/third_party/ffmpeg/

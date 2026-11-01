@@ -2,12 +2,17 @@ package ingestion
 
 import (
 	"context"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"path/filepath"
 	"strings"
 )
+
+// legacyInventoryCandidates bounds raw assets, including rejects. LIMIT after
+// the membership predicates used to walk the whole already-inventoried library
+// while holding the writer, even when no legacy asset remained.
+const legacyInventoryCandidates = 8
 
 // Previously catalogued files absent on the first upgraded scan must enter the
 // same grace/absence lifecycle. Preserve their logical/asset IDs and never read
@@ -23,18 +28,27 @@ func (s *Service) adoptLegacyPage(ctx context.Context, job string, source catalo
 		return err
 	}
 	prefix := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(strings.TrimSuffix(source.ResolvedPath, string(filepath.Separator))+string(filepath.Separator)) + "%"
-	rows, err := tx.QueryContext(ctx, `SELECT a.token,a.path,a.size,a.modified_ns FROM catalog_assets a JOIN inventory_runs r ON r.job_id=? WHERE a.token>r.reconcile_cursor AND a.path LIKE ? ESCAPE '\' AND EXISTS(SELECT 1 FROM catalog_asset_links l JOIN catalog_entities e ON e.id=l.entity_id JOIN catalog_libraries cl ON cl.id=e.library_id WHERE l.asset_id=a.id AND cl.library_id=?) AND NOT EXISTS(SELECT 1 FROM inventory_objects o JOIN library_sources x ON x.id=o.source_id WHERE o.asset_id=a.token AND x.library_id=?) ORDER BY a.token LIMIT 32`, job, prefix, source.LibraryID, source.LibraryID)
+	rows, err := tx.QueryContext(ctx, `WITH candidates AS MATERIALIZED (
+ SELECT token,id,path,size,modified_ns FROM catalog_assets
+ WHERE token>(SELECT reconcile_cursor FROM inventory_runs WHERE job_id=?)
+ ORDER BY token LIMIT ?)
+ SELECT a.token,a.path,a.size,a.modified_ns,
+ a.path LIKE ? ESCAPE '\'
+ AND EXISTS(SELECT 1 FROM catalog_asset_links l JOIN catalog_entities e ON e.id=l.entity_id JOIN catalog_libraries cl ON cl.id=e.library_id WHERE l.asset_id=a.id AND cl.library_id=?)
+ AND NOT EXISTS(SELECT 1 FROM inventory_objects o JOIN library_sources x ON x.id=o.source_id WHERE o.asset_id=a.token AND x.library_id=?)
+ FROM candidates a ORDER BY a.token`, job, legacyInventoryCandidates, prefix, source.LibraryID, source.LibraryID)
 	if err != nil {
 		return err
 	}
 	type legacy struct {
-		id string
-		v  storage.Snapshot
+		id       string
+		v        storage.Snapshot
+		eligible bool
 	}
 	batch := []legacy{}
 	for rows.Next() {
 		var v legacy
-		if err = rows.Scan(&v.id, &v.v.Path, &v.v.Size, &v.v.ModifiedNS); err != nil {
+		if err = rows.Scan(&v.id, &v.v.Path, &v.v.Size, &v.v.ModifiedNS, &v.eligible); err != nil {
 			rows.Close()
 			return err
 		}
@@ -46,6 +60,9 @@ func (s *Service) adoptLegacyPage(ctx context.Context, job string, source catalo
 		return err
 	}
 	for _, v := range batch {
+		if !v.eligible {
+			continue
+		}
 		relative, e := filepath.Rel(source.ResolvedPath, v.v.Path)
 		if e != nil || !filepath.IsLocal(relative) || relative == "." {
 			continue

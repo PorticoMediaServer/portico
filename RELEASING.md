@@ -2,7 +2,7 @@
 
 This explains how official Portico builds are made, so you can see what you're installing. It isn't permission to publish your own builds under the Portico name; see [TRADEMARKS.md](TRADEMARKS.md).
 
-The release workflows are still being moved into this repository, so there are no releases here yet. This page describes how they work.
+The release workflow is `.github/workflows/release.yml`. Until v0.1.0 its releases are internal builds, numbered 0.0.N and marked NOT FOR USE.
 
 Only the maintainer publishes official releases. The step-by-step checklist, approvals, rollback steps and credentials are kept in a private repository.
 
@@ -19,12 +19,39 @@ Until v0.1.0, every product (the server, the apps on every platform and the desk
   - desktop and Vega: `release-version.py stamp`.
 - A build made by hand reports 0.0.0, never a real version.
 
+## How a release is made
+
+1. **Start.** The maintainer runs the **Release** workflow on `main` with a version (`0.0.N`).
+   - It builds everything from that one commit.
+   - The full server suite runs once, as a gate, the same way the merge checks run it. The macOS server build also runs it on macOS. Cross-compiled builds run no tests of their own. A separate nightly run checks for data races.
+   - A pull request that changes the release machinery runs the same builds as a proof: version 0.0.0, with no signing, no seal and no draft.
+2. **Seal.** Two steps wait for the maintainer's approval in the `release-seal` environment, the only place the release key is available. That's two approvals per release:
+   - **The server builds**, one approval for every platform at once. Each build's own `manifest.json` and `manifest.sig` are signed. This step arrives with the qualified FFmpeg toolchain; internal builds skip it.
+   - **The inventory**, after everything is built. `release-manifest.json` and `.sig` list exactly the files of the release. The inventory never makes a server build trusted: each build is trusted only through its own sealed manifest.
+3. **Draft.** The workflow ends at a draft GitHub release that names its commit. Publishing it creates the tag, and `release-published.yml` then pushes the attached container image to `ghcr.io/porticomediaserver/portico-server`. Nothing is pushed or published before the maintainer publishes.
+
+**Internal builds (0.0.N)** carry a development FFmpeg engine: upstream jellyfin-ffmpeg 8.1.3-1, pinned by hash in `scripts/development-engine.py`, with its source attached.
+- That makes every server build unsealed.
+- Its files say `UNSEALED-NOT-FOR-USE-ENGINE`.
+- Its update feed lists no build, so no server offers it as an update.
+- Its gate skips the few tests that need features only the qualified engine has (libsoxr for music conversion): `ci/quarantine.json` entries scoped to `engine: development`, each with a reason and an expiry. A qualified-engine release runs every test.
+- Sealed releases need the qualified toolchain below.
+- The server doesn't install updates today. When an updater exists, it must verify the sealed manifest.
+
+**Signing:**
+- Android: one Portico app signing key, shared by GitHub downloads and Google Play.
+- Apple: App Store Connect automatic signing for iPhone, iPad and Apple TV, and Developer ID plus notarisation for the macOS server app, its installer package and its disk image.
+- Each signing step skips, and the file names say so, when its credentials aren't configured.
+
 ## FFmpeg is released separately
 
 Portico and its FFmpeg build are released on their own schedules.
 
 - **A normal Portico release** reuses the currently approved FFmpeg build.
 - **FFmpeg only changes** when I pick and test a new stable upstream version and start the **Qualified FFmpeg toolchain** workflow by hand. That workflow builds and checks FFmpeg, then publishes it as its own GitHub release, along with its source. The release is named after the `releaseTag` in `third_party/ffmpeg/sources.lock.json`.
+- **On macOS**, the qualified engine also carries a Vulkan loader, MoltenVK and MoltenVK's ICD JSON, with their loader-relative Mach-O paths already rewritten. Two things follow for the Mac server package:
+  - Code signing and notarisation happen after that rewrite, and the sealed macOS manifest records the hashes after signing.
+  - The Vulkan loader doesn't find a bundled driver by itself. When the server starts the engine inside the app, it must point the loader at the bundled ICD JSON (`VK_DRIVER_FILES`, or `VK_ICD_FILENAMES` for older loaders, set to its bundle-relative path), or the package must place the JSON where the loader looks.
 
 ## What a release builds
 
