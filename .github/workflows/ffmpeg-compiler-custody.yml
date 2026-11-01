@@ -6,14 +6,6 @@ on:
         description: Copy the reviewed exact indexes to Portico GHCR (main only)
         type: boolean
         default: false
-  push:
-    branches: [rebuild/D-compiler-pins-r2]
-    paths:
-      - '.github/workflows/ffmpeg-compiler-custody.yml'
-      - 'scripts/preserve-ffmpeg-compilers.py'
-      - 'scripts/test-preserve-ffmpeg-compilers.py'
-      - 'third_party/ffmpeg/compiler-images.lock.json'
-      - 'third_party/ffmpeg/sources.lock.json'
 permissions:
   contents: read
 concurrency:
