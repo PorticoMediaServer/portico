@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,8 @@ def compiler(target):
             result['toolSHA256'][name] = digest(path)
         sdk_root = Path(subprocess.check_output(['/usr/bin/xcrun', '--show-sdk-path'], text=True).strip())
         result['SDKSettingsSHA256'] = {p.name: digest(p) for p in (sdk_root / 'SDKSettings.json', sdk_root / 'SDKSettings.plist') if p.is_file()}
+        result['hostCompilerSHA256'] = {name: digest(Path(shutil.which(name)).resolve(strict=True))
+            for name in ('cc', 'c++', 'gcc', 'g++', 'clang', 'clang++') if shutil.which(name)}
     elif target == 'linux-x64': result['image'] = lock['linuxSourceBuild']['compilerImage']
     else:
         # Compiler stage keys additionally bind actual resolved base/target
