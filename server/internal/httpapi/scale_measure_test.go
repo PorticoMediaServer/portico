@@ -15,12 +15,14 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
+	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/httpapi/fixture"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
@@ -359,10 +361,10 @@ func TestServerScaleMeasurement(t *testing.T) {
 		scaleSave(t, fmt.Sprintf("users-%d", count), map[string]any{"users": count, "seconds": time.Since(at).Seconds(), "endpoints": w.summary(), "gate_before": before, "gate_after": after, "admission": dbwork.WriteGate().Admission(), "write_plans": dbwork.Plans(), "routes": RouteCosts(), "peak_rss_mib": scaleRSS()})
 	}
 	var sessions, durable, ended int
-	if e := f.db.QueryRow(`SELECT count(*),COALESCE(sum(CASE WHEN last_seq=3 AND position_ms=3000 THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN state='stopped' THEN 1 ELSE 0 END),0) FROM playback_v1_sessions`).Scan(&sessions, &durable, &ended); e != nil {
+	if e := f.db.QueryRow(`SELECT count(*),COALESCE(sum(CASE WHEN last_seq>=1 AND position_ms=3000 THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN ended_ms>0 AND end_reason='stopped' THEN 1 ELSE 0 END),0) FROM playback_v1_sessions`).Scan(&sessions, &durable, &ended); e != nil {
 		t.Logf("durable reconciliation: %v", e)
 	}
-	scaleSave(t, "durability", map[string]int{"sessions": sessions, "last_seq_3_position_3000": durable, "stopped": ended})
+	scaleSave(t, "durability", map[string]int{"sessions": sessions, "durable_position_3000": durable, "stopped": ended})
 	if mode == "smoke" {
 		for label, attempts := range isolated.Attempts {
 			for _, a := range attempts {
@@ -392,4 +394,55 @@ func scalePersonal(ctx context.Context, tx *sql.Tx, profile string, p int) error
 		}
 	}
 	return nil
+}
+
+// Growing publication/attribution tables surround an actual scanned EPUB and
+// comic. The measured source has the same contents at every catalogue size.
+func TestReadingGrowthMeasurement(t *testing.T) {
+	n, _ := strconv.Atoi(os.Getenv("PORTICO_GROWTH_ITEMS"))
+	if n == 0 {
+		t.Skip("opt-in hosted reader growth diagnostic")
+	}
+	for _, tc := range []struct {
+		kind, format, path string
+		leaf               compactcatalog.Kind
+	}{{"book", "epub", "/assets/EPUB/chapter.xhtml", compactcatalog.Ebook}, {"comic", "cbz", "/pages/0", compactcatalog.Comic}} {
+		t.Run(tc.format, func(t *testing.T) {
+			r := newReadingFixture(t, tc.kind, tc.format)
+			var handle int64
+			if e := r.f.db.QueryRow(`SELECT id FROM catalog_libraries WHERE library_id=?`, r.library).Scan(&handle); e != nil {
+				t.Fatal(e)
+			}
+			root := filepath.Dir(r.path)
+			if e := fixture.SeedReadingGrowth(context.Background(), r.f.db, handle, tc.leaf, root, tc.format, max(10, n/20)); e != nil {
+				t.Fatal(e)
+			}
+			catalogtest.New(t, r.f.db).Drain()
+			if e := persistence.RefreshPlannerStatistics(context.Background(), r.f.db); e != nil {
+				t.Fatal(e)
+			}
+			var prepare, body []float64
+			var costs []dbwork.Cost
+			for pass := 0; pass < 10; pass++ {
+				ctx, cost := dbwork.Measure(context.Background())
+				at := time.Now()
+				session, document, e := r.s.Prepare(ctx, r.p, r.item, r.source)
+				prepare = append(prepare, float64(time.Since(at))/float64(time.Millisecond))
+				costs = append(costs, cost())
+				if e != nil {
+					t.Fatal(e)
+				}
+				at = time.Now()
+				w := r.bytesRequest(t, "GET", tc.path, session, document.Selection.Revision, r.f.owner.AccessToken, nil)
+				body = append(body, float64(time.Since(at))/float64(time.Millisecond))
+				if w.Code != 200 {
+					t.Fatalf("reader bytes: %d %s", w.Code, w.Body.String())
+				}
+				if e = r.s.CloseSession(r.p, session.ID); e != nil {
+					t.Fatal(e)
+				}
+			}
+			scaleSave(t, "reading-"+tc.format, map[string]any{"base_items": n, "publication_count": max(10, n/20) + 1, "prepare": scalePct(prepare), "chapter_or_page_bytes": scalePct(body), "prepare_costs": costs, "peak_rss_mib": scaleRSS(), "boundary": "fixed actual EPUB chapter / comic page; growing publication and author/series facts"})
+		})
+	}
 }

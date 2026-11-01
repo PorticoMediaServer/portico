@@ -17,6 +17,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"github.com/PorticoMediaServer/portico/server/internal/httpapi/fixture"
+	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 )
 
@@ -173,6 +175,10 @@ func TestCrossKindGrowthMeasurement(t *testing.T) {
 				t.Fatal(e)
 			}
 			measure(fmt.Sprintf("%s/detail/kind%d", lib, kind), func(ctx context.Context, s *catalog.Service) error {
+				if kind == 20 || kind == 21 {
+					_, e := s.ReadingDetail(v, "s", pid, nil)
+					return e
+				}
 				_, e := s.DetailWithRelated(v, "s", pid, false, false)
 				return e
 			})
@@ -186,6 +192,47 @@ func TestCrossKindGrowthMeasurement(t *testing.T) {
 				})
 			}
 		}
+	}
+
+	for _, lib := range []string{"reading", "comics"} {
+		actor := catalog.ResourceActor{Authority: "local", AccountID: "growth-account", ProfileID: "growth-profile"}
+		profile := identity.PersonalKey(identity.Viewer{Authority: actor.Authority, AccountID: actor.AccountID, ProfileID: actor.ProfileID})
+		v := catalog.Viewer{Profile: profile, Fence: "growth-reading", Libraries: []string{lib}}
+		name := "Growth " + lib
+		pivot := "books"
+		if lib == "comics" {
+			pivot = "comics"
+		}
+		def := catalog.SavedViewDefinition{LibraryID: lib, Pivot: pivot, Sort: []catalog.BrowseSortSelection{{Field: "title", Direction: "asc"}}, Presentation: "grid"}
+		made, e := s.MutateSavedResource(actor, "", "create", catalog.SavedResourceMutation{OperationID: "growth-" + lib, Kind: "view", Name: &name, Definition: &def}, func(*sql.Tx) error { return nil })
+		if e != nil {
+			t.Fatal(e)
+		}
+		measure(lib+"/home_saved_row", func(ctx context.Context, s *catalog.Service) error {
+			p, e := s.HomeSingleRow(catalog.HomeRequest{Viewer: v, ServerID: "s", Profile: v.Profile, ViewerFence: v.Fence, Libraries: v.Libraries, RowOrder: []string{"view:" + made.ResourceID}}, "view:"+made.ResourceID, catalog.HomeRowPage{Limit: 12})
+			if e == nil && len(p.Entries) == 0 {
+				return fmt.Errorf("empty reading Home row")
+			}
+			return e
+		})
+		for _, field := range []string{"author", "series"} {
+			field := field
+			measure(lib+"/facet/"+field, func(ctx context.Context, s *catalog.Service) error {
+				_, e := s.Facets(v, catalog.FacetRequest{Library: lib, Pivot: map[string]string{"author": "authors", "series": "series"}[field], Field: field, Limit: 40})
+				return e
+			})
+		}
+	}
+	for _, view := range []string{"authors", "series"} {
+		v := catalog.Viewer{Profile: "viewer", Fence: "growth", Libraries: []string{"audio"}}
+		request := catalog.ContentRequest{Viewer: v, Library: "audio", Profile: v.Profile, ViewerFence: v.Fence, View: view, Limit: 40}
+		measure("audio/"+view, func(ctx context.Context, s *catalog.Service) error {
+			p, e := s.Content(request)
+			if e == nil && (len(p.Sections) == 0 || len(p.Sections[0].Entries) == 0) {
+				return fmt.Errorf("empty audio %s", view)
+			}
+			return e
+		})
 	}
 	v := catalog.Viewer{Profile: "viewer", Fence: "growth", Libraries: []string{"movies"}}
 	measure("movies/see_all", func(ctx context.Context, s *catalog.Service) error {
@@ -236,7 +283,7 @@ func seedGrowthBooks(db *sql.DB, n int) error {
 				if e != nil {
 					return e
 				}
-				if e = compactcatalog.SetFactsTx(ctx, tx, book, map[string]any{"library_id": audio, "local_key": key, "author": author, "series": series}); e != nil {
+				if e = compactcatalog.SetFactsTx(ctx, tx, book, map[string]any{"library_id": audio, "local_key": key, "author": author}); e != nil {
 					return e
 				}
 				if _, _, e = compactcatalog.EnsureEntityTx(ctx, tx, compactcatalog.Entity{Library: audio, Kind: compactcatalog.Author, Key: compactcatalog.AuthorKey(author), Title: author}); e != nil {
@@ -251,11 +298,14 @@ func seedGrowthBooks(db *sql.DB, n int) error {
 					if e = compactcatalog.SetFactsTx(ctx, tx, file, map[string]any{"book_id": book, "part_number": part + 1}); e != nil {
 						return e
 					}
-					asset, _, e := compactcatalog.UpsertAssetTx(ctx, tx, compactcatalog.Asset{Path: path, Size: 1000, ModifiedNS: 1, Container: "m4b", AudioCodec: "aac", Duration: 3600})
+					asset, token, e := compactcatalog.UpsertAssetTx(ctx, tx, compactcatalog.Asset{Path: path, Size: 1000, ModifiedNS: 1, Container: "m4b", AudioCodec: "aac", Duration: 3600})
 					if e != nil {
 						return e
 					}
 					if e = compactcatalog.LinkAssetTx(ctx, tx, file, asset, compactcatalog.Link{}); e != nil {
+						return e
+					}
+					if _, e = tx.ExecContext(ctx, `INSERT INTO audio_tag_evidence(library_id,asset_id,field,source,value) VALUES('audio',?,'series','portico_json',?),('audio',?,'series_index','portico_json',?)`, token, series, token, fmt.Sprint(i%5+1)); e != nil {
 						return e
 					}
 					chapters := make([]compactcatalog.Chapter, 12)
@@ -264,32 +314,6 @@ func seedGrowthBooks(db *sql.DB, n int) error {
 					}
 					if e = compactcatalog.SetBookChaptersTx(ctx, tx, file, chapters); e != nil {
 						return e
-					}
-				}
-				for _, r := range []struct {
-					lib          int64
-					kind         compactcatalog.Kind
-					format, root string
-				}{{reading, compactcatalog.Ebook, "epub", "reading"}, {comics, compactcatalog.Comic, "cbz", "comics"}} {
-					path := fmt.Sprintf("/fixture/%s/%s.%s", r.root, key, r.format)
-					item, _, e := compactcatalog.UpsertEntityTx(ctx, tx, compactcatalog.Entity{Library: r.lib, Kind: r.kind, Key: path, Title: "Title " + key, Added: "2026-01-01T00:00:00.000Z"})
-					if e != nil {
-						return e
-					}
-					asset, _, e := compactcatalog.UpsertAssetTx(ctx, tx, compactcatalog.Asset{Path: path, Size: 1000, ModifiedNS: 1, Container: r.format})
-					if e != nil {
-						return e
-					}
-					if e = compactcatalog.LinkAssetTx(ctx, tx, item, asset, compactcatalog.Link{}); e != nil {
-						return e
-					}
-					if _, e = tx.Exec(`INSERT INTO reading_publications(item_id,asset_id,format) VALUES(?,?,?)`, item, asset, r.format); e != nil {
-						return e
-					}
-					for field, value := range map[string]string{"author": author, "series": series} {
-						if _, e = tx.Exec(`INSERT INTO metadata_owner_fields(kind,entity_id,field,value,automatic_value,locked,actor,observed_at) VALUES('item',?,?,?,'',1,'fixture','now')`, item, field, value); e != nil {
-							return e
-						}
 					}
 				}
 				// A separate anime library uses the same show/season/episode write path.
@@ -318,5 +342,12 @@ func seedGrowthBooks(db *sql.DB, n int) error {
 			return e
 		}
 	}
+	if e := fixture.SeedReadingGrowth(ctx, db, reading, compactcatalog.Ebook, "/fixture/reading", "epub", count); e != nil {
+		return e
+	}
+	if e := fixture.SeedReadingGrowth(ctx, db, comics, compactcatalog.Comic, "/fixture/comics", "cbz", count); e != nil {
+		return e
+	}
+
 	return nil
 }
