@@ -98,6 +98,23 @@ func remoteSignInPolicy(stored string) string {
 // connectionSetting is the cached projection of the connection rows (secure
 // connections and request locality), read once and replaced on every save, so
 // per-request decisions do no settings SQL. Nil without a console.
+// reloadConnectionPolicy replaces the cached policy (and the remote gate's)
+// from the stored settings, for writes that bypass the settings save path
+// (setup). A failed read leaves the cache as it was.
+func (d Dependencies) reloadConnectionPolicy(ctx context.Context) {
+	if d.connectionPolicy == nil || d.Console == nil {
+		return
+	}
+	var document operations.SettingsDocument
+	if err := dbwork.WithReadSnapshot(ctx, d.Console.DB, func(ctx context.Context) error {
+		var err error
+		document, err = d.Console.SettingsTx(ctx, dbwork.Snapshot(ctx), operations.AllowServerScope)
+		return err
+	}); err == nil {
+		d.connectionPolicy.set(document)
+	}
+}
+
 func (d Dependencies) connectionSetting(ctx context.Context) (*connectionSettingValue, error) {
 	if d.connectionPolicy == nil || d.Console == nil {
 		return nil, nil
