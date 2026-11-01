@@ -1,0 +1,39 @@
+name: Website
+# Builds website/ and publishes it to the Cloudflare Pages project "getportico-tv".
+# A merge to main that touches website/ goes live at getportico.tv; a same-repository
+# pull request gets a preview address. Fork pull requests build but never deploy
+# (no secrets reach them).
+on:
+  push:
+    branches: [main]
+    paths: ['website/**', '.github/workflows/website.yml']
+  pull_request:
+    paths: ['website/**', '.github/workflows/website.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  deployments: write
+concurrency:
+  group: website-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm, cache-dependency-path: website/package-lock.json}
+      - name: Build
+        working-directory: website
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Deploy to Cloudflare Pages
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        working-directory: website
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_DEPLOY_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BRANCH: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}
+        run: npx --yes wrangler@4.156.0 pages deploy dist --project-name getportico-tv --branch "$BRANCH" --commit-hash "$GITHUB_SHA"
