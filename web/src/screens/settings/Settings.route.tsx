@@ -625,7 +625,7 @@ export function SettingsEntry() {
           const state = source.rowState(row, selected);
           return state.present && state.value === 'private' && row.control.options?.[1]?.hint ? {...state, help: defaultI18n.t(row.control.options[1].hint)} : state;
         }
-        if (security?.has(row.id)) return row.id === 'remote.summary' ? {present: true, control: <SecuritySummaryLine source={security}/>}
+        if (security?.has(row.id)) return row.id === 'remote.summary' ? {present: true, wide: globalThis.matchMedia?.('(max-width: 599px)').matches === true, control: <SecuritySummaryLine source={security}/>}
           : {present: true, wide: true, control: <BlockedSourcesControl source={security} disabled={!current()}/>};
         if (refused?.has(row.id)) {
           const securityRow = settingsRowIndex.get('remote.security')!.row;
