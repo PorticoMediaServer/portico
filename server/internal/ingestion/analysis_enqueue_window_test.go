@@ -244,7 +244,7 @@ func TestAnalysisEnqueueRawWindowConsumesRejectedPrefix(t *testing.T) {
 		switch {
 		case strings.HasPrefix(entry.Shape, "SELECT o.id,o.revision FROM inventory_objects o INDEXED BY inventory_objects_source"):
 			raw += entry.Count
-		case strings.HasPrefix(entry.Shape, "WITH batch AS MATERIALIZED ( SELECT o.* FROM inventory_objects o JOIN inventory_runs r ON"):
+		case strings.HasPrefix(entry.Shape, "WITH batch AS MATERIALIZED ( SELECT o.* FROM json_each(?) requested CROSS JOIN inventory_objects o ON"):
 			needs += entry.Count
 		}
 	}
@@ -692,7 +692,7 @@ func TestAnalysisEnqueueWindowStatementsAreBounded(t *testing.T) {
 		switch {
 		case strings.HasPrefix(query, "SELECT o.id,o.revision FROM inventory_objects o INDEXED BY inventory_objects_source"):
 			raw, rawCount = query, rawCount+1
-		case strings.HasPrefix(query, "WITH batch AS MATERIALIZED ( SELECT o.* FROM inventory_objects o JOIN inventory_runs r ON"):
+		case strings.HasPrefix(query, "WITH batch AS MATERIALIZED ( SELECT o.* FROM json_each(?) requested CROSS JOIN inventory_objects o ON"):
 			needs, needsCount = query, needsCount+1
 		}
 	}
@@ -712,7 +712,7 @@ func TestAnalysisEnqueueWindowStatementsAreBounded(t *testing.T) {
 
 	// The needs statement must stay restricted to the window ids: it may not
 	// carry the old cursor range, which is what made it a source walk.
-	if !strings.Contains(needs, "o.id IN (SELECT value FROM json_each(?))") || strings.Contains(needs, "o.id>r.reconcile_cursor") {
+	if !strings.Contains(needs, "FROM json_each(?) requested CROSS JOIN inventory_objects o ON o.id=requested.value") || strings.Contains(needs, "o.id>r.reconcile_cursor") {
 		t.Fatalf("needs statement is not restricted to the window id set: %s", needs)
 	}
 	policy, err := f.s.catalog.ScanPolicy(context.Background(), f.library)
