@@ -277,8 +277,8 @@ components are described in [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 | `rolldown` | 1.2.9 | MIT |
 | `scheduler` | 0.27.0 | MIT |
 | `semver` | 6.3.1 | ISC |
-| `seroval` | 1.6.7 | MIT |
-| `seroval-plugins` | 1.6.7 | MIT |
+| `seroval` | 1.7.6 | MIT |
+| `seroval-plugins` | 1.7.6 | MIT |
 | `set-blocking` | 2.0.0 | ISC |
 | `source-map-js` | 1.2.2 | BSD-3-Clause |
 | `string-width` | 4.2.3 | MIT |

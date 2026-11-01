@@ -1426,21 +1426,21 @@
    ]
   },
   {
-   "id": "npm:seroval@1.6.7",
+   "id": "npm:seroval@1.7.6",
    "name": "seroval",
-   "version": "1.6.7",
+   "version": "1.7.6",
    "licence": "MIT",
    "group": "packages",
-   "url": "https://github.com/lxsmnsyc/seroval/tree/main/packages/seroval",
+   "url": "https://seroval.vercel.app",
    "text": 20
   },
   {
-   "id": "npm:seroval-plugins@1.6.7",
+   "id": "npm:seroval-plugins@1.7.6",
    "name": "seroval-plugins",
-   "version": "1.6.7",
+   "version": "1.7.6",
    "licence": "MIT",
    "group": "packages",
-   "url": "https://github.com/lxsmnsyc/seroval/tree/main/packages/plugins",
+   "url": "https://seroval.vercel.app/docs/using-plugins",
    "text": 20
   },
   {
@@ -2142,7 +2142,7 @@
  ],
  "inputs": {
   "LICENSE": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
-  "package-lock.json": "f07809e93aabdf7c6418746180d5820fe083ce9db6c1411a113a0b17bf958ea4",
+  "package-lock.json": "ff20fed413bd7f44852d1252905d4f328194e9226ac3eb52a30f48f06adc41c3",
   "packages/design/LICENSE-LUCIDE": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
   "scripts/release-build-tags.py": "1e0070421a44a8a3d9ecda535d2186ae5679786576da74f38dd40af07c8765c9",
   "server/go.mod": "bd3b4913cdbaf693d3d3b90079273b08d60e7fdf00ff9b43e7e380e687be62c3",
