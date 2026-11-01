@@ -239,6 +239,10 @@ type ContentSection struct {
 	// SeeAll is the complete list behind a personal row: a browse of the
 	// library's pivot with the row's filter, sorted For you.
 	SeeAll *ContentSeeAll `json:"seeAll,omitempty"`
+	// Why and WhyTitles explain a personal row (a Discover pick), exactly as
+	// the same row does on Home and on its own page.
+	Why       *ServerText        `json:"why,omitempty"`
+	WhyTitles []ContentEntityRef `json:"whyTitles,omitempty"`
 	// Order, on a page of a playlist in its own order, names the occurrences
 	// around the page under the same revision; see ContentOrderWitness.
 	Order *ContentOrderWitness `json:"order,omitempty"`
