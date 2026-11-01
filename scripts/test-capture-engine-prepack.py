@@ -78,6 +78,16 @@ class Prepack(unittest.TestCase):
         with self.assertRaises((ValueError, RuntimeError, OSError)): self.perform()
         self.assertFalse(self.output.exists())
 
+    def test_alias_of_prefix_parent_cannot_create_an_escaping_tar_link(self):
+        alias = self.root / 'build-alias'; alias.symlink_to(self.build, target_is_directory=True)
+        (self.prefix / 'bin/link').symlink_to(self.prefix / 'bin/ffmpeg')
+        capture.capture('macos-arm64', alias, self.output, {'runId': 12}, ROOT)
+        with tarfile.open(self.output / 'payload.tar') as archive:
+            self.assertEqual(archive.getmember('prefix/bin/link').linkname, 'ffmpeg')
+            archive.extractall(self.root / 'alias-restored', filter='data')
+        self.assertEqual((self.root / 'alias-restored/prefix/bin/link').read_bytes(),
+                         (self.prefix / 'bin/ffmpeg').read_bytes())
+
     def test_incomplete_compilation_or_source_is_not_captured(self):
         source = self.build / 'corresponding-source.tar.xz'; source.unlink()
         self.assertIsNone(self.perform()); self.assertFalse(self.output.exists())

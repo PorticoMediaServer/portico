@@ -68,7 +68,7 @@ def capture(target, build, output, provenance, root):
         def relative_links(info):
             if info.issym():
                 original = prefix / Path(info.name).relative_to('prefix')
-                info.linkname = os.path.relpath(original.resolve(strict=True), original.parent)
+                info.linkname = os.path.relpath(original.resolve(strict=True), original.parent.resolve(strict=True))
             return info
         with tarfile.open(archive, 'w', dereference=False) as stream:
             stream.add(prefix, arcname='prefix', filter=relative_links)
