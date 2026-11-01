@@ -234,3 +234,9 @@ It retains the original combined module unchanged, records both metadata hashes
 and the actual pkg-config flags in corresponding source, and adds no shared
 shaderc runtime. The real Mac runtime audit must still show no external shaderc
 load; metadata controls alone are not a library compilation or engine proof.
+
+Mac source checkout retains the exact reviewed Git object SHA. When that object
+is an annotated tag, HEAD must equal the commit peeled from that exact object;
+no floating tag name or fallback is used. Corresponding source records the
+original object, object type, checked-out commit and repository. A different
+existing checkout is refused. This changes no source pin or selected bytes.

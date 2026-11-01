@@ -31,6 +31,7 @@
     {"path": "scripts/test-ci-ffmpeg-toolchain.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
     {"path": "scripts/test-ffmpeg-build-tools.py", "timeoutSeconds": 120, "testTimeoutSeconds": 45},
     {"path": "scripts/test-native-rust-tools.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
+    {"path": "scripts/test-macos-source-checkout.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
     {"path": "scripts/test-macos-shaderc.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
     {"path": "scripts/test-macos-engine-runtime.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
     {"path": "scripts/test-macos-libdovi.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
