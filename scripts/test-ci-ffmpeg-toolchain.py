@@ -41,6 +41,12 @@ class ColdToolchain(unittest.TestCase):
         with self.assertRaises(ValueError):
             cold.matrix('windows-arm64')
 
+    def test_late_retry_selects_only_windows_and_intel_and_requires_intel_cache(self):
+        rows = cold.matrix(cold.RETRY_PAIR)['include']
+        self.assertEqual({r['target'] for r in rows}, {'windows-x64', 'macos-x64'})
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/ffmpeg-toolchain.yml').read_text()
+        self.assertIn("fail-on-cache-miss: ${{ inputs.target == 'windows-x64+macos-x64' && matrix.target == 'macos-x64' }}", workflow)
+
     def test_wrong_host_repo_workflow_ref_event_or_commit_refuses(self):
         with patch('subprocess.check_output', return_value=SHA + '\n'):
             self.assertEqual(cold.context(environment())['runId'], 12)

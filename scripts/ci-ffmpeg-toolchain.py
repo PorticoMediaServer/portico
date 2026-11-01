@@ -24,6 +24,7 @@ TARGETS = {
     'macos-arm64': ('macos-15', 'macos-15', False),
     'macos-x64': ('macos-15-intel', 'macos-15-intel', True),
 }
+RETRY_PAIR = 'windows-x64+macos-x64'
 
 
 def module(name):
@@ -64,11 +65,12 @@ def context(env=None, root=ROOT):
 
 
 def matrix(selected):
-    if selected != 'all' and selected not in TARGETS:
+    if selected not in ('all', RETRY_PAIR) and selected not in TARGETS:
         raise ValueError('unknown cold-build target')
+    wanted = {'windows-x64', 'macos-x64'} if selected == RETRY_PAIR else {selected}
     return {'include': [dict(target=target, buildRunner=values[0], nativeRunner=values[1],
                              optional=values[2]) for target, values in TARGETS.items()
-                        if selected in ('all', target)]}
+                        if selected == 'all' or target in wanted]}
 
 
 def run(command, log, env=None, timeout=315 * 60):
@@ -349,13 +351,13 @@ def native(target, transfer, evidence):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('phase', choices=('plan', 'build', 'native'))
-    parser.add_argument('--target', choices=('all', *TARGETS), default='all')
+    parser.add_argument('--target', choices=('all', RETRY_PAIR, *TARGETS), default='all')
     parser.add_argument('--work', type=Path)
     parser.add_argument('--transfer', type=Path)
     args = parser.parse_args()
     if args.phase == 'plan':
         print(json.dumps(matrix(args.target)))
-    elif args.target == 'all' or args.work is None:
+    elif args.target not in TARGETS or args.work is None:
         parser.error('one target and a fresh work directory required')
     elif args.phase == 'build':
         raise SystemExit(build(args.target, args.work.absolute()))

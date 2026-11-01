@@ -35,11 +35,13 @@ class Contract(unittest.TestCase):
                 command = module.shell(target) + '\nprintf compiled > compile-marker\n'
                 subprocess.run(['bash', '-c', command], cwd=root, check=True)
                 (root / 'compile-marker').unlink()
-                missing = 'CONFIG_OPENSSL' if not target.startswith('windows') else 'CONFIG_SCHANNEL'
-                header.write_text(enabled.replace('#define ' + missing + ' 1', '#define ' + missing + ' 0'))
-                result = subprocess.run(['bash', '-c', command], cwd=root, capture_output=True, text=True)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(missing, result.stderr); self.assertFalse((root / 'compile-marker').exists())
+                missing_components = (['CONFIG_SCHANNEL', 'CONFIG_BWDIF_D3D11_FILTER']
+                                      if target.startswith('windows') else ['CONFIG_OPENSSL'])
+                for missing in missing_components:
+                    header.write_text(enabled.replace('#define ' + missing + ' 1', '#define ' + missing + ' 0'))
+                    result = subprocess.run(['bash', '-c', command], cwd=root, capture_output=True, text=True)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(missing, result.stderr); self.assertFalse((root / 'compile-marker').exists())
 
     def test_cuda_device_registration_is_checked_separately_from_the_hwaccel_list(self):
         spec = importlib.util.spec_from_file_location('features', ROOT / 'scripts/verify-ffmpeg-features.py')
@@ -114,6 +116,24 @@ class Contract(unittest.TestCase):
             spec = importlib.util.spec_from_file_location('prepare', ROOT / 'scripts/prepare-ffmpeg-source.py')
             module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
             module.prepare(archive, work / 'jellyfin', lock)
+            patched_configure = (work / 'jellyfin/configure').read_text()
+            # This is a real internal configure probe, not an exported macro.
+            # The cold Windows run proved all four filters enabled while our
+            # invented HAVE_D3DCOMPILER_H gate falsely refused the product.
+            self.assertIn('check_headers d3dcompiler.h', patched_configure)
+            headers = re.search(r'HEADERS_LIST="(.*?)"', patched_configure, re.S)[1].split()
+            have = re.search(r'HAVE_LIST="(.*?)"', patched_configure, re.S)[1].split()
+            self.assertNotIn('d3dcompiler_h', headers)
+            self.assertNotIn('d3dcompiler_h', have)
+            spec = importlib.util.spec_from_file_location('actual_config_checks', ROOT / 'scripts/ffmpeg-configure-checks.py')
+            checks = importlib.util.module_from_spec(spec); spec.loader.exec_module(checks)
+            for target in ('windows-x64', 'windows-arm64'):
+                self.assertNotIn('HAVE_D3DCOMPILER_H', checks.macros(target))
+                for name in ('scale', 'overlay', 'bwdif', 'tonemap'):
+                    dependencies = re.search(r'^' + name + r'_d3d11_filter_deps="([^"]+)"', patched_configure, re.M)[1].split()
+                    self.assertIn('d3dcompiler_h', dependencies)
+                    self.assertIn('CONFIG_' + name.upper() + '_D3D11_FILTER', checks.macros(target))
+            self.assertIn('#include <d3dcompiler.h>', (ROOT / 'scripts/build-engine.py').read_text())
             # --list exits before compiler/dependency probes. These are real
             # pinned configure component lists, not fabricated config headers.
             # The generated pre-make gate separately checks effective headers.

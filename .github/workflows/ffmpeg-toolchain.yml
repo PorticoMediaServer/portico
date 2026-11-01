@@ -6,7 +6,7 @@ on:
         description: Cold target (all includes the optional Intel Mac)
         type: choice
         default: all
-        options: [all, windows-x64, linux-x64, linux-arm64, macos-arm64, macos-x64]
+        options: [all, windows-x64, linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64+macos-x64]
       controlsOnly:
         description: Run source/refusal controls without compiling an engine
         type: boolean
@@ -161,6 +161,7 @@ jobs:
           path: ${{ runner.temp }}/engine-stage-cache
           key: ${{ steps.dependency-cache-plan.outputs.key }}
           restore-keys: ${{ steps.dependency-cache-plan.outputs.prefix }}
+          fail-on-cache-miss: ${{ inputs.target == 'windows-x64+macos-x64' && matrix.target == 'macos-x64' }}
       - name: Authenticate the explicit dependency cache writer
         if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
         env: {GH_TOKEN: '${{ github.token }}'}
