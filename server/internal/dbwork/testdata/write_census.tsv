@@ -160,7 +160,6 @@ internal/downloads/worker.go	(*Service).step	ExecWrite	ClassBackgroundMedia	-
 internal/downloads/worker.go	(*Service).tidy	Begin	ClassBackgroundMedia	-
 internal/enrichment/enrichment.go	(*Service).deleteChunk	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
 internal/enrichment/enrichment.go	(*Service).drainJobs	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
-internal/enrichment/enrichment.go	(*Service).importVocabulary	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
 internal/enrichment/enrichment.go	(*Service).noteChecked	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
 internal/enrichment/enrichment.go	(*Service).writeState	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
 internal/enrichment/enrichment.go	(*boundedWriter).next	Begin	ClassFrom(b.ctx, dbwork.ClassBackgroundMedia)	-

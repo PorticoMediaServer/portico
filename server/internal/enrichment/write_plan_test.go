@@ -19,7 +19,8 @@ func TestImportAndPurgeStayWithinTheWritePlan(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
-	const works, tags, similar = 300, 60, 15
+	// 341 tags: the real screen vocabulary's size (vocabulary/tags-v2.json).
+	const works, tags, similar, vocabulary = 300, 60, 15, 341
 	c := catalogtest.Open(t)
 	films := c.Library("m", "Movies", "movie", "/m")
 	for i := 0; i < works; i++ {
@@ -29,8 +30,8 @@ func TestImportAndPurgeStayWithinTheWritePlan(t *testing.T) {
 	c.Drain()
 	p := newPublisher(t)
 	p.domains["screen"] = ManifestDomain{DatasetVersion: "1", VocabularyVersion: 2, Full: p.build("screen", "full", "1", func(t *testing.T, db *sql.DB) {
-		for v := 1; v <= tags; v++ {
-			mustExec(t, db, `INSERT INTO vocabulary VALUES(?,?,'theme',?,'d','["movie","show"]',2,NULL)`, v, fmt.Sprintf("theme:t%02d", v), fmt.Sprintf("Theme %02d", v))
+		for v := 1; v <= vocabulary; v++ {
+			mustExec(t, db, `INSERT INTO vocabulary VALUES(?,?,'theme',?,'d','["movie","show"]',2,NULL)`, v, fmt.Sprintf("theme:t%03d", v), fmt.Sprintf("Theme %03d", v))
 		}
 		for i := 0; i < works; i++ {
 			qid := 900000 + i
