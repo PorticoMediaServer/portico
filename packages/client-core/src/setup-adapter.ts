@@ -268,6 +268,21 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
+    async startOver(context) {
+      const p = await pair(context.signal);
+      try {
+        const raw = await p.api.request<{serverId?: unknown; setupToken?: unknown}>(routePath('post_setup_start_over'), 'POST', {}, context.signal);
+        await assertPaired(p);
+        if (raw?.serverId !== p.pin.serverId || typeof raw.setupToken !== 'string' || !raw.setupToken) throw Object.assign(new Error('The setup answer did not match this server.'), {code: 'identity_mismatch'});
+        issued = {serverId: raw.serverId, setupToken: raw.setupToken};
+        own = undefined;
+        return {kind: 'startedOver'};
+      } catch (error) {
+        if (refused(error, 'setup_source_not_local')) return {kind: 'notLocalSource'};
+        if (refused(error, 'setup_already_complete', 'setup_complete', 'not_setup_required', 'conflict')) return {kind: 'alreadyComplete'};
+        throw error;
+      }
+    },
     async retryDelivery(context) {
       const p = await pair(context.signal), record = await ownRecord(p), {requestId, revision} = ownRevision();
       if (requestId !== record.requestId) throw changed();
