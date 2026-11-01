@@ -707,8 +707,15 @@ func (s *Service) recPostings(facet string, library int64, limit int, each func(
 	return rows.Err()
 }
 
+// recSimilarRelation weighs a similar-title link by why the title dataset
+// says it is similar: the same creator or premise is the strongest sign
+// someone will like it, a shared style the weakest. Links that name no
+// relation (every other source) weigh 1.
+var recSimilarRelation = map[string]float64{"creator": 1.15, "premise": 1.1, "theme": 1, "tone": 1, "style": 0.9}
+
 // recSimilar reads the similar-title links of the recent favorites, resolved
-// to library works through their provider ids; a nearer rank weighs more.
+// to library works through their provider ids; a nearer rank weighs more, and
+// the dataset's relation adjusts it (recSimilarRelation).
 func (s *Service) recSimilar(seeds []recSeed, each func(work int64, weight float64)) error {
 	if len(seeds) == 0 {
 		return nil
@@ -722,7 +729,7 @@ func (s *Service) recSimilar(seeds []recSeed, each func(work int64, weight float
 		weights[sd.work] += sd.weight
 	}
 	raw, _ := json.Marshal(ids)
-	rows, err := s.read().Query(`SELECT sim.entity_id,sim.rank,x.entity_id FROM json_each(?) seed
+	rows, err := s.read().Query(`SELECT sim.entity_id,sim.rank,sim.relation,x.entity_id FROM json_each(?) seed
 	 CROSS JOIN catalog_similar sim ON sim.entity_id=seed.value
 	 CROSS JOIN catalog_external_ids x INDEXED BY catalog_external_ids_lookup ON x.provider=sim.provider AND x.provider_kind=sim.provider_kind AND x.provider_id=sim.provider_id`, string(raw))
 	if err != nil {
@@ -733,14 +740,19 @@ func (s *Service) recSimilar(seeds []recSeed, each func(work int64, weight float
 	for rows.Next() {
 		var seed, target int64
 		var rank int
-		if err = rows.Scan(&seed, &rank, &target); err != nil {
+		var relation string
+		if err = rows.Scan(&seed, &rank, &relation, &target); err != nil {
 			return err
 		}
 		if target == seed || seen[[2]int64{seed, target}] {
 			continue
 		}
 		seen[[2]int64{seed, target}] = true
-		each(target, weights[seed]/(1+0.15*float64(rank-1)))
+		factor, ok := recSimilarRelation[relation]
+		if !ok {
+			factor = 1
+		}
+		each(target, factor*weights[seed]/(1+0.15*float64(rank-1)))
 	}
 	return rows.Err()
 }
