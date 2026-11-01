@@ -4,8 +4,8 @@
 It uses ci/plan.py's own selection (the merge tier, full inventory: the same test parents,
 exclusions and examples) and its duration-balanced test-level split, in more shards so the gate
 stays short. The Go producer tests the merge tier hands to JS jobs run here too: a release runs no
-JS shard. Each shard is run by `ci/run.py go`, as the merge tier runs it. The same plan with
-PORTICO_CI_GO_RACE=1 is the nightly race run (lane E).
+JS shard. Each shard is run by `ci/run.py go`, as the merge tier runs it. Races are lane E's
+nightly run (ci/run.py's PORTICO_CI_GO_RACE).
 
   release_gate_plan.py --shards 30 --output gate-plan.json   (writes shards=N to $GITHUB_OUTPUT too)
 """
