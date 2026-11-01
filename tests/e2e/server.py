@@ -96,7 +96,7 @@ def scan_libraries(server):
         print(f'{name} fixture root and storage helper are accessible', flush=True)
         library = api.post('/v1/libraries', {'name': name, 'kind': kind,
                            'path': str(source_path),
-                           'metadataAgent': 'local'}, (201,))
+                           'metadataAgent': 'local', 'scanAfter': False}, (201,))
         server.libs[name] = library['id']
         job = api.post('/v1/libraries/' + library['id'] + '/scans', expected=(202,))
         started = time.monotonic()
