@@ -220,7 +220,7 @@ for i in $(seq 1 120); do
   curl -fsS http://127.0.0.1:32665/v1/system >/dev/null 2>&1 && break
   sleep 1
 done
-curl -fsS http://127.0.0.1:32665/v1/system | jq '{id,name,version}'
+curl -fsS http://127.0.0.1:32665/v1/system | jq '{id,name,apiVersion}'
 ```
 
 Read-only preflight before creating identities:
