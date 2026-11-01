@@ -20,7 +20,7 @@ def pin(path):
     return {'version': match[1], 'wheelSHA256': match[2], 'requirementsSHA256': hashlib.sha256(raw).hexdigest()}
 
 
-def windows_rust(directory, media_lock=None):
+def btbn_rust(directory, media_lock=None):
     media_lock = media_lock or Path(__file__).resolve().parents[1] / 'third_party/media-engine/sources.lock.json'
     tools = json.loads(media_lock.read_text())['tools']
     versions = {name: tools[name]['version'] for name in ('rust', 'cargo-c')}
@@ -47,7 +47,7 @@ def rust_receipt(versions_file, output):
         ('rust', ['rustc', '--version']), ('cargo-c', ['cargo-capi', '--version']))}
     for name, expected in pin['versions'].items():
         if not re.search(r'\b' + re.escape(expected) + r'(?:\+[^\s]+)?(?:\s|$)', versions[name]):
-            raise ValueError('installed Windows ' + name + ' differs from the shared repository pin')
+            raise ValueError('installed BtbN ' + name + ' differs from the shared repository pin')
     output.write_text(json.dumps({'schemaVersion': 1, **pin, 'installedVersions': versions,
         'versionsFileSHA256': hashlib.sha256(versions_file.read_bytes()).hexdigest(),
         'boundary': 'Exact versions; rustup bootstrap remains an independent acceptance hold.'}, indent=2) + '\n')
@@ -70,8 +70,8 @@ def recipe(directory, requirements, target=None):
         '--requirements /opt/portico-meson-requirements.txt --output /opt/portico-meson-tool.json')
     path.write_text(text)
     (base / 'portico-meson-pin.json').write_text(json.dumps(expected, indent=2) + '\n')
-    if target in ('windows-x64', 'windows-arm64'):
-        windows_rust(directory)
+    if target in ('windows-x64', 'windows-arm64', 'linux-arm64'):
+        btbn_rust(directory)
 
 
 def receipt(python, requirements, output):
