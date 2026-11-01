@@ -11,10 +11,12 @@ export type NativeStackMotionTier = 'full' | 'reduced' | 'lite';
 export const nativeStackMotionTier = (motion: Readonly<{reduce: boolean; tier?: NativeStackMotionTier}>): NativeStackMotionTier =>
   motion.tier ?? (motion.reduce ? 'reduced' : 'full');
 /** motion.html 2.9/2.10: the system's own push and pop (iOS slide with the edge swipe,
- * Android's default). Cheaper tiers cross-fade (`reduced`) or cut (`lite`); the iOS
- * edge swipe still follows the finger in every tier. */
-export const nativeStackAnimation = (tier: NativeStackMotionTier): StackAnimationTypes =>
-  tier === 'full' ? 'default' : 'none';
+ * Android's horizontal slide). Cheaper tiers cross-fade (`reduced`) or cut (`lite`); the iOS
+ * edge swipe still follows the finger in every tier. On Android, react-native-screens'
+ * `default` left every pushed page unpainted (laid out, never drawn) on Android 16, so
+ * Android takes the native horizontal slide, the platform's own push since Android 14. */
+export const nativeStackAnimation = (tier: NativeStackMotionTier, os: string = Platform.OS): StackAnimationTypes =>
+  tier !== 'full' ? 'none' : os === 'android' ? 'slide_from_right' : 'default';
 /** M18: `reduced` is motion.html's 160 ms cross-fade (push and pop alike), drawn here rather than by the platform's
  * animators, which Android's "Remove animations" scales to nothing (React Native reports that
  * setting as Reduce Motion). Tab switches get their incoming fade (2.11: 120 ms; 160 reduced). */

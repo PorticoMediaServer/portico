@@ -6,7 +6,7 @@ const source = readFileSync(new URL('../src-next/shell/TouchStacks.tsx', import.
 
 test('M18: reduced motion cross-fades pushes, pops and tab switches itself, so a zero animator scale never turns them into a cut', () => {
   // The platform's push is only used in the full tier; reduced and lite take no platform animation.
-  assert.match(source, /tier === 'full' \? 'default' : 'none'/);
+  assert.match(source, /tier !== 'full' \? 'none' : os === 'android' \? 'slide_from_right' : 'default'/);
   assert.match(source, /export const NATIVE_PUSH_FADE_MS = 160;/);
   assert.match(source, /tier === 'full' \? 120 : tier === 'reduced' \? 160 : 0/);
   // Reanimated's own clock, explicitly not skipped by the system Reduce Motion setting.
