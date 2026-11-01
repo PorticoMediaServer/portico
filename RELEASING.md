@@ -49,6 +49,9 @@ Portico and its FFmpeg build are released on their own schedules.
 
 - **A normal Portico release** reuses the currently approved FFmpeg build.
 - **FFmpeg only changes** when I pick and test a new stable upstream version and start the **Qualified FFmpeg toolchain** workflow by hand. That workflow builds and checks FFmpeg, then publishes it as its own GitHub release, along with its source. The release is named after the `releaseTag` in `third_party/ffmpeg/sources.lock.json`.
+- **On macOS**, the qualified engine also carries a Vulkan loader, MoltenVK and MoltenVK's ICD JSON, with their loader-relative Mach-O paths already rewritten. Two things follow for the Mac server package:
+  - Code signing and notarisation happen after that rewrite, and the sealed macOS manifest records the hashes after signing.
+  - The Vulkan loader doesn't find a bundled driver by itself. When the server starts the engine inside the app, it must point the loader at the bundled ICD JSON (`VK_DRIVER_FILES`, or `VK_ICD_FILENAMES` for older loaders, set to its bundle-relative path), or the package must place the JSON where the loader looks.
 
 ## What a release builds
 
