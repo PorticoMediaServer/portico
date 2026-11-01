@@ -518,6 +518,9 @@ func TestHomeTrendingGating(t *testing.T) {
 	}
 	request := homeRequestFixture()
 	request.CommunityActivity = true
+	// Popular on this server is hidden by default (collections frame 23):
+	// the viewer places it from Customize Home.
+	request.RowOrder = []string{"community_watching"}
 	settleCompact(t, db)
 	out, e := service.HomeRows(request)
 	if e != nil {
@@ -891,5 +894,31 @@ func TestRecommendedModelReappliesRestrictionToAStaleList(t *testing.T) {
 		if entry.ID == hidden {
 			t.Fatal("a stale Recommended list showed a title restricted since it was computed")
 		}
+	}
+}
+
+// Home's default rows are Customize Home as drawn (collections frame 23):
+// Recommended for you, More recommendations and Trending now are shown;
+// Popular on this server is hidden until the viewer places it.
+func TestHomeDefaultsFollowCustomizeHomeAsDrawn(t *testing.T) {
+	db := homeFixture(t)
+	request := homeRequestFixture()
+	request.CommunityActivity = true
+	view, err := New(db).HomeLayoutRows(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"recommended": false, recFamily: false, "trending_now": false, "community_watching": true}
+	seen := 0
+	for _, row := range view.Rows {
+		if hidden, ok := want[row.ID]; ok {
+			seen++
+			if row.Hidden != hidden {
+				t.Fatalf("%s hidden=%v by default, want %v", row.ID, row.Hidden, hidden)
+			}
+		}
+	}
+	if seen != len(want) {
+		t.Fatalf("saw %d of the %d rows", seen, len(want))
 	}
 }
