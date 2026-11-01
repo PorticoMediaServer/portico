@@ -72,7 +72,7 @@ func TestUpdatesReadTheManifestTheReleasePipelinePublishes(t *testing.T) {
 	if got.State != "available" || !got.UpdateAvailable || got.Latest == nil || got.Latest.Version != "1.4.0" {
 		t.Fatalf("the published manifest was not read as a newer release: %+v", got)
 	}
-	if got.NotesURL != "https://github.com/PorticoMediaServer/portico-server/releases/tag/v1.4.0" {
+	if got.NotesURL != "https://github.com/PorticoMediaServer/portico/releases/tag/v1.4.0" {
 		t.Fatalf("the release page was not offered: %q", got.NotesURL)
 	}
 	if got.AutoInstall {
@@ -81,5 +81,40 @@ func TestUpdatesReadTheManifestTheReleasePipelinePublishes(t *testing.T) {
 	same := s.Updates(context.Background(), UpdateBuild{Version: "1.4.0"}, "stable", "https://example.invalid/portico-update-manifest.json")
 	if same.UpdateAvailable || same.State != "current" {
 		t.Fatalf("the running release was reported as out of date: %+v", same)
+	}
+}
+
+// An internal, unsealed release (release.yml, 0.0.N) publishes a feed that lists no build, so no
+// server is ever offered it as an update.
+func TestAnUnsealedReleaseFeedOffersNoUpdate(t *testing.T) {
+	script, err := filepath.Abs(filepath.Join("..", "..", "..", "scripts", "write-public-update-manifest.mjs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(script); err != nil {
+		t.Skip("the release scripts are not part of this source tree")
+	}
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is not installed; the release manifest writer cannot run")
+	}
+	work := t.TempDir()
+	if err = os.Mkdir(filepath.Join(work, "dist"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(node, script, "0.0.1", "PorticoMediaServer/portico", "unsealed")
+	command.Dir = work
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("the manifest writer failed: %v\n%s", err, output)
+	}
+	published, err := os.ReadFile(filepath.Join(work, "dist", "portico-update-manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _, _ := newService(t)
+	s.Fetch = func(context.Context, string) ([]byte, error) { return published, nil }
+	got := s.Updates(context.Background(), UpdateBuild{Version: "0.0.0"}, "stable", "https://example.invalid/portico-update-manifest.json")
+	if got.UpdateAvailable || got.Latest != nil || got.Status != "no-release" {
+		t.Fatalf("an unsealed release was offered as an update: %+v", got)
 	}
 }

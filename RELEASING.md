@@ -23,7 +23,7 @@ Until v0.1.0, every product (the server, the apps on every platform and the desk
 
 1. **Start.** The maintainer runs the **Release** workflow on `main` with a version (`0.0.N`).
    - It builds everything from that one commit.
-   - The full server suite with `-race` runs once, as a gate. The macOS server build also runs the plain suite on macOS. Cross-compiled builds run no tests of their own.
+   - The full server suite runs once, as a gate, the same way the merge checks run it. The macOS server build also runs it on macOS. Cross-compiled builds run no tests of their own. A separate nightly run checks for data races.
    - A pull request that changes the release machinery runs the same builds as a proof: version 0.0.0, with no signing, no seal and no draft.
 2. **Seal.** Two steps wait for the maintainer's approval in the `release-seal` environment, the only place the release key is available. That's two approvals per release:
    - **The server builds**, one approval for every platform at once. Each build's own `manifest.json` and `manifest.sig` are signed. This step arrives with the qualified FFmpeg toolchain; internal builds skip it.
