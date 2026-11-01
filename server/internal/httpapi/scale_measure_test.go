@@ -634,6 +634,31 @@ func scalePreparedReading(t *testing.T, r *readingFixture, n int, format string)
 			t.Fatalf("prepared %s: %d %s", route, w.Code, w.Body.String())
 		}
 		readyMS := float64(time.Since(began)) / float64(time.Millisecond)
+		readyTotal, readyEntries := 0, 0
+		if route == "browse" {
+			var page catalog.BrowseResult
+			if e := json.Unmarshal(w.Body.Bytes(), &page); e != nil {
+				t.Fatal(e)
+			}
+			readyTotal, readyEntries = page.PageInfo.Total, len(page.Entries)
+			if readyTotal != max(10, n/20)+1 || readyEntries != min(12, readyTotal) {
+				t.Fatalf("prepared fixture population: total=%d entries=%d expected=%d", readyTotal, readyEntries, max(10, n/20)+1)
+			}
+		} else {
+			var page catalog.FacetPage
+			if e := json.Unmarshal(w.Body.Bytes(), &page); e != nil {
+				t.Fatal(e)
+			}
+			readyTotal, readyEntries = page.Total, len(page.Values)
+			perGroup := 20
+			if route == "series" {
+				perGroup = 5
+			}
+			minimum := (max(10, n/20) + perGroup - 1) / perGroup
+			if readyTotal < minimum || readyEntries != min(12, readyTotal) {
+				t.Fatalf("prepared fixture facets: total=%d entries=%d minimum=%d", readyTotal, readyEntries, minimum)
+			}
+		}
 		var warmMS []float64
 		var warmCosts []dbwork.Cost
 		for i := 0; i < 10; i++ {
@@ -645,7 +670,7 @@ func scalePreparedReading(t *testing.T, r *readingFixture, n int, format string)
 			warmMS, warmCosts = append(warmMS, ms), append(warmCosts, cost)
 			observedBytes = max(observedBytes, store.Stats().Bytes)
 		}
-		results[route] = map[string]any{"initial_status": initialStatus, "initial_ms": initialMS, "initial_cost": initialCost, "time_to_ready_ms": readyMS, "poll": scalePct(pollMS), "poll_costs": pollCosts, "warm": scalePct(warmMS), "warm_costs": warmCosts, "statuses": statuses, "observed_store_bytes": observedBytes, "store_max_bytes": store.MaxBytes()}
+		results[route] = map[string]any{"initial_status": initialStatus, "initial_ms": initialMS, "initial_cost": initialCost, "time_to_ready_ms": readyMS, "ready_total": readyTotal, "ready_entries": readyEntries, "poll": scalePct(pollMS), "poll_costs": pollCosts, "warm": scalePct(warmMS), "warm_costs": warmCosts, "statuses": statuses, "observed_store_bytes": observedBytes, "store_max_bytes": store.MaxBytes()}
 		scaleSave(t, "reading-prepared-"+format, map[string]any{"base_items": n, "publications": max(10, n/20) + 1, "routes": results, "peak_rss_mib": scaleRSS(), "boundary": "shipped preparation-enabled HTTP dispatch; initial/poll/ready measured separately; no legacy synchronous browse claim"})
 	}
 }
