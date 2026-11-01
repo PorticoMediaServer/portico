@@ -31,6 +31,23 @@ class Correctness(unittest.TestCase):
             self.assertEqual(set(got),set(candidates)-{'apps/native/test/unrelated.test.ts'})
             self.assertIn('apps/native/test/changed.test.ts',select(root,['apps/native/test/changed.test.ts'],candidates))
             self.assertEqual(select(root,['apps/native/src/deleted.ts'],candidates),candidates)
+    def test_computed_imports_retain_exact_owner_without_neighbor_prefixes(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d); (root/'scripts').mkdir()
+            source=Path(__file__).resolve().parents[1]/'scripts/ci-affected.py'
+            (root/'scripts/ci-affected.py').write_text(source.read_text())
+            owners=['apps/native','apps/native-extra','packages/core','packages/core-extra','web','website']
+            candidates=[owner+'/test/consumer.test.ts' for owner in owners]
+            for owner in owners:
+                for name,text in [(owner+'/src/deep/input.ts','export const value=1;'),
+                                  (owner+'/test/consumer.test.ts','import(target);')]:
+                    p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
+            for owner in owners:
+                with self.subTest(owner=owner):
+                    diagnostics={}
+                    got=select(root,[owner+'/src/deep/input.ts'],candidates,diagnostics)
+                    self.assertEqual(got,[owner+'/test/consumer.test.ts'])
+                    self.assertNotIn('fallback',diagnostics)
     def test_wrong_queue_checkout_rejected(self):
         from plan import base_head
         with patch('plan.command',return_value='c'*40):
