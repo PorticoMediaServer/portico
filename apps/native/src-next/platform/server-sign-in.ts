@@ -31,6 +31,9 @@ import {rememberNativeSignInHint} from './sign-in-ended';
 import {createNativeOwnerRecoveryContact} from './owner-recovery-contact';
 import {requestOwnerResetFile, verifyOwnerResetFile} from '../../../../packages/client-core/src/account-reset';
 
+// Development bundles only (PORTICO_DEV_SIGN_IN=1); folded to undefined, with its module, everywhere else.
+const devSignIn: typeof import('./dev-sign-in') | undefined = typeof __PORTICO_DEV_SIGN_IN__ === 'boolean' && __PORTICO_DEV_SIGN_IN__ ? require('./dev-sign-in') : undefined;
+
 /** The original issuer of a fresh grant, so cleanup can end it over the same route. */
 type GrantIssuer = {origin: string; routes: NonNullable<ReturnType<HttpLocalApi['getRouteConnection']>>; pin: ServerPin};
 import type {HostedRequestApi} from '../../../../packages/client-core/src/portico-servers';
@@ -366,6 +369,14 @@ export class NativeServerSignIn {
       if (this.server?.signIn !== 'local' || !this.api || this.account || !this.admission) throw mismatch();
       if (this.expectedTarget) this.assertSignInTarget(this.expectedTarget.serverId, this.expectedTarget.fingerprint);
       return this.consume(await directSignIn(this.api, username, password, this.controller.signal));
+    });
+  }
+  /** Development bundles only: the server's seeded test owner, without a password. */
+  signInTestOwner() {
+    return this.run(async () => {
+      if (!devSignIn || this.server?.signIn !== 'local' || !this.api || this.account || !this.admission) throw mismatch();
+      if (this.expectedTarget) this.assertSignInTarget(this.expectedTarget.serverId, this.expectedTarget.fingerprint);
+      return this.consume(await devSignIn.signInTestOwner(this.api, this.controller.signal));
     });
   }
   completeSecondFactor(code: string) {

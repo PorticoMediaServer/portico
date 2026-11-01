@@ -72,6 +72,8 @@ type PINRecovery = {controller: NativeProfileRecovery; profile: ManagedProfile; 
 type RequiredSetup = Readonly<{kind: 'required-setup'; requirement: 'password' | 'two-step'; serverName: string; serverOrigin: string}>;
 type Result = {kind: 'profiles'; profiles: readonly ManagedProfile[]} | {kind: 'challenge'; expiresAt: string} | {kind: 'complete'} | RequiredSetup;
 const t = defaultI18n.t;
+// Development bundles only (PORTICO_DEV_SIGN_IN=1); folded to undefined, with its module, everywhere else.
+const devSignIn: typeof import('../../platform/dev-sign-in') | undefined = typeof __PORTICO_DEV_SIGN_IN__ === 'boolean' && __PORTICO_DEV_SIGN_IN__ ? require('../../platform/dev-sign-in') : undefined;
 /** TV reached a server nobody has set up. It is set up from a phone or a browser, not here. */
 const SETUP_ELSEWHERE = 'setup_elsewhere';
 const setupElsewhereRefusal = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === SETUP_ELSEWHERE;
@@ -1213,6 +1215,10 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         void run(async () => {if (source === operation.current && lifetime.current && stageRef.current === 'local') await Linking.openURL(new URL('/sign-in', source.serverOrigin()).href);});
       }}>{t('auth.forgotPassword')}</Button>
       <Button variant="text" disabled={busy} onPress={() => {void run(() => startTV('local'));}}>{t('auth.useCodeFromAnotherDevice')}</Button>
+      {devSignIn && <Button testID="accounts-dev-test-owner" variant="text" disabled={busy} onPress={() => {
+        if (!source || source !== operation.current || !lifetime.current || stageRef.current !== 'local') return;
+        void run(async () => {consume(await source.signInTestOwner());});
+      }}>{devSignIn.TEST_OWNER_LABEL}</Button>}
       {!Platform.isTV && !endedTarget.current && <Button variant="text" disabled={busy} onPress={() => {
         if (!source || source !== operation.current || !lifetime.current || stageRef.current !== 'local' || busyRef.current) return;
         try {openInvitationEntry(source.serverOrigin());} catch (failure) {setError(failure);}
