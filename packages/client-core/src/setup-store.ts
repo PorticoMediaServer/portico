@@ -7,6 +7,8 @@ import type {SetupClaimHandoff} from './setup-claim-client.ts';
 /** The setup the person started here: the bootstrap token and who it is for. */
 export type SetupRecord = Readonly<{
   version: 2; serverId: string; requestId: string; setupToken: string; tokenAt: number; name: string; authMode: 'hosted' | 'local';
+  /** O-169: step 1's choices, kept so a retried initialize sends the same request. */
+  remoteAccess?: 'on' | 'private' | 'off'; remoteSecurity?: 'enhanced' | 'standard';
 }>;
 
 /** One Portico Account approval attempt: the PKCE half that never leaves this tab or app, and the signed handoff once bound. */
@@ -47,8 +49,11 @@ function handoffOf(raw: unknown): SetupClaimHandoff | undefined {
 export function parseSetupRecord(raw: unknown): SetupRecord | Unreadable {
   try {
     if (!isObject(raw) || raw.version !== 2 || !text(raw.serverId) || !text(raw.requestId) || !text(raw.setupToken) || !stamp(raw.tokenAt)
-      || typeof raw.name !== 'string' || (raw.authMode !== 'hosted' && raw.authMode !== 'local')) return unreadable;
-    return Object.freeze({version: 2, serverId: raw.serverId, requestId: raw.requestId, setupToken: raw.setupToken, tokenAt: raw.tokenAt, name: raw.name, authMode: raw.authMode});
+      || typeof raw.name !== 'string' || (raw.authMode !== 'hosted' && raw.authMode !== 'local')
+      || raw.remoteAccess !== undefined && raw.remoteAccess !== 'on' && raw.remoteAccess !== 'private' && raw.remoteAccess !== 'off'
+      || raw.remoteSecurity !== undefined && raw.remoteSecurity !== 'enhanced' && raw.remoteSecurity !== 'standard') return unreadable;
+    return Object.freeze({version: 2, serverId: raw.serverId, requestId: raw.requestId, setupToken: raw.setupToken, tokenAt: raw.tokenAt, name: raw.name, authMode: raw.authMode,
+      ...(raw.remoteAccess ? {remoteAccess: raw.remoteAccess} : {}), ...(raw.remoteSecurity ? {remoteSecurity: raw.remoteSecurity} : {})});
   } catch {
     return unreadable;
   }
