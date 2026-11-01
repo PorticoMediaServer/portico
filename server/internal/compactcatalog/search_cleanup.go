@@ -13,7 +13,9 @@ const searchCleanupRawRows = 24
 
 func cleanSearchGeneration(ctx context.Context, tx *sql.Tx, slot, limit int) (int, error) {
 	var entity int64
-	err := tx.QueryRowContext(ctx, searchTables(`SELECT entity_id FROM catalog_search_documents ORDER BY entity_id LIMIT 1`, slot)).Scan(&entity)
+	// Make the one-row head read an explicit primary-key seek, including the
+	// entire signed keyspace. No scan-plan exemption or deeper walk is needed.
+	err := tx.QueryRowContext(ctx, searchTables(`SELECT entity_id FROM catalog_search_documents WHERE entity_id>=? ORDER BY entity_id LIMIT 1`, slot), int64(-1<<63)).Scan(&entity)
 	if errors.Is(err, sql.ErrNoRows) {
 		_, err = tx.ExecContext(ctx, `UPDATE catalog_derivations SET cleaning=0 WHERE domain=17`)
 		// The phase transition is a committed turn, not catalogue exhaustion.
