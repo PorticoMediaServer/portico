@@ -35,7 +35,7 @@ export function LocalServerSignIn({serverName, initialUsername = '', remembered 
       <TextField variant="auth" label={t('accounts.signIn.username')} name="username" autoComplete="username" data-filled={remembered.some(account => account.username === username) || undefined} value={username} onChange={event => setUsername(event.currentTarget.value)} disabled={busy} required />
       <AuthPasswordField label={t('accounts.signIn.password')} name="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.currentTarget.value)} disabled={busy} aria-invalid={waiting || undefined} required />
       <Button className={styles.submit} variant="primary" type="submit" loading={busy} disabled={!username || !password || waiting} data-retry-waiting={waiting || undefined}>
-        <span className={styles.signInLabel} data-waiting={waiting || undefined}><span aria-hidden={!waiting}>{t('services.signin.tryIn', {time: signInRetryClock(seconds, defaultI18n.locale)})}</span><span aria-hidden={waiting}>{t('accounts.signIn.submit')}</span></span>
+        <span className={styles.signInLabel} data-waiting={waiting || undefined}><span aria-hidden={!waiting}>{waiting ? t('services.signin.tryIn', {time: signInRetryClock(seconds, defaultI18n.locale)}) : null}</span><span aria-hidden={waiting}>{t('accounts.signIn.submit')}</span></span>
       </Button>
     </form>
     <AuthLinks><button type="button" disabled={!onForgotPassword || busy} onClick={onForgotPassword}>{t('auth.forgotPassword')}</button><button type="button" data-quiet disabled={!onJoin || busy} onClick={onJoin}>{t('web.directJoin.have')}</button>
