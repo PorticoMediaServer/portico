@@ -51,10 +51,8 @@ def context(env=None, root=ROOT):
             env.get('GITHUB_REPOSITORY') != 'PorticoMediaServer/portico' or
             not env.get('GITHUB_WORKFLOW_REF', '').startswith(expected + 'refs/heads/') or
             not env.get('GITHUB_REF', '').startswith('refs/heads/') or
-            env.get('GITHUB_EVENT_NAME') not in ('workflow_dispatch', 'push')):
+            env.get('GITHUB_EVENT_NAME') != 'workflow_dispatch'):
         raise ValueError('dedicated same-repository hosted branch workflow required')
-    if env.get('GITHUB_EVENT_NAME') == 'push' and env.get('GITHUB_REF') != 'refs/heads/rebuild/D-hosted-toolchain-r2':
-        raise ValueError('unapproved cold bootstrap branch')
     sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
     if sha != env.get('GITHUB_SHA') or not re.fullmatch(r'[a-f0-9]{40}', sha):
         raise ValueError('exact workflow source checkout required')
@@ -222,6 +220,10 @@ def build(target, work):
                 raise ValueError('absolute executable Apple libtool required')
             env['MACOS_LIBTOOL'] = str(tool)
             receipt['appleLibtool'] = str(tool)
+            receipt['appleSDK'] = {
+                'xcode': subprocess.check_output(['xcodebuild', '-version'], text=True).strip(),
+                'version': subprocess.check_output(['/usr/bin/xcrun', '--show-sdk-version'], text=True).strip(),
+                'clang': subprocess.check_output(['/usr/bin/xcrun', 'clang', '--version'], text=True).strip()}
         if target == 'windows-x64':
             state = work / 'state'
             receipt['phases']['compileSeconds'] = run([sys.executable, ROOT / 'scripts/build-engine.py',
