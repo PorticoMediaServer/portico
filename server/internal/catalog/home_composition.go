@@ -554,31 +554,16 @@ func (s *Service) homeSpotlight(r HomeRequest) ([]HomeSpotlight, error) {
 	return out, nil
 }
 
-func (s *Service) homeNewBadges(r HomeRequest, entries []ContentEntry, src homeSource, sourceIDs []string) error {
-	ids := make([]string, 0, len(entries))
-	ids = append(ids, sourceIDs...)
-	rows, err := s.read().Query(`SELECT id,ord FROM (`+src.base+`) WHERE id IN(SELECT value FROM json_each(?))`, append(append([]any{}, src.args...), idsJSON(ids))...)
-	if err != nil {
-		return err
-	}
-	added := map[string]string{}
-	for rows.Next() {
-		var id, ord string
-		if err = rows.Scan(&id, &ord); err != nil {
-			break
-		}
-		added[id] = strings.Split(ord, "\x1f")[0]
-	}
-	if e := rows.Err(); err == nil {
-		err = e
-	}
-	rows.Close()
-	if err != nil {
-		return err
+// homeNewBadges marks the page's entries added within the New window and not yet
+// watched. ords are the page scan's order values for the same entries, whose
+// first field is the newest visible addition.
+func (s *Service) homeNewBadges(r HomeRequest, entries []ContentEntry, ords []string) error {
+	if len(ords) != len(entries) {
+		return ErrStaleContinuation
 	}
 	for i := range entries {
 		entry := &entries[i]
-		stamp := added[sourceIDs[i]]
+		stamp := strings.Split(ords[i], "\x1f")[0]
 		entry.AddedAt = &stamp
 		at, e := time.Parse(time.RFC3339Nano, stamp)
 		if e != nil || at.After(r.now()) || r.now().Sub(at) > homeNewWindow {

@@ -279,11 +279,11 @@ func TestRecommendationProviderTrendsPolicyExpiryAndLocalMatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, total, start, cursor, _, err := s.homeRowIDs(spec, source, HomeRowPage{Limit: 2}, revision, r.ViewerFence, r.Profile)
+	first, _, total, start, cursor, _, err := s.homeRowIDs(spec, source, HomeRowPage{Limit: 2}, revision, r.ViewerFence, r.Profile)
 	if err != nil || total != 3 || start != 0 || cursor == "" || !reflect.DeepEqual(first, []string{f.items["m1"].Public, f.items["m2"].Public}) {
 		t.Fatal(first, total, start, cursor, err)
 	}
-	next, nextTotal, nextStart, exhausted, _, err := s.homeRowIDs(spec, source, HomeRowPage{Limit: 2, Cursor: cursor}, revision, r.ViewerFence, r.Profile)
+	next, _, nextTotal, nextStart, exhausted, _, err := s.homeRowIDs(spec, source, HomeRowPage{Limit: 2, Cursor: cursor}, revision, r.ViewerFence, r.Profile)
 	if err != nil || nextTotal != 3 || nextStart != 2 || exhausted != "" || !reflect.DeepEqual(next, []string{f.items["m3"].Public}) {
 		t.Fatal(next, nextTotal, nextStart, exhausted, err)
 	}
