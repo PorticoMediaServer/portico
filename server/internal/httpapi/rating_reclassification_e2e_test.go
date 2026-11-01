@@ -143,7 +143,7 @@ func TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan(t *tes
 		for {
 			ok := true
 			paths := []struct{ path, marker string }{
-				{"/v1/libraries/" + movieLibrary + "/content?view=movies&limit=12", target.Public},
+				{"/v1/libraries/" + movieLibrary + "/content?view=browse&limit=12", target.Public},
 				{"/v1/search?q=RatingTransit&group=movies&limit=12", target.Public},
 				{"/v1/home/rows/new_on_server?limit=12", target.Public},
 				{"/v1/libraries/" + movieLibrary + "/categories", "RatingTransitGenre"},
@@ -151,6 +151,9 @@ func TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan(t *tes
 			}
 			for _, probe := range paths {
 				w := f.raw("GET", probe.path, member, nil, nil)
+				if w.Code >= 400 && w.Code < 500 {
+					t.Fatalf("%s status=%d body=%s", probe.path, w.Code, w.Body.String())
+				}
 				if w.Code != 200 || strings.Contains(w.Body.String(), probe.marker) != visible {
 					ok = false
 					last = fmt.Sprintf("%s status=%d body=%s", probe.path, w.Code, w.Body.String())
