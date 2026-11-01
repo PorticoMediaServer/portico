@@ -95,6 +95,10 @@ def checked_blob(layout, entry):
 
 class PrefixCache:
     def __init__(self, directory, state):
+        # An explicit development producer is the only cache consumer. Future
+        # qualified/release entry points must not inherit a cache-capable default.
+        if os.environ.get('PORTICO_ENGINE_BUILD_CONTEXT') != 'development':
+            raise ValueError('dependency caches are development-only; qualified/release builds refuse them')
         self.directory, self.state = Path(directory), Path(state)
         if self.directory.is_symlink() or self.state.is_symlink():
             raise ValueError('owned dependency cache/state directories required')

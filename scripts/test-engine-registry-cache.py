@@ -31,6 +31,7 @@ def module(name):
 cache = module('engine-registry-cache')
 adapter = module('engine-recipe-adapter')
 HOSTED = dict(GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='github-hosted',
+              PORTICO_ENGINE_BUILD_CONTEXT='development',
               GITHUB_REPOSITORY='PorticoMediaServer/portico', GITHUB_EVENT_NAME='workflow_dispatch',
               GITHUB_REF='refs/heads/cache-tests',
               GITHUB_WORKFLOW_REF='PorticoMediaServer/portico/.github/workflows/ffmpeg-toolchain.yml@refs/heads/cache-tests',
@@ -39,6 +40,11 @@ IDENTITY = 'sha256:' + '1' * 64
 
 
 class PolicyTests(unittest.TestCase):
+    def test_qualified_release_and_implicit_context_cannot_read_even_an_existing_registry_cache(self):
+        for value in ('qualified', 'release', '', 'publisher'):
+            with self.subTest(context=value), self.assertRaisesRegex(ValueError, 'development-only'):
+                cache.RegistryCache('windows-x64', dict(HOSTED, PORTICO_ENGINE_BUILD_CONTEXT=value))
+
     def test_disabled_has_no_registry_arguments(self):
         self.assertEqual(cache.RegistryCache('windows-x64', {}).arguments('base', 'a' * 64), [])
 

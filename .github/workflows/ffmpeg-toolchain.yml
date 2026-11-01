@@ -84,6 +84,7 @@ jobs:
           retention-days: 7
   build:
     name: Cold build (${{ matrix.target }})
+    env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
     needs: controls
     if: '!inputs.controlsOnly && !inputs.cacheControls'
     continue-on-error: ${{ matrix.optional }}
@@ -217,6 +218,7 @@ jobs:
           if-no-files-found: warn
 
   registry-cache-control:
+    env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
     if: inputs.cacheControls && github.repository == 'PorticoMediaServer/portico'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -247,6 +249,7 @@ jobs:
       - if: always()
         run: docker logout ghcr.io
   prefix-cache-seed:
+    env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
     if: inputs.cacheControls && github.repository == 'PorticoMediaServer/portico'
     strategy:
       fail-fast: false
@@ -277,6 +280,7 @@ jobs:
             ${{ runner.temp }}/prefix-cache-plan/transport-context.json
           retention-days: 7
   prefix-cache-reuse:
+    env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
     needs: prefix-cache-seed
     if: inputs.cacheControls && github.repository == 'PorticoMediaServer/portico'
     strategy:
