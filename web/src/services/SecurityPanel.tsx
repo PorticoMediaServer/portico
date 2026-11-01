@@ -2,10 +2,10 @@ import {Fragment, useLayoutEffect, useEffect, useMemo, useRef, useState} from 'r
 import {goTo} from '../platform/hosted-navigation';
 import type {DeletionPreview, IdentityProvider, SecurityIntent, SecurityPurpose, SecurityResult, SecurityState} from '@core/hosted-security.ts';
 import {passwordStrength} from '@core/password-strength.ts';
-import {providerOnlyLabel, providerOnlySignIn} from '@core/hosted-security.ts';
+import {providerOnlySignIn} from '@core/hosted-security.ts';
 import {ApiError} from '@core/index.ts';
 import {AuthCodeBoxes, AuthPasswordField, AuthLinks} from '../kit/accounts';
-import {ServicesAuthenticator, ServicesBadge, ServicesDangerAction, ServicesGroup, ServicesRecoveryCodes, ServicesGroupNote, ServicesRowNote, ServicesWorkspaceRow} from '../kit/accounts/ServicesWorkspace';
+import {ServicesAuthenticator, ServicesBadge, ServicesDangerAction, ServicesGroup, ServicesRecoveryCodes, ServicesGroupNote, ServicesRowNote, ServicesQuietLink, ServicesWorkspaceRow} from '../kit/accounts/ServicesWorkspace';
 import {HostedError, ServicesLabel, ServicesNotice, ServicesQuiet, ServicesRegistrationLead, ServicesStrength, ServicesAuthStage, ServicesHeading, ServicesActions} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';
 import {Dialog} from '../kit/overlays';
@@ -85,9 +85,9 @@ export function SecurityPanel({account, api, identity, username, identityTransac
     {connected && <ServicesNotice tone="success">{t('web.hostedSecurity.providerConnected', {provider: providerName(connected)})}</ServicesNotice>}
     {state && <>
       <ServicesGroup title={t('web.hostedSecurity.signingIn')}>
-        {providerOnly ? <ServicesWorkspaceRow phoneIcon="i-key" title={t('web.password')} help={providerOnlyLabel(providerOnly, t)} />
-        : <ServicesWorkspaceRow phoneIcon="i-key" title={t('web.password')} help={state.hasPassword ? t('web.hostedSecurity.passwordHelp') : t('web.hostedSecurity.noPasswordOther')}>
-          {credentialAvailable && <Button size="small" onClick={() => setTask('password_set_or_change')}>{t(state.hasPassword ? 'web.hostedSecurity.change' : 'account.setPassword')}</Button>}
+        {/* A Google- or Apple-only account has no Password row until More sign-in options shows it. */}
+        {(!providerOnly || moreSignIn) && <ServicesWorkspaceRow phoneIcon="i-key" title={t('web.password')} help={providerOnly ? t('web.hostedSecurity.notSet') : state.hasPassword ? t('web.hostedSecurity.passwordHelp') : t('web.hostedSecurity.noPasswordOther')}>
+          {credentialAvailable && <Button size="small" onClick={() => setTask('password_set_or_change')}>{t(providerOnly ? 'web.hostedSecurity.addPassword' : state.hasPassword ? 'web.hostedSecurity.change' : 'account.setPassword')}</Button>}
         </ServicesWorkspaceRow>}
         <ServicesWorkspaceRow phoneIcon="i-mail" title={t('web.hostedSecurity.email')} help={<>{state.contactAddress}{state.contactAddress && <br />}{t('services.security.emailHelp')}</>} helpPhone={state.contactAddress}>
           {credentialAvailable && <Button size="small" onClick={() => setTask('email_change')}>{t('web.hostedSecurity.change')}</Button>}
@@ -97,15 +97,13 @@ export function SecurityPanel({account, api, identity, username, identityTransac
           <Button size="small" disabled={onlyProvider || busy || Boolean(retained)} onClick={() => setDisconnecting(provider)}>{t('web.hostedSecurity.disconnect')}</Button>
         </ServicesWorkspaceRow>{onlyProvider && <ServicesRowNote>{t('web.hostedSecurity.lastMethod')}</ServicesRowNote>}</Fragment>)}
         {offered.filter(provider => !state.providers.some(item => item.provider === provider)).sort((a, b) => a.localeCompare(b)).map(provider => <ServicesWorkspaceRow key={provider} icon={provider === 'apple' ? 'i-apple' : 'i-google'} title={t('web.hostedSecurity.signInWith', {provider: providerName(provider)})}
-          help={t('web.hostedSecurity.connectHelp', {provider: providerName(provider)})}><Button size="small" disabled={busy || Boolean(retained)} onClick={() => void connect(provider)}>{t('web.hostedSecurity.connect')}</Button></ServicesWorkspaceRow>)}
-        {providerOnly && (moreSignIn ? <ServicesWorkspaceRow phoneIcon="i-key" title={t('web.hostedSecurity.moreSignInOptions')}>
-          {credentialAvailable && <Button size="small" onClick={() => setTask('password_set_or_change')}>{t('web.hostedSecurity.addPassword')}</Button>}
-        </ServicesWorkspaceRow> : <Button size="small" variant="text" onClick={() => setMoreSignIn(true)}>{t('web.hostedSecurity.moreSignInOptions')}</Button>)}
+          help={t(providerOnly ? 'web.hostedSecurity.connectHelpToo' : 'web.hostedSecurity.connectHelp', {provider: providerName(provider)})}><Button size="small" disabled={busy || Boolean(retained)} onClick={() => void connect(provider)}>{t('web.hostedSecurity.connect')}</Button></ServicesWorkspaceRow>)}
       </ServicesGroup>
+      {providerOnly && !moreSignIn && <ServicesQuietLink onClick={() => setMoreSignIn(true)}>{t('web.hostedSecurity.moreSignInOptions')}</ServicesQuietLink>}
       {!state.hasPassword && <ServicesGroupNote><ServicesNotice tone="info">{t((retained || providerReady && state.providers.some(v=>v.revision&&offered.includes(v.provider)))?'web.hostedSecurity.providerConfirm':'web.hostedSecurity.providerOnly')}</ServicesNotice></ServicesGroupNote>}
       <ServicesGroup title={t('web.twoStep.title')} description={t('web.hostedSecurity.twoStepHelp')}>
         <ServicesWorkspaceRow phoneIcon={state.mfaEnabled ? 'i-shieldok' : 'i-shield'} phoneTone={state.mfaEnabled ? 'green' : undefined} title={t('web.twoStep.title')} badge={<ServicesBadge tone={state.mfaEnabled ? 'healthy' : 'default'}>{t(state.mfaEnabled ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off')}</ServicesBadge>}
-          help={state.mfaEnabled ? t('web.hostedSecurity.codesLeft', {count: state.recoveryCodesRemaining}) : t('web.hostedSecurity.recommended')}>
+          help={state.mfaEnabled ? t('web.hostedSecurity.codesLeft', {count: state.recoveryCodesRemaining}) : providerOnly ? undefined : t('web.hostedSecurity.recommended')}>
           {credentialAvailable && <Button size="small" onClick={() => setTask(state.mfaEnabled ? 'mfa_disable' : 'mfa_enroll')}>{t(state.mfaEnabled ? 'web.hostedSecurity.turnOff' : 'web.twoStep.turnOn')}</Button>}
         </ServicesWorkspaceRow>
         {state.mfaEnabled && credentialAvailable && <ServicesWorkspaceRow phoneIcon="i-key" title={t('web.hostedSecurity.recoveryCodes')} help={t('web.hostedSecurity.recoveryCodesHelp')}><Button size="small" onClick={() => setTask('recovery_codes')}>{t('web.hostedSecurity.makeCodes')}</Button></ServicesWorkspaceRow>}

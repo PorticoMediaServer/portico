@@ -27,6 +27,7 @@ async function settings(state) {
     '../../../platform/account-security-policy': {accountSecurityBrowserAvailable: () => true, accountSecurityUIURL: () => false},
     '../../../kit/settings/SettingsGroups': {SettingsGroup: 'SettingsGroup'}, '../../../kit/shell/SettingsSurfaces': {SettingsRow: 'SettingsRow'},
     '../../../kit/controls': {Button: 'Button', Switch: 'Switch', TextField: 'TextField'},
+    '../../../kit/accounts/ServicesWorkspace': {ServicesAuthenticator: 'ServicesAuthenticator', ServicesQuietLink: 'ServicesQuietLink', ServicesRecoveryCodes: 'ServicesRecoveryCodes'},
     './HostedSecurityAction': {HostedSecurityAction: 'HostedSecurityAction'},
   });
   const render = () => tree(h.render(() => mod.ProfileSignIn({profiles, api: {}, commandApi: {}, signIn: 'portico', isCurrent: () => true, onEnded() {}, session})));
@@ -37,38 +38,30 @@ async function settings(state) {
   return {row: id => nodes.find(node => node.type === 'SettingsRow' && node.props.id === id), actionIn, nodes: () => nodes, render: () => {nodes = render(); return nodes;}, close: () => {h.dispose(); globalThis.location = savedLocation;}};
 }
 
-test('a Google-only account: "Signs in with Google", no button, and no Set a password anywhere', async () => {
+test('a Google-only account has no Password row, never Set a password, and a quiet link under the group', async () => {
   const f = await settings(security());
   try {
-    assert.equal(f.row('profile.password'), undefined, 'the change/set row is not drawn');
-    const row = f.row('profile.passwordProvider');
-    assert.ok(row, 'the Password row says how it signs in');
-    assert.equal(row.props.help, 'web.hostedSecurity.signsInWith:{"provider":"accounts.provider.google"}');
-    assert.equal(f.actionIn(row), undefined, 'no button');
+    assert.equal(f.row('profile.password'), undefined, 'no Password row until it is asked for');
     assert.equal(JSON.stringify(f.nodes().map(node => node.props?.label)).includes('account.setPassword'), false);
-    assert.equal(f.row('profile.addPassword'), undefined, 'Add a password waits behind the link');
     assert.ok(f.row('profile.twoStep'), 'two-step stays: Hosted asks for it after a provider sign-in too');
+    const link = f.nodes().find(node => node.type === 'ServicesQuietLink');
+    assert.deepEqual([link.props.children].flat(), ['web.hostedSecurity.moreSignInOptions']);
+    const group = f.nodes().find(node => node.type === 'SettingsGroup');
+    assert.equal(tree(group).includes(link), false, 'the link sits under the group, not in it');
   } finally {f.close();}
 });
 
-test('More sign-in options reveals Add a password, which opens the set-password flow', async () => {
+test('More sign-in options shows the Password row: Not set, Add a password', async () => {
   const f = await settings(security());
   try {
-    const link = f.nodes().find(node => node.type === 'Button' && [node.props.children].flat().includes('web.hostedSecurity.moreSignInOptions'));
-    assert.ok(link, 'a quiet link'); assert.equal(link.props.variant, 'text');
-    link.props.onClick(); for (let i = 0; i < 4; i++) {f.render(); await new Promise(resolve => setTimeout(resolve, 0));} f.render();
-    const row = f.row('profile.addPassword');
-    assert.ok(row); assert.equal(row.props.label, 'web.hostedSecurity.moreSignInOptions');
-    const add = f.actionIn(row);
-    assert.equal(add.props.label, 'web.hostedSecurity.addPassword');
-    assert.equal(f.nodes().some(node => node.type === 'Button' && [node.props.children].flat().includes('web.hostedSecurity.moreSignInOptions')), false, 'the link gives way to the row');
+    f.nodes().find(node => node.type === 'ServicesQuietLink').props.onClick();
+    for (let i = 0; i < 4; i++) {f.render(); await new Promise(resolve => setTimeout(resolve, 0));} f.render();
+    const row = f.row('profile.password');
+    assert.ok(row); assert.equal(row.props.label, 'next.settingsSpec.account.profile.groups.5.rows.1.label');
+    assert.equal(row.props.help, 'web.hostedSecurity.notSet');
+    assert.equal(f.actionIn(row).props.label, 'web.hostedSecurity.addPassword');
+    assert.equal(f.nodes().some(node => node.type === 'ServicesQuietLink'), false, 'the link goes away');
   } finally {f.close();}
-});
-
-test('an account with both providers says so', async () => {
-  const f = await settings(security({providers: [google, apple]}));
-  try {assert.equal(f.row('profile.passwordProvider').props.help, 'web.hostedSecurity.signsInWithBoth');}
-  finally {f.close();}
 });
 
 test('an account with a password is unchanged: Change password, no link', async () => {
@@ -76,7 +69,7 @@ test('an account with a password is unchanged: Change password, no link', async 
   try {
     const row = f.row('profile.password');
     assert.ok(row); assert.equal(f.actionIn(row).props.label, 'next.settingsSpec.account.profile.groups.5.rows.1.control.label');
-    assert.equal(f.row('profile.passwordProvider'), undefined);
-    assert.equal(f.nodes().some(node => node.type === 'Button' && [node.props.children].flat().includes('web.hostedSecurity.moreSignInOptions')), false);
+    assert.equal(row.props.help, undefined);
+    assert.equal(f.nodes().some(node => node.type === 'ServicesQuietLink'), false);
   } finally {f.close();}
 });

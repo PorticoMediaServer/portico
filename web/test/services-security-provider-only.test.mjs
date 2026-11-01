@@ -34,19 +34,26 @@ async function panel(state) {
     buttons: () => nodes.filter(node => node.type === 'Button'), close: () => {h.dispose(); globalThis.location = saved;}};
 }
 
-test('a Google-only account: Password reads "Signs in with Google" with no button; More sign-in options reveals Add a password', async () => {
+test('a Google-only account: no Password row, Apple says "too", no password wording; the quiet link shows Password, Not set, Add a password', async () => {
   const f = await panel(security());
   try {
-    const password = f.rows().find(row => row.props.title === 'web.password');
-    assert.equal(password.props.help, 'web.hostedSecurity.signsInWith:{"provider":"accounts.provider.google"}');
-    assert.equal(tree(password).some(node => node.type === 'Button'), false, 'no button on the Password row');
+    assert.equal(f.rows().find(row => row.props.title === 'web.password'), undefined, 'no Password row until it is asked for');
     assert.equal(f.buttons().some(button => f.text(button) === 'account.setPassword'), false, 'never Set a password');
-    const more = f.buttons().find(button => f.text(button) === 'web.hostedSecurity.moreSignInOptions');
-    assert.ok(more); assert.equal(more.props.variant, 'text');
-    more.props.onClick(); await f.refresh();
-    const revealed = f.rows().find(row => row.props.title === 'web.hostedSecurity.moreSignInOptions');
-    assert.ok(revealed, 'the Add a password row');
-    assert.ok(tree(revealed).some(node => node.type === 'Button' && f.text(node) === 'web.hostedSecurity.addPassword'));
+    const apple = f.rows().find(row => String(row.props.title).includes('"provider":"accounts.provider.apple"'));
+    assert.equal(apple.props.help, 'web.hostedSecurity.connectHelpToo:{"provider":"accounts.provider.apple"}');
+    const twoStep = f.rows().find(row => row.props.title === 'web.twoStep.title');
+    assert.equal(twoStep.props.help, undefined, 'no "if other people know your password"');
+    assert.ok(f.nodes().some(node => node.type === 'ServicesNotice' && [node.props.children].flat().includes('web.hostedSecurity.providerConfirm')));
+    const link = f.nodes().find(node => node.type === 'ServicesQuietLink');
+    assert.deepEqual([link.props.children].flat(), ['web.hostedSecurity.moreSignInOptions']);
+    const group = f.nodes().find(node => node.type === 'ServicesGroup');
+    assert.equal(tree(group).includes(link), false, 'under the group, not in it');
+    link.props.onClick(); await f.refresh();
+    const password = f.rows().find(row => row.props.title === 'web.password');
+    assert.equal(password.props.help, 'web.hostedSecurity.notSet'); assert.equal(password.props.phoneIcon, 'i-key');
+    assert.ok(tree(password).some(node => node.type === 'Button' && f.text(node) === 'web.hostedSecurity.addPassword'));
+    assert.equal(f.rows()[0], password, 'the first row, in its normal place');
+    assert.equal(f.nodes().some(node => node.type === 'ServicesQuietLink'), false, 'the link goes away');
   } finally {f.close();}
 });
 
@@ -56,6 +63,9 @@ test('a password account keeps Change and has no More sign-in options', async ()
     const password = f.rows().find(row => row.props.title === 'web.password');
     assert.equal(password.props.help, 'web.hostedSecurity.passwordHelp');
     assert.ok(tree(password).some(node => node.type === 'Button' && f.text(node) === 'web.hostedSecurity.change'));
-    assert.equal(f.buttons().some(button => f.text(button) === 'web.hostedSecurity.moreSignInOptions'), false);
+    assert.equal(f.nodes().some(node => node.type === 'ServicesQuietLink'), false);
+    const apple = f.rows().find(row => String(row.props.title).includes('"provider":"accounts.provider.apple"'));
+    assert.equal(apple.props.help, 'web.hostedSecurity.connectHelp:{"provider":"accounts.provider.apple"}', 'password accounts keep today\'s Connect help');
+    assert.equal(f.rows().find(row => row.props.title === 'web.twoStep.title').props.help, 'web.hostedSecurity.recommended');
   } finally {f.close();}
 });
