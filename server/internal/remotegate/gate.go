@@ -35,12 +35,44 @@ const (
 // Tailnet ranges count as home unless remote access is Off.
 var tailnet = []netip.Prefix{netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("fd7a:115c:a1e0::/48")}
 
+// Local is every loopback, private and link-local range. These always count as home,
+// on top of the detected and configured networks: none can arrive as a raw source
+// address from the open internet, and a container in Docker bridge mode sees only its
+// bridge (172.17.0.0/16) while the people at home are on 192.168.x (Justin, 1 Nov).
+// First-run setup uses the same classification (LocalAddr, Policy.Home).
+var Local = []netip.Prefix{
+	netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("::1/128"),
+	netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("172.16.0.0/12"), netip.MustParsePrefix("192.168.0.0/16"),
+	netip.MustParsePrefix("169.254.0.0/16"), netip.MustParsePrefix("fe80::/10"), netip.MustParsePrefix("fc00::/7"),
+}
+
+// LocalAddr reports an address in Local. The tailnet's own IPv6 range sits inside
+// fc00::/7 but is the tailnet, not the home network: it counts only through Policy.Home.
+func LocalAddr(peer netip.Addr) bool {
+	peer = peer.Unmap().WithZone("")
+	if !peer.IsValid() || inPrefixes(tailnet, peer) {
+		return false
+	}
+	return inPrefixes(Local, peer)
+}
+
+func inPrefixes(prefixes []netip.Prefix, peer netip.Addr) bool {
+	for _, prefix := range prefixes {
+		if prefix.Contains(peer) {
+			return true
+		}
+	}
+	return false
+}
+
 // Policy is one immutable snapshot of the settings the gate reads. It is
 // rebuilt on every settings save and swapped atomically.
 type Policy struct {
 	security string
 	access   string
 	home     []netip.Prefix
+	// configured is the detected and owner-configured home networks alone.
+	configured []netip.Prefix
 	proxies  []netip.Prefix
 	hosts    map[string]struct{}
 	// own reports the server's own public addresses (a client at one of them is
@@ -68,7 +100,8 @@ func NewPolicy(s Settings) *Policy {
 	if p.access != AccessPrivate && p.access != AccessOff {
 		p.access = AccessOn
 	}
-	p.home = append([]netip.Prefix(nil), s.Home...)
+	p.configured = append([]netip.Prefix(nil), s.Home...)
+	p.home = append(append([]netip.Prefix(nil), s.Home...), Local...)
 	if p.access != AccessOff {
 		p.home = append(p.home, tailnet...)
 	}
@@ -114,6 +147,11 @@ func (p *Policy) Home(peer netip.Addr) bool {
 	}
 	if peer.IsLoopback() {
 		return true
+	}
+	// With remote access Off the tailnet is outside, though its IPv6 range is inside
+	// fc00::/7, unless the owner made it a home network.
+	if p.access == AccessOff && inPrefixes(tailnet, peer) && !inPrefixes(p.configured, peer) {
+		return false
 	}
 	for _, prefix := range p.home {
 		if prefix.Contains(peer) {

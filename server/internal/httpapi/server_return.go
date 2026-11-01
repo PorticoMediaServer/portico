@@ -245,7 +245,8 @@ func (d Dependencies) completeSetupReturnHTTP(w http.ResponseWriter, r *http.Req
 		failure(w, identity.ErrUnauthorized)
 		return
 	}
-	origin := d.ownerSwitchWebOrigin(r)
+	// The return is judged by the rule its setup start was signed under.
+	origin := d.setupWebOrigin(r)
 	if origin == "" {
 		failure(w, identity.ErrUnauthorized)
 		return
