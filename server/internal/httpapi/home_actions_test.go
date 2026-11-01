@@ -176,7 +176,7 @@ func TestHomeActionHTTPRecomposesLibraryPolicyAndWithholdsPrivateOffers(t *testi
 		return row, req.Body.String()
 	}
 	before, _ := read(f.token, "")
-	if before.ViewerFence != document.ViewerFence || before.Revision != document.Revision {
+	if before.ViewerFence != document.ViewerFence || before.Revision != homeRowsRevision(t, document) {
 		t.Fatal("spotlight and row did not retain the same Home authority/revision")
 	}
 	if len(before.Entries) == 0 {
@@ -527,7 +527,7 @@ func TestHomeActionAggregateAvailabilityRetainsSnapshotAndCurrentRestrictionFenc
 			if err := json.Unmarshal(w.Body.Bytes(), &document); err != nil {
 				t.Fatal(err)
 			}
-			if document.ViewerFence != row.ViewerFence || document.Revision != row.Revision {
+			if document.ViewerFence != row.ViewerFence || homeRowsRevision(t, document) != row.Revision {
 				t.Fatal("spotlight and row disagree on the current Home fence/revision")
 			}
 			shows := 0
@@ -618,4 +618,17 @@ func TestHomeActionAggregateAvailabilityRetainsSnapshotAndCurrentRestrictionFenc
 	if err != nil || fence != afterRestriction.ViewerFence || fence == before.ViewerFence {
 		t.Fatalf("post-read proof did not retain current restriction fence: %s %v", fence, err)
 	}
+}
+
+// homeRowsRevision is the paging revision the document's rows carry. The
+// document's own revision also counts decoration; a row's fences paging only.
+func homeRowsRevision(t *testing.T, document catalog.HomeDocument) catalog.ContentRevision {
+	t.Helper()
+	for _, row := range document.Rows {
+		if row.Live == nil {
+			return row.Revision
+		}
+	}
+	t.Fatal("the Home document has no rows")
+	return catalog.ContentRevision{}
 }
