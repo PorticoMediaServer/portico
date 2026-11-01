@@ -63,7 +63,7 @@ func TestNestedGrowthMeasurement(t *testing.T) {
 			t.Fatal(e)
 		}
 		results = append(results, r)
-		raw, _ := json.MarshalIndent(map[string]any{"base_items": n, "routes": results, "seed_source": "5cc5e572, generator unchanged", "peak_rss_kb": growthPeakRSS()}, "", "  ")
+		raw, _ := json.MarshalIndent(map[string]any{"base_items": n, "routes": results, "seed_source": "a13ca507 bulk seed; application baseline 444a7087", "peak_rss_kb": growthPeakRSS()}, "", "  ")
 		if e = os.WriteFile(filepath.Join(dir, "nested.json"), raw, 0600); e != nil {
 			t.Fatal(e)
 		}

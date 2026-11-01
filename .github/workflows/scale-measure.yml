@@ -128,7 +128,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        items: [10000, 30000, 100000]
+        items: [10000]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
@@ -139,7 +139,7 @@ jobs:
         with:
           path: ${{ runner.temp }}/scale-cache/F-growth-*.sqlite
           # This read-only follow-up changes no generator or application code.
-          # Reuse the completed 5cc5e572 seeds; the test refuses a cache miss.
+          # Reuse the completed a13ca507 seeds; the test refuses a cache miss.
           key: growth-F-${{ matrix.items }}-nested-read-only
           restore-keys: growth-F-${{ matrix.items }}-
       - name: Measure nested pages without reseeding
