@@ -5,11 +5,13 @@ package readingtest
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"hash/crc32"
 	"image"
 	"image/color"
 	"image/png"
+	"unicode/utf16"
 )
 
 func EPUB() []byte { return epub(true) }
@@ -32,7 +34,13 @@ func epub(creator bool) []byte {
 		{"EPUB/chapter.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Original chapter</title></head><body><h1 id="chapter">Original chapter</h1><p>This original text is a small publication used to verify reading, source authorization and saved locations.</p></body></html>`},
 	})
 }
-func CBZ() []byte {
+
+type comicMember struct {
+	name string
+	data []byte
+}
+
+func comicMembers() []comicMember {
 	var picture bytes.Buffer
 	img := image.NewRGBA(image.Rect(0, 0, 128, 256))
 	for y := 0; y < 256; y++ {
@@ -43,7 +51,185 @@ func CBZ() []byte {
 	if err := png.Encode(&picture, img); err != nil {
 		panic(err)
 	}
-	return archive([][2]string{{"page1.png", picture.String()}, {"page2.png", picture.String()}, {"ComicInfo.xml", `<ComicInfo><Title>Original comic</Title><Writer>Portico</Writer><Manga>YesAndRightToLeft</Manga><LanguageISO>en</LanguageISO></ComicInfo>`}})
+	page := picture.Bytes()
+	return []comicMember{
+		{"page1.png", page},
+		{"page2.png", page},
+		{"ComicInfo.xml", []byte(`<ComicInfo><Title>Original comic</Title><Writer>Portico</Writer><Manga>YesAndRightToLeft</Manga><LanguageISO>en</LanguageISO></ComicInfo>`)},
+	}
+}
+func CBZ() []byte {
+	members := comicMembers()
+	entries := make([][2]string, 0, len(members))
+	for _, member := range members {
+		entries = append(entries, [2]string{member.name, string(member.data)})
+	}
+	return archive(entries)
+}
+
+// CBR is a genuine stored (method 0) RAR5 container, never a renamed ZIP. The
+// writer below is the Go form of the fixture generator's CC0 RAR5 writer and is
+// read by the server's pinned rardecode reader. Admission still needs a
+// portico_rar7z build; an untagged build does not expose the format.
+const (
+	rarSignature = "Rar!\x1a\x07\x01\x00"
+	rarBlockArc  = 1
+	rarBlockFile = 2
+	rarBlockEnd  = 5
+
+	rarHasData    = 0x0002
+	rarFileMTime  = 0x0002
+	rarFileCRC    = 0x0004
+	rarHostUnix   = 1
+	rarMTimeEpoch = 1704067200 // 2024-01-01T00:00:00Z
+)
+
+func CBR() []byte {
+	var b bytes.Buffer
+	b.WriteString(rarSignature)
+	b.Write(rarBlock(rarBlockArc, 0, rarVint(0), nil))
+	for _, member := range comicMembers() {
+		b.Write(rarFileBlock(member.name, member.data))
+	}
+	b.Write(rarBlock(rarBlockEnd, 0, rarVint(0), nil))
+	return b.Bytes()
+}
+
+func rarVint(value uint64) []byte {
+	out := make([]byte, 0, 8)
+	for {
+		part := byte(value & 0x7f)
+		value >>= 7
+		if value != 0 {
+			part |= 0x80
+		}
+		out = append(out, part)
+		if value == 0 {
+			return out
+		}
+	}
+}
+
+func rarBlock(kind uint64, flags uint64, fields, data []byte) []byte {
+	if len(data) > 0 {
+		flags |= rarHasData
+	}
+	body := rarVint(kind)
+	body = append(body, rarVint(flags)...)
+	if len(data) > 0 {
+		body = append(body, rarVint(uint64(len(data)))...)
+	}
+	body = append(body, fields...)
+	size := rarVint(uint64(len(body)))
+	headerCRC := crc32.NewIEEE()
+	headerCRC.Write(size)
+	headerCRC.Write(body)
+	out := make([]byte, 0, 4+len(size)+len(body)+len(data))
+	out = binary.LittleEndian.AppendUint32(out, headerCRC.Sum32())
+	out = append(out, size...)
+	out = append(out, body...)
+	return append(out, data...)
+}
+
+func rarFileBlock(name string, payload []byte) []byte {
+	fields := rarVint(rarFileMTime | rarFileCRC)
+	fields = append(fields, rarVint(uint64(len(payload)))...)
+	fields = append(fields, rarVint(0o100644)...)
+	fields = binary.LittleEndian.AppendUint32(fields, rarMTimeEpoch)
+	fields = binary.LittleEndian.AppendUint32(fields, crc32.ChecksumIEEE(payload))
+	fields = append(fields, rarVint(0)...) // stored, non-solid
+	fields = append(fields, rarVint(rarHostUnix)...)
+	fields = append(fields, rarVint(uint64(len(name)))...)
+	fields = append(fields, name...)
+	return rarBlock(rarBlockFile, 0, fields, payload)
+}
+
+// CB7 is a genuine 7z container whose members use the copy (stored) coder, so
+// the server's bounded 7z worker decodes the same pages without compression.
+// Admission and reading need the portico_cb7 build tag.
+func CB7() []byte {
+	members := comicMembers()
+	var packed []byte
+	for _, member := range members {
+		packed = append(packed, member.data...)
+	}
+	header := sevenZipHeader(members)
+	start := binary.LittleEndian.AppendUint64(nil, uint64(len(packed)))
+	start = binary.LittleEndian.AppendUint64(start, uint64(len(header)))
+	start = binary.LittleEndian.AppendUint32(start, crc32.ChecksumIEEE(header))
+	var b bytes.Buffer
+	b.WriteString("7z\xbc\xaf\x27\x1c")
+	b.Write([]byte{0, 4}) // format version 0.4
+	b.Write(binary.LittleEndian.AppendUint32(nil, crc32.ChecksumIEEE(start)))
+	b.Write(start)
+	b.Write(packed)
+	b.Write(header)
+	return b.Bytes()
+}
+
+func sevenZipHeader(members []comicMember) []byte {
+	h := []byte{0x01, 0x04, 0x06} // Header, MainStreamsInfo, PackInfo
+	h = append(h, sevenZipNumber(0)...)
+	h = append(h, sevenZipNumber(uint64(len(members)))...)
+	h = append(h, 0x09) // Size
+	for _, member := range members {
+		h = append(h, sevenZipNumber(uint64(len(member.data)))...)
+	}
+	h = append(h, 0x00)       // End PackInfo
+	h = append(h, 0x07, 0x0B) // UnPackInfo, Folder
+	h = append(h, sevenZipNumber(uint64(len(members)))...)
+	h = append(h, 0x00) // external folders
+	for range members {
+		// One coder: flags advertise a one-byte id, and the copy coder is 0x00.
+		h = append(h, 0x01, 0x01, 0x00)
+	}
+	h = append(h, 0x0C) // CodersUnPackSize
+	for _, member := range members {
+		h = append(h, sevenZipNumber(uint64(len(member.data)))...)
+	}
+	h = append(h, 0x00)       // End UnPackInfo
+	h = append(h, 0x08, 0x0D) // SubStreamsInfo, NumUnpackStream
+	for range members {
+		h = append(h, 0x01)
+	}
+	h = append(h, 0x00) // End SubStreamsInfo
+	h = append(h, 0x00) // End StreamsInfo
+	h = append(h, 0x05) // FilesInfo
+	h = append(h, sevenZipNumber(uint64(len(members)))...)
+	var names []byte
+	for _, member := range members {
+		for _, unit := range utf16.Encode([]rune(member.name)) {
+			names = append(names, byte(unit), byte(unit>>8))
+		}
+		names = append(names, 0, 0)
+	}
+	h = append(h, 0x11) // Name
+	h = append(h, sevenZipNumber(uint64(len(names)+1))...)
+	h = append(h, 0x00) // external names
+	h = append(h, names...)
+	h = append(h, 0x00) // End FilesInfo
+	h = append(h, 0x00) // End Header
+	return h
+}
+
+func sevenZipNumber(value uint64) []byte {
+	out := make([]byte, 0, 9)
+	var first byte
+	mask := byte(0x80)
+	extra := 0
+	for extra = 0; extra < 8; extra++ {
+		if value < uint64(1)<<(7*(extra+1)) {
+			first |= byte(value >> (8 * extra))
+			break
+		}
+		first |= mask
+		mask >>= 1
+	}
+	out = append(out, first)
+	for i := 0; i < extra; i++ {
+		out = append(out, byte(value>>(8*i)))
+	}
+	return out
 }
 func PDF() []byte {
 	var b bytes.Buffer
