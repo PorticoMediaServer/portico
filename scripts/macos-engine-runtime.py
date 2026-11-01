@@ -80,6 +80,8 @@ def relative_load(binary, dependency):
 
 
 def owned_path(value, binary, bundle):
+    bundle = bundle.resolve(strict=True)
+    binary = binary.parent.resolve(strict=True) / binary.name
     if not value.startswith('@loader_path/'):
         raise ValueError('Non-relative non-system Mach-O dependency: ' + value)
     path = binary.parent / value.removeprefix('@loader_path/')

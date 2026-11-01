@@ -39,7 +39,7 @@ Load command 1
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); bundle = root / 'bundle'; (bundle / 'bin').mkdir(parents=True)
             (bundle / 'lib').mkdir(); library = bundle / 'lib/libvulkan.1.dylib'; library.write_bytes(b'owned')
-            self.assertEqual(M['owned_path']('@loader_path/../lib/libvulkan.1.dylib', bundle / 'bin/ffmpeg', bundle), library)
+            self.assertEqual(M['owned_path']('@loader_path/../lib/libvulkan.1.dylib', bundle / 'bin/ffmpeg', bundle), library.resolve())
             with self.assertRaises(ValueError):
                 M['owned_path']('@rpath/libvulkan.1.dylib', bundle / 'bin/ffmpeg', bundle)
             outside = root / 'libvulkan.1.dylib'; outside.write_bytes(b'outside')
