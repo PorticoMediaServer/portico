@@ -34,6 +34,7 @@ Until v0.1.0, every product (the server, the apps on every platform and the desk
 - That makes every server build unsealed.
 - Its files say `UNSEALED-NOT-FOR-USE-ENGINE`.
 - Its update feed lists no build, so no server offers it as an update.
+- Its gate skips the few tests that need features only the qualified engine has (libsoxr for music conversion): `ci/quarantine.json` entries scoped to `engine: development`, each with a reason and an expiry. A qualified-engine release runs every test.
 - Sealed releases need the qualified toolchain below.
 - The server doesn't install updates today. When an updater exists, it must verify the sealed manifest.
 
