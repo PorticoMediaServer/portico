@@ -30,6 +30,10 @@ func (s *Service) HomeManifest(r HomeRequest) (HomeDocument, error) {
 	if err != nil {
 		return HomeDocument{}, err
 	}
+	paging, err := s.homePagingRevision(r.Libraries, r.Profile)
+	if err != nil {
+		return HomeDocument{}, err
+	}
 	specs, err := s.homeSpecs(r)
 	if err != nil {
 		return HomeDocument{}, err
@@ -66,7 +70,7 @@ func (s *Service) HomeManifest(r HomeRequest) (HomeDocument, error) {
 		row.Deferred = true
 		row.ViewerFence = r.ViewerFence
 		row.Limit = homeLimit(r.Limit)
-		row.Revision = revision
+		row.Revision = paging
 		out.Rows = append(out.Rows, row)
 	}
 	composed := s.WithRecommendationRestrictions(r.Restrictions)

@@ -69,7 +69,7 @@ func (s *Service) ResolveHomeRowMembership(r HomeRequest, id string) (HomeRowMem
 	if err != nil {
 		return HomeRowMembership{}, err
 	}
-	revision, err := s.homeRevision(r.Libraries, r.Profile)
+	revision, err := s.homePagingRevision(r.Libraries, r.Profile)
 	if err != nil {
 		return HomeRowMembership{}, err
 	}

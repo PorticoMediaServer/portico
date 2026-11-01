@@ -1012,6 +1012,10 @@ func (s *Service) HomeRows(r HomeRequest) (HomeDocument, error) {
 		return out, e
 	}
 	out.Revision = before
+	paging, e := s.homePagingRevision(r.Libraries, r.Profile)
+	if e != nil {
+		return out, e
+	}
 	specs, e := s.homeSpecs(r)
 	if e != nil {
 		return out, e
@@ -1046,7 +1050,7 @@ func (s *Service) HomeRows(r HomeRequest) (HomeDocument, error) {
 			continue
 		}
 		if spec.ID == recFamily {
-			rows, e := s.recFamilyRows(r, before)
+			rows, e := s.recFamilyRows(r, paging)
 			if e != nil {
 				return out, e
 			}
@@ -1058,7 +1062,7 @@ func (s *Service) HomeRows(r HomeRequest) (HomeDocument, error) {
 			}
 			continue
 		}
-		row, e := s.homeRowFor(r, spec, before, HomeRowPage{Limit: r.Limit}, false)
+		row, e := s.homeRowFor(r, spec, paging, HomeRowPage{Limit: r.Limit}, false)
 		if e != nil {
 			return out, e
 		}
@@ -1135,7 +1139,7 @@ func (s *Service) HomeSingleRow(r HomeRequest, id string, page HomeRowPage) (Hom
 		if page.Cursor != "" || page.Start != 0 || page.AnchorID != "" {
 			return HomeRow{}, ErrCursor
 		}
-		revision, err := s.homeRevision(r.Libraries, r.Profile)
+		revision, err := s.homePagingRevision(r.Libraries, r.Profile)
 		if err != nil {
 			return HomeRow{}, err
 		}
@@ -1178,7 +1182,7 @@ func (s *Service) HomeSingleRow(r HomeRequest, id string, page HomeRowPage) (Hom
 	if found == nil || found.PolicyState != "available" {
 		return HomeRow{}, ErrHomeRowUnknown
 	}
-	before, e := s.homeRevision(r.Libraries, r.Profile)
+	before, e := s.homePagingRevision(r.Libraries, r.Profile)
 	if e != nil {
 		return HomeRow{}, e
 	}
@@ -1194,7 +1198,7 @@ func (s *Service) HomeSingleRow(r HomeRequest, id string, page HomeRowPage) (Hom
 		return row, e
 	}
 
-	after, e := s.homeRevision(r.Libraries, r.Profile)
+	after, e := s.homePagingRevision(r.Libraries, r.Profile)
 	if e != nil {
 		return row, e
 	}
