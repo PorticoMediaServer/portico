@@ -504,10 +504,14 @@ func (s *Service) decodeHomeCursor(raw string, expected homeCursor, revision Con
 	if out.Expires <= time.Now().Unix() {
 		return out, ErrCursor
 	}
-	if out.Catalog != revision.Catalog || out.Revision != revision.Viewer {
+	if out.Fingerprint != expected.Fingerprint || out.Revision != revision.Viewer {
 		return out, ErrStaleContinuation
 	}
-	if out.Fingerprint != expected.Fingerprint {
+	// A computed list (recommendations, personal rows, trending) is fenced by its
+	// fingerprint: the same fingerprint is the same list in the same order, so
+	// catalogue writes while a scan settles do not strand its next page. Keyset
+	// rows follow the order revision, which moves when their membership does.
+	if expected.Fingerprint == "" && out.Catalog != revision.Catalog {
 		return out, ErrStaleContinuation
 	}
 
@@ -564,6 +568,10 @@ func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage,
 		cursor, e := s.decodeHomeCursor(page.Cursor, base, revision)
 		if e != nil {
 			return nil, 0, 0, "", "", e
+		}
+		if src.fingerprint != "" {
+			// Later pages of a computed list keep the revision of its first page.
+			base.Catalog = cursor.Catalog
 		}
 		args := append(append([]any{}, src.args...), cursor.Value, cursor.Value, cursor.ID)
 		query := `SELECT id,ord FROM (` + src.base + `) WHERE (ord` + operator + `? OR (ord=? AND id` + operator + `?)) ORDER BY ord ` + order + `,id ` + order + ` LIMIT ` + strconv.Itoa(limit+1)
@@ -758,6 +766,13 @@ func (s *Service) homeRowFor(r HomeRequest, spec homeRowSpec, revision ContentRe
 	ids, total, start, next, lead, e := s.homeRowIDs(spec, src, page, revision, r.ViewerFence, r.Profile)
 	if e != nil {
 		return row, e
+	}
+	if page.Cursor != "" && src.fingerprint != "" {
+		// The continuation of a computed list is that list as of its first page:
+		// it answers with that page's revision, which clients match page to page.
+		if cursor, err := s.readSignedHomeCursor(page.Cursor); err == nil {
+			row.Revision = ContentRevision{Catalog: cursor.Catalog, Viewer: cursor.Revision}
+		}
 	}
 	displayIDs := ids
 	if spec.ID == "new_on_server" {
