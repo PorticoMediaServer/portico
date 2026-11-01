@@ -14,6 +14,7 @@ import {MediaArt, StandardBackdrop} from '../../kit/artwork';
 import {browseType} from '../../kit/browse/presentation';
 import {PosterCard} from '../../kit/cards';
 import {AmbientArt} from '../../kit/artwork';
+import {generatedPoster} from './generated-poster';
 import {FocusItem, FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {WindowedGrid, type LayoutSelection} from '../../kit/layout';
 import {Icon} from '../../kit/Icon';
@@ -196,7 +197,7 @@ function HomeRowCard({entry, runtime, width, onOpen, onPlay, onMenu, onFocus, on
   onMenu?: (anchor: RefObject<View | null>) => void; onFocus: () => void; onBlur: () => void}) {
   const anchor = useRef<View>(null), theme = useTheme(), text = homeCardText(entry, false, runtime.text);
   const allowed = homeEntryCapabilities(entry, {platform: theme.isTV ? 'tv' : 'phone-app', playbackAvailable: !!runtime.playback});
-  return <PosterCard title={text.title} caption={text.caption} detail={text.detail} width={width} artwork={runtime.artwork(entry.posterUrl)} density="grid" menuAnchorRef={anchor}
+  return <PosterCard title={text.title} caption={text.caption} detail={text.detail} width={width} artwork={runtime.artwork(entry.posterUrl)} artworkFallback={generatedPoster(text.title, width)} density="grid" menuAnchorRef={anchor}
     onNavigate={onOpen} primaryAction={theme.isTV && allowed.playable && entry.playback ? 'play' : 'navigate'} onPlay={onPlay} onFocus={onFocus} onBlur={onBlur} onMore={onMenu ? () => onMenu(anchor) : undefined}/>;
 }
 

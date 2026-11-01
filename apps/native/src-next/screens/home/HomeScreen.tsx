@@ -18,6 +18,7 @@ import {programmeFactParts, programmeTimeRange, type FactPart} from '../../../..
 import {ArtworkPlacementContext} from '../../platform/ArtworkPipeline';
 import {usePlatformPosture} from '../../platform/platformPosture';
 import {AmbientArt, Artwork, ArtworkArrivalContext} from '../../kit/artwork';
+import {generatedPoster} from './generated-poster';
 import {Button} from '../../kit/controls';
 import {useTVPageBack} from '../destinations/useTVPageBack';
 import {FocusItem, FocusRegion, useFocusRegistry, type FocusRegionProps} from '../../kit/focus';
@@ -589,7 +590,7 @@ function HomeCard({runtime, row, entry, rank, context, width, rowIndex, visible,
     {rank ? <RankedCard {...props} rank={rank} artwork={art} isNew={entry.new} watched={entry.watched}/>
       : row.artworkShape === 'landscape' ? <WideCard {...props} artwork={art} progress={cardText.progress} watched={entry.watched}/>
       : row.artworkShape === 'square' ? <SquareCard {...props} artwork={art} progress={cardText.progress} watched={entry.watched} isNew={entry.new}/>
-      : <PosterCard {...props} artwork={art} watched={entry.watched} isNew={entry.new}/>}
+      : <PosterCard {...props} artwork={art} watched={entry.watched} isNew={entry.new} artworkFallback={generatedPoster(entry.title, width)}/>}
   </ArtworkArrivalContext.Provider></ArtworkPlacementContext.Provider>;
 }
 
@@ -632,3 +633,4 @@ function HomeChannelCard({rowId, item, context, runtime, current, visible, obser
     primaryAction="navigate" onNavigate={() => {if (current()) runtime.actions.channel(item);}} onMore={() => {if (current()) runtime.actions.channelMore(item, anchor);}}
     onFocus={context.onFocus} onBlur={context.onBlur} selection={context.selection}/>;
 }
+
