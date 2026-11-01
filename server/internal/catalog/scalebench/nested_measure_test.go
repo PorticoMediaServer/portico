@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,8 +10,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 )
 
@@ -97,5 +100,73 @@ func TestNestedGrowthMeasurement(t *testing.T) {
 		root.View = entry.Navigation.View
 		root.EntityID = entry.ID
 		measure("audio/page/"+root.View, root)
+	}
+	// The reference catalogue contains no provider identities. Populate only
+	// this writable copy to expose edition lookup work hidden by empty tables.
+	if e := dbwork.WithWriteTx(context.Background(), db, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
+		_, e := tx.Exec(`INSERT INTO metadata_details(item_id,provider,provider_id,source_url,observed_at) SELECT id,CASE kind WHEN 1 THEN 'tmdb' ELSE 'tvdb' END,CAST(id AS TEXT),'','2026-01-01' FROM catalog_entities WHERE kind IN(1,2,4) ON CONFLICT(item_id,provider) DO NOTHING`)
+		return e
+	}); e != nil {
+		t.Fatal(e)
+	}
+	if e := persistence.RefreshPlannerStatistics(context.Background(), db); e != nil {
+		t.Fatal(e)
+	}
+	v := catalog.Viewer{Profile: "viewer", Fence: "growth", Libraries: []string{"movies"}}
+	home := func(s *catalog.Service) error {
+		_, e := s.HomeRows(catalog.HomeRequest{Viewer: v, ServerID: "s", Profile: v.Profile, ViewerFence: v.Fence, Libraries: v.Libraries, Now: time.Now()})
+		return e
+	}
+	explainRoute(db, "provider_ids/home", home, s)
+	profileRoutes = true
+	defer func() { profileRoutes = false }()
+	r, e := exerciseRead(db, s, "provider_ids/home", 10, func(ctx context.Context, s *catalog.Service) error { return home(s) })
+	if e != nil {
+		t.Fatal(e)
+	}
+	results = append(results, r)
+	// Isolate the exact edition-expansion statement used by homeRecentWalker.
+	// A fixed batch must not become more expensive with unrelated identities.
+	rows, e := db.Query(`SELECT id FROM catalog_entities WHERE kind=1 ORDER BY id LIMIT 64`)
+	if e != nil {
+		t.Fatal(e)
+	}
+	var batch []int64
+	for rows.Next() {
+		var id int64
+		if e := rows.Scan(&id); e != nil {
+			t.Fatal(e)
+		}
+		batch = append(batch, id)
+	}
+	rows.Close()
+	batchJSON, _ := json.Marshal(batch)
+	const editionSQL = `SELECT DISTINCT d2.item_id FROM metadata_details d1 CROSS JOIN metadata_details d2 INDEXED BY metadata_details_provider ON d2.provider=d1.provider AND d2.provider_id=d1.provider_id WHERE d1.item_id IN(SELECT value FROM json_each(?)) AND d1.provider IN('tmdb','tvdb','anilist') AND d1.provider_id<>''`
+	r, e = exerciseRead(db, s, "provider_ids/edition_batch", 10, func(ctx context.Context, _ *catalog.Service) error {
+		rows, e := db.QueryContext(ctx, editionSQL, string(batchJSON))
+		if e != nil {
+			return e
+		}
+		defer rows.Close()
+		found := 0
+		for rows.Next() {
+			found++
+		}
+		if e = rows.Err(); e == nil && found != len(batch) {
+			return fmt.Errorf("edition expansion returned %d, expected %d", found, len(batch))
+		}
+		return e
+	})
+	if e != nil {
+		t.Fatal(e)
+	}
+	results = append(results, r)
+	var providerRows int
+	if e := db.QueryRow(`SELECT count(*) FROM metadata_details`).Scan(&providerRows); e != nil {
+		t.Fatal(e)
+	}
+	raw, _ := json.MarshalIndent(map[string]any{"base_items": n, "routes": results, "provider_rows": providerRows, "seed_source": "a13ca507 bulk seed; application baseline 444a7087", "peak_rss_kb": growthPeakRSS()}, "", "  ")
+	if e := os.WriteFile(filepath.Join(dir, "nested.json"), raw, 0600); e != nil {
+		t.Fatal(e)
 	}
 }

@@ -189,6 +189,20 @@ func TestServerScaleMeasurement(t *testing.T) {
 	if os.Getenv("PORTICO_SCALE_SEED_ONLY") == "1" {
 		return
 	}
+	if os.Getenv("PORTICO_SCALE_PROVIDER_IDS") == "1" {
+		// Keep the cached generator and baseline intact; enrich this run's copy.
+		if e := dbwork.WithWriteTx(context.Background(), f.db, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
+			_, e := tx.Exec(`INSERT INTO metadata_details(item_id,provider,provider_id,source_url,observed_at) SELECT id,CASE kind WHEN 1 THEN 'tmdb' ELSE 'tvdb' END,CAST(id AS TEXT),'','2026-01-01' FROM catalog_entities WHERE kind IN(1,2,4) ON CONFLICT(item_id,provider) DO NOTHING`)
+			return e
+		}); e != nil {
+			t.Fatal(e)
+		}
+	}
+	var providerRows int
+	if e := f.db.QueryRow(`SELECT count(*) FROM metadata_details`).Scan(&providerRows); e != nil {
+		t.Fatal(e)
+	}
+	scaleSave(t, "provider-identities", map[string]int{"rows": providerRows})
 	// New HTTP profiles carry the same sparse meaningful history as a real viewer.
 	c := catalogtest.New(t, f.db)
 	for p, env := range f.viewers {
