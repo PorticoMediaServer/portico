@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -55,6 +56,7 @@ func TestSetupStartRenewalProducerAgainstStubHosted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	secret, err := id.BrowserSetupToken(ctx)
 	if err != nil {
 		t.Fatal(err)

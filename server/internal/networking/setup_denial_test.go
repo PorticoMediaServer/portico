@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -115,6 +116,7 @@ func setupDecisionFixture(t *testing.T, events func(*http.Request) (*http.Respon
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	secret, err := id.BrowserSetupToken(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -243,7 +245,10 @@ func TestAnUnknownDecisionChangesNothing(t *testing.T) {
 	if code != 200 || first.Operation == nil {
 		t.Fatalf("approval: %d %s", code, body)
 	}
-	waitFor(t, func() bool { _, watching := f.h.webWatches.Load(first.Operation.OperationID); return asked.Load() > 0 && !watching })
+	waitFor(t, func() bool {
+		_, watching := f.h.webWatches.Load(first.Operation.OperationID)
+		return asked.Load() > 0 && !watching
+	})
 	if p := f.phase(); p.Phase != setupflow.AwaitingApproval || p.Outcome != "" || p.Operation == nil || p.Operation.ID != first.Operation.OperationID {
 		t.Fatalf("an unknown decision changed the setup: %+v", p)
 	}

@@ -5,14 +5,15 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"net/http/httptest"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/hosted"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
+	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +30,7 @@ func TestLibraryDiscoveryAndCollectionPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(ident)
 	secret, err := ident.BrowserSetupToken(context.Background())
 	if err != nil {
 		t.Fatal(err)

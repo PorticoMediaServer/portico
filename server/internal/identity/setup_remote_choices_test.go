@@ -79,3 +79,16 @@ func TestSetupRemoteChoicesFailureFailsSetup(t *testing.T) {
 		t.Fatalf("setup state committed: %d %v", n, e)
 	}
 }
+
+// Fail closed: a server without the writer can't be set up.
+func TestSetupWithoutRemoteWriterFails(t *testing.T) {
+	s, db, _ := familyFixture(t)
+	if _, e := db.Exec(`DELETE FROM accounts`); e != nil {
+		t.Fatal(e)
+	}
+	token, _ := os.ReadFile(s.setupPath)
+	s.SetupRemoteTx = nil
+	if _, e := s.SetupWithOptions(context.Background(), SetupOptions{RequestID: "33333333-3333-4333-8333-333333333333", SetupToken: string(token), Name: "Home"}, false); !errors.Is(e, ErrSetupRemoteUnwired) {
+		t.Fatalf("set up without the remote writer: %v", e)
+	}
+}

@@ -5,11 +5,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"strings"
 	"testing"
 	"time"
@@ -38,6 +39,7 @@ func TestDownloadTransferSupportsRangeAndValidators(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	operations.WireSetupRemote(id)
 	cat := catalog.New(db)
 	host, e := hosted.New(db, id, "", "", "")
 	if e != nil {

@@ -193,7 +193,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
-    async initializeHosted(name, context, remote) {
+    async initializeHosted(name, remote, context) {
       const p = await pair(context.signal);
       if (!issued || issued.serverId !== p.pin.serverId) throw changed();
       const token = issued.setupToken, store = records(p);
@@ -220,7 +220,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
-    async initializeLocal(name, credentials: SetupCredentials, context, remote) {
+    async initializeLocal(name, credentials: SetupCredentials, remote, context) {
       const p = await pair(context.signal);
       if (!issued || issued.serverId !== p.pin.serverId) throw changed();
       try {

@@ -139,7 +139,7 @@ async function approvalReady(f: Awaited<ReturnType<typeof fixture>>) {
   const read = await f.ports.readState(f.context());
   assert.equal(read.server.kind, 'state');
   assert.deepEqual(await f.ports.start(f.context()), {kind: 'startDone'});
-  assert.deepEqual(await f.ports.initializeHosted('Den', f.context()), {kind: 'initializeDone'});
+  assert.deepEqual(await f.ports.initializeHosted('Den', undefined, f.context()), {kind: 'initializeDone'});
   const ready = await f.ports.requestApproval(false, f.context());
   assert.equal(ready.kind, 'approvalReady');
   return ready as {kind: 'approvalReady'; approvalUrl: string};
@@ -301,19 +301,19 @@ test('setup sends step 1\'s Remote access and Remote security, and a retry sends
   const f = await fixture(t);
   await f.ports.readState(f.context());
   assert.deepEqual(await f.ports.start(f.context()), {kind: 'startDone'});
-  assert.deepEqual(await f.ports.initializeHosted('Den', f.context(), {remoteAccess: 'private', remoteSecurity: 'standard'}), {kind: 'initializeDone'});
+  assert.deepEqual(await f.ports.initializeHosted('Den', {remoteAccess: 'private', remoteSecurity: 'standard'}, f.context()), {kind: 'initializeDone'});
   const setup = () => f.calls.filter(call => call.method === 'POST' && call.path === '/v1/setup');
   const first = setup()[0]!.body as Record<string, unknown>;
   assert.equal(first.remoteAccess, 'private');
   assert.equal(first.remoteSecurity, 'standard');
   // The saved record keeps them, so a retry (whatever the caller passes now) repeats the original request.
-  assert.deepEqual(await f.ports.initializeHosted('Den', f.context(), {remoteAccess: 'on', remoteSecurity: 'enhanced'}), {kind: 'initializeDone'});
+  assert.deepEqual(await f.ports.initializeHosted('Den', {remoteAccess: 'on', remoteSecurity: 'enhanced'}, f.context()), {kind: 'initializeDone'});
   assert.deepEqual(setup()[1]!.body, setup()[0]!.body);
   // Without choices the request carries none, and the server applies its defaults.
   const g = await fixture(t);
   await g.ports.readState(g.context());
   await g.ports.start(g.context());
-  await g.ports.initializeHosted('Den', g.context());
+  await g.ports.initializeHosted('Den', undefined, g.context());
   const plain = g.calls.find(call => call.method === 'POST' && call.path === '/v1/setup')!.body as Record<string, unknown>;
   assert.equal('remoteAccess' in plain || 'remoteSecurity' in plain, false);
 });

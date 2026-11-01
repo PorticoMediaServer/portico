@@ -6,11 +6,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"strings"
 	"testing"
 
@@ -46,6 +47,7 @@ func newTL11AdmissionFixture(t *testing.T, kind string) *tl11AdmissionFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(ident)
 	host, err := hosted.New(db, ident, "", "", "")
 	if err != nil {
 		t.Fatal(err)

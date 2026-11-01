@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -38,6 +39,7 @@ func setupStateFixtureDB(t *testing.T) (http.Handler, *identity.Service, func(pe
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(id)
 	host, err := hosted.New(db, id, "", "", "")
 	if err != nil {
 		t.Fatal(err)

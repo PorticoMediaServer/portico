@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"sort"
 	"strings"
 	"testing"
@@ -130,6 +130,7 @@ func hostileFixture(t *testing.T) (http.Handler, string, func() string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(ident)
 	cat := catalog.New(db)
 	host, err := hosted.New(db, ident, "", "", "")
 	if err != nil {

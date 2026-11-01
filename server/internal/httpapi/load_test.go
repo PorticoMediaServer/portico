@@ -6,14 +6,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
+	"github.com/PorticoMediaServer/portico/server/internal/playbackv1"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/playbackv1"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"sort"
 	"strings"
 	"sync"
@@ -150,6 +151,7 @@ func newLoadFixture(t *testing.T, tier performanceTier) *loadFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(ident)
 	cat := catalog.New(db)
 	host, err := hosted.New(db, ident, "", "", "")
 	if err != nil {

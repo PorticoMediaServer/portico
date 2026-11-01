@@ -8,16 +8,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/hosted"
 	"github.com/PorticoMediaServer/portico/server/internal/hostedtrust"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/networking"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -38,6 +39,7 @@ func TestRepairPublicHTTPBridge(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	operations.WireSetupRemote(id)
 	control, e := hosted.New(db, id, "", "", "")
 	if e != nil {
 		t.Fatal(e)
@@ -93,6 +95,7 @@ func TestRepairCapabilitiesModeHTTP(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
+			operations.WireSetupRemote(id)
 			if mode != "fresh" {
 				secret, _ := id.BrowserSetupToken(context.Background())
 				q := identity.SetupOptions{RequestID: "33333333-3333-4333-8333-333333333333", SetupToken: secret, Name: "Fixture"}
@@ -177,6 +180,7 @@ func TestRepairCapabilitiesExistingClaimHTTP(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	operations.WireSetupRemote(id)
 	id.SetupClaimReadyTx = networking.SetupClaimInstalledTx
 	public, e := base64.RawURLEncoding.DecodeString(os.Getenv("PORTICO_REPAIR_PUBLIC_ROOT"))
 	if e != nil {

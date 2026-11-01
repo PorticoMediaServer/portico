@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"os"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -22,6 +22,7 @@ func TestCanonicalSignInKindSetupAndDatabaseFences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	stubSetupRemote(s)
 	if k, e := s.SignInKind(ctx); e != nil || k != SignInPortico {
 		t.Fatalf("default %s %v", k, e)
 	}
