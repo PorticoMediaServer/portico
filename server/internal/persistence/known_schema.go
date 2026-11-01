@@ -15,8 +15,7 @@ import (
 // for, and a count of foreign objects is how an owner finds out that is what
 // they have. Nothing is ever dropped automatically: a build that does not define
 // a table cannot know what removing it would cost.
-const knownSchemaObjects = `
-index access_invitation_page
+const knownSchemaObjects = `index access_invitation_page
 index accounts_people_username
 index admin_channel_presets_page
 index admin_dvr_groups_page
@@ -3987,9 +3986,6 @@ trigger user_mutation_root_release
 trigger viewer_revisions_bound_check
 trigger viewer_revisions_bound_delete
 trigger viewer_revisions_bound_insert
-trigger visibility_dirty_rating_age_delete
-trigger visibility_dirty_rating_age_insert
-trigger visibility_dirty_rating_age_update
 trigger w2i01_artwork_configuration
 trigger w2i01_artwork_source
 trigger w2i01_music_artwork_identity
@@ -4042,8 +4038,7 @@ view inventory_asset_availability
 view inventory_item_availability
 view inventory_library_availability
 view listening_book_context
-view mb_recording_accounting
-`
+view mb_recording_accounting`
 
 // subsystemSchemaObjects lists the runtime schema declarations outside
 // persistence. The only one is not in the server database: work_ids_by_qid

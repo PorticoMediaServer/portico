@@ -16,7 +16,7 @@ func bulkSelectionRevisionFence(q interface {
 	Query(string, ...any) (*sql.Rows, error)
 	QueryRow(string, ...any) *sql.Row
 }, v Viewer, selector JobSelector) (string, error) {
-	rows, e := q.Query(`SELECT l.library_id,l.revision,COALESCE(v.revision,0) FROM library_revisions l LEFT JOIN viewer_revisions v ON v.library_id=l.library_id AND v.profile_id=? WHERE l.library_id IN(SELECT value FROM json_each(?)) ORDER BY l.library_id`, v.Profile, v.librariesJSON())
+	rows, e := q.Query(`SELECT l.library_id,l.revision+(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1),COALESCE(v.revision,0) FROM library_revisions l LEFT JOIN viewer_revisions v ON v.library_id=l.library_id AND v.profile_id=? WHERE l.library_id IN(SELECT value FROM json_each(?)) ORDER BY l.library_id`, v.Profile, v.librariesJSON())
 	if e != nil {
 		return "", e
 	}
