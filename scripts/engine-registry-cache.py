@@ -40,6 +40,8 @@ class RegistryCache:
         if target not in TARGETS:
             raise ValueError('unsupported registry cache target')
         self.target = target
+        if env.get('PORTICO_ENGINE_BUILD_CONTEXT', '') not in ('', 'development'):
+            raise ValueError('development-only producer refuses qualified/release/publisher contexts')
         self.enabled = env.get('PORTICO_ENGINE_REGISTRY_CACHE') == '1'
         self.write = env.get('PORTICO_ENGINE_CACHE_WRITE') == '1'
         if self.write and not self.enabled:

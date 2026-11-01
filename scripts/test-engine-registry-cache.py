@@ -12,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import uuid
 from pathlib import Path
 import tempfile
@@ -40,10 +41,29 @@ IDENTITY = 'sha256:' + '1' * 64
 
 
 class PolicyTests(unittest.TestCase):
+    def test_actual_producer_entry_points_refuse_release_context_before_output_or_build(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            work = Path(temporary) / 'must-not-exist'
+            env = dict(os.environ, PORTICO_ENGINE_BUILD_CONTEXT='release')
+            for command in ([sys.executable, ROOT / 'build-engine.py', 'windows-x64', '--state', work],
+                            ['bash', ROOT / 'build-ffmpeg.sh']):
+                result = subprocess.run(command, env=env, text=True, capture_output=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('development-only producer', result.stderr)
+                self.assertFalse(work.exists())
+            producer = module('ci-ffmpeg-toolchain')
+            with patch.dict(os.environ, PORTICO_ENGINE_BUILD_CONTEXT='release'):
+                with self.assertRaisesRegex(ValueError, 'development-only producer'):
+                    producer.build('macos-arm64', work)
+            self.assertFalse(work.exists())
+
     def test_qualified_release_and_implicit_context_cannot_read_even_an_existing_registry_cache(self):
         for value in ('qualified', 'release', '', 'publisher'):
             with self.subTest(context=value), self.assertRaisesRegex(ValueError, 'development-only'):
                 cache.RegistryCache('windows-x64', dict(HOSTED, PORTICO_ENGINE_BUILD_CONTEXT=value))
+        for value in ('qualified', 'release', 'publisher'):
+            with self.subTest(context=value), self.assertRaisesRegex(ValueError, 'development-only'):
+                cache.RegistryCache('windows-x64', {'PORTICO_ENGINE_BUILD_CONTEXT': value})
 
     def test_disabled_has_no_registry_arguments(self):
         self.assertEqual(cache.RegistryCache('windows-x64', {}).arguments('base', 'a' * 64), [])

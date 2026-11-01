@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+case "${PORTICO_ENGINE_BUILD_CONTEXT:-development}" in
+ development) ;;
+ *) echo 'This development-only producer refuses qualified/release/publisher contexts' >&2; exit 1;;
+esac
 # Native macOS builds, or BtbN's container cross builds. Never publishes.
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET="${1:?usage: build-ffmpeg.sh TARGET [WORK_DIRECTORY]}"
