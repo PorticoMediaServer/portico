@@ -7,6 +7,8 @@ import sys
 
 recipe, source, target = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 root = Path(__file__).resolve().parent.parent
+import runpy
+configure_checks = runpy.run_path(str(root / 'scripts/ffmpeg-configure-checks.py'))['shell'](target)
 common = '--disable-autodetect --enable-gpl --enable-version3 --enable-libdav1d --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-libzimg --enable-libdovi --enable-libass --enable-fontconfig --enable-libsoxr --enable-libbluray --enable-libdvdnav --enable-libdvdread --enable-libplacebo --enable-vulkan --disable-nonfree --disable-libfdk-aac'
 # Explicit broad-format parity with pinned Jellyfin; autodetection stays off.
 common += ' --enable-bzlib --enable-libopus --enable-libtheora --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-zlib --enable-iconv --enable-lzma --enable-libxml2 --enable-libmp3lame --enable-libvorbis --enable-libvpx --enable-libwebp --enable-chromaprint'
@@ -42,6 +44,10 @@ if target.startswith('macos'):
     text = text.replace(marker, addition + marker, 1)
     build.write_text(text)
     mac_source['configure'](recipe)
+    text = build.read_text()
+    marker = 'execute make -j ${MJOBS}'
+    if text.count(marker) != 1: raise ValueError('pinned Mac pre-compile boundary changed')
+    build.write_text(text.replace(marker, configure_checks + '\n' + marker, 1))
     import subprocess
     subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'macos-timing', '--recipe', recipe,
                     '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt'], check=True)
@@ -161,7 +167,7 @@ needle = '--extra-version="\\$(date +%Y%m%d)"'
 if needle not in text:
     raise ValueError('BtbN configure invocation changed')
 text = text.replace(needle, '--extra-version="Portico-Jellyfin" ' + flags)
-text = text.replace('make -j\\$(nproc) V=1', 'make -j' + str(max(1, int(__import__('os').environ.get('PORTICO_BUILD_JOBS', '4')))) + ' V=1')
+text = text.replace('make -j\\$(nproc) V=1', configure_checks + '\nmake -j' + str(max(1, int(__import__('os').environ.get('PORTICO_BUILD_JOBS', '4')))) + ' V=1')
 if __import__('os').environ.get('PORTICO_FFMPEG_DEPS_ONLY') == '1':
     path.write_text(text)
     print('Configured dependency source recipe for ' + target)

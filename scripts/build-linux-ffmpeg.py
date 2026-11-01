@@ -260,6 +260,9 @@ export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
 /opt/ffbuild/bin/ffmpeg -hide_banner -h bsf=dovi_profile > /ffbuild/dovi-profile-help.txt 2>&1
 cat /ffbuild/dovi-profile-packets.json
 '''
+        import runpy
+        checks = runpy.run_path(str(Path(__file__).with_name('ffmpeg-configure-checks.py')))['shell']('linux-x64')
+        shell = shell.replace('\nmake -j', '\n' + checks + '\nmake -j', 1)
         if object_cache:
             shell = shell.replace('\nmake -j',
                 '\npython3 /disc/reuse-ffmpeg-protocol-objects.py --cache /protocol-cache '
