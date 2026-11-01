@@ -1,0 +1,39 @@
+appId: tv.getportico.app
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: 'Use a local server'
+    timeout: 60000
+- takeScreenshot: 01-welcome
+- pressKey: Dpad Down
+- pressKey: Dpad Center
+- extendedWaitUntil:
+    visible: 'Server address'
+    timeout: 30000
+- inputText: ${SERVER_ADDRESS}
+- pressKey: Dpad Down
+- pressKey: Dpad Center
+- extendedWaitUntil:
+    visible:
+      id: accounts-dev-test-owner
+    timeout: 60000
+- takeScreenshot: 02-local-sign-in
+- pressKey: Dpad Down
+- pressKey: Dpad Down
+- pressKey: Dpad Down
+- pressKey: Dpad Center
+- extendedWaitUntil:
+    visible:
+      id: native-home
+    timeout: 60000
+- takeScreenshot: 03-home
+- pressKey: Dpad Center
+- extendedWaitUntil:
+    visible:
+      id: watch-host
+    timeout: 60000
+- extendedWaitUntil:
+    visible: '0:(0[1-9]|[1-9][0-9])'
+    timeout: 30000
+- takeScreenshot: 04-playback

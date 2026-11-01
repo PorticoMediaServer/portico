@@ -1,11 +1,20 @@
 name: Android JVM tests
 on:
   workflow_dispatch:
+    inputs:
+      tv_pilot:
+        description: Run only the Android TV remote E2E pilot
+        type: boolean
+        default: false
   workflow_call:
 permissions:
   contents: read
 jobs:
+  tv-pilot:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.tv_pilot }}
+    uses: ./.github/workflows/e2e-android-tv-pilot.yml
   unit-and-transport:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.tv_pilot }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
