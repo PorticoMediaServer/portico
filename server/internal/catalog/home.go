@@ -54,6 +54,19 @@ func (s *Service) homeRevision(libraries []string, profile string) (ContentRevis
 	e := s.read().QueryRow(`SELECT COALESCE(sum(r.revision),0),COALESCE(sum(v.revision),0) FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id IN(SELECT value FROM json_each(?))`, profile, string(raw)).Scan(&revision.Catalog, &revision.Viewer)
 	return revision, e
 }
+
+// homePagingRevision fences a Home row's pages. Like Browse it follows the
+// order revision (membership, order and availability) and the viewer's own
+// revision, so the artwork, extras, analysis and other decoration that
+// background work writes all day never strands a row's next page. Rows built
+// from a computed list are fenced by that list's fingerprint as well.
+func (s *Service) homePagingRevision(libraries []string, profile string) (ContentRevision, error) {
+	raw, _ := json.Marshal(libraries)
+	var revision ContentRevision
+	e := s.read().QueryRow(`SELECT COALESCE(sum(r.order_revision),0),COALESCE(sum(v.revision),0) FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id IN(SELECT value FROM json_each(?))`, profile, string(raw)).Scan(&revision.Catalog, &revision.Viewer)
+	return revision, e
+}
+
 func mergeHome(a, b []homeCandidate, limit int) []homeCandidate {
 	a = append(a, b...)
 	sort.Slice(a, func(i, j int) bool {
