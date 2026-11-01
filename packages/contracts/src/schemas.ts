@@ -133937,6 +133937,45 @@ export const schemas = {
             },
             "type": {
               "type": "string"
+            },
+            "why": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "fallback": {
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "code",
+                "fallback"
+              ],
+              "type": "object"
+            },
+            "whyTitles": {
+              "items": {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
             }
           },
           "required": [
@@ -135896,6 +135935,45 @@ export const schemas = {
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
+            },
+            "why": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "fallback": {
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "code",
+                "fallback"
+              ],
+              "type": "object"
+            },
+            "whyTitles": {
+              "items": {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
             }
           },
           "required": [
@@ -140184,6 +140262,45 @@ export const schemas = {
                 },
                 "type": {
                   "type": "string"
+                },
+                "why": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "fallback": {
+                      "type": "string"
+                    },
+                    "params": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "fallback"
+                  ],
+                  "type": "object"
+                },
+                "whyTitles": {
+                  "items": {
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
                 }
               },
               "required": [
@@ -162162,6 +162279,45 @@ export const schemas = {
             },
             "type": {
               "type": "string"
+            },
+            "why": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "fallback": {
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "code",
+                "fallback"
+              ],
+              "type": "object"
+            },
+            "whyTitles": {
+              "items": {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
             }
           },
           "required": [
@@ -170220,6 +170376,45 @@ export const schemas = {
             },
             "type": {
               "type": "string"
+            },
+            "why": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "fallback": {
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "code",
+                "fallback"
+              ],
+              "type": "object"
+            },
+            "whyTitles": {
+              "items": {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
             }
           },
           "required": [

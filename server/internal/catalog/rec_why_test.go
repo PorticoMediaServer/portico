@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -421,5 +422,36 @@ func TestWhyPersonCountAndPlural(t *testing.T) {
 	}
 	if len(many.spec.WhyTitles) != 3 {
 		t.Fatalf("five watched titles names %d, want 3", len(many.spec.WhyTitles))
+	}
+}
+
+// A dataset link's relation weighs it: the same creator outranks a shared
+// style at the same rank, and a link naming no relation keeps its weight.
+func TestSimilarLinksWeighTheDatasetRelation(t *testing.T) {
+	c := catalogtest.Open(t)
+	films := c.Library("m", "Movies", "movie", "/m")
+	seed := c.Movie(films, "/m/seed.mkv", "Seed", 2000)
+	creator := c.Movie(films, "/m/creator.mkv", "Same Director", 2001)
+	style := c.Movie(films, "/m/style.mkv", "Same Look", 2002)
+	plain := c.Movie(films, "/m/plain.mkv", "Plain Link", 2003)
+	c.Exec(`INSERT INTO catalog_external_ids VALUES(?,'tmdb','movie','1'),(?,'tmdb','movie','2'),(?,'tmdb','movie','3')`, creator.ID, style.ID, plain.ID)
+	c.Exec(`INSERT INTO catalog_similar(entity_id,source,rank,provider,provider_kind,provider_id,relation) VALUES(?,'portico-dataset',1,'tmdb','movie','2','style'),(?,'portico-dataset',2,'tmdb','movie','1','creator'),(?,'tmdb',1,'tmdb','movie','3','')`, seed.ID, seed.ID, seed.ID)
+	c.Drain()
+	s := New(c.DB)
+	got := map[int64]float64{}
+	if err := s.recSimilar([]recSeed{{work: seed.ID, weight: 1}}, func(work int64, weight float64) { got[work] += weight }); err != nil {
+		t.Fatal(err)
+	}
+	if got[plain.ID] != 1 {
+		t.Fatal("a link naming no relation changed weight", got[plain.ID])
+	}
+	if got[style.ID] != 0.9 {
+		t.Fatal("style at rank 1", got[style.ID])
+	}
+	if want := 1.15 / (1 + 0.15); math.Abs(got[creator.ID]-want) > 1e-12 {
+		t.Fatal("creator at rank 2", got[creator.ID], want)
+	}
+	if got[creator.ID] <= got[style.ID] {
+		t.Fatal("the same creator at rank 2 should outweigh a shared style at rank 1", got)
 	}
 }
