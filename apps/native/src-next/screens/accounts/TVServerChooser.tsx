@@ -1,4 +1,4 @@
-import React, {useLayoutEffect, useRef, useState} from 'react';
+import React, {useCallback, useState} from 'react';
 import {findNodeHandle, ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {PhoneServerRow} from './PhoneServerChooser';
@@ -44,8 +44,10 @@ function Chooser({snapshot, busy, error, owner, onSelect, onSignOut, onRefresh, 
   const serverOrder = groups.flatMap(group => group.rows).map(value => `server:${value.id}`);
   const entryRevision = useTVBusyEntryRevision(busy);
   // Down from Refresh servers goes to Use a local server beside it, not past it to the footer.
-  const addRef = useRef<View>(null), [addHandle, setAddHandle] = useState<number | undefined>(undefined);
-  useLayoutEffect(() => {const handle = findNodeHandle(addRef.current) ?? undefined; if (handle !== addHandle) setAddHandle(handle);});
+  const [addHandle, setAddHandle] = useState<number | undefined>(undefined);
+  const bindAdd = useCallback((view: View | null) => {
+    setAddHandle(view === null ? undefined : findNodeHandle(view) ?? undefined);
+  }, []);
   useDestinationEntryFocus({visible: !busy, intent: 'enter', revision: entryRevision},
     preferred ? {regionId: 'accounts.chooser.rows', childId: `server:${preferred}`} : {regionId: 'accounts.chooser.actions', childId: 'refresh'});
   const row = (value: PhoneServerRow, connected = false) => <View key={value.id} style={{flexDirection: 'row', alignItems: 'center', gap: 40, padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.lineSoft}}>
@@ -83,7 +85,7 @@ function Chooser({snapshot, busy, error, owner, onSelect, onSignOut, onRefresh, 
       {certificates}
       <FocusRegion id="accounts.chooser.actions" entry="refresh" order={['refresh', 'add']} edges={serverOrder.length ? {up: 'accounts.chooser.rows'} : undefined} enabled={!busy} style={{flexDirection: 'row', flexWrap: 'wrap', gap: 16}}>
         <Button focusId="refresh" variant="glass" hasTVPreferredFocus={!preferred} icon="i-refresh" disabled={busy} onPress={onRefresh} nextFocusDown={addHandle}>{t('accounts.servers.refresh')}</Button>
-        <Button ref={addRef} focusId="add" variant="glass" disabled={busy} onPress={onAdd}>{t('accounts.signIn.local')}</Button>
+        <Button ref={bindAdd} focusId="add" variant="glass" disabled={busy} onPress={onAdd}>{t('accounts.signIn.local')}</Button>
       </FocusRegion>
       {footer}
     </ScrollView>

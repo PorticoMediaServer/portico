@@ -17,7 +17,7 @@ test('the TV server chooser keeps its actions in a row, Down goes Refresh server
   const entries: any[] = [];
   const {TVServerChooser} = await screenModule(new URL('../src-next/screens/accounts/TVServerChooser.tsx', import.meta.url), {
     react: {...React, default: React},
-    'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', findNodeHandle: () => 42},
+    'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', findNodeHandle: (view: any) => view.handle},
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../kit/artwork': {ColourBackdrop: 'ColourBackdrop'},
     '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
@@ -41,6 +41,11 @@ test('the TV server chooser keeps its actions in a row, Down goes Refresh server
   });
   await act(() => host.mount());
   try {
+    const actionButtons = () => React.Children.toArray(region(tree, 'accounts.chooser.actions').props.children)
+      .filter((child: any) => child?.type === 'Button') as any[];
+    const bindAdd = actionButtons()[1].props.ref;
+    assert.equal(actionButtons()[0].props.nextFocusDown, undefined, 'an unattached native button has no focus handle');
+    await act(() => bindAdd({handle: 42}));
     const actions = region(tree, 'accounts.chooser.actions');
     const rows = region(tree, 'accounts.chooser.rows');
     assert.ok(actions && rows, 'both focus regions are drawn');
@@ -65,5 +70,11 @@ test('the TV server chooser keeps its actions in a row, Down goes Refresh server
     assert.ok(all.indexOf(linkTV) > all.indexOf(add), 'Link a TV follows the action stack');
     assert.equal(all.slice(all.indexOf(add) + 1, all.indexOf(linkTV)).some((node: any) => node.type === 'Button' || node.type === 'Focusable'),
       false, 'nothing focusable sits between the last action and Link a TV');
+    await act(() => host.rerender());
+    assert.equal(actionButtons()[1].props.ref, bindAdd, 'rerendering preserves the native ref callback');
+    await act(() => bindAdd(null));
+    assert.equal(actionButtons()[0].props.nextFocusDown, undefined, 'detaching clears the old focus destination');
+    await act(() => bindAdd({handle: 73}));
+    assert.equal(actionButtons()[0].props.nextFocusDown, 73, 'a replacement native button supplies the new focus destination');
   } finally {await host.unmount();}
 });
