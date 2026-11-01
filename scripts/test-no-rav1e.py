@@ -59,9 +59,16 @@ class GeneratedTargets(unittest.TestCase):
             with tarfile.open(archive) as inp:
                 inp.extractall(unpack, filter='data')
             roots = list(unpack.iterdir()); self.assertEqual(len(roots), 1)
-            def configure(recipe, target):
-                return subprocess.run(['python3', ROOT / 'scripts/configure-ffmpeg-recipe.py', recipe, roots[0], target],
-                                      check=True, timeout=60, capture_output=True, text=True)
+            env = dict(os.environ, PORTICO_DISC_SOURCE_COMMIT=lock['discHelper']['sourceCommit'],
+                       SOURCE_DATE_EPOCH=str(lock['sourceDateEpoch']),
+                       PORTICO_ENGINE_REPOSITORY='portico/source-only-control')
+            def configure(recipe, target, explain=True):
+                result = subprocess.run(['python3', ROOT / 'scripts/configure-ffmpeg-recipe.py', recipe, roots[0], target],
+                                        env=env, timeout=60, capture_output=True, text=True)
+                if result.returncode and explain:
+                    print(result.stderr, flush=True)
+                result.check_returncode()
+                return result
             def check(flags, target):
                 self.assertNotIn('--enable-librav1e', flags, target)
                 self.assertIn('--disable-librav1e', flags, target)
@@ -75,15 +82,17 @@ class GeneratedTargets(unittest.TestCase):
                 self.assertFalse((recipe / 'scripts.d/50-rav1e.sh').exists())
                 self.assertFalse((recipe / 'portico-rav1e-inputs').exists())
                 subprocess.run(['bash', 'generate.sh', native, 'gpl', '8.1'], cwd=recipe,
-                               check=True, timeout=60, stdout=subprocess.DEVNULL)
+                               env=env, check=True, timeout=60, stdout=subprocess.DEVNULL)
                 graph = (recipe / 'Dockerfile').read_text()
                 self.assertNotIn('scripts.d/50-rav1e.sh', graph)
                 self.assertNotRegex(graph, r'(?m)^FROM .+ AS rav1e$')
-                check(graph, target)
+                # Defaults live in the graph environment; Portico's final
+                # overrides live in the actual terminal build payload.
+                check(graph + '\n' + (recipe / 'build.sh').read_text(), target)
             changed = work / 'changed-stage'; shutil.copytree(pristine, changed)
             stage = changed / 'scripts.d/50-rav1e.sh'; stage.write_text(stage.read_text() + '\n# changed\n')
             with self.assertRaises(subprocess.CalledProcessError) as refused:
-                configure(changed, 'linux-x64')
+                configure(changed, 'linux-x64', explain=False)
             self.assertIn('pinned rav1e removal boundary changed', refused.exception.stderr)
             homebridge = work / 'homebridge'; clone(lock['macosRecipe'], homebridge)
             for target in ('macos-arm64', 'macos-x64'):
