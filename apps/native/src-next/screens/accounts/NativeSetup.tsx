@@ -1,5 +1,6 @@
 import React, {useEffect, useState, useSyncExternalStore} from 'react';
 import {AppState, Linking, Text, View} from 'react-native';
+import {Icon} from '../../kit/Icon';
 import {createSetupController, type SetupController} from '../../../../../packages/client-core/src/setup-controller';
 import {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupNewerMessage} from '../../../../../packages/client-core/src/presentation/setup-messages';
 import {passwordStrength} from '../../../../../packages/client-core/src/password-strength';
@@ -129,9 +130,12 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
             {caption(t('web.setup.remoteSecurity'), 'remote-security-title')}
             {(['enhanced', 'standard'] as const).map(value =>
               <Focusable key={value} testID={`setup-security-${value}`} accessibilityRole="radio" accessibilityState={{checked: securityChoice === value}} disabled={busy || starting}
-                onPress={() => setSecurityChoice(value)} style={{padding: 14, borderWidth: 1, borderRadius: 14, borderColor: securityChoice === value ? theme.colors.accentStrong : theme.colors.line}}>
-                <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{t(value === 'enhanced' ? 'web.setup.enhanced' : 'web.setup.standard')}{value === 'enhanced' ? ' · ' + t('web.setup.recommended') : ''}</Text>
-                {caption(t(value === 'enhanced' ? 'web.setup.enhancedBody' : 'web.setup.standardBody'))}
+                onPress={() => setSecurityChoice(value)} style={{flexDirection: 'row', gap: 12, padding: 14, borderWidth: 1, borderRadius: 14, borderColor: securityChoice === value ? theme.colors.accentStrong : theme.colors.line}}>
+                <Icon name={value === 'enhanced' ? 'i-shield' : 'i-globe'} size={22} color={securityChoice === value ? theme.colors.accentStrong : theme.colors.textTertiary}/>
+                <View style={{flex: 1}}>
+                  <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{t(value === 'enhanced' ? 'web.setup.enhanced' : 'web.setup.standard')}{value === 'enhanced' ? ' · ' + t('web.setup.recommended') : ''}</Text>
+                  {caption(t(value === 'enhanced' ? 'web.setup.enhancedBody' : 'web.setup.standardBody'))}
+                </View>
               </Focusable>)}
           </View>}</View>}
         primaryAction={{id: 'setup-continue', label: t('action.continue'), disabled: busy || starting || !name.trim(), loading: busy || starting,
