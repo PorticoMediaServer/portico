@@ -80,6 +80,7 @@ class GeneratedTargets(unittest.TestCase):
                 recipe = work / target; shutil.copytree(pristine, recipe)
                 configure(recipe, target)
                 self.assertFalse((recipe / 'scripts.d/50-rav1e.sh').exists())
+                self.assertNotIn('    echo rav1e\n', (recipe / 'scripts.d/zz-final.sh').read_text())
                 self.assertFalse((recipe / 'portico-rav1e-inputs').exists())
                 subprocess.run(['bash', 'generate.sh', native, 'gpl', '8.1'], cwd=recipe,
                                env=env, check=True, timeout=60, stdout=subprocess.DEVNULL)
