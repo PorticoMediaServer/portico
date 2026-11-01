@@ -19,6 +19,7 @@ func managedHTTPSFixture(t *testing.T) (*sqlFixture, *ClaimHandler, context.Cont
 	t.Helper()
 	f, remote, _, _, ctx := contactFixture(t)
 	h := remote.h
+	h.remote = remote // as ConfigureRemote wires it: managed HTTPS reads Remote access from it
 	m := h.certificates
 	h.runner = m.runner
 	installSyntheticCertificate(t, m, ctx)
@@ -98,7 +99,6 @@ func TestCurrentManagedHTTPSIsReadOnlyAndRequiresCurrentLiveTuple(t *testing.T) 
 		{"managed off", `UPDATE identity_managed_route SET enabled=0`, `UPDATE identity_managed_route SET enabled=1`},
 		{"TLS off", `UPDATE networking_certificate_settings SET enabled=0`, `UPDATE networking_certificate_settings SET enabled=1`},
 		{"not acknowledged", `UPDATE networking_claim_intents SET installation_acknowledged=0`, `UPDATE networking_claim_intents SET installation_acknowledged=1 WHERE stage='installed'`},
-		{"remote off", `UPDATE networking_remote_settings SET enabled=0`, `UPDATE networking_remote_settings SET enabled=1`},
 		{"remote authority changed", `UPDATE networking_remote_settings SET authority='different'`, `UPDATE networking_remote_settings SET authority=(SELECT scope_id FROM networking_certificate_state)`},
 		{"route generation changed", `UPDATE networking_remote_state SET generation=generation+1`, `UPDATE networking_remote_state SET generation=generation-1`},
 		{"config revision changed", `UPDATE networking_remote_settings SET revision=revision+1`, `UPDATE networking_remote_settings SET revision=revision-1`},
@@ -127,6 +127,12 @@ func TestCurrentManagedHTTPSIsReadOnlyAndRequiresCurrentLiveTuple(t *testing.T) 
 			readManagedHTTPS(t, f, h, ctx, origin)
 		})
 	}
+	t.Run("remote off", func(t *testing.T) {
+		useRemoteAccess(h.remote, "off")
+		readManagedHTTPS(t, f, h, ctx, "")
+		useRemoteAccess(h.remote, "on")
+		readManagedHTTPS(t, f, h, ctx, origin)
+	})
 	t.Run("listener not bound", func(t *testing.T) {
 		h.certificates.SetListening(32500, false)
 		readManagedHTTPS(t, f, h, ctx, "")

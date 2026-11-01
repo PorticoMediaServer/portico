@@ -5,17 +5,19 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
-	"net/netip"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/directname"
 	"github.com/PorticoMediaServer/portico/server/internal/usermutation"
+	"net/netip"
 	"strconv"
 	"time"
 )
 
 type RemoteConfig struct {
-	LANSharing bool   `json:"lanSharing"`
-	Revision   int64  `json:"revision,string"`
+	LANSharing bool  `json:"lanSharing"`
+	Revision   int64 `json:"revision,string"`
+	// Enabled is Remote access On (the console setting, read by snapshot);
+	// reported, never stored or accepted here.
 	Enabled    bool   `json:"enabled"`
 	Mapping    bool   `json:"mapping"`
 	PCP        bool   `json:"pcp"`
@@ -93,6 +95,8 @@ func (m *RemoteManager) snapshot(ctx context.Context) (RemoteConfig, certificate
 	var state remoteState
 	var saved string
 	var key []byte
+	// Remote access is a console setting, read before the transaction.
+	enabled := m.remoteOn(ctx)
 	gated, e := m.h.store.tx(ctx)
 	if e != nil {
 		return c, certificateState{}, "", state, key, e
@@ -107,7 +111,7 @@ func (m *RemoteManager) snapshot(ctx context.Context) (RemoteConfig, certificate
 	// console settings now. The column stays (migrations are never edited), so
 	// the SELECT keeps its place with a constant and the value is discarded.
 	var discard string
-	e = tx.QueryRowContext(ctx, `SELECT authority,revision,enabled,lan_sharing,mapping,pcp,natpmp,upnp,public_port,gateway,'',ipv6_open,signature_key FROM networking_remote_settings WHERE singleton=1`).Scan(&saved, &c.Revision, &c.Enabled, &c.LANSharing, &c.Mapping, &c.PCP, &c.NATPMP, &c.UPnP, &c.PublicPort, &c.Gateway, &discard, &c.IPv6Open, &key)
+	e = tx.QueryRowContext(ctx, `SELECT authority,revision,lan_sharing,mapping,pcp,natpmp,upnp,public_port,gateway,'',ipv6_open,signature_key FROM networking_remote_settings WHERE singleton=1`).Scan(&saved, &c.Revision, &c.LANSharing, &c.Mapping, &c.PCP, &c.NATPMP, &c.UPnP, &c.PublicPort, &c.Gateway, &discard, &c.IPv6Open, &key)
 	if e != nil {
 		return c, cert, authority, state, key, e
 	}
@@ -115,14 +119,8 @@ func (m *RemoteManager) snapshot(ctx context.Context) (RemoteConfig, certificate
 		// Only an actually installed/acknowledged Portico scope gets the managed
 		// route default. Approval or an unclaimed Local scope cannot enable it.
 		// Once this scope exists, later snapshots preserve its owner's off choice.
-		enabled := false
-		if cert.Scope.ID != "" {
-			if e = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM identity_state s JOIN identity_managed_route m ON m.singleton=s.singleton WHERE s.singleton=1 AND s.sign_in_kind='portico' AND m.enabled=1)`).Scan(&enabled); e != nil {
-				return c, cert, authority, state, key, e
-			}
-		}
-		c = RemoteConfig{Revision: c.Revision + 1, Enabled: enabled, PCP: true, NATPMP: true, UPnP: true, PublicPort: 32500, IPv6Open: true}
-		if _, e = tx.ExecContext(ctx, `UPDATE networking_remote_settings SET authority=?,revision=?,enabled=?,lan_sharing=0,mapping=0,pcp=1,natpmp=1,upnp=1,public_port=32500,gateway='',manual_url='',ipv6_open=1 WHERE singleton=1`, authority, c.Revision, enabled); e != nil {
+		c = RemoteConfig{Revision: c.Revision + 1, PCP: true, NATPMP: true, UPnP: true, PublicPort: 32500, IPv6Open: true}
+		if _, e = tx.ExecContext(ctx, `UPDATE networking_remote_settings SET authority=?,revision=?,lan_sharing=0,mapping=0,pcp=1,natpmp=1,upnp=1,public_port=32500,gateway='',manual_url='',ipv6_open=1 WHERE singleton=1`, authority, c.Revision); e != nil {
 			return c, cert, authority, state, key, e
 		}
 		if _, e = tx.ExecContext(ctx, `UPDATE networking_remote_state SET generation=generation+1,topology_digest='',route_digest='',next_attempt=0,attempts=0,status='{}' WHERE singleton=1`); e != nil {
@@ -140,6 +138,7 @@ func (m *RemoteManager) snapshot(ctx context.Context) (RemoteConfig, certificate
 	if notBefore > 0 {
 		state.NotBefore = time.UnixMilli(notBefore)
 	}
+	c.Enabled = enabled
 	return c, cert, authority, state, key, commitClaimDatabaseTx(ctx, gated)
 }
 func (m *RemoteManager) configure(ctx context.Context, authority string, c RemoteConfig) error {
@@ -177,7 +176,7 @@ func (m *RemoteManager) configure(ctx context.Context, authority string, c Remot
 	if e = m.currentConfigTx(ctx, tx, authority, c.Revision); e != nil {
 		return e
 	}
-	result, e := tx.ExecContext(ctx, `UPDATE networking_remote_settings SET revision=revision+1,enabled=?,lan_sharing=?,mapping=?,pcp=?,natpmp=?,upnp=?,public_port=?,gateway=?,manual_url='',ipv6_open=? WHERE singleton=1 AND authority=? AND revision=?`, c.Enabled, c.LANSharing, c.Mapping, c.PCP, c.NATPMP, c.UPnP, c.PublicPort, c.Gateway, c.IPv6Open, authority, c.Revision)
+	result, e := tx.ExecContext(ctx, `UPDATE networking_remote_settings SET revision=revision+1,lan_sharing=?,mapping=?,pcp=?,natpmp=?,upnp=?,public_port=?,gateway=?,manual_url='',ipv6_open=? WHERE singleton=1 AND authority=? AND revision=?`, c.LANSharing, c.Mapping, c.PCP, c.NATPMP, c.UPnP, c.PublicPort, c.Gateway, c.IPv6Open, authority, c.Revision)
 	if e != nil {
 		return e
 	}

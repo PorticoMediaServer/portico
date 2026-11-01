@@ -75,7 +75,7 @@ func TestIPv6AllowedByDefaultAndDisableOverrideRemovesCandidate(t *testing.T) {
 	if err != nil || !config.IPv6Open {
 		t.Fatalf("IPv6 default: %+v %v", config, err)
 	}
-	if _, err = f.db.Exec(`UPDATE networking_remote_settings SET enabled=1,mapping=0`); err != nil {
+	if _, err = f.db.Exec(`UPDATE networking_remote_settings SET mapping=0`); err != nil {
 		t.Fatal(err)
 	}
 	topo.Public = []string{"2a03:4000:6:8::1"}
@@ -173,7 +173,7 @@ func TestIPv6PinholeOpensPublishesAndCloses(t *testing.T) {
 	} else {
 		clear(key)
 	}
-	if _, e := f.db.Exec(`UPDATE networking_remote_settings SET enabled=1,mapping=1,pcp=0,natpmp=0,upnp=1`); e != nil {
+	if _, e := f.db.Exec(`UPDATE networking_remote_settings SET mapping=1,pcp=0,natpmp=0,upnp=1`); e != nil {
 		t.Fatal(e)
 	}
 	topo.Public = []string{"2a03:4000:6:8::1"}
@@ -223,7 +223,7 @@ func TestPinholeProbeBacksOffWithoutFirewallControl(t *testing.T) {
 	} else {
 		clear(key)
 	}
-	if _, e := f.db.Exec(`UPDATE networking_remote_settings SET enabled=1,mapping=1,pcp=0,natpmp=0,upnp=1`); e != nil {
+	if _, e := f.db.Exec(`UPDATE networking_remote_settings SET mapping=1,pcp=0,natpmp=0,upnp=1`); e != nil {
 		t.Fatal(e)
 	}
 	topo.Public = []string{"188.68.34.120"}
@@ -277,7 +277,7 @@ func TestMappingProbeBacksOffWithoutGatewaySupport(t *testing.T) {
 	} else {
 		clear(key)
 	}
-	if _, e := f.db.Exec(`UPDATE networking_remote_settings SET enabled=1,mapping=1`); e != nil {
+	if _, e := f.db.Exec(`UPDATE networking_remote_settings SET mapping=1`); e != nil {
 		t.Fatal(e)
 	}
 	topo.Public = []string{"188.68.34.120"}
