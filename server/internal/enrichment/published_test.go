@@ -46,7 +46,7 @@ func TestTheServerTakesWhatThePipelinePublishes(t *testing.T) {
 		r2.URL.Path = filepath.ToSlash(filepath.Join("/testdata/published", release, r.URL.Path))
 		files.ServeHTTP(w, r2)
 	})
-	s := New(c.DB, Config{ManifestURL: "https://data.example/v2/manifest.json", PublicKey: key, Dir: t.TempDir()})
+	s := New(c.DB, Config{ManifestURL: "https://data.example/v3/manifest.json", PublicKey: key, Dir: t.TempDir()})
 	s.resolver = datasetResolver(publicDatasetResolver)
 	s.cfg.Client.Transport = datasetRoundTrip(func(request *http.Request) (*http.Response, error) {
 		recorder := httptest.NewRecorder()
@@ -90,7 +90,7 @@ func TestTheServerTakesWhatThePipelinePublishes(t *testing.T) {
 	if _, err := s.Step(context.Background(), 100); err != nil {
 		t.Fatal(err)
 	}
-	if requests["/v2/screen/2026.44..2026.45.sqlite.gz"] != 1 || requests["/v2/screen/2026.45.sqlite.gz"] != 0 {
+	if requests["/v3/screen/2026.44..2026.45.sqlite.gz"] != 1 || requests["/v3/screen/2026.45.sqlite.gz"] != 0 {
 		t.Fatal("expected the delta, not the full file", requests)
 	}
 	if got := tags(heat.ID); got != "pacing:slow-burn=2,subgenre:folk-horror=3,tone:gritty=3" {
@@ -102,6 +102,11 @@ func TestTheServerTakesWhatThePipelinePublishes(t *testing.T) {
 	c.DB.QueryRow(`SELECT relation FROM catalog_similar WHERE entity_id=? AND source='portico-dataset' AND provider_id='38985'`, thief.ID).Scan(&relation)
 	if relation != "premise" {
 		t.Fatal("Thief → Sorcerer relation", relation)
+	}
+	var rowLabel string
+	c.DB.QueryRow(`SELECT row_label FROM catalog_dataset_vocabulary WHERE tag='appeal:comfort'`).Scan(&rowLabel)
+	if rowLabel != "comfort watches" {
+		t.Fatal("the vocabulary's row label didn't arrive", rowLabel)
 	}
 	var version string
 	c.DB.QueryRow(`SELECT version FROM enrichment_domains WHERE domain='screen'`).Scan(&version)

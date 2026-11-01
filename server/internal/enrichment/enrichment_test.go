@@ -100,7 +100,7 @@ func (p *publisher) build(name, kind, version string, fill func(t *testing.T, db
 	}
 	mustExec(p.t, db, `INSERT INTO kinds VALUES(1,'movie'),(2,'show'),(3,'artist'),(4,'album'),(5,'book')`)
 	mustExec(p.t, db, `INSERT INTO providers VALUES(1,'tmdb','movie'),(2,'tmdb','tv'),(3,'tvdb','series'),(4,'tvdb','movie'),(5,'anilist','anime'),(6,'imdb','title')`)
-	mustExec(p.t, db, `INSERT INTO meta VALUES('kind',?),('dataset_version',?),('schema_version','2')`, kind, version)
+	mustExec(p.t, db, `INSERT INTO meta VALUES('kind',?),('dataset_version',?),('schema_version','3')`, kind, version)
 	fill(p.t, db)
 	db.Close()
 	raw, err := os.ReadFile(path)
@@ -125,7 +125,7 @@ func mustExec(t *testing.T, db *sql.DB, q string, args ...any) {
 
 // vocabulary and three works: Heat (TMDB 949), Thief (TMDB 11524), Collateral (TMDB 1538).
 func screenV1(t *testing.T, db *sql.DB) {
-	mustExec(t, db, `INSERT INTO vocabulary VALUES(1,'tone:gritty','tone','Gritty','Hard-edged.','["movie","show"]',1,NULL),(2,'theme:heist','theme','Heists','A robbery drives the story.','["movie","show"]',1,NULL),(3,'pacing:slow-burn','pacing','Slow burn','Tension builds slowly.','["movie","show"]',1,NULL)`)
+	mustExec(t, db, `INSERT INTO vocabulary VALUES(1,'tone:gritty','tone','Gritty','Hard-edged.','["movie","show"]',1,NULL,NULL),(2,'theme:heist','theme','Heists','A robbery drives the story.','["movie","show"]',1,NULL,NULL),(3,'pacing:slow-burn','pacing','Slow burn','Tension builds slowly.','["movie","show"]',1,NULL,NULL)`)
 	mustExec(t, db, `INSERT INTO works VALUES(47703,1,0,0,1,2,1995,70,'Heat'),(1197379,1,0,0,1,2,1981,30,'Thief'),(223596,1,0,0,1,2,2004,60,'Collateral')`)
 	mustExec(t, db, `INSERT INTO work_ids VALUES(1,949,47703),(6,'tt0113277',47703),(1,11524,1197379),(1,1538,223596)`)
 	mustExec(t, db, `INSERT INTO work_tags VALUES(47703,1,3),(47703,2,3),(47703,3,1),(1197379,2,2),(223596,1,2)`)
@@ -206,7 +206,7 @@ func TestDatasetImportMatchesByProviderIdAndFeedsRecommendations(t *testing.T) {
 	}
 	// A delta replaces a work's rows in place.
 	delta := p.build("screen-2", "delta", "2026.10.03", func(t *testing.T, db *sql.DB) {
-		mustExec(t, db, `INSERT INTO vocabulary VALUES(1,'tone:gritty','tone','Gritty','Hard-edged.','["movie","show"]',1,NULL),(2,'theme:heist','theme','Heists','A robbery drives the story.','["movie","show"]',1,NULL),(3,'pacing:slow-burn','pacing','Slow burn','Tension builds slowly.','["movie","show"]',1,NULL)`)
+		mustExec(t, db, `INSERT INTO vocabulary VALUES(1,'tone:gritty','tone','Gritty','Hard-edged.','["movie","show"]',1,NULL,NULL),(2,'theme:heist','theme','Heists','A robbery drives the story.','["movie","show"]',1,NULL,NULL),(3,'pacing:slow-burn','pacing','Slow burn','Tension builds slowly.','["movie","show"]',1,NULL,NULL)`)
 		mustExec(t, db, `INSERT INTO works VALUES(47703,1,0,0,1,2,1995,71,'Heat')`)
 		mustExec(t, db, `INSERT INTO work_ids VALUES(1,949,47703)`)
 		mustExec(t, db, `INSERT INTO work_tags VALUES(47703,3,3)`)

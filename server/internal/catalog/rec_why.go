@@ -51,7 +51,8 @@ func (x *recSession) recWhy(row *recRow) error {
 		}
 		spec.Why, spec.WhyTitles = recWhyFacetText(label, titles)
 	case strings.HasPrefix(spec.ID, "for_you:tag:"):
-		label := recWhyTagLabel(*spec)
+		// Mid-sentence, the row label stays in running text ("comfort watches").
+		_, label, _ := x.s.datasetRowLabel(strings.TrimPrefix(spec.ID, "for_you:tag:"))
 		titles, err := x.recWhyFacet("x:" + strings.TrimPrefix(spec.ID, "for_you:tag:"))
 		if err != nil {
 			return err
@@ -135,16 +136,6 @@ func recWhyFacetText(label string, titles []ContentEntityRef) (*ServerText, []Co
 		return &ServerText{Code: recWhyFacetTitles, Params: map[string]string{"label": label, "titles": list}, Fallback: "Because you often watch " + label + ", like " + list + "."}, named
 	}
 	return &ServerText{Code: recWhyFacet, Params: map[string]string{"label": label}, Fallback: "Because you often watch " + label + "."}, nil
-}
-
-// recWhyTagLabel is a tag row's dataset label, whichever family named it.
-func recWhyTagLabel(spec homeRowSpec) string {
-	for _, key := range []string{"mood", "theme", "subgenre", "appeal"} {
-		if label := spec.TitleParams[key]; label != "" {
-			return label
-		}
-	}
-	return ""
 }
 
 // recWhyPersonCount is how many titles with one person the profile has watched

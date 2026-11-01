@@ -57,6 +57,7 @@ func TestTagRowsForSubgenreAndAppeal(t *testing.T) {
 		[3]string{"audience:adults", "audience", "Adults"},
 		[3]string{"intensity:high", "intensity", "High"},
 	)
+	w.c.Exec(`UPDATE catalog_dataset_vocabulary SET row_label='cyberpunk stories' WHERE tag='subgenre:cyberpunk'`)
 	works := append(itemIDs(w.dramas[:12]), itemIDs(w.scifi[:3])...)
 	for _, f := range w.scifi[:3] {
 		w.watch("p", f)
@@ -77,12 +78,15 @@ func TestTagRowsForSubgenreAndAppeal(t *testing.T) {
 	var cyberpunk, appeal *recRow
 	for i := range rows {
 		row := &rows[i]
-		switch row.spec.TitleCode {
-		case "home.row.subgenreForYou":
+		if strings.HasPrefix(row.spec.ID, "for_you:tag:") && row.spec.TitleCode != "home.row.tagForYou" {
+			t.Fatalf("%s titled by %s", row.spec.ID, row.spec.TitleCode)
+		}
+		switch {
+		case strings.HasPrefix(row.spec.ID, "for_you:tag:subgenre:"):
 			subgenres++
-		case "home.row.appealForYou":
+		case strings.HasPrefix(row.spec.ID, "for_you:tag:appeal:"):
 			appeals++
-		case "home.row.moodForYou", "home.row.themeForYou":
+		case strings.HasPrefix(row.spec.ID, "for_you:tag:"):
 			moods++
 		}
 		switch row.spec.ID {
@@ -100,10 +104,12 @@ func TestTagRowsForSubgenreAndAppeal(t *testing.T) {
 	if subgenres != recSubgenreRows || appeals != recAppealRows || moods != recGenreRows {
 		t.Fatalf("subgenre/appeal/mood rows = %d/%d/%d, want %d/%d/%d", subgenres, appeals, moods, recSubgenreRows, recAppealRows, recGenreRows)
 	}
-	if cyberpunk == nil || cyberpunk.spec.Title != "Cyberpunk for you" || cyberpunk.spec.TitleParams["subgenre"] != "Cyberpunk" {
+	// The vocabulary's row label names the row ("Cyberpunk stories for you");
+	// a tag without one falls back to its label in sentence case.
+	if cyberpunk == nil || cyberpunk.spec.Title != "Cyberpunk stories for you" || cyberpunk.spec.TitleParams["label"] != "Cyberpunk stories" {
 		t.Fatalf("subgenre row: %+v", cyberpunk)
 	}
-	if appeal == nil || appeal.spec.Title != "Gritty Appeal for you" || appeal.spec.TitleParams["appeal"] != "Gritty Appeal" {
+	if appeal == nil || appeal.spec.Title != "Gritty appeal for you" || appeal.spec.TitleParams["label"] != "Gritty appeal" {
 		t.Fatalf("appeal row: %+v", appeal)
 	}
 	for _, row := range []*recRow{cyberpunk, appeal} {
@@ -126,7 +132,9 @@ func TestTagRowsForSubgenreAndAppeal(t *testing.T) {
 			}
 		}
 	}
-	if cyberpunk.spec.Why.Params["label"] != "Cyberpunk" || appeal.spec.Why.Params["label"] != "Gritty Appeal" {
+	// Mid-sentence the row label stays in running text: "…often watch cyberpunk stories, like …".
+	if cyberpunk.spec.Why.Params["label"] != "cyberpunk stories" || appeal.spec.Why.Params["label"] != "gritty appeal" ||
+		cyberpunk.spec.Why.Fallback != "Because you often watch cyberpunk stories, like "+cyberpunk.spec.Why.Params["titles"]+"." {
 		t.Fatalf("why labels: %+v %+v", cyberpunk.spec.Why.Params, appeal.spec.Why.Params)
 	}
 }

@@ -5,16 +5,16 @@
    "deltas": [
     {
      "base_version": "2026.44",
-     "bytes": 2340,
-     "sha256": "0a1e138fb956d223dcf451f246b6c88aa2de08d58fedd0422ece8bc42dd73c95",
+     "bytes": 2437,
+     "sha256": "62f489d96a473a35b1587e359b194d74d4e5187d7680494db50e57b8b8a17791",
      "uncompressed_bytes": 73728,
      "url": "screen/2026.44..2026.45.sqlite.gz",
      "version": "2026.45"
     }
    ],
    "full": {
-    "bytes": 2328,
-    "sha256": "a464d67b0721634ec87bd7a31cf07ba057dbbc1d793b3064b30f18bc810f6ed9",
+    "bytes": 2427,
+    "sha256": "f7fb9fd2040bb3f372abe09e3a9980f92642e09716579f2a9efd301d34689b84",
     "uncompressed_bytes": 73728,
     "url": "screen/2026.45.sqlite.gz",
     "version": "2026.45"
@@ -22,8 +22,8 @@
    "vocabulary_version": 2
   }
  },
- "issued_at": "2026-11-01T02:53:30Z",
- "key_id": "14cafd861fb8b0fe",
- "schema_version": 2,
+ "issued_at": "2026-11-01T06:47:44Z",
+ "key_id": "40812d8931bccded",
+ "schema_version": 3,
  "sequence": 2
 }

@@ -45,8 +45,7 @@ test('titles come from the catalogue, with the fallback for an unknown code or m
   assert.equal(t('home.row.moreLike', {title: 'Heat'}), 'More like Heat');
   assert.equal(t('home.row.viewersAlsoWatched'), 'Viewers also watched');
   assert.equal(t('home.row.topRated'), 'Top rated you haven’t seen');
-  assert.equal(t('home.row.moodForYou', {mood: 'Feel-good'}), 'Feel-good picks for you');
-  assert.equal(t('home.row.themeForYou', {theme: 'Time travel'}), 'Time travel for you');
+  assert.equal(t('home.row.tagForYou', {label: 'Comfort watches'}), 'Comfort watches for you');
   assert.equal(t('home.row.someFutureRow'), 'Server words');
   assert.equal(t(''), 'Server words');
   assert.equal(t('home.row.moreWith'), 'Server words', 'a message whose params are missing keeps the server’s words');

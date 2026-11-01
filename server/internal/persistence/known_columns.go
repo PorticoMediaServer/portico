@@ -1008,6 +1008,7 @@ catalog_dataset_tags.strength
 catalog_dataset_tags.tag
 catalog_dataset_vocabulary.family
 catalog_dataset_vocabulary.label
+catalog_dataset_vocabulary.row_label
 catalog_dataset_vocabulary.tag
 catalog_dataset_works.domain
 catalog_dataset_works.entity_id

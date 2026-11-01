@@ -31,7 +31,7 @@ func TestImportAndPurgeStayWithinTheWritePlan(t *testing.T) {
 	p := newPublisher(t)
 	p.domains["screen"] = ManifestDomain{DatasetVersion: "1", VocabularyVersion: 2, Full: p.build("screen", "full", "1", func(t *testing.T, db *sql.DB) {
 		for v := 1; v <= vocabulary; v++ {
-			mustExec(t, db, `INSERT INTO vocabulary VALUES(?,?,'theme',?,'d','["movie","show"]',2,NULL)`, v, fmt.Sprintf("theme:t%03d", v), fmt.Sprintf("Theme %03d", v))
+			mustExec(t, db, `INSERT INTO vocabulary VALUES(?,?,'theme',?,'d','["movie","show"]',2,NULL,NULL)`, v, fmt.Sprintf("theme:t%03d", v), fmt.Sprintf("Theme %03d", v))
 		}
 		for i := 0; i < works; i++ {
 			qid := 900000 + i
