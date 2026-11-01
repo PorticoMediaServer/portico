@@ -563,7 +563,7 @@ internal/playbackruntime/linear.go	(*LinearRuntime).produceLive	Begin	ClassEstab
 internal/playbackv1/airplay.go	(*Service).PrepareAirPlay	WithWriteTxContext	ClassEstablishedPlayback	-
 internal/playbackv1/channels.go	(*Service).patchChannel	WithWriteTxContext	ClassEstablishedPlayback	-
 internal/playbackv1/channels.go	(*Service).startChannel	WithWriteTxContext	ClassPlaybackStart	-
-internal/playbackv1/observations.go	(*Service).applyObservationBatch	Begin	ClassEstablishedPlayback	observationBatchPlan(len(batch))
+internal/playbackv1/observations.go	(*Service).applyObservationBatch	Begin	ClassEstablishedPlayback	observationBatchPlan(len(batch))|observationActivationPlan(len(batch), activations)
 internal/playbackv1/queue_build.go	(*Service).continueBuild	WithWriteTxContext	ClassBackgroundMedia	-
 internal/playbackv1/queue_build.go	(*Service).failBuild	WithWriteTxContext	ClassBackgroundMedia	-
 internal/playbackv1/queue_build.go	(*snapshotScan).writeBatch	WithWriteTxContext	ClassBackgroundMedia	-
@@ -698,4 +698,5 @@ plan	internal/metadata/screen_fanout.go	(*Service).ScreenFanoutStep	screenFanout
 plan	internal/metadata/screen_publish.go	(*Service).publishScreen	screenPublishPlan
 plan	internal/metadata/tvdb_episode_credits.go	(*Service).tvdbEpisodeCreditsStep	tvdbEpisodeCreditsPlan
 plan	internal/persistence/schema.go	installBaseline	baselinePlan
+plan	internal/playbackv1/observations.go	(*Service).applyObservationBatch	observationActivationPlan(len(batch), activations)
 plan	internal/playbackv1/observations.go	(*Service).applyObservationBatch	observationBatchPlan(len(batch))
