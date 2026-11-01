@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: {node-version-file: .node-version}
       - name: Install Vega tools and virtual device
-        env: {NONINTERACTIVE: 'true', VEGA_SDK_VERSION: '0.24.9311'}
+        env: {NONINTERACTIVE: 'true', VEGA_SDK_VERSION: '0.24.12112'}
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb lz4

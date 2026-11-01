@@ -6,8 +6,10 @@ never cached or uploaded. The child command runs while the server is alive.
 """
 import argparse
 import importlib.util
+import json
 import os
 from pathlib import Path
+import secrets
 import shutil
 import subprocess
 import sys
@@ -42,6 +44,34 @@ class DevServer(fixture.Exercise):
         fixture.wait(ready, 120)
 
 
+def provision_member(server):
+    password = secrets.token_urlsafe(24) + '-Aa1!'
+    pin = f'{secrets.randbelow(10000):04d}'
+    server.api.post('/v1/direct/members', {
+        'username': 'e2e-member', 'password': password, 'name': 'E2E Member',
+        'allowedLibraries': list(server.libs.values()), 'disabled': False,
+        'expectedRevision': 0,
+    }, (201,))
+    member = fixture.API(server.base)
+    sign_in = member.post('/v1/direct/sign-in', {'username': 'e2e-member', 'password': password})
+    member.token = sign_in['session']['accessToken']
+    snapshot = member.post('/v1/direct/profiles', {'name': 'Restricted', 'art': ''}, (201,))
+    profile = next(p for p in snapshot['profiles'] if p['name'] == 'Restricted')
+    path = '/v1/direct/profiles/' + profile['id']
+    member.call('PATCH', path, {'expectedRevision': profile['revision'], 'pin': pin})
+    restriction = member.get(path + '/restrictions')
+    member.call('PUT', path + '/restrictions', {
+        'expectedRevision': restriction['revision'], 'ratingSystem': 'mpaa',
+        'maximumAgeRating': 'PG-13', 'allowUnrated': True,
+        'blockedLabels': [], 'allowDownloads': False, 'allowLiveTv': False,
+        'allowDvr': False, 'allowWatchTogether': False,
+    })
+    credentials = server.directory / 'client-credentials.json'
+    credentials.write_text(json.dumps({'member': {'username': 'e2e-member', 'password': password},
+                                       'restrictedProfile': {'id': profile['id'], 'pin': pin}}))
+    return credentials
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
@@ -56,7 +86,13 @@ def main():
         parser.error('media cache must be outside the checkout')
     os.umask(0o077)
     if not media.exists():
-        fixture.generate(media)
+        media.parent.mkdir(parents=True, exist_ok=True)
+        # Publish only a complete fixture; a failed generator must not leave a
+        # cache that appears usable in the next attempt.
+        with tempfile.TemporaryDirectory(prefix='portico-media-', dir=media.parent) as tmp:
+            generated = Path(tmp) / 'media'
+            fixture.generate(generated)
+            generated.rename(media)
     if not (media / 'Movies/Arrival (2016)/Arrival (2016) - 1080p.mp4').is_file():
         raise RuntimeError('incomplete media cache')
     with tempfile.TemporaryDirectory(prefix='portico-e2e-', dir=os.environ.get('RUNNER_TEMP')) as tmp:
@@ -70,11 +106,13 @@ def main():
             signed = api.post('/v1/dev/e2e/sign-in', {'username': user})
             api.token = signed['session']['accessToken']
             server.scan()
+            credentials = provision_member(server)
             command = args.command
             if command and command[0] == '--':
                 command = command[1:]
             if command:
-                return subprocess.call(command, env={**os.environ, 'PORTICO_E2E_SERVER_URL': server.base})
+                return subprocess.call(command, env={**os.environ, 'PORTICO_E2E_SERVER_URL': server.base,
+                                                       'PORTICO_E2E_CREDENTIALS_FILE': str(credentials)})
             print('PASS: disposable devtrust server, password-free sign-in and synthetic library scans', flush=True)
             return 0
         finally:

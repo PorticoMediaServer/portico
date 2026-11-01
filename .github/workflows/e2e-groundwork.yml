@@ -22,6 +22,8 @@ jobs:
         with:
           path: ${{ runner.temp }}/portico-e2e-media
           key: e2e-media-${{ runner.os }}-${{ hashFiles('scripts/e2e-server.py') }}
+      - name: Install fixture media tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Build dev-only server
         working-directory: server
         run: go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server
