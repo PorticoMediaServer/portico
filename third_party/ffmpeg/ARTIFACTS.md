@@ -227,3 +227,16 @@ libraries, not a physical Vulkan device or automatic driver discovery in every
 application layout. App signing/notarisation must follow these rewrites; a later
 signature changes sealed bytes and belongs in the app's reviewed seal flow.
 This engine stage uses no signing identity, account or credential.
+
+The Mac shaderc stage selects the existing shaderc_combined pkg-config module,
+as the pinned BtbN stage does, and includes its system libc++ link dependency.
+It retains the original combined module unchanged, records both metadata hashes
+and the actual pkg-config flags in corresponding source, and adds no shared
+shaderc runtime. The real Mac runtime audit must still show no external shaderc
+load; metadata controls alone are not a library compilation or engine proof.
+
+Mac source checkout retains the exact reviewed Git object SHA. When that object
+is an annotated tag, HEAD must equal the commit peeled from that exact object;
+no floating tag name or fallback is used. Corresponding source records the
+original object, object type, checked-out commit and repository. A different
+existing checkout is refused. This changes no source pin or selected bytes.

@@ -14,7 +14,20 @@ portico_clone() {
   git -C "$PACKAGES/portico-$name" fetch --depth=1 origin "$revision"
   git -C "$PACKAGES/portico-$name" checkout --detach FETCH_HEAD
  fi
- [ "$(git -C "$PACKAGES/portico-$name" rev-parse HEAD)" = "$revision" ]
+ # Some reviewed SHA-1s name immutable annotated tag objects. Verify the
+ # exact object, then compare HEAD with that object's peeled commit.
+ [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || return 1
+ local peeled kind
+ peeled=$(git -C "$PACKAGES/portico-$name" rev-parse --verify "$revision^{commit}") || return 1
+ kind=$(git -C "$PACKAGES/portico-$name" cat-file -t "$revision") || return 1
+ [[ "$kind" == commit || "$kind" == tag ]] || return 1
+ [ "$(git -C "$PACKAGES/portico-$name" rev-parse HEAD)" = "$peeled" ] || return 1
+ python3 - "$repo" "$revision" "$peeled" "$kind" "$PACKAGES/portico-$name-source.json" <<'PYSOURCE'
+import json,pathlib,sys
+repository,locked,commit,kind,destination=sys.argv[1:]
+pathlib.Path(destination).write_text(json.dumps({'repository':repository,'lockedObject':locked,
+    'objectType':kind,'checkedOutCommit':commit},indent=2)+'\n')
+PYSOURCE
  cd "$PACKAGES/portico-$name"
 }
 portico_cmake() {
@@ -76,6 +89,9 @@ cp Package/Release/MoltenVK/dylib/macOS/MoltenVK_icd.json "$WORKSPACE/share/vulk
 portico_clone shaderc
 python3 utils/git-sync-deps
 portico_cmake -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON
+# Match the pinned BtbN static module selection; keep the shared build unused.
+python3 "$CWD/portico-configure-macos-shaderc.py" --prefix "$WORKSPACE" \
+ --receipt "$CWD/packages/portico-shaderc-static-link.json"
 portico_clone placebo
 git submodule update --init --recursive
 portico_meson -Dvulkan=enabled -Dshaderc=enabled -Dglslang=disabled -Ddemos=false -Dtests=false -Dbench=false
