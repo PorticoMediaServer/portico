@@ -43,16 +43,20 @@ export function TVRemoteAccessPanel({ports, runtime, lifetime, statusOnly = fals
   if (!state) return <StateView title={t('status.loading')}/>;
   const secure = secureConnectionView({certificate: state.certificate, own: state.connectivity.tls.customCertificate});
   const remote = remoteStatusLine(t, {unavailable: false, ...state});
+  // O-169: Remote access (On / Private only / Off); security and sign-in matter only while it's On.
+  const R = 'next.settingsSpec.server.remote.groups.2.rows.0', policy = state.connectivity.policy;
+  const accessIndex = policy.remoteAccess === 'private' ? 1 : policy.remoteAccess === 'off' ? 2 : 0, outsideOn = policy.remoteAccess === 'on';
   const row = (id: string, label: MessageId, value: string, help?: string, healthy?: boolean) => <Focusable key={id} focusId={id} focusKind="row" accessibilityRole="text" accessibilityLabel={[t(label), help, value].filter(Boolean).join('. ')} style={{paddingHorizontal: 24, paddingVertical: 22, marginBottom: 3, backgroundColor: theme.colors.raised, borderRadius: 12, flexDirection: 'row', gap: 28, alignItems: 'center'}}>
     <View style={{flex: 1, gap: 6}}><Text style={[shellType(26, 600), {color: theme.colors.text}]}>{t(label)}</Text>{help && <Text style={[shellType(20, 400, 28), {color: theme.colors.textSecondary}]}>{help}</Text>}</View>
     {healthy !== undefined && <View style={{width: 12, height: 12, borderRadius: 6, backgroundColor: healthy ? theme.colors.healthy : theme.colors.amber}}/>}
     <Text style={[shellType(22, 600), {maxWidth: '45%', color: theme.colors.textSecondary}]}>{value}</Text>
   </Focusable>;
   return <View style={statusOnly ? {marginBottom: 30} : undefined}>
-    {row('remote', 'settings.server.remote', t(state.remote.config.enabled ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off'), remote.text, remote.tone === 'healthy')}
+    {row('remote', `${R}.label` as MessageId, t(`${R}.control.options.${accessIndex}.label` as MessageId), remote.text, remote.tone === 'healthy')}
+    {outsideOn && row('security', `${R}.children.0.label` as MessageId, t(`${R}.children.0.control.options.${policy.remoteSecurity === 'standard' ? 1 : 0}.label` as MessageId), t(`${R}.children.0.help` as MessageId))}
     {row('secure', 'settings.server.secure.title', t(secure.badge), t(secure.body, secure.address ? {address: secure.address} : undefined), secure.tone === 'healthy')}
     {/* An owner changes these rows below, in the page's own settings. */}
-    {!statusOnly && row('policy', 'web.connectivity.whoMaySignIn', t(`settings.server.signIn.${state.connectivity.policy.remoteSignInPolicy}`))}
+    {!statusOnly && outsideOn && row('policy', 'web.connectivity.whoMaySignIn', t(`settings.server.signIn.${state.connectivity.policy.remoteSignInPolicy}`))}
     {!statusOnly && row('dlna', 'settings.server.dlna', t(state.connectivity.policy.dlnaEnabled ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off'), t('settings.server.dlnaHelp'), state.connectivity.policy.dlnaEnabled)}
     {state.certificate && row('account', 'account.portico', t(certificateClaimed(state.certificate) ? 'web.settings.throughAccount' : 'settings.server.secure.notSetUp'))}
   </View>;
