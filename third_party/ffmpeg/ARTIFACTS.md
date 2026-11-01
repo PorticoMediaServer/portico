@@ -252,3 +252,17 @@ available; its absence does not stop app/media testing. Receipt inspection
 always reports qualified=false, release=false and readyForPublication=false.
 Exact artifact intake and complete binary/source/licence verification still
 precede any separately reviewed main-only release writer.
+
+`stage-engine-release.py --locator FILE --output FRESH_DIRECTORY` performs only
+read-only byte intake. The locator names repository, sourceSHA, runId,
+runAttempt and targets; each of the four mandatory targets (and optional Intel)
+has product/native entries containing exact artifactId and sha256. It requires
+the completed successful main workflow-dispatch attempt of ffmpeg-toolchain.yml,
+matching artifact metadata, SHA-256, attempt creation window and at most14-day
+unexpired retention. It never discovers a latest run or falls back to another
+artifact. Original ZIP/API responses survive under actions/, extracted files
+under inputs/TARGET/product and inputs/TARGET/native, and an intake.json receipt
+always says qualified=false, release=false, readyForPublication=false. Run the
+separate receipt inspector with --inputs FRESH_DIRECTORY/inputs; full bundle,
+corresponding-source, licences and compiler validation still remain necessary.
+This script neither executes artifact contents nor grants write permissions.
