@@ -148,6 +148,9 @@ func TestKindScanMemoryMeasurement(t *testing.T) {
 		pacingNS += time.Since(paceStart).Nanoseconds()
 	}
 	report["completed"] = true
+	if plans := dbwork.Plans(); plans.Overruns != 0 {
+		t.Errorf("scan exceeded existing write plans: %+v", plans)
+	}
 	if got := f.count(`SELECT count(*) FROM catalog_assets`); got != n {
 		t.Errorf("scanned assets=%d, expected %d", got, n)
 	}
