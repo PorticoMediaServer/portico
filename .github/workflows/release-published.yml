@@ -56,6 +56,8 @@ jobs:
           archive="$(ls image/portico-server-image*.oci.tar)"
           printf '%s' "$GH_TOKEN" | skopeo login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           skopeo copy --all "oci-archive:$archive" "docker://ghcr.io/porticomediaserver/portico-server:$version"
+          # The install guide's `latest` follows the newest published (non-prerelease) release.
+          skopeo copy --all "docker://ghcr.io/porticomediaserver/portico-server:$version" "docker://ghcr.io/porticomediaserver/portico-server:latest"
           # GHCR has no API to change a package's visibility. The first push creates the package;
           # make it public once in its settings (Package settings > Change visibility).
           visibility="$(gh api orgs/PorticoMediaServer/packages/container/portico-server -q .visibility 2>/dev/null || echo unknown)"
