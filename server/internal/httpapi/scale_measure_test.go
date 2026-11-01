@@ -282,7 +282,7 @@ func TestServerScaleMeasurement(t *testing.T) {
 		costs[name] = read()
 	}
 	scaleSave(t, "service_costs", costs)
-	counts := []int{50, 100, 200}
+	counts := []int{32, 50, 100, 200}
 	if mode != "films100" {
 		counts = []int{min(4, users)}
 	}
@@ -330,7 +330,7 @@ func TestServerScaleMeasurement(t *testing.T) {
 						case 3:
 							scaleCall(client, server.URL, token, "detail", "GET", "/v1/items/"+f.items[(u+round)%len(f.items)]+"/detail", nil, nil, w)
 						case 4:
-							status, b := scaleCall(client, server.URL, token, "playback_start", "POST", "/v1/playback/sessions", map[string]string{"itemId": f.playable, "startFrom": "beginning"}, map[string]string{"Idempotency-Key": fmt.Sprintf("F-%d-%d-%d", count, u, round)}, w)
+							status, b := scaleCall(client, server.URL, token, "playback_start", "POST", "/v1/playback/sessions", map[string]string{"itemId": f.playable, "startFrom": "beginning"}, map[string]string{"Idempotency-Key": fmt.Sprintf("scale-measure-F-%d-%d-%d", count, u, round)}, w)
 							var view playbackv1.SessionView
 							if status != 201 || json.Unmarshal(b, &view) != nil {
 								break
@@ -359,7 +359,7 @@ func TestServerScaleMeasurement(t *testing.T) {
 		scaleSave(t, fmt.Sprintf("users-%d", count), map[string]any{"users": count, "seconds": time.Since(at).Seconds(), "endpoints": w.summary(), "gate_before": before, "gate_after": after, "admission": dbwork.WriteGate().Admission(), "write_plans": dbwork.Plans(), "routes": RouteCosts(), "peak_rss_mib": scaleRSS()})
 	}
 	var sessions, durable, ended int
-	if e := f.db.QueryRow(`SELECT count(*),sum(CASE WHEN last_seq=3 AND position_ms=3000 THEN 1 ELSE 0 END),sum(CASE WHEN state='stopped' THEN 1 ELSE 0 END) FROM playback_v1_sessions`).Scan(&sessions, &durable, &ended); e != nil {
+	if e := f.db.QueryRow(`SELECT count(*),COALESCE(sum(CASE WHEN last_seq=3 AND position_ms=3000 THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN state='stopped' THEN 1 ELSE 0 END),0) FROM playback_v1_sessions`).Scan(&sessions, &durable, &ended); e != nil {
 		t.Logf("durable reconciliation: %v", e)
 	}
 	scaleSave(t, "durability", map[string]int{"sessions": sessions, "last_seq_3_position_3000": durable, "stopped": ended})
@@ -379,5 +379,17 @@ func TestServerScaleMeasurement(t *testing.T) {
 
 func scalePersonal(ctx context.Context, tx *sql.Tx, profile string, p int) error {
 	_, e := tx.ExecContext(ctx, `INSERT INTO personal_history(id,profile_id,item_id,started_at,updated_at,sequence,position,unit,completed) SELECT ?||'-'||id,?,id,'2026-10-01T00:00:00.000Z','2026-10-01T00:00:00.000Z',1,5400000,0,1 FROM catalog_entities WHERE kind=1 AND retired=0 ORDER BY id LIMIT 30 OFFSET ?`, profile, profile, p*31)
-	return e
+	if e != nil {
+		return e
+	}
+	for _, query := range []string{
+		`INSERT INTO personal_items(profile_id,item_id,watched,favorite,watchlisted,last_played_at,revision) SELECT ?,id,0,1,0,'2026-10-01T00:00:00.000Z',1 FROM catalog_entities WHERE kind=1 AND retired=0 ORDER BY id LIMIT 10 OFFSET ?`,
+		`INSERT INTO progress(profile_id,item_id,position,unit,playback_id) SELECT ?,id,120000,0,'F-fixture' FROM catalog_entities WHERE kind=1 AND retired=0 ORDER BY id LIMIT 10 OFFSET ?`,
+		`INSERT INTO progress_activity(profile_id,library_id,item_id,updated_at,state) SELECT ?,l.library_id,e.id,'2026-10-01T00:00:00.000Z','paused' FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.kind=1 AND e.retired=0 ORDER BY e.id LIMIT 10 OFFSET ?`,
+	} {
+		if _, e = tx.ExecContext(ctx, query, profile, p*31); e != nil {
+			return e
+		}
+	}
+	return nil
 }
