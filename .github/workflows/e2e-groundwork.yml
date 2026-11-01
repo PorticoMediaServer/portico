@@ -70,3 +70,9 @@ jobs:
         run: go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server
       - name: Verify server and generated library
         run: python3 tests/e2e/server.py --binary "$RUNNER_TEMP/portico-e2e-server" --media-cache "$RUNNER_TEMP/portico-e2e-media"
+  android:
+    uses: ./.github/workflows/e2e-android-pilot.yml
+  ios:
+    uses: ./.github/workflows/e2e-ios-pilot.yml
+  tvos:
+    uses: ./.github/workflows/e2e-tvos-pilot.yml
