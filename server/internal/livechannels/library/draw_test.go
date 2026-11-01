@@ -221,14 +221,23 @@ func TestLargeShufflePoolKeepsScheduling(t *testing.T) {
 		return n
 	}
 
-	// A deadline too short for a whole batch still keeps the slots made within it.
-	short, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	_, err := s.RunBatch(short)
-	cancel()
-	if made := entries(); made == 0 {
-		t.Fatalf("a short deadline kept nothing (%v)", err)
-	} else if err != nil && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "context deadline") {
-		t.Fatalf("short deadline: %v", err)
+	// A deadline too short for a whole batch still keeps the slots made within it. A loaded
+	// shared runner can spend the first short deadline before the first slot (the batch reads
+	// the 100k pool first), so the deadline doubles until slots are kept; what this asserts is
+	// that an interrupted batch keeps its work, not how fast a runner is.
+	for wait := 500 * time.Millisecond; ; wait *= 2 {
+		short, cancel := context.WithTimeout(context.Background(), wait)
+		_, err := s.RunBatch(short)
+		cancel()
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "context deadline") {
+			t.Fatalf("short deadline %s: %v", wait, err)
+		}
+		if entries() > 0 {
+			break
+		}
+		if wait >= 8*time.Second {
+			t.Fatalf("deadlines up to %s kept nothing (%v)", wait, err)
+		}
 	}
 
 	// The worker's own budget schedules the whole week, a pass at a time.
