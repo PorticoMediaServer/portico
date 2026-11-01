@@ -24,6 +24,20 @@ def inventory(directory):
         raise ValueError('Unexpected release inventory size')
     return files
 
+STATEMENT = ('The files of this release, nothing more. A server build is trusted only by its own sealed '
+             'manifest.json and manifest.sig; this inventory makes no server build trusted.')
+
+
+def server_builds(paths):
+    """Each server build as its own manifest describes it, so the signed inventory states which are unsealed."""
+    out = []
+    for path in paths:
+        m = json.loads(path.read_text())
+        out.append({'target': m['target'], 'artifactSha256': m['artifact']['sha256'], 'buildId': m['buildId'],
+                    'sealed': m.get('sealed') is True, 'developmentEngine': bool(m.get('engine', {}).get('development'))})
+    return sorted(out, key=lambda b: b['target'])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=pathlib.Path)
@@ -31,6 +45,8 @@ def main():
     parser.add_argument('--key', type=pathlib.Path)
     parser.add_argument('--source', default='')
     parser.add_argument('--verify', action='store_true')
+    parser.add_argument('--server-manifest', type=pathlib.Path, action='append', default=[],
+                        help="a server build's manifest.json; its sealed state is written into the inventory")
     args = parser.parse_args()
     public = Ed25519PublicKey.from_public_bytes(args.public_key.read_bytes())
     manifest = args.directory / 'release-manifest.json'
@@ -41,7 +57,9 @@ def main():
         key = Ed25519PrivateKey.from_private_bytes(args.key.read_bytes())
         if key.public_key().public_bytes_raw() != args.public_key.read_bytes():
             raise ValueError('Release signer differs from pinned public key')
-        manifest.write_bytes((json.dumps({'schema': 1, 'sourceCommit': args.source, 'files': inventory(args.directory)}, sort_keys=True, indent=2)+'\n').encode())
+        document = {'schema': 1, 'sourceCommit': args.source, 'files': inventory(args.directory),
+                    'statement': STATEMENT, 'serverBuilds': server_builds(args.server_manifest)}
+        manifest.write_bytes((json.dumps(document, sort_keys=True, indent=2)+'\n').encode())
         signature.write_bytes(key.sign(manifest.read_bytes()))
     public.verify(signature.read_bytes(), manifest.read_bytes())
     document = json.loads(manifest.read_bytes())
