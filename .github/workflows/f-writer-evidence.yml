@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   schema-and-tests:
-    if: ${{ !contains(github.event.head_commit.message, 'inventory probes') }}
+    if: ${{ !contains(github.event.head_commit.message, 'inventory probes') && !contains(github.event.head_commit.message, 'cleanup probes') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -26,7 +26,7 @@ jobs:
         if: always()
         with: {name: schema-and-tests, path: '${{ runner.temp }}/reports', retention-days: 7}
   curves:
-    if: ${{ !contains(github.event.head_commit.message, 'inventory probes') }}
+    if: ${{ !contains(github.event.head_commit.message, 'inventory probes') && !contains(github.event.head_commit.message, 'cleanup probes') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
@@ -119,3 +119,72 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with: {name: maintenance-profile, path: '${{ runner.temp }}/reports', retention-days: 7}
+  cleanup-curves:
+    if: contains(github.event.head_commit.message, 'cleanup probes')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        items: [10000, 30000, 100000]
+        version: [before, after]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false, fetch-depth: 0}
+      - name: Restore cleanup baseline for before probes
+        if: matrix.version == 'before'
+        run: git restore --source=3ad4b5de -- server/internal/compactcatalog/derive.go
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - run: mkdir -p "$RUNNER_TEMP/seeds" "$RUNNER_TEMP/reports"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: '${{ runner.temp }}/seeds/*.sqlite'
+          key: F-rating-${{ matrix.items }}-after-${{ hashFiles('server/internal/compactcatalog/rating_scale_measure_test.go', 'server/internal/persistence/migrations/**') }}
+      - name: Measure cleanup under the unchanged maintenance plan
+        working-directory: server
+        env:
+          PORTICO_RATING_SCALE_ITEMS: '${{ matrix.items }}'
+          PORTICO_SCALE_SEEDS: '${{ runner.temp }}/seeds'
+          PORTICO_SCALE_REPORT: '${{ runner.temp }}/reports'
+          PORTICO_EXPECT_CLEANUP_FAILURE: "${{ matrix.version == 'before' && '1' || '' }}"
+        run: go test ./internal/compactcatalog -run '^Test(RatingWriterGrowthMeasurement|SearchCleanupGrowthMeasurement)$' -count=1 -v -timeout=20m > "$RUNNER_TEMP/reports/measure.log" 2>&1
+      - name: Cleanup restart, generation and adoption regressions
+        if: matrix.version == 'after' && matrix.items == 10000
+        working-directory: server
+        run: |
+          go test ./internal/compactcatalog -run '^TestSearchCleanupPagesLeavesBeforeDeletingDocuments$' -count=1 -v -timeout=5m > "$RUNNER_TEMP/reports/cleanup-tests.log" 2>&1
+          go test ./internal/ingestion -run '^TestLegacyInventory(ConsumesRawRejectsAcrossRestart|CanceledFenceKeepsCursor)$' -count=1 -v -timeout=5m > "$RUNNER_TEMP/reports/inventory-tests.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: 'cleanup-${{ matrix.version }}-${{ matrix.items }}', path: '${{ runner.temp }}/reports', retention-days: 7}
+  writer-integration:
+    if: contains(github.event.head_commit.message, 'cleanup probes')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [movie, tv, book, comic, music, audiobook]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - run: mkdir -p "$RUNNER_TEMP/reports"
+      - name: Real names-only scan with fixed writer paths
+        working-directory: server
+        env:
+          PORTICO_KIND_SCAN: '${{ matrix.kind }}'
+          PORTICO_KIND_SCAN_ITEMS: 10000
+          PORTICO_SCALE_REPORT: '${{ runner.temp }}/reports'
+        run: go test ./internal/ingestion -run '^TestKindScanMemoryMeasurement$' -count=1 -v -cpuprofile="$RUNNER_TEMP/reports/cpu.pprof" -timeout=20m > "$RUNNER_TEMP/reports/scan.log" 2>&1
+      - name: Summarize CPU profile
+        if: always()
+        working-directory: server
+        run: |
+          go tool pprof -top -nodecount=40 "$RUNNER_TEMP/reports/cpu.pprof" > "$RUNNER_TEMP/reports/cpu-top.txt"
+          go tool pprof -top -cum -nodecount=40 "$RUNNER_TEMP/reports/cpu.pprof" > "$RUNNER_TEMP/reports/cpu-cum.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: 'writer-integration-${{ matrix.kind }}', path: '${{ runner.temp }}/reports', retention-days: 7}

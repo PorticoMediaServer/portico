@@ -73,8 +73,11 @@ func TestKindScanMemoryMeasurement(t *testing.T) {
 	dbwork.WriteGate().ResetPeak()
 	start = time.Now()
 	last := start
+	phaseNS := map[string]int64{}
+	var workerNS, pacingNS int64
 	save := func() {
 		report["seconds"] = time.Since(start).Seconds()
+		report["phase_nanoseconds"], report["worker_nanoseconds"], report["pacing_nanoseconds"] = phaseNS, workerNS, pacingNS
 		report["peak_rss_kb"] = scanLoadPeakRSS()
 		report["gate_after"] = dbwork.WriteGate().Stats()
 		report["write_plans"] = dbwork.Plans()
@@ -100,13 +103,23 @@ func TestKindScanMemoryMeasurement(t *testing.T) {
 	}()
 	for {
 		at := time.Now()
+		var phase string
+		if err := f.db.QueryRow(`SELECT phase FROM inventory_runs WHERE job_id=?`, job.ID).Scan(&phase); err != nil {
+			t.Fatal(err)
+		}
 		f.s.processQuantum(context.Background(), job.ID, f.library)
+		phaseNS[phase] += time.Since(at).Nanoseconds()
+		paceStart := time.Now()
 		dbwork.PaceBackground(context.Background(), at)
+		pacingNS += time.Since(paceStart).Nanoseconds()
 		at = time.Now()
 		if _, e := worker.Step(context.Background(), 500); e != nil {
 			t.Fatal(e)
 		}
+		workerNS += time.Since(at).Nanoseconds()
+		paceStart = time.Now()
 		dbwork.PaceBackground(context.Background(), at)
+		pacingNS += time.Since(paceStart).Nanoseconds()
 		state, e := f.s.Get(job.ID)
 		if e != nil || state.Status == "failed" {
 			t.Fatalf("scan state: %+v (%v)", state, e)
@@ -126,9 +139,11 @@ func TestKindScanMemoryMeasurement(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
+		workerNS += time.Since(at).Nanoseconds()
 		if n == 0 {
 			break
 		}
+		paceStart := time.Now()
 		dbwork.PaceBackground(context.Background(), at)
 	}
 	report["completed"] = true
