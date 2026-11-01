@@ -556,6 +556,9 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 			var after int64
 			if tx.QueryRowContext(ctx, `SELECT total_changes()`).Scan(&after) == nil {
 				rows = after - before
+				if rows > 160 && n != 1 {
+					log.Printf("F maintenance profile: domain=%d step=%d units=%d changed=%d rebuilding=%t retry=%t", domain, step, n, rows, backfilled, retried)
+				}
 			}
 			if n == 1 && !unpaced {
 				// One unit is as small as a batch gets: its fan-out is the
