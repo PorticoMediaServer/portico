@@ -45,7 +45,9 @@ class RockchipGraph(unittest.TestCase):
             with tarfile.open(archive) as source:
                 source.extractall(unpack, filter='data')
             roots = list(unpack.iterdir()); self.assertEqual(len(roots), 1)
-            env = dict(os.environ, PORTICO_ENGINE_REPOSITORY='portico/source-only-control')
+            env = dict(os.environ, PORTICO_ENGINE_REPOSITORY='portico/source-only-control',
+                       PORTICO_DISC_SOURCE_COMMIT=lock['discHelper']['sourceCommit'],
+                       SOURCE_DATE_EPOCH=str(lock['sourceDateEpoch']))
             # This is source graph generation only: never Docker, compilation,
             # an engine receipt or a fabricated GitHub execution context.
             def generate(recipe, target):
