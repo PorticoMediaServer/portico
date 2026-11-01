@@ -209,23 +209,8 @@ def event_tier(event, tier, full):
     if event: raise ValueError('unsupported CI event')
     return tier or 'short', full
 
-def vps_trusted(event, env):
-    repo=env.get('GITHUB_REPOSITORY','')
-    if repo.lower()!='porticomediaserver/portico': return False
-    name=env.get('GITHUB_EVENT_NAME','')
-    if name=='pull_request':
-        pr=event.get('pull_request') or {}
-        head=pr.get('head') or {}
-        head_repo=head.get('repo') or {}
-        full_name=head_repo.get('full_name')
-        return isinstance(full_name,str) and full_name.lower()==repo.lower()
-    if name=='push': return env.get('GITHUB_REF')=='refs/heads/main'
-    return name in ('merge_group','schedule','workflow_dispatch')
-
-
-def go_matrix(plan,event,env):
-    # Hosted capacity now covers every heavy Go shard; VPSs handle tiny jobs only.
-    return {'include':[{'index':i,'runner':'ubuntu-24.04'}
+def go_matrix(plan):
+    return {'include':[{'index':i}
                        for i in range(len(plan['shards']))]}
 
 
@@ -248,7 +233,7 @@ def main():
         with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write(render_summary(plan))
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'],'a') as f:
-            f.write('go_matrix='+json.dumps(go_matrix(plan,event,os.environ))+'\n')
+            f.write('go_matrix='+json.dumps(go_matrix(plan))+'\n')
             f.write('android='+str(plan['android']).lower()+'\n')
             f.write('go='+str(bool(plan['packages'])).lower()+'\n')
             f.write('js='+str(any(x['shards'] for x in plan['js'])).lower()+'\n')
