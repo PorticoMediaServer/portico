@@ -21,6 +21,8 @@ const (
 	recRowMinimum      = 6 // a row with fewer titles isn't shown
 	recShortRowMinimum = 3 // …except the naturally short ones (franchises, rediscover)
 	recGenreRows       = 2
+	recSubgenreRows    = 2
+	recAppealRows      = 1
 	recPersonRows      = 2
 )
 
@@ -128,11 +130,13 @@ func (x *recSession) recGenerators() ([]recRow, error) {
 			return nil, err
 		}
 	}
-	// Moods and themes, from the Portico title dataset's tags ('x:<tag>'):
-	// the profile's strongest two, named by the dataset's labels.
-	moods := 0
+	// Moods, themes, subgenres and appeals, from the Portico title dataset's
+	// tags ('x:<tag>'): the profile's strongest of each, named by the dataset's
+	// labels. Each family keeps its own count, so a profile with many genres of
+	// taste still gets the distinctive kind of row it has.
+	moods, subgenres, appeals := 0, 0, 0
 	for _, f := range x.strongest {
-		if moods == recGenreRows || !strings.HasPrefix(f, "x:") {
+		if !strings.HasPrefix(f, "x:") {
 			continue
 		}
 		tag := strings.TrimPrefix(f, "x:")
@@ -140,17 +144,37 @@ func (x *recSession) recGenerators() ([]recRow, error) {
 		if err := x.s.read().QueryRow(`SELECT family,label FROM catalog_dataset_vocabulary WHERE tag=?`, tag).Scan(&family, &label); err != nil {
 			continue
 		}
-		code, title, param := "home.row.themeForYou", label+" for you", "theme"
+		code, title, param, priority := "", "", "", 0
 		switch family {
 		case "mood", "tone", "pacing", "style":
-			code, title, param = "home.row.moodForYou", label+" picks for you", "mood"
+			if moods == recGenreRows {
+				continue
+			}
+			moods++
+			code, title, param, priority = "home.row.moodForYou", label+" picks for you", "mood", 62+moods
 		case "theme", "setting", "narrative":
+			if moods == recGenreRows {
+				continue
+			}
+			moods++
+			code, title, param, priority = "home.row.themeForYou", label+" for you", "theme", 62+moods
+		case "subgenre":
+			if subgenres == recSubgenreRows {
+				continue
+			}
+			subgenres++
+			code, title, param, priority = "home.row.subgenreForYou", label+" for you", "subgenre", 62+recGenreRows+subgenres
+		case "appeal":
+			if appeals == recAppealRows {
+				continue
+			}
+			appeals++
+			code, title, param, priority = "home.row.appealForYou", label+" for you", "appeal", 62+recGenreRows+recSubgenreRows+appeals
 		default:
-			continue // audience and intensity describe, they don't make a row
+			continue // origin, audience and intensity describe, they don't make a row
 		}
-		moods++
 		facet := f
-		if err := add(recRowSpec("for_you:tag:"+tag, title, code, map[string]string{param: label}, 62+moods), recRowMinimum, 0,
+		if err := add(recRowSpec("for_you:tag:"+tag, title, code, map[string]string{param: label}, priority), recRowMinimum, 0,
 			func() ([]recCandidate, error) { return x.rank(x.facetRow(facet)) }); err != nil {
 			return nil, err
 		}
@@ -377,6 +401,9 @@ func (s *Service) recPersonalRowsFor(r HomeRequest, discover string) ([]recRow, 
 			used[c.ID] = true
 		}
 		row.items = kept
+		if err := x.recWhy(&row); err != nil {
+			return nil, err
+		}
 		out = append(out, row)
 	}
 	return out, nil
@@ -404,6 +431,9 @@ func (s *Service) recPersonalRow(r HomeRequest, id string) (recRow, error) {
 	}
 	for _, row := range generated {
 		if row.spec.ID == id {
+			if err := x.recWhy(&row); err != nil {
+				return recRow{}, err
+			}
 			return row, nil
 		}
 	}

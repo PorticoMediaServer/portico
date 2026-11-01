@@ -154,6 +154,10 @@ type homeRowSpec struct {
 	// DefaultHidden rows stay off Home until the viewer places them: a
 	// layout shows one only when it orders the row and does not hide it.
 	DefaultHidden bool
+	// Why names why the row is here, and WhyTitles the profile's own titles
+	// behind a personal row. Both are carried unchanged to every projection.
+	Why       *ServerText
+	WhyTitles []ContentEntityRef
 }
 
 // hiddenIn says whether a layout hides the row.
@@ -201,7 +205,7 @@ func (spec homeRowSpec) descriptor() HomeRow {
 	row := HomeRow{ID: spec.ID, Title: spec.Title, TitleText: spec.titleText(), Kind: spec.Kind, ArtworkShape: spec.ArtworkShape, Explanation: spec.Explanation,
 		SeeAll: spec.destination(), Endpoint: "/v1/home/rows/" + spec.ID, LibraryID: spec.LibraryID, PrivacySensitivity: spec.Privacy, PolicyState: spec.PolicyState,
 		Priority: spec.Priority, CacheTTLMs: spec.CacheTTL * 1000, Required: spec.Required, Hideable: spec.Hideable,
-		Reorderable: spec.Reorderable, Critical: spec.Critical, CursorCapable: spec.Cursors, Family: spec.Family, Entries: []ContentEntry{}}
+		Reorderable: spec.Reorderable, Critical: spec.Critical, CursorCapable: spec.Cursors, Family: spec.Family, Why: spec.Why, WhyTitles: spec.WhyTitles, Entries: []ContentEntry{}}
 	if spec.ID == "continue_books" {
 		row.Platforms = []string{"web", "phone"}
 	}
