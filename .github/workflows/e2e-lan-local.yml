@@ -29,6 +29,7 @@ jobs:
           (cd server && go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server)
       - name: Complete fresh local-account setup over private LAN HTTP
         env:
+          PORTICO_LAN_CLIENT_TEST: '1'
           PORTICO_E2E_BINARY: ${{ runner.temp }}/portico-e2e-server
           PORTICO_E2E_OUTPUT: ${{ runner.temp }}/portico-e2e-lan
         run: python3 tests/e2e/lan/server.py
