@@ -5,6 +5,9 @@
 # OS is linux, windows or darwin; ARCH is amd64 or arm64. Linux makes a .tar.gz,
 # a .deb and an .rpm (nfpm); Windows a portable .zip and an NSIS Setup.exe
 # (makensis); macOS the payload directory the DMG step turns into an app.
+# PORTICO_UNSEALED=1 packages an --unsealed build (no manifest.sig); it must match the build's
+# manifest, and every asset name then says UNSEALED-NOT-FOR-USE (and -ENGINE for a development
+# engine) so it can't be mistaken for a release.
 set -euo pipefail
 if [[ $# -ne 7 ]]; then echo "usage: $0 OS ARCH VERSION STAGE_DIR WEB_DIR OUT_DIR BUILD_NUMBER" >&2; exit 2; fi
 OS="$1"; ARCH="$2"; VERSION="$3"; STAGE="$4"; WEB="$5"; OUT="$6"; BUILD_NUMBER="$7"
@@ -15,11 +18,21 @@ PAYLOAD="$OUT/payload-$OS-$FILE_ARCH"
 mkdir -p "$OUT"
 rm -rf "${PAYLOAD:?}"
 mkdir -p "$PAYLOAD/web"
-for required in "$STAGE/$EXE" "$STAGE/manifest.json" "$STAGE/manifest.sig" "$STAGE/third_party/ffmpeg/toolchain-manifest.json" "$STAGE/third_party/rclone/bundle-manifest.json" "$WEB/index.html"; do
+SEALED_FILES=("$STAGE/manifest.sig"); SUFFIX=""
+if [[ "${PORTICO_UNSEALED:-}" == 1 ]]; then
+  SEALED_FILES=()
+  SUFFIX="-UNSEALED-NOT-FOR-USE"
+  if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("engine",{}).get("development") else 1)' "$STAGE/manifest.json"; then SUFFIX="$SUFFIX-ENGINE"; fi
+fi
+for required in "$STAGE/$EXE" "$STAGE/manifest.json" "${SEALED_FILES[@]}" "$STAGE/third_party/ffmpeg/toolchain-manifest.json" "$STAGE/third_party/rclone/bundle-manifest.json" "$WEB/index.html"; do
   [[ -s "$required" ]] || { echo "missing release input: $required" >&2; exit 1; }
 done
-python3 "$ROOT/scripts/rclone-bundle.py" verify-release "$STAGE" --target "$OS-$ARCH" --public-key "${PORTICO_RELEASE_PUBLIC_KEY_FILE:?A pinned release public key is required}"
-cp "$STAGE/$EXE" "$STAGE/manifest.json" "$STAGE/manifest.sig" "$PAYLOAD/"
+if [[ "${PORTICO_UNSEALED:-}" == 1 ]]; then
+  python3 "$ROOT/scripts/rclone-bundle.py" verify-unsealed "$STAGE" --target "$OS-$ARCH"
+else
+  python3 "$ROOT/scripts/rclone-bundle.py" verify-release "$STAGE" --target "$OS-$ARCH" --public-key "${PORTICO_RELEASE_PUBLIC_KEY_FILE:?A pinned release public key is required}"
+fi
+cp "$STAGE/$EXE" "$STAGE/manifest.json" "${SEALED_FILES[@]}" "$PAYLOAD/"
 cp -R "$STAGE/third_party" "$PAYLOAD/third_party"
 cp -R "$WEB/." "$PAYLOAD/web/"
 cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$PAYLOAD/"
@@ -42,12 +55,22 @@ case "$OS" in
   linux)
     cp "$ROOT/packaging/portable/README.txt" "$ROOT/packaging/portable/start-portico.sh" "$PAYLOAD/"
     chmod +x "$PAYLOAD/start-portico.sh"
-    tar --sort=name --mtime='UTC 2020-01-01' --owner=0 --group=0 --numeric-owner -C "$PAYLOAD" -czf "$OUT/portico-media-server-linux-$FILE_ARCH.tar.gz" .
+    tar --sort=name --mtime='UTC 2020-01-01' --owner=0 --group=0 --numeric-owner -C "$PAYLOAD" -czf "$OUT/portico-media-server-linux-$FILE_ARCH$SUFFIX.tar.gz" .
     config="$OUT/nfpm-$FILE_ARCH.yaml"
     sed -e "s|\${PORTICO_PACKAGE_VERSION}|$VERSION|g" -e "s|\${PORTICO_PACKAGE_ARCH}|$ARCH|g" -e "s|\${PORTICO_PACKAGE_ROOT}|$PAYLOAD|g" "$ROOT/packaging/linux/nfpm.yaml" > "$config"
     if grep -q '\${PORTICO_PACKAGE_' "$config"; then echo "unresolved package variable in $config" >&2; exit 1; fi
-    (cd "$ROOT" && nfpm package --config "$config" --packager deb --target "$OUT/portico-media-server-linux-$FILE_ARCH.deb")
-    (cd "$ROOT" && nfpm package --config "$config" --packager rpm --target "$OUT/portico-media-server-linux-$FILE_ARCH.rpm")
+    if [[ "${PORTICO_UNSEALED:-}" == 1 ]]; then
+      # An unsealed build has no manifest.sig; drop exactly that entry (its src line and dst line).
+      python3 - "$config" <<'PY'
+import pathlib,sys
+p=pathlib.Path(sys.argv[1]); lines=p.read_text().splitlines(keepends=True)
+i=next(i for i,l in enumerate(lines) if l.strip().startswith('- src:') and l.rstrip().endswith('/manifest.sig'))
+assert lines[i+1].strip()=='dst: /usr/lib/portico-media-server/manifest.sig'
+del lines[i:i+2]; p.write_text(''.join(lines))
+PY
+    fi
+    (cd "$ROOT" && nfpm package --config "$config" --packager deb --target "$OUT/portico-media-server-linux-$FILE_ARCH$SUFFIX.deb")
+    (cd "$ROOT" && nfpm package --config "$config" --packager rpm --target "$OUT/portico-media-server-linux-$FILE_ARCH$SUFFIX.rpm")
     ;;
   windows)
     # The archive is written from inside the payload folder, and makensis works
@@ -58,8 +81,8 @@ case "$OS" in
     rm -rf "${PORTABLE_PAYLOAD:?}"
     cp -R "$PAYLOAD" "$PORTABLE_PAYLOAD"
     cp "$ROOT/packaging/portable/README.txt" "$ROOT/packaging/portable/start-portico.cmd" "$PORTABLE_PAYLOAD/"
-    (cd "$PORTABLE_PAYLOAD" && zip -qr "$OUT/Portico-Media-Server-Windows-$FILE_ARCH-Portable.zip" .)
-    makensis -V2 "-DOUTPUT_FILE=$OUT/Portico-Media-Server-Windows-$FILE_ARCH-Setup.exe" "-DSTAGE_DIR=$PAYLOAD" "-DPRODUCT_VERSION=$VERSION" "$ROOT/packaging/windows/installer.nsi"
+    (cd "$PORTABLE_PAYLOAD" && zip -qr "$OUT/Portico-Media-Server-Windows-$FILE_ARCH-Portable$SUFFIX.zip" .)
+    makensis -V2 "-DOUTPUT_FILE=$OUT/Portico-Media-Server-Windows-$FILE_ARCH-Setup$SUFFIX.exe" "-DSTAGE_DIR=$PAYLOAD" "-DPRODUCT_VERSION=$VERSION" "$ROOT/packaging/windows/installer.nsi"
     ;;
   darwin)
     echo "$PAYLOAD"
