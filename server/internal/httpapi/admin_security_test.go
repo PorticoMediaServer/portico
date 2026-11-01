@@ -1,9 +1,13 @@
 package httpapi
 
 import (
+	"context"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 )
 
 // The owner's remote-security summary and its one action are administrator
@@ -118,5 +122,56 @@ func TestInvitationCodeGuessesChargeTheSource(t *testing.T) {
 	w = f.raw("POST", "/v1/access/invitations/preview", "", nil, map[string]string{"code": code})
 	if w.Code != 429 || v1Code(w) != "source_blocked" || w.Header().Get("Retry-After") == "" {
 		t.Fatalf("blocked preview: %d %s", w.Code, w.Body.String())
+	}
+}
+
+// Behind one trusted proxy, each remote client is its own source: the bucket is
+// the verified forwarded client, never the proxy, so only the guessing client is
+// blocked. A proxy that forwards no client is never blocked either.
+func TestTrustedProxyClientsAreSeparateSources(t *testing.T) {
+	f := newV1Fixture(t, 0)
+	ctx := context.Background()
+	console := operations.New(f.db)
+	doc, err := console.Settings(ctx, operations.AllowServerScope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values := doc.Requested
+	values.TrustedProxies = []string{"192.0.2.50/32"}
+	owner, err := f.id.Authenticate(f.owner.AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := console.ApplySettings(ctx, owner, operations.AllowServerScope, operations.SettingsChange{ExpectedRevision: doc.Revision, IdempotencyKey: "proxy-sources", Values: values}); err != nil {
+		t.Fatal(err)
+	}
+	f.handler = New(f.deps)
+	via := func(client, password string) *httptest.ResponseRecorder {
+		headers := map[string]string{}
+		if client != "" {
+			headers["X-Forwarded-For"] = client
+		}
+		return f.rawFrom("192.0.2.50:443", "POST", "/v1/direct/sign-in", "", headers, map[string]string{"username": "owner", "password": password})
+	}
+	// The guessing client is one failure short of a block.
+	if _, err := f.db.Exec(`INSERT INTO identity_source_attempts(source_bucket,source_id,failed_attempts,last_failure,blocked_until,block_count) VALUES('203.0.113.9',?,999,?,0,0)`, strings.Repeat("c", 43), time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if w := via("203.0.113.9", "wrong-password-guess"); w.Code != 401 {
+		t.Fatalf("guess: %d %s", w.Code, w.Body.String())
+	}
+	if w := via("203.0.113.9", "long-test-password"); w.Code != 429 || v1Code(w) != "source_blocked" {
+		t.Fatalf("guessing client after its block: %d %s", w.Code, w.Body.String())
+	}
+	if w := via("198.51.100.7", "long-test-password"); w.Code/100 != 2 {
+		t.Fatalf("other client behind the same proxy: %d %s", w.Code, w.Body.String())
+	}
+	// No forwarded client: nothing is charged to the proxy's address.
+	if w := via("", "wrong-password-guess"); w.Code != 401 {
+		t.Fatalf("unforwarded guess: %d %s", w.Code, w.Body.String())
+	}
+	var rows int
+	if err := f.db.QueryRow(`SELECT COUNT(*) FROM identity_source_attempts WHERE source_bucket='192.0.2.50'`).Scan(&rows); err != nil || rows != 0 {
+		t.Fatalf("the proxy's address was charged (%d rows): %v", rows, err)
 	}
 }
