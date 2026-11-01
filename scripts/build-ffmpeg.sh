@@ -163,7 +163,12 @@ PYLICENSE
   else
     [[ "${PORTICO_FFMPEG_DEPS_ONLY:-0}" != 1 ]] || { echo 'Dependency-only phase currently supports linux-x64' >&2; exit 1; }
   cp "$SOURCE" "$WORK/recipe/portico-ffmpeg-source.tar.xz"
-  (cd "$WORK/recipe" && export GIT_BRANCH_OVERRIDE="n$VERSION" && ./makeimage.sh "$native" gpl 8.1 && ./build.sh "$native" gpl 8.1)
+  (cd "$WORK/recipe" && export GIT_BRANCH_OVERRIDE="n$VERSION" && ./makeimage.sh "$native" gpl 8.1)
+  if [[ "$TARGET" == linux-arm64 && "${PORTICO_ENGINE_REPEAT_COMPILES:-0}" == 1 ]]; then
+    INPUT="$(GIT_BRANCH_OVERRIDE="n$VERSION" python3 "$ROOT/scripts/repeat-btbn-ffmpeg.py" \
+      --recipe "$WORK/recipe" --source "$SOURCE" --work "$WORK/repeat")"
+  else
+  (cd "$WORK/recipe" && export GIT_BRANCH_OVERRIDE="n$VERSION" && ./build.sh "$native" gpl 8.1)
   mkdir -p "$WORK/extracted"
   python3 - "$WORK/recipe/artifacts" "$WORK/extracted" <<'PY'
 import pathlib,shutil,sys
@@ -172,6 +177,7 @@ if len(files)!=1:raise SystemExit('Expected exactly one build artifact')
 shutil.unpack_archive(str(files[0]),sys.argv[2])
 PY
   INPUT="$WORK/extracted"
+  fi
   fi
   ;;
  *) echo 'Unknown target' >&2;exit 2;;
@@ -197,6 +203,7 @@ if [[ -f "$WORK/meson-tool.json" ]]; then cp "$WORK/meson-tool.json" "$WORK/prov
 cp -R "$ROOT/third_party/ffmpeg/patches" "$WORK/provenance/contract/"
 cp "$ROOT/scripts/build-ffmpeg.sh" "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$ROOT/scripts/patch-btbn-winarm64-system-error.sh" "$ROOT/scripts/prepare-ffmpeg-source.py" "$ROOT/scripts/archive-ffmpeg-source.py" "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/build-portico-disc.py" "$ROOT/scripts/build-macos-ffmpeg-extras.sh" "$WORK/provenance/scripts/"
+if [[ "$TARGET" == linux-arm64 ]]; then cp "$ROOT/scripts/repeat-btbn-ffmpeg.py" "$ROOT/scripts/engine-final-cache.py" "$ROOT/scripts/fetch-engine.py" "$WORK/provenance/scripts/"; fi
 cp "$ROOT/scripts/verify-ffmpeg-bundle.sh" "$ROOT/scripts/verify-ffmpeg-manifest.py" "$ROOT/scripts/verify-ffmpeg-features.py" "$ROOT/scripts/verify-disc-bundle.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-bluray.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-recipes.py" "$ROOT/scripts/verify-hdr10plus-encode.py" "$WORK/provenance/scripts/"

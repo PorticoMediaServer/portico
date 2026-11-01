@@ -223,6 +223,8 @@ def build(target, work):
                PORTICO_DISC_FIXTURES=str(ROOT / lock['discHelper']['fixtureManifest']),
                PORTICO_DISC_FIXTURES_SHA256=lock['discHelper']['fixtureManifestSHA256'],
                PORTICO_FFMPEG_PHASE='full', PORTICO_BUILD_SOURCE_NETWORK='host')
+    if target == 'linux-arm64':
+        env['PORTICO_ENGINE_REPEAT_COMPILES'] = '1'
     try:
         for key in ('PORTICO_FFMPEG_SOURCE_ONLY', 'PORTICO_FFMPEG_DEPS_ONLY'):
             if env.get(key, '0') != '0':
