@@ -154,6 +154,15 @@ func newConn(dsn string) (*conn, error) {
 		return nil, err
 	}
 
+	// Plans never depend on bound values (the query planner stability
+	// guarantee). Without it SQLite 3.47+ reads a bound LIMIT while planning,
+	// which marks the statement to re-prepare on every new binding: a cached
+	// `... LIMIT ?` statement was parsed and planned again on each run.
+	if rc := c.dbConfigBool(sqlite3.SQLITE_DBCONFIG_ENABLE_QPSG, true); rc != sqlite3.SQLITE_OK {
+		c.Close()
+		return nil, fmt.Errorf("sqlite3_db_config(SQLITE_DBCONFIG_ENABLE_QPSG, on) returned %d", rc)
+	}
+
 	// _dqs is applied before applyQueryParams because the SQLite contract
 	// requires sqlite3_db_config(SQLITE_DBCONFIG_DQS_*) to be set before
 	// any statement is prepared on the connection. applyQueryParams runs
