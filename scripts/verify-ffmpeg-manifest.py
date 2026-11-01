@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import hashlib,json,pathlib,re,sys
 root=pathlib.Path(sys.argv[1]).resolve();m=json.loads((root/'toolchain-manifest.json').read_text())
+if m.get('development'):raise SystemExit('A development engine (scripts/development-engine.py) is never a release engine')
 if m.get('schemaVersion')!=1 or m.get('licenseMode')!='gpl3':raise SystemExit('Invalid manifest')
 files=m['files']
 actual={p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file() and p.name!='toolchain-manifest.json'}
