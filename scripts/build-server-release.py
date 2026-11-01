@@ -38,6 +38,8 @@ TEST_INPUTS = (
     'go.work',
     'scripts/write-public-update-manifest.mjs',
     'scripts/vet-go.sh',
+    # vet-go.sh reads the build tags from its own directory's copy.
+    'scripts/release-build-tags.py',
     'packages/i18n/src/catalog/en-US/settings.ts',
     'packages/client-core/src/music-preferences.ts',
     'packages/client-core/src/audiobook-preferences.ts',
@@ -125,11 +127,18 @@ def artifact_identity(artifact):
         if arg=='-X' and index+1<len(args):
             key,separator,value=args[index+1].partition('=')
             if separator:embedded[key]=value
-    proofs=set(re.findall(rb'PORTICO_SOURCE_V1:([a-f0-9]{64}):([A-Za-z0-9_-]+):END',artifact.read_bytes()))
+    # Go (1.20+, golang/go#52372) records no -ldflags for a -trimpath build, so the release identity
+    # also travels in the binary as one proof marker (buildinfo.Proof), and is read from there.
+    proofs=set(re.findall(rb'PORTICO_RELEASE_V2:([a-f0-9]{64}):([A-Za-z0-9_-]+):([0-9A-Za-z.+-]+):([A-Za-z0-9_-]+):END',artifact.read_bytes()))
     module=info.get('Path','').split('/cmd/')[0]
     if module not in ('github.com/PorticoMediaServer/portico/server','portico.local/hosted'):raise ValueError('Unexpected application module')
     prefix=module+'/internal/buildinfo.'
-    expected=(embedded.get(prefix+'SourceDigest','').encode(),embedded.get(prefix+'BuildID','').encode())
+    trust_symbol='github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot' if module.endswith('/server') else 'portico.local/hosted/trust.OfficialRoot'
+    if '-ldflags' not in settings:
+        if len(proofs)!=1:raise ValueError('A release binary built without recorded -ldflags must carry exactly one identity proof')
+        source,build_id,version,root=(x.decode() for x in next(iter(proofs)))
+        embedded={prefix+'SourceDigest':source,prefix+'BuildID':build_id,prefix+'Version':version,trust_symbol:root}
+    expected=tuple(embedded.get(k,'').encode() for k in (prefix+'SourceDigest',prefix+'BuildID',prefix+'Version',trust_symbol))
     if proofs and proofs!={expected}:raise ValueError('Proof marker disagrees with compiler build identity')
     return embedded,settings
 
@@ -238,7 +247,7 @@ def main():
     subprocess.run([str(ROOT/'scripts/env.sh'),'sh',str(stage/'scripts/vet-go.sh')],cwd=source,env=checked_env,check=True)
     built_at=datetime.datetime.now(datetime.timezone.utc).isoformat()
     prefix=module_path(args.component)+'/internal/buildinfo.'
-    flags=' '.join(f'-X {prefix}{key}={value}' for key,value in {'SourceDigest':snapshot,'BuildID':build_id,'Version':args.version,'BuiltAt':built_at,'Proof':f'PORTICO_SOURCE_V1:{snapshot}:{build_id}:END'}.items())
+    flags=' '.join(f'-X {prefix}{key}={value}' for key,value in {'SourceDigest':snapshot,'BuildID':build_id,'Version':args.version,'BuiltAt':built_at,'Proof':f'PORTICO_RELEASE_V2:{snapshot}:{build_id}:{args.version}:{root_key}:END'}.items())
     flags+=' -X '+('github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot' if args.component=='server' else 'portico.local/hosted/trust.OfficialRoot')+'='+root_key
     env=controlled_env();env.update({'GOWORK':str(stage/'go.work'),'GOOS':args.os,'GOARCH':args.arch,'CGO_ENABLED':'0'})
     # -trimpath: the binary names module paths, never this machine's folders (the snapshot, the module cache, Go's own).
@@ -259,7 +268,13 @@ def main():
             if args.os!='linux':raise SystemExit('Sonic bundles currently support Linux only')
             SONIC['install'](args.sonic_bundle.resolve(),stage/'third_party/ffmpeg',target)
             manifest['sonicManifestSha256']=SONIC['digest'](stage/'third_party/ffmpeg/bin/sonic-manifest.json')
-        shutil.copytree(rclone_bundle,stage/'third_party/rclone')
+        # The stage already holds third_party/rclone/bundle.lock.json (a test input); the bundle
+        # carries the same contract file. Merge only files the bundle itself carries, then the
+        # bundle's exact inventory and hashes are verified with the build.
+        rclone_stage=stage/'third_party/rclone'
+        present={p.name for p in rclone_stage.iterdir()} if rclone_stage.exists() else set()
+        if not present<={p.name for p in rclone_bundle.iterdir()}:raise SystemExit('Unexpected files in the staged rclone directory: '+', '.join(sorted(present-{p.name for p in rclone_bundle.iterdir()})))
+        shutil.copytree(rclone_bundle,rclone_stage,dirs_exist_ok=True)
         manifest['rcloneManifestSha256']=hashlib.sha256((rclone_bundle/'bundle-manifest.json').read_bytes()).hexdigest()
     (stage/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     if args.unsealed:

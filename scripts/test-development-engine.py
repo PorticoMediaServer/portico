@@ -116,5 +116,25 @@ class BuilderRefusals(unittest.TestCase):
                 self.builder['verify_manifest'](self.dir, 'x', key.public_key().public_bytes_raw())
 
 
+    def test_a_trimpath_binary_carries_its_identity_in_one_proof_marker(self):
+        # Go records no -ldflags for a -trimpath build (golang/go#52372); the proof marker carries it.
+        import subprocess
+        from unittest import mock
+        source, build, version, root = 'a' * 64, '20261101T000000Z-abcdef12', '0.0.1', 'R' * 43
+        marker = f'PORTICO_RELEASE_V2:{source}:{build}:{version}:{root}:END'.encode()
+        artifact = self.dir / 'portico-server'
+        info = json.dumps({'Path': 'github.com/PorticoMediaServer/portico/server/cmd/server',
+                           'Settings': [{'Key': '-trimpath', 'Value': 'true'}, {'Key': '-tags', 'Value': 'release'}]})
+        prefix = 'github.com/PorticoMediaServer/portico/server/internal/buildinfo.'
+        with mock.patch.object(subprocess, 'check_output', return_value=info):
+            artifact.write_bytes(b'ELF...' + marker + b'...')
+            embedded, _ = self.builder['artifact_identity'](artifact)
+            self.assertEqual((embedded[prefix + 'SourceDigest'], embedded[prefix + 'BuildID'], embedded[prefix + 'Version']), (source, build, version))
+            self.assertEqual(embedded['github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot'], root)
+            artifact.write_bytes(marker + marker.replace(b'0.0.1', b'0.0.2'))
+            with self.assertRaises(ValueError):
+                self.builder['artifact_identity'](artifact)
+
+
 if __name__ == '__main__':
     unittest.main()
