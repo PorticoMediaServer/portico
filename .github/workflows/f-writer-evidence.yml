@@ -265,3 +265,30 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with: {name: 'finish-${{ matrix.version }}-${{ matrix.items }}', path: '${{ runner.temp }}/reports', retention-days: 7}
+  cross-vet:
+    if: contains(github.event.head_commit.message, 'cross vet')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [rebuild/F1-rating-r1, rebuild/F1-cleanup-r1]
+        os: [darwin, windows]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false, fetch-depth: 0, ref: '${{ matrix.branch }}'}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - name: Vet the prospective merge with current main, including Linux helper tags
+        env: {GOOS: '${{ matrix.os }}', CGO_ENABLED: '0'}
+        run: |
+          mkdir -p "$RUNNER_TEMP/reports"
+          git rev-parse HEAD origin/main > "$RUNNER_TEMP/reports/sources.txt"
+          git config user.name 'Justin Ehler'
+          git config user.email 'justin@justinehler.com'
+          git merge --no-commit --no-ff origin/main
+          cd server
+          sh ../scripts/vet-go.sh > "$RUNNER_TEMP/reports/vet.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: 'cross-vet-${{ strategy.job-index }}', path: '${{ runner.temp }}/reports', retention-days: 7}
