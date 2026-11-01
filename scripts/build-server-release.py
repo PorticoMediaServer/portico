@@ -234,6 +234,11 @@ def main():
         target={'darwin':'macos','linux':'linux','windows':'windows'}[args.os]+'-'+{'amd64':'x64','arm64':'arm64'}[args.arch]
         if toolchain['target']!=target:raise SystemExit('FFmpeg bundle target does not match server')
         if development and args.sonic_bundle:raise SystemExit('Development builds leave Sonic out')
+        # A qualified Linux server always carries Sonic: the pinned bundle unless one is given.
+        if not development and args.os=='linux' and not args.sonic_bundle:
+            args.sonic_bundle=ROOT/'.cache/sonic'/target
+            if args.sonic_bundle.exists():SONIC['verify'](args.sonic_bundle,target)
+            else:SONIC['fetch'](args.sonic_bundle,target)
     rclone_bundle=args.ffmpeg_bundle.resolve().parent/('rclone-'+args.os+'-'+args.arch)
     if not rclone_bundle.exists():RCLONE['prepare'](rclone_bundle,args.os+'-'+args.arch,ROOT/'.cache/rclone')
     RCLONE['verify'](rclone_bundle,args.os+'-'+args.arch)
