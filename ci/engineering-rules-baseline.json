@@ -78,7 +78,7 @@
   "packages/client-core/src/credentials.ts": 1,
   "packages/client-core/src/index.ts": 1,
   "packages/client-core/src/profile-management.ts": 1,
-  "packages/client-core/src/server-connections.ts": 7,
+  "packages/client-core/src/server-connections.ts": 6,
   "packages/client-core/src/session-refresh.ts": 4,
   "packages/client-core/src/social-playback.ts": 2,
   "web/src/platform/account-entry.ts": 3,
