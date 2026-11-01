@@ -22,7 +22,7 @@ def compiler_custody(recipe):
     rm -rf ct-ng'''
     text = text.replace(marker, capture)
     # Source-only installation, for this exact installed Rust toolchain.
-    text += '\nCOPY portico-capture.py /opt/portico-compiler-source/capture.py\nRUN rustup component add rust-src && python3 /opt/portico-compiler-source/capture.py\n'
+    text += '\nCOPY portico-capture.py /opt/portico-compiler-source/capture.py\nRUN rustup component add rust-src && cp /opt/portico-rust-tool.json /opt/portico-compiler-source/rust-tool.json && python3 /opt/portico-compiler-source/capture.py\n'
     path.write_text(text)
     shutil.copyfile(Path(__file__).with_name('capture-engine-compiler.py'), directory / 'portico-capture.py')
 

@@ -7,11 +7,15 @@ on:
         type: choice
         default: all
         options: [all, windows-x64, linux-x64, linux-arm64, macos-arm64, macos-x64]
+      controlsOnly:
+        description: Run source/refusal controls without compiling an engine
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
 concurrency:
-  group: ffmpeg-toolchain-${{ github.ref }}-${{ inputs.target || 'all' }}
+  group: ffmpeg-toolchain-${{ github.ref }}-${{ inputs.target || 'all' }}-${{ inputs.controlsOnly && 'controls' || 'build' }}
   cancel-in-progress: false
 jobs:
   controls:
@@ -48,6 +52,7 @@ jobs:
   build:
     name: Cold build (${{ matrix.target }})
     needs: controls
+    if: '!inputs.controlsOnly'
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
@@ -109,7 +114,7 @@ jobs:
   native:
     name: Native cold gates (${{ matrix.target }})
     needs: [controls, build]
-    if: always() && needs.controls.result == 'success'
+    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false

@@ -14,6 +14,48 @@ REQUIREMENTS = Path(__file__).with_name('requirements-ffmpeg-meson.txt')
 
 
 class MesonPin(unittest.TestCase):
+    def test_windows_uses_shared_rust_versions_without_changing_linux_installation(self):
+        canonical = Path(__file__).resolve().parents[1] / 'third_party/media-engine/sources.lock.json'
+        versions = json.loads(canonical.read_text())['tools']
+        rust = ('RUN curl https://sh.rustup.rs -sSf | bash -s -- -y --no-modify-path && \\\n'
+                '    cargo install cargo-c && rm -rf "${CARGO_HOME}"/registry\n')
+        for target in ('windows-x64', 'windows-arm64', 'linux-x64', 'linux-arm64'):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as temporary:
+                recipe = Path(temporary); base = recipe / 'images/base'; base.mkdir(parents=True)
+                dockerfile = base / 'Dockerfile'
+                dockerfile.write_text('RUN python3 -m pip install --break-system-packages meson\n' + rust)
+                M.recipe(recipe, REQUIREMENTS, target)
+                if target.startswith('windows'):
+                    self.assertIn('--default-toolchain ' + versions['rust']['version'], dockerfile.read_text())
+                    self.assertIn('cargo install --locked --version ' + versions['cargo-c']['version'], dockerfile.read_text())
+                    self.assertIn('rust-receipt', dockerfile.read_text())
+                    self.assertTrue((base / 'portico-rust-versions.json').is_file())
+                else:
+                    self.assertIn(rust, dockerfile.read_text())
+                    self.assertFalse((base / 'portico-rust-versions.json').exists())
+
+    def test_wrong_actual_windows_rust_or_cargo_c_never_gets_a_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); versions = root / 'versions.json'; output = root / 'receipt.json'
+            versions.write_text(json.dumps({'versions': {'rust': '1.99.0', 'cargo-c': '0.10.26'}}))
+            for rust, cargo in [('1.99.1', '0.10.26'), ('1.99.0', '0.10.25')]:
+                with self.subTest(rust=rust, cargo=cargo), patch('subprocess.check_output',
+                        side_effect=['rustc ' + rust + ' (commit date)', 'cargo-capi ' + cargo + '+cargo-0.100.0']):
+                    with self.assertRaises(ValueError):
+                        M.rust_receipt(versions, output)
+                    self.assertFalse(output.exists())
+            with patch('subprocess.check_output', side_effect=['rustc 1.99.0 (commit date)',
+                                                               'cargo-capi 0.10.26+cargo-0.100.0']):
+                M.rust_receipt(versions, output)
+            self.assertEqual(json.loads(output.read_text())['installedVersions']['rust'], 'rustc 1.99.0 (commit date)')
+
+    def test_changed_rust_bootstrap_boundary_refuses(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            recipe = Path(temporary); base = recipe / 'images/base'; base.mkdir(parents=True)
+            (base / 'Dockerfile').write_text('RUN another bootstrap\n')
+            with self.assertRaises(ValueError):
+                M.windows_rust(recipe)
+
     def test_unhashed_or_multiple_tool_inputs_refuse(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'requirements.txt'

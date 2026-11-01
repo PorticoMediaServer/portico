@@ -168,3 +168,12 @@ may be missed) and retain dependency/stage timings. These measurements do not
 exist retroactively for the first cold run. A separate read-only PR-context pull
 probe checks access to every preserved compiler using the actual PR token and
 reviewed main pins. It does not execute PR code with registry credentials.
+Windows recipe construction takes its Rust and cargo-c versions from
+`third_party/media-engine/sources.lock.json`, currently 1.99.0 and 0.10.26.
+The base installs those exact versions, uses Cargo's locked tool resolution,
+refuses a different installed version, and retains the resulting tool receipt
+with compiler source custody. The rustup bootstrap itself remains a separate
+acceptance hold; this version alignment is not a claim of fully pinned bootstrap
+inputs. It applies to the next required build, without restarting a running one.
+The toolchain's `controlsOnly` dispatch exercises source/refusal tests and skips
+both construction and native qualification; it cannot produce an engine.
