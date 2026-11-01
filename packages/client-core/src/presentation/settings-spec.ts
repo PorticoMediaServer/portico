@@ -21,7 +21,7 @@ export type SettingsControl = Readonly<{
 }>;
 export type SettingsRow = Readonly<{id: string; label: MessageId; help?: MessageId; control: SettingsControl; children?: readonly SettingsRow[];
  scope?: 'server' | 'account' | 'profile' | 'device'; key?: string; platforms?: readonly SettingsPlatform[]; os?: readonly SettingsOperatingSystem[]; shapes?: readonly string[]; audience?: string;
- enableWhen?: Readonly<{id: string; in?: readonly SettingsValue[]; notIn?: readonly SettingsValue[]}>; noChanged?: boolean}>;
+ enableWhen?: Readonly<{id: string; in?: readonly SettingsValue[]; notIn?: readonly SettingsValue[]; hide?: boolean}>; noChanged?: boolean}>;
 export type SettingsGroup = Readonly<{title?: MessageId; description?: MessageId; platforms?: readonly SettingsPlatform[]; rows: readonly SettingsRow[]}>;
 export type SettingsHolder = Readonly<{groups?: readonly SettingsGroup[]; advanced?: Readonly<{groups?: readonly SettingsGroup[]}>}>;
 export type SettingsPanel = SettingsHolder & Readonly<{title?: MessageId; newTitle?: MessageId; searchName?: MessageId; tabs?: readonly (SettingsHolder & Readonly<{id: string; title: MessageId}>)[]; footer?: Readonly<{primary: MessageId; secondary?: MessageId}>}>;
@@ -13030,32 +13030,114 @@ export const settingsSpec: readonly SettingsSection[] = [
         "title": "next.settingsSpec.server.remote.groups.2.title",
         "rows": [
           {
-            "id": "remote.who",
+            "id": "remote.access",
             "scope": "server",
-            "key": "remote.who_can_connect",
+            "key": "remoteAccess",
             "label": "next.settingsSpec.server.remote.groups.2.rows.0.label",
             "help": "next.settingsSpec.server.remote.groups.2.rows.0.help",
             "control": {
               "type": "select",
-              "default": "anyone",
+              "default": "on",
               "options": [
                 {
-                  "value": "anyone",
+                  "value": "on",
                   "label": "next.settingsSpec.server.remote.groups.2.rows.0.control.options.0.label",
                   "hint": "next.settingsSpec.server.remote.groups.2.rows.0.control.options.0.hint"
                 },
                 {
-                  "value": "owner",
+                  "value": "private",
                   "label": "next.settingsSpec.server.remote.groups.2.rows.0.control.options.1.label",
                   "hint": "next.settingsSpec.server.remote.groups.2.rows.0.control.options.1.hint"
                 },
                 {
-                  "value": "none",
+                  "value": "off",
                   "label": "next.settingsSpec.server.remote.groups.2.rows.0.control.options.2.label",
                   "hint": "next.settingsSpec.server.remote.groups.2.rows.0.control.options.2.hint"
                 }
               ]
-            }
+            },
+            "children": [
+              {
+                "id": "remote.security",
+                "scope": "server",
+                "key": "remoteSecurity",
+                "enableWhen": {
+                  "id": "remote.access",
+                  "in": [
+                    "on"
+                  ],
+                  "hide": true
+                },
+                "label": "next.settingsSpec.server.remote.groups.2.rows.0.children.0.label",
+                "help": "next.settingsSpec.server.remote.groups.2.rows.0.children.0.help",
+                "control": {
+                  "type": "segmented",
+                  "default": "enhanced",
+                  "options": [
+                    {
+                      "value": "enhanced",
+                      "label": "next.settingsSpec.server.remote.groups.2.rows.0.children.0.control.options.0.label"
+                    },
+                    {
+                      "value": "standard",
+                      "label": "next.settingsSpec.server.remote.groups.2.rows.0.children.0.control.options.1.label"
+                    }
+                  ]
+                },
+                "children": [
+                  {
+                    "id": "remote.refused",
+                    "scope": "server",
+                    "key": "remote.refused_addresses",
+                    "enableWhen": {
+                      "id": "remote.security",
+                      "in": [
+                        "enhanced"
+                      ],
+                      "hide": true
+                    },
+                    "label": "next.settingsSpec.server.remote.groups.2.rows.0.children.0.children.0.label",
+                    "help": "next.settingsSpec.server.remote.groups.2.rows.0.children.0.children.0.help",
+                    "control": {
+                      "type": "list",
+                      "empty": "next.settingsSpec.server.remote.groups.2.rows.0.children.0.children.0.control.empty",
+                      "itemAction": {
+                        "label": "next.settingsSpec.server.remote.groups.2.rows.0.children.0.children.0.control.itemAction.label",
+                        "style": "glass"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "remote.signInOutside",
+                "scope": "server",
+                "key": "remoteSignInPolicy",
+                "enableWhen": {
+                  "id": "remote.access",
+                  "in": [
+                    "on"
+                  ],
+                  "hide": true
+                },
+                "label": "next.settingsSpec.server.remote.groups.2.rows.0.children.1.label",
+                "control": {
+                  "type": "select",
+                  "default": "anyone",
+                  "options": [
+                    {
+                      "value": "anyone",
+                      "label": "next.settingsSpec.server.remote.groups.2.rows.0.children.1.control.options.0.label"
+                    },
+                    {
+                      "value": "owner",
+                      "label": "next.settingsSpec.server.remote.groups.2.rows.0.children.1.control.options.1.label",
+                      "hint": "next.settingsSpec.server.remote.groups.2.rows.0.children.1.control.options.1.hint"
+                    }
+                  ]
+                }
+              }
+            ]
           }
         ]
       },
@@ -13318,9 +13400,9 @@ export const settingsSpec: readonly SettingsSection[] = [
           "title": "next.settingsSpec.server.remote.advanced.groups.4.title",
           "rows": [
             {
-              "id": "remote.extraAddresses",
+              "id": "remote.customAddresses",
               "scope": "server",
-              "key": "remote.extra_addresses",
+              "key": "accessUrls",
               "label": "next.settingsSpec.server.remote.advanced.groups.4.rows.0.label",
               "help": "next.settingsSpec.server.remote.advanced.groups.4.rows.0.help",
               "control": {

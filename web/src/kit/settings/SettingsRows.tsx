@@ -54,6 +54,9 @@ function Row({row, flat, dependent = false, inheritedDisabled = false, ...props}
   const parent = row.enableWhen && settingsRowIndex.get(row.enableWhen.id)?.row;
   const condition = parent && props.state(parent).value;
   const conditionMet = settingsConditionMet(row.enableWhen, condition);
+  // "hide": the row and its children are left out, not greyed, while the
+  // condition fails (Remote security only while Remote access is On).
+  if (row.enableWhen?.hide && !conditionMet) return null;
   const disabled = inheritedDisabled || state.disabled || state.readOnly || state.saving || !conditionMet;
   // Keep the values in the accessibility tree. Custom controls still inherit
   // the row's interaction guard, including a disabled parent or an active save.
