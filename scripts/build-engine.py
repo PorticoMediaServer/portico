@@ -240,7 +240,10 @@ def main():
         compiler = 'local/' + owner + '/engine/base-win64:latest'
         images.extend([compiler, base])
         config = scratch / 'buildkit.toml'
-        config.write_text('[worker.oci]\n max-parallelism = 1\n gc = true\n reservedSpace = "1GB"\n maxUsedSpace = "12GB"\n')
+        # The real Windows graph exceeded its 12 GB GC budget, and an earlier
+        # FFTW cache hit rebuilt for Chromaprint. Allow a larger bounded
+        # working set without changing any compile inputs.
+        config.write_text('[worker.oci]\n max-parallelism = 1\n gc = true\n reservedSpace = "8GB"\n maxUsedSpace = "24GB"\n')
         run('generate', ['bash', 'generate.sh', 'win64', 'gpl', '8.1'], recipe)
         (recipe / 'Dockerfile').write_text(dependency_steps((recipe / 'Dockerfile').read_text()))
         graph = stages((recipe / 'Dockerfile').read_text())
