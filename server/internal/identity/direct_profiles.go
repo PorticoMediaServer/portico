@@ -493,6 +493,11 @@ func (s *Service) SelectDirectProfileFrom(ctx context.Context, bearer, id string
 	if !validFamilyID(id) || len(q.PIN) > 4 || len(q.InstallationID) > 128 {
 		return out, ErrDirectInput
 	}
+	// A blocked source is refused before the profile is read, so a PIN run
+	// gains nothing from trying more profiles.
+	if e := s.sourceBlocked(ctx); e != nil {
+		return out, e
+	}
 	// The PIN is checked before the transaction opens. Hashing takes tens of
 	// milliseconds, longer on a small machine, and may wait for a hashing
 	// slot; the database has one writer, and every other write on the server
@@ -546,6 +551,11 @@ func (s *Service) SelectDirectProfileFrom(ctx context.Context, bearer, id string
 		}
 		if !proof.correct {
 			attempts++
+			// The PIN budget is per profile and lineage; the source budget is
+			// the cross-account one, and a wrong PIN is an evaluated guess.
+			if err := s.chargeSourceFailureTx(ctx, tx); err != nil {
+				return out, err
+			}
 			policy, err := ReadSignInPolicyTx(ctx, tx)
 			if err != nil {
 				return out, err
@@ -617,6 +627,7 @@ func (s *Service) SelectDirectProfileFrom(ctx context.Context, bearer, id string
 	}
 	return out, gated4.Commit()
 }
+
 // ForgetRememberedDevices ("Forget remembered devices") makes every sign-in
 // that remembered profile (or, with no profile, any of the account's profiles)
 // ask for its PIN again. installation, when given, limits it to that device.

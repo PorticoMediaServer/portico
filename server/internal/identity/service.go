@@ -107,6 +107,11 @@ type Envelope struct {
 }
 type Service struct {
 	profilePurgeWake *worker.Signal
+	// lastSecurityPrune is time.Now().Unix() at the last opportunistic prune
+	// of the per-source security tables. Every read and write of it happens
+	// inside a security-fence write transaction, which the write gate
+	// serializes, so no lock of its own is needed.
+	lastSecurityPrune int64
 
 	PrepareIdentityDeparture         func(context.Context, string) (*DepartureNotice, error)
 	resetDir                         string

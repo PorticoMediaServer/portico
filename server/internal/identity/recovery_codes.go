@@ -2,6 +2,7 @@ package identity
 
 import (
 	"context"
+	"errors"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 )
 
@@ -14,6 +15,9 @@ type RecoveryCodes struct {
 // factor proof. The factor's own replay accounting and the complete replacement
 // commit together. A refusal retains every previously usable recovery code.
 func (s *Service) ReplaceRecoveryCodes(ctx context.Context, bearer, password, code string) (RecoveryCodes, error) {
+	if err := s.sourceBlocked(ctx); err != nil {
+		return RecoveryCodes{}, err
+	}
 	if password == "" || len(password) > 72 {
 		return RecoveryCodes{}, ErrDirectInput
 	}
@@ -43,6 +47,16 @@ func (s *Service) ReplaceRecoveryCodes(ctx context.Context, bearer, password, co
 		return RecoveryCodes{}, ErrFactorMissing
 	}
 	if err = s.verifySecondFactorTx(ctx, tx, caller.account.ID, code); err != nil {
+		if errors.Is(err, ErrFactorInvalid) {
+			// A wrong recovery code is a guess; the refusal rolls this
+			// transaction back, so charge the source in its own.
+			if rollbackErr := gated.Rollback(); rollbackErr != nil {
+				return RecoveryCodes{}, rollbackErr
+			}
+			if chargeErr := s.RecordSourceFailure(ctx); chargeErr != nil {
+				return RecoveryCodes{}, chargeErr
+			}
+		}
 		return RecoveryCodes{}, err
 	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM identity_recovery_codes WHERE account_id=?`, caller.account.ID); err != nil {

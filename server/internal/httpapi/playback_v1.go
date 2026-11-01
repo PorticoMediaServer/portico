@@ -201,6 +201,12 @@ func v1Error(err error) error {
 		return &apierror.Error{Code: "invalid_request", Fields: fields, Cause: err}
 	case errors.Is(err, identity.ErrNotVisible):
 		code = "not_found"
+	case errors.Is(err, identity.ErrSourceBlocked):
+		var blocked *identity.SourceBlockError
+		if errors.As(err, &blocked) {
+			return &apierror.Error{Code: "source_blocked", RetryAfterSeconds: int(blocked.RetryAfter), Cause: err}
+		}
+		return &apierror.Error{Code: "source_blocked", Cause: err}
 	case errors.Is(err, identity.ErrFactorSetupRequired):
 		code = "factor_setup_required"
 	case errors.Is(err, identity.ErrForbidden):

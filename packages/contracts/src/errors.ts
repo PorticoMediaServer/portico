@@ -883,6 +883,12 @@ export const errors = [
     "retry": "never"
   },
   {
+    "code": "source_blocked",
+    "status": 429,
+    "message": "Too many failed attempts from this network. Try again later.",
+    "retry": "same_request"
+  },
+  {
     "code": "source_changed",
     "status": 409,
     "message": "The request could not be completed.",

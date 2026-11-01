@@ -248,6 +248,9 @@ func (s *Service) EnrolTwoFactor(ctx context.Context, bearer, password string) (
 
 // VerifyTwoFactor puts a pending enrolment into force.
 func (s *Service) VerifyTwoFactor(ctx context.Context, bearer, password, code string) (TwoFactorState, error) {
+	if err := s.sourceBlocked(ctx); err != nil {
+		return TwoFactorState{}, err
+	}
 	ctx = factorSetupContext(ctx)
 	proof, e := s.proveCurrentPassword(ctx, bearer, password)
 	if e != nil {
@@ -280,6 +283,14 @@ func (s *Service) VerifyTwoFactor(ctx context.Context, bearer, password, code st
 	}
 	step, ok := totpStep(secret, code, time.Now().UTC(), lastStep)
 	if !ok {
+		// The refusal ends this transaction, so the source's charge is made in
+		// its own, after this one is released.
+		if rollbackErr := gated3.Rollback(); rollbackErr != nil {
+			return TwoFactorState{}, rollbackErr
+		}
+		if e = s.RecordSourceFailure(ctx); e != nil {
+			return TwoFactorState{}, e
+		}
 		return TwoFactorState{}, ErrFactorInvalid
 	}
 	if _, e = tx.ExecContext(ctx, `UPDATE identity_account_factors SET confirmed=1,last_step=? WHERE account_id=?`, step, c.account.ID); e != nil {
@@ -298,6 +309,9 @@ func (s *Service) VerifyTwoFactor(ctx context.Context, bearer, password, code st
 // DisableTwoFactor removes the factor. The account password is required so a
 // borrowed signed-in device cannot quietly weaken the account.
 func (s *Service) DisableTwoFactor(ctx context.Context, bearer, password, code string) error {
+	if err := s.sourceBlocked(ctx); err != nil {
+		return err
+	}
 	proof, e := s.proveCurrentPassword(ctx, bearer, password)
 	if e != nil {
 		return e
@@ -325,6 +339,16 @@ func (s *Service) DisableTwoFactor(ctx context.Context, bearer, password, code s
 		return ErrFactorMissing
 	}
 	if e = s.verifySecondFactorTx(ctx, tx, c.account.ID, code); e != nil {
+		if errors.Is(e, ErrFactorInvalid) {
+			// A wrong factor code is a guess; the refusal rolls this
+			// transaction back, so charge the source in its own.
+			if rollbackErr := gated4.Rollback(); rollbackErr != nil {
+				return rollbackErr
+			}
+			if chargeErr := s.RecordSourceFailure(ctx); chargeErr != nil {
+				return chargeErr
+			}
+		}
 		return e
 	}
 	if e = s.revokeDirectWithReasonTx(ctx, tx, c.account.ID, "", "", RevokedPasswordChange); e != nil {
@@ -383,6 +407,9 @@ func (s *Service) CompleteSignInChallenge(ctx context.Context, token, code strin
 	}
 	if RemoteSignInClosed(ctx) {
 		return DirectSignIn{}, ErrRemoteSignIn
+	}
+	if err := s.sourceBlocked(ctx); err != nil {
+		return DirectSignIn{}, err
 	}
 	gated5, e := dbwork.Begin(ctx, s.db, dbwork.ClassSecurityFence)
 	if e != nil {

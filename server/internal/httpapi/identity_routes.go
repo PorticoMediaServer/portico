@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"github.com/PorticoMediaServer/portico/server/internal/requestinput"
@@ -194,6 +195,12 @@ func (d Dependencies) identityAuthRoutes(mux *http.ServeMux) {
 		}
 		out, e := d.Identity.Register(r.Context(), body, d.privateSetupPeer(r))
 		if e != nil {
+			// A refused invitation code is an evaluated guess against a code
+			// that creates an account; it is charged to the source like a
+			// password, and the account registration itself is unchanged.
+			if errors.Is(e, identity.ErrRegistrationInvite) {
+				_ = d.Identity.RecordSourceFailure(r.Context())
+			}
 			failure(w, e)
 			return
 		}

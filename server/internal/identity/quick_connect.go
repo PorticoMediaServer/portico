@@ -12,7 +12,6 @@ import (
 	"errors"
 	"math/big"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
-	"github.com/PorticoMediaServer/portico/server/internal/notify"
 	"github.com/PorticoMediaServer/portico/server/internal/worker"
 	"regexp"
 	"strings"
@@ -216,14 +215,23 @@ func (s *Service) StartQuick(ctx context.Context, q QuickStart, private bool) (Q
 	return QuickAuthorization{}, ErrBusy
 }
 func (s *Service) ReviewQuick(ctx context.Context, code string) (QuickPreview, error) {
+	if err := s.sourceBlocked(ctx); err != nil {
+		return QuickPreview{}, err
+	}
 	normalized, e := normalizedQuickCode(code)
 	if e != nil {
+		if err := s.RecordSourceFailure(ctx); err != nil {
+			return QuickPreview{}, err
+		}
 		return QuickPreview{}, e
 	}
 	var p QuickPreview
 	var expiry int64
 	e = s.db.QueryRowContext(ctx, `SELECT id,device_name,platform,app_version,expires_at FROM quick_connect_v1 WHERE user_hash=? AND status='pending' AND expires_at>?`, s.setupHash("quick-code", normalized), time.Now().Unix()).Scan(&p.RequestID, &p.DeviceName, &p.Platform, &p.AppVersion, &expiry)
 	if errors.Is(e, sql.ErrNoRows) {
+		if err := s.RecordSourceFailure(ctx); err != nil {
+			return p, err
+		}
 		return p, &SetupProtocolError{Code: "invalid_grant"}
 	}
 	p.ServerName = s.Name()
@@ -232,8 +240,14 @@ func (s *Service) ReviewQuick(ctx context.Context, code string) (QuickPreview, e
 	return p, e
 }
 func (s *Service) DecideQuick(ctx context.Context, p Principal, id, code, decision string) error {
+	if err := s.sourceBlocked(ctx); err != nil {
+		return err
+	}
 	normalized, e := normalizedQuickCode(code)
 	if e != nil {
+		if err := s.RecordSourceFailure(ctx); err != nil {
+			return err
+		}
 		return e
 	}
 	if p.Authority != "local" || !Grants(p.Role, TierMember) || len(id) > 128 || (decision != "approve" && decision != "deny") {
@@ -254,6 +268,12 @@ func (s *Service) DecideQuick(ctx context.Context, p Principal, id, code, decisi
 	var expiry int64
 	e = tx.QueryRowContext(ctx, `SELECT status,approver_id,private_request,expires_at FROM quick_connect_v1 WHERE id=? AND user_hash=?`, id, s.setupHash("quick-code", normalized)).Scan(&status, &owner, &private, &expiry)
 	if errors.Is(e, sql.ErrNoRows) {
+		if e = s.chargeSourceFailureTx(ctx, tx); e != nil {
+			return e
+		}
+		if e = gated2.Commit(); e != nil {
+			return e
+		}
 		return &SetupProtocolError{Code: "invalid_grant"}
 	}
 	if e != nil {
@@ -306,18 +326,9 @@ func (s *Service) DecideQuick(ctx context.Context, p Principal, id, code, decisi
 			return e
 		}
 	}
-	if decision == "approve" {
-		// Pairing a new device is a security event the account holder must see. It
-		// commits with the approval, and is deduped by the pairing request, so a
-		// retried approval is one notice rather than two.
-		var label string
-		if e = tx.QueryRowContext(ctx, `SELECT device_name||' ('||platform||')' FROM quick_connect_v1 WHERE id=?`, id).Scan(&label); e != nil {
-			return e
-		}
-		if _, e = notify.NotifySecurityEvent(tx, time.Now().UnixMilli(), "local", p.AccountID, p.ProfileID, notify.SecurityNewDevice, id, label); e != nil {
-			return e
-		}
-	}
+	// The TV's own sign-in, at collection, is what creates its device record,
+	// and that is where the account holder's new-device notice is raised
+	// (issuingDeviceTx). Approval alone signs nobody in.
 	// Approval, family issuance and recoverable encrypted delivery are ONE commit.
 	result, e := tx.ExecContext(ctx, `UPDATE quick_connect_v1 SET status=?,approver_id=?,grant_cipher=? WHERE id=? AND status='pending'`, next, p.AccountID, cipher, id)
 	if e != nil {
@@ -639,6 +650,9 @@ func (s *Service) issueQuickTx(ctx context.Context, tx *sql.Tx, id string, ciphe
 		}
 		ctx = context.WithValue(ctx, inheritedHorizonKey{}, until)
 	}
+	// The TV's collection of an approved code is its sign-in: if this is the
+	// device's first, the person and the owner hear about it.
+	ctx = withNewDeviceNotice(ctx)
 	out, e := s.IssueTx(ctx, tx, a.AccountID, a.ProfileID, "local", role, a.Epoch, time.Time{})
 	if e != nil {
 		return out, e

@@ -2896,6 +2896,13 @@ identity_refresh_receipts.expires_at
 identity_refresh_receipts.family_id
 identity_refresh_receipts.predecessor_hash
 identity_refresh_receipts.request_id
+identity_security_alerts.alert_key
+identity_security_alerts.raised_at
+identity_security_counts.count
+identity_security_counts.hour
+identity_security_counts.kind
+identity_security_minutes.count
+identity_security_minutes.minute
 identity_service_outbox.attempts
 identity_service_outbox.claim_generation
 identity_service_outbox.created_ms
@@ -2940,6 +2947,13 @@ identity_sign_in_policy.revision
 identity_sign_in_policy.singleton
 identity_sign_in_policy.stay_signed_in_days
 identity_sign_in_policy.updated_ms
+identity_source_attempts.block_count
+identity_source_attempts.blocked_until
+identity_source_attempts.failed_attempts
+identity_source_attempts.last_block
+identity_source_attempts.last_failure
+identity_source_attempts.source_bucket
+identity_source_attempts.source_id
 identity_state.revision
 identity_state.sign_in_kind
 identity_state.singleton
