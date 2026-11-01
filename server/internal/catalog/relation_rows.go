@@ -212,7 +212,8 @@ func (s *Service) relationPage(viewer Viewer, owner relationOwner, spec relation
 	out.CursorCapable = true
 	out.Start = start
 	out.Limit = limit
-	out.Total = order.len()
+	total := order.len()
+	out.Total = &total
 	out.HasMore = next < order.len() || !order.complete
 	if out.HasMore {
 		out.NextCursor, err = s.encodeRevisionCursor(cursorValue{Scope: scope, Start: next, Fingerprint: order.digest(next), Expires: time.Now().Add(BrowseCursorTTLSecond * time.Second).Unix()}, revision)

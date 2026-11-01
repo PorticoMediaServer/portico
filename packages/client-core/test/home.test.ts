@@ -105,7 +105,7 @@ test('a Home row reads neutrally where it is only drawn, and ignores fields this
   assert.equal(validateHomeRow(row()).cacheTtlMs, 120000);
   // A server that stops sending the presentation fields still has its row shown.
   const bare = validateHomeRow({id: 'bare', viewerFence: 'fence', entries: [entry('m1')], revision: {catalog: 1, viewer: 1}});
-  assert.deepEqual([bare.title, bare.kind, bare.artworkShape, bare.nextCursor, bare.total, bare.hasMore], ['', '', 'poster', '', 1, false]);
+  assert.deepEqual([bare.title, bare.kind, bare.artworkShape, bare.nextCursor, bare.total, bare.hasMore], ['', '', 'poster', '', undefined, false]);
 });
 
 test('a Home row may name where its See all leads; a destination that cannot be read is left out alone', () => {

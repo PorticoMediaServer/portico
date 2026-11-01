@@ -44,7 +44,7 @@ func TestHomeOnNowHTTPComposesCurrentProgrammeAndFencesPages(t *testing.T) {
 		return row
 	}
 	first := read("/v1/home/rows/on_now?limit=1&group=Sports", f.token)
-	if first.Kind != "live" || first.ArtworkShape != "landscape" || first.Total != 2 || first.Live == nil || len(first.Live.Channels) != 1 || first.NextCursor == "" || first.Live.Sort != "favorites" {
+	if first.Kind != "live" || first.ArtworkShape != "landscape" || rowTotal(first) != 2 || first.Live == nil || len(first.Live.Channels) != 1 || first.NextCursor == "" || first.Live.Sort != "favorites" {
 		t.Fatalf("on now %+v", first)
 	}
 	card := first.Live.Channels[0]
@@ -101,7 +101,7 @@ func TestHomeOnNowHTTPComposesCurrentProgrammeAndFencesPages(t *testing.T) {
 			t.Fatalf("owner map change %d admitted old cursor: %d %s", i, stale.Code, stale.Body)
 		}
 		current := read("/v1/home/rows/on_now?limit=1&group=Sports", f.token)
-		if current.Live.Revision == previous.Live.Revision || current.Total != change.total || len(current.Live.Channels) != 1 || current.Live.Channels[0].Channel.Name != change.first || current.Live.Channels[0].Channel.Mark.Text != change.mark {
+		if current.Live.Revision == previous.Live.Revision || rowTotal(current) != change.total || len(current.Live.Channels) != 1 || current.Live.Channels[0].Channel.Name != change.first || current.Live.Channels[0].Channel.Mark.Text != change.mark {
 			t.Fatalf("owner map change %d fresh membership/order/mark: %+v", i, current)
 		}
 		if !change.hidden && change.number != "" && current.Live.Channels[0].Channel.Number != change.number {

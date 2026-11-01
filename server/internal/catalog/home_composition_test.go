@@ -30,7 +30,7 @@ func TestHomeApprovedVideoCompositionAndBadges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Total != 6 || len(first.Entries) != 3 || first.ArtworkShape != "poster" || first.SeeAll == nil || first.SeeAll.RowID != "new_on_server" || first.NextCursor == "" {
+	if rowTotal(first) != 6 || len(first.Entries) != 3 || first.ArtworkShape != "poster" || first.SeeAll == nil || first.SeeAll.RowID != "new_on_server" || first.NextCursor == "" {
 		t.Fatalf("merged row: %+v", first)
 	}
 	if first.Entries[0].ID != homeItem(t, db, "m4").Public || first.Entries[1].ID != homeItem(t, db, "m1").Public || first.Entries[2].ID != homeItem(t, db, "m2").Public {
@@ -40,7 +40,7 @@ func TestHomeApprovedVideoCompositionAndBadges(t *testing.T) {
 		t.Fatal("future/watched/boundary badge eligibility")
 	}
 	second, err := s.HomeSingleRow(r, "new_on_server", HomeRowPage{Limit: 3, Cursor: first.NextCursor})
-	if err != nil || second.Start != 3 || second.Total != 6 || len(second.Entries) != 3 {
+	if err != nil || second.Start != 3 || rowTotal(second) != 6 || len(second.Entries) != 3 {
 		t.Fatalf("page %+v %v", second, err)
 	}
 	for _, e := range second.Entries {
@@ -73,7 +73,7 @@ func TestHomeCausalReasonAndSpotlightAreRealAndBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.Reason == nil || row.Reason.Source.ID != source.Public || row.Reason.Text.Params["title"] != "Movie m1" || row.TitleText.Code != "next.home.becauseYouWatched" || row.Total < 1 {
+	if row.Reason == nil || row.Reason.Source.ID != source.Public || row.Reason.Text.Params["title"] != "Movie m1" || row.TitleText.Code != "next.home.becauseYouWatched" || rowTotal(row) < 1 {
 		t.Fatalf("causal selection %+v", row)
 	}
 	for _, entry := range row.Entries {
@@ -178,12 +178,12 @@ func TestHomeFeaturedCollectionAndAudioComposition(t *testing.T) {
 		t.Fatalf("mixed real audio %+v", audio)
 	}
 	books, err := s.HomeSingleRow(r, "continue_books", HomeRowPage{})
-	if err != nil || books.Total != 1 || books.Entries[0].Kind != "book" || books.Entries[0].ID != book.Public || !reflect.DeepEqual(books.Platforms, []string{"web", "phone"}) {
+	if err != nil || rowTotal(books) != 1 || books.Entries[0].Kind != "book" || books.Entries[0].ID != book.Public || !reflect.DeepEqual(books.Platforms, []string{"web", "phone"}) {
 		t.Fatalf("books only %+v %v", books, err)
 	}
 	c.Exec(`DELETE FROM progress_activity WHERE profile_id='p'`)
 	empty, err := s.HomeSingleRow(r, "continue_books", HomeRowPage{})
-	if err != nil || empty.Total != 0 {
+	if err != nil || rowTotal(empty) != 0 {
 		t.Fatal("empty conditional books", empty, err)
 	}
 }
@@ -205,7 +205,7 @@ func TestHomeMergedRecentLargeFixturePagesPastTheOldWorkBound(t *testing.T) {
 	ctx, trace := dbwork.TraceQueryPlans(context.Background())
 	r := homeRequestFixture("movies", "tv")
 	row, err := s.WithContext(ctx).HomeSingleRow(r, "new_on_server", HomeRowPage{Limit: 7})
-	if err != nil || row.Total != 246 || len(row.Entries) != 7 {
+	if err != nil || rowTotal(row) != 246 || len(row.Entries) != 7 {
 		t.Fatalf("bounded union %+v %v", row, err)
 	}
 	for _, q := range trace() {
@@ -253,19 +253,19 @@ func TestHomeCommunityUsesThirtyDaysAndPreservesPrivacyThreshold(t *testing.T) {
 	}
 	f.c.Drain()
 	row, err := s.HomeSingleRow(r, "community_watching", HomeRowPage{Limit: 1})
-	if err != nil || row.Total != 1 || row.Entries[0].ID != f.items["m1"].Public || row.Period == nil || row.Period.Days != 30 || row.Period.Metric != "distinct_eligible_viewers" || row.Title != "Popular on this server" {
+	if err != nil || rowTotal(row) != 1 || row.Entries[0].ID != f.items["m1"].Public || row.Period == nil || row.Period.Days != 30 || row.Period.Metric != "distinct_eligible_viewers" || row.Title != "Popular on this server" {
 		t.Fatalf("30-day ranked row %+v %v", row, err)
 	}
 	expired := r.Now.Add(-30*24*time.Hour - time.Second).Format("2006-01-02T15:04:05.000Z")
 	engineExec(t, f, `UPDATE personal_history SET updated_at=? WHERE id='2'`, expired)
 	empty, err := s.HomeSingleRow(r, "community_watching", HomeRowPage{})
-	if err != nil || empty.Total != 0 {
+	if err != nil || rowTotal(empty) != 0 {
 		t.Fatal("two eligible viewers disclosed popularity", empty, err)
 	}
 	engineExec(t, f, `UPDATE personal_history SET updated_at=? WHERE id='2'`, r.Now.Format("2006-01-02T15:04:05.000Z"))
 	storePreference(t, f.db, identity.Viewer{Authority: "local", AccountID: "b", ProfileID: "q"}, map[string]any{"privacy.pauseWatchHistory": true})
 	empty, err = s.HomeSingleRow(r, "community_watching", HomeRowPage{})
-	if err != nil || empty.Total != 0 {
+	if err != nil || rowTotal(empty) != 0 {
 		t.Fatal("paused viewer contributed", empty, err)
 	}
 }
@@ -288,11 +288,11 @@ func TestHomeCommunityRanksOnlyVideoBeforeTotalsAndPaging(t *testing.T) {
 	}
 	f.c.Drain()
 	first, err := s.HomeSingleRow(r, "community_watching", HomeRowPage{Limit: 1})
-	if err != nil || first.Total != 2 || len(first.Entries) != 1 || first.Start != 0 || first.NextCursor == "" || !first.HasMore || first.Period == nil || first.Period.Days != 30 {
+	if err != nil || rowTotal(first) != 2 || len(first.Entries) != 1 || first.Start != 0 || first.NextCursor == "" || !first.HasMore || first.Period == nil || first.Period.Days != 30 {
 		t.Fatalf("first video rank: %+v %v", first, err)
 	}
 	second, err := s.HomeSingleRow(r, "community_watching", HomeRowPage{Limit: 1, Cursor: first.NextCursor})
-	if err != nil || second.Total != 2 || second.Start != 1 || len(second.Entries) != 1 || second.NextCursor != "" || second.HasMore {
+	if err != nil || rowTotal(second) != 2 || second.Start != 1 || len(second.Entries) != 1 || second.NextCursor != "" || second.HasMore {
 		t.Fatalf("second video rank: %+v %v", second, err)
 	}
 	seen := map[string]bool{}
@@ -315,7 +315,7 @@ func TestHomeCommunityRanksOnlyVideoBeforeTotalsAndPaging(t *testing.T) {
 	// Audio changes cannot change this Home row's selected membership/fingerprint.
 	engineExec(t, f, `DELETE FROM personal_history WHERE item_id IN(?,?)`, f.items["t1"].ID, f.items["p1"].ID)
 	unchanged, err := s.HomeSingleRow(r, "community_watching", HomeRowPage{Limit: 1, Cursor: first.NextCursor})
-	if err != nil || unchanged.Total != 2 || unchanged.Start != 1 || len(unchanged.Entries) != 1 || unchanged.Entries[0].ID != second.Entries[0].ID {
+	if err != nil || rowTotal(unchanged) != 2 || unchanged.Start != 1 || len(unchanged.Entries) != 1 || unchanged.Entries[0].ID != second.Entries[0].ID {
 		t.Fatalf("audio altered video paging: %+v %v", unchanged, err)
 	}
 	engineExec(t, f, `DELETE FROM personal_history WHERE id='2-m1'`)
@@ -323,7 +323,7 @@ func TestHomeCommunityRanksOnlyVideoBeforeTotalsAndPaging(t *testing.T) {
 		t.Fatal("changed eligible video membership did not fence the cursor", err)
 	}
 	private, err := s.HomeSingleRow(r, "community_watching", HomeRowPage{})
-	if err != nil || private.Total != 1 || len(private.Entries) != 1 || private.Entries[0].ID != f.items["show"].Public {
+	if err != nil || rowTotal(private) != 1 || len(private.Entries) != 1 || private.Entries[0].ID != f.items["show"].Public {
 		t.Fatalf("subthreshold video leaked: %+v %v", private, err)
 	}
 }
@@ -349,7 +349,7 @@ func TestHomeBooksContinuationFiltersMusicBeforeItsPageLimit(t *testing.T) {
 	}
 	c.Drain()
 	row, err := s.HomeSingleRow(r, "continue_books", HomeRowPage{Limit: 12})
-	if err != nil || row.Total != 1 || len(row.Entries) != 1 || row.Entries[0].Kind != "book" || len(row.Resumes) != 1 || row.Resumes[0].Target.ID != part.Public {
+	if err != nil || rowTotal(row) != 1 || len(row.Entries) != 1 || row.Entries[0].Kind != "book" || len(row.Resumes) != 1 || row.Resumes[0].Target.ID != part.Public {
 		t.Fatalf("music consumed book candidate budget: %+v %v", row, err)
 	}
 }

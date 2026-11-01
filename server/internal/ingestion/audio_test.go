@@ -285,7 +285,7 @@ func TestRealLocalAudioScanChaptersArtAndBookResume(t *testing.T) {
 			if row.ID != "continue_books" {
 				continue
 			}
-			if row.Total != 1 || len(row.Entries) != 1 || len(row.Resumes) != 1 {
+			if rowTotal(row) != 1 || len(row.Entries) != 1 || len(row.Resumes) != 1 {
 				t.Fatalf("book continuation: %+v", row)
 			}
 			book, resume := row.Entries[0], row.Resumes[0]

@@ -194,7 +194,7 @@ func TestHomeRoutesComposePageAndCustomise(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	*recent = catalog.HomeRow{}
-	if err := json.Unmarshal(w.Body.Bytes(), recent); err != nil || recent.Deferred || len(recent.Entries) != 2 || recent.Total != 3 {
+	if err := json.Unmarshal(w.Body.Bytes(), recent); err != nil || recent.Deferred || len(recent.Entries) != 2 || rowTotal(*recent) != 3 {
 		t.Fatalf("preview %+v %v", recent, err)
 	}
 	w = homeAPIRequest(t, handler, owner.AccessToken, "GET", "/v1/home/rows/new_on_server?limit=2&cursor="+recent.NextCursor, "")
