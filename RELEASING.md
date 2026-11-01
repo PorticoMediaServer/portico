@@ -6,6 +6,19 @@ The release workflows are still being moved into this repository, so there are n
 
 Only the maintainer publishes official releases. The step-by-step checklist, approvals, rollback steps and credentials are kept in a private repository.
 
+## Versions and build numbers
+
+Until v0.1.0, every product (the server, the apps on every platform and the desktop app) shares one version. Internal releases are numbered 0.0.N; the first public release will be the v0.1.0 beta. A server and an app are only promised to work together at the same version.
+
+- The person who starts a release chooses the version. `scripts/release-version.py` refuses anything that isn't 0.0.N, or that isn't higher than every earlier release.
+- The build number is the release commit's position on `main` (`git rev-list --count`). It is the same for every product in a release, and it only rises.
+- The source tree carries `0.0.0` placeholders. Only a release build stamps the real version:
+  - server: `buildinfo.Version`;
+  - Android: `-PporticoVersionName` and `-PporticoVersionCode`;
+  - Apple: `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`;
+  - desktop and Vega: `release-version.py stamp`.
+- A build made by hand reports 0.0.0, never a real version.
+
 ## FFmpeg is released separately
 
 Portico and its FFmpeg build are released on their own schedules.

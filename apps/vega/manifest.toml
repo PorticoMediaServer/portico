@@ -2,7 +2,7 @@ schema-version = 1
 
 [package]
 title = "Portico"
-version = "0.1.0"
+version = "0.0.0"
 id = "tv.getportico.portico.vega"
 
 [os.version]
