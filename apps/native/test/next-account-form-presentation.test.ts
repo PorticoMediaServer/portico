@@ -63,23 +63,23 @@ test('new-password strength uses all four shared-policy segments and the exact l
   }
 });
 
-test('owner reset disclosure expands the other systems without replacing the returned server path', async context => {
+test('owner reset shows the file name and expands every system’s documented location', async context => {
   const {PhoneOwnerReset} = await screenModule(new URL('../src-next/screens/accounts/PhoneOwnerReset.tsx', import.meta.url), {
     react, 'react-native': {View: 'View', Text: 'Text'}, '../../../../../packages/i18n/src': {defaultI18n: copy},
     '../../kit/states': {StateLayout: 'State'}, '../../kit/controls': {TextField: 'Field', Button: 'Button'}, '../../kit/theme': {useTheme: () => theme},
     './PhoneAccountForm': {PhoneAccountForm: 'Form'}, './reset-file-paths': resetPaths,
   });
   let tree: any; const host = createFabricHookHost(() => {tree = PhoneOwnerReset({phase: 'code', serverName: 'Server', code: '', onCodeChange() {}, busy: false,
-    location: {systemKind: 'docker', dataDirectory: '/actual', fileDirectory: '/actual', fileName: 'reset-code.txt', retryAfterSeconds: 0}, onBack() {}, onWrite() {}, onVerify() {}, onContinue() {}});});
+    location: {fileName: 'reset-code.txt', retryAfterSeconds: 0}, onBack() {}, onWrite() {}, onVerify() {}, onContinue() {}});});
   context.after(() => host.unmount()); await act(() => host.mount());
   const all = () => nodes(tree.props.beforeActions);
-  assert.equal(tree.type, 'Form'); assert.ok(all().some(node => node.props.children === '/actual/reset-code.txt'));
+  assert.equal(tree.type, 'Form'); assert.ok(all().some(node => node.props.children === 'reset-code.txt'));
   assert.equal(all().find(node => node.props.testID === 'accounts-owner-reset-other-paths'), undefined);
   await act(() => all().find(node => node.props.testID === 'accounts-owner-reset-systems').props.onPress());
   assert.equal(all().find(node => node.props.testID === 'accounts-owner-reset-systems').props.accessibilityState.expanded, true);
   const disclosure = all().find(node => node.props.testID === 'accounts-owner-reset-other-paths');
-  assert.deepEqual(disclosure.props.children.map((node: any) => node.key), ['linux', 'windows', 'macos']);
-  assert.ok(all().some(node => node.props.children === '/actual/reset-code.txt'));
+  assert.deepEqual(disclosure.props.children.map((node: any) => node.key), ['linux', 'windows', 'macos', 'docker']);
+  assert.ok(all().some(node => node.props.children === '/var/lib/portico/Keys/reset-code.txt'));
 });
 
 for (const os of ['ios', 'android'] as const) {

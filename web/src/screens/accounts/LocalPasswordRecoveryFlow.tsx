@@ -109,14 +109,13 @@ export function OwnerFile({serverName, location, busy, error, notice, onVerify, 
   const tick=()=>{if(!live)return;const left=Math.max(0,Math.ceil((deadline-Date.now())/1000));setRemaining(left);if(left>0)timer=setTimeout(tick,Math.min(1000,Math.max(1,deadline-Date.now())));};tick();
   return()=>{live=false;if(timer!==undefined)clearTimeout(timer);};
  },[deadline]);
- const separator=location.systemKind==='windows'?'\\':'/';
- const path=`${location.fileDirectory}${/[\\/]$/.test(location.fileDirectory)?'':separator}${location.fileName}`;
  const terminal=notice==='expired'||notice==='limited';
  return <AuthStage shape="round" legal={false}>
   <p className={authStyles.eyebrow}>{serverName}</p><h1>{t('accounts.recovery.fileTitle')}</h1>
   <p className={authStyles.lede}>{t('accounts.recovery.fileBody')}</p>{notice?<OwnerResetNotice kind={notice}/>:<AuthError error={error}/>}
   {terminal?<OwnerResetRewriteButton primary remainingSeconds={remaining} busy={busy} onRewrite={()=>{setCode('');onRewrite();}}/>:<>
-   <div className={styles.path}><small>{t('accounts.recovery.fileLocation')}</small><code>{path}</code></div>
+   <div className={styles.path}><small>{t('accounts.recovery.fileLocation')}</small><code>{location.fileName}</code></div>
+   <p className={styles.quiet}>{t('accounts.recovery.fileFolder')}</p>
    <form className={authStyles.form} onSubmit={event=>{event.preventDefault();if(!busy&&code.trim()){const proof=code;setCode('');void onVerify(proof);}}}>
     <TextField variant="auth" label={t('accounts.recovery.code')} autoComplete="one-time-code" value={code} onChange={event=>setCode(event.currentTarget.value)} disabled={busy} autoFocus/>
     <div className={styles.actions}><Button variant="primary" type="submit" disabled={!code.trim()} loading={busy}>{t('action.continue')}</Button>

@@ -10,11 +10,12 @@ import (
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 )
 
-func privateResetCode(t *testing.T, location identity.OwnerResetLocation) string {
+func privateResetCode(t *testing.T, root, fileName string) string {
 	t.Helper()
-	raw, e := os.ReadFile(filepath.Join(location.FileDirectory, location.FileName))
+	raw, e := os.ReadFile(filepath.Join(storagepaths.At(root).Keys, fileName))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -46,7 +47,7 @@ func TestResetFileHTTPProducerContractsAndAuthority(t *testing.T) {
 			if e := json.Unmarshal(first.Body.Bytes(), &location); e != nil {
 				t.Fatal(e)
 			}
-			code := privateResetCode(t, location)
+			code := privateResetCode(t, f.root, location.FileName)
 			unknown := call("/v1/auth/owner-reset/request", `{"username":"missing"}`)
 			if unknown.Code != 200 || strings.Contains(unknown.Body.String(), code) || strings.Contains(unknown.Body.String(), "missing") || strings.Contains(unknown.Body.String(), "owner\"") {
 				t.Fatal("public reset request disclosed account/code")

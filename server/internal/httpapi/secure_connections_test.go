@@ -55,9 +55,28 @@ func TestSecureConnectionsRoundTripAndRouterEnforcement(t *testing.T) {
 		if w.Code != 200 {
 			t.Fatalf("TLS/proxy %v %d %s", trustedProxy, w.Code, w.Body)
 		}
-		var out ConnectionDocument
-		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || !out.Secure || out.SecureConnections != "required" || out.LANNetworks == nil {
+		var out ConnectionFacts
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || !out.Secure || out.SecureConnections != "required" {
 			t.Fatalf("connection %+v %v", out, err)
+		}
+		// The home networks and advertised addresses are owner facts; the same
+		// connection still reports them behind the owner's authority (O-169).
+		r = httptest.NewRequest("GET", "https://media.example/v1/admin/connectivity/status", nil)
+		if trustedProxy {
+			r.TLS = nil
+			r.RemoteAddr = "203.0.113.9:42"
+			r.Header.Set("X-Forwarded-Proto", "https")
+		} else {
+			r.TLS = &tls.ConnectionState{}
+		}
+		r.Header.Set("Authorization", "Bearer "+f.owner)
+		w = httptest.NewRecorder()
+		f.handler.ServeHTTP(w, r)
+		var owner struct {
+			Connection ConnectionDocument `json:"connection"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &owner); err != nil || w.Code != 200 || owner.Connection.LANNetworks == nil {
+			t.Fatalf("owner connection %d %s %v", w.Code, w.Body, err)
 		}
 	}
 }

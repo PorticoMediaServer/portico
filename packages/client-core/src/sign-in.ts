@@ -7,16 +7,18 @@ import type {SignInKind} from './app-sessions.ts';
 export type ServerSignIn = Readonly<SystemInfo & {signIn: SignInKind}>;
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max && !/[\p{Cc}\p{Cf}]/u.test(v);
-/** A missing or unknown kind never grants a password form. No claim/Hosted inference. */
+/** A missing or unknown kind never grants a password form. No claim/Hosted inference.
+ * The exact server build is not public (O-169): the owner reads it from the
+ * authenticated updates report, so this parser never asks for it. */
 export function parseServerSignIn(raw: unknown): ServerSignIn {
-  if (!object(raw) || !text(raw.id, 256) || !text(raw.name, 120) || !text(raw.version, 256) ||
+  if (!object(raw) || !text(raw.id, 256) || !text(raw.name, 120) ||
       !['portico', 'local'].includes(String(raw.signIn)) || raw.move!==null&&!['to_portico','to_local'].includes(String(raw.move)) || typeof raw.setupRequired !== 'boolean' ||
       typeof raw.hostedConfigured !== 'boolean' || typeof raw.hostedAttached !== 'boolean' || !Number.isSafeInteger(raw.apiLevel) || (raw.apiLevel as number) < 1)
     throw new RouteError('invalid_system', 'This server did not report how to sign in.');
   if(raw.move==='to_portico'&&raw.signIn!=='portico'||raw.move==='to_local'&&raw.signIn!=='local')throw new RouteError('invalid_system','The server reported a different sign-in move.');
   const moveEndsAt=raw.moveEndsAt===undefined||raw.moveEndsAt===null?null:typeof raw.moveEndsAt==='string'&&raw.moveEndsAt.length<=64&&raw.move==='to_portico'&&Number.isFinite(Date.parse(raw.moveEndsAt))?raw.moveEndsAt:undefined;
   if(moveEndsAt===undefined)throw new RouteError('invalid_system','The server reported an unreadable move window.');
-  return Object.freeze({id: raw.id, name: raw.name, version: raw.version, signIn: raw.signIn as SignInKind,move:raw.move as ServerSignIn['move'],
+  return Object.freeze({id: raw.id, name: raw.name, signIn: raw.signIn as SignInKind,move:raw.move as ServerSignIn['move'],
     setupRequired: raw.setupRequired, hostedConfigured: raw.hostedConfigured, hostedAttached: raw.hostedAttached, apiLevel: raw.apiLevel as number, moveEndsAt,
     ...serverAPI(raw)});
 }

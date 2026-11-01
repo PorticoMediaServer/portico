@@ -47,15 +47,19 @@ func TestConnectivityUsesOwnerNetworksAndProxyChain(t *testing.T) {
 	if w := f.call("PATCH", "/v1/admin/connectivity/policy", f.owner, body); w.Code != 200 {
 		t.Fatalf("save %d %s", w.Code, w.Body)
 	}
-	r := httptest.NewRequest("GET", "http://backend/v1/networking/connection", nil)
+	r := httptest.NewRequest("GET", "http://backend/v1/admin/connectivity/status", nil)
 	r.RemoteAddr = "127.0.0.1:5"
+	r.Header.Set("Authorization", "Bearer "+f.owner)
 	r.Header.Set("X-Forwarded-For", "192.168.1.9, 203.0.113.9, 10.0.0.2")
 	w := httptest.NewRecorder()
 	f.handler.ServeHTTP(w, r)
-	var out ConnectionDocument
-	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || w.Code != 200 {
+	var status struct {
+		Connection ConnectionDocument `json:"connection"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &status); err != nil || w.Code != 200 {
 		t.Fatalf("%d %s %v", w.Code, w.Body, err)
 	}
+	out := status.Connection
 	if !out.Remote || !out.PlainHTTPOutsideHome || out.ClientAddress != "203.0.113.9" || len(out.AccessURLs) != 1 {
 		t.Fatalf("%+v", out)
 	}

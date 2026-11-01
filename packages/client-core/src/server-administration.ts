@@ -93,9 +93,11 @@ export type CustomCertificateStatus=Readonly<{serving:boolean;state:'none'|'read
 export type ConnectivityTLS=Readonly<{configured:boolean;state?:string;errorCode?:string;dnsName?:string;issuer?:string;
  notAfter?:string;tlsReady:boolean;publiclyTrusted:boolean;listenerBound:boolean;listenPort:number;routeUrl?:string;reachability?:string;customCertificate?:CustomCertificateStatus}>;
 export type ConnectivityDiscovery=Readonly<{enabled:boolean;supported:boolean;state:DiscoveryState;detail?:string;serviceType?:string}>;
-export type ConnectionDocument=Readonly<{secure:boolean;remote:boolean;plainHttpOutsideHome:boolean;clientAddress:string;accessUrls:readonly string[];
- /** The owner's LAN networks (the one definition of home) and "Secure connections", when the server says. */
- lanNetworks?:readonly string[];secureConnections?:'preferred'|'required'}>;
+/** What any caller may learn about its own connection before sign-in (O-169). */
+export type ConnectionFacts=Readonly<{secure:boolean;remote:boolean;plainHttpOutsideHome:boolean;secureConnections?:'preferred'|'required'}>;
+export type ConnectionDocument=ConnectionFacts&Readonly<{clientAddress:string;accessUrls:readonly string[];
+ /** The owner's LAN networks (the one definition of home), when the server says. */
+ lanNetworks?:readonly string[]}>;
 export type ConnectivityStatus=Readonly<{connection:ConnectionDocument;observedAt:string;policy:ConnectivityPolicy;tls:ConnectivityTLS;discovery:ConnectivityDiscovery;
  identityCode?:string;localUrl?:string;addresses:readonly ConnectivityAddress[];interfaces:readonly ConnectivityInterface[];warnings:readonly string[];omittedAddresses:number;omittedInterfaces:number}>;
 export type AdministrationPage<T>=Readonly<{limit:number;nextCursor:string;items:readonly T[]}>;
@@ -405,17 +407,28 @@ export function parseLogEvent(data:string):LogRecord{
 
 const NO_CONNECTION_FACTS:ConnectionDocument=Object.freeze({secure:false,remote:false,plainHttpOutsideHome:false,clientAddress:'',accessUrls:Object.freeze([])});
 /**
- * What the server says about the connection a request arrived on. Every fact is only shown: a
- * yes/no that is missing or not a yes/no reads as no, an address that cannot be read as none, and
- * an advertised address that cannot be read is left out alone. Plain HTTP outside the home
- * networks is never claimed for a connection the server calls secure. The bound of 16 addresses is exact.
+ * What the server says about the connection a request arrived on (the public
+ * route). Every fact is only shown: a yes/no that is missing or not a yes/no
+ * reads as no, and plain HTTP outside the home networks is never claimed for a
+ * connection the server calls secure.
+ */
+export function parseConnectionFacts(raw:unknown):ConnectionFacts {
+ if(!obj(raw))return invalid();
+ const secure=raw.secure===true;
+ return Object.freeze({secure,remote:raw.remote===true,plainHttpOutsideHome:raw.plainHttpOutsideHome===true&&!secure,
+  ...(raw.secureConnections==='preferred'||raw.secureConnections==='required'?{secureConnections:raw.secureConnections}:{})});
+}
+/**
+ * The owner's fuller connection document (the connectivity status). It adds
+ * the caller's address and the server's advertised addresses to the public
+ * facts; an address that cannot be read as none, and an advertised address
+ * that cannot be read is left out alone. The bound of 16 addresses is exact.
  */
 export function parseConnectionDocument(raw:unknown):ConnectionDocument {
  if(!obj(raw))return invalid();
- const secure=raw.secure===true;
+ const facts=parseConnectionFacts(raw);
  const address=typeof raw.clientAddress==='string'&&raw.clientAddress.length<=128&&!/[\x00-\x1f]/.test(raw.clientAddress)?raw.clientAddress:'';
  const offered=raw.accessUrls===undefined||raw.accessUrls===null?[]:raw.accessUrls;if(!Array.isArray(offered)||offered.length>16)return invalid();
- return Object.freeze({secure,remote:raw.remote===true,plainHttpOutsideHome:raw.plainHttpOutsideHome===true&&!secure,clientAddress:address,accessUrls:Object.freeze(keepReadable('server-administration','connection.accessUrls',offered,x=>typeof x==='string'&&x.length>0&&x.length<=300&&!/[\x00-\x1f]/.test(x)?x:undefined)),
-  ...(Array.isArray(raw.lanNetworks)&&raw.lanNetworks.length<=64?{lanNetworks:Object.freeze(raw.lanNetworks.filter((x):x is string=>typeof x==='string'&&!!parseCIDR(x)))}:{}),
-  ...(raw.secureConnections==='preferred'||raw.secureConnections==='required'?{secureConnections:raw.secureConnections}:{})});
+ return Object.freeze({...facts,clientAddress:address,accessUrls:Object.freeze(keepReadable('server-administration','connection.accessUrls',offered,x=>typeof x==='string'&&x.length>0&&x.length<=300&&!/[\x00-\x1f]/.test(x)?x:undefined)),
+  ...(Array.isArray(raw.lanNetworks)&&raw.lanNetworks.length<=64?{lanNetworks:Object.freeze(raw.lanNetworks.filter((x):x is string=>typeof x==='string'&&!!parseCIDR(x)))}:{})});
 }

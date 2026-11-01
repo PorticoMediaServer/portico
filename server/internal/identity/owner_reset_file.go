@@ -6,11 +6,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/authorityfiles"
 	"io"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/authorityfiles"
-	"runtime"
 	"strings"
 	"time"
 
@@ -35,10 +34,12 @@ func (e *ownerResetFileWriteError) Is(target error) bool { return target == ErrO
 type OwnerResetRequest struct {
 	Username string `json:"username,omitempty"`
 }
+
+// OwnerResetLocation is the whole public answer to a reset-file request
+// (O-169): the file's fixed name and how long until another can be written.
+// The operating system and the data and key directories never leave the
+// server; published here they would fingerprint it for a scanner.
 type OwnerResetLocation struct {
-	SystemKind        string `json:"systemKind"`
-	DataDirectory     string `json:"dataDirectory"`
-	FileDirectory     string `json:"fileDirectory"`
 	FileName          string `json:"fileName"`
 	RetryAfterSeconds int64  `json:"retryAfterSeconds"`
 }
@@ -58,18 +59,11 @@ type MemberResetVerify struct {
 
 // ConfigureResetFile binds the actual portable layout, before routes are exposed.
 // No location is written into the database. The caller supplies Layout.Keys.
-func (s *Service) ConfigureResetFile(data, keys string, container bool) error {
+func (s *Service) ConfigureResetFile(data, keys string) error {
 	if !filepath.IsAbs(data) || !filepath.IsAbs(keys) || filepath.Clean(data) == string(filepath.Separator) || filepath.Clean(keys) != filepath.Join(filepath.Clean(data), "Keys") {
 		return errors.New("invalid reset file directory")
 	}
-	s.resetData, s.resetDir = filepath.Clean(data), filepath.Clean(keys)
-	s.resetSystem = runtime.GOOS
-	if s.resetSystem == "darwin" {
-		s.resetSystem = "macos"
-	}
-	if container {
-		s.resetSystem = "docker"
-	}
+	s.resetDir = filepath.Clean(keys)
 	return nil
 }
 
@@ -199,7 +193,7 @@ func (s *Service) removeResetFile() error {
 // RequestOwnerReset ignores the alleged username: the same private owner file
 // and public response are produced for every input, without account enumeration.
 func (s *Service) RequestOwnerReset(ctx context.Context, _ OwnerResetRequest) (OwnerResetLocation, error) {
-	out := OwnerResetLocation{SystemKind: s.resetSystem, DataDirectory: s.resetData, FileDirectory: s.resetDir, FileName: resetFileName, RetryAfterSeconds: resetReissueSeconds}
+	out := OwnerResetLocation{FileName: resetFileName, RetryAfterSeconds: resetReissueSeconds}
 	err := dbwork.WithWriteTx(ctx, s.db, dbwork.ClassSecurityFence, func(tx *sql.Tx) error {
 		now := time.Now().Unix()
 		var issued int64

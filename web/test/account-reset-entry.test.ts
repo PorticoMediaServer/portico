@@ -28,7 +28,7 @@ function fixture(kind: 'local' | 'portico' = 'local') {
   api.request = (async (path, _method, body) => {
     calls.push({path, body});
     if (path === '/v1/system') return system;
-    if (path === '/v1/auth/owner-reset/request') return {systemKind: 'linux', dataDirectory: '/fixture/state', fileDirectory: '/fixture/state', fileName: 'reset-code.txt', retryAfterSeconds: 1};
+    if (path === '/v1/auth/owner-reset/request') return {fileName: 'reset-code.txt', retryAfterSeconds: 1};
     if (path === '/v1/auth/owner-reset/verify' || path === '/v1/direct/password/reset') {if (verifyGate) await verifyGate; return {variant: 'password-change', ...grant(true)};}
     if (path === '/v1/direct/sign-in') return twoStep ? {challenge: {token: 'actual-factor-challenge', expiresAt: '2099-01-01T00:00:00Z'}} : grant(false);
     if (path === '/v1/auth/two-factor/challenge') return grant(false);
@@ -61,9 +61,9 @@ test('member reset spends its restricted grant only on password change, retires 
   assert.deepEqual(f.calls[2].body, {currentPassword: '', newPassword: 'ordinary-new-password', code: '123456'});
   assert.deepEqual(f.installed, ['ordinary-access']); assert.deepEqual(f.admitted, ['ordinary-family']); assert.deepEqual(f.retired, ['restricted-family']); f.entry.dispose();
 });
-test('owner reset location is an actual public path, never a code readback or admission', async () => {
+test('owner reset location is only the file name and wait, never a path, code readback or admission', async () => {
   const f = fixture(); await f.entry.inspect(origin); const location = await f.entry.requestLocalResetFile('actual_user');
-  assert.deepEqual(location, {systemKind: 'linux', dataDirectory: '/fixture/state', fileDirectory: '/fixture/state', fileName: 'reset-code.txt', retryAfterSeconds: 1});
+  assert.deepEqual(location, {fileName: 'reset-code.txt', retryAfterSeconds: 1});
   assert.equal('code' in location!, false); assert.deepEqual(f.admitted, []); assert.deepEqual(f.installed, []); f.entry.dispose();
 });
 test('Local owner code proof checks the owner role and leaves ordinary admission to sign-in', async () => {

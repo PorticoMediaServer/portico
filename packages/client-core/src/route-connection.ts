@@ -41,8 +41,9 @@ export interface RouteConnectionOptions {
  /** This device's insecure-connection setting and platform, read at every race. */
  policy?:()=>ConnectionPolicy;
  /** Reads `/v1/networking/connection` at an origin without credentials. When supplied, the chosen
-  * route's facts are read in the background (connection details, LAN networks, Secure connections);
-  * an insecure route's confirmation falls back to `fetcher` without it. */
+  * route's facts are read in the background (home or away, Secure connections); a stored policy's
+  * LAN networks are still honoured, though the public answer no longer publishes them (O-169).
+  * An insecure route's confirmation falls back to `fetcher` without it. */
  readConnection?:(origin:string,signal:AbortSignal)=>Promise<unknown>;
 }
 /** The facts of `/v1/networking/connection` this connection uses. A missing or unreadable answer

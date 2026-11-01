@@ -6,9 +6,9 @@
  * the app never guesses from an address. The line says where the owner turns on a secure
  * connection (Server settings › Remote access); there is no help page to send anyone to.
  */
-import type {ConnectionDocument} from './server-administration.ts';
+import type {ConnectionFacts} from './server-administration.ts';
 
-export interface ConnectionReader { connection(signal?: AbortSignal): Promise<ConnectionDocument> }
+export interface ConnectionReader { connection(signal?: AbortSignal): Promise<ConnectionFacts> }
 
 /**
  * Whether to show the line. It is only ever a note: any failure to find out (an older server, a

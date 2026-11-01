@@ -126,7 +126,7 @@ export function createShellFactOwner(o: Readonly<{
       if (!sameRequest(captured, context.signal)) return {kind:'superseded'};
       if (shellProofChanged(initial, {system}, admitted.viewer.profileId)) {o.retire(); return {kind:'superseded'};}
       return await publish(context, captured, () => source.update({serverName:system.name,
-        identity:{...source.getSnapshot().identity, serverName:system.name, serverVersion:system.version, serverApiVersion:system.apiVersion}}));
+        identity:{...source.getSnapshot().identity, serverName:system.name, serverApiVersion:system.apiVersion}}));
     } catch (error) {return failed(error);}
   });
   const serverGuide = add('server-guide', [dependsOn.settings('server')], async context => {

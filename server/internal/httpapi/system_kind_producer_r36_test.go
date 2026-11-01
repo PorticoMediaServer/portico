@@ -39,7 +39,8 @@ func TestSystemKindProducerUsesCanonicalSetupAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		// O-159 adds the negotiation facts: apiVersion, apiMajors and capabilities.
-		if len(fields) != 13 {
+		// O-169 removes the exact build version: twelve fields remain.
+		if len(fields) != 12 {
 			t.Fatalf("unexpected public fields: %v", fields)
 		}
 		for _, key := range []string{"apiVersion", "apiMajors", "capabilities"} {

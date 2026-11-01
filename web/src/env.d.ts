@@ -4,8 +4,6 @@ interface ImportMetaEnv {
   readonly VITE_ACCOUNT_WORKSPACE?: string;
   readonly VITE_HOSTED_URL?: string;
   readonly VITE_APP_VERSION?: string;
-  /** O-159: the commit this web build came from, stamped at build time; shown in About. */
-  readonly VITE_BUILD_ID?: string;
   readonly VITE_CAST_APPLICATION_ID?: string;
   readonly VITE_SERVER_URL?: string;
 }

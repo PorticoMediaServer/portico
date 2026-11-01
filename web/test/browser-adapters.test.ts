@@ -82,6 +82,6 @@ test('account coordination storage recovers malformed metadata without retaining
   raw=JSON.stringify({version:1,revocations:[{familyId:'successor-family'}]});
   storage.repair(); assert.deepEqual(await storage.load(),{version:1,revocations:[{familyId:'successor-family'}]});
 });
-test('hosted flags retain explicit workspace, origin and build metadata', () => {
-  assert.deepEqual(webEnvironment({VITE_HOSTED_WEB: 'true', VITE_ACCOUNT_WORKSPACE: 'true', VITE_HOSTED_URL: 'https://accounts.example', VITE_APP_VERSION: 'test', VITE_BUILD_ID: 'abc123def', VITE_CAST_APPLICATION_ID: 'cast'}, {hostname: 'custom.example', origin: 'https://custom.example'}), {hostedWeb: true, accountWorkspace: true, hostedUrl: 'https://accounts.example', appVersion: 'test', buildId: 'abc123def', castApplicationId: 'cast'});
+test('hosted flags retain explicit workspace and app version, and no build id is served', () => {
+  assert.deepEqual(webEnvironment({VITE_HOSTED_WEB: 'true', VITE_ACCOUNT_WORKSPACE: 'true', VITE_HOSTED_URL: 'https://accounts.example', VITE_APP_VERSION: 'test', VITE_CAST_APPLICATION_ID: 'cast'}, {hostname: 'custom.example', origin: 'https://custom.example'}), {hostedWeb: true, accountWorkspace: true, hostedUrl: 'https://accounts.example', appVersion: 'test', castApplicationId: 'cast'});
 });

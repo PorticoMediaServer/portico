@@ -16,15 +16,15 @@ function About() {
   const [licenses, setLicenses] = useState(false);
   if (!captured) return null;
   const identity = captured.context.facts.identity;
-  const {appVersion: version, buildId} = currentWebEnvironment();
+  // O-169 (C7): no build id and no server build are served before sign-in; the
+  // owner reads the exact build in Settings › Server › General › Updates.
+  const {appVersion: version} = currentWebEnvironment();
   return <main className={styles.page}>
     <Button variant="text" icon="i-left" onClick={() => {void router.navigate({to: '/settings', search: {scope: 'account', section: 'device'}});}}>{t('next.settingsSpec.account.device.title')}</Button>
     <h1>{t('settings.about')}</h1><p className={styles.lede}>{t('licenses.portico.body')}</p>
     <dl className={styles.box}>
       <div><dt>{t('web.about.webApp')}</dt><dd>{version || t('next.states.versionNotRecorded')}</dd></div>
-      {buildId && <div><dt>{t('web.about.build')}</dt><dd>{buildId}</dd></div>}
       <div><dt>{t('web.about.server')}</dt><dd>{identity.serverName}</dd></div>
-      <div><dt>{t('web.about.serverVersion')}</dt><dd>{identity.serverVersion || t('next.states.versionNotRecorded')}</dd></div>
       {identity.serverApiVersion && <div><dt>{t('web.about.serverApi')}</dt><dd>{identity.serverApiVersion}</dd></div>}
     </dl>
     <section className={styles.box}>

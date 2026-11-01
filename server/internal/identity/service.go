@@ -109,7 +109,7 @@ type Service struct {
 	profilePurgeWake *worker.Signal
 
 	PrepareIdentityDeparture         func(context.Context, string) (*DepartureNotice, error)
-	resetData, resetDir, resetSystem string
+	resetDir                         string
 	resetIO                          *resetFileOperations
 	db                               *sql.DB
 	serverID, setupPath              string
@@ -192,7 +192,7 @@ func New(db *sql.DB, state string) (*Service, error) {
 	if err := prepareResetDirectory(keys); err != nil {
 		return nil, err
 	}
-	if err := s.ConfigureResetFile(state, keys, false); err != nil {
+	if err := s.ConfigureResetFile(state, keys); err != nil {
 		return nil, err
 	}
 	if err := s.initSetupHashKey(state); err != nil {

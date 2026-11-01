@@ -23,7 +23,7 @@ import {routePath as hostedRoutePath} from "../../contracts/src/hosted/routes.ts
 import {routePrefix, apiRoot} from "../../contracts/src/routes.ts";
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {parseMediaItem} from './media-item.ts';
-import {parseConnectionDocument,type ConnectionDocument} from './server-administration.ts';
+import {parseConnectionFacts,type ConnectionFacts} from './server-administration.ts';
 import {trackName} from './presentation/language.ts';
 import {randomId} from './random-id.ts';
 import {routeOrigin} from './route-identity.ts';
@@ -977,8 +977,8 @@ export class HttpLocalApi {
     }
     return response.status === 204 ? (undefined as T) : response.json();
   }
-  connection(signal?:AbortSignal):Promise<ConnectionDocument> {
-    return this.request<RouteResponse<"get_connection">>(routePath("get_connection"),"GET",undefined,signal).then(parseConnectionDocument);
+  connection(signal?:AbortSignal):Promise<ConnectionFacts> {
+    return this.request<RouteResponse<"get_connection">>(routePath("get_connection"),"GET",undefined,signal).then(parseConnectionFacts);
   }
   system() {
     return this.request<SystemInfo>(routePath("get_system"));
