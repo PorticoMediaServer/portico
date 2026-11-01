@@ -714,12 +714,37 @@ func BuildWithConfig(ctx context.Context, shape Shape, config Config, destinatio
 		if openErr != nil {
 			return libraries, openErr
 		}
-		if libraries, err = GenerateWithConfig(ctx, db, shape, config, report); err != nil {
-			db.Close()
-			_ = os.Remove(staging)
-			return libraries, err
-		}
-		if err = Verify(ctx, db); err != nil {
+		err = func() error {
+			// Offline fixtures need the checkpoint supervisor that the running
+			// server supplies, including through derivation and planner setup.
+			checkpointCtx, cancel := context.WithCancel(ctx)
+			schedule, err := dbwork.NewCheckpointSchedule(checkpointCtx, db)
+			if err != nil {
+				cancel()
+				return err
+			}
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				ticker := time.NewTicker(100 * time.Millisecond)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-checkpointCtx.Done():
+						return
+					case <-ticker.C:
+						schedule.Tick(checkpointCtx)
+					}
+				}
+			}()
+			defer func() { cancel(); <-done }()
+			var generateErr error
+			if libraries, generateErr = GenerateWithConfig(ctx, db, shape, config, report); generateErr != nil {
+				return generateErr
+			}
+			return Verify(ctx, db)
+		}()
+		if err != nil {
 			db.Close()
 			_ = os.Remove(staging)
 			return libraries, err
