@@ -151,11 +151,11 @@ meson() { printf 'meson:%s;TMPDIR=%s\\n' "$*" "$TMPDIR"; return 23; }
             (root / 'Dockerfile').write_text('FROM compiler AS base-layer\nFROM base-layer AS dep\n'
                 'RUN --mount=src=source,dst=/source build\n')
             results = {'base-layer': {'key': 'parent'}}
-            before = engine.stage_key(root, 'dep', ['base-layer'], 'compiler', results)
+            before = engine.stage_key(root, 'dep', ['base-layer'], 'sha256:' + 'a' * 64, results)
             (root / 'unrelated').write_text('changed')
-            self.assertEqual(before, engine.stage_key(root, 'dep', ['base-layer'], 'compiler', results))
+            self.assertEqual(before, engine.stage_key(root, 'dep', ['base-layer'], 'sha256:' + 'a' * 64, results))
             (root / 'source').write_text('changed')
-            self.assertNotEqual(before, engine.stage_key(root, 'dep', ['base-layer'], 'compiler', results))
+            self.assertNotEqual(before, engine.stage_key(root, 'dep', ['base-layer'], 'sha256:' + 'a' * 64, results))
 
     def test_cache_bound_preserves_noncache_evidence(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as temp:

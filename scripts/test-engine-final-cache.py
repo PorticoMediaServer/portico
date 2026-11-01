@@ -66,7 +66,7 @@ EOF
             (self.recipe / name).write_text('first')
         results = {'portico-dependency-prefix': {'key': 'first-dependencies'}}
         def key():
-            return runner.stage_key(self.recipe, 'portico-ffmpeg', graph['portico-ffmpeg'], 'compiler', results)
+            return runner.stage_key(self.recipe, 'portico-ffmpeg', graph['portico-ffmpeg'], 'sha256:' + 'a' * 64, results)
         before = key()
         (self.recipe / 'unrelated').write_text('packaging only')
         self.assertEqual(before, key())
