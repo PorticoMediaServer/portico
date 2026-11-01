@@ -17,7 +17,10 @@ test('published acceptance decoder and client consume actual producer states',()
  const directory=mkdtempSync(join(tmpdir(),'portico-invitation-contract-'));
  try {
   const path=join(directory,'responses.json');
-  execFileSync('go',['test','./internal/httpapi','-run','^TestInvitationAcceptanceProducerContract$','-count=1'],{
+  const binary=process.env.PORTICO_HTTPAPI_PRODUCER_BINARY;
+  execFileSync(binary??'go',binary
+   ? ['-test.run','^TestInvitationAcceptanceProducerContract$','-test.count=1']
+   : ['test','./internal/httpapi','-run','^TestInvitationAcceptanceProducerContract$','-count=1'],{
    cwd:fileURLToPath(new URL('../../../server/',import.meta.url)),
    env:{...process.env,PORTICO_TEST_INVITATION_RESPONSES:path},
    timeout:120_000,stdio:'pipe',
