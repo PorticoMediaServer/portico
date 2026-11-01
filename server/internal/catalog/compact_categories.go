@@ -119,8 +119,12 @@ func (s *Service) compactFilteredMovieCategories(r ContentRequest) ([]Category, 
 	where := `cm.library_id=? AND NOT EXISTS(SELECT 1 FROM dvr_catalog_retirements d WHERE d.item_id=cm.item_id)`
 	args := []any{libraryID}
 	if r.Q != "" {
-		where += ` AND cm.title LIKE ? ESCAPE '\'`
-		args = append(args, searchPrefix(r.Q))
+		// The LIKE keeps the filter's meaning. The NOCASE range is what lets the
+		// title index narrow to the prefix: plans never read a bound pattern
+		// (the driver's planner stability guarantee). NOCASE and LIKE both fold
+		// ASCII case only, so every match lies inside the range.
+		where += ` AND cm.title LIKE ? ESCAPE '\' AND cm.title COLLATE NOCASE>=? AND cm.title COLLATE NOCASE<?`
+		args = append(args, searchPrefix(r.Q), r.Q, r.Q+"\U0010FFFF")
 	}
 	if r.EntityID != "" {
 		where += ` AND EXISTS(SELECT 1 FROM catalog_collection_members member WHERE member.item_id=cm.item_id AND member.collection_id=(SELECT id FROM catalog_entities WHERE public_id=pid_blob(?) AND kind=10))`
