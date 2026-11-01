@@ -20,16 +20,19 @@ if target.startswith('windows'):
 if target == 'linux-arm64':
     flags += ' --enable-rkmpp --enable-rkrga --enable-v4l2-m2m'
 if target.startswith('macos'):
+    import runpy
+    mac_source = runpy.run_path(str(root / 'scripts/macos-ffmpeg-source.py'))
     flags += ' --enable-videotoolbox --enable-metal --enable-libzvbi'
     # Extras are built from the pinned source recipes into this private prefix.
     build = recipe / 'build-ffmpeg'
     text = build.read_text()
     marker = 'build "ffmpeg" "${FFMPEG_VERSION}"'
-    addition = 'source "${CWD}/portico-macos-extras.sh"\nCONFIGURE_OPTIONS+=(' + ' '.join('"' + x + '"' for x in flags.split()) + ')\n'
+    addition = mac_source['extras_block']() + 'CONFIGURE_OPTIONS+=(' + ' '.join('"' + x + '"' for x in flags.split()) + ')\n'
     if marker not in text:
         raise ValueError('macOS recipe changed')
     text = text.replace(marker, addition + marker, 1)
     build.write_text(text)
+    mac_source['configure'](recipe)
     import subprocess
     subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'macos-timing', '--recipe', recipe,
                     '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt'], check=True)
@@ -38,6 +41,7 @@ if target.startswith('macos'):
     shutil.copy2(root / 'scripts/build-macos-ffmpeg-extras.sh', recipe / 'portico-macos-extras.sh')
     shutil.copy2(root / 'scripts/build-macos-zvbi.sh', recipe / 'portico-build-macos-zvbi.sh')
     shutil.copy2(root / 'scripts/configure-macos-shaderc.py', recipe / 'portico-configure-macos-shaderc.py')
+    shutil.copy2(root / 'scripts/macos-ffmpeg-source.py', recipe / 'portico-macos-ffmpeg-source.py')
     extra_pin = json.loads((root / 'third_party/ffmpeg/sources.lock.json').read_text())['macosRecipe']['extrasLock']
     if hashlib.sha256((root / extra_pin['path']).read_bytes()).hexdigest() != extra_pin['sha256']:
         raise ValueError('Checked Mac extras source lock changed')

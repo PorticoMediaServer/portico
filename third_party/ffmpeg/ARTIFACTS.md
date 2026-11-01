@@ -240,3 +240,13 @@ is an annotated tag, HEAD must equal the commit peeled from that exact object;
 no floating tag name or fallback is used. Corresponding source records the
 original object, object type, checked-out commit and repository. A different
 existing checkout is refused. This changes no source pin or selected bytes.
+
+Mac extras execute in an unconditional subshell: their strict options, build
+directory and tool environment do not leak into Homebridge's remaining code,
+and their nonzero status still stops the parent. The final FFmpeg download is
+replaced with the already checked, post-series patched source archive, copied
+read-only under its SHA-256 filename. Its receipt binds the archive to the exact
+source lock; absence or mutation refuses before any upstream download. The
+recipe, receipt, original prepared archive and checking script remain in full
+corresponding source. A hosted control runs the actual pinned download function
+against an inert prepared-source sentinel and proves there is no fallback.

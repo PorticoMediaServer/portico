@@ -47,6 +47,7 @@ jobs:
           python scripts/test-ffmpeg-build-tools.py
           python scripts/test-native-rust-tools.py
           python scripts/test-macos-source-checkout.py
+          python scripts/test-macos-ffmpeg-source.py
           python scripts/test-macos-shaderc.py
           python scripts/test-macos-engine-runtime.py
           python scripts/test-macos-libdovi.py
