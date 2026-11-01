@@ -46,6 +46,7 @@ jobs:
           python scripts/test-ci-ffmpeg-toolchain.py
           python scripts/test-ffmpeg-build-tools.py
           python scripts/test-native-rust-tools.py
+          python scripts/test-macos-engine-runtime.py
           python scripts/test-macos-libdovi.py
           python scripts/test-macos-zvbi.py
           python scripts/test-libdovi-runtime-inventory.py
