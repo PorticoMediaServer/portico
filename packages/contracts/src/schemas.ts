@@ -42180,6 +42180,12 @@ export const schemas = {
   },
   "GetConnectionResponse": {
     "properties": {
+      "lanNetworks": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
       "plainHttpOutsideHome": {
         "type": "boolean"
       },
@@ -210739,6 +210745,9 @@ export const schemas = {
           "portico",
           "local"
         ],
+        "type": "string"
+      },
+      "version": {
         "type": "string"
       }
     },

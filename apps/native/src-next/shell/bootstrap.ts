@@ -223,6 +223,9 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     api.setDeviceClass(Platform.isTV ? 'television' : 'mobile');
     const local = api;
     trackNativeConnection(local);
+    // O-169: signed in, the server gives the owner's home networks; the route connection keeps
+    // them, so a VPN or tailnet range the owner added counts as home for routing from now on.
+    void local.connection(signal.signal).then(facts => local.getRouteConnection()?.learnSignedInFacts(facts), () => {});
     // Any screen's request refused for a PIN changed elsewhere asks for the PIN, as the shell's own reads do.
     // Only a request sent with this shell's sign-in counts: its first token or one it renewed in
     // place (same viewer). A switch builds a new shell, so a late reply from before can't gate it.

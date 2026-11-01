@@ -27,6 +27,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/access"
 	"github.com/PorticoMediaServer/portico/server/internal/administration"
 	"github.com/PorticoMediaServer/portico/server/internal/backup"
+	"github.com/PorticoMediaServer/portico/server/internal/buildinfo"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/downloads"
@@ -764,6 +765,16 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 // three see one state rather than three consecutive ones. The snapshot is bound
 // by the request context, so the lane's budget reaches authentication instead of
 // stopping at the handler door.
+// signedIn reports a caller with a valid session, for public routes that tell
+// a signed-in person a little more than anyone else (O-169).
+func (d Dependencies) signedIn(r *http.Request) bool {
+	if d.Identity == nil || !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+		return false
+	}
+	_, err := d.resolvePrincipal(r)
+	return err == nil
+}
+
 func (d Dependencies) principal(r *http.Request) (identity.Principal, error) {
 	p, err := d.resolvePrincipal(r)
 	if err == nil {
@@ -1065,7 +1076,12 @@ func New(d Dependencies) http.Handler {
 			value := ends.Format(time.RFC3339)
 			moveEnds = &value
 		}
-		write(w, 200, systemAPI(SystemInfo{Move: move, MoveEndsAt: moveEnds, ID: d.Identity.ID(), Name: d.Identity.Name(), SignIn: kind, SetupRequired: d.Identity.SetupRequired(), HostedConfigured: d.Hosted != nil && d.Hosted.Configured(), HostedAttached: d.Identity.Hosted()}))
+		info := SystemInfo{Move: move, MoveEndsAt: moveEnds, ID: d.Identity.ID(), Name: d.Identity.Name(), SignIn: kind, SetupRequired: d.Identity.SetupRequired(), HostedConfigured: d.Hosted != nil && d.Hosted.Configured(), HostedAttached: d.Identity.Hosted()}
+		// The version is for people who are signed in (O-169), never before.
+		if d.signedIn(r) {
+			info.Version = buildinfo.Info()["version"]
+		}
+		write(w, 200, systemAPI(info))
 	})
 	d.httpHandle(mux, "GET /v1/me", func(w http.ResponseWriter, r *http.Request) {
 		p, e := d.principal(r)

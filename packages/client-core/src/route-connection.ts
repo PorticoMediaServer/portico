@@ -168,6 +168,10 @@ export class RouteConnection {
  /** The policy and server facts every decision reads. */
  private connectionPolicy():ConnectionPolicy{try{return this.options.policy?.()??DEFAULT_CONNECTION_POLICY;}catch{return DEFAULT_CONNECTION_POLICY;}}
  private serverPolicy():ServerNetworkPolicy|undefined{return this.memory.policy;}
+ /** A signed-in read of `/v1/networking/connection` (O-169): the server gives a signed-in caller
+  * the owner's home networks, so a VPN or tailnet range the owner added counts as home for
+  * routing from the first sign-in on. An unreadable answer leaves the remembered policy as it was. */
+ learnSignedInFacts(raw:unknown){if(!this.disposed)this.learnPolicy(parseNetworkFacts(raw).policy);}
  private learnPolicy(policy:ServerNetworkPolicy){
   const next:RememberedNetworkPolicy={...(policy.lanNetworks?{lanNetworks:[...policy.lanNetworks]}:this.memory.policy?.lanNetworks?{lanNetworks:this.memory.policy.lanNetworks}:{}),...(policy.secureConnections?{secureConnections:policy.secureConnections}:this.memory.policy?.secureConnections?{secureConnections:this.memory.policy.secureConnections}:{}),observedAt:new Date().toISOString()};
   this.memory={...this.memory,policy:next};this.save();

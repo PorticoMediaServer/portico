@@ -213,9 +213,11 @@ func (d Dependencies) compatibilityInfo(r *http.Request) (map[string]any, error)
 	if err != nil {
 		return nil, err
 	}
-	// The exact build is not published before sign-in (O-169): a compatibility
-	// client only needs a version it can read, so it gets a fixed placeholder.
-	const version = "0.0.0+portico"
+	// The exact build is not published before sign-in (O-169). Compatibility
+	// clients read this as a Jellyfin server version, and the Jellyfin SDKs
+	// treat anything older than 10.10.0 as unsupported, so it is that fixed
+	// version (docs/integrations.md).
+	const version = "10.10.0"
 	return map[string]any{"Id": guid, "ServerName": doc["name"], "Name": doc["name"], "Version": version, "ProductName": "Portico", "StartupWizardCompleted": doc["setupRequired"] == false, "SupportsLocalPorticoIntegrations": true}, nil
 }
 func (d Dependencies) compatibilityUser(r *http.Request, native map[string]any) (map[string]any, error) {

@@ -6,7 +6,7 @@ import {candidateAllowed,castOrigin,connectionDetails,connectionStatusKey,derive
 import {MAX_ROUTE_CANDIDATES,RouteError,privateRouteHost,verifyRoutes,type RouteCandidate} from '../src/route-identity.ts';
 import {RouteConnection,parseNetworkFacts} from '../src/route-connection.ts';
 import {serverAddressCandidates} from '../src/server-address.ts';
-import {parseConnectionDocument} from '../src/server-administration.ts';
+import {parseConnectionDocument,parseConnectionFacts} from '../src/server-administration.ts';
 
 const keys=generateKeyPairSync('ed25519');
 const rawKey=keys.publicKey.export({format:'der',type:'spki'}).subarray(-32);
@@ -276,4 +276,21 @@ test('Secure connections: read from the policy (Preferred by default), bound to 
  assert.deepEqual(settingsBinding('remote.secureConnections'),{form:'connectivity',key:'secureConnections'});
  assert.equal(settingsChangeConfirmation('remote.secureConnections','required','preferred'),'settings.confirm.remoteAccess');
  assert.equal(settingsChangeConfirmation('remote.secureConnections','preferred','required'),undefined);
+});
+
+test('O-169: a signed-in connection read teaches the owner\'s home networks, so a tailnet route counts as home', async () => {
+ const verified=await verify([auto('public','203.0.113.20')]);
+ const connection=new RouteConnection({pin:verified.document,logicalOrigin:verified.document.candidates[0]!.baseUrl,memory:{current:verified,paired:[]},
+  policy:()=>({insecure:'local',platform:'native'}),readConnection:async()=>({remote:true}),probe:(async()=>verified.document) as never});
+ try{
+  // Before sign-in the public answer carries no home networks: a tailnet address is not home.
+  assert.equal(isLocalHost('100.101.102.103',connection.getMemory().policy),false);
+  // Signed in, the server's answer names them; the connection keeps them.
+  connection.learnSignedInFacts(parseConnectionFacts({secure:true,remote:true,plainHttpOutsideHome:false,lanNetworks:['192.168.1.0/24','100.64.0.0/10']}));
+  assert.deepEqual(connection.getMemory().policy?.lanNetworks,['192.168.1.0/24','100.64.0.0/10']);
+  assert.equal(isLocalHost('100.101.102.103',connection.getMemory().policy),true);
+  // A later answer without them (a public read) keeps what was learned.
+  connection.learnSignedInFacts({secure:true,remote:true});
+  assert.deepEqual(connection.getMemory().policy?.lanNetworks,['192.168.1.0/24','100.64.0.0/10']);
+ }finally{connection.dispose();}
 });

@@ -27,7 +27,7 @@ import {PendingChanges, type PendingChangesBinding} from './PendingChanges';
 import {ConnectionAway} from './ConnectionAway';
 
 export type ShellIdentity = Readonly<{
-  viewer: Viewer; signIn?:SignInKind; capabilities?:ManagementCapabilities; username?: string; profileName: string; profileArt?: ProfileTone; serverName: string; /** O-159: the server's `apiVersion` (major.minor), shown in About. */ serverApiVersion?: string;
+  viewer: Viewer; signIn?:SignInKind; capabilities?:ManagementCapabilities; username?: string; profileName: string; profileArt?: ProfileTone; serverName: string; serverVersion?: string; /** O-159: the server's `apiVersion` (major.minor), shown in About. */ serverApiVersion?: string;
   primaryProfile?: boolean; profiles: readonly ProfileIdentity[]; canManageProfiles: boolean; accountFacts: readonly FactPart[];
   libraries: readonly Library[]; liveAvailable: boolean; unread: number; showNotificationDot: boolean;
   /** The library directory did not answer (a timeout, a busy server). `libraries` is then not known
