@@ -160,10 +160,6 @@ func TestSelectionBatchLargeScalarIsTransient(t *testing.T) {
 }
 
 func TestBulkSelectionCompleteWitnessDrift(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
-	}
-
 	s, scheduler, p, v, access, c, names := bulkFixture(t, 205)
 	yes := true
 	in := JobRequest{OperationID: "predicate-drift", Command: "personal-state", Selector: JobSelector{Container: &JobContainer{Kind: "show", ID: names["show"].Public}}, Args: JobPersonalArgs{Favorite: &yes}}
@@ -189,7 +185,7 @@ func TestBulkSelectionCompleteWitnessDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Exec(`INSERT INTO content_rating_ages(value_key,minimum_age) VALUES('new-classification-input',18)`)
+	c.Exec(`UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1`)
 	after, err = readFence()
 	if err != nil {
 		t.Fatal(err)

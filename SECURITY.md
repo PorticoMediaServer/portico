@@ -25,7 +25,8 @@ This section is about how Portico behaves by design, so you can set it up safely
   - **Standard**: from outside, Portico answers at any address, with or without TLS.
 - At home, the "Secure connections" setting decides whether plain HTTP is allowed (Preferred, the default, allows it; Required refuses it). Routes advertised through Portico Services always use TLS.
 - A custom address works over HTTPS only through your own certificate or a trusted reverse proxy. Behind a trusted proxy, Enhanced needs the forwarded host to be a custom address, and refuses only a proxy that says the request came over plain HTTP (`X-Forwarded-Proto: http`).
-- You decide which networks count as your home network. Apart from Tailscale (above), Portico doesn't assume a network is trusted because it's behind a proxy or behind carrier-grade NAT.
+- For which connections are answered, loopback and every private and link-local range (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, fc00::/7, fe80::/10) always count as home, on top of the networks Portico detects and the ones you add. None of them can arrive from the internet, so scanners are refused as before. In Docker's bridge mode, where the container sees only its bridge network, devices on your LAN still count as home. First-run setup uses the same rule. Sign-in rules, the remote bitrate limit and the sign-in block exemption still use only your detected and configured home networks.
+- Beyond that, you decide which networks count as your home network. Apart from Tailscale (above), Portico doesn't assume a network is trusted because it's behind a proxy or behind carrier-grade NAT.
 - Forwarded headers are only trusted from proxies you've configured. See [INSTALLING.md](INSTALLING.md).
 
 ### What anyone can see before signing in
@@ -43,6 +44,7 @@ Integration tools that use the Jellyfin/Emby-compatible API are told a fixed ver
 | Portico apps, at the server's Portico address | Works | Works |
 | Portico Services checking that your server is reachable | Works | Works |
 | A device at home, by IP over HTTP | Works | Works |
+| Docker in bridge mode, a device on your LAN by IP over HTTP | Works (private ranges always count as home) | Works |
 | A device at home, by IP over HTTPS | Fails: no certificate can name an IP. Use the Portico address, or HTTP at home | Same |
 | Tailscale, by name or IP (Remote access On or Private only) | Works (the tailnet counts as home) | Works |
 | cloudflared or another tunnel on the same machine | Works. The tunnel connects from the machine itself, so Portico sees it as home: sign-ins through it are never blocked by network, though the per-account limits still apply | Works |

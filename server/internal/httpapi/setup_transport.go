@@ -6,10 +6,10 @@ import (
 	"errors"
 	"github.com/PorticoMediaServer/portico/apikit"
 	"github.com/PorticoMediaServer/portico/apikit/apierror"
-	"github.com/PorticoMediaServer/portico/server/internal/claimweb"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/networking"
 	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
+	"github.com/PorticoMediaServer/portico/server/internal/remotegate"
 	"mime"
 	"net/http"
 	"net/netip"
@@ -134,8 +134,24 @@ func (d Dependencies) setupSourceAllowed(r *http.Request) bool {
 		}
 	}
 	client, ok := networkpolicy.Client(r, proxies)
-	return ok && (claimweb.LocalSetupAddr(client.Unmap()) || !d.requestIsRemote(r))
+	return ok && (d.localSetupPeer(client.Unmap()) || !d.requestIsRemote(r))
 }
+
+// localSetupPeer is the one notion of a local peer, shared with the remote gate: the
+// gate's home (loopback, every private and link-local range, the detected and configured
+// home networks, and the tailnet under remote access On or Private only), or, where no
+// gate is running, the home of an unconfigured server's default policy (remote access
+// On: the fixed local set and the tailnet).
+func (d Dependencies) localSetupPeer(client netip.Addr) bool {
+	if d.RemoteGate != nil {
+		if policy := d.RemoteGate.Policy(); policy != nil {
+			return policy.Home(client)
+		}
+	}
+	return defaultHome.Home(client)
+}
+
+var defaultHome = remotegate.NewPolicy(remotegate.Settings{Access: remotegate.AccessOn})
 
 var errSetupSourceNotLocal = &apierror.Error{Code: "setup_source_not_local"}
 

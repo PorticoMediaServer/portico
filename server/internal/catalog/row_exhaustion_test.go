@@ -12,10 +12,6 @@ import (
 )
 
 func TestRowCursorExhaustionStableRevision(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
-	}
-
 	c := catalogtest.Open(t)
 	movies := c.Library("movies", "Movies", "movie", "/movies")
 	hidden := c.Library("hidden", "Hidden", "movie", "/hidden")
@@ -28,13 +24,16 @@ func TestRowCursorExhaustionStableRevision(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		denied := c.Movie(movies, fmt.Sprintf("/movies/adult%d.mkv", i), "Restricted title", 2026)
 		c.Attributes(denied.ID, "contentRating", "R")
-		c.Movie(hidden, fmt.Sprintf("/hidden/%d.mkv", i), "Outside library", 2026)
+		c.Fields(denied.ID, map[string]any{"added_text": "2026-10-21T00:00:00.000Z"})
+		outside := c.Movie(hidden, fmt.Sprintf("/hidden/%d.mkv", i), "Outside library", 2026)
+		c.Fields(outside.ID, map[string]any{"added_text": "2026-10-21T00:00:00.000Z"})
 	}
 	c.Exec(`INSERT OR REPLACE INTO content_rating_ages(value_key,minimum_age)VALUES('r',17)`)
 	c.Drain()
 	age := 13
 	r := HomeRequest{Viewer: Viewer{Profile: "p", Fence: "f", Libraries: []string{"movies"}, Restrictions: identity.ContentRestrictions{MaximumAge: &age}}, Now: time.Date(2026, 10, 22, 0, 0, 0, 0, time.UTC)}
 	s := New(c.DB)
+	recentWant := want[:500] // New on server is the newest 500-work shelf.
 	first, err := s.HomeSingleRow(r, "new_on_server", HomeRowPage{Limit: 37})
 	if err != nil {
 		t.Fatal(err)
@@ -56,12 +55,12 @@ func TestRowCursorExhaustionStableRevision(t *testing.T) {
 		for _, entry := range page.Entries {
 			all = append(all, entry.ID)
 		}
-		if !reflect.DeepEqual(all[:len(prefix)], prefix) || !reflect.DeepEqual(all, want[:len(all)]) {
+		if !reflect.DeepEqual(all[:len(prefix)], prefix) || !reflect.DeepEqual(all, recentWant[:len(all)]) {
 			t.Fatalf("prefix/order changed at page %d", pages)
 		}
 		pages++
-		if rowTotal(page) != 1203 {
-			t.Fatalf("count %d", page.Total)
+		if rowTotal(page) != 500 {
+			t.Fatalf("count %d", rowTotal(page))
 		}
 		if page.NextCursor == "" {
 			break
@@ -71,7 +70,7 @@ func TestRowCursorExhaustionStableRevision(t *testing.T) {
 		}
 		cursor = page.NextCursor
 	}
-	if pages != 33 || !reflect.DeepEqual(all, want) {
+	if pages != 14 || !reflect.DeepEqual(all, recentWant) {
 		t.Fatalf("exhaustion pages=%d items=%d", pages, len(all))
 	}
 	source, err := s.ResolveHomeRowMembership(r, "new_on_server")
@@ -95,8 +94,8 @@ func TestRowCursorExhaustionStableRevision(t *testing.T) {
 			for _, entry := range page.Entries {
 				got = append(got, entry.ID)
 			}
-			if page.PageInfo.Total != 1203 || page.PageInfo.TotalIsLowerBound {
-				t.Fatalf("See all capped %+v", page.PageInfo)
+			if page.PageInfo.Total != 500 || page.PageInfo.TotalIsLowerBound {
+				t.Fatalf("See all shelf count %+v", page.PageInfo)
 			}
 			if page.PageInfo.NextCursor == "" {
 				break
@@ -106,17 +105,17 @@ func TestRowCursorExhaustionStableRevision(t *testing.T) {
 			}
 			request.Cursor = page.PageInfo.NextCursor
 		}
-		expected := append([]string{}, want...)
+		expected := append([]string{}, recentWant...)
 		if sort == "title" {
 			for i := range expected {
-				expected[i] = want[len(want)-1-i]
+				expected[i] = recentWant[len(recentWant)-1-i]
 			}
 		}
 		if !reflect.DeepEqual(got, expected) {
 			t.Fatalf("See all %s: %d", sort, len(got))
 		}
 	}
-	// A real filter still pages beyond the former 500-member boundary.
+	// Filtering applies to the capped shelf, including its final partial page.
 	filtered := BrowseNode{All: []BrowseNode{group, {Field: "title", Operator: "starts-with", Value: "Film 0"}}}
 	request := AcrossRequest{Pivot: "titles", Query: &filtered, Sort: titleAscending(), Limit: 37, RowSources: map[string]HomeRowMembership{"new_on_server": source}}
 	filteredIDs := []string{}
@@ -128,7 +127,7 @@ func TestRowCursorExhaustionStableRevision(t *testing.T) {
 		for _, entry := range page.Entries {
 			filteredIDs = append(filteredIDs, entry.ID)
 		}
-		if page.PageInfo.Total != 1000 {
+		if page.PageInfo.Total != 297 {
 			t.Fatal("filtered membership count", page.PageInfo)
 		}
 		if page.PageInfo.NextCursor == "" {
@@ -140,7 +139,7 @@ func TestRowCursorExhaustionStableRevision(t *testing.T) {
 	for i := range want {
 		expectedTitles[i] = want[len(want)-1-i]
 	}
-	if !reflect.DeepEqual(filteredIDs, expectedTitles[:1000]) {
+	if !reflect.DeepEqual(filteredIDs, expectedTitles[703:1000]) {
 		t.Fatal("filtered See all reordered or truncated its membership")
 	}
 	// Saved and a saved view on Home share true-end semantics, without a client
@@ -202,7 +201,9 @@ func TestRowCursorExhaustionStableRevision(t *testing.T) {
 		t.Fatal("saved Home view truncated or reordered the source")
 	}
 
-	c.Movie(movies, "/movies/new.mkv", "New publication", 2026)
+	// Change the shelf itself, rather than adding an older work below its cap.
+	newest := c.Movie(movies, "/movies/new.mkv", "New publication", 2026)
+	c.Fields(newest.ID, map[string]any{"added_text": "2026-10-21T00:00:01.000Z"})
 	c.Drain()
 	if _, err = s.HomeSingleRow(r, "new_on_server", HomeRowPage{Limit: 37, Cursor: first.NextCursor}); !errors.Is(err, ErrStaleContinuation) {
 		t.Fatalf("Home changed revision: %v", err)

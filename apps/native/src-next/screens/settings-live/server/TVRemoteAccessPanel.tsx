@@ -43,7 +43,7 @@ export function TVRemoteAccessPanel({ports, runtime, lifetime, statusOnly = fals
     const retire = () => {abort.abort(); setState(undefined); setError(undefined);};
     lifetime.signal.addEventListener('abort', retire, {once: true});
     return () => {abort.abort(); lifetime.signal.removeEventListener('abort', retire);};
-  }, [ports, lifetime, revision]);
+  }, [ports, lifetime, revision, statusOnly]);
   if (error) return <StateView {...runtime.error(error, () => setRevision(value => value + 1))}/>;
   if (!state) return <StateView title={t('status.loading')}/>;
   const secure = secureConnectionView({certificate: state.certificate, own: state.connectivity.tls.customCertificate});

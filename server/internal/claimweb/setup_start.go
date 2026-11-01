@@ -76,8 +76,20 @@ func SetupStartAddress(value string) bool {
 	if !strings.HasPrefix(value, "http://") {
 		return ownerStartAddress(value)
 	}
-	// Exactly the canonical HTTPS spelling with the scheme swapped back.
-	if !ownerStartAddress("https://" + strings.TrimPrefix(value, "http://")) {
+	return LocalHTTPAddress(value)
+}
+
+// LocalHTTPAddress is the one plain-HTTP address rule for a first-run setup start and an
+// owner start (Justin, 1 Nov: setup over HTTP at localhost or any local-network address,
+// for Unraid and Docker): exactly the canonical HTTPS spelling with the scheme swapped
+// back, at localhost, a loopback, private, link-local or ULA literal, or a host name.
+// The server separately requires a local peer and refuses names a rebinding page could use.
+func LocalHTTPAddress(value string) bool {
+	u, e := url.Parse(value)
+	if e != nil || !strings.HasPrefix(value, "http://") {
+		return false
+	}
+	if !secureOrigin("https://" + strings.TrimPrefix(value, "http://")) {
 		return false
 	}
 	host := u.Hostname()

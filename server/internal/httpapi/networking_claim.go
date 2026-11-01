@@ -140,44 +140,65 @@ func networkingOwnerStartError(err error) error {
 // ownerSwitchWebOrigin is only a transport prerequisite. The browser must
 // independently require its secure context and protected storage before any
 // private state. A bearer or missing Origin is not native-context attestation.
+// Plain HTTP follows the one local rule setup uses (localPlainHTTPOrigin).
 func (d Dependencies) ownerSwitchWebOrigin(r *http.Request) string {
-	origin := networkpolicy.Origin(r, d.trustedProxyPrefixes(r.Context()))
-	u, err := url.Parse(origin)
-	if err != nil || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+	origin, ok := d.requestWebOrigin(r)
+	if !ok {
 		return ""
 	}
-	if supplied := r.Header.Get("Origin"); supplied != "" && supplied != origin {
-		return ""
-	}
-	if u.Scheme == "https" && d.secureTransport(r) {
+	if strings.HasPrefix(origin, "https://") && d.secureTransport(r) {
 		return origin
 	}
-	peer, ok := networkpolicy.Peer(r)
-	if u.Scheme == "http" && u.Hostname() == "localhost" && ok && peer.IsLoopback() {
+	if d.localPlainHTTPOrigin(r, origin) {
 		return origin
 	}
 	return ""
 }
 
 // setupWebOrigin is the original address a first-run setup claim starts from and returns
-// to (S1/S3/S5): the exact HTTPS origin on a secure transport, or plain HTTP from a local
-// source to an address this server admits for setup (claimweb.SetupStartAddress).
+// to (S1/S3/S5): the exact HTTPS origin on a secure transport, or plain HTTP under the
+// local rule (localPlainHTTPOrigin). The setup return checks the same predicate the
+// start was signed under, so the two never disagree.
 func (d Dependencies) setupWebOrigin(r *http.Request) string {
-	origin := networkpolicy.Origin(r, d.trustedProxyPrefixes(r.Context()))
-	u, err := url.Parse(origin)
-	if err != nil || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+	origin, ok := d.requestWebOrigin(r)
+	if !ok || !d.browserSetupAuthorityAllowed(r) {
 		return ""
 	}
-	if supplied := r.Header.Get("Origin"); supplied != "" && supplied != origin {
-		return ""
-	}
-	if u.Scheme == "https" && d.secureTransport(r) && d.browserSetupAuthorityAllowed(r) {
+	if strings.HasPrefix(origin, "https://") && d.secureTransport(r) {
 		return origin
 	}
-	if u.Scheme == "http" && d.setupSourceAllowed(r) && d.browserSetupAuthorityAllowed(r) && claimweb.SetupStartAddress(origin) {
+	if d.localPlainHTTPOrigin(r, origin) {
 		return origin
 	}
 	return ""
+}
+
+// requestWebOrigin is the origin this request reached, as a bare scheme://host[:port],
+// and only when a browser-supplied Origin (if any) names exactly that origin.
+func (d Dependencies) requestWebOrigin(r *http.Request) (string, bool) {
+	origin := networkpolicy.Origin(r, d.trustedProxyPrefixes(r.Context()))
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return "", false
+	}
+	if supplied := r.Header.Get("Origin"); supplied != "" && supplied != origin {
+		return "", false
+	}
+	return origin, true
+}
+
+// localPlainHTTPOrigin is the single rule for plain HTTP to first-run setup, the setup
+// claim's return and the owner switch (Justin, 1 Nov: setup over HTTP at localhost or any
+// local-network address, for Unraid and Docker). It judges both halves:
+//   - the address the browser reached, which the claim is bound to: localhost, a loopback,
+//     private, link-local or ULA literal, or a local host name (claimweb.SetupStartAddress),
+//     and never a name a rebinding page could use (browserSetupAuthorityAllowed);
+//   - the request's own peer: a local-network address or one this server's home rules
+//     admit (setupSourceAllowed).
+// Plain HTTP from a public peer, or to a public address, is refused.
+func (d Dependencies) localPlainHTTPOrigin(r *http.Request, origin string) bool {
+	return strings.HasPrefix(origin, "http://") && claimweb.SetupStartAddress(origin) &&
+		d.browserSetupAuthorityAllowed(r) && d.setupSourceAllowed(r)
 }
 
 // claimResume notes the owner sign-in that asked for a web approval: the

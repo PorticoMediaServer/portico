@@ -306,3 +306,20 @@ func TestRemoteGateLegitimateSetupsTLS(t *testing.T) {
 		t.Fatalf("Standard, raw IP over HTTP: %q", got)
 	}
 }
+
+// Docker bridge mode through the real listener: the only detected network is the
+// bridge, and a laptop at 192.168.1.20 still reaches the server over plain HTTP in
+// Enhanced, while a public peer gets nothing.
+func TestRemoteGateDockerBridgeAnswersTheLAN(t *testing.T) {
+	bridge := remotegate.NewPolicy(remotegate.Settings{Security: remotegate.SecurityEnhanced, Access: remotegate.AccessOn, Home: []netip.Prefix{netip.MustParsePrefix("172.17.0.0/16")}})
+	lan := startGated(t, "192.168.1.20", remotegate.SecurityEnhanced, remotegate.AccessOn)
+	lan.gate.Set(bridge)
+	if got := plain(t, lan.addr, "192.168.1.50:32500"); !strings.HasSuffix(got, "ok") {
+		t.Fatalf("LAN laptop in bridge mode: %q", got)
+	}
+	public := startGated(t, "203.0.113.9", remotegate.SecurityEnhanced, remotegate.AccessOn)
+	public.gate.Set(bridge)
+	if got := plain(t, public.addr, "192.168.1.50:32500"); got != "" {
+		t.Fatalf("public peer answered: %q", got)
+	}
+}
