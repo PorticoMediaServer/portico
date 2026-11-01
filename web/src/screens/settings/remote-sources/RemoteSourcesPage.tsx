@@ -1078,7 +1078,6 @@ function AddSourceLoaded({service, api, serverId, viewerId, open, returnFocusRef
         </label>
         <ProgramRow program={program} disabled={busy} onCheck={() => void loadProgram()}/>
         {providers.length > 0 && <p className={styles.note}>{t('next.remoteSources.providers', {providers: providers.join(', ')})}</p>}
-        <p className={styles.note}>{t('next.remoteSources.rcloneKindsNote')}</p>
         <div className={styles.testRow}><Button size="compact" variant="glass" disabled={busy || !rclone.remote.trim() || !rclone.config.trim()} onClick={() => void testRclone()}>{busy ? t('next.remoteSources.testing') : t('next.remoteSources.test')}</Button>
           {rcloneResult && <span className={styles.testCard} data-tone="good"><Icon name="i-check" size={18}/>{rcloneResult.version ? t('next.remoteSources.testedRclone', {version: rcloneResult.version}) : t('next.remoteSources.testedRcloneUnknown')}</span>}
         </div>

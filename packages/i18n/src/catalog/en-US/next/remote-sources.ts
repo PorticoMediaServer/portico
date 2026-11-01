@@ -157,7 +157,6 @@ export const remoteSourcesMessages = {
   'next.remoteSources.testedRclone': 'Connected. Portico started rclone {version}.',
   'next.remoteSources.testedRcloneUnknown': 'Connected. Portico started its own rclone.',
   'next.remoteSources.replaceConfiguration': 'Paste the configuration again to replace it. Portico never shows it back.',
-  'next.remoteSources.rcloneKindsNote': 'A remote from an existing rclone config file, per-kind forms and cloud-drive sign-in are not available on this server yet.',
   'next.remoteSources.connection': 'Connection',
   'next.remoteSources.reading': 'Reading',
   'next.remoteSources.allowAdvancedMediaAnalysis': 'Allow advanced media analysis',
