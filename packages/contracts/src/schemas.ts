@@ -3639,6 +3639,73 @@ export const schemas = {
     ],
     "type": "object"
   },
+  "AllowRefusedAddressRequest": {
+    "properties": {
+      "expectedRevision": {
+        "maximum": 9007199254740991,
+        "minimum": -9007199254740991,
+        "type": "integer"
+      },
+      "name": {
+        "type": "string"
+      },
+      "operationId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "expectedRevision",
+      "operationId",
+      "name"
+    ],
+    "type": "object"
+  },
+  "AllowRefusedAddressResponse": {
+    "properties": {
+      "names": {
+        "items": {
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "firstSeen": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "lastSeen": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "via": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "via",
+            "firstSeen",
+            "lastSeen",
+            "count"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "remoteSecurity": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "remoteSecurity",
+      "names"
+    ],
+    "type": "object"
+  },
   "BatchQueueRequest": {
     "properties": {
       "placement": {
@@ -10722,10 +10789,16 @@ export const schemas = {
         "minimum": -9007199254740991,
         "type": "integer"
       },
+      "remoteAccess": {
+        "type": "string"
+      },
       "remoteBitrateLimitKbps": {
         "maximum": 9007199254740991,
         "minimum": -9007199254740991,
         "type": "integer"
+      },
+      "remoteSecurity": {
+        "type": "string"
       },
       "remoteSignInPolicy": {
         "type": "string"
@@ -10799,10 +10872,16 @@ export const schemas = {
         "minimum": -9007199254740991,
         "type": "integer"
       },
+      "remoteAccess": {
+        "type": "string"
+      },
       "remoteBitrateLimitKbps": {
         "maximum": 9007199254740991,
         "minimum": -9007199254740991,
         "type": "integer"
+      },
+      "remoteSecurity": {
+        "type": "string"
       },
       "remoteSignInPolicy": {
         "type": "string"
@@ -10829,6 +10908,8 @@ export const schemas = {
     },
     "required": [
       "secureConnections",
+      "remoteSecurity",
+      "remoteAccess",
       "ownAddressEnabled",
       "connectionLimit",
       "advertiseUrl",
@@ -11086,10 +11167,16 @@ export const schemas = {
             "minimum": -9007199254740991,
             "type": "integer"
           },
+          "remoteAccess": {
+            "type": "string"
+          },
           "remoteBitrateLimitKbps": {
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
+          },
+          "remoteSecurity": {
+            "type": "string"
           },
           "remoteSignInPolicy": {
             "type": "string"
@@ -11322,6 +11409,8 @@ export const schemas = {
           "library.missingTitlesDays",
           "library.segmentDetection",
           "secureConnections",
+          "remoteSecurity",
+          "remoteAccess",
           "remoteSignInPolicy",
           "remoteBitrateLimitKbps",
           "connectionLimit",
@@ -11590,10 +11679,16 @@ export const schemas = {
                 "minimum": -9007199254740991,
                 "type": "integer"
               },
+              "remoteAccess": {
+                "type": "string"
+              },
               "remoteBitrateLimitKbps": {
                 "maximum": 9007199254740991,
                 "minimum": -9007199254740991,
                 "type": "integer"
+              },
+              "remoteSecurity": {
+                "type": "string"
               },
               "remoteSignInPolicy": {
                 "type": "string"
@@ -11826,6 +11921,8 @@ export const schemas = {
               "library.missingTitlesDays",
               "library.segmentDetection",
               "secureConnections",
+              "remoteSecurity",
+              "remoteAccess",
               "remoteSignInPolicy",
               "remoteBitrateLimitKbps",
               "connectionLimit",
@@ -12110,10 +12207,16 @@ export const schemas = {
                 "minimum": -9007199254740991,
                 "type": "integer"
               },
+              "remoteAccess": {
+                "type": "string"
+              },
               "remoteBitrateLimitKbps": {
                 "maximum": 9007199254740991,
                 "minimum": -9007199254740991,
                 "type": "integer"
+              },
+              "remoteSecurity": {
+                "type": "string"
               },
               "remoteSignInPolicy": {
                 "type": "string"
@@ -12346,6 +12449,8 @@ export const schemas = {
               "library.missingTitlesDays",
               "library.segmentDetection",
               "secureConnections",
+              "remoteSecurity",
+              "remoteAccess",
               "remoteSignInPolicy",
               "remoteBitrateLimitKbps",
               "connectionLimit",
@@ -42155,10 +42260,16 @@ export const schemas = {
         "minimum": -9007199254740991,
         "type": "integer"
       },
+      "remoteAccess": {
+        "type": "string"
+      },
       "remoteBitrateLimitKbps": {
         "maximum": 9007199254740991,
         "minimum": -9007199254740991,
         "type": "integer"
+      },
+      "remoteSecurity": {
+        "type": "string"
       },
       "remoteSignInPolicy": {
         "type": "string"
@@ -42185,6 +42296,8 @@ export const schemas = {
     },
     "required": [
       "secureConnections",
+      "remoteSecurity",
+      "remoteAccess",
       "ownAddressEnabled",
       "connectionLimit",
       "advertiseUrl",
@@ -42394,10 +42507,16 @@ export const schemas = {
             "minimum": -9007199254740991,
             "type": "integer"
           },
+          "remoteAccess": {
+            "type": "string"
+          },
           "remoteBitrateLimitKbps": {
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
+          },
+          "remoteSecurity": {
+            "type": "string"
           },
           "remoteSignInPolicy": {
             "type": "string"
@@ -42424,6 +42543,8 @@ export const schemas = {
         },
         "required": [
           "secureConnections",
+          "remoteSecurity",
+          "remoteAccess",
           "ownAddressEnabled",
           "connectionLimit",
           "advertiseUrl",
@@ -42939,10 +43060,16 @@ export const schemas = {
                 "minimum": -9007199254740991,
                 "type": "integer"
               },
+              "remoteAccess": {
+                "type": "string"
+              },
               "remoteBitrateLimitKbps": {
                 "maximum": 9007199254740991,
                 "minimum": -9007199254740991,
                 "type": "integer"
+              },
+              "remoteSecurity": {
+                "type": "string"
               },
               "remoteSignInPolicy": {
                 "type": "string"
@@ -43175,6 +43302,8 @@ export const schemas = {
               "library.missingTitlesDays",
               "library.segmentDetection",
               "secureConnections",
+              "remoteSecurity",
+              "remoteAccess",
               "remoteSignInPolicy",
               "remoteBitrateLimitKbps",
               "connectionLimit",
@@ -43459,10 +43588,16 @@ export const schemas = {
                 "minimum": -9007199254740991,
                 "type": "integer"
               },
+              "remoteAccess": {
+                "type": "string"
+              },
               "remoteBitrateLimitKbps": {
                 "maximum": 9007199254740991,
                 "minimum": -9007199254740991,
                 "type": "integer"
+              },
+              "remoteSecurity": {
+                "type": "string"
               },
               "remoteSignInPolicy": {
                 "type": "string"
@@ -43695,6 +43830,8 @@ export const schemas = {
               "library.missingTitlesDays",
               "library.segmentDetection",
               "secureConnections",
+              "remoteSecurity",
+              "remoteAccess",
               "remoteSignInPolicy",
               "remoteBitrateLimitKbps",
               "connectionLimit",
@@ -165833,6 +165970,57 @@ export const schemas = {
   "GetReadingSessionsSessionIdSourceResponse": {
     "format": "binary",
     "type": "string"
+  },
+  "GetRefusedAddressesRequest": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "GetRefusedAddressesResponse": {
+    "properties": {
+      "names": {
+        "items": {
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "firstSeen": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "lastSeen": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "via": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "via",
+            "firstSeen",
+            "lastSeen",
+            "count"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "remoteSecurity": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "remoteSecurity",
+      "names"
+    ],
+    "type": "object"
   },
   "GetRemotePlaybackControlsRequest": {
     "properties": {},

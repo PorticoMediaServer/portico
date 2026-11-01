@@ -4,14 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"net"
-	"net/http"
-	"net/url"
 	"github.com/PorticoMediaServer/portico/apikit"
 	"github.com/PorticoMediaServer/portico/apikit/apierror"
 	"github.com/PorticoMediaServer/portico/server/internal/access"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
+	"net"
+	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/PorticoMediaServer/portico/server/internal/connectivity"
@@ -23,6 +23,8 @@ import (
 // Connectivity routes use the same typed registry as the first-party API.
 type ConnectivityChange struct {
 	SecureConnections *string   `json:"secureConnections,omitempty"`
+	RemoteSecurity    *string   `json:"remoteSecurity,omitempty"`
+	RemoteAccess      *string   `json:"remoteAccess,omitempty"`
 	ExpectedRevision  int64     `json:"expectedRevision"`
 	OperationID       string    `json:"operationId"`
 	RemoteSignIn      *string   `json:"remoteSignInPolicy,omitempty"`
@@ -54,6 +56,12 @@ func (d Dependencies) changeConnectivity(r *http.Request, body ConnectivityChang
 		}
 		if body.RemoteSignIn != nil {
 			v.RemoteSignInPolicy = *body.RemoteSignIn
+		}
+		if body.RemoteSecurity != nil {
+			v.RemoteSecurity = *body.RemoteSecurity
+		}
+		if body.RemoteAccess != nil {
+			v.RemoteAccess = *body.RemoteAccess
 		}
 		if body.RemoteBitrate != nil {
 			v.RemoteBitrateLimitKbps = *body.RemoteBitrate

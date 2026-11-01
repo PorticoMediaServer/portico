@@ -21,6 +21,8 @@ import (
 // a write on the settings page cannot silently overwrite each other.
 type Policy struct {
 	SecureConnections       string   `json:"secureConnections"`
+	RemoteSecurity          string   `json:"remoteSecurity"`
+	RemoteAccess            string   `json:"remoteAccess"`
 	OwnAddressEnabled       bool     `json:"ownAddressEnabled"`
 	ConnectionLimit         int      `json:"connectionLimit"`
 	AdvertiseURL            string   `json:"advertiseUrl"`
@@ -43,12 +45,18 @@ type Policy struct {
 // ProjectPolicy reads the connectivity rows out of a settings document.
 func ProjectPolicy(document operations.SettingsDocument) Policy {
 	v := document.Effective
-	out := Policy{SecureConnections: v.SecureConnections, OwnAddressEnabled: v.OwnAddressEnabled, ConnectionLimit: v.ConnectionLimit, AdvertiseURL: v.AdvertiseURL, Revision: document.Revision, RemoteSignIn: v.RemoteSignInPolicy, RemoteBitrateLimitKbps: v.RemoteBitrateLimitKbps,
+	out := Policy{SecureConnections: v.SecureConnections, RemoteSecurity: v.RemoteSecurity, RemoteAccess: v.RemoteAccess, OwnAddressEnabled: v.OwnAddressEnabled, ConnectionLimit: v.ConnectionLimit, AdvertiseURL: v.AdvertiseURL, Revision: document.Revision, RemoteSignIn: v.RemoteSignInPolicy, RemoteBitrateLimitKbps: v.RemoteBitrateLimitKbps,
 		LANNetworks: v.LANNetworks, AccessURLs: v.AccessURLs, LANDiscoveryEnabled: v.LANDiscoveryEnabled, DLNAEnabled: v.DLNAEnabled,
 		TrustedProxies: v.TrustedProxies, UploadCapacityKbps: v.UploadCapacityKbps, PausedSessionTimeout: v.PausedSessionTimeoutMinutes,
 		AdvertisedInterface: v.AdvertisedInterface, CustomCertificatePath: v.CustomCertificatePath, CustomCertificateKey: v.CustomCertificateKeyPath, CustomCertificateDomain: v.CustomCertificateDomain}
 	if out.SecureConnections == "" {
 		out.SecureConnections = "preferred"
+	}
+	if out.RemoteSecurity == "" {
+		out.RemoteSecurity = "enhanced"
+	}
+	if out.RemoteAccess == "" {
+		out.RemoteAccess = "on"
 	}
 	if out.TrustedProxies == nil {
 		out.TrustedProxies = []string{}

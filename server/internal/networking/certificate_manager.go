@@ -479,7 +479,7 @@ func (m *CertificateManager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Ce
 				continue
 			}
 			if hello.ServerName == "" || cert.Leaf.VerifyHostname(hello.ServerName) != nil {
-				return errCertificateMaterial
+				return errUnknownName
 			}
 			selected = cert
 			return nil

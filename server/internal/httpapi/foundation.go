@@ -674,6 +674,9 @@ func FoundationRegistry(d Dependencies) (*apikit.Registry, error) {
 	if err := registerConnectivity(registry, d); err != nil {
 		return nil, err
 	}
+	if err := registerRemoteGate(registry, d); err != nil {
+		return nil, err
+	}
 	registerPlaybackV1(registry, d)
 	if err := registerBackups(registry, d); err != nil {
 		return nil, err

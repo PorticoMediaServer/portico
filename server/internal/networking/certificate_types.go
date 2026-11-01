@@ -136,6 +136,11 @@ type certificateRoute struct {
 var errCertificateConfiguration = errors.New("certificate configuration required")
 var errCertificateMaterial = errors.New("certificate material is invalid or unavailable")
 
+// errUnknownName: the certificate is fine but doesn't cover the requested
+// server name (or the client sent none). The handshake answers it with an
+// unrecognized_name alert.
+var errUnknownName = errors.New("no certificate for this server name")
+
 func (m *CertificateManager) Wake() {
 	if m != nil {
 		select {

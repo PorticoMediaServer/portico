@@ -93,6 +93,30 @@ export const routes = [
   },
   {
     "audience": "Clients",
+    "id": "allow_refused_address",
+    "method": "POST",
+    "path": "/v1/admin/connectivity/refused-addresses/allow",
+    "summary": "Add a refused address to the custom addresses",
+    "access": "owner",
+    "requires": "admin",
+    "lane": "default",
+    "cost": "constant",
+    "bodyLimit": 4096,
+    "errors": [
+      "unauthorized",
+      "not_permitted",
+      "invalid_request",
+      "revision_mismatch",
+      "request_in_progress",
+      "internal",
+      "database_busy",
+      "writer_capacity"
+    ],
+    "status": 200,
+    "admission": "admin"
+  },
+  {
+    "audience": "Clients",
     "id": "batch_queue",
     "method": "POST",
     "path": "/v1/queues/{id}/batch",
@@ -26707,6 +26731,26 @@ export const routes = [
     ],
     "http": true,
     "admission": "media-body"
+  },
+  {
+    "audience": "Clients",
+    "id": "get_refused_addresses",
+    "method": "GET",
+    "path": "/v1/admin/connectivity/refused-addresses",
+    "summary": "Read the addresses outside clients asked for and were refused",
+    "access": "owner",
+    "requires": "admin",
+    "lane": "default",
+    "cost": "constant",
+    "bodyLimit": 0,
+    "errors": [
+      "unauthorized",
+      "not_permitted",
+      "internal",
+      "database_busy"
+    ],
+    "status": 200,
+    "admission": "admin"
   },
   {
     "audience": "Integrations",

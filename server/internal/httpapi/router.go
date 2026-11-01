@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
+	"github.com/PorticoMediaServer/portico/server/internal/remotegate"
 	"github.com/PorticoMediaServer/portico/server/internal/requestinput"
 	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"io"
@@ -147,6 +148,9 @@ type Dependencies struct {
 	// DNS names/reverse proxies. Host/Origin agreement alone cannot prove one.
 	SetupHosts     []string
 	TrustedProxies []netip.Prefix
+	// RemoteGate is the O-169 admission gate shared with the listener; the
+	// router installs its policy on every settings save. Nil gates nothing.
+	RemoteGate *remotegate.Gate
 	// Access carries the people, diagnostics and connectivity seams (workstream G2).
 	Access AccessArea
 	// Webhooks is the owner's outbound webhooks; nil answers them as unavailable.
@@ -862,7 +866,11 @@ func New(d Dependencies) http.Handler {
 	if d.credentials == nil {
 		d.credentials = newCredentialGate()
 	}
-	d.connectionPolicy = &connectionPolicyCache{}
+	d.connectionPolicy = &connectionPolicyCache{gate: d.RemoteGate, envProxies: d.TrustedProxies}
+	if d.Networking != nil {
+		networking := d.Networking
+		d.connectionPolicy.own = networking.PublicAddresses
+	}
 	if d.self == nil {
 		d.self = &selfHandler{}
 	}
@@ -871,6 +879,13 @@ func New(d Dependencies) http.Handler {
 	// installed first.
 	if d.Console == nil && d.DB != nil {
 		d.Console = operations.New(d.DB)
+	}
+	// O-169: the remote gate judges nothing until it has a policy, so install
+	// one now, before the router serves anything.
+	if d.RemoteGate != nil && d.Console != nil {
+		if _, err := d.connectionSetting(context.Background()); err != nil {
+			log.Printf("Remote access policy could not be read yet: %v", err)
+		}
 	}
 	if d.Console != nil && d.Console.ConfigFile != nil {
 		prior := d.Console.ConfigChanged
@@ -1362,6 +1377,11 @@ func New(d Dependencies) http.Handler {
 	routeMux = mux
 	routeMuxMu.Unlock()
 	d.self.h = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// O-169: a request the remote gate refuses gets nothing, not even an
+		// error: the connection is dropped as if no server were there.
+		if !d.remoteAdmits(r) {
+			panic(http.ErrAbortHandler)
+		}
 		if !d.allowTransport(w, r) {
 			return
 		}

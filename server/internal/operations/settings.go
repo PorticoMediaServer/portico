@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/medialimits"
 	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/qualityladder"
 	"github.com/PorticoMediaServer/portico/server/internal/usermutation"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -65,8 +65,11 @@ var (
 	// policy through this same registry, so the console has one authority for
 	// every server setting rather than a second document per feature area.
 	RemoteSignInPolicies = []string{"allow", "owner-only", "off"}
-	LogLevels            = []string{"error", "warn", "info", "debug"}
-	LogCategories        = []string{"server", "playback", "scan", "network", "client"}
+	// RemoteSecurityModes and RemoteAccessModes are O-169's remote admission choices.
+	RemoteSecurityModes = []string{"enhanced", "standard"}
+	RemoteAccessModes   = []string{"on", "private", "off"}
+	LogLevels           = []string{"error", "warn", "info", "debug"}
+	LogCategories       = []string{"server", "playback", "scan", "network", "client"}
 )
 
 // DefaultAPIRequestsPerMinute is what one API key or personal access token may
@@ -139,6 +142,8 @@ func Registry() []Field {
 		field("segments.viewerConfidencePercent", "segments", "integer", 50, bounded(30), bounded(70), []string{"30", "50", "70"}, "hot", "segmentmarkers viewer projection", "Confidence floor for unapproved viewer skip buttons. Approval and ambiguity rules remain independent."),
 		field("segments.automaticConfidencePercent", "segments", "integer", 85, bounded(70), bounded(95), []string{"70", "85", "95"}, "hot", "segmentmarkers measured automatic projection", "Confidence floor for automatic skips from cross-episode measurements. Single-file guesses never become automatic."),
 		field("secureConnections", "connectivity", "enumeration", "preferred", nil, nil, []string{"preferred", "required"}, "hot", "HTTP transport admission", "Preferred allows HTTP; Required accepts only secure connections."),
+		field("remoteSecurity", "connectivity", "enumeration", "enhanced", nil, nil, RemoteSecurityModes, "hot", "remote connection admission", "Enhanced answers outside connections only over HTTPS, at this server's Portico addresses and the owner's custom addresses. Standard answers outside connections at any address, with or without HTTPS. Home connections are not affected."),
+		field("remoteAccess", "connectivity", "enumeration", "on", nil, nil, RemoteAccessModes, "hot", "remote connection admission", "On answers outside connections. Private only refuses them and counts the Tailscale ranges as home. Off refuses them."),
 		field("remoteSignInPolicy", "connectivity", "enumeration", "allow", nil, nil, RemoteSignInPolicies, "next-operation", "sign-in admission", "Who may sign in from outside this network. Owner-only still allows existing remote sessions to finish."),
 		field("remoteBitrateLimitKbps", "connectivity", "integer", 0, bounded(0), bounded(200000), nil, "next-operation", "playback delivery planning", "Server-wide ceiling on video bitrate for remote playback, in kbps. 0 means no ceiling."),
 		field("lanNetworks", "connectivity", "string-list", networkpolicy.DefaultHomeNetworks(), nil, nil, nil, "hot", "connectivity status and remote classification", "Home networks. Only these addresses count as local. An empty list makes every connection remote."),
@@ -260,6 +265,8 @@ type Settings struct {
 	// document is their single authority; the typed /v1/admin/connectivity and
 	// /v1/admin/logs endpoints project these same fields.
 	SecureConnections      string   `json:"secureConnections"`
+	RemoteSecurity         string   `json:"remoteSecurity"`
+	RemoteAccess           string   `json:"remoteAccess"`
 	RemoteSignInPolicy     string   `json:"remoteSignInPolicy"`
 	RemoteBitrateLimitKbps int      `json:"remoteBitrateLimitKbps"`
 	ConnectionLimit        int      `json:"connectionLimit"`
@@ -300,7 +307,7 @@ type LogRetention struct {
 func DefaultSettings() Settings {
 	chapterNames := true
 	return Settings{AnalysisStorageGiB: 32, AnalysisStageStorageMiB: 256, SubtitleTrackLimit: medialimits.DefaultSubtitleTracks, SubtitleFileLimitMiB: medialimits.DefaultSubtitleFileMiB, Name: "Portico", TranscodingEnabled: true, ConversionMode: "all", OutputFormat: "auto", DownloadMaxQuality: "original", MusicAwayQuality: "original", HDRToneMapping: true, HardwareBackend: "auto", HardwareSelection: "auto", HardwareDecode: true, HDRToneMappingAlgorithm: "hable", X264Preset: "veryfast", DirectStreamRemux: true, PlanningPolicy: "maximum_fidelity", ThrottleBufferMs: 60000, PlayedRetentionMs: 180000, SessionStorageMiB: 4096, MemoryCap: "quarter", TranscodeLocation: "memory", DiagnosticDays: 30, NotificationDays: 180, JobDays: 30, UpdateChannel: "stable", UpdateFeedURL: DefaultUpdateFeedURL, MissingTitles: "after_days", MissingTitlesDays: 30, PeopleInvitationRole: "member", PeopleInvitationDays: 7, SegmentDetection: "standard", SegmentUseChapterNames: &chapterNames, SegmentShortestEpisode: 2, SegmentShortestFilm: 10, SegmentIntroWindow: "usual", SegmentCreditsWindow: "usual", SegmentFilmCreditsWindow: "usual", SegmentTVMode: "server", SegmentAnimeMode: "server", SegmentMovieMode: "server", SegmentViewerConfidencePercent: 50, SegmentAutomaticConfidencePercent: 85,
-		SecureConnections: "preferred", RemoteSignInPolicy: "allow", LANNetworks: networkpolicy.DefaultHomeNetworks(), AccessURLs: []string{}, LANDiscoveryEnabled: true, TrustedProxies: []string{}, LogLevel: "info", LogDetailMinutes: 30, LogRetention: []LogRetention{}}
+		SecureConnections: "preferred", RemoteSecurity: "enhanced", RemoteAccess: "on", RemoteSignInPolicy: "allow", LANNetworks: networkpolicy.DefaultHomeNetworks(), AccessURLs: []string{}, LANDiscoveryEnabled: true, TrustedProxies: []string{}, LogLevel: "info", LogDetailMinutes: 30, LogRetention: []LogRetention{}}
 }
 
 // PeopleInviteRole is the role a new invitation starts with, in the owner

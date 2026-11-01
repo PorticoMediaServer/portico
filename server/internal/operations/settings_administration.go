@@ -57,6 +57,18 @@ func validateAdministration(v *Settings) []string {
 	if v.SecureConnections != "preferred" && v.SecureConnections != "required" {
 		fields = append(fields, "values.secureConnections")
 	}
+	if v.RemoteSecurity == "" {
+		v.RemoteSecurity = "enhanced"
+	}
+	if v.RemoteSecurity != "enhanced" && v.RemoteSecurity != "standard" {
+		fields = append(fields, "values.remoteSecurity")
+	}
+	if v.RemoteAccess == "" {
+		v.RemoteAccess = "on"
+	}
+	if v.RemoteAccess != "on" && v.RemoteAccess != "private" && v.RemoteAccess != "off" {
+		fields = append(fields, "values.remoteAccess")
+	}
 	if v.LANNetworks == nil {
 		v.LANNetworks = []string{}
 	}

@@ -2587,6 +2587,60 @@ var PorticoCastContracts = (function(exports) {
 			"required": ["queue"],
 			"type": "object"
 		},
+		"AllowRefusedAddressRequest": {
+			"properties": {
+				"expectedRevision": {
+					"maximum": 9007199254740991,
+					"minimum": -9007199254740991,
+					"type": "integer"
+				},
+				"name": { "type": "string" },
+				"operationId": { "type": "string" }
+			},
+			"required": [
+				"expectedRevision",
+				"operationId",
+				"name"
+			],
+			"type": "object"
+		},
+		"AllowRefusedAddressResponse": {
+			"properties": {
+				"names": {
+					"items": {
+						"properties": {
+							"count": {
+								"maximum": 9007199254740991,
+								"minimum": -9007199254740991,
+								"type": "integer"
+							},
+							"firstSeen": {
+								"format": "date-time",
+								"type": "string"
+							},
+							"lastSeen": {
+								"format": "date-time",
+								"type": "string"
+							},
+							"name": { "type": "string" },
+							"via": { "type": "string" }
+						},
+						"required": [
+							"name",
+							"via",
+							"firstSeen",
+							"lastSeen",
+							"count"
+						],
+						"type": "object"
+					},
+					"type": "array"
+				},
+				"remoteSecurity": { "type": "string" }
+			},
+			"required": ["remoteSecurity", "names"],
+			"type": "object"
+		},
 		"BatchQueueRequest": {
 			"properties": {
 				"placement": { "type": "string" },
@@ -7778,11 +7832,13 @@ var PorticoCastContracts = (function(exports) {
 					"minimum": -9007199254740991,
 					"type": "integer"
 				},
+				"remoteAccess": { "type": "string" },
 				"remoteBitrateLimitKbps": {
 					"maximum": 9007199254740991,
 					"minimum": -9007199254740991,
 					"type": "integer"
 				},
+				"remoteSecurity": { "type": "string" },
 				"remoteSignInPolicy": { "type": "string" },
 				"secureConnections": { "type": "string" },
 				"trustedProxies": {
@@ -7826,11 +7882,13 @@ var PorticoCastContracts = (function(exports) {
 					"minimum": -9007199254740991,
 					"type": "integer"
 				},
+				"remoteAccess": { "type": "string" },
 				"remoteBitrateLimitKbps": {
 					"maximum": 9007199254740991,
 					"minimum": -9007199254740991,
 					"type": "integer"
 				},
+				"remoteSecurity": { "type": "string" },
 				"remoteSignInPolicy": { "type": "string" },
 				"revision": {
 					"maximum": 9007199254740991,
@@ -7850,6 +7908,8 @@ var PorticoCastContracts = (function(exports) {
 			},
 			"required": [
 				"secureConnections",
+				"remoteSecurity",
+				"remoteAccess",
 				"ownAddressEnabled",
 				"connectionLimit",
 				"advertiseUrl",
@@ -8037,11 +8097,13 @@ var PorticoCastContracts = (function(exports) {
 							"minimum": -9007199254740991,
 							"type": "integer"
 						},
+						"remoteAccess": { "type": "string" },
 						"remoteBitrateLimitKbps": {
 							"maximum": 9007199254740991,
 							"minimum": -9007199254740991,
 							"type": "integer"
 						},
+						"remoteSecurity": { "type": "string" },
 						"remoteSignInPolicy": { "type": "string" },
 						"secureConnections": { "type": "string" },
 						"segments.animeMode": {
@@ -8246,6 +8308,8 @@ var PorticoCastContracts = (function(exports) {
 						"library.missingTitlesDays",
 						"library.segmentDetection",
 						"secureConnections",
+						"remoteSecurity",
+						"remoteAccess",
 						"remoteSignInPolicy",
 						"remoteBitrateLimitKbps",
 						"connectionLimit",
@@ -8444,11 +8508,13 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"remoteAccess": { "type": "string" },
 								"remoteBitrateLimitKbps": {
 									"maximum": 9007199254740991,
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"remoteSecurity": { "type": "string" },
 								"remoteSignInPolicy": { "type": "string" },
 								"secureConnections": { "type": "string" },
 								"segments.animeMode": {
@@ -8653,6 +8719,8 @@ var PorticoCastContracts = (function(exports) {
 								"library.missingTitlesDays",
 								"library.segmentDetection",
 								"secureConnections",
+								"remoteSecurity",
+								"remoteAccess",
 								"remoteSignInPolicy",
 								"remoteBitrateLimitKbps",
 								"connectionLimit",
@@ -8855,11 +8923,13 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"remoteAccess": { "type": "string" },
 								"remoteBitrateLimitKbps": {
 									"maximum": 9007199254740991,
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"remoteSecurity": { "type": "string" },
 								"remoteSignInPolicy": { "type": "string" },
 								"secureConnections": { "type": "string" },
 								"segments.animeMode": {
@@ -9064,6 +9134,8 @@ var PorticoCastContracts = (function(exports) {
 								"library.missingTitlesDays",
 								"library.segmentDetection",
 								"secureConnections",
+								"remoteSecurity",
+								"remoteAccess",
 								"remoteSignInPolicy",
 								"remoteBitrateLimitKbps",
 								"connectionLimit",
@@ -31606,11 +31678,13 @@ var PorticoCastContracts = (function(exports) {
 					"minimum": -9007199254740991,
 					"type": "integer"
 				},
+				"remoteAccess": { "type": "string" },
 				"remoteBitrateLimitKbps": {
 					"maximum": 9007199254740991,
 					"minimum": -9007199254740991,
 					"type": "integer"
 				},
+				"remoteSecurity": { "type": "string" },
 				"remoteSignInPolicy": { "type": "string" },
 				"revision": {
 					"maximum": 9007199254740991,
@@ -31630,6 +31704,8 @@ var PorticoCastContracts = (function(exports) {
 			},
 			"required": [
 				"secureConnections",
+				"remoteSecurity",
+				"remoteAccess",
 				"ownAddressEnabled",
 				"connectionLimit",
 				"advertiseUrl",
@@ -31771,11 +31847,13 @@ var PorticoCastContracts = (function(exports) {
 							"minimum": -9007199254740991,
 							"type": "integer"
 						},
+						"remoteAccess": { "type": "string" },
 						"remoteBitrateLimitKbps": {
 							"maximum": 9007199254740991,
 							"minimum": -9007199254740991,
 							"type": "integer"
 						},
+						"remoteSecurity": { "type": "string" },
 						"remoteSignInPolicy": { "type": "string" },
 						"revision": {
 							"maximum": 9007199254740991,
@@ -31795,6 +31873,8 @@ var PorticoCastContracts = (function(exports) {
 					},
 					"required": [
 						"secureConnections",
+						"remoteSecurity",
+						"remoteAccess",
 						"ownAddressEnabled",
 						"connectionLimit",
 						"advertiseUrl",
@@ -32148,11 +32228,13 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"remoteAccess": { "type": "string" },
 								"remoteBitrateLimitKbps": {
 									"maximum": 9007199254740991,
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"remoteSecurity": { "type": "string" },
 								"remoteSignInPolicy": { "type": "string" },
 								"secureConnections": { "type": "string" },
 								"segments.animeMode": {
@@ -32357,6 +32439,8 @@ var PorticoCastContracts = (function(exports) {
 								"library.missingTitlesDays",
 								"library.segmentDetection",
 								"secureConnections",
+								"remoteSecurity",
+								"remoteAccess",
 								"remoteSignInPolicy",
 								"remoteBitrateLimitKbps",
 								"connectionLimit",
@@ -32559,11 +32643,13 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"remoteAccess": { "type": "string" },
 								"remoteBitrateLimitKbps": {
 									"maximum": 9007199254740991,
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"remoteSecurity": { "type": "string" },
 								"remoteSignInPolicy": { "type": "string" },
 								"secureConnections": { "type": "string" },
 								"segments.animeMode": {
@@ -32768,6 +32854,8 @@ var PorticoCastContracts = (function(exports) {
 								"library.missingTitlesDays",
 								"library.segmentDetection",
 								"secureConnections",
+								"remoteSecurity",
+								"remoteAccess",
 								"remoteSignInPolicy",
 								"remoteBitrateLimitKbps",
 								"connectionLimit",
@@ -119668,6 +119756,48 @@ var PorticoCastContracts = (function(exports) {
 		"GetReadingSessionsSessionIdSourceResponse": {
 			"format": "binary",
 			"type": "string"
+		},
+		"GetRefusedAddressesRequest": {
+			"properties": {},
+			"required": [],
+			"type": "object"
+		},
+		"GetRefusedAddressesResponse": {
+			"properties": {
+				"names": {
+					"items": {
+						"properties": {
+							"count": {
+								"maximum": 9007199254740991,
+								"minimum": -9007199254740991,
+								"type": "integer"
+							},
+							"firstSeen": {
+								"format": "date-time",
+								"type": "string"
+							},
+							"lastSeen": {
+								"format": "date-time",
+								"type": "string"
+							},
+							"name": { "type": "string" },
+							"via": { "type": "string" }
+						},
+						"required": [
+							"name",
+							"via",
+							"firstSeen",
+							"lastSeen",
+							"count"
+						],
+						"type": "object"
+					},
+					"type": "array"
+				},
+				"remoteSecurity": { "type": "string" }
+			},
+			"required": ["remoteSecurity", "names"],
+			"type": "object"
 		},
 		"GetRemotePlaybackControlsRequest": {
 			"properties": {},
@@ -207426,6 +207556,7 @@ var PorticoCastContracts = (function(exports) {
 		"act_on_download_preparation": "/v1/downloads/preparations/{id}/actions",
 		"add_queue_segment": "/v1/queues/{id}/segments",
 		"advance_queue": "/v1/queues/{id}:advance",
+		"allow_refused_address": "/v1/admin/connectivity/refused-addresses/allow",
 		"batch_queue": "/v1/queues/{id}/batch",
 		"browse_across": "/v1/browse",
 		"browse_across_counts": "/v1/browse/counts",
@@ -207911,6 +208042,7 @@ var PorticoCastContracts = (function(exports) {
 		"get_reading_sessions_sessionId_progress": "/v1/reading/sessions/{sessionId}/progress",
 		"get_reading_sessions_sessionId_search": "/v1/reading/sessions/{sessionId}/search",
 		"get_reading_sessions_sessionId_source": "/v1/reading/sessions/{sessionId}/source",
+		"get_refused_addresses": "/v1/admin/connectivity/refused-addresses",
 		"get_remote_playback_controls": "/v1/playback/controls",
 		"get_saved_content": "/v1/content",
 		"get_saved_pins_order": "/v1/saved-pins/order",

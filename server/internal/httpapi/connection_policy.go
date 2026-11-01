@@ -2,12 +2,14 @@ package httpapi
 
 import (
 	"context"
-	"net/http"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/medialimits"
 	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/operations"
+	"github.com/PorticoMediaServer/portico/server/internal/remotegate"
+	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,6 +23,10 @@ type connectionPolicyCache struct {
 	setting atomic.Pointer[connectionSettingValue]
 	// uploadAlert mirrors the upload-budget owner alert (upload_budget.go).
 	uploadAlert atomic.Bool
+	// gate receives a fresh O-169 policy with every installed document.
+	gate       *remotegate.Gate
+	envProxies []netip.Prefix
+	own        func() []netip.Addr
 }
 
 type connectionSettingValue struct {
@@ -70,6 +76,9 @@ func (c *connectionPolicyCache) setLocked(document operations.SettingsDocument) 
 		secure = "preferred"
 	}
 	c.setting.Store(&connectionSettingValue{secureConnections: secure, lanNetworks: append([]string{}, document.Effective.LANNetworks...), revision: document.Revision, locality: newLocalityPolicy(document.Effective), accessURLs: urls, certificateDomain: certificateDomain, apiPerMinute: document.Effective.APIRequestsPerMinute, remoteSignIn: remoteSignInPolicy(document.Effective.RemoteSignInPolicy), dlna: document.Effective.DLNAEnabled})
+	if c.gate != nil {
+		c.gate.Set(remoteGatePolicy(document.Effective, c.envProxies, c.own))
+	}
 }
 
 // remoteSignInPolicy reads the stored choice. An empty value is the default,
