@@ -431,7 +431,21 @@ func TestServerScaleMeasurement(t *testing.T) {
 	if e := f.db.QueryRow(`SELECT count(*),COALESCE(sum(CASE WHEN last_seq>=1 AND position_ms=3000 THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN ended_ms>0 AND end_reason='stopped' THEN 1 ELSE 0 END),0) FROM playback_v1_sessions WHERE start_key LIKE 'scale-measure-F-%'`).Scan(&sessions, &durable, &ended); e != nil {
 		t.Logf("durable reconciliation: %v", e)
 	}
-	scaleSave(t, "durability", map[string]int{"sessions": sessions, "durable_position_3000": durable, "stopped": ended})
+	// Reconcile the user-facing resume record as well as session telemetry.
+	// Only the final session owns each profile's resume row.
+	resumeExpected, resumeDurable := min(users, counts[len(counts)-1]), 0
+	resumeFailures := map[string]string{}
+	for i := 0; i < resumeExpected; i++ {
+		var position int64
+		var unit int
+		err := f.db.QueryRow(`SELECT p.position,p.unit FROM progress p JOIN catalog_entities e ON e.id=p.item_id WHERE p.profile_id=? AND e.public_id=pid_blob(?)`, identity.PersonalKey(f.viewers[i].Viewer), f.playable).Scan(&position, &unit)
+		if err == nil && position == 3000 && unit == 0 {
+			resumeDurable++
+		} else {
+			resumeFailures[strconv.Itoa(i)] = fmt.Sprintf("position=%d unit=%d error=%v", position, unit, err)
+		}
+	}
+	scaleSave(t, "durability", map[string]any{"sessions": sessions, "durable_position_3000": durable, "stopped": ended, "resume_profiles_expected": resumeExpected, "resume_profiles_position_3000": resumeDurable, "resume_failures": resumeFailures})
 	if mode == "smoke" {
 		for label, attempts := range isolated.Attempts {
 			for _, a := range attempts {
@@ -442,6 +456,9 @@ func TestServerScaleMeasurement(t *testing.T) {
 		}
 		if sessions == 0 || durable != sessions || ended != sessions {
 			t.Errorf("pilot durability sessions=%d durable=%d stopped=%d", sessions, durable, ended)
+		}
+		if resumeDurable != resumeExpected {
+			t.Errorf("pilot resume durability: %v", resumeFailures)
 		}
 	}
 }
