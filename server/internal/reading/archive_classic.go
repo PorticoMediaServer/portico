@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/archive7z"
 	"github.com/nwaples/rardecode/v2"
 )
 
@@ -143,7 +144,7 @@ func openRAR(ctx context.Context, ra io.ReaderAt, size int64) (memberArchive, er
 			return nil, ErrLimit
 		}
 		expanded += header.UnPackedSize
-		if !safeMember(header.Name, false, uint64(header.UnPackedSize)) {
+		if !rarComicMember(header.Name, uint64(header.UnPackedSize)) {
 			continue
 		}
 		name, memberSize := header.Name, header.UnPackedSize
@@ -156,6 +157,15 @@ func openRAR(ctx context.Context, ra io.ReaderAt, size int64) (memberArchive, er
 	}
 	sortMembers(out)
 	return &listMembers{files: out, close: func() error { return nil }}, nil
+}
+
+// rarComicMember admits a CBR's pages and, as the CB7 worker does, its one exact root
+// ComicInfo.xml under the metadata cap; OpenClassicComic reads that as metadata only.
+func rarComicMember(name string, size uint64) bool {
+	if name == "ComicInfo.xml" {
+		return size > 0 && size <= archive7z.MaxComicInfo
+	}
+	return safeMember(name, false, size)
 }
 
 // openRARMember seeks the one member from a fresh streaming reader. Solid
