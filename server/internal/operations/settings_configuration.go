@@ -38,6 +38,7 @@ func ConfigurationBindings() []ConfigurationBinding {
 		{"people.maxStreamsEach", "streaming.max_streams_per_account", "perAccountCap", 1, false},
 		{"people.communityActivity", "people.community_activity", "home.communityActivityEnabled", 1, false},
 		{"integrations.compatibility", "integrations.compatibility_enabled", "integrations.compatibilityEnabled", 1, false},
+		{"metadata.titleDataset", "recommendations.title_dataset", "recommendations.titleDataset", 1, false},
 		{"integrations.requestsPerMinute", "integrations.api_requests_per_minute", "apiRequestsPerMinute", 1, false},
 		{"streaming.whenCantPlay", "streaming.when_cant_play", "planningPolicy", 1, false},
 		{"remote.who", "remote.who_can_connect", "remoteSignInPolicy", 1, false},
