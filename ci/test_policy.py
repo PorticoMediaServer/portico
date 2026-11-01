@@ -69,9 +69,14 @@ class ActivePolicyTests(unittest.TestCase):
         self.assertNotIn('TestReadPathGoldenEquivalence',excluded)
         self.assertNotIn('TestKeysetPagesDoNotRescanTheirPrefix',excluded)
         self.assertNotIn('TestBulkBuildDerivesWhatIncrementalBuildDoes',excluded)
-        q=policy(json.loads((ROOT/'ci/quarantine.json').read_text()),datetime.date(2026,10,29))
+        q=policy(json.loads((ROOT/'ci/quarantine.json').read_text()),datetime.date(2026,10,29),engine='')
         names={test for pkg,test in q}
         self.assertEqual(names, set())
+        # Engine-scoped entries apply only to a development-engine run (the release gate).
+        dev=policy(json.loads((ROOT/'ci/quarantine.json').read_text()),datetime.date(2026,10,29),engine='development')
+        self.assertTrue(all(e['engine']=='development' and e['reason'] for e in dev.values()))
+        with self.assertRaises(ValueError):
+            policy({'status':'approved','entries':[{'package':'p','test':'TestA','owner':'Justin Ehler','expires':'2026-12-31','reason':'r','engine':'qualified'}]},datetime.date(2026,10,29))
         self.assertNotIn('TestMBStagingTenThousandCompleteFinalWriterHold',names)
 
 class IntegrationTests(unittest.TestCase):
