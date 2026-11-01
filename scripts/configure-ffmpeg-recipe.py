@@ -7,7 +7,7 @@ import sys
 
 recipe, source, target = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 root = Path(__file__).resolve().parent.parent
-common = '--disable-autodetect --enable-gpl --enable-version3 --enable-libdav1d --enable-libsvtav1 --enable-libx264 --enable-libx265 --enable-libzimg --enable-libdovi --enable-libass --enable-fontconfig --enable-libsoxr --enable-libbluray --enable-libdvdnav --enable-libdvdread --enable-libplacebo --enable-vulkan --disable-nonfree --disable-libfdk-aac'
+common = '--disable-autodetect --enable-gpl --enable-version3 --enable-libdav1d --enable-libsvtav1 --disable-librav1e --enable-libx264 --enable-libx265 --enable-libzimg --enable-libdovi --enable-libass --enable-fontconfig --enable-libsoxr --enable-libbluray --enable-libdvdnav --enable-libdvdread --enable-libplacebo --enable-vulkan --disable-nonfree --disable-libfdk-aac'
 flags = common
 if target.startswith('linux'):
     flags += ' --enable-vaapi --enable-libdrm --enable-opencl'
@@ -45,6 +45,14 @@ if target.startswith('macos'):
         shutil.copy2(root / 'third_party/ffmpeg/patches' / name, patches / name)
     sys.exit(0)
 
+# Jellyfin uses SVT-AV1. Remove the exact pinned rav1e stage, including its
+# build-time Cargo resolution, before generating any BtbN target graph.
+rav1e = recipe / 'scripts.d/50-rav1e.sh'
+if (rav1e.is_symlink() or not rav1e.is_file() or
+        hashlib.sha256(rav1e.read_bytes()).hexdigest() !=
+        'ceebe7eea0b39ff3d0e6afd79b2d6450681ddf1daeef8da660fa2a2af136d072'):
+    raise ValueError('pinned rav1e removal boundary changed')
+rav1e.unlink()
 # BtbN disables Linux ARM VAAPI by default, although libva supports it.
 import subprocess
 subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'recipe', '--recipe', recipe,
@@ -52,8 +60,6 @@ subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'recipe'
 if target.startswith('windows') or target == 'linux-arm64':
     import subprocess
     subprocess.run([sys.executable, root / 'scripts/configure-windows-libdovi.py', recipe, '--target', target], check=True)
-if target.startswith('windows'):
-    subprocess.run([sys.executable, root / 'scripts/configure-windows-rav1e.py', recipe], check=True)
 # Shaderc's install staging predates TMPDIR support. Keep even that temporary
 # tree in the job's on-disk bind mount, including inside the compiler container.
 path = recipe / 'scripts.d/47-vulkan/50-shaderc.sh'
