@@ -196,7 +196,7 @@ cp "$WORK/build-source-authority.json" "$WORK/provenance/contract/"
 if [[ -f "$WORK/meson-tool.json" ]]; then cp "$WORK/meson-tool.json" "$WORK/provenance/"; fi
 cp -R "$ROOT/third_party/ffmpeg/patches" "$WORK/provenance/contract/"
 cp "$ROOT/scripts/build-ffmpeg.sh" "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$ROOT/scripts/patch-btbn-winarm64-system-error.sh" "$ROOT/scripts/prepare-ffmpeg-source.py" "$ROOT/scripts/archive-ffmpeg-source.py" "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/provenance/scripts/"
-if [[ "$TARGET" == macos-* ]]; then cp "$ROOT/scripts/build-macos-libdovi.py" "$ROOT/scripts/build-linux-libdovi.py" "$ROOT/scripts/build-macos-zvbi.sh" "$WORK/provenance/scripts/"; fi
+if [[ "$TARGET" == macos-* ]]; then cp "$ROOT/scripts/build-macos-libdovi.py" "$ROOT/scripts/build-linux-libdovi.py" "$ROOT/scripts/build-macos-zvbi.sh" "$ROOT/scripts/macos-engine-runtime.py" "$WORK/provenance/scripts/"; fi
 cp "$ROOT/scripts/build-portico-disc.py" "$ROOT/scripts/build-macos-ffmpeg-extras.sh" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-bundle.sh" "$ROOT/scripts/verify-ffmpeg-manifest.py" "$ROOT/scripts/verify-ffmpeg-features.py" "$ROOT/scripts/verify-disc-bundle.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-bluray.py" "$WORK/provenance/scripts/"

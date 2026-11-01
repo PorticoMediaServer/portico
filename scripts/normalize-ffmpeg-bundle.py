@@ -39,6 +39,9 @@ shutil.copy2(a.source,a.output/'corresponding-source.tar.xz')
 for name in ['NOTICE.md','sources.lock.json','requirements.v1.json','portico-dovi-profile.v1.json','portico-dovi-join.v1.json','linux-hdr-gate.v1.json']:shutil.copy2(root/'third_party/ffmpeg'/name,a.output/name)
 def digest(path):
  with path.open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
+if a.target.startswith('macos-'):
+ import runpy
+ runpy.run_path(str(root/'scripts/macos-engine-runtime.py'))['pack'](a.input,a.output,a.target)
 files={str(f.relative_to(a.output)):digest(f) for f in sorted(a.output.rglob('*')) if f.is_file()}
 lock=json.loads((a.output/'sources.lock.json').read_text())
 # Working output deliberately cannot satisfy the production bundle resolver.
