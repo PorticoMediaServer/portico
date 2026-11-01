@@ -6,18 +6,9 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
-
-// cpuTime is this process's user plus system CPU time: on a one-core host it,
-// not wall time on a fast disk, is what a generation costs everyone else.
-func cpuTime() time.Duration {
-	var u syscall.Rusage
-	_ = syscall.Getrusage(syscall.RUSAGE_SELF, &u)
-	return time.Duration(u.Utime.Nano() + u.Stime.Nano())
-}
 
 // demoShapedLibrary mirrors the demo server's catalog (23 Sep): 80 movies of
 // 90–120 minutes and 128 episodes across four shows, all schedulable.
