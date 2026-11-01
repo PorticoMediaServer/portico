@@ -45,7 +45,7 @@ func (s *Service) containerCountFor(ctx context.Context, tx *sql.Tx, p identity.
 	}
 	args, _ := json.Marshal(k.args)
 	out := &containerCount{selector: c.Kind + ":" + string(args)}
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(group_concat(library_id||':'||revision,','),'') FROM (SELECT library_id,revision FROM library_revisions ORDER BY library_id)`).Scan(&out.catalog); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(group_concat(library_id||':'||revision,','),'')||':c:'||(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1) FROM (SELECT library_id,revision FROM library_revisions ORDER BY library_id)`).Scan(&out.catalog); err != nil {
 		return nil
 	}
 	var catalog string
@@ -204,7 +204,7 @@ func (s *Service) queueDuration(ctx context.Context, l *layout, p identity.Princ
 		var catalog string
 		var pendingSources bool
 		if err = l.tx.QueryRowContext(ctx, `SELECT
- COALESCE((SELECT group_concat(library_id||':'||revision,',') FROM (SELECT library_id,revision FROM library_revisions ORDER BY library_id)),''),
+ COALESCE((SELECT group_concat(library_id||':'||revision,',') FROM (SELECT library_id,revision FROM library_revisions ORDER BY library_id)),'')||':c:'||(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1),
  EXISTS(SELECT 1 FROM catalog_upstream_sources WHERE domain=41)
  OR EXISTS(SELECT 1 FROM catalog_upstream_sources WHERE domain=42)`).Scan(&catalog, &pendingSources); err != nil {
 			return queueDurationSummary{}, err

@@ -227,7 +227,7 @@ func (s *Service) bulkMetadataSelectionPageTx(ctx context.Context, tx *sql.Tx, v
 	if err != nil {
 		return out, err
 	}
-	fenceRows, err := tx.QueryContext(ctx, `SELECT r.library_id,r.revision,r.metadata_revision,r.order_revision,COALESCE(a.namespace,0),COALESCE(a.input_generation,0),COALESCE(a.ready_generation,0)
+	fenceRows, err := tx.QueryContext(ctx, `SELECT r.library_id,r.revision+(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1),r.metadata_revision,r.order_revision,COALESCE(a.namespace,0),COALESCE(a.input_generation,0),COALESCE(a.ready_generation,0)
  FROM json_each(?) requested JOIN library_revisions r ON r.library_id=requested.value
  LEFT JOIN catalog_libraries l ON l.library_id=r.library_id
  LEFT JOIN reading_attribution_state a ON a.library_id=l.id ORDER BY r.library_id`, string(raw))

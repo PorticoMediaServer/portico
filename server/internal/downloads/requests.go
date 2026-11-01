@@ -266,7 +266,7 @@ func requestFence(ctx context.Context, tx *sql.Tx, p identity.Principal, t Conta
 		libraryWhere = `l.library_id=?`
 		libraries = []any{library}
 	}
-	rows, e := tx.QueryContext(ctx, `SELECT l.library_id,l.revision,COALESCE(v.revision,0) FROM library_revisions l LEFT JOIN viewer_revisions v ON v.library_id=l.library_id AND v.profile_id=? WHERE `+libraryWhere+` ORDER BY l.library_id`, append([]any{identity.PersonalKey(p.Viewer)}, libraries...)...)
+	rows, e := tx.QueryContext(ctx, `SELECT l.library_id,l.revision+(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1),COALESCE(v.revision,0) FROM library_revisions l LEFT JOIN viewer_revisions v ON v.library_id=l.library_id AND v.profile_id=? WHERE `+libraryWhere+` ORDER BY l.library_id`, append([]any{identity.PersonalKey(p.Viewer)}, libraries...)...)
 	if e != nil {
 		return "", e
 	}
