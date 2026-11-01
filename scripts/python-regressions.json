@@ -21,6 +21,7 @@
     {"path": "scripts/test-libdovi-runtime-inventory.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
     {"path": "scripts/test-macos-gmp-pic.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
     {"path": "scripts/test-macos-udfread-feature.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
-    {"path": "scripts/test-windows-rav1e-custody.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30}
+    {"path": "scripts/test-windows-rav1e-custody.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30},
+    {"path": "scripts/test-preserve-ffmpeg-compilers.py", "timeoutSeconds": 120, "testTimeoutSeconds": 30}
   ]
 }

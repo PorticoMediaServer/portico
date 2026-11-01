@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "policy": "Exact compiler OCI indexes only; mirror all platform manifests byte-identically. No floating fallback or engine qualification.",
+  "upstreamRepository": "https://github.com/BtbN/FFmpeg-Builds",
+  "upstreamCommit": "5ece62897c650b863c1ddda7b6964845344aef2d",
+  "producingRun": 41222097386,
+  "producingJob": 124652510831,
+  "upstreamLogSHA256": "9344c06d69bc52a9b6237b95f0f5d3bee06b5102b8bd314e60b09bfbbcbefc4d",
+  "upstreamEvidenceURL": "https://github.com/BtbN/FFmpeg-Builds/actions/runs/41222097386/job/124652510831",
+  "images": {
+    "linux64": {
+      "upstream": "ghcr.io/btbn/ffmpeg-builds/base-linux64@sha256:fa86b2845524170871766de2061b54974e1ef0ac5b4bdc2401b494c3f46d5968",
+      "mirror": "ghcr.io/porticomediaserver/ffmpeg-base-linux64@sha256:fa86b2845524170871766de2061b54974e1ef0ac5b4bdc2401b494c3f46d5968",
+      "digest": "sha256:fa86b2845524170871766de2061b54974e1ef0ac5b4bdc2401b494c3f46d5968",
+      "manifests": [
+        {
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "digest": "sha256:4852c800a40494226a37cce8400b36902b92642c3659baf377cb61f81e0c2e0c",
+          "size": 2961,
+          "platform": {
+            "architecture": "amd64",
+            "os": "linux"
+          }
+        }
+      ]
+    },
+    "win64": {
+      "upstream": "ghcr.io/btbn/ffmpeg-builds/base-win64@sha256:4ef6a4084baaa415f71f1b21dda870790e8751a0ccd68201f546faf01e6f8744",
+      "mirror": "ghcr.io/porticomediaserver/ffmpeg-base-win64@sha256:4ef6a4084baaa415f71f1b21dda870790e8751a0ccd68201f546faf01e6f8744",
+      "digest": "sha256:4ef6a4084baaa415f71f1b21dda870790e8751a0ccd68201f546faf01e6f8744",
+      "manifests": [
+        {
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "digest": "sha256:4e953757f189eca1bd70a29831af35a0d7b6f5c783939179fabafff64ea82f0d",
+          "size": 2775,
+          "platform": {
+            "architecture": "amd64",
+            "os": "linux"
+          }
+        }
+      ]
+    },
+    "linuxarm64": {
+      "upstream": "ghcr.io/btbn/ffmpeg-builds/base-linuxarm64@sha256:dd3a724405914a8f2a8b107f1034a20fb73f8cbb791a4afd60d2ed230f7b1b53",
+      "mirror": "ghcr.io/porticomediaserver/ffmpeg-base-linuxarm64@sha256:dd3a724405914a8f2a8b107f1034a20fb73f8cbb791a4afd60d2ed230f7b1b53",
+      "digest": "sha256:dd3a724405914a8f2a8b107f1034a20fb73f8cbb791a4afd60d2ed230f7b1b53",
+      "manifests": [
+        {
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "digest": "sha256:a929798ddb35b0145980692021ff00bcc276a4114c83f321fbe4578a62e75716",
+          "size": 2955,
+          "platform": {
+            "architecture": "arm64",
+            "os": "linux"
+          }
+        },
+        {
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "digest": "sha256:dc20364c6981537bc4df341ef5bce5839e597f6141c7b13632d1e029a7791c8d",
+          "size": 2960,
+          "platform": {
+            "architecture": "amd64",
+            "os": "linux"
+          }
+        }
+      ]
+    }
+  }
+}

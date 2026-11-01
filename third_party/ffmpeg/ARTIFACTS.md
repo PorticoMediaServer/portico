@@ -74,3 +74,24 @@ replaces it with the committed resolution pinned in `sources.lock.json`. Both
 locks and their hashes remain in the source snapshot, together with every
 vendored registry source and licence. Compilation uses `--locked --offline`;
 changing the resolution requires a deliberate reviewed lock update.
+
+
+## Preserved compiler inputs
+
+`compiler-images.lock.json` records exact upstream and Portico mirror OCI indexes
+for Linux x64, Windows x64 and Linux ARM64, including every platform descriptor,
+BtbN's producing source commit and the job that published the exact digests.
+The Linux x64 source builder pulls only its recorded Portico mirror; it has no
+upstream/latest fallback. Windows and Linux ARM64 mirror entries are retained
+for their corresponding hosted compiler adapters; their current cold source
+builds are not silently changed by adding these entries.
+
+The separate compiler-custody workflow inspects installed metadata without
+compiling media. Only its main-branch manual preservation job can write packages.
+Skopeo copies all manifests with preserve-digests, and the receiver rechecks the
+index and each child manifest. Existing differently hashed destination tags are
+refused. If registry preservation fails, an exact, checked OCI-layout archive is
+retained as NOT-FOR-USE evidence for attachment to the engine release and a
+reviewed transport pin; the code never substitutes another image. Copying an
+index does not grant corresponding-source, compiler or engine qualification.
+The copy utility's actual version is recorded; it cannot change accepted bytes.
