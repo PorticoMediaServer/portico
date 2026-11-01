@@ -2,6 +2,7 @@
 """Refusal boundaries for the first hosted cold toolchain run."""
 import importlib.util
 import json
+import re
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -105,8 +106,8 @@ class ColdToolchain(unittest.TestCase):
             cold.preserve_diagnostics([state], evidence)
             prefix = evidence / 'custody/state/dependency-portico-ffmpeg.log'
             self.assertFalse(prefix.exists())
-            self.assertTrue(prefix.with_name(prefix.name + '.head').read_bytes().startswith(b'configure start'))
-            self.assertTrue(prefix.with_name(prefix.name + '.tail').read_bytes().endswith(b'actual fatal compiler error\n'))
+            self.assertTrue(prefix.with_name(prefix.name + '.head.log').read_bytes().startswith(b'configure start'))
+            self.assertTrue(prefix.with_name(prefix.name + '.tail.log').read_bytes().endswith(b'actual fatal compiler error\n'))
             ranges = json.loads(prefix.with_name(prefix.name + '.ranges.json').read_text())
             self.assertFalse(ranges['complete'])
             self.assertEqual(ranges['originalBytes'], len(content))
@@ -114,6 +115,14 @@ class ColdToolchain(unittest.TestCase):
             self.assertEqual(ranges['tail'], [len(content) - 1024**2, len(content)])
             self.assertFalse((prefix.parent / 'symlink.log').exists())
             self.assertFalse((prefix.parent / 'ignored.bin').exists())
+            workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/ffmpeg-toolchain.yml').read_text()
+            patterns = re.findall(r'\$\{\{ runner.temp \}\}/engine-cold/evidence/(\*\*/\*\.[a-z]+)', workflow)
+            self.assertTrue(patterns, 'real Actions evidence upload patterns required')
+            uploaded = {p for pattern in patterns for p in evidence.glob(pattern) if p.is_file()}
+            generated = {p for p in evidence.rglob('*') if p.is_file()}
+            self.assertEqual(generated, uploaded, 'retained bytes must actually survive Actions upload')
+            self.assertIn(prefix.with_name(ranges['headFile']), uploaded)
+            self.assertIn(prefix.with_name(ranges['tailFile']), uploaded)
 
     def test_disk_samples_retain_peak_pressure_after_space_is_reclaimed(self):
         with tempfile.TemporaryDirectory() as temporary:

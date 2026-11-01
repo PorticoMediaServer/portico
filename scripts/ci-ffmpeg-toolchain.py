@@ -168,11 +168,12 @@ def preserve_diagnostics(directories, evidence):
                         head = source.read(head_size)
                         source.seek(-tail_size, os.SEEK_END)
                         tail = source.read(tail_size)
-                    destination.with_name(destination.name + '.head').write_bytes(head)
-                    destination.with_name(destination.name + '.tail').write_bytes(tail)
+                    destination.with_name(destination.name + '.head.log').write_bytes(head)
+                    destination.with_name(destination.name + '.tail.log').write_bytes(tail)
                     atomic(destination.with_name(destination.name + '.ranges.json'), {
                         'originalBytes': size, 'originalSHA256': digest(path),
-                        'complete': False, 'head': [0, len(head)],
+                        'complete': False, 'headFile': destination.name + '.head.log',
+                        'tailFile': destination.name + '.tail.log', 'head': [0, len(head)],
                         'tail': [size - len(tail), size]})
 
 
