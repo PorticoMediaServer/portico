@@ -58,7 +58,7 @@
 // does not relaunch the app for them. Their tasks report at the next ordinary launch, cancelled
 // with resume data, and become paused but still meant to run, so the app continues them.
 
-static NSString *const PorticoDownloadsSession = @"tv.getportico.portico.downloads";
+static NSString *const PorticoDownloadsSession = @"tv.getportico.app.downloads";
 static NSString *const PorticoDownloadChanged = @"PorticoDownloadChanged";
 
 @interface PorticoDownloads : RCTEventEmitter <RCTBridgeModule>

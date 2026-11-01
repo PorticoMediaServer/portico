@@ -6,7 +6,7 @@
 // P10 profile proofs have a distinct Keychain namespace from account credentials,
 // selected-server sessions and playback journals. All callers serialize on the
 // runtime class, including failed-attempt writes. No PIN or derived key is stored.
-static NSString *const PorticoProfileService=@"tv.getportico.portico.profile-trust";
+static NSString *const PorticoProfileService=@"tv.getportico.app.profile-trust";
 static void PorticoProfileWipe(void *p,size_t n){volatile unsigned char *v=p;while(n--)*v++=0;}
 static NSData *PorticoProfileRead(NSString *key,OSStatus *status){
  NSDictionary *q=@{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,(__bridge id)kSecAttrService:PorticoProfileService,(__bridge id)kSecAttrAccount:key,(__bridge id)kSecReturnData:@YES};

@@ -21,7 +21,7 @@ import sys
 import time
 import xml.etree.ElementTree as ElementTree
 
-PACKAGE = "tv.getportico.portico"
+PACKAGE = "tv.getportico.app"
 # Home with rows, or a fresh server's Home with nothing scanned yet. Either one means the shell and
 # the Home destination drew; the entry and sign-in screens never carry these words.
 HOME = re.compile(r"Continue Watching|New on|Nothing here yet|Titles appear here|is getting ready", re.I)

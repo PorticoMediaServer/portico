@@ -3,7 +3,7 @@
 #import <Security/Security.h>
 #import <React/RCTHTTPRequestHandler.h>
 
-static NSString *const PorticoTrustGroup = @"group.tv.getportico.portico";
+static NSString *const PorticoTrustGroup = @"group.tv.getportico.app";
 static NSString *const PorticoTrustRecord = @"portico.certificates.v1";
 static const NSUInteger PorticoTrustMaxPins = 64, PorticoTrustMaxRefused = 32;
 

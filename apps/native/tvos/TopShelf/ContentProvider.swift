@@ -82,8 +82,8 @@ private final class PorticoShelfRead: NSObject, URLSessionDataDelegate {
 /// token ever appears in an image URL. If the server doesn't answer, the last good feed and
 /// posters are shown; with no cached feed the shelf is simply empty.
 final class ContentProvider: TVTopShelfContentProvider {
-  static let group = "group.tv.getportico.portico"
-  private static let log = Logger(subsystem: "tv.getportico.portico.topshelf", category: "feed")
+  static let group = "group.tv.getportico.app"
+  private static let log = Logger(subsystem: "tv.getportico.app.topshelf", category: "feed")
   private static let posterWidth = 400
   private typealias Feed = PorticoShelfFeed
 

@@ -41,7 +41,7 @@ RCT_EXPORT_MODULE(PorticoAccountAuth)
   BOOL loopback=[@[@"localhost",@"127.0.0.1",@"[::1]",@"::1"] containsObject:url.host];
   if (origin.length>2048 || !url.host.length || url.user.length || url.password.length || url.query.length || url.fragment.length || url.path.length ||
       !([url.scheme isEqualToString:@"https"] || ([url.scheme isEqualToString:@"http"] && loopback))) return nil;
-  return [@{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,(__bridge id)kSecAttrService:@"tv.getportico.portico.account-continuation",
+  return [@{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,(__bridge id)kSecAttrService:@"tv.getportico.app.account-continuation",
     (__bridge id)kSecAttrAccount:origin,(__bridge id)kSecAttrSynchronizable:@NO} mutableCopy];
 }
 RCT_REMAP_METHOD(newBinding, bindingResolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {

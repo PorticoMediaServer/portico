@@ -7,7 +7,7 @@ static inline OSStatus PorticoPrepareInstallation(NSUserDefaults *defaults, BOOL
  if([defaults boolForKey:@"PorticoInstallationPrepared"])return errSecSuccess;
  if(!protectedDataAvailable)return errSecInteractionNotAllowed;
  for(NSString *suffix in @[@"queues",@"credentials",@"playback",@"network",@"profile-trust",@"account-continuation"]){
-  OSStatus status=removeService([@"tv.getportico.portico." stringByAppendingString:suffix]);
+  OSStatus status=removeService([@"tv.getportico.app." stringByAppendingString:suffix]);
   if(status!=errSecSuccess&&status!=errSecItemNotFound)return status;
  }
  [defaults removeObjectForKey:@"PorticoSelectedViewerQuarantined"];

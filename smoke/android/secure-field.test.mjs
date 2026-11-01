@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {securePasswordTarget} from './secure-field.mjs';
-const appBundleId = 'tv.getportico.portico';
+const appBundleId = 'tv.getportico.app';
 const options = {appBundleId, refsGeneration: 7};
 const fixture = () => ({success: true, data: {appBundleId, refsGeneration: 7, truncated: false,
   nodes: [{ref: 'e9', bundleId: appBundleId, focused: true, editable: true, password: true,

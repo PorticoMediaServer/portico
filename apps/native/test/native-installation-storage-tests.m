@@ -16,7 +16,7 @@ int main(void) {
   NSCAssert([defaults boolForKey:@"PorticoSelectedViewerQuarantined"],@"Failure must keep quarantine");
   [removed removeAllObjects];
   NSCAssert(PorticoPrepareInstallation(defaults,YES,^OSStatus(NSString *service){[removed addObject:service];return errSecItemNotFound;})==errSecSuccess,@"Missing records are clean");
-  NSSet *expected=[NSSet setWithArray:@[@"tv.getportico.portico.queues",@"tv.getportico.portico.credentials",@"tv.getportico.portico.playback",@"tv.getportico.portico.network",@"tv.getportico.portico.profile-trust",@"tv.getportico.portico.account-continuation"]];
+  NSSet *expected=[NSSet setWithArray:@[@"tv.getportico.app.queues",@"tv.getportico.app.credentials",@"tv.getportico.app.playback",@"tv.getportico.app.network",@"tv.getportico.app.profile-trust",@"tv.getportico.app.account-continuation"]];
   NSCAssert([[NSSet setWithArray:removed] isEqual:expected],@"Only the exact app services may be removed");
   NSCAssert([defaults boolForKey:@"PorticoInstallationPrepared"]&&! [defaults boolForKey:@"PorticoSelectedViewerQuarantined"],@"Success must persist its marker and clear stale quarantine");
   NSCAssert(PorticoPrepareInstallation(defaults,YES,^OSStatus(NSString *service){NSCAssert(NO,@"An update must retain the installation");return errSecSuccess;})==errSecSuccess,@"An existing installation is retained");

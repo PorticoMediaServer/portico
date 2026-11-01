@@ -70,8 +70,8 @@ def main():
     if code != 0 or "Success" not in output:
         note("install", "", False, f"adb install failed: {output or error}")
         return 1
-    device.adb("shell", "pm", "clear", "tv.getportico.portico")
-    device.adb("shell", "am", "start", "-n", "tv.getportico.portico/.MainActivity")
+    device.adb("shell", "pm", "clear", "tv.getportico.app")
+    device.adb("shell", "am", "start", "-n", "tv.getportico.app/tv.getportico.portico.MainActivity")
     time.sleep(12)
     note("launch", shot("launch"))
 

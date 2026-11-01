@@ -527,7 +527,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = tv.getportico.portico.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = tv.getportico.app;
 				PRODUCT_NAME = Portico;
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/../Native/Portico-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -560,7 +560,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = tv.getportico.portico.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = tv.getportico.app;
 				PRODUCT_NAME = Portico;
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/../Native/Portico-Bridging-Header.h";
 				SWIFT_EMIT_LOC_STRINGS = NO;

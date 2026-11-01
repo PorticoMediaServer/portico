@@ -123,7 +123,7 @@
             android:permission="android.permission.BIND_JOB_SERVICE" />
         <provider
             android:name=".native.PorticoShelfArtProvider"
-            android:authorities="tv.getportico.portico.shelf"
+            android:authorities="${applicationId}.shelf"
             android:exported="true" />
     </application>
 </manifest>

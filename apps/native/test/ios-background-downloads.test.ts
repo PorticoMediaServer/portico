@@ -118,7 +118,7 @@ test('a manifest that stays unreadable after unlock refuses JavaScript instead o
 });
 
 test('the session belongs to the owner, under the identifier the system already knows', () => {
-  assert.match(downloads, /PorticoDownloadsSession = @"tv\.getportico\.portico\.downloads"/);
+  assert.match(downloads, /PorticoDownloadsSession = @"tv\.getportico\.app\.downloads"/);
   assert.match(downloads, /@interface PorticoDownloads : RCTEventEmitter <RCTBridgeModule>\n/);
   assert.match(downloads, /@interface PorticoDownloadOwner \(\) <NSURLSessionDownloadDelegate>/);
   const owner = section(downloads, '@implementation PorticoDownloadOwner', '\n@end\n');

@@ -31,7 +31,7 @@ int main(int argc,const char **argv){@autoreleasepool{
   ok=expect(![PorticoServerTrust pinnedAt:origin]&&![PorticoServerTrust pinnedAt:@"https://other-route.invalid"]&&![PorticoServerTrust pinnedAt:@"https://named-route.invalid"]&&[[PorticoServerTrust pinnedAt:@"https://keep.invalid"][@"serverId"] isEqual:b],"second-process durable Forget readback")&&ok;
   printf("{\"durableForgetReadbackPass\":%s}\n",ok?"true":"false");return ok?0:1;
  }
- NSUserDefaults *defaults=[[NSUserDefaults alloc]initWithSuiteName:@"group.tv.getportico.portico"];
+ NSUserDefaults *defaults=[[NSUserDefaults alloc]initWithSuiteName:@"group.tv.getportico.app"];
  [defaults removeObjectForKey:@"portico.certificates.v1"];[defaults synchronize];
  ok=expect(rejectedProof(origin,fingerprint,@"{}"),"no proof before an actual refused connection")&&ok;
  __block BOOL firstDone=NO;__block NSError *firstError=nil;

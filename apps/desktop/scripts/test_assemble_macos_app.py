@@ -88,7 +88,7 @@ class Fixture:
         self.config = root / "tauri.conf.json"
         self.write_json(self.config, {
             "productName": "Portico", "version": "0.1.0",
-            "identifier": "tv.getportico.desktop.spike",
+            "identifier": "tv.getportico.desktop",
             "bundle": {"category": "Entertainment", "copyright": "Portico contributors"}})
         self.output = root / "Portico.app"
 
@@ -131,7 +131,7 @@ class AssemblyTests(unittest.TestCase):
             self.assertEqual(info["CFBundleExecutable"], "Portico")
             self.assertEqual(info["CFBundleName"], "Portico")
             self.assertEqual(info["CFBundleDisplayName"], "Portico")
-            self.assertEqual(info["CFBundleIdentifier"], "tv.getportico.desktop.spike")
+            self.assertEqual(info["CFBundleIdentifier"], "tv.getportico.desktop")
             self.assertEqual(info["CFBundleShortVersionString"], "0.1.0")
             self.assertEqual(info["CFBundleVersion"], "0.1.0")
             self.assertEqual(info["CFBundlePackageType"], "APPL")

@@ -4,7 +4,7 @@
 #import <math.h>
 static NSError *StoreError(void) { return [NSError errorWithDomain:@"PorticoQueuePlaybackStore" code:1 userInfo:@{NSLocalizedDescriptionKey:@"Durable playback storage is unavailable or invalid."}]; }
 static BOOL ID(id v) { return [v isKindOfClass:NSString.class] && [v length]>0 && [v length]<=128 && [v rangeOfString:@"^[A-Za-z0-9_-]+$" options:NSRegularExpressionSearch].location!=NSNotFound; }
-static NSDictionary *Query(NSString *key) { return @{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,(__bridge id)kSecAttrService:@"tv.getportico.portico.queues",(__bridge id)kSecAttrAccount:key}; }
+static NSDictionary *Query(NSString *key) { return @{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,(__bridge id)kSecAttrService:@"tv.getportico.app.queues",(__bridge id)kSecAttrAccount:key}; }
 @implementation PorticoQueuePlaybackStore
 + (BOOL)counter:(id)value {
  if(![value isKindOfClass:NSString.class] || [value rangeOfString:@"^(0|[1-9][0-9]{0,18})$" options:NSRegularExpressionSearch].location==NSNotFound)return NO;

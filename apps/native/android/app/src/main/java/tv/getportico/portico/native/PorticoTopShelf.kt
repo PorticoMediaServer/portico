@@ -88,7 +88,7 @@ internal object PorticoHomeShelf {
   private const val MAX_CONTINUE = 10
   private const val MAX_NEXT = 10
   private const val JOB = 4102
-  const val AUTHORITY = "tv.getportico.portico.shelf"
+  const val AUTHORITY = tv.getportico.portico.BuildConfig.APPLICATION_ID + ".shelf"
   private val http: OkHttpClient by lazy {
     OkHttpClient.Builder().porticoTrust().followRedirects(false).followSslRedirects(false).cache(null).callTimeout(15, TimeUnit.SECONDS).build()
   }
