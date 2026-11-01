@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   smoke:
-    if: ${{ !contains(github.event.head_commit.message, 'nested pages using') && !contains(github.event.head_commit.message, 'paced scan controls') && !contains(github.event.head_commit.message, 'cached profile activity') && !contains(github.event.head_commit.message, 'growth curves only') && !contains(github.event.head_commit.message, 'large film seed') }}
+    if: ${{ !contains(github.event.head_commit.message, 'nested pages using') && !contains(github.event.head_commit.message, 'paced scan controls') && !contains(github.event.head_commit.message, 'cached profile activity') && !contains(github.event.head_commit.message, 'growth curves only') && !contains(github.event.head_commit.message, 'large film seed') && !contains(github.event.head_commit.message, 'book page controls') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -303,3 +303,28 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with: {name: film-seed-100k, path: '${{ runner.temp }}/reports', retention-days: 7}
+  pdf-growth:
+    if: ${{ contains(github.event.head_commit.message, 'book page controls') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        items: [10000, 30000, 100000]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - run: mkdir -p "$RUNNER_TEMP/scale-cache" "$RUNNER_TEMP/reports"
+      - name: Read a real PDF amid growing publication facts
+        working-directory: server
+        env:
+          TMPDIR: ${{ runner.temp }}/scale-cache
+          PORTICO_GROWTH_ITEMS: ${{ matrix.items }}
+          PORTICO_READING_FORMAT: pdf
+          PORTICO_SCALE_REPORT: ${{ runner.temp }}/reports
+        run: go test -vet=off ./internal/httpapi -run '^TestReadingGrowthMeasurement$' -count=1 -v -timeout=25m > "$RUNNER_TEMP/reports/reading.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: 'pdf-growth-${{ matrix.items }}', path: '${{ runner.temp }}/reports', retention-days: 7}

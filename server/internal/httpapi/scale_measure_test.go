@@ -477,7 +477,10 @@ func TestReadingGrowthMeasurement(t *testing.T) {
 	for _, tc := range []struct {
 		kind, format, path string
 		leaf               compactcatalog.Kind
-	}{{"book", "epub", "/assets/EPUB/chapter.xhtml", compactcatalog.Ebook}, {"comic", "cbz", "/pages/0", compactcatalog.Comic}} {
+	}{{"book", "epub", "/assets/EPUB/chapter.xhtml", compactcatalog.Ebook}, {"comic", "cbz", "/pages/0", compactcatalog.Comic}, {"book", "pdf", "/source", compactcatalog.Ebook}} {
+		if only := os.Getenv("PORTICO_READING_FORMAT"); only != "" && only != tc.format {
+			continue
+		}
 		t.Run(tc.format, func(t *testing.T) {
 			r := newReadingFixture(t, tc.kind, tc.format)
 			var handle int64
@@ -504,16 +507,22 @@ func TestReadingGrowthMeasurement(t *testing.T) {
 					t.Fatal(e)
 				}
 				at = time.Now()
-				w := r.bytesRequest(t, "GET", tc.path, session, document.Selection.Revision, r.f.owner.AccessToken, nil)
+				headers := map[string]string(nil)
+				want := 200
+				if tc.format == "pdf" {
+					headers = map[string]string{"Range": "bytes=0-4"}
+					want = 206
+				}
+				w := r.bytesRequest(t, "GET", tc.path, session, document.Selection.Revision, r.f.owner.AccessToken, headers)
 				body = append(body, float64(time.Since(at))/float64(time.Millisecond))
-				if w.Code != 200 {
+				if w.Code != want {
 					t.Fatalf("reader bytes: %d %s", w.Code, w.Body.String())
 				}
 				if e = r.s.CloseSession(r.p, session.ID); e != nil {
 					t.Fatal(e)
 				}
 			}
-			scaleSave(t, "reading-"+tc.format, map[string]any{"base_items": n, "publication_count": max(10, n/20) + 1, "prepare": scalePct(prepare), "chapter_or_page_bytes": scalePct(body), "prepare_costs": costs, "peak_rss_mib": scaleRSS(), "boundary": "fixed actual EPUB chapter / comic page; growing publication and author/series facts"})
+			scaleSave(t, "reading-"+tc.format, map[string]any{"base_items": n, "publication_count": max(10, n/20) + 1, "prepare": scalePct(prepare), "chapter_or_page_bytes": scalePct(body), "prepare_costs": costs, "peak_rss_mib": scaleRSS(), "boundary": "fixed EPUB chapter / comic page / PDF source range; growing publication and author/series facts; no PDF raster claim"})
 		})
 	}
 }
