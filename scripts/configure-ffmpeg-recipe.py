@@ -42,6 +42,7 @@ if target.startswith('macos'):
 if target.startswith('windows'):
     import subprocess
     subprocess.run([sys.executable, root / 'scripts/configure-windows-libdovi.py', recipe], check=True)
+    subprocess.run([sys.executable, root / 'scripts/configure-windows-rav1e.py', recipe], check=True)
 # Shaderc's install staging predates TMPDIR support. Keep even that temporary
 # tree in the job's on-disk bind mount, including inside the compiler container.
 path = recipe / 'scripts.d/47-vulkan/50-shaderc.sh'

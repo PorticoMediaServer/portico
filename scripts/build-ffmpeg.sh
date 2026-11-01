@@ -198,6 +198,7 @@ cp "$ROOT/scripts/verify-ffmpeg-bundle.sh" "$ROOT/scripts/verify-ffmpeg-manifest
 cp "$ROOT/scripts/verify-ffmpeg-bluray.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-recipes.py" "$ROOT/scripts/verify-hdr10plus-encode.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-abi.py" "$WORK/provenance/scripts/"
+if [[ "$TARGET" == windows-* ]]; then cp "$ROOT/scripts/configure-windows-rav1e.py" "$WORK/provenance/scripts/"; fi
 cp "$ROOT/scripts/check-ffmpeg-build-inputs.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/run-ffmpeg-runner-build.py" "$ROOT/scripts/repair-ffmpeg-runner-ownership.py" "$WORK/provenance/scripts/"
 cp "$ARCHIVE" "$SOURCE" "$WORK/provenance/"
