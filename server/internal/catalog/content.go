@@ -290,6 +290,7 @@ func (s *Service) contentOnce(request ContentRequest) (ContentEnvelope, error) {
 			if strings.HasPrefix(section.ID, recFamily+":") {
 				cs.Heading = ContentHeading{Key: section.TitleText.Code, Fallback: section.Title, Params: section.TitleText.Params}
 				cs.SeeAll = section.SeeAll
+				cs.Why, cs.WhyTitles = section.Why, section.WhyTitles
 			}
 			out.Sections = append(out.Sections, cs)
 		}

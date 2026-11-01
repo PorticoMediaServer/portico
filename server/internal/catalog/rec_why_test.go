@@ -224,7 +224,7 @@ func TestPersonalRowsCarryWhyOnHomePagesAndDiscover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if franchise.spec.Why == nil || franchise.spec.Why.Code != recWhyNext || franchise.spec.Why.Fallback != "Next after what you've finished." {
+	if franchise.spec.Why == nil || franchise.spec.Why.Code != recWhyNext || franchise.spec.Why.Fallback != "Next after what you’ve finished." {
 		t.Fatalf("franchise why: %+v", franchise.spec.Why)
 	}
 	if len(franchise.spec.WhyTitles) != 3 {
@@ -257,6 +257,29 @@ func TestPersonalRowsCarryWhyOnHomePagesAndDiscover(t *testing.T) {
 	if seen == 0 {
 		t.Fatal("Discover has no personal sections")
 	}
+	// The content view clients read (view=discover) carries the same why.
+	content, err := w.s.Content(ContentRequest{Viewer: Viewer{Profile: "p", Fence: "p", Libraries: []string{"m"}}, ServerID: "server", Library: "m", Profile: "p", ViewerFence: "p", View: "discover", Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	carried := 0
+	for _, section := range content.Sections {
+		if !strings.HasPrefix(section.ID, recFamily+":") {
+			continue
+		}
+		carried++
+		for _, d := range discovery.Sections {
+			if d.ID == section.ID && (!reflect.DeepEqual(section.Why, d.Why) || !reflect.DeepEqual(section.WhyTitles, d.WhyTitles)) {
+				t.Fatalf("%s: the content view explains it differently: %+v vs %+v", section.ID, section.Why, d.Why)
+			}
+		}
+		if section.Why == nil {
+			t.Fatalf("%s has no Why in the content view", section.ID)
+		}
+	}
+	if carried != seen {
+		t.Fatal("the content view lost personal sections", carried, seen)
+	}
 	// Top rated is liked, not continued, and Rediscover explains itself without
 	// naming a title.
 	top, err := w.s.recPersonalRow(r, "for_you:top")
@@ -279,7 +302,7 @@ func TestPersonalRowsCarryWhyOnHomePagesAndDiscover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rediscover.spec.Why == nil || rediscover.spec.Why.Code != recWhyRediscover || rediscover.spec.Why.Fallback != "Favorites you haven't watched in a while." || len(rediscover.spec.WhyTitles) != 0 {
+	if rediscover.spec.Why == nil || rediscover.spec.Why.Code != recWhyRediscover || rediscover.spec.Why.Fallback != "Favorites you haven’t watched in a while." || len(rediscover.spec.WhyTitles) != 0 {
 		t.Fatalf("rediscover why: %+v %+v", rediscover.spec.Why, rediscover.spec.WhyTitles)
 	}
 }
@@ -385,7 +408,7 @@ func TestWhyPersonCountAndPlural(t *testing.T) {
 	}
 	one := row("one")
 	if one.spec.Why == nil || one.spec.Why.Code != recWhyPerson || one.spec.Why.Params["count"] != "1" || one.spec.Why.Params["name"] != "Dana Villeneuve" ||
-		one.spec.Why.Fallback != "Because you've watched 1 title with Dana Villeneuve." {
+		one.spec.Why.Fallback != "Because you’ve watched 1 title with Dana Villeneuve." {
 		t.Fatalf("one watched title: %+v", one.spec.Why)
 	}
 	if len(one.spec.WhyTitles) != 1 || one.spec.WhyTitles[0].ID != w.scifi[0].Public {
@@ -393,7 +416,7 @@ func TestWhyPersonCountAndPlural(t *testing.T) {
 	}
 	many := row("many")
 	if many.spec.Why == nil || many.spec.Why.Code != recWhyPerson || many.spec.Why.Params["count"] != "5" ||
-		many.spec.Why.Fallback != "Because you've watched 5 titles with Dana Villeneuve." {
+		many.spec.Why.Fallback != "Because you’ve watched 5 titles with Dana Villeneuve." {
 		t.Fatalf("five watched titles: %+v", many.spec.Why)
 	}
 	if len(many.spec.WhyTitles) != 3 {
