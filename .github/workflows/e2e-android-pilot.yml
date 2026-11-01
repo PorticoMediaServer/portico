@@ -26,6 +26,7 @@ jobs:
         with:
           path: apps/native/android/app/build/outputs/apk/google/debug/app-google-debug.apk
           key: e2e-android-app-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          save-always: true
       - name: Install tooling
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
@@ -44,6 +45,22 @@ jobs:
         with:
           path: third_party/media-engine/out/android
           key: e2e-engine-x86_64-${{ hashFiles('third_party/media-engine/**') }}
+          save-always: true
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: third_party/media-engine/work/downloads
+          key: e2e-engine-downloads-${{ hashFiles('third_party/media-engine/sources.lock.json') }}
+          save-always: true
+      - name: Prefetch the pinned GNU source from a mirror
+        if: steps.app.outputs.cache-hit != 'true' && steps.engine.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p third_party/media-engine/work/downloads
+          file=third_party/media-engine/work/downloads/libiconv-1.19.tar.gz
+          if [ ! -f "$file" ]; then
+            curl -fsSL --retry 2 --connect-timeout 15 https://mirrors.kernel.org/gnu/libiconv/libiconv-1.19.tar.gz -o "$file"
+          fi
+          printf '%s  %s\n' 88dd96a8c0464eca144fc791ae60cd31cd8ee78321e67397e25fc095c4a19aa6 "$file" | sha256sum -c -
       - name: Build the x86_64 media engine
         if: steps.app.outputs.cache-hit != 'true' && steps.engine.outputs.cache-hit != 'true'
         run: MEDIA_ENGINE_JOBS=4 third_party/media-engine/build-android.sh --abis x86_64
