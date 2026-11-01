@@ -4,6 +4,7 @@ import type * as types from './types.ts';
 export function decodeActOnDownloadPreparationResponse(input: unknown): types.ActOnDownloadPreparationResponse { return decode("ActOnDownloadPreparationResponse", input) as types.ActOnDownloadPreparationResponse; }
 export function decodeAddQueueSegmentResponse(input: unknown): types.AddQueueSegmentResponse { return decode("AddQueueSegmentResponse", input) as types.AddQueueSegmentResponse; }
 export function decodeAdvanceQueueResponse(input: unknown): types.AdvanceQueueResponse { return decode("AdvanceQueueResponse", input) as types.AdvanceQueueResponse; }
+export function decodeAllowRefusedAddressResponse(input: unknown): types.AllowRefusedAddressResponse { return decode("AllowRefusedAddressResponse", input) as types.AllowRefusedAddressResponse; }
 export function decodeBatchQueueResponse(input: unknown): types.BatchQueueResponse { return decode("BatchQueueResponse", input) as types.BatchQueueResponse; }
 export function decodeBrowseAcrossResponse(input: unknown): types.BrowseAcrossResponse { return decode("BrowseAcrossResponse", input) as types.BrowseAcrossResponse; }
 export function decodeBrowseAcrossCountsResponse(input: unknown): types.BrowseAcrossCountsResponse { return decode("BrowseAcrossCountsResponse", input) as types.BrowseAcrossCountsResponse; }
@@ -489,6 +490,7 @@ export function decodeGetReadingSessionsSessionIdPagesPageIndexResponse(input: u
 export function decodeGetReadingSessionsSessionIdProgressResponse(input: unknown): types.GetReadingSessionsSessionIdProgressResponse { return decode("GetReadingSessionsSessionIdProgressResponse", input) as types.GetReadingSessionsSessionIdProgressResponse; }
 export function decodeGetReadingSessionsSessionIdSearchResponse(input: unknown): types.GetReadingSessionsSessionIdSearchResponse { return decode("GetReadingSessionsSessionIdSearchResponse", input) as types.GetReadingSessionsSessionIdSearchResponse; }
 export function decodeGetReadingSessionsSessionIdSourceResponse(input: unknown): types.GetReadingSessionsSessionIdSourceResponse { return decode("GetReadingSessionsSessionIdSourceResponse", input) as types.GetReadingSessionsSessionIdSourceResponse; }
+export function decodeGetRefusedAddressesResponse(input: unknown): types.GetRefusedAddressesResponse { return decode("GetRefusedAddressesResponse", input) as types.GetRefusedAddressesResponse; }
 export function decodeGetRemotePlaybackControlsResponse(input: unknown): types.GetRemotePlaybackControlsResponse { return decode("GetRemotePlaybackControlsResponse", input) as types.GetRemotePlaybackControlsResponse; }
 export function decodeGetSavedContentResponse(input: unknown): types.GetSavedContentResponse { return decode("GetSavedContentResponse", input) as types.GetSavedContentResponse; }
 export function decodeGetSavedPinsOrderResponse(input: unknown): types.GetSavedPinsOrderResponse { return decode("GetSavedPinsOrderResponse", input) as types.GetSavedPinsOrderResponse; }

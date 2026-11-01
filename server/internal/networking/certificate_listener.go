@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"crypto/tls"
 	"errors"
-	"net"
+	"github.com/PorticoMediaServer/portico/server/internal/remotegate"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
+	"net"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,7 +30,14 @@ type DirectListener struct {
 	err      error
 	// source is replaced once when a deferred listener learns its certificates.
 	source atomic.Pointer[certificateSource]
+	// gate decides outside connections before any byte is answered (O-169).
+	// Nil until the server installs it: then nothing is gated.
+	gate atomic.Pointer[remotegate.Gate]
 }
+
+// UseGate installs the remote admission gate. Connections accepted afterwards
+// are judged by it.
+func (l *DirectListener) UseGate(g *remotegate.Gate) { l.gate.Store(g) }
 
 // certificateSource is the pair of TLS callbacks one set of certificate
 // owners implies. verify is nil when no certificate can be served.
@@ -79,7 +88,25 @@ func newDirectListener(inner net.Listener, manager *CertificateManager, override
 	l := &DirectListener{Listener: inner, ready: make(chan net.Conn, 64), done: make(chan struct{}), classify: make(chan struct{}, 64), pending: map[*countedTLSConn]struct{}{}}
 	l.source.Store(newCertificateSource(manager, custom))
 	l.config = &tls.Config{MinVersion: tls.VersionTLS12, NextProtos: []string{"h2", "http/1.1"},
-		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) { return l.source.Load().get(hello) },
+		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			cert, err := l.source.Load().get(hello)
+			// A name this server has no certificate for (or none at all, a
+			// client connecting by IP) is refused by the handshake itself, with
+			// an unrecognized_name alert: crypto/tls sends that alert when
+			// GetCertificate returns neither a certificate nor an error and the
+			// config holds no static certificates. From outside, in Enhanced,
+			// the name is noted for the owner's "refused addresses".
+			if errors.Is(err, errUnknownName) && l.config.Certificates == nil {
+				if g := l.gate.Load(); g != nil && hello.ServerName != "" && hello.Conn != nil {
+					peer := remotegate.PeerAddr(hello.Conn.RemoteAddr())
+					if p := g.Policy(); p != nil && !p.Home(peer) && !p.Proxy(peer) {
+						g.Record(hello.ServerName, "tls")
+					}
+				}
+				return nil, nil
+			}
+			return cert, err
+		},
 		VerifyConnection: func(state tls.ConnectionState) error {
 			if verify := l.source.Load().verify; verify != nil {
 				return verify(state)
@@ -111,6 +138,9 @@ func newCertificateSource(manager *CertificateManager, custom *CustomCertificate
 				// to load: fail here rather than falling through to a manager
 				// that cannot serve it either.
 				return nil, errCustomCertificate
+			}
+			if manager == nil {
+				return nil, errUnknownName
 			}
 			return managerGet(hello)
 		}
@@ -186,6 +216,27 @@ func (l *DirectListener) classifyConnection(c *countedTLSConn) {
 		l.forget(c)
 		c.Close()
 		return
+	}
+	if g := l.gate.Load(); g != nil && g.Policy() != nil {
+		peer := remotegate.PeerAddr(c.RemoteAddr())
+		switch g.Policy().Socket(peer, first[0] == 0x16) {
+		case remotegate.Refuse:
+			l.forget(c)
+			c.Close()
+			return
+		case remotegate.RefuseAfterHost:
+			// Plain HTTP from outside in Enhanced: read only the request head,
+			// within the same deadline, to note the name asked for; then close
+			// with nothing written.
+			if first[0] >= 'A' && first[0] <= 'Z' {
+				if request, err := http.ReadRequest(bufio.NewReader(&limitedReader{r: reader, n: 8 << 10})); err == nil {
+					g.Record(request.Host, "http")
+				}
+			}
+			l.forget(c)
+			c.Close()
+			return
+		}
 	}
 	buffered := &bufferedTLSConn{Conn: c, reader: reader, owner: c}
 	var conn net.Conn
@@ -291,4 +342,23 @@ func RawConnection(c net.Conn) net.Conn {
 	default:
 		return c
 	}
+}
+
+// limitedReader stops after n bytes, so a refused request head is never read
+// beyond a small bound.
+type limitedReader struct {
+	r *bufio.Reader
+	n int
+}
+
+func (l *limitedReader) Read(b []byte) (int, error) {
+	if l.n <= 0 {
+		return 0, errors.New("request head too large")
+	}
+	if len(b) > l.n {
+		b = b[:l.n]
+	}
+	n, err := l.r.Read(b)
+	l.n -= n
+	return n, err
 }

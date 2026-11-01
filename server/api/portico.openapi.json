@@ -3621,6 +3621,73 @@
         ],
         "type": "object"
       },
+      "AllowRefusedAddressRequest": {
+        "properties": {
+          "expectedRevision": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "operationId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "AllowRefusedAddressResponse": {
+        "properties": {
+          "names": {
+            "items": {
+              "properties": {
+                "count": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "firstSeen": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "lastSeen": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "via": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "via",
+                "firstSeen",
+                "lastSeen",
+                "count"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "remoteSecurity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "remoteSecurity",
+          "names"
+        ],
+        "type": "object"
+      },
       "AudioRenditionPlan": {
         "properties": {
           "action": {
@@ -10931,10 +10998,16 @@
             "minimum": -9007199254740991,
             "type": "integer"
           },
+          "remoteAccess": {
+            "type": "string"
+          },
           "remoteBitrateLimitKbps": {
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
+          },
+          "remoteSecurity": {
+            "type": "string"
           },
           "remoteSignInPolicy": {
             "type": "string"
@@ -11008,10 +11081,16 @@
             "minimum": -9007199254740991,
             "type": "integer"
           },
+          "remoteAccess": {
+            "type": "string"
+          },
           "remoteBitrateLimitKbps": {
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
+          },
+          "remoteSecurity": {
+            "type": "string"
           },
           "remoteSignInPolicy": {
             "type": "string"
@@ -11038,6 +11117,8 @@
         },
         "required": [
           "secureConnections",
+          "remoteSecurity",
+          "remoteAccess",
           "ownAddressEnabled",
           "connectionLimit",
           "advertiseUrl",
@@ -11301,10 +11382,16 @@
                 "minimum": -9007199254740991,
                 "type": "integer"
               },
+              "remoteAccess": {
+                "type": "string"
+              },
               "remoteBitrateLimitKbps": {
                 "maximum": 9007199254740991,
                 "minimum": -9007199254740991,
                 "type": "integer"
+              },
+              "remoteSecurity": {
+                "type": "string"
               },
               "remoteSignInPolicy": {
                 "type": "string"
@@ -11543,6 +11630,8 @@
               "library.missingTitlesDays",
               "library.segmentDetection",
               "secureConnections",
+              "remoteSecurity",
+              "remoteAccess",
               "remoteSignInPolicy",
               "remoteBitrateLimitKbps",
               "connectionLimit",
@@ -11817,10 +11906,16 @@
                     "minimum": -9007199254740991,
                     "type": "integer"
                   },
+                  "remoteAccess": {
+                    "type": "string"
+                  },
                   "remoteBitrateLimitKbps": {
                     "maximum": 9007199254740991,
                     "minimum": -9007199254740991,
                     "type": "integer"
+                  },
+                  "remoteSecurity": {
+                    "type": "string"
                   },
                   "remoteSignInPolicy": {
                     "type": "string"
@@ -12059,6 +12154,8 @@
                   "library.missingTitlesDays",
                   "library.segmentDetection",
                   "secureConnections",
+                  "remoteSecurity",
+                  "remoteAccess",
                   "remoteSignInPolicy",
                   "remoteBitrateLimitKbps",
                   "connectionLimit",
@@ -12349,10 +12446,16 @@
                     "minimum": -9007199254740991,
                     "type": "integer"
                   },
+                  "remoteAccess": {
+                    "type": "string"
+                  },
                   "remoteBitrateLimitKbps": {
                     "maximum": 9007199254740991,
                     "minimum": -9007199254740991,
                     "type": "integer"
+                  },
+                  "remoteSecurity": {
+                    "type": "string"
                   },
                   "remoteSignInPolicy": {
                     "type": "string"
@@ -12591,6 +12694,8 @@
                   "library.missingTitlesDays",
                   "library.segmentDetection",
                   "secureConnections",
+                  "remoteSecurity",
+                  "remoteAccess",
                   "remoteSignInPolicy",
                   "remoteBitrateLimitKbps",
                   "connectionLimit",
@@ -44660,10 +44765,16 @@
             "minimum": -9007199254740991,
             "type": "integer"
           },
+          "remoteAccess": {
+            "type": "string"
+          },
           "remoteBitrateLimitKbps": {
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
+          },
+          "remoteSecurity": {
+            "type": "string"
           },
           "remoteSignInPolicy": {
             "type": "string"
@@ -44690,6 +44801,8 @@
         },
         "required": [
           "secureConnections",
+          "remoteSecurity",
+          "remoteAccess",
           "ownAddressEnabled",
           "connectionLimit",
           "advertiseUrl",
@@ -44898,10 +45011,16 @@
                 "minimum": -9007199254740991,
                 "type": "integer"
               },
+              "remoteAccess": {
+                "type": "string"
+              },
               "remoteBitrateLimitKbps": {
                 "maximum": 9007199254740991,
                 "minimum": -9007199254740991,
                 "type": "integer"
+              },
+              "remoteSecurity": {
+                "type": "string"
               },
               "remoteSignInPolicy": {
                 "type": "string"
@@ -44928,6 +45047,8 @@
             },
             "required": [
               "secureConnections",
+              "remoteSecurity",
+              "remoteAccess",
               "ownAddressEnabled",
               "connectionLimit",
               "advertiseUrl",
@@ -45455,10 +45576,16 @@
                     "minimum": -9007199254740991,
                     "type": "integer"
                   },
+                  "remoteAccess": {
+                    "type": "string"
+                  },
                   "remoteBitrateLimitKbps": {
                     "maximum": 9007199254740991,
                     "minimum": -9007199254740991,
                     "type": "integer"
+                  },
+                  "remoteSecurity": {
+                    "type": "string"
                   },
                   "remoteSignInPolicy": {
                     "type": "string"
@@ -45697,6 +45824,8 @@
                   "library.missingTitlesDays",
                   "library.segmentDetection",
                   "secureConnections",
+                  "remoteSecurity",
+                  "remoteAccess",
                   "remoteSignInPolicy",
                   "remoteBitrateLimitKbps",
                   "connectionLimit",
@@ -45987,10 +46116,16 @@
                     "minimum": -9007199254740991,
                     "type": "integer"
                   },
+                  "remoteAccess": {
+                    "type": "string"
+                  },
                   "remoteBitrateLimitKbps": {
                     "maximum": 9007199254740991,
                     "minimum": -9007199254740991,
                     "type": "integer"
+                  },
+                  "remoteSecurity": {
+                    "type": "string"
                   },
                   "remoteSignInPolicy": {
                     "type": "string"
@@ -46229,6 +46364,8 @@
                   "library.missingTitlesDays",
                   "library.segmentDetection",
                   "secureConnections",
+                  "remoteSecurity",
+                  "remoteAccess",
                   "remoteSignInPolicy",
                   "remoteBitrateLimitKbps",
                   "connectionLimit",
@@ -170304,6 +170441,56 @@
       "GetReadingSessionsSessionIdSourceResponse": {
         "format": "binary",
         "type": "string"
+      },
+      "GetRefusedAddressesRequest": {
+        "properties": {},
+        "type": "object"
+      },
+      "GetRefusedAddressesResponse": {
+        "properties": {
+          "names": {
+            "items": {
+              "properties": {
+                "count": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "firstSeen": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "lastSeen": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "via": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "via",
+                "firstSeen",
+                "lastSeen",
+                "count"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "remoteSecurity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "remoteSecurity",
+          "names"
+        ],
+        "type": "object"
       },
       "GetRemotePlaybackControlsRequest": {
         "properties": {},
@@ -405371,10 +405558,16 @@
                       "minimum": -9007199254740991,
                       "type": "integer"
                     },
+                    "remoteAccess": {
+                      "type": "string"
+                    },
                     "remoteBitrateLimitKbps": {
                       "maximum": 9007199254740991,
                       "minimum": -9007199254740991,
                       "type": "integer"
+                    },
+                    "remoteSecurity": {
+                      "type": "string"
                     },
                     "remoteSignInPolicy": {
                       "type": "string"
@@ -405401,6 +405594,8 @@
                   },
                   "required": [
                     "secureConnections",
+                    "remoteSecurity",
+                    "remoteAccess",
                     "ownAddressEnabled",
                     "connectionLimit",
                     "advertiseUrl",
@@ -405534,10 +405729,16 @@
                     "minimum": -9007199254740991,
                     "type": "integer"
                   },
+                  "remoteAccess": {
+                    "type": "string"
+                  },
                   "remoteBitrateLimitKbps": {
                     "maximum": 9007199254740991,
                     "minimum": -9007199254740991,
                     "type": "integer"
+                  },
+                  "remoteSecurity": {
+                    "type": "string"
                   },
                   "remoteSignInPolicy": {
                     "type": "string"
@@ -405619,10 +405820,16 @@
                       "minimum": -9007199254740991,
                       "type": "integer"
                     },
+                    "remoteAccess": {
+                      "type": "string"
+                    },
                     "remoteBitrateLimitKbps": {
                       "maximum": 9007199254740991,
                       "minimum": -9007199254740991,
                       "type": "integer"
+                    },
+                    "remoteSecurity": {
+                      "type": "string"
                     },
                     "remoteSignInPolicy": {
                       "type": "string"
@@ -405649,6 +405856,8 @@
                   },
                   "required": [
                     "secureConnections",
+                    "remoteSecurity",
+                    "remoteAccess",
                     "ownAddressEnabled",
                     "connectionLimit",
                     "advertiseUrl",
@@ -405725,6 +405934,251 @@
         ],
         "x-lane": "default",
         "x-max-body-bytes": 32768,
+        "x-scope": "admin"
+      }
+    },
+    "/v1/admin/connectivity/refused-addresses": {
+      "get": {
+        "operationId": "get_refused_addresses",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "names": {
+                      "items": {
+                        "properties": {
+                          "count": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "firstSeen": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "lastSeen": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "via": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "via",
+                          "firstSeen",
+                          "lastSeen",
+                          "count"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "remoteSecurity": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "remoteSecurity",
+                    "names"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request refused or unavailable"
+          }
+        },
+        "summary": "Read the addresses outside clients asked for and were refused",
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-admission": "admin",
+        "x-audience": "Clients",
+        "x-cost": "constant",
+        "x-error-codes": [
+          "unauthorized",
+          "not_permitted",
+          "internal",
+          "database_busy"
+        ],
+        "x-lane": "default",
+        "x-scope": "admin"
+      }
+    },
+    "/v1/admin/connectivity/refused-addresses/allow": {
+      "post": {
+        "operationId": "allow_refused_address",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "expectedRevision": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "operationId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expectedRevision",
+                  "operationId",
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "names": {
+                      "items": {
+                        "properties": {
+                          "count": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "firstSeen": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "lastSeen": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "via": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "via",
+                          "firstSeen",
+                          "lastSeen",
+                          "count"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "remoteSecurity": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "remoteSecurity",
+                    "names"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request refused or unavailable"
+          }
+        },
+        "summary": "Add a refused address to the custom addresses",
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-admission": "admin",
+        "x-audience": "Clients",
+        "x-cost": "constant",
+        "x-error-codes": [
+          "unauthorized",
+          "not_permitted",
+          "invalid_request",
+          "revision_mismatch",
+          "request_in_progress",
+          "internal",
+          "database_busy",
+          "writer_capacity"
+        ],
+        "x-lane": "default",
+        "x-max-body-bytes": 4096,
         "x-scope": "admin"
       }
     },
@@ -405919,10 +406373,16 @@
                           "minimum": -9007199254740991,
                           "type": "integer"
                         },
+                        "remoteAccess": {
+                          "type": "string"
+                        },
                         "remoteBitrateLimitKbps": {
                           "maximum": 9007199254740991,
                           "minimum": -9007199254740991,
                           "type": "integer"
+                        },
+                        "remoteSecurity": {
+                          "type": "string"
                         },
                         "remoteSignInPolicy": {
                           "type": "string"
@@ -405949,6 +406409,8 @@
                       },
                       "required": [
                         "secureConnections",
+                        "remoteSecurity",
+                        "remoteAccess",
                         "ownAddressEnabled",
                         "connectionLimit",
                         "advertiseUrl",
@@ -409752,10 +410214,16 @@
                               "minimum": -9007199254740991,
                               "type": "integer"
                             },
+                            "remoteAccess": {
+                              "type": "string"
+                            },
                             "remoteBitrateLimitKbps": {
                               "maximum": 9007199254740991,
                               "minimum": -9007199254740991,
                               "type": "integer"
+                            },
+                            "remoteSecurity": {
+                              "type": "string"
                             },
                             "remoteSignInPolicy": {
                               "type": "string"
@@ -409994,6 +410462,8 @@
                             "library.missingTitlesDays",
                             "library.segmentDetection",
                             "secureConnections",
+                            "remoteSecurity",
+                            "remoteAccess",
                             "remoteSignInPolicy",
                             "remoteBitrateLimitKbps",
                             "connectionLimit",
@@ -410284,10 +410754,16 @@
                               "minimum": -9007199254740991,
                               "type": "integer"
                             },
+                            "remoteAccess": {
+                              "type": "string"
+                            },
                             "remoteBitrateLimitKbps": {
                               "maximum": 9007199254740991,
                               "minimum": -9007199254740991,
                               "type": "integer"
+                            },
+                            "remoteSecurity": {
+                              "type": "string"
                             },
                             "remoteSignInPolicy": {
                               "type": "string"
@@ -410526,6 +411002,8 @@
                             "library.missingTitlesDays",
                             "library.segmentDetection",
                             "secureConnections",
+                            "remoteSecurity",
+                            "remoteAccess",
                             "remoteSignInPolicy",
                             "remoteBitrateLimitKbps",
                             "connectionLimit",
@@ -410914,10 +411392,16 @@
                         "minimum": -9007199254740991,
                         "type": "integer"
                       },
+                      "remoteAccess": {
+                        "type": "string"
+                      },
                       "remoteBitrateLimitKbps": {
                         "maximum": 9007199254740991,
                         "minimum": -9007199254740991,
                         "type": "integer"
+                      },
+                      "remoteSecurity": {
+                        "type": "string"
                       },
                       "remoteSignInPolicy": {
                         "type": "string"
@@ -411156,6 +411640,8 @@
                       "library.missingTitlesDays",
                       "library.segmentDetection",
                       "secureConnections",
+                      "remoteSecurity",
+                      "remoteAccess",
                       "remoteSignInPolicy",
                       "remoteBitrateLimitKbps",
                       "connectionLimit",
@@ -411438,10 +411924,16 @@
                               "minimum": -9007199254740991,
                               "type": "integer"
                             },
+                            "remoteAccess": {
+                              "type": "string"
+                            },
                             "remoteBitrateLimitKbps": {
                               "maximum": 9007199254740991,
                               "minimum": -9007199254740991,
                               "type": "integer"
+                            },
+                            "remoteSecurity": {
+                              "type": "string"
                             },
                             "remoteSignInPolicy": {
                               "type": "string"
@@ -411680,6 +412172,8 @@
                             "library.missingTitlesDays",
                             "library.segmentDetection",
                             "secureConnections",
+                            "remoteSecurity",
+                            "remoteAccess",
                             "remoteSignInPolicy",
                             "remoteBitrateLimitKbps",
                             "connectionLimit",
@@ -411970,10 +412464,16 @@
                               "minimum": -9007199254740991,
                               "type": "integer"
                             },
+                            "remoteAccess": {
+                              "type": "string"
+                            },
                             "remoteBitrateLimitKbps": {
                               "maximum": 9007199254740991,
                               "minimum": -9007199254740991,
                               "type": "integer"
+                            },
+                            "remoteSecurity": {
+                              "type": "string"
                             },
                             "remoteSignInPolicy": {
                               "type": "string"
@@ -412212,6 +412712,8 @@
                             "library.missingTitlesDays",
                             "library.segmentDetection",
                             "secureConnections",
+                            "remoteSecurity",
+                            "remoteAccess",
                             "remoteSignInPolicy",
                             "remoteBitrateLimitKbps",
                             "connectionLimit",

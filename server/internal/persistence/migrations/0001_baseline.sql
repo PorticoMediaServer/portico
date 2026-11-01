@@ -3558,6 +3558,15 @@ CREATE TABLE identity_credential_attempts(
  locked_until INTEGER NOT NULL,
  PRIMARY KEY(account_id,source_bucket)
 ) STRICT;
+-- O-169: names outside clients asked for and were refused in Enhanced. Names
+-- only; bounded by the gate (256), saved at most once a minute.
+CREATE TABLE remote_refused_names(
+ name TEXT PRIMARY KEY,
+ via TEXT NOT NULL CHECK(via IN('tls','http')),
+ first_seen_ms INTEGER NOT NULL,
+ last_seen_ms INTEGER NOT NULL,
+ count INTEGER NOT NULL
+) STRICT;
 CREATE TABLE authorization_family_grants(
  family_id TEXT PRIMARY KEY REFERENCES authorization_session_families(id) ON DELETE CASCADE,
  grant_kind TEXT NOT NULL CHECK(grant_kind IN('cast_target','owner_claim_completion'))
@@ -9580,6 +9589,8 @@ INSERT INTO backup_destinations(path) VALUES('');
 
 CREATE TABLE server_settings(singleton INTEGER PRIMARY KEY CHECK(singleton=1), updated_ms INTEGER NOT NULL DEFAULT 0,
  "secureConnections" TEXT CHECK("secureConnections" IS NULL OR "secureConnections" IN ('preferred','required')),
+ "remoteSecurity" TEXT CHECK("remoteSecurity" IS NULL OR "remoteSecurity" IN ('enhanced','standard')),
+ "remoteAccess" TEXT CHECK("remoteAccess" IS NULL OR "remoteAccess" IN ('on','private','off')),
  "analysisStorageGiB" INTEGER,
  "analysisStageStorageMiB" INTEGER,
  "subtitleTrackLimit" INTEGER,

@@ -224,8 +224,10 @@ func TestDirectListenerServesCustomWithoutManager(t *testing.T) {
 	if e != nil || got == nil {
 		t.Fatalf("custom not served without a manager: %v", e)
 	}
-	if _, e := l.config.GetCertificate(&tls.ClientHelloInfo{ServerName: "other.example.com"}); e == nil {
-		t.Fatal("another name behaves as before (no certificate)")
+	// Another name gets no certificate: nil and no error, which the handshake
+	// answers with an unrecognized_name alert.
+	if got, e := l.config.GetCertificate(&tls.ClientHelloInfo{ServerName: "other.example.com"}); got != nil || e != nil {
+		t.Fatalf("another name: %v %v", got, e)
 	}
 	if l.config.MinVersion != tls.VersionTLS12 {
 		t.Fatalf("TLS minimum moved: %v", l.config.MinVersion)

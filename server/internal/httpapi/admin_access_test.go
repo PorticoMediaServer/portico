@@ -42,6 +42,11 @@ type administrationFixture struct {
 }
 
 func administrationFixtureNew(t *testing.T) administrationFixture {
+	return administrationFixtureNewWith(t, nil)
+}
+
+// administrationFixtureNewWith lets a test add dependencies before the router is built.
+func administrationFixtureNewWith(t *testing.T, configure func(*Dependencies)) administrationFixture {
 	t.Helper()
 	root := t.TempDir()
 	db, e := persistence.Open(filepath.Join(root, "db"))
@@ -90,6 +95,9 @@ func administrationFixtureNew(t *testing.T) administrationFixture {
 	deps.credentials = newCredentialGate()
 	deps.Webhooks = webhooks.New(db)
 	deps.self = &selfHandler{}
+	if configure != nil {
+		configure(&deps)
+	}
 	handler := New(deps)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

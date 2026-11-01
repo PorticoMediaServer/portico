@@ -20,6 +20,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/driveoauth"
 	"github.com/PorticoMediaServer/portico/server/internal/enrichment"
 	"github.com/PorticoMediaServer/portico/server/internal/rcloneprogram"
+	"github.com/PorticoMediaServer/portico/server/internal/remotegate"
 	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"io"
 	"log"
@@ -1446,7 +1447,13 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 			}
 		}
 	})
+	// O-169: one remote gate, shared by the listener (sockets and TLS) and the
+	// router (each request). The router installs its policy as it starts.
+	remoteGate := remotegate.New()
+	apiDependencies.RemoteGate = remoteGate
 	handler := httpapi.New(apiDependencies)
+	direct.UseGate(remoteGate)
+	supervise.Go("remotegate.run", func() { httpapi.RunRemoteGate(ctx, db, remoteGate) })
 	backupService.SetBeforeSnapshot(func(ctx context.Context) error {
 		flush, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()

@@ -6036,6 +6036,11 @@ remote_playback.descriptor_digest
 remote_playback.facts_json
 remote_playback.network_revision
 remote_playback.session_id
+remote_refused_names.count
+remote_refused_names.first_seen_ms
+remote_refused_names.last_seen_ms
+remote_refused_names.name
+remote_refused_names.via
 remote_scan_cursors.cursor
 remote_scan_cursors.job_id
 remote_scan_cursors.listing_id
@@ -6651,7 +6656,9 @@ server_settings.people.invitation_role
 server_settings.planningPolicy
 server_settings.playHistoryDays
 server_settings.playedRetentionMs
+server_settings.remoteAccess
 server_settings.remoteBitrateLimitKbps
+server_settings.remoteSecurity
 server_settings.remoteSignInPolicy
 server_settings.secureConnections
 server_settings.segments.animeMode
