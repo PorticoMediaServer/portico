@@ -599,6 +599,25 @@ func TestStatementCacheSQLBoundariesRespectSQLiteQuotesAndComments(t *testing.T)
 		{`SELECT * FROM temp.scratch`, false, true},
 		{`PRAGMA query_only=ON`, false, true},
 		{`ALTER TABLE items ADD COLUMN label TEXT`, false, true},
+		{`SAVEPOINT inventory_page`, false, false},
+		{`RELEASE inventory_page`, false, false},
+		{`RELEASE SAVEPOINT inventory_page`, false, false},
+		{`SAVEPOINT temp`, false, false},
+		{`SAVEPOINT "temp"`, false, false},
+		{`SAVEPOINT "name;with""quote"; -- trailing`, false, false},
+		{`RELEASE /* boundary */ SAVEPOINT [named point];`, false, false},
+		{`SAVEPOINT 'quoted name'`, false, false},
+		{`SAVEPOINT café`, false, false},
+		{`ROLLBACK TO inventory_page`, false, true},
+		{`ROLLBACK TO SAVEPOINT inventory_page`, false, true},
+		{`SAVEPOINT`, false, true},
+		{`RELEASE SAVEPOINT`, false, true},
+		{`SAVEPOINT name extra`, false, true},
+		{`'prefix' SAVEPOINT`, false, true},
+		{`RELEASE name extra`, false, true},
+		{`SAVEPOINT name; RELEASE name`, false, true},
+		{`RELEASE name; PRAGMA query_only=OFF`, false, true},
+		{`SAVEPOINT "unclosed`, false, true},
 		{`EXPLAIN QUERY PLAN SELECT 1`, false, false},
 		{"SELECT 1 /*" + strings.Repeat("x", statementCacheBudget) + "*/", false, false},
 	}
@@ -607,6 +626,65 @@ func TestStatementCacheSQLBoundariesRespectSQLiteQuotesAndComments(t *testing.T)
 		if shape.retain() != test.retain || shape.invalidates() != test.invalidate {
 			t.Fatalf("case%d retain=%v invalidate=%v", i, shape.retain(), shape.invalidates())
 		}
+	}
+}
+
+// The inventory page's savepoint must not evict hot statements. DDL still
+// invalidates immediately, and rolling that DDL back invalidates any bytecode
+// prepared in the temporary schema, even before the savepoint is released.
+func TestStatementCacheSavepointDDLThenRollbackToInvalidates(t *testing.T) {
+	_, conn := statementCacheDB(t)
+	ctx := context.Background()
+	exec := func(query string) {
+		t.Helper()
+		if _, err := conn.ExecContext(ctx, query); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exec(`CREATE TABLE items(value TEXT)`)
+	exec(`INSERT INTO items VALUES('original')`)
+	const query = `SELECT * FROM items`
+	columns := func(want int) *statementEntry {
+		t.Helper()
+		rows, err := conn.QueryContext(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		columns, err := rows.Columns()
+		rows.Close()
+		if err != nil || len(columns) != want {
+			t.Fatalf("schema columns: %v %v, want %d", columns, err, want)
+		}
+		entry := cacheEntryFor(t, conn, query)
+		if entry == nil || entry.leased {
+			t.Fatal("schema read did not retain idle bytecode")
+		}
+		return entry
+	}
+	original := columns(1)
+	exec(`SAVEPOINT inventory_page`)
+	if cacheEntryFor(t, conn, query) != original {
+		t.Fatal("SAVEPOINT evicted the hot read")
+	}
+	exec(`ALTER TABLE items ADD COLUMN transient TEXT`)
+	if cacheEntryFor(t, conn, query) != nil {
+		t.Fatal("DDL inside a savepoint did not invalidate")
+	}
+	duringDDL := columns(2)
+	exec(`ROLLBACK TO inventory_page`)
+	if cacheEntryFor(t, conn, query) != nil || !duringDDL.retired {
+		t.Fatal("ROLLBACK TO retained bytecode from the rolled-back schema")
+	}
+	restored := columns(1)
+	if restored == duringDDL {
+		t.Fatal("rolled-back schema bytecode was reused")
+	}
+	exec(`RELEASE SAVEPOINT inventory_page`)
+	if cacheEntryFor(t, conn, query) != restored {
+		t.Fatal("RELEASE evicted the restored-schema read")
+	}
+	if after := columns(1); after != restored {
+		t.Fatal("restored schema stopped reusing valid bytecode")
 	}
 }
 

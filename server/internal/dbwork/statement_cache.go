@@ -108,12 +108,16 @@ type statementShape struct {
 	single    bool
 	temporary bool
 	textBytes int
+	savepoint bool
 }
 
 func describeStatement(query string) statementShape {
 	shape := statementShape{single: true, textBytes: len(query)}
 	start, last := -1, 0
 	terminated := false
+	var tokens [3]string
+	var names [3]bool
+	count := 0
 	for i := 0; i < len(query); {
 		ch := query[i]
 		if ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == '\f' {
@@ -152,6 +156,7 @@ func describeStatement(query string) statementShape {
 			start = i
 		}
 		tokenStart := i
+		name := false
 		if ch == '\'' || ch == '"' || ch == '`' || ch == '[' {
 			closing := ch
 			if ch == '[' {
@@ -178,21 +183,23 @@ func describeStatement(query string) statementShape {
 				shape.single = false
 				return shape
 			}
+			name = true
 			if ch != '\'' && strings.EqualFold(query[contentStart:contentEnd], "temp") {
 				shape.temporary = true
 			}
-		} else if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_' {
+		} else if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_' || ch >= 128 {
+			name = true
 			i++
 			for i < len(query) {
 				c := query[i]
-				if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
+				if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '$' || c >= 128) {
 					break
 				}
 				i++
 			}
 			word := query[tokenStart:i]
 			if shape.command == "" {
-				if len(word) <= 7 {
+				if len(word) <= 9 {
 					shape.command = strings.ToUpper(word)
 				} else {
 					shape.command = "?"
@@ -204,11 +211,20 @@ func describeStatement(query string) statementShape {
 		} else {
 			i++
 		}
+		if count < len(tokens) {
+			tokens[count], names[count] = query[tokenStart:i], name
+		}
+		count++
 		last = i
 	}
 	if start >= 0 {
 		shape.sql = query[start:last]
 	}
+	// Only the complete transaction-control grammar gets the exception.
+	// ROLLBACK TO can undo DDL; unknown commands and scripts remain fences.
+	shape.savepoint = names[0] && strings.EqualFold(tokens[0], shape.command) && ((count == 2 && names[1] &&
+		(shape.command == "SAVEPOINT" || (shape.command == "RELEASE" && !strings.EqualFold(tokens[1], "SAVEPOINT")))) ||
+		(count == 3 && shape.command == "RELEASE" && strings.EqualFold(tokens[1], "SAVEPOINT") && names[2]))
 	return shape
 }
 func (s statementShape) ordinary() bool {
@@ -222,7 +238,15 @@ func (s statementShape) retain() bool {
 	return s.single && s.ordinary() && !s.temporary && s.textBytes <= (statementCacheBudget-statementCacheOverhead)/8
 }
 func (s statementShape) invalidates() bool {
-	if !s.single || s.temporary {
+	if !s.single {
+		return true
+	}
+	// A savepoint name may itself be "temp". It does not refer to a temp
+	// schema, and SAVEPOINT/RELEASE neither publish nor roll back schema.
+	if s.savepoint {
+		return false
+	}
+	if s.temporary {
 		return true
 	}
 	if s.ordinary() || s.command == "EXPLAIN" {
