@@ -33,7 +33,7 @@ func TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan(t *tes
 		t.Fatal(err)
 	}
 	target := c.Movie(movies, filepath.Join(f.root, "RatingTransit.mp4"), "RatingTransit", 2026)
-	c.Genres(target.ID, "fixture", []string{"RatingTransitGenre"})
+	c.Genres(target.ID, "fixture", "RatingTransitGenre")
 	collection := c.Collection(movies, "RatingTransitCollection", safeFilm, target)
 	tv := c.Library("rating-tv", "Rating TV", "tv", filepath.Join(f.root, "tv"))
 	show := c.Show(tv, "Rating Transit Show", 2026)
