@@ -49,9 +49,10 @@ func TestRemoteDirectAddressInitializesOnlyCertificateAddressHint(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err = f.db.Exec(`UPDATE networking_remote_settings SET enabled=?,mapping=0`, enabled); err != nil {
+			if _, err = f.db.Exec(`UPDATE networking_remote_settings SET mapping=0`); err != nil {
 				t.Fatal(err)
 			}
+			useRemoteAccess(m, map[bool]string{false: "off", true: "on"}[enabled])
 			topo.Public = []string{"188.68.34.120"}
 			topo.LAN = nil
 			topo.LocalAddress = "188.68.34.120"

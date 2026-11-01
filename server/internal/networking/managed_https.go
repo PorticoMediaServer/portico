@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"net/url"
 	"github.com/PorticoMediaServer/portico/server/internal/directname"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -90,11 +90,13 @@ func (h *ClaimHandler) managedHTTPSTx(ctx context.Context, tx *sql.Tx) (origin, 
 	}
 	var authority, raw, digest string
 	var revision, generation int64
-	var remoteEnabled bool
 	var remotePort int
-	if e = tx.QueryRowContext(ctx, "SELECT r.authority,r.revision,r.enabled,r.public_port,s.generation,s.route_digest,s.status FROM networking_remote_settings r JOIN networking_remote_state s ON s.singleton=r.singleton WHERE r.singleton=1").Scan(&authority, &revision, &remoteEnabled, &remotePort, &generation, &digest, &raw); e != nil {
+	if e = tx.QueryRowContext(ctx, "SELECT r.authority,r.revision,r.public_port,s.generation,s.route_digest,s.status FROM networking_remote_settings r JOIN networking_remote_state s ON s.singleton=r.singleton WHERE r.singleton=1").Scan(&authority, &revision, &remotePort, &generation, &digest, &raw); e != nil {
 		return "", "", e
 	}
+	// Remote access from the cached setting: no settings read inside this
+	// transaction.
+	remoteEnabled := h.remote == nil || !h.remote.remoteOff.Load()
 	if !remoteEnabled || authority != q.Scope.ID || remotePort != publicPort || generation < 1 || digest == "" || len(raw) > 1<<20 {
 		return "", "remote access off or remote state stale", nil
 	}
