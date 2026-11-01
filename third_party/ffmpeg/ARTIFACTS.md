@@ -219,3 +219,25 @@ source download alone cannot prove that a stage was compiled or merged into the
 prefix. The hosted source-only control uses the real pinned recipe/generator,
 checks both stage mounts and final-prefix copies, and removes the two roots as
 a negative control. It compiles no dependency and grants no engine acceptance.
+
+
+Hosted dependency caches are optional build inputs, never qualification evidence.
+The dedicated manual toolchain workflow writes BuildKit registry caches for the
+Windows and Linux ARM64 dependency graphs (mode=max), and Actions caches carrying
+content-addressed OCI prefix deltas for native Linux and macOS dependencies.
+Each stage binds its source pins, checked recipe and helpers, actual compiler/SDK,
+flags and parent outputs. A rolling registry hint may supply unchanged layers;
+BuildKit still validates the operation and input digests. Prefix deltas verify
+all OCI blobs, restored file hashes and modes, contained links and the complete
+resulting inventory before reuse. Original corresponding sources, licence files
+and stage receipts travel with the cached outputs. Partial or failed stages are
+never recorded as successful hits. Cache restoration does not accept an engine
+or replace source, feature, architecture, native or repeat-build gates.
+
+FFmpeg configure and packaging changes do not invalidate unrelated dependency
+stages. Terminal FFmpeg compilation stays outside the registry/prefix cache;
+each implemented repeat round executes fresh against the same checked dependency
+outputs. Mac's second terminal compile remains a separate acceptance item. The
+cache-only hosted controls compile tiny sentinel libraries, import caches on
+independent builders/runners, test input invalidation and execute two fresh
+terminal links. They measure cache transport rather than a full-engine speedup.
