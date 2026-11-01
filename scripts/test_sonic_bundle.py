@@ -137,12 +137,37 @@ class SonicBundleTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 bundle.extract(archive, output, 'linux-x64')
             self.assertEqual((output / 'portico-sonic').read_bytes(), original)
-            tag = bundle.locks()[0]['releaseTag']
-            sums = ('0' * 64 + '  portico-sonic-' + tag + '-linux-x64.tar.xz\n').encode()
-            with patch.object(bundle.urllib.request, 'urlopen', side_effect=[io.BytesIO(sums), io.BytesIO(b'changed archive')]):
+            with patch.object(bundle.urllib.request, 'urlopen', side_effect=[io.BytesIO(b'changed archive')]):
                 with self.assertRaises(ValueError):
                     bundle.fetch(root / 'new', 'linux-x64')
             self.assertFalse((root / 'new').exists())
+
+    def test_committed_lock_pins_every_linux_bundle(self):
+        runtime = json.loads((bundle.ROOT / 'third_party/portico-sonic/runtime.lock.json').read_text())
+        self.assertEqual(set(runtime['bundles']), {'linux-x64', 'linux-arm64'})
+        for pinned in runtime['bundles'].values():
+            self.assertRegex(pinned['sha256'], '^[0-9a-f]{64}$')
+            self.assertTrue(0 < pinned['bytes'] <= bundle.MAX_ARCHIVE)
+
+    def test_fetch_accepts_only_the_pinned_archive_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive, _ = self.package(root)
+            data = archive.read_bytes()
+            runtime, model_lock = bundle.locks()
+            pinned = dict(runtime, bundles={'linux-x64': {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}})
+            with patch.object(bundle, 'locks', return_value=(pinned, model_lock)):
+                with patch.object(bundle.urllib.request, 'urlopen', side_effect=[io.BytesIO(data)]) as opened:
+                    bundle.fetch(root / 'fetched', 'linux-x64')
+                self.assertIn('/' + runtime['bundleRepository'] + '/releases/download/' + runtime['releaseTag'] + '/', opened.call_args[0][0])
+                self.assertTrue((root / 'fetched/portico-sonic').is_file())
+                for body in (data + b'x', data[:-1], b'x' + data[1:]):
+                    with patch.object(bundle.urllib.request, 'urlopen', side_effect=[io.BytesIO(body)]):
+                        with self.assertRaises(ValueError):
+                            bundle.fetch(root / 'refused', 'linux-x64')
+                    self.assertFalse((root / 'refused').exists())
+                with self.assertRaises(ValueError):
+                    bundle.fetch(root / 'other', 'linux-arm64')
 
     def test_installed_union_preserves_original_ffmpeg_guard_and_rejects_changes(self):
         with tempfile.TemporaryDirectory() as temporary:

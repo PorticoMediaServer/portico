@@ -325,32 +325,33 @@ def extract(archive, output, target):
 
 
 def fetch(output, target):
+    """Download this target's bundle from its pinned release and accept only the
+    exact archive bytes the lock names, then extract and verify it."""
     runtime, _ = locks()
-    tag = runtime['releaseTag']
+    tag, repository = runtime['releaseTag'], runtime.get('bundleRepository')
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,100}', tag):
         raise ValueError('invalid release tag')
+    if not isinstance(repository, str) or not re.fullmatch(r'[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}', repository):
+        raise ValueError('invalid bundle repository')
+    pinned = runtime.get('bundles', {}).get(target)
+    if (not isinstance(pinned, dict) or not isinstance(pinned.get('sha256'), str)
+            or not re.fullmatch('[0-9a-f]{64}', pinned['sha256']) or type(pinned.get('bytes')) is not int
+            or not 0 < pinned['bytes'] <= MAX_ARCHIVE):
+        raise ValueError('no pinned Sonic bundle for this target')
     name = f'portico-sonic-{tag}-{target}.tar.xz'
-    base = 'https://github.com/PorticoMediaServer/portico-server/releases/download/' + tag + '/'
+    url = f'https://github.com/{repository}/releases/download/{tag}/{name}'
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='sonic-fetch-', dir=output.parent) as temporary:
-        with urllib.request.urlopen(base + 'checksums.sha256', timeout=60) as response:
-            sums = response.read((64 << 10) + 1).decode('ascii')
-        if len(sums) > 64 << 10:
-            raise ValueError('unbounded checksum list')
-        matches = [line.split()[0] for line in sums.splitlines()
-                   if len(line.split()) == 2 and line.split()[1].removeprefix('./') == name]
-        if len(matches) != 1 or not re.fullmatch('[0-9a-f]{64}', matches[0]):
-            raise ValueError('missing unique bundle checksum')
         archive = Path(temporary) / name
         size = 0
-        with urllib.request.urlopen(base + name, timeout=120) as response, archive.open('wb') as stream:
+        with urllib.request.urlopen(url, timeout=120) as response, archive.open('wb') as stream:
             while block := response.read(1 << 20):
                 size += len(block)
-                if size > MAX_ARCHIVE:
-                    raise ValueError('unbounded Sonic download')
+                if size > pinned['bytes']:
+                    raise ValueError('Sonic download larger than pinned')
                 stream.write(block)
-        if digest(archive) != matches[0]:
-            raise ValueError('Sonic download checksum mismatch')
+        if size != pinned['bytes'] or digest(archive) != pinned['sha256']:
+            raise ValueError('Sonic download differs from the pinned archive')
         extract(archive, output, target)
 
 

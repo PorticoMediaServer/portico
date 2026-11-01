@@ -67,6 +67,15 @@ builds the helper natively on Linux x64 and ARM64. Each extracted bundle runs
 against outputs of the original TensorFlow checkpoint and through the supervised
 Go runtime before publication. `runtime.lock.json` names the non-latest release.
 
+The published bundles are `sonic-1.20.1-mtt-1` in the archived
+`PorticoMediaServer/portico-server` repository (the toolchain workflow has not
+moved to the monorepo). `runtime.lock.json` pins that repository and each
+archive's SHA-256 and size, and `sonic-bundle.py fetch` accepts only those exact
+bytes before extracting and verifying the bundle. The Docker image fetches its
+architecture's bundle in the `media-tools` stage, and a qualified Linux release
+build fetches it into `.cache/sonic/<target>` unless `--sonic-bundle` is given.
+Development-engine builds leave Sonic out.
+
 The reviewed model export is itself published once per pin: the workflow first
 tries `sonic-bundle.py model-fetch`, which verifies and stages the pinned
 `musicnn-mtt-<version>.tar.xz` from the model release named by

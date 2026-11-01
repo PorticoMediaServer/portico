@@ -91,6 +91,18 @@ ENV PORTICO_DISC_FIXTURES=/fixtures/discs/manifest.json \
     TMPDIR=/tmp/portico-verify
 RUN mkdir -p "$TMPDIR" && bash /tmp/verify-ffmpeg-bundle.sh /ffmpeg full
 
+# The Sonic bundle is fetched for this architecture only and accepted only as the
+# exact archive bytes pinned in runtime.lock.json. (Extraction needs Python 3.12's
+# tarfile data filter, so it runs on trixie, not the bookworm FFmpeg stage.)
+FROM debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS sonic
+RUN apt-get update && apt-get install --yes --no-install-recommends python3 binutils ca-certificates && rm -rf /var/lib/apt/lists/*
+ARG TARGETARCH
+COPY scripts/sonic-bundle.py /src/scripts/sonic-bundle.py
+COPY third_party/portico-sonic/runtime.lock.json /src/third_party/portico-sonic/runtime.lock.json
+COPY third_party/musicnn/model.lock.json /src/third_party/musicnn/model.lock.json
+RUN if [ "$TARGETARCH" = amd64 ]; then target=linux-x64; else target=linux-arm64; fi \
+ && python3 /src/scripts/sonic-bundle.py fetch /sonic-bundle --target "$target"
+
 # Sonic is independently verified before composition. Keep the sealed FFmpeg
 # inventory unchanged; the final installed union is checked by sonic-bundle.py.
 FROM ffmpeg AS media-tools
@@ -98,9 +110,9 @@ ARG TARGETARCH
 COPY scripts/sonic-bundle.py scripts/verify-ffmpeg-manifest.py /src/scripts/
 COPY third_party/portico-sonic/runtime.lock.json /src/third_party/portico-sonic/runtime.lock.json
 COPY third_party/musicnn/model.lock.json /src/third_party/musicnn/model.lock.json
-COPY third_party/portico-sonic/bundle/ /sonic-bundles/
+COPY --from=sonic /sonic-bundle/ /sonic-bundle/
 RUN if [ "$TARGETARCH" = amd64 ]; then target=linux-x64; else target=linux-arm64; fi \
- && python3 /src/scripts/sonic-bundle.py install /ffmpeg --bundle "/sonic-bundles/linux-${TARGETARCH}" --target "$target"
+ && python3 /src/scripts/sonic-bundle.py install /ffmpeg --bundle /sonic-bundle --target "$target"
 
 # Fetch only the pinned architecture, verify the upstream signature and every payload byte.
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS rclone

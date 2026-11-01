@@ -14,5 +14,16 @@
       "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-linux-x64-1.20.1.tgz",
       "sha256": "67db4dc1561f1e3fd42e619575c82c601ef89849afc7ea85a003abbac1a1a105"
     }
+  },
+  "bundleRepository": "PorticoMediaServer/portico-server",
+  "bundles": {
+    "linux-arm64": {
+      "sha256": "21a912bc6bbb5a8eae9a33b769e0d16af258ea48d8de753ec5b66d3a3caae942",
+      "bytes": 6487480
+    },
+    "linux-x64": {
+      "sha256": "ff14ad16980e0adc32dc7b5474b73ae61a1fcbba2e0d3ae383d1a0b517405d9e",
+      "bytes": 7381760
+    }
   }
 }
