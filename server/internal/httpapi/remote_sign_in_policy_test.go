@@ -81,7 +81,6 @@ func TestRemoteSignInPolicyOnPasswordSignIn(t *testing.T) {
 	}{
 		{"allow", true, true, true},
 		{"owner-only", true, false, true},
-		{"off", false, false, true},
 	} {
 		setRemoteSignIn(t, f, c.policy)
 		check := func(who, peer, user, password string, admitted bool) {
@@ -106,20 +105,6 @@ func TestRemoteSignInPolicyOnPasswordSignIn(t *testing.T) {
 	}
 }
 
-// With sign-in closed to everyone outside, a wrong password and a right one
-// get the same answer: the server does no credential work for the caller.
-func TestRemoteSignInOffAnswersBeforeLookingAtThePassword(t *testing.T) {
-	f := remotePolicyFixture(t)
-	passwordAccount(t, f, "quietmember", "Testing1!")
-	setRemoteSignIn(t, f, "off")
-	for _, password := range []string{"Testing1!", "not the password", ""} {
-		w, _ := signInFrom(f, remotePeer, "quietmember", password)
-		wantRemoteRefusal(t, "password "+strconv.Quote(password), w)
-	}
-	w, _ := signInFrom(f, remotePeer, "nobody-by-this-name", "whatever it is")
-	wantRemoteRefusal(t, "unknown username", w)
-}
-
 // A device that signed in at home keeps working when it leaves: choosing a
 // profile and renewing the session continue a sign-in that was already
 // admitted, and the setting promises to leave those alone.
@@ -132,7 +117,9 @@ func TestRemoteSignInPolicyLeavesEstablishedSessionsAlone(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &signed); err != nil || w.Code != 200 || signed.Session == nil {
 		t.Fatalf("sign-in at home: %d %s", w.Code, w.Body.String())
 	}
-	setRemoteSignIn(t, f, "off")
+	// Remote access Off closes the server to outside altogether (the gate);
+	// owner-only is the sign-in policy that refuses this member's new sign-ins.
+	setRemoteSignIn(t, f, "owner-only")
 	// The session works from outside.
 	if w = f.rawFrom(remotePeer, "GET", "/v1/me", signed.Session.AccessToken, nil, nil); w.Code != 200 {
 		t.Fatalf("an established session was refused from outside: %d %s", w.Code, w.Body.String())
@@ -182,9 +169,6 @@ func TestRemoteSignInPolicyOnSecondFactorCompletion(t *testing.T) {
 	if after := familyCount(t, f); after != before {
 		t.Fatalf("a refused completion created a session (%d, was %d)", after, before)
 	}
-	setRemoteSignIn(t, f, "off")
-	w = f.rawFrom(remotePeer, "POST", "/v1/auth/two-factor/challenge", "", nil, map[string]string{"token": challenged.Challenge.Token, "code": code})
-	wantRemoteRefusal(t, "code presented from outside under off", w)
 }
 
 func TestRemoteSignInPolicyOnSelfRegistration(t *testing.T) {
@@ -199,7 +183,7 @@ func TestRemoteSignInPolicyOnSelfRegistration(t *testing.T) {
 		}
 		return n
 	}
-	for i, policy := range []string{"owner-only", "off"} {
+	for i, policy := range []string{"owner-only"} {
 		setRemoteSignIn(t, f, policy)
 		before := accounts()
 		w := f.rawFrom(remotePeer, "POST", "/v1/auth/register", "", nil, map[string]string{"username": fmt.Sprintf("outsider%d", i), "password": "Testing1!"})
@@ -266,17 +250,5 @@ func TestRemoteSignInPolicyOnTelevisionCodes(t *testing.T) {
 	approve(member, code)
 	if w = collect(homePeer, code); w.Code != 200 {
 		t.Fatalf("television at home under owner-only: %d %s", w.Code, w.Body.String())
-	}
-
-	// Off: a television outside is told at once, before anyone approves.
-	setRemoteSignIn(t, f, "off")
-	w, _ = start(remotePeer, 4)
-	wantRemoteRefusal(t, "television outside asking for a code under off", w)
-	// A code obtained at home cannot be collected from outside.
-	_, code = start(homePeer, 5)
-	approve(f.owner.AccessToken, code)
-	wantRemoteRefusal(t, "code from home collected outside under off", collect(remotePeer, code))
-	if w = collect(homePeer, code); w.Code != 200 {
-		t.Fatalf("the same code collected at home: %d %s", w.Code, w.Body.String())
 	}
 }
