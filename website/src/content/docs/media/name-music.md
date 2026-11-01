@@ -1,15 +1,17 @@
 ---
 title: Organize music
-description: Arrange artists, albums, tracks, and embedded tags for a reliable music library.
+description: Arrange artists, albums, tracks and embedded tags for a reliable music library.
 category: media
 order: 4
 audience: Server owners
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Music matching depends on both the folder structure and the metadata embedded in each audio file. Correct tags are more important than decorative filename patterns.
+Portico matches music using both the folder structure and the tags embedded in each audio file. Correct tags matter more than how the filenames look.
 
-Use a stable artist and album hierarchy:
+## Folder layout
+
+Use a stable artist and album structure:
 
 ```text
 Music/
@@ -18,6 +20,20 @@ Music/
       01 - First Track.flac
 ```
 
-Check artist, album artist, album, disc number, track number, title, and release year before scanning a large collection. Consistent album-artist tags keep compilations and collaborations from splitting unexpectedly.
+## Check your tags
 
-Keep cover art in the album folder when you maintain local artwork. Rescan the library after changing embedded tags because renaming a file alone may not change the displayed metadata.
+Before you scan a large collection, check these tags:
+
+- artist
+- album artist
+- album
+- disc number
+- track number
+- title
+- release year
+
+Consistent album-artist tags stop compilations and collaborations from splitting unexpectedly.
+
+## Artwork and rescanning
+
+If you keep your own artwork, put `cover.jpg`, `folder.jpg` or `cover.png` in the album folder. Embedded cover art is also read. After you change embedded tags, scan the library again. Renaming a file on its own may not change what Portico displays.

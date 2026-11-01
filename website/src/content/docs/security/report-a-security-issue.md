@@ -1,16 +1,32 @@
 ---
 title: Report a security issue
-description: Send a private, useful report without publishing an active vulnerability or secret.
+description: How to report a security problem privately without publishing a live vulnerability or secret.
 category: security
 order: 5
 audience: Everyone
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Send security reports privately to [admin@getportico.tv](mailto:admin@getportico.tv). Do not open a public issue containing an unpatched vulnerability, account data, token, private key, server route, or personal media information.
+## Send it privately
 
-Include the affected Portico component and version, the expected and observed result, the smallest reproducible steps, and the security impact. State whether the issue has been tested against a server, hosted account, client, or documentation site.
+Email security reports to [admin@getportico.tv](mailto:admin@getportico.tv). Don't open a public issue that contains any of these:
 
-Use a test account and non-sensitive media wherever possible. Remove secrets from logs and screenshots before attaching them.
+- An unpatched vulnerability
+- Account data
+- A token or private key
+- A server route
+- Personal media information
 
-Do not access another person's server, account, or data while testing a report.
+## What to include
+
+- The affected Portico component and its version
+- What you expected and what happened
+- The fewest steps that reproduce the problem
+- The security impact
+- Whether you tested against a server, a hosted account, a client or the documentation site
+
+## Test safely
+
+Use a test account and non-sensitive media wherever you can. Remove secrets from logs and screenshots before you attach them.
+
+Don't access another person's server, account or data while testing.

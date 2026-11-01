@@ -1,0 +1,17 @@
+---
+import ApiLayout from '@/layouts/ApiLayout.astro';
+import ApiOperation from '@/components/api/ApiOperation.astro';
+import { integrationOperations, apiInfo } from '@/lib/api';
+---
+<ApiLayout title="Integrations API reference" description="The native Integrations-tagged Portico operations, generated from OpenAPI." currentGroup="integrations">
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/developers/api/">API docs</a><span aria-hidden="true">/</span><span>Integrations</span></nav>
+  <header class="api-group-head">
+    <h1>Integrations reference</h1>
+    <p>Native routes for tools and scripts. Start with <a href="/developers/api/integrations/quick-start/">your first integration</a> for working examples.</p>
+    <p class="api-small">Generated from the server’s Integrations tag. Scopes and account permissions still apply. Compatibility aliases are documented in the <a href="/developers/api/clients/compatibility/">full reference</a>.</p>
+    <div class="api-meta"><span>{integrationOperations.length} native operations</span><span>Server {apiInfo.serverCommit.slice(0, 9)}</span></div>
+    <label class="api-filter"><span class="sr-only">Filter Integrations operations</span><input type="search" placeholder="Filter native operations" data-api-filter /></label>
+  </header>
+  <div class="api-op-list">{integrationOperations.map((operation) => <ApiOperation operation={operation} />)}</div>
+  <p class="api-empty" hidden data-api-empty>No operations match that filter.</p>
+</ApiLayout>

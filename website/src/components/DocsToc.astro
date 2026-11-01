@@ -1,0 +1,19 @@
+---
+import type { MarkdownHeading } from 'astro';
+const { headings = [] } = Astro.props as { headings?: MarkdownHeading[] };
+const items = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
+---
+
+<aside class="docs-toc" aria-label="On this page">
+  {items.length > 0 && (
+    <>
+      <strong>On this page</strong>
+      <ol data-docs-toc>
+        {items.map((heading) => (
+          <li class={`toc-depth-${heading.depth}`}><a href={`#${heading.slug}`}>{heading.text}</a></li>
+        ))}
+      </ol>
+    </>
+  )}
+</aside>
+<script is:inline defer src="/scripts/docs-toc.js"></script>

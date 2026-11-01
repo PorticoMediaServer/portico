@@ -1,0 +1,20 @@
+---
+import { getCollection, render } from 'astro:content';
+import ApiLayout from '@/layouts/ApiLayout.astro';
+export async function getStaticPaths() {
+  return (await getCollection('integrationGuides')).map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+---
+<ApiLayout title={entry.data.title} description={entry.data.description} currentGuide={entry.id}>
+  <article class="api-guide docs-article">
+    <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/developers/api/">API docs</a><span aria-hidden="true">/</span><span>Integrations</span></nav>
+    <header class="article-header"><h1>{entry.data.title}</h1><p>{entry.data.description}</p></header>
+    <nav class="api-guide-contents" aria-label="On this page">
+      {headings.filter((heading) => heading.depth === 2).map((heading) => <a href={`#${heading.slug}`}>{heading.text}</a>)}
+    </nav>
+    <div class="article-body"><Content /></div>
+    <p class="api-guide-back"><a href="/developers/api/">All integration guides</a> · <a href="/developers/api/integrations/">Native API reference</a></p>
+  </article>
+</ApiLayout>

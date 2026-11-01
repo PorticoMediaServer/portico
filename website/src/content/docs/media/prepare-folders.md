@@ -1,22 +1,26 @@
 ---
 title: Prepare media folders
-description: Arrange media into clear library folders before the first scan.
+description: Arrange your media into clear library folders before the first scan.
 category: media
 order: 1
 audience: Server owners
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Portico works best when each library points to folders containing one kind of media. Keep Movies, TV Shows, Music, Anime, Audiobooks, and Recordings separate.
+Portico works best when each library points to folders that hold one kind of media. Keep movies, TV shows, music, anime and audiobooks in separate folders. Keep DVR recordings separate too; Portico manages them through **Channels → Recordings** rather than the add-library dialog.
 
 ## Use stable paths
 
-Move or rename folders before adding them to Portico. A library path should remain available after the server restarts and should not depend on an interactive login.
+Move or rename folders before you add them to Portico. A library path should still be there after the server restarts, and it shouldn't depend on someone being signed in.
 
 ## Keep unrelated files out
 
-Do not point a library at a general downloads folder. Sample files, incomplete transfers, disk images, and unrelated documents make scanning slower and matching less reliable.
+Don't point a library at a general downloads folder. Sample files, incomplete transfers, disk images and unrelated documents slow scanning down and make matching less reliable.
 
 ## Check permissions
 
-The Portico service account needs read access to every folder in the path. If the media is on network storage, test access from the service context rather than only from your desktop account.
+The Portico service account needs read access to every folder in the path. If your media is on network storage, test access as the service, not only from your own desktop account.
+
+## Next steps
+
+Name your files so Portico can match them: [Name movie files](/docs/media/name-movies/), [Name TV episodes](/docs/media/name-tv-shows/) and [Organize music](/docs/media/name-music/). Then [Create a library](/docs/media/create-a-library/).

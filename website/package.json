@@ -8,7 +8,9 @@
     "dev": "astro dev --host 127.0.0.1 --port 19200",
     "build": "astro check && astro build && node scripts/write-build-identity.mjs && node scripts/check-build.mjs",
     "check": "astro check",
-    "preview": "astro preview --host 127.0.0.1 --port 19201"
+    "preview": "astro preview --host 127.0.0.1 --port 19201",
+    "sync-api": "node scripts/sync-api.mjs",
+    "test:api": "node --test scripts/sync-api.test.mjs"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.3",

@@ -2,40 +2,131 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import PlatformIcon from '@/components/PlatformIcon.astro';
 import { downloadGroups } from '@/data/downloads';
+import type { DownloadItem, PlatformIconName } from '@/data/downloads';
+
+const [serverGroup, ...appGroups] = downloadGroups;
+
+const serverFamilies: { icon: PlatformIconName; title: string; detail: string; accent: string }[] = [
+  { icon: 'windows', title: 'Windows', detail: 'Windows 10 and 11', accent: 'rgba(47, 134, 216, 0.24)' },
+  { icon: 'apple', title: 'macOS', detail: 'Apple silicon Macs', accent: 'rgba(142, 134, 245, 0.2)' },
+  { icon: 'linux', title: 'Linux', detail: 'Packages and archives for x64 and ARM64', accent: 'rgba(242, 180, 90, 0.18)' },
+  { icon: 'docker', title: 'Docker', detail: 'For NAS boxes, home labs and servers', accent: 'rgba(79, 209, 197, 0.18)' }
+];
+
+const serverColumns: (PlatformIconName | 'web')[][] = [['windows', 'docker'], ['apple', 'web'], ['linux']];
+const groupId = (title: string) => `download-${title.toLowerCase().replaceAll(' ', '-')}`;
+const action = (item: DownloadItem) => item.href;
 ---
 
-<BaseLayout title="Downloads" description="Download Portico Server and find Portico apps for phones, tablets, televisions, and streaming devices.">
-  <header class="page-intro download-intro section-light">
-    <div>
-      <h1>Download Portico.</h1>
-      <p>Start with Portico Server, then add the apps used around the house.</p>
+<BaseLayout title="Download" description="Download Portico Server for Windows, macOS, Linux or Docker, and get the Portico apps for phones, tablets, TVs and streaming devices.">
+  <header class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Download</span>
+      <h1 class="display-1">Download Portico.</h1>
+      <p class="lede">Start with Portico Server on the computer that holds your media, then install the app on each screen you watch on. If someone has shared their server with you, you only need an app or a web browser. The server and every app are free.</p>
     </div>
   </header>
 
-  <div class="download-page section-light">
-    {downloadGroups.map((group) => (
-      <section class="download-group" aria-labelledby={`download-${group.title.toLowerCase().replaceAll(' ', '-')}`}>
-        <div class="download-group-heading">
-          <h2 id={`download-${group.title.toLowerCase().replaceAll(' ', '-')}`}>{group.title}</h2>
+  <section class="download-section" aria-labelledby={groupId(serverGroup.title)}>
+    <div class="container">
+      <div class="download-heading">
+        <h2 id={groupId(serverGroup.title)}>{serverGroup.title}</h2>
+        <p>{serverGroup.description}</p>
+      </div>
+      <div class="download-columns">
+        {serverColumns.map((column) => (
+          <div class="download-column">
+            {column.map((id) => {
+              if (id === 'web') {
+                return (
+                  <article class="download-card" style="--accent: rgba(108, 188, 246, 0.16)">
+                    <div class="download-card-head">
+                      <div class="download-icon"><PlatformIcon name="web" /></div>
+                      <div>
+                        <h3>Web</h3>
+                        <span>Included with every server</span>
+                      </div>
+                    </div>
+                    <ul class="download-options">
+                      <li>
+                        <div>
+                          <strong>Portico Web</strong>
+                          <small>Open your server's address in any modern browser, or sign in at web.getportico.tv</small>
+                        </div>
+                        <a class="button button-ghost button-small" href="https://web.getportico.tv">Open</a>
+                      </li>
+                    </ul>
+                  </article>
+                );
+              }
+              const family = serverFamilies.find((candidate) => candidate.icon === id)!;
+              return (
+                <article class="download-card" style={`--accent: ${family.accent}`}>
+                  <div class="download-card-head">
+                    <div class="download-icon"><PlatformIcon name={family.icon} /></div>
+                    <div>
+                      <h3>{family.title}</h3>
+                      <span>{family.detail}</span>
+                    </div>
+                  </div>
+                  <ul class="download-options">
+                    {serverGroup.items.filter((item) => item.icon === family.icon).map((item) => (
+                      <li>
+                        <div>
+                          <strong>{item.name}</strong>
+                          <small>{item.detail}</small>
+                        </div>
+                        {action(item) ? (
+                          <a class="download-action" href={item.href}>Download</a>
+                        ) : (
+                          <span class="download-status">Coming soon</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <p class="download-note">New to Portico? Follow the <a href="/docs/start/quick-start/">quick start</a> or read the install guide for <a href="/docs/install/windows/">Windows</a>, <a href="/docs/install/macos/">macOS</a>, <a href="/docs/install/linux/">Linux</a> or <a href="/docs/install/docker/">Docker</a>.</p>
+    </div>
+  </section>
+
+  {appGroups.map((group) => (
+    <section class="download-section" aria-labelledby={groupId(group.title)}>
+      <div class="container">
+        <div class="download-heading">
+          <h2 id={groupId(group.title)}>{group.title}</h2>
           <p>{group.description}</p>
         </div>
-        <div class="download-list">
+        <div class="download-cards">
           {group.items.map((item) => (
-            <article class="download-row">
-              <div class="download-icon"><PlatformIcon name={item.icon} /></div>
-              <div class="download-copy">
-                <h3>{item.name}</h3>
-                <p>{item.detail}</p>
+            <article class="download-card">
+              <div class="download-card-head">
+                <div class="download-icon"><PlatformIcon name={item.icon} /></div>
+                <div>
+                  <h3>{item.name}</h3>
+                  <span>{item.detail}</span>
+                </div>
               </div>
-              {item.href ? (
-                <a class="download-action" href={item.href}>Download</a>
-              ) : (
-                <button class="download-status" type="button" disabled>Coming soon</button>
-              )}
+              <ul class="download-options">
+                <li>
+                  <div>
+                    <strong>Portico for {item.name}</strong>
+                  </div>
+                  {action(item) ? (
+                    <a class="download-action" href={item.href}>Download</a>
+                  ) : (
+                    <span class="download-status">Coming soon</span>
+                  )}
+                </li>
+              </ul>
             </article>
           ))}
         </div>
-      </section>
-    ))}
-  </div>
+      </div>
+    </section>
+  ))}
 </BaseLayout>

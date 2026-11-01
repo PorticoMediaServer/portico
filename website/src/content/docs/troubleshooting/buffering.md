@@ -1,18 +1,34 @@
 ---
 title: Buffering during playback
-description: Compare the file, playback decision, server load, storage, and network path.
+description: Find out whether buffering comes from the file, the playback method, server load, storage or the network.
 category: troubleshooting
 order: 4
 audience: Everyone
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Try another item on the same device. If only one file buffers, compare its format, bitrate, tracks, subtitles, and storage location with an item that works.
+## Check whether it's one file
 
-Open **Settings → Status** and select the active stream. Record the playback method, source and output bitrate, selected quality, video and audio codecs, subtitle mode, and transcode speed. A transcode can be limited by CPU, hardware acceleration, temporary storage, or a subtitle that must be burned into the picture.
+Play another item on the same device. If only one file buffers, compare its format, bitrate, tracks, subtitles and storage with an item that plays well.
 
-For direct play, compare the media bitrate with the available network path. Test the server over wired Ethernet and remove Wi-Fi, VPN, or remote internet variability where possible.
+## Read the active stream
 
-Lower the selected quality as a diagnostic step. If a lower stream works, inspect **Settings → Playback** and the remote bitrate limit under **Settings → Connectivity** before leaving the quality reduced permanently.
+As an owner or administrator, open **Settings → Server → Dashboard → Watching now**. The panel shows the viewer, device, playback state, delivery method, local or remote location, bitrate when available, and start time. Record those details while the problem is happening.
 
-If every transcode buffers, copy the active-stream details and the matching Server Console events. If only one device fails, review [How clients differ](/docs/clients/client-differences/). If playback fails instead of buffering, use [Playback failed](/docs/troubleshooting/playback-failed/).
+Also note the selected quality, video and audio codecs and subtitle track from the player or media details where available. Use the matching conversion logs for further diagnostics.
+
+A transcode can be held back by CPU load, hardware acceleration or temporary storage. Burning a subtitle into the picture can add work. Check **Settings → Server → Streaming** and the matching logs under **Settings → Server → Troubleshooting**.
+
+## Check the network for direct play
+
+Compare the media bitrate with what the network path can carry. Where possible, test wired Ethernet. Try the server directly on the same network to check whether Wi-Fi, a VPN or remote upload capacity is involved.
+
+## Try a lower quality
+
+Lower the player's quality as a test. If that helps, check **Settings → Account → Quality & data** for **At home** and **Away from home**, then ask the owner to check **Streaming limits** under **Settings → Server → Streaming**. Check the server's home-network classification under **Settings → Server → Remote access** too. Don't leave quality turned down without checking why it was needed.
+
+## If it still buffers
+
+- If every transcode buffers, collect the playback details and matching server log events. [Connection troubleshooting basics](/docs/troubleshooting/connection-basics/) lists log locations.
+- If only one device has the problem, read [Why controls differ between apps](/docs/clients/client-differences/).
+- If playback fails instead of buffering, go to [Playback failed](/docs/troubleshooting/playback-failed/).

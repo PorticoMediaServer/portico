@@ -11,6 +11,8 @@ const required = [
   'download/index.html',
   'docs/index.html',
   'developers/index.html',
+  'developers/api/index.html',
+  'docs/search.json',
   'privacy/index.html',
   'terms/index.html',
   'license/index.html',
@@ -45,7 +47,7 @@ for (const asset of ['brand/portico-wordmark-white.svg', 'brand/portico-wordmark
   await access(new URL(asset, root));
 }
 
-for (const script of ['scripts/site-header.js', 'scripts/docs-sidebar.js', 'scripts/docs-directory.js']) {
+for (const script of ['scripts/site-header.js', 'scripts/docs-sidebar.js', 'scripts/docs-search.js', 'scripts/docs-toc.js']) {
   await access(new URL(script, root));
 }
 
@@ -54,6 +56,28 @@ const docsEntries = await readdir(docsRoot, { recursive: true });
 const articleCount = docsEntries.filter((entry) => entry.endsWith('index.html')).length;
 if (articleCount < 25) {
   throw new Error(`Documentation build is too small: ${articleCount} generated pages`);
+}
+
+const apiReference = JSON.parse(await readFile(new URL('../src/data/api/reference.json', import.meta.url), 'utf8'));
+const ids = new Set();
+for (const operation of apiReference.operations) {
+  if (!['Integrations', 'Clients'].includes(operation.audience) || ids.has(operation.operationId)) {
+    throw new Error(`Invalid API audience or duplicate ID: ${operation.operationId}`);
+  }
+  ids.add(operation.operationId);
+}
+if (!ids.size) throw new Error('No generated API operations');
+for (const group of apiReference.groups) await access(new URL(`developers/api/clients/${group.id}/index.html`, root));
+for (const page of ['integrations', 'clients', 'integrations/quick-start', 'integrations/webhooks',
+  'integrations/sonarr', 'integrations/radarr', 'integrations/lidarr', 'integrations/bazarr',
+  'integrations/jellyseerr', 'integrations/home-assistant', 'integrations/jellystat']) {
+  await access(new URL(`developers/api/${page}/index.html`, root));
+}
+const integrationHtml = await readFile(new URL('developers/api/integrations/index.html', root), 'utf8');
+const nativeIds = [...integrationHtml.matchAll(/id="([^"]+)"[^>]*data-api-op/g)].map((match) => match[1]);
+const expectedIds = apiReference.operations.filter((operation) => operation.audience === 'Integrations' && operation.protocol === 'native').map((operation) => operation.operationId);
+if (nativeIds.length !== expectedIds.length || expectedIds.some((id) => !nativeIds.includes(id))) {
+  throw new Error('Integrations reference does not exactly match native tagged operations');
 }
 
 const allEntries = await readdir(root, { recursive: true });
@@ -88,4 +112,4 @@ if (broken.length > 0) {
   throw new Error(`Broken internal references:\n${broken.join('\n')}`);
 }
 
-console.log(`Verified ${htmlFiles.length} static pages, ${articleCount} documentation pages, ${labels.length} client actions, all internal references, and build identity ${buildIdentity.commit}.`);
+console.log(`Verified ${htmlFiles.length} static pages, ${articleCount} documentation pages, ${apiReference.operations.length} public API operations, ${labels.length} client actions, all internal references, and build identity ${buildIdentity.commit}.`);

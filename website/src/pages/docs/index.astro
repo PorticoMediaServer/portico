@@ -1,49 +1,49 @@
 ---
 import { getCollection } from 'astro:content';
-import BaseLayout from '@/layouts/BaseLayout.astro';
+import DocsLayout from '@/layouts/DocsLayout.astro';
 import { docCategories } from '@/data/docs';
 
 const entries = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
 ---
 
-<BaseLayout title="Documentation" description="Setup, administration, playback, remote access, client, and troubleshooting documentation for Portico.">
-  <header class="docs-landing-header section-light">
-    <div>
+<DocsLayout title="Documentation" description="Install Portico Server, organize your library, connect every screen, and keep it all running." wide>
+  <div class="docs-landing">
+    <header class="docs-landing-head">
       <h1>Portico documentation</h1>
-      <p>Set up a server, organize a library, connect your devices, and keep Portico running.</p>
-      <label class="docs-search">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m16 16 5 5" /></svg>
-        <span class="sr-only">Filter documentation</span>
-        <input type="search" placeholder="Search article titles" data-doc-search />
-      </label>
+      <p>Everything from the first install to backups and troubleshooting. Pick the path that fits, or press <kbd>/</kbd> to search every article.</p>
+    </header>
+    <div class="docs-paths">
+      <a href="/docs/start/quick-start/">
+        <small>Run a server</small>
+        <strong>Quick start</strong>
+        <span>Install Portico Server, create the owner, add a library and test playback.</span>
+      </a>
+      <a href="/docs/clients/connect-a-client/">
+        <small>Join a server</small>
+        <strong>Connect an app</strong>
+        <span>Someone shared their server with you? Sign in and start watching.</span>
+      </a>
+      <a href="/developers/api/">
+        <small>Build on Portico</small>
+        <strong>Integrations</strong>
+        <span>Connect a tool or build a script with a short task guide.</span>
+      </a>
     </div>
-  </header>
-
-  <section class="docs-directory section-light" data-doc-directory>
-    {docCategories.map((category) => {
-      const articles = entries.filter((entry) => entry.data.category === category.id);
-      return (
-        <details class="docs-category" data-doc-category open>
-          <summary>{category.title}</summary>
-          <div class="docs-category-body">
+    <div class="docs-directory">
+      {docCategories.map((category) => {
+        const articles = entries.filter((entry) => entry.data.category === category.id);
+        return (
+          <section>
+            <h2><a href={`/docs/${category.id}/`}>{category.title}</a></h2>
             <p>{category.description}</p>
-            <a class="docs-category-overview" href={`/docs/${category.id}/`}>Browse {category.title.toLowerCase()}</a>
-          </div>
-          <ul>
-            {articles.map((article) => (
-              <li data-doc-article data-search={`${article.data.title} ${article.data.description}`.toLowerCase()}>
-                <a href={`/docs/${article.id}/`}>
-                  <strong>{article.data.title}</strong>
-                  <span>{article.data.description}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </details>
-      );
-    })}
-    <p class="docs-no-results" hidden data-doc-no-results>No articles match that search.</p>
-  </section>
-
-  <script is:inline src="/scripts/docs-directory.js"></script>
-</BaseLayout>
+            <ul>
+              {articles.map((article) => (
+                <li><a href={`/docs/${article.id}/`}>{article.data.title}</a></li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  </div>
+</DocsLayout>

@@ -1,0 +1,11 @@
+---
+const { src, alt, address = 'portico.local' } = Astro.props as { src: string; alt: string; address?: string };
+---
+
+<figure class="browser-frame">
+  <div class="browser-bar" aria-hidden="true">
+    <span class="browser-dots"><i></i><i></i><i></i></span>
+    <span class="browser-address">{address}</span>
+  </div>
+  <img src={src} alt={alt} width="1280" height="720" loading="lazy" decoding="async" />
+</figure>

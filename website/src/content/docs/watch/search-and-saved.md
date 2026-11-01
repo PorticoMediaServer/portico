@@ -1,20 +1,29 @@
 ---
 title: Search and save media
-description: Find items across your libraries and keep useful lists under your own account.
+description: Find items across your libraries and keep your own lists under your profile on the selected server.
 category: watch
 order: 2
 audience: Viewers
-updated: 2026-07-12
+updated: 2026-10-18
 ---
 
-Start typing in Quick Search to see a small group of matching titles, people, music, and other available results. Press Enter or open Search when you need the complete result set.
+## Search
 
-Search respects library permissions. If an item belongs to a library your account cannot use, it will not appear.
+Open **Search** and start typing to find titles, people, music and other results across your available libraries. Use the type filters to narrow the results.
 
-## Saved
+Search follows library permissions. Items in libraries your account can't use won't appear.
 
-Use **Watchlist** when you want to return to a movie, show, album, or other item later. Watchlists belong to the account that created them.
+## My List
 
-Playlists keep an ordered group of playable items. Collections group related items as a library resource. Favorites and saved views provide faster access to things you use often.
+On a title's page, use **Add to My List** to save it for later. Open **Saved → My List** to find saved titles. My List belongs to the active profile, so each profile keeps its own choices.
 
-The exact Saved sections available to you depend on the server's features and your permissions.
+## Playlists, collections and favourites
+
+- **Playlists** hold ordered groups of playable items.
+- **Collections** group related titles.
+- **Favorites** and **Saved views** give you faster access to things you use often.
+- **History** shows the active profile's past playback.
+
+## What you'll see in Saved
+
+Open **Saved** to switch between **My List**, **Favorites**, **Playlists**, **Collections**, **Saved views** and **History**. Available actions depend on your permissions and the server's capabilities.

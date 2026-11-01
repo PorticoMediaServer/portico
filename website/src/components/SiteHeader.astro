@@ -1,31 +1,43 @@
 ---
-const { path = Astro.url.pathname } = Astro.props as { path?: string };
+const { theme = 'promo' } = Astro.props as { theme?: 'promo' | 'docs' };
+const path = Astro.url.pathname;
 const links = [
   { label: 'Features', href: '/features/' },
-  { label: 'Downloads', href: '/download/' },
-  { label: 'Documentation', href: '/docs/' },
+  { label: 'Download', href: '/download/' },
+  { label: 'Docs', href: '/docs/' },
   { label: 'Developers', href: '/developers/' }
 ];
 ---
 
-<header class="site-header">
+<header class={`site-header site-header-${theme}`} data-site-header>
   <div class="header-inner">
     <a class="site-brand" href="/" aria-label="Portico home">
-      <img src="/brand/portico-wordmark-white.svg" alt="Portico" />
+      <img class="brand-on-dark" src="/brand/portico-wordmark-white.svg" alt="Portico" width="111" height="25" />
+      {theme === 'docs' && <img class="brand-on-light" src="/brand/portico-wordmark-black.svg" alt="" width="111" height="25" />}
+      {theme === 'docs' && <span class="brand-suffix">Docs</span>}
     </a>
+    {theme === 'docs' && (
+      <button class="docs-search-trigger" type="button" data-docs-search-open aria-haspopup="dialog" aria-label="Search the docs">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m16 16 5 5" /></svg>
+        <span>Search the docs</span>
+        <kbd aria-hidden="true">/</kbd>
+      </button>
+    )}
     <button class="menu-button" type="button" aria-expanded="false" aria-controls="site-navigation">
-      <span>Menu</span>
+      <span class="sr-only">Menu</span>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14" /></svg>
     </button>
     <div class="header-navigation" id="site-navigation">
-      <nav aria-label="Primary navigation">
+      <nav aria-label="Primary">
         {links.map((link) => (
           <a href={link.href} aria-current={path.startsWith(link.href) ? 'page' : undefined}>{link.label}</a>
         ))}
+        <a href="https://github.com/PorticoMediaServer/portico-server">GitHub</a>
       </nav>
-      <a class="header-action" href="https://web.getportico.tv">Open Portico</a>
+      <a class="button button-ghost button-small header-open" href="https://web.getportico.tv">Open Portico Web</a>
+      <a class="button button-primary button-small" href="/download/">Get Portico</a>
     </div>
   </div>
 </header>
 
-<script is:inline src="/scripts/site-header.js"></script>
+<script is:inline defer src="/scripts/site-header.js"></script>

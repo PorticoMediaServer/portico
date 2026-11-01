@@ -46,6 +46,8 @@ npm run check
 npm run build
 ```
 
+API references are generated from the server’s OpenAPI audience tags, with no endpoint curation. To update the pinned contract, run `npm run sync-api -- /path/to/portico-server <commit-or-ref>`, then `npm run test:api` and `npm run build`. Integration guides live in `src/content/integrations/`; generated routes are under the separate Integrations and Clients sections.
+
 The generated site is written to `dist/`. Deployment configuration is intentionally separate from Hosted Services and is documented only where it is safe and useful to users.
 
 ## Support and warranty

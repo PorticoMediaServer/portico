@@ -1,0 +1,12 @@
+---
+import ApiLayout from '@/layouts/ApiLayout.astro';
+import { apiGroups, apiInfo, apiOperations, operationsFor } from '@/lib/api';
+---
+<ApiLayout title="Building a Portico app" description="The full generated Portico Server API reference for client applications." clients>
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/developers/api/">API docs</a><span aria-hidden="true">/</span><span>Clients</span></nav>
+  <header class="api-group-head"><h1>Building a Portico app</h1><p>The full generated API reference for apps that browse, play and manage media.</p>
+    <div class="api-meta"><span>{apiOperations.length} operations</span><span>OpenAPI {apiInfo.openapi}</span><span>Server {apiInfo.serverCommit.slice(0, 9)}</span></div>
+  </header>
+  <p class="api-reference-note">Includes Integrations routes and tool compatibility aliases. Each operation shows its audience and authorization. See <a href="/docs/developers/api-overview/">API architecture</a> and <a href="/docs/developers/authentication/">authentication</a>.</p>
+  <div class="api-group-grid">{apiGroups.map((group) => <a href={`/developers/api/clients/${group.id}/`}><strong>{group.title}</strong><small>{operationsFor(group.id).length} operations</small></a>)}</div>
+</ApiLayout>

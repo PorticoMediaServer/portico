@@ -3,6 +3,7 @@ import '@fontsource/manrope/400.css';
 import '@fontsource/manrope/500.css';
 import '@fontsource/manrope/600.css';
 import '@fontsource/manrope/700.css';
+import '@fontsource/manrope/800.css';
 import '@/styles/global.css';
 import SiteHeader from '@/components/SiteHeader.astro';
 import SiteFooter from '@/components/SiteFooter.astro';
@@ -12,26 +13,28 @@ type Props = {
   description: string;
   image?: string;
   hideChrome?: boolean;
+  theme?: 'promo' | 'docs';
 };
 
 const {
   title,
   description,
   image = '/media/portico-home.png',
-  hideChrome = false
+  hideChrome = false,
+  theme = 'promo'
 } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
-const fullTitle = title === 'Portico' ? title : `${title} | Portico`;
+const fullTitle = title === 'Portico' ? 'Portico · Your media server, on every screen' : `${title} | Portico`;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme={theme}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#070b10" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#05080c" />
+    <meta name="color-scheme" content={theme === 'docs' ? 'light dark' : 'dark'} />
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -46,9 +49,9 @@ const fullTitle = title === 'Portico' ? title : `${title} | Portico`;
     <meta name="twitter:card" content="summary_large_image" />
     <title>{fullTitle}</title>
   </head>
-  <body>
+  <body class={`theme-${theme}`}>
     <a class="skip-link" href="#main-content">Skip to content</a>
-    {!hideChrome && <SiteHeader />}
+    {!hideChrome && <SiteHeader theme={theme} />}
     <main id="main-content" tabindex="-1">
       <slot />
     </main>
