@@ -185,10 +185,15 @@ func TestRemoteGateClosedRefusesEverythingFromOutside(t *testing.T) {
 			}
 		}
 	}
-	// Private only counts the tailnet as home.
-	s := startGated(t, "100.101.102.103", remotegate.SecurityEnhanced, remotegate.AccessPrivate)
-	if got := plain(t, s.addr, "box"); !strings.HasSuffix(got, "ok") {
-		t.Fatalf("tailnet peer in Private only: %q", got)
+	// The tailnet counts as home in Private only and On; Off is home only.
+	for _, access := range []string{remotegate.AccessPrivate, remotegate.AccessOn} {
+		s := startGated(t, "100.101.102.103", remotegate.SecurityEnhanced, access)
+		if got := plain(t, s.addr, "box"); !strings.HasSuffix(got, "ok") {
+			t.Fatalf("tailnet peer, %s: %q", access, got)
+		}
+	}
+	if got := plain(t, startGated(t, "100.101.102.103", remotegate.SecurityEnhanced, remotegate.AccessOff).addr, "box"); got != "" {
+		t.Fatalf("tailnet peer, off: %q", got)
 	}
 }
 

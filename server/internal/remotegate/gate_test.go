@@ -40,6 +40,10 @@ func TestSocket(t *testing.T) {
 		{SecurityEnhanced, AccessOff, outside, true, Refuse},
 		{SecurityEnhanced, AccessOff, tailnetP, true, Refuse},
 		{SecurityEnhanced, AccessPrivate, tailnetP, false, Admit},
+		// The tailnet is home under On too, in either mode, over plain HTTP.
+		{SecurityEnhanced, AccessOn, tailnetP, false, Admit},
+		{SecurityStandard, AccessOn, tailnetP, false, Admit},
+		{SecurityEnhanced, AccessOn, netip.MustParseAddr("fd7a:115c:a1e0::1"), false, Admit},
 		{SecurityEnhanced, AccessOff, homePeer, false, Admit},
 	} {
 		if got := policy(c.security, c.access).Socket(c.peer, c.tls); got != c.want {
@@ -77,6 +81,8 @@ func TestRequest(t *testing.T) {
 		{"standard plain any", SecurityStandard, AccessOn, outside, false, "", "", "myserver.mydomain.com", want{true, ""}},
 		{"standard, closed", SecurityStandard, AccessOff, outside, false, "", "", "media.example.com", want{false, ""}},
 		{"private, tailnet client", SecurityEnhanced, AccessPrivate, tailnetP, false, "", "", "box", want{true, ""}},
+		{"on, tailnet client by IP", SecurityEnhanced, AccessOn, tailnetP, false, "", "", "100.64.1.1:32500", want{true, ""}},
+		{"off, tailnet client", SecurityEnhanced, AccessOff, tailnetP, false, "", "", "box", want{false, ""}},
 	} {
 		admit, reason := policy(c.security, c.access).Request(c.client, c.proxied, c.serverName, c.proto, c.host)
 		if (want{admit, reason}) != c.want {
