@@ -40,6 +40,8 @@ test('local-account client setup over private LAN HTTP', async ({page, context},
   await page.screenshot({path: info.outputPath('03-owner-admitted.png')});
   await page.getByRole('button', {name: 'Skip for now'}).click();
   await expect(page.getByText('LAN E2E is ready')).toBeVisible({timeout: 60000});
-  await expect(page.getByRole('button', {name: 'Add library', exact: true})).toBeVisible();
+  const addLibrary = page.getByRole('button', {name: 'Add library', exact: true});
+  await expect(addLibrary).toBeVisible();
+  await addLibrary.click({trial: true, timeout: 60000});
   await page.screenshot({path: info.outputPath('04-home.png')});
 });
