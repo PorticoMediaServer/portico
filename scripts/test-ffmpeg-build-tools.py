@@ -14,7 +14,7 @@ REQUIREMENTS = Path(__file__).with_name('requirements-ffmpeg-meson.txt')
 
 
 class MesonPin(unittest.TestCase):
-    def test_windows_uses_shared_rust_versions_without_changing_linux_installation(self):
+    def test_windows_and_arm_linux_use_shared_versions_without_changing_x64_linux(self):
         canonical = Path(__file__).resolve().parents[1] / 'third_party/media-engine/sources.lock.json'
         versions = json.loads(canonical.read_text())['tools']
         rust = ('RUN curl https://sh.rustup.rs -sSf | bash -s -- -y --no-modify-path && \\\n'
@@ -25,7 +25,7 @@ class MesonPin(unittest.TestCase):
                 dockerfile = base / 'Dockerfile'
                 dockerfile.write_text('RUN python3 -m pip install --break-system-packages meson\n' + rust)
                 M.recipe(recipe, REQUIREMENTS, target)
-                if target.startswith('windows'):
+                if target in ('windows-x64', 'windows-arm64', 'linux-arm64'):
                     self.assertIn('--default-toolchain ' + versions['rust']['version'], dockerfile.read_text())
                     self.assertIn('cargo install --locked --version ' + versions['cargo-c']['version'], dockerfile.read_text())
                     self.assertIn('rust-receipt', dockerfile.read_text())
@@ -54,7 +54,7 @@ class MesonPin(unittest.TestCase):
             recipe = Path(temporary); base = recipe / 'images/base'; base.mkdir(parents=True)
             (base / 'Dockerfile').write_text('RUN another bootstrap\n')
             with self.assertRaises(ValueError):
-                M.windows_rust(recipe)
+                M.btbn_rust(recipe)
 
     def test_unhashed_or_multiple_tool_inputs_refuse(self):
         with tempfile.TemporaryDirectory() as temporary:
