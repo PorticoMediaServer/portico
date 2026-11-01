@@ -19,8 +19,6 @@ jobs:
           - {target: linuxarm64, runner: ubuntu-24.04-arm}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
-    env:
-      DOCKER_CONFIG: ${{ runner.temp }}/compiler-pull-auth
     steps:
       # This tests the PR token's package access to the reviewed main pins;
       # no pull-request code is executed with registry credentials.
@@ -28,6 +26,7 @@ jobs:
         with: {ref: main, persist-credentials: false}
       - name: Pull the preserved compiler using the real PR-context token
         env:
+          DOCKER_CONFIG: ${{ runner.temp }}/compiler-pull-auth
           GH_TOKEN: ${{ github.token }}
           COMPILER_TARGET: ${{ matrix.target }}
         run: |
