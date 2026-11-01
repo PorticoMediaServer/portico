@@ -628,13 +628,16 @@ func (s *Service) integrationOrderedPage(v Viewer, q IntegrationItemQuery, from,
 		direction, op = "DESC", "<"
 	}
 	if q.Sort == "id" {
-		values := append(append([]any{}, args...), after, q.Limit+1)
+		values := append(append([]any{}, args...), after)
 		seek := ` AND e.id` + op + `?`
 		if q.Cursor == "" {
 			seek = ""
-			values = append(append([]any{}, args...), q.Limit+1)
+			values = append([]any{}, args...)
 		}
-		return `SELECT ` + columns + `,e.id AS integration_order FROM ` + from + ` WHERE ` + where + seek + ` ORDER BY e.id ` + direction + ` LIMIT ?`, values, nil
+		// The validated limit is a literal: the planner weighs reading entities
+		// in id order against sorting the browse rows by how few it needs, and it
+		// never reads a bound LIMIT (the driver's planner stability guarantee).
+		return `SELECT ` + columns + `,e.id AS integration_order FROM ` + from + ` WHERE ` + where + seek + ` ORDER BY e.id ` + direction + ` LIMIT ` + strconv.Itoa(q.Limit+1), values, nil
 	}
 	libraries := v.Libraries
 	if q.LibraryID != "" {
