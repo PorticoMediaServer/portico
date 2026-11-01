@@ -160,8 +160,8 @@ func TestRecCompositionTitleSharesMetadataButKeepsTasteAndEdgesIndependent(t *te
 
 	w := newRecWorld(t)
 	w.c.Exec(`INSERT INTO catalog_external_ids VALUES(?,'tmdb','movie','target')`, w.scifi[4].ID)
-	w.c.Exec(`INSERT INTO catalog_similar VALUES(?,'fixture',1,'tmdb','movie','target')`, w.scifi[0].ID)
-	w.c.Exec(`INSERT INTO catalog_similar VALUES(?,'fixture',2,'tmdb','movie','target')`, w.romance[0].ID)
+	w.c.Exec(`INSERT INTO catalog_similar(entity_id,source,rank,provider,provider_kind,provider_id) VALUES(?,'fixture',1,'tmdb','movie','target')`, w.scifi[0].ID)
+	w.c.Exec(`INSERT INTO catalog_similar(entity_id,source,rank,provider,provider_kind,provider_id) VALUES(?,'fixture',2,'tmdb','movie','target')`, w.romance[0].ID)
 	err := dbwork.WithReadSnapshot(context.Background(), w.c.DB, func(ctx context.Context) error {
 		base, err := w.s.WithContext(ctx).recSession(HomeRequest{Profile: "p", Libraries: []string{"m"}})
 		if err != nil {

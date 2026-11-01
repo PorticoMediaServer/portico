@@ -1228,6 +1228,7 @@ CREATE TABLE catalog_similar(
  provider TEXT NOT NULL,
  provider_kind TEXT NOT NULL,
  provider_id TEXT NOT NULL,
+ relation TEXT NOT NULL DEFAULT '' CHECK(relation IN('','tone','theme','premise','style','creator')),
  PRIMARY KEY(entity_id,source,rank)) WITHOUT ROWID, STRICT;
 CREATE TABLE catalog_external_ids(
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
@@ -1273,6 +1274,12 @@ CREATE TABLE enrichment_domains(
  version TEXT NOT NULL,
  checked_at TEXT NOT NULL,
  error TEXT NOT NULL DEFAULT '') WITHOUT ROWID, STRICT;
+CREATE TABLE enrichment_state(
+ id INTEGER PRIMARY KEY CHECK(id=1),
+ seed INTEGER NOT NULL CHECK(seed>=0),
+ sequence INTEGER NOT NULL DEFAULT 0 CHECK(sequence>=0),
+ failures INTEGER NOT NULL DEFAULT 0 CHECK(failures>=0),
+ retry_at TEXT NOT NULL DEFAULT '') STRICT;
 CREATE TABLE catalog_dataset_works(
  entity_id INTEGER PRIMARY KEY REFERENCES catalog_entities(id) ON DELETE CASCADE,
  domain TEXT NOT NULL,

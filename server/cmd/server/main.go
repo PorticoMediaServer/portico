@@ -1004,9 +1004,10 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 	drain.add("scanner", cancel, scanDone)
 	drain.add("analysis-retention", nil, retentionDone)
 	drain.add("segment-detection", nil, segmentsDone)
-	// The Portico title dataset: a daily manifest check and download for the
-	// domains this server has libraries for, and works matched as they gain
-	// provider ids. Off until a release is published (enrichment.Published*).
+	// The Portico title dataset: a check on first need, then weekly at this
+	// install's own offset, for the domains this server has libraries for, and
+	// works matched as they gain provider ids. The hourly wake also paces a
+	// failed check's backoff. Off until a release is signed (enrichment.Published*).
 	titles := enrichment.New(db, enrichment.ConfigFromEnvironment(storagepaths.Path(state, "title-dataset")))
 	if titles.Enabled() {
 		supervise.Supervise(ctx, "cmd.title-dataset", func(life context.Context) {

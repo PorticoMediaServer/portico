@@ -4,8 +4,10 @@
 // with a signed manifest (Title Enrichment Dataset — Plan (Codex).md).
 //
 // The server downloads the whole file of each domain it has libraries for
-// (so the host never learns what any library holds), verifies the manifest's
-// Ed25519 signature and each file's SHA-256, and matches library works to
+// (so the host never learns what any library holds): on first need, then a
+// weekly check at a per-install random offset. It verifies the manifest's
+// Ed25519 signature, its key id and that it is no older than the last one
+// accepted, then each file's SHA-256, size and integrity, and matches library works to
 // dataset works by exact provider id (TMDB, TVDB, AniList, IMDb), never by
 // title. A matched work gets its tags (catalog_dataset_tags, read by the
 // recommendation facets as 'x:<tag>') and similar titles (catalog_similar,
@@ -19,9 +21,11 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -42,11 +46,12 @@ import (
 )
 
 // The published dataset: its manifest and the Ed25519 key it's signed with.
-// Empty until the first release is signed (the dataset brief's gate G4);
-// PORTICO_DATASET_MANIFEST and PORTICO_DATASET_PUBLIC_KEY (standard base64)
-// override them, for testing a release before it ships.
+// The key stays empty until Justin signs the first release, so nothing is
+// downloaded before then. PORTICO_DATASET_MANIFEST and
+// PORTICO_DATASET_PUBLIC_KEY (standard base64) override them, for testing a
+// release before it ships.
 const (
-	PublishedManifest  = ""
+	PublishedManifest  = "https://data.getportico.tv/v2/manifest.json"
 	PublishedPublicKey = ""
 )
 
@@ -73,7 +78,18 @@ const MaxFileBytes = 2 << 30
 
 // SchemaVersion is the dataset schema this server reads (the file's
 // PRAGMA user_version and the manifest's schema_version).
-const SchemaVersion = 1
+const SchemaVersion = 2
+
+// The check cadence: weekly, plus a fixed offset of up to JitterWindow drawn
+// once per install from a random seed (never from anything about the server or
+// its library), so servers spread out over the window. A failed check is
+// retried after an hour, doubling to at most a day.
+const (
+	DefaultInterval = 7 * 24 * time.Hour
+	JitterWindow    = 48 * time.Hour
+	firstRetry      = time.Hour
+	lastRetry       = 24 * time.Hour
+)
 
 // Config says where the dataset comes from. An empty ManifestURL or key
 // leaves the feature off.
@@ -82,7 +98,14 @@ type Config struct {
 	PublicKey   ed25519.PublicKey
 	Dir         string        // where domain files are kept
 	Client      *http.Client  // optional timeout; egress policy always belongs to the service
-	Interval    time.Duration // how often the manifest is checked (default a day)
+	Interval    time.Duration // how often the manifest is checked (default a week)
+}
+
+// KeyID names a public key in the manifest: the first 8 bytes of SHA-256 over
+// the raw key, hex.
+func KeyID(key ed25519.PublicKey) string {
+	sum := sha256.Sum256(key)
+	return hex.EncodeToString(sum[:8])
 }
 
 // Service keeps the dataset: Step downloads and imports, bounded per call.
@@ -95,7 +118,7 @@ type Service struct {
 
 func New(db *sql.DB, cfg Config) *Service {
 	if cfg.Interval <= 0 {
-		cfg.Interval = 24 * time.Hour
+		cfg.Interval = DefaultInterval
 	}
 	s := &Service{db: db, cfg: cfg, now: time.Now}
 	s.cfg.Client = s.datasetClient(cfg.Client)
@@ -140,19 +163,118 @@ func (s *Service) Step(ctx context.Context, limit int) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	for _, domain := range domains {
-		due, err := s.due(ctx, domain)
-		if err != nil {
+	due, err := s.dueDomains(ctx, domains)
+	if err != nil {
+		return false, err
+	}
+	if len(due) > 0 {
+		if err = s.check(ctx, due); err != nil {
 			return false, err
-		}
-		if due {
-			if err = s.refresh(ctx, domain); err != nil {
-				_ = s.noteChecked(ctx, domain, "", err)
-				return false, err
-			}
 		}
 	}
 	return s.drainJobs(ctx, limit)
+}
+
+// check fetches the manifest once and brings every due domain to it. A failure
+// is recorded on the domain and backs off the next check.
+func (s *Service) check(ctx context.Context, due []string) error {
+	m, err := s.FetchManifest(ctx)
+	if err == nil {
+		err = s.accept(ctx, m)
+	}
+	done := 0
+	for ; err == nil && done < len(due); done++ {
+		err = s.refresh(ctx, due[done], m)
+	}
+	if err != nil {
+		if done > 0 {
+			done-- // the domain that failed
+		}
+		for _, domain := range due[done:] {
+			_ = s.noteFailure(ctx, domain, err)
+		}
+		_ = s.backOff(ctx)
+		return err
+	}
+	return s.recovered(ctx)
+}
+
+// installState is this install's dataset state: the jitter seed, drawn once
+// at random, and the newest manifest sequence accepted.
+type installState struct {
+	seed     int64
+	sequence int64
+	failures int
+	retryAt  time.Time
+}
+
+func (s *Service) state(ctx context.Context) (installState, error) {
+	var st installState
+	var retry string
+	err := s.db.QueryRowContext(ctx, `SELECT seed,sequence,failures,retry_at FROM enrichment_state WHERE id=1`).Scan(&st.seed, &st.sequence, &st.failures, &retry)
+	if errors.Is(err, sql.ErrNoRows) {
+		var raw [8]byte
+		if _, err = rand.Read(raw[:]); err != nil {
+			return st, err
+		}
+		seed := int64(binary.BigEndian.Uint64(raw[:]) >> 1)
+		if err = s.writeState(ctx, `INSERT INTO enrichment_state(id,seed) VALUES(1,?) ON CONFLICT(id) DO NOTHING`, seed); err != nil {
+			return st, err
+		}
+		return s.state(ctx)
+	}
+	if err != nil {
+		return st, err
+	}
+	if retry != "" {
+		st.retryAt, _ = time.Parse(time.RFC3339, retry)
+	}
+	return st, nil
+}
+
+// jitter is this install's fixed offset within the window.
+func (st installState) jitter() time.Duration {
+	return time.Duration(st.seed%int64(JitterWindow/time.Second)) * time.Second
+}
+
+func (s *Service) writeState(ctx context.Context, statement string, args ...any) error {
+	w, err := dbwork.Begin(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassBackgroundMedia))
+	if err != nil {
+		return err
+	}
+	defer w.Rollback()
+	if _, err = w.Tx().ExecContext(ctx, statement, args...); err != nil {
+		return err
+	}
+	return w.Commit()
+}
+
+// accept refuses a manifest older than the newest one accepted, then records it.
+func (s *Service) accept(ctx context.Context, m Manifest) error {
+	st, err := s.state(ctx)
+	if err != nil {
+		return err
+	}
+	if m.Sequence < st.sequence {
+		return datasetFailure("manifest_rollback", s.cfg.ManifestURL)
+	}
+	return s.writeState(ctx, `UPDATE enrichment_state SET sequence=max(sequence,?) WHERE id=1`, m.Sequence)
+}
+
+func (s *Service) backOff(ctx context.Context) error {
+	st, err := s.state(ctx)
+	if err != nil {
+		return err
+	}
+	wait := lastRetry
+	if st.failures < 5 {
+		wait = min(firstRetry<<st.failures, lastRetry)
+	}
+	return s.writeState(ctx, `UPDATE enrichment_state SET failures=failures+1,retry_at=? WHERE id=1`, s.now().Add(wait).UTC().Format(time.RFC3339))
+}
+
+func (s *Service) recovered(ctx context.Context) error {
+	return s.writeState(ctx, `UPDATE enrichment_state SET failures=0,retry_at='' WHERE id=1`)
 }
 
 func (s *Service) neededDomains(ctx context.Context) ([]string, error) {
@@ -170,30 +292,52 @@ func (s *Service) neededDomains(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
-func (s *Service) due(ctx context.Context, domain string) (bool, error) {
-	var checked string
-	err := s.db.QueryRowContext(ctx, `SELECT checked_at FROM enrichment_domains WHERE domain=?`, domain).Scan(&checked)
-	if errors.Is(err, sql.ErrNoRows) {
-		return true, nil
-	}
+// dueDomains is the needed domains whose check is due: never checked, a
+// published file missing on disk, or the weekly check (plus this install's
+// offset) reached. Nothing is due while a failed check is backing off.
+func (s *Service) dueDomains(ctx context.Context, domains []string) ([]string, error) {
+	st, err := s.state(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	at, err := time.Parse(time.RFC3339, checked)
-	if err != nil || s.now().Sub(at) >= s.cfg.Interval {
-		return true, nil
+	now := s.now()
+	if now.Before(st.retryAt) {
+		return nil, nil
 	}
-	_, statErr := os.Stat(s.path(domain))
-	return statErr != nil, nil
+	var due []string
+	for _, domain := range domains {
+		var version, checked string
+		err := s.db.QueryRowContext(ctx, `SELECT version,checked_at FROM enrichment_domains WHERE domain=?`, domain).Scan(&version, &checked)
+		if errors.Is(err, sql.ErrNoRows) {
+			due = append(due, domain)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if at, err := time.Parse(time.RFC3339, checked); err != nil || !now.Before(at.Add(s.cfg.Interval+st.jitter())) {
+			due = append(due, domain)
+			continue
+		}
+		if _, statErr := os.Stat(s.path(domain)); version != "" && statErr != nil {
+			due = append(due, domain)
+		}
+	}
+	return due, nil
 }
 
 func (s *Service) path(domain string) string {
 	return filepath.Join(s.cfg.Dir, "portico-"+domain+".sqlite")
 }
 
-// Manifest is the signed list of published files.
+// Manifest is the signed list of published files. Sequence grows by one per
+// release: a server refuses a manifest older than the last it accepted, so an
+// old signed manifest can't be replayed to roll it back.
 type Manifest struct {
 	SchemaVersion int                       `json:"schema_version"`
+	Sequence      int64                     `json:"sequence"`
+	IssuedAt      string                    `json:"issued_at"`
+	KeyID         string                    `json:"key_id"`
 	Domains       map[string]ManifestDomain `json:"domains"`
 }
 
@@ -239,8 +383,17 @@ func (s *Service) FetchManifest(ctx context.Context) (Manifest, error) {
 	if err = json.Unmarshal(body, &m); err != nil {
 		return m, datasetFailure("manifest_format", s.cfg.ManifestURL)
 	}
+	// The key id is inside the signed bytes: a manifest that names any key
+	// other than the one it verified under is refused, even with a valid
+	// signature.
+	if m.KeyID != KeyID(s.cfg.PublicKey) {
+		return m, datasetFailure("manifest_key", s.cfg.ManifestURL)
+	}
 	if m.SchemaVersion != SchemaVersion {
 		return m, datasetFailure("schema_unsupported", s.cfg.ManifestURL)
+	}
+	if m.Sequence < 1 {
+		return m, datasetFailure("manifest_format", s.cfg.ManifestURL)
 	}
 	return m, nil
 }
@@ -248,16 +401,13 @@ func (s *Service) FetchManifest(ctx context.Context) (Manifest, error) {
 // refresh brings one domain's file to the manifest's version: its deltas when
 // a chain leads from the installed version, else the full file; then every
 // library work of the domain is matched again.
-func (s *Service) refresh(ctx context.Context, domain string) error {
-	m, err := s.FetchManifest(ctx)
-	if err != nil {
-		return err
-	}
+func (s *Service) refresh(ctx context.Context, domain string, m Manifest) error {
 	d, ok := m.Domains[domain]
 	if !ok {
 		return s.noteChecked(ctx, domain, "", nil)
 	}
 	var installed string
+	var err error
 	if err = s.db.QueryRowContext(ctx, `SELECT version FROM enrichment_domains WHERE domain=?`, domain).Scan(&installed); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
@@ -322,11 +472,17 @@ func (s *Service) download(ctx context.Context, f ManifestFile) (string, error) 
 	if err != nil {
 		return "", err
 	}
+	// Files are named relative to the manifest: one signed origin serves
+	// everything, and a manifest can't send the server anywhere else.
 	ref, err := url.Parse(f.URL)
-	if err != nil {
+	if err != nil || ref.IsAbs() || ref.Host != "" || ref.User != nil || strings.HasPrefix(f.URL, "//") || strings.ContainsAny(f.URL, "\\\x00\r\n") {
 		return "", datasetFailure("network_policy", s.cfg.ManifestURL)
 	}
+	origin := datasetOrigin(target)
 	target = target.ResolveReference(ref)
+	if datasetOrigin(target) != origin {
+		return "", datasetFailure("network_policy", s.cfg.ManifestURL)
+	}
 	if f.Bytes < 1 || f.Bytes > MaxFileBytes {
 		return "", datasetFailure("asset_too_large", target.String())
 	}
@@ -379,13 +535,17 @@ func (s *Service) download(ctx context.Context, f ManifestFile) (string, error) 
 	return out.Name(), nil
 }
 
-// checkFile opens a dataset file and checks its schema and kind.
+// checkFile opens a dataset file and checks its integrity, schema and kind.
 func checkFile(path, kind string) error {
 	db, err := openDataset(path, true)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
+	var integrity string
+	if err = db.QueryRow(`PRAGMA quick_check`).Scan(&integrity); err != nil || integrity != "ok" {
+		return datasetFailure("asset_integrity", "")
+	}
 	var version int
 	if err = db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		return err
@@ -461,6 +621,13 @@ func (s *Service) applyDelta(ctx context.Context, domain string, f ManifestFile)
 	}
 	_, err = conn.ExecContext(ctx, `DETACH DATABASE delta`)
 	return err
+}
+
+// noteFailure records a failed check without moving the domain's last check,
+// so the backoff (not the weekly cadence) decides the retry.
+func (s *Service) noteFailure(ctx context.Context, domain string, problem error) error {
+	return s.writeState(ctx, `INSERT INTO enrichment_domains(domain,version,checked_at,error) VALUES(?,'','',?)
+	 ON CONFLICT(domain) DO UPDATE SET error=excluded.error`, domain, datasetDiagnostic(problem))
 }
 
 func (s *Service) noteChecked(ctx context.Context, domain, version string, problem error) error {
@@ -582,8 +749,18 @@ func (s *Service) drainJobs(ctx context.Context, limit int) (bool, error) {
 type matched struct {
 	qid     int64
 	tags    [][2]any // tag, strength
-	similar [][3]string
+	similar []similarLink
 }
+
+// similarLink is a similar title by its provider id, and why it is similar.
+type similarLink struct {
+	id       [3]string // provider, provider kind, provider id
+	relation string
+}
+
+// similarRelations names the dataset's relation codes (catalog_similar.relation);
+// 0, the source not saying, is the empty string.
+var similarRelations = map[int]string{1: "tone", 2: "theme", 3: "premise", 4: "style", 5: "creator"}
 
 // importWorks matches works by their provider ids and writes what the
 // dataset says about them; a work that no longer matches loses its rows.
@@ -698,19 +875,32 @@ func (s *Service) match(ctx context.Context, ds *sql.DB, work int64) (*matched, 
 	if err = tags.Err(); err != nil {
 		return nil, err
 	}
-	similar, err := ds.QueryContext(ctx, `SELECT similar FROM work_similar WHERE qid=? ORDER BY rank`, qid)
+	rows, err = ds.QueryContext(ctx, `SELECT similar,relation FROM work_similar WHERE qid=? ORDER BY rank`, qid)
 	if err != nil {
 		return nil, err
 	}
-	targets, err := scanIDs(similar, nil)
-	if err != nil {
+	type link struct {
+		target   int64
+		relation int
+	}
+	var links []link
+	for rows.Next() {
+		var l link
+		if err = rows.Scan(&l.target, &l.relation); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		links = append(links, l)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-	for _, target := range targets {
-		if id, ok, err := bestTarget(ctx, ds, target); err != nil {
+	for _, l := range links {
+		if id, ok, err := bestTarget(ctx, ds, l.target); err != nil {
 			return nil, err
 		} else if ok {
-			m.similar = append(m.similar, id)
+			m.similar = append(m.similar, similarLink{id: id, relation: similarRelations[l.relation]})
 		}
 	}
 	return m, nil
@@ -789,12 +979,12 @@ func replaceTags(ctx context.Context, tx *sql.Tx, work int64, tags [][2]any) err
 	return nil
 }
 
-func replaceSimilar(ctx context.Context, tx *sql.Tx, work int64, similar [][3]string) error {
+func replaceSimilar(ctx context.Context, tx *sql.Tx, work int64, similar []similarLink) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM catalog_similar WHERE entity_id=? AND source='portico-dataset'`, work); err != nil {
 		return err
 	}
 	for i, t := range similar {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO catalog_similar(entity_id,source,rank,provider,provider_kind,provider_id) VALUES(?,'portico-dataset',?,?,?,?)`, work, i+1, t[0], t[1], t[2]); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO catalog_similar(entity_id,source,rank,provider,provider_kind,provider_id,relation) VALUES(?,'portico-dataset',?,?,?,?,?)`, work, i+1, t.id[0], t.id[1], t.id[2], t.relation); err != nil {
 			return err
 		}
 	}

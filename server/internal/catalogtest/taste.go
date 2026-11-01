@@ -183,7 +183,7 @@ func BuildTaste(t testing.TB, c *Catalog, shape TasteShape) *Taste {
 			}
 			if ordinal < 12 {
 				for rank, target := range []int{(ordinal + 1) % shape.Movies, shape.Movies + ordinal + 100} {
-					if _, err = tx.ExecContext(ctx, `INSERT INTO catalog_similar VALUES(?,'tmdb',?,'tmdb','movie',?)`, it.ID, rank+1, fmt.Sprint(100000+target)); err != nil {
+					if _, err = tx.ExecContext(ctx, `INSERT INTO catalog_similar(entity_id,source,rank,provider,provider_kind,provider_id) VALUES(?,'tmdb',?,'tmdb','movie',?)`, it.ID, rank+1, fmt.Sprint(100000+target)); err != nil {
 						return it, err
 					}
 				}
