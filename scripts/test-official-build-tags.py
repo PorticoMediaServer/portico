@@ -14,6 +14,7 @@ copies in memory instead of the repository. Run directly:
 
     python3 scripts/test-official-build-tags.py
 """
+import ast
 import importlib.util
 import pathlib
 import re
@@ -63,6 +64,24 @@ def job(text, name):
     return match.group(1) if match else ""
 
 
+def ci_test_uses_plan_tags(source):
+    """Check the tag argument without depending on package worker syntax."""
+    tree = ast.parse(source)
+    go = next((node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'go'), None)
+    if go is None:
+        return False
+    commands = [node.elts for node in ast.walk(go) if isinstance(node, ast.List)
+                and len(node.elts) >= 2
+                and all(isinstance(node.elts[i], ast.Constant) and node.elts[i].value == value
+                        for i, value in enumerate(['go', 'test']))]
+    if len(commands) != 1:
+        return False
+    args = commands[0]
+    flags = [i for i, arg in enumerate(args) if isinstance(arg, ast.Constant) and arg.value == '-tags']
+    expected = ast.dump(ast.parse("plan['tags']", mode='eval').body)
+    return len(flags) == 1 and flags[0] + 1 < len(args) and ast.dump(args[flags[0] + 1]) == expected
+
+
 def audit(sources, required):
     """Every way an official build, test or vet command can lose the capability."""
     problems = []
@@ -89,7 +108,9 @@ def audit(sources, required):
         problems.append('ci planner: inventory drops capability tags')
     if "'--capability','--check',plan['tags']" not in runner or 'validate_tags(plan)' not in runner:
         problems.append('ci runner: tags do not fail closed')
-    for command in ["'go','test','-json','-count=1','-p=4','-timeout=780s','-tags',plan['tags']", "'go','build','-p=2','-tags',tags", "'go','build','-tags',plan['tags']"]:
+    if not ci_test_uses_plan_tags(runner):
+        problems.append('ci runner: go test drops the validated plan tags')
+    for command in ["'go','build','-p=2','-tags',tags", "'go','build','-tags',plan['tags']"]:
         if command not in runner:
             problems.append('ci runner: command drops capability tags: '+command)
     if "'sh',str(ROOT/'scripts/vet-go.sh'),'--tags',tags" not in runner:
@@ -237,6 +258,20 @@ class OfficialBuildTagTests(unittest.TestCase):
 
     def test_every_official_command_carries_the_tag(self):
         self.assertEqual(audit(read_sources(), self.tags["required"]()), [])
+
+    def test_ci_worker_budget_does_not_change_the_tag_audit(self):
+        for workers in ["'-p='+workers", "'-p=4'", "'-p=2'"]:
+            sources = read_sources()
+            sources['ci/run.py'] = sources['ci/run.py'].replace("'-p='+workers", workers)
+            self.assertEqual(audit(sources, self.tags['required']()), [])
+
+    def test_negative_control_ci_test_missing_or_wrong_tags_fails(self):
+        for argument in ["'-timeout=780s'", "'-timeout=780s','-tags','release'", "'-timeout=780s','-tags',plan['other']"]:
+            sources = read_sources()
+            original = "'-timeout=780s','-tags',plan['tags']"
+            self.assertIn(original, sources['ci/run.py'])
+            sources['ci/run.py'] = sources['ci/run.py'].replace(original, argument)
+            self.assertIn('ci runner: go test drops the validated plan tags', audit(sources, self.tags['required']()))
 
     def test_negative_control_a_dockerfile_that_drops_the_tag_fails(self):
         sources = read_sources()
