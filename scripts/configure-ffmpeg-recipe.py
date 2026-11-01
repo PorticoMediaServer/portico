@@ -33,6 +33,7 @@ if target.startswith('macos'):
     import subprocess
     subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'macos-timing', '--recipe', recipe,
                     '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt'], check=True)
+    subprocess.run([sys.executable, root / 'scripts/build-macos-libdovi.py', 'configure', '--recipe', recipe], check=True)
     import shutil
     shutil.copy2(root / 'scripts/build-macos-ffmpeg-extras.sh', recipe / 'portico-macos-extras.sh')
     shutil.copy2(root / 'third_party/ffmpeg/macos-extras.lock.json', recipe / 'portico-macos-extras.lock.json')

@@ -168,6 +168,7 @@ may be missed) and retain dependency/stage timings. These measurements do not
 exist retroactively for the first cold run. A separate read-only PR-context pull
 probe checks access to every preserved compiler using the actual PR token and
 reviewed main pins. It does not execute PR code with registry credentials.
+
 Windows recipe construction takes its Rust and cargo-c versions from
 `third_party/media-engine/sources.lock.json`, currently 1.99.0 and 0.10.26.
 The base installs those exact versions, uses Cargo's locked tool resolution,
@@ -177,3 +178,15 @@ acceptance hold; this version alignment is not a claim of fully pinned bootstrap
 inputs. It applies to the next required build, without restarting a running one.
 The toolchain's `controlsOnly` dispatch exercises source/refusal tests and skips
 both construction and native qualification; it cannot produce an engine.
+
+The native macOS libdovi stage uses the same checked source archive, both Cargo
+locks, C ABI header hash and shared crate/Rust notice collector as the other
+platforms. `macos-rust-tools.lock.json`, sealed through the source lock, selects
+Rust compiler/Cargo/standard-library components and matching library source
+from one exact official distribution manifest, plus the exact cargo-c crate and
+its Cargo.lock. Tools install in a private prefix outside the source recipe;
+complete libdovi and cargo-c registry vendors, original archives/locks and Rust
+library source stay in corresponding source. Both builds run locked and offline
+after source preparation. The receipt records the actual native compiler/target,
+tool executable hashes and linked-runtime archive inventory; these build records
+do not themselves establish native media or final engine acceptance.
