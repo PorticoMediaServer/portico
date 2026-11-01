@@ -14,6 +14,9 @@ function value(v:unknown,depth=0):unknown{
  return bad();
 }
 export function parseSettingsConfiguration(raw:unknown):SettingsConfiguration{
+ // The route answers {scope, data}. The console client checks the scope and passes data;
+ // the settings pages pass the answer itself (TV General read "This couldn't load", walk 1 Nov).
+ if(object(raw)&&object(raw.scope)&&object(raw.data))raw=raw.data;
  if(!object(raw)||!Number.isSafeInteger(raw.revision)||(raw.revision as number)<1||!text(raw.registryRevision,128)||!text(raw.path,4096)||!Array.isArray(raw.fields)||raw.fields.length>1024)return bad();
  const ids=new Set<string>();const keys=new Set<string>();
  const fields=raw.fields.map((field:unknown):ConfigurationValue=>{
