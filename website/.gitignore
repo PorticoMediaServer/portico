@@ -4,3 +4,5 @@ dist/
 .astro/
 .DS_Store
 npm-debug.log*
+# Generated at build time from server/api/portico.openapi.json (npm run api)
+/src/data/api/reference.json

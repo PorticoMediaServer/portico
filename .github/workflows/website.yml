@@ -6,9 +6,9 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ['website/**', '.github/workflows/website.yml']
+    paths: ['website/**', 'server/api/portico.openapi.json', '.github/workflows/website.yml']
   pull_request:
-    paths: ['website/**', '.github/workflows/website.yml']
+    paths: ['website/**', 'server/api/portico.openapi.json', '.github/workflows/website.yml']
   workflow_dispatch:
 permissions:
   contents: read
