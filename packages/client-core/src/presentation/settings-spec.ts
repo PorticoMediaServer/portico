@@ -13139,6 +13139,32 @@ export const settingsSpec: readonly SettingsSection[] = [
                 }
               }
             ]
+          },
+          {
+            "id": "remote.summary",
+            "scope": "server",
+            "key": "remote.security_summary",
+            "label": "next.settingsSpec.server.remote.groups.2.rows.1.label",
+            "control": {
+              "type": "status"
+            },
+            "children": [
+              {
+                "id": "remote.blocked",
+                "scope": "server",
+                "key": "remote.blocked_sources",
+                "label": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.label",
+                "help": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.help",
+                "control": {
+                  "type": "list",
+                  "empty": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.control.empty",
+                  "itemAction": {
+                    "label": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.control.itemAction.label",
+                    "style": "glass"
+                  }
+                }
+              }
+            ]
           }
         ]
       },

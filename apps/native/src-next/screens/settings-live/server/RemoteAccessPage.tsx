@@ -13,6 +13,7 @@ import {readSettingsBinding, settingsBinding} from '../../../../../../packages/c
 import {settingsSummary} from './settings-values';
 import {NativeAdvancedSection} from './AdvancedSection';
 import {NativeRefusedAddresses} from './RefusedAddresses';
+import {NativeSecuritySummary} from './SecuritySummary';
 import {Button, Select, Switch, TextField} from '../../../kit/controls';
 import {SettingsRow} from '../../../kit/shell';
 import {ServerHeader} from '../../../kit/shell/ServerIdentity';
@@ -143,6 +144,7 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
             onAllowed={reloadConnectivity} onStandard={chooseStandard} onCertificate={showOwnAddress}/>}
           {outsideOpen && <SettingsRow testID="remote-access-policy" label={t('web.connectivity.whoMaySignIn')}
             control={<Select testID="remote-access-policy-select" value={connectivity.remoteSignInPolicy} options={signInOptions} onValueChange={value => forms.connectivity.set(current => ({...current, remoteSignInPolicy: value as ConnectivityDraft['remoteSignInPolicy']}))}/>}/>}
+          <NativeSecuritySummary api={api} isCurrent={lifetime.current} t={t as (id: string, values?: Record<string, unknown>) => string}/>
           <SettingsRow testID="remote-access-secure-connections" label={t('next.settingsSpec.server.remote.groups.0.rows.1.label')} description={t('next.settingsSpec.server.remote.groups.0.rows.1.help')}
             control={<Select testID="remote-access-secure-connections-select" value={connectivity.secureConnections} options={[
               {value: 'preferred', label: t('next.settingsSpec.server.remote.groups.0.rows.1.control.options.0.label')},
