@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 )
 
@@ -42,11 +44,46 @@ func TestAScanNeverReadsCleanWhileFilesNeedAttention(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err = finishScanTx(context.Background(), tx, job, source); err != nil {
+		ctx, trace := dbwork.TraceQueryPlans(context.Background())
+		if err = finishScanTx(ctx, tx, job, source); err != nil {
 			t.Fatal(err)
 		}
 		if err = tx.Commit(); err != nil {
 			t.Fatal(err)
+		}
+		// Guard the actual issued witness, including the no-issue case. A
+		// healthy source must not enumerate its entire resolved inventory.
+		found := false
+		for _, query := range trace() {
+			if !strings.HasPrefix(query, "SELECT") || !strings.Contains(query, "episodic_sources") {
+				continue
+			}
+			found = true
+			rows, e := db.Query("EXPLAIN QUERY PLAN "+query, source)
+			if e != nil {
+				t.Fatal(e)
+			}
+			plan := ""
+			for rows.Next() {
+				var id, parent, unused int
+				var detail string
+				if e = rows.Scan(&id, &parent, &unused, &detail); e != nil {
+					rows.Close()
+					t.Fatal(e)
+				}
+				plan += detail + " | "
+			}
+			e = rows.Err()
+			rows.Close()
+			if e != nil {
+				t.Fatal(e)
+			}
+			if !strings.Contains(plan, "SEARCH e USING INDEX episodic_sources_issues") || !strings.Contains(plan, "SEARCH o USING INDEX inventory_objects_asset") || strings.Contains(plan, "inventory_objects_source") || strings.Contains(plan, "SCAN e ") || strings.Contains(plan, "SCAN o ") {
+				t.Fatalf("scan attention lost its issues-only/asset seeks: %s", plan)
+			}
+		}
+		if !found {
+			t.Fatal("scan attention must use one separately planned bounded witness")
 		}
 		if err = db.QueryRow(`SELECT j.status,s.health FROM jobs j, library_sources s WHERE j.id=? AND s.id=?`, job, source).Scan(&status, &health); err != nil {
 			t.Fatal(err)
