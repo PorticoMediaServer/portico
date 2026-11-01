@@ -92,7 +92,11 @@ def scan_libraries(server):
         started = time.monotonic()
         print(f'Waiting for {name} library scan', flush=True)
         def done():
-            current = api.get('/v1/admin/ingestion/jobs/' + job['id'])
+            current, _ = api.call('GET', '/v1/admin/ingestion/jobs/' + job['id'], expected=(200, 503))
+            if current.get('error', {}).get('retryable') is True:
+                return False
+            if current.get('error'):
+                raise RuntimeError(f'{name} scan status returned a non-retryable error')
             if current['status'] in ('failed', 'cancelled'):
                 raise RuntimeError(f'{name} scan failed')
             return current['status'] in ('complete', 'complete_with_warnings')
