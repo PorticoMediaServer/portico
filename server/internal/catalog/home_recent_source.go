@@ -246,13 +246,16 @@ const homeRecentAdditionWalk = 200
 // several episodes of one season; "" keeps the show (several seasons, or no
 // dated episode). Only episodes the viewer may see and play are counted.
 func (s *Service) homeRecentAddition(r HomeRequest, show int64) (string, error) {
-	restriction, restrictionArgs := ItemRestrictionSQL("m.item_id", r.Restrictions)
+	restriction, restrictionArgs := r.Viewer.itemVisibilitySQL("m.item_id")
 	rows, err := s.read().Query(`SELECT m.item_id,m.added,COALESCE(e.season_id,0),pid(ep.public_id),COALESCE(pid(se.public_id),'')
 	 FROM (SELECT item_id,added FROM catalog_browse_member_metrics INDEXED BY catalog_browse_metric_added
-	  WHERE entity_id=? AND added IS NOT NULL ORDER BY added DESC,item_id DESC LIMIT `+strconv.Itoa(homeRecentAdditionWalk)+`) m
+	  WHERE entity_id=? AND added IS NOT NULL ORDER BY added DESC LIMIT `+strconv.Itoa(homeRecentAdditionWalk)+`) m
 	 CROSS JOIN catalog_episodes e ON e.entity_id=m.item_id CROSS JOIN catalog_entities ep ON ep.id=m.item_id
+ CROSS JOIN catalog_item_availability available ON available.entity_id=m.item_id
 	 LEFT JOIN catalog_entities se ON se.id=e.season_id
-	 WHERE ep.retired=0 AND `+restriction+` ORDER BY m.added DESC,m.item_id DESC`, append([]any{show}, restrictionArgs...)...)
+	 WHERE ep.retired=0 AND available.available=1 AND available.retired=0 AND `+restriction+recordingsClause("m.item_id", r.Restrictions)+`
+ AND EXISTS(SELECT 1 FROM catalog_browse_memberships current WHERE current.entity_id=? AND current.item_id=m.item_id)
+ ORDER BY m.added DESC,m.item_id DESC`, append(append([]any{show}, restrictionArgs...), show)...)
 	if err != nil {
 		return "", err
 	}

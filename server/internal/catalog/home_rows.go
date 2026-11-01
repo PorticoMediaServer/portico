@@ -358,7 +358,7 @@ func (s *Service) homeSourceBase(r HomeRequest, spec homeRowSpec) (homeSource, e
 	libraries := string(raw)
 	switch {
 	case spec.ID == "new_on_server":
-		return s.homeRecentPagedSource(r, false)
+		return s.homeNewServerSource(r)
 	case spec.ID == "because_you_watched":
 		_, c, e := s.homeBecause(r)
 		return candidateSource(c), e
