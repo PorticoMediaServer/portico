@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "oldLinuxCompiler": "ghcr.io/btbn/ffmpeg-builds/base-linux64@sha256:b25a69b08be0bf5feee8315740259f53caf5e8cc9e01e5bf9ff351cd0b550f0f",
+  "newLinuxCompiler": "ghcr.io/porticomediaserver/ffmpeg-base-linux64@sha256:fa86b2845524170871766de2061b54974e1ef0ac5b4bdc2401b494c3f46d5968",
+  "linuxCompilerVersionConfigurationNoticesAndImplibUnchanged": true,
+  "installedMetadata": {
+    "linuxarm64": {
+      "target": "aarch64-ffbuild-linux-gnu",
+      "tools": {
+        "CC": "aarch64-ffbuild-linux-gnu-gcc (crosstool-NG 1.29.0.7_b1a94f6) 16.2.0",
+        "CXX": "aarch64-ffbuild-linux-gnu-g++ (crosstool-NG 1.29.0.7_b1a94f6) 16.2.0",
+        "LD": "GNU ld (crosstool-NG 1.29.0.7_b1a94f6) 2.47.20260726",
+        "AR": "GNU ar (crosstool-NG 1.29.0.7_b1a94f6) 2.47.20260726"
+      },
+      "implibCommit": "a3e167cf978a5b8a38ec0f710d8c4331e8dcdd9a",
+      "fileSHA256s": {
+        "/opt/ct-ng/share/aarch64-ffbuild-linux-gnu-ct-ng.config.bz2": "84f5f8bf65227d01a0b504f8fbe794b341c254f61557e5c924c25301eaae216f",
+        "/opt/implib/LICENSE.txt": "3ce4e4bc862f11fd50735454e524c009923ff82131090847234dc2aa9893eda5",
+        "/usr/share/doc/gcc-16-base/copyright": "d7815dd2364180835891947d96d808878204dea45b8597602a7952332195fbea",
+        "/usr/share/common-licenses/GPL-3": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+      },
+      "evidence": {
+        "repository": "PorticoMediaServer/portico",
+        "runId": 41271170277,
+        "sourceSHA": "d3753aa68276f2cac9147f0d42e16e778449468b",
+        "artifactId": 13069985002,
+        "artifactSHA256": "3e2820fc9d2a0f4d93f67ba0fa7397aa6221ce5eb29dbe2a7c6b1a8180e39fdc",
+        "metadataSHA256": "448259c2187d35c935d29cb87f613dc9360642859eaf706eedc8df9744c2d029",
+        "indexSHA256": "dd3a724405914a8f2a8b107f1034a20fb73f8cbb791a4afd60d2ed230f7b1b53"
+      }
+    },
+    "linux64": {
+      "target": "x86_64-ffbuild-linux-gnu",
+      "tools": {
+        "CC": "x86_64-ffbuild-linux-gnu-gcc (crosstool-NG 1.29.0.7_b1a94f6) 16.2.0",
+        "CXX": "x86_64-ffbuild-linux-gnu-g++ (crosstool-NG 1.29.0.7_b1a94f6) 16.2.0",
+        "LD": "GNU ld (crosstool-NG 1.29.0.7_b1a94f6) 2.47.20260726",
+        "AR": "GNU ar (crosstool-NG 1.29.0.7_b1a94f6) 2.47.20260726"
+      },
+      "implibCommit": "a3e167cf978a5b8a38ec0f710d8c4331e8dcdd9a",
+      "fileSHA256s": {
+        "/opt/ct-ng/share/x86_64-ffbuild-linux-gnu-ct-ng.config.bz2": "988183da083be59a694be4450ef812ce3a421386ba617fe83206fa33dd55ce34",
+        "/opt/implib/LICENSE.txt": "3ce4e4bc862f11fd50735454e524c009923ff82131090847234dc2aa9893eda5",
+        "/usr/share/doc/gcc-16-base/copyright": "d7815dd2364180835891947d96d808878204dea45b8597602a7952332195fbea",
+        "/usr/share/common-licenses/GPL-3": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+      },
+      "evidence": {
+        "repository": "PorticoMediaServer/portico",
+        "runId": 41271170277,
+        "sourceSHA": "d3753aa68276f2cac9147f0d42e16e778449468b",
+        "artifactId": 13069058794,
+        "artifactSHA256": "e198bcd606d3d4225a76e9f388896d834b8fc0f7dc2f106f0cea84ad6acea6df",
+        "metadataSHA256": "deba19f52f8920570b256abc34a940398778ce9de7402b243c3b0b179e15b0d1",
+        "indexSHA256": "fa86b2845524170871766de2061b54974e1ef0ac5b4bdc2401b494c3f46d5968"
+      }
+    },
+    "win64": {
+      "target": "x86_64-w64-mingw32",
+      "tools": {
+        "CC": "x86_64-w64-mingw32-gcc (crosstool-NG 1.29.0.7_b1a94f6) 16.2.0",
+        "CXX": "x86_64-w64-mingw32-g++ (crosstool-NG 1.29.0.7_b1a94f6) 16.2.0",
+        "LD": "GNU ld (crosstool-NG 1.29.0.7_b1a94f6) 2.47.20260726",
+        "AR": "GNU ar (crosstool-NG 1.29.0.7_b1a94f6) 2.47.20260726"
+      },
+      "implibCommit": null,
+      "fileSHA256s": {
+        "/opt/ct-ng/share/x86_64-w64-mingw32-ct-ng.config.bz2": "be3a868ce46c394f44c54e24f959d7e02e68a0ca36eb0b713d42a607d6afbc50",
+        "/usr/share/doc/gcc-16-base/copyright": "d7815dd2364180835891947d96d808878204dea45b8597602a7952332195fbea",
+        "/usr/share/common-licenses/GPL-3": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+      },
+      "evidence": {
+        "repository": "PorticoMediaServer/portico",
+        "runId": 41271170277,
+        "sourceSHA": "d3753aa68276f2cac9147f0d42e16e778449468b",
+        "artifactId": 13068984009,
+        "artifactSHA256": "4f6e68d388287f570da51ec7c9b21e8ad61682b796cb3a7f85c2da535993f1a9",
+        "metadataSHA256": "ed8da97150907986d33daddf612c29be067c94b0ed221f31dda3a83d9342b8fe",
+        "indexSHA256": "4ef6a4084baaa415f71f1b21dda870790e8751a0ccd68201f546faf01e6f8744"
+      }
+    }
+  },
+  "registryPreservationPerformed": false,
+  "scope": "Verified installed metadata and exact upstream index provenance for review. Run the reviewed main-only preservation workflow before consuming the Portico mirror. No engine or corresponding-source acceptance."
+}
