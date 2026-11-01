@@ -17,4 +17,5 @@ finish() {
   fi
 }
 trap finish EXIT
-maestro test --format junit --output "$artifact_dir/junit.xml" tests/e2e/native/pilot.yaml 2>&1 | tee "$artifact_dir/maestro.log"
+maestro test --test-output-dir "$artifact_dir/steps" --format junit --output "$artifact_dir/junit.xml" \
+  -e "SERVER_ADDRESS=$SERVER_ADDRESS" -e "E2E_ARTIFACTS=$E2E_ARTIFACTS" tests/e2e/native/pilot.yaml 2>&1 | tee "$artifact_dir/maestro.log"

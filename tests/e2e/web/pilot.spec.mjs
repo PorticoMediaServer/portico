@@ -29,11 +29,12 @@ test('local server: sign in, Home and playback', async ({page, context}, info) =
   }, '/@fs/' + path.resolve('../../../packages/client-core/src/dev-e2e.ts'));
   if (!ownerName) throw new Error('Test owner has no primary profile');
   await page.reload();
+  await page.locator('#boot').waitFor({state: 'detached', timeout: 60000});
   const home = page.locator('[data-home-document]');
   const profile = page.getByRole('button', {name: new RegExp(ownerName)});
-  await expect(home.or(profile).first()).toBeVisible();
+  await expect(home.or(profile).first()).toBeVisible({timeout: 60000});
   if (await profile.isVisible()) await profile.click();
-  await expect(home).toBeVisible();
+  await expect(home).toBeVisible({timeout: 60000});
   await page.screenshot({path: info.outputPath('02-home.png')});
   console.log('STEP 02: Home visible after test-owner sign-in');
   await home.getByRole('button', {name: /^(play|resume)/i}).first().click();

@@ -1,0 +1,72 @@
+name: E2E iOS pilot
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  iphone:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm, cache-dependency-path: 'package-lock.json'}
+      - name: Install media and driver tools
+        run: |
+          command -v ffmpeg || brew install ffmpeg
+          curl -fsSL https://get.maestro.mobile.dev -o "$RUNNER_TEMP/install-maestro"
+          MAESTRO_VERSION=2.0.10 bash "$RUNNER_TEMP/install-maestro"
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        id: subtitles
+        with:
+          path: |
+            third_party/apple-subtitles/apple/Frameworks
+            third_party/apple-subtitles/out/apple
+          key: apple-subtitles-${{ hashFiles('third_party/apple-subtitles/**', 'apps/native/ios/Portico.xcodeproj/project.pbxproj', 'apps/native/tvos/Portico.xcodeproj/project.pbxproj') }}
+      - name: Build subtitle engine
+        if: steps.subtitles.outputs.cache-hit != 'true'
+        run: APPLE_SUBTITLE_JOBS=3 third_party/apple-subtitles/build-apple.sh
+      - name: Install app dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          (cd apps/native && npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false)
+          (cd apps/native/ios && pod install)
+      - name: Build the simulator app
+        env: {PORTICO_DEV_SIGN_IN: '1', FORCE_BUNDLING: '1'}
+        run: |
+          xcodebuild -workspace apps/native/ios/Portico.xcworkspace -scheme Portico -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/portico-ios" \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Build the test server
+        working-directory: server
+        run: go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/portico-e2e-media
+          key: e2e-media-${{ runner.os }}-${{ hashFiles('scripts/e2e-server.py', 'tests/e2e/augment_media.py', 'third_party/apple-subtitles/test/make-pgs.py', 'fixtures/library-layout/Audiobooks/Test Listener/cover.png') }}
+          save-always: true
+      - name: Boot a fresh iPhone simulator
+        run: |
+          xcrun simctl list devices available --json > "$RUNNER_TEMP/simulator-devices.json"
+          device="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(next(x["udid"] for runtime,devices in d["devices"].items() if "iOS" in runtime for x in devices if x["name"].startswith("iPhone") and x["isAvailable"] and x["state"] == "Shutdown"))' "$RUNNER_TEMP/simulator-devices.json")"
+          echo "PORTICO_SIMULATOR=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+      - name: Run the iPhone journey on its own server
+        env:
+          PORTICO_IOS_APP: ${{ runner.temp }}/portico-ios/Build/Products/Debug-iphonesimulator/Portico.app
+        run: python3 tests/e2e/server.py --binary "$RUNNER_TEMP/portico-e2e-server" --media-cache "$RUNNER_TEMP/portico-e2e-media" -- bash tests/e2e/native/run-ios.sh
+      - name: Shut down the simulator
+        if: always() && env.PORTICO_SIMULATOR != ''
+        run: xcrun simctl shutdown "$PORTICO_SIMULATOR"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: e2e-ios-pilot
+          path: ${{ runner.temp }}/portico-e2e-ios/
+          if-no-files-found: warn
+          retention-days: 14

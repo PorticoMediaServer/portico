@@ -5,7 +5,7 @@ appId: tv.getportico.app
 - extendedWaitUntil:
     visible: 'Use a local server'
     timeout: 60000
-- takeScreenshot: ${E2E_ARTIFACTS}/01-welcome
+- takeScreenshot: 01-welcome
 - tapOn: 'Use a local server'
 - tapOn: 'Server address'
 - inputText: ${SERVER_ADDRESS}
@@ -14,14 +14,14 @@ appId: tv.getportico.app
     visible:
       id: accounts-dev-test-owner
     timeout: 60000
-- takeScreenshot: ${E2E_ARTIFACTS}/02-local-sign-in
+- takeScreenshot: 02-local-sign-in
 - tapOn:
     id: accounts-dev-test-owner
 - extendedWaitUntil:
     visible:
       id: native-home
     timeout: 60000
-- takeScreenshot: ${E2E_ARTIFACTS}/03-home
+- takeScreenshot: 03-home
 - tapOn: 'Play'
 - extendedWaitUntil:
     visible:
@@ -30,4 +30,4 @@ appId: tv.getportico.app
 - extendedWaitUntil:
     visible: '0:0[1-9]'
     timeout: 30000
-- takeScreenshot: ${E2E_ARTIFACTS}/04-playback
+- takeScreenshot: 04-playback
