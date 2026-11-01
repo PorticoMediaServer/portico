@@ -19,6 +19,8 @@ export type SettingPresentation = Readonly<{
   disabled?: boolean; saving?: boolean; readOnly?: boolean; error?: string; statusTone?: 'quiet' | 'ok' | 'warn' | 'bad';
   /** Static copy is translated once; dynamic names are genuine producer values. */
   choices?: readonly (Omit<SettingsOption, 'label' | 'hint'> & {label: string; hint?: string})[]; label?: string; help?: string;
+  /** A stacked custom control that fills the row's width, as its mock-up draws it. */
+  wide?: boolean;
   gridRows?: readonly SettingsTableRow[];
 }>;
 export type SettingsRowsProps = Readonly<{
@@ -90,7 +92,7 @@ function Row({row, flat, dependent = false, inheritedDisabled = false, ...props}
   } else control = props.renderSpecial(row, {...state, disabled});
   const body = flat || c.type === 'matrix' ? <div id={row.id} className={styles.specialRow} data-found={props.foundRowId === row.id || undefined} {...controlState}>{control}</div> : <SettingsRow id={row.id} dependent={dependent} found={props.foundRowId === row.id} stacked={['preview', 'list', 'table'].includes(c.type)}
     label={<><MatchText text={label} query={props.query ?? ''} />{reset}</>} help={state.help ?? (row.help && <MatchText text={t(row.help)} query={props.query ?? ''} />)} className={disabled ? styles.disabled : undefined}>
-    <div className={styles.control} {...controlState}>{changed && defaultLabel !== undefined && ['toggle','select','segmented','number'].includes(c.type) && <span className={styles.defaultValue}>{t('next.settings.defaultValue', {value: defaultLabel})}</span>}{control}</div>
+    <div className={styles.control} data-wide={state.wide || undefined} {...controlState}>{changed && defaultLabel !== undefined && ['toggle','select','segmented','number'].includes(c.type) && <span className={styles.defaultValue}>{t('next.settings.defaultValue', {value: defaultLabel})}</span>}{control}</div>
   </SettingsRow>;
   return <Fragment>{body}{state.error && <p className={styles.rowError} role="alert">{state.error}</p>}{row.children?.map(child => <Row key={child.id} row={child} {...props} dependent inheritedDisabled={disabled} />)}</Fragment>;
 }

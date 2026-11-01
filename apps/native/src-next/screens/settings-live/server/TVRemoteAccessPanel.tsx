@@ -56,7 +56,7 @@ export function TVRemoteAccessPanel({ports, runtime, lifetime, statusOnly = fals
     {outsideOn && row('security', `${R}.children.0.label` as MessageId, t(`${R}.children.0.control.options.${policy.remoteSecurity === 'standard' ? 1 : 0}.label` as MessageId), t(`${R}.children.0.help` as MessageId))}
     {row('secure', 'settings.server.secure.title', t(secure.badge), t(secure.body, secure.address ? {address: secure.address} : undefined), secure.tone === 'healthy')}
     {/* An owner changes these rows below, in the page's own settings. */}
-    {!statusOnly && outsideOn && row('policy', 'web.connectivity.whoMaySignIn', t(`settings.server.signIn.${state.connectivity.policy.remoteSignInPolicy}`))}
+    {!statusOnly && policy.remoteAccess !== 'off' && row('policy', 'web.connectivity.whoMaySignIn', t(`settings.server.signIn.${state.connectivity.policy.remoteSignInPolicy}`))}
     {!statusOnly && row('dlna', 'settings.server.dlna', t(state.connectivity.policy.dlnaEnabled ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off'), t('settings.server.dlnaHelp'), state.connectivity.policy.dlnaEnabled)}
     {state.certificate && row('account', 'account.portico', t(certificateClaimed(state.certificate) ? 'web.settings.throughAccount' : 'settings.server.secure.notSetUp'))}
   </View>;

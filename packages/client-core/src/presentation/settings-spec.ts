@@ -13116,7 +13116,8 @@ export const settingsSpec: readonly SettingsSection[] = [
                 "enableWhen": {
                   "id": "remote.access",
                   "in": [
-                    "on"
+                    "on",
+                    "private"
                   ],
                   "hide": true
                 },
