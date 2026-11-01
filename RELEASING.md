@@ -35,10 +35,11 @@ Until v0.1.0, every product (the server, the apps on every platform and the desk
 - Its files say `UNSEALED-NOT-FOR-USE-ENGINE`.
 - Its update feed lists no build, so no server offers it as an update.
 - Sealed releases need the qualified toolchain below.
+- The server doesn't install updates today. When an updater exists, it must verify the sealed manifest.
 
 **Signing:**
 - Android: one Portico app signing key, shared by GitHub downloads and Google Play.
-- Apple: App Store Connect automatic signing for iPhone, iPad and Apple TV, and Developer ID plus notarisation for the macOS server app.
+- Apple: App Store Connect automatic signing for iPhone, iPad and Apple TV, and Developer ID plus notarisation for the macOS server app, its installer package and its disk image.
 - Each signing step skips, and the file names say so, when its credentials aren't configured.
 
 ## FFmpeg is released separately
