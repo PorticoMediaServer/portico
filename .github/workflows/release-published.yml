@@ -1,7 +1,9 @@
 name: Release published
 
-# Runs when Justin publishes a draft made by release.yml. It pushes the container image the draft
-# carries (an OCI archive) to GHCR under the release's version; nothing is pushed before then.
+# Runs when Justin publishes a draft made by release.yml. It writes the build-provenance
+# attestations (public, in the Sigstore log) and pushes the container image the draft carries
+# (an OCI archive) to GHCR under the release's version; neither happens before he publishes.
+# Other releases (lane D's FFmpeg engine releases, any prerelease) are skipped.
 
 on:
   release:
@@ -9,12 +11,35 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
+  attest:
+    if: startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: The published files, checked against SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir assets
+          (cd assets && sha256sum -c SHA256SUMS)
+      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
+        with: {subject-path: 'assets/*'}
+
   image:
+    if: startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Push the image the release carries
         env:
