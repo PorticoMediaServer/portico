@@ -156,19 +156,17 @@ test('R-21: a Portico Account page that cannot open says so instead of doing not
 });
 
 // Justin, 1 Nov: a Google- or Apple-only account never sees Set a password in Settings either.
-test('A Google-only account: the Password row says how it signs in, and Add a password waits behind More sign-in options', async () => {
+test('A Google-only account: no Password row until More sign-in options shows Password, Not set, Add a password', async () => {
   const f = await fixture({hasPassword: false, kind: 'password'});
   try {
-    const row = f.find('settings-panel-password');
-    assert.equal(row.props.value, 'web.hostedSecurity.signsInWith', 'how it signs in, from the linked providers');
-    assert.equal(row.props.control, undefined, 'no button');
+    assert.equal(f.find('settings-panel-password'), undefined, 'no Password row until it is asked for');
     assert.equal(f.find('account-security-password'), undefined);
     const more = f.find('settings-more-sign-in');
     assert.ok(more); assert.equal(more.props.variant, 'text');
     more.props.onPress(); await f.settle();
-    assert.equal(f.find('settings-more-sign-in'), undefined, 'the link gives way to the row');
-    const added = f.find('settings-panel-add-password');
-    assert.equal(added.props.label, 'web.hostedSecurity.moreSignInOptions');
+    assert.equal(f.find('settings-more-sign-in'), undefined, 'the link goes away');
+    const row = f.find('settings-panel-password');
+    assert.equal(row.props.label, 'settings.row.password'); assert.equal(row.props.value, 'web.hostedSecurity.notSet');
     const add = f.find('account-security-password');
     assert.deepEqual([add.props.children].flat(), ['web.hostedSecurity.addPassword']);
     add.props.onPress(); assert.deepEqual(f.controllers.at(-1)!.opened, ['password'], 'the set-password task');

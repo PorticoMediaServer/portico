@@ -110,6 +110,10 @@ export function ServicesWorkspaceRow({title, help, helpPhone, children, icon, ph
 /** A notice or note that follows a group: the standard gap above it (H14). */
 export function ServicesGroupNote({children}: {children: ReactNode}) { return <div className={styles.groupNote}>{children}</div>; }
 export function ServicesRowNote({children}: {children: ReactNode}) { return <p className={styles.rowNote}>{children}</p>; }
+/** A quiet text link under a group, aligned with its title: a way in that isn't one of the group's rows. */
+export function ServicesQuietLink({children, onClick, disabled}: {children: ReactNode; onClick: () => void; disabled?: boolean}) {
+  return <button type="button" className={styles.quietLink} disabled={disabled} onClick={onClick}>{children}</button>;
+}
 export function ServicesInlineFacts({items}: {items: readonly string[]}) { return <span className={styles.inlineFacts}>{items.filter(Boolean).map((item, index) => <span key={index}>{item}</span>)}</span>; }
 export function ServicesDeviceFacts({desktop, phone}: {desktop: readonly string[]; phone: readonly string[]}) {
   return <><span className={styles.factDesktop}><ServicesInlineFacts items={desktop} /></span><span className={styles.factPhone}><ServicesInlineFacts items={phone} /></span></>;

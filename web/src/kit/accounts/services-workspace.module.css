@@ -81,7 +81,11 @@
 .recoveryCodes i { font-style: normal; flex: none; width: 18px; font-size: 13px; font-weight: 700; letter-spacing: 0; color: var(--color-text-tertiary); text-align: right; }
 .recoveryActions { display: flex; gap: 10px; margin-top: 14px; }
 .recoveryActions > button { height: 44px; padding: 0 18px; border-radius: 10px; gap: 8px; font-size: 15px; line-height: normal; font-weight: 700; letter-spacing: normal; }
-.rowNote { margin: 0; padding: 0 22px 18px; font-size: 13.5px; line-height: 1.45; color: var(--color-text-tertiary); }
+.rowNote { margin: 0; padding: 0 22px 18px 82px; font-size: 13.5px; line-height: 1.45; color: var(--color-text-tertiary); }
+.quietLink { display: inline-block; margin: 12px 0 0; padding: 0; border: 0; background: none; font: inherit; font-size: 14.5px; font-weight: 600; color: var(--color-accent-strong); cursor: pointer; }
+.quietLink:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+.quietLink:focus-visible { outline: 2px solid var(--color-accent-strong); outline-offset: 3px; border-radius: 4px; }
+.quietLink:disabled { opacity: .5; cursor: default; }
 .inlineFacts { display: inline-flex; flex-wrap: wrap; column-gap: 12px; }
 .dangerAction.dangerAction { height: 46px; padding: 0 18px; border-radius: 10px; font-size: 15px; line-height: normal; font-weight: 700; letter-spacing: normal; background: rgba(243,139,136,.14); color: var(--color-danger); }
 .dangerAction.dangerAction[data-size="xs"] { height: 36px; padding: 0 14px; border-radius: 9px; font-size: 14px; }
@@ -156,6 +160,7 @@
   .iconRow p, .plainRow > div:first-child > p { margin-top: 2px; font-size: 12.5px; line-height: 1.4; font-weight: 500; }
   .iconRow > div:last-child > button { height: 32px; padding: 0 12px; border-radius: 9px; font-size: 13px; }
   .icon { width: 32px; height: 32px; border-radius: 9px; }
+  .rowNote { padding: 0 14px 12px 58px; font-size: 12.5px; }
   .icon > svg { width: 18px; height: 18px; }
   .icon[data-phone-tone="green"] { background: rgba(134,207,179,.13); color: var(--color-healthy); }
   .badge { margin-left: 6px; height: 20px; font-size: 11.5px; }

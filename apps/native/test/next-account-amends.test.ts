@@ -134,19 +134,19 @@ test('the shared sheet keeps provider password input through factor verification
 
 // Justin, 1 Nov: a Google- or Apple-only Portico Account never sees Set a password. Its Password row
 // says how it signs in, and Add a password waits behind More sign-in options.
-test('a Google-only account: Password says Signs in with Google, and Add a password is behind More sign-in options', async context => {
+test('a Google-only account: no Password row; More sign-in options, under the group, shows Password Not set with Add a password', async context => {
   const f = await securityFixture(context, {hasPassword: false, mfaEnabled: false, providers: [{id: 'google-link', provider: 'google'}], recoveryCodesRemaining: 0});
   await f.recover();
   const byTestID = (id: string) => nodes(f.tree()).find(node => node.props.testID === id);
-  assert.ok(words(f.tree()).includes(defaultI18n.t('web.hostedSecurity.signsInWith', {provider: defaultI18n.t('accounts.provider.google')})));
-  assert.equal(byTestID('account-security-password'), undefined, 'no button on the Password row');
+  assert.equal(words(f.tree()).includes(defaultI18n.t('web.password')), false, 'no Password row until it is asked for');
+  assert.equal(byTestID('account-security-password'), undefined);
   assert.equal(words(f.tree()).includes(defaultI18n.t('account.setPassword')), false, 'never Set a password');
   const more = byTestID('account-security-more-sign-in');
   assert.ok(more); assert.equal(more.props.variant, 'text');
   await act(() => more.props.onPress());
-  assert.equal(byTestID('account-security-more-sign-in'), undefined, 'the link gives way to the row');
+  assert.equal(byTestID('account-security-more-sign-in'), undefined, 'the link goes away');
+  assert.ok(words(f.tree()).includes(defaultI18n.t('web.password') + defaultI18n.t('web.hostedSecurity.notSet')), 'Password, Not set');
   const add = byTestID('account-security-password');
-  assert.ok(add, 'Add a password opens the password task');
   assert.equal(add.props.children, defaultI18n.t('web.hostedSecurity.addPassword'));
   assert.ok(byTestID('account-security-mfa-on'), 'two-step stays: Hosted asks for it after a provider sign-in too');
 });
