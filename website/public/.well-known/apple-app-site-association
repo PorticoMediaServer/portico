@@ -1,0 +1,38 @@
+{
+  "activitycontinuation": {
+    "apps": [
+      "WB7BUK5Z7C.tv.getportico.portico.ios"
+    ]
+  },
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "WB7BUK5Z7C.tv.getportico.portico.ios"
+        ],
+        "components": [
+          {
+            "/": "/account"
+          },
+          {
+            "/": "/device"
+          },
+          {
+            "/": "/join"
+          },
+          {
+            "/": "/together/join"
+          },
+          {
+            "/": "/app/account-return"
+          }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "WB7BUK5Z7C.tv.getportico.portico.ios"
+    ]
+  }
+}
