@@ -17,10 +17,16 @@ on:
       e2e_ios:
         type: boolean
         default: false
+      e2e_tvos:
+        type: boolean
+        default: false
   workflow_call:
 permissions:
   contents: read
 jobs:
+  tvos-pilot:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e_tvos
+    uses: ./.github/workflows/e2e-tvos-pilot.yml
   ios-pilot:
     if: github.event_name == 'workflow_dispatch' && inputs.e2e_ios
     uses: ./.github/workflows/e2e-ios-pilot.yml
