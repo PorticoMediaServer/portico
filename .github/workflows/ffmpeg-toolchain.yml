@@ -258,6 +258,10 @@ jobs:
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with: {python-version: '3.13.17'}
+      - id: production-cache-plan
+        env:
+          ENGINE_TARGET: ${{ matrix.runner == 'ubuntu-24.04' && 'linux-x64' || matrix.runner == 'macos-15' && 'macos-arm64' || 'macos-x64' }}
+        run: python scripts/engine-dependency-cache.py plan --target "$ENGINE_TARGET" --directory "$RUNNER_TEMP/prefix-cache-plan" --output "$GITHUB_OUTPUT"
       - run: python scripts/test-engine-prefix-cache.py
       - run: python scripts/control-engine-prefix-cache.py seed --work "$RUNNER_TEMP/prefix-cache-control" --cache "$RUNNER_TEMP/prefix-cache-store"
       - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
@@ -268,7 +272,9 @@ jobs:
         if: always()
         with:
           name: prefix-cache-seed-${{ matrix.runner }}-${{ github.sha }}-NOT-FOR-USE
-          path: ${{ runner.temp }}/prefix-cache-seed.json
+          path: |
+            ${{ runner.temp }}/prefix-cache-seed.json
+            ${{ runner.temp }}/prefix-cache-plan/transport-context.json
           retention-days: 7
   prefix-cache-reuse:
     needs: prefix-cache-seed
