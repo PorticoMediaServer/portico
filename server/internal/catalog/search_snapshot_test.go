@@ -52,7 +52,7 @@ func TestSearchOnOneSnapshotSurvivesConcurrentLibraryChanges(t *testing.T) {
 		if searchErr != nil {
 			return searchErr
 		}
-		return dbwork.Snapshot(ctx).QueryRowContext(ctx, `SELECT revision FROM library_revisions WHERE library_id='m'`).Scan(&seen)
+		return dbwork.Snapshot(ctx).QueryRowContext(ctx, `SELECT revision+(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1) FROM library_revisions WHERE library_id='m'`).Scan(&seen)
 	})
 	if changes.Load() < 2 {
 		t.Fatalf("the library changed %d times during the search", changes.Load())
