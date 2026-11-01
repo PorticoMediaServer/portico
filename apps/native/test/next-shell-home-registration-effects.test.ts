@@ -65,7 +65,7 @@ for (const tv of [false, true]) test(`actual ${tv ? 'TV' : 'phone'} Home/Row eff
   const recovery = await screenModule(new URL('../src-next/screens/home/useTvHomeRecovery.ts', import.meta.url), {
     react, 'react-native': native, '../../../../../packages/client-core/src/presentation/errors': errorPresentation, '../../shell/model': shellModel,
   });
-  const {HomeScreen} = await screenModule(source('screens/home/HomeScreen.tsx'), {'./live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, 
+  const {HomeScreen} = await screenModule(source('screens/home/HomeScreen.tsx'), {'./generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, 
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
     '../../../../../packages/client-core/src/presentation/errors': errorPresentation,
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable', folds: []})},
