@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Local Windows dependency diagnostic runner. Not engine/native qualification.
+"""Windows dependency diagnostic runner. Not engine/native qualification.
 
-Invoke through portico-heavy D-engine. Successful BuildKit dependency caches
+Local invocations use portico-heavy; the explicit hosted context verifies its
+workflow identity and never waits on a local slot. Successful dependency caches
 retain their complete source downloads in the owned cache, never just binaries.
 """
 import argparse
@@ -19,6 +20,7 @@ import time
 import uuid
 import signal
 import fcntl
+import platform
 
 spec = importlib.util.spec_from_file_location("engine_inputs", Path(__file__).with_name("engine_inputs.py"))
 inputs = importlib.util.module_from_spec(spec)
@@ -29,6 +31,33 @@ spec.loader.exec_module(final_cache)
 
 ROOT = Path(__file__).resolve().parents[1]
 LIMIT = 8 * 1024**3
+
+
+def execution_context(context, root=ROOT, env=None):
+    env = os.environ if env is None else env
+    if context == 'local':
+        if env.get('GITHUB_ACTIONS') == 'true':
+            raise ValueError('local engine context cannot impersonate GitHub')
+        return {'context': 'local'}
+    prefix = 'PorticoMediaServer/portico/.github/workflows/ffmpeg-toolchain.yml@refs/heads/'
+    if (context != 'github-actions' or env.get('GITHUB_ACTIONS') != 'true' or
+            env.get('RUNNER_ENVIRONMENT') != 'github-hosted' or
+            env.get('GITHUB_REPOSITORY') != 'PorticoMediaServer/portico' or
+            env.get('GITHUB_EVENT_NAME') not in ('workflow_dispatch', 'push') or
+            not env.get('GITHUB_WORKFLOW_REF', '').startswith(prefix) or
+            not env.get('GITHUB_REF', '').startswith('refs/heads/') or
+            platform.system() != 'Linux' or platform.machine().lower() not in ('x86_64', 'amd64')):
+        raise ValueError('dedicated hosted Linux x64 engine workflow required')
+    if env.get('GITHUB_EVENT_NAME') == 'push' and env.get('GITHUB_REF') != 'refs/heads/rebuild/D-hosted-toolchain-r1':
+        raise ValueError('only the first cold-run branch may bootstrap through push')
+    sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+    if env.get('GITHUB_SHA') != sha:
+        raise ValueError('hosted engine checkout differs from workflow SHA')
+    for key in ('GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT'):
+        if not re.fullmatch(r'[1-9][0-9]*', env.get(key, '')):
+            raise ValueError('missing hosted engine run identity')
+    return {'context': context, 'sourceSHA': sha, 'runId': int(env['GITHUB_RUN_ID']),
+            'runAttempt': int(env['GITHUB_RUN_ATTEMPT'])}
 
 
 def digest(path):
@@ -166,11 +195,13 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('target', choices=['windows-x64'])
     p.add_argument('--state', type=Path, required=True, help='fresh owned on-disk state directory')
+    p.add_argument('--context', choices=('local', 'github-actions'), default='local')
     p.add_argument('--rebuild-ffmpeg', action='store_true',
                    help='force a fresh final engine compile, retaining dependency caches')
     a = p.parse_args()
+    provenance = execution_context(a.context)
     # Re-exec the entire lifetime under the machine's existing lock. No queue.
-    if os.environ.get('PORTICO_ENGINE_LOCKED') != '1':
+    if a.context == 'local' and os.environ.get('PORTICO_ENGINE_LOCKED') != '1':
         env = dict(os.environ, PORTICO_ENGINE_LOCKED='1')
         return subprocess.call(['portico-heavy', 'D-engine', '--', sys.executable, __file__, *sys.argv[1:]], env=env)
     state = a.state.absolute()
@@ -187,7 +218,7 @@ def main():
     atomic(state / 'owner.json', {'runner': str(Path(__file__).resolve()), 'release': False})
     cache = state / 'cache'
     cache.mkdir(exist_ok=True)
-    report = {'target': a.target, 'context': 'local', 'qualified': False, 'stages': {},
+    report = {'target': a.target, **provenance, 'qualified': False, 'stages': {},
               'forceFinalRebuild': a.rebuild_ffmpeg,
               'unexercised': ['bundle assembly', 'native runtime', 'ABI', 'repeat build', 'installer']}
     scratch = Path(tempfile.mkdtemp(prefix='scratch-', dir=state))
