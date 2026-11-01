@@ -30,7 +30,7 @@ writeFileSync('dist/portico-update-manifest.json', `${JSON.stringify({
   tag,
   // The shape a server's update check reads (updates.feedUrl): the builds each
   // channel offers, with the release page as the link an owner follows.
-  channels: unsealed ? {} : {[channel]: [{version, channel, url: `https://github.com/${repository}/releases/tag/${tag}`}]},
+  channels: {[channel]: unsealed ? [] : [{version, channel, url: `https://github.com/${repository}/releases/tag/${tag}`}]},
   signed: false,
   automaticInstallationAllowed: false,
   warning: unsealed ? 'Internal build, NOT FOR USE: unsealed, with a development FFmpeg engine. Never offered as an update.' : 'Unsigned development release. Verify checksums and install manually.',
