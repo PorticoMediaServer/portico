@@ -2,10 +2,11 @@ import React, {useEffect, useState, useSyncExternalStore} from 'react';
 import {AppState, Linking, Text, View} from 'react-native';
 import {Icon} from '../../kit/Icon';
 import {createSetupController, type SetupController} from '../../../../../packages/client-core/src/setup-controller';
-import {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupNewerMessage} from '../../../../../packages/client-core/src/presentation/setup-messages';
+import {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupNewerMessage, setupStartOverOffer} from '../../../../../packages/client-core/src/presentation/setup-messages';
 import {passwordStrength} from '../../../../../packages/client-core/src/password-strength';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Focusable, TextField} from '../../kit/controls';
+import {Button, Focusable, TextField} from '../../kit/controls';
+import {BottomSheet} from '../../kit/overlays';
 import {StateLayout} from '../../kit/states';
 import {useTheme} from '../../kit/theme';
 import {nativeAccounts} from '../../platform/accounts';
@@ -41,7 +42,7 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
   const signedIn = useSyncExternalStore(credentials?.subscribe ?? noSubscription, () => !!credentials?.getSnapshot().session);
   const [name, setName] = useState(target.server.name);
   const [username, setUsername] = useState(''), [password, setPassword] = useState(''), [confirm, setConfirm] = useState('');
-  const [notNow, setNotNow] = useState(false);
+  const [notNow, setNotNow] = useState(false), [startingOver, setStartingOver] = useState(false);
   const [chosen, setChosen] = useState<'hosted' | 'local'>(target.server.hostedConfigured ? 'hosted' : 'local');
   // O-169, step 1 continued: unset follows the sign-in kind (On for Portico Accounts, Off for local sign-in).
   const [accessChoice, setAccessChoice] = useState<'on' | 'private' | 'off'>(), [securityChoice, setSecurityChoice] = useState<'enhanced' | 'standard'>('enhanced');
@@ -58,28 +59,40 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
   }};
   const tryAgain = (onPress = controller.retry) => ({id: 'retry', label: t('action.tryAgain'), disabled: busy, loading: busy, onPress});
   const Layout = theme.platform === 'phone' ? PhoneAccountForm : StateLayout;
-  const message = (title: string, body: string, primary?: ReturnType<typeof tryAgain>) =>
-    <Layout testID="accounts-setup" title={title} body={body} primaryAction={primary} secondaryAction={back}/>;
+  const message = (title: string, body: string, primary?: ReturnType<typeof tryAgain>, secondary: ReturnType<typeof tryAgain> | typeof back = back) =>
+    <>
+      <Layout testID="accounts-setup" title={title} body={body} primaryAction={primary} secondaryAction={secondary}/>
+      <BottomSheet open={startingOver} onOpenChange={setStartingOver} title={t('web.setup.startOverTitle')} description={t('web.setup.startOverBody')}
+        footer={<View style={{flexDirection: 'row', gap: 12}}>
+          <Button testID="accounts-setup-start-over-cancel" variant="glass" style={{flex: 1}} onPress={() => setStartingOver(false)}>{t('action.cancel')}</Button>
+          <Button testID="accounts-setup-start-over-confirm" variant="primary" style={{flex: 1}} onPress={() => {setStartingOver(false);controller.startOver();}}>{t('web.setup.startOver')}</Button>
+        </View>}>{null}</BottomSheet>
+    </>;
+  // Start over (auth.html 1e panels 3–4): it asks first only where the setup was approved.
+  const offer = setupStartOverOffer(view);
+  const startOver = {id: 'start-over', label: t('web.setup.startOver'), disabled: busy, loading: busy && view.kind === 'starting_over', onPress: () => {if (offer.confirm) setStartingOver(true); else controller.startOver();}};
   const caption = (text: string, key?: string) => <Text key={key} style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{text}</Text>;
   const field = (label: string, value: string, change: (next: string) => void, credential?: 'username' | 'new-password') =>
     <TextField key={label} label={label} value={value} onChangeText={change} appearance={theme.platform === 'phone' ? 'auth' : undefined}
       secureTextEntry={credential === 'new-password'} textContentType={credential === 'new-password' ? 'newPassword' : credential} autoComplete={credential} editable={!busy}/>;
 
   switch (view.kind) {
-    case 'connecting': case 'admitting': case 'renewing': case 'library': case 'done':
+    case 'connecting': case 'admitting': case 'renewing': case 'library': case 'done': case 'starting_over':
       return <Waiting/>;
     case 'finishing':
       return <Layout testID="accounts-setup" title={t('web.claim.finishingOnServer')} body={view.slow ? t('web.claim.finishingSlow') : undefined}/>;
     case 'exhausted':
-      return message(t('web.claim.finishingOnServer'), t('web.claim.finishingSlow'), tryAgain());
+      return message(t('web.claim.finishingOnServer'), t('web.claim.finishingSlow'), tryAgain(), startOver);
     case 'refused':
       return message(t('accounts.setup.title'), view.reason === 'already_set_up' ? setupErrorMessage({code: 'setup_complete', retryable: false})
         : t(view.reason === 'not_local_source' ? 'web.setup.notLocalSource' : 'web.setup.notOnNetwork'));
     case 'busy_elsewhere':
-      return message(t('accounts.setup.title'), setupBusyMessage(view.retryAt));
+      return message(t('accounts.setup.title'), setupBusyMessage(view.retryAt), startOver);
     case 'ended':
-      return message(t('accounts.setup.declinedTitle', {server: view.name || name}), setupEndedMessage(view.outcome, view.name || name), tryAgain(controller.startAgain));
+      return offer.offer ? message(t('accounts.setup.title'), setupEndedMessage(view.outcome, view.name || name), startOver)
+        : message(t('accounts.setup.declinedTitle', {server: view.name || name}), setupEndedMessage(view.outcome, view.name || name), tryAgain(controller.startAgain));
     case 'failed':
+      if (offer.offer) return view.retryable ? message(t('accounts.setup.title'), setupErrorMessage(view.error), tryAgain(), startOver) : message(t('accounts.setup.title'), setupErrorMessage(view.error), startOver);
       return message(t('accounts.setup.title'), setupErrorMessage(view.error), view.retryable ? tryAgain() : undefined);
     case 'unknown':
       return message(t('accounts.setup.title'), setupNewerMessage(), tryAgain());

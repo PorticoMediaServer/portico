@@ -29,7 +29,20 @@ export function setupBusyMessage(retryAt: number | undefined): string {
 /** How an attempt ended, in the existing words. */
 export function setupEndedMessage(outcome: SetupOutcome, server: string): string {
   if (outcome === 'expired') return defaultI18n.t('web.setup.earlierExpired');
+  if (outcome === 'approval_lapsed') return defaultI18n.t('web.setup.startOverLapsed');
   return defaultI18n.t('web.claim.expired');
 }
 /** A phase from a newer server. */
 export const setupNewerMessage = () => presentError(new NeedsNewerAppError('setup'), 'sign-in', {operation: 'action', i18n: defaultI18n}).body;
+
+/** Where Start over is offered (finding #2; auth.html 1e panels 3–4) and whether it asks first. It asks only where the setup was
+ * approved, since starting over cancels that approval; a setup someone else started, or one that never got that far, starts over at once. */
+export function setupStartOverOffer(view: Readonly<{kind: string; outcome?: string; hold?: string}>): Readonly<{offer: boolean; confirm: boolean}> {
+  switch (view.kind) {
+    case 'exhausted': return {offer: true, confirm: true};
+    case 'busy_elsewhere': return {offer: true, confirm: false};
+    case 'ended': return view.outcome === 'approval_lapsed' ? {offer: true, confirm: true} : {offer: false, confirm: false};
+    case 'failed': return view.hold === 'committed' ? {offer: true, confirm: true} : {offer: false, confirm: false};
+    default: return {offer: false, confirm: false};
+  }
+}

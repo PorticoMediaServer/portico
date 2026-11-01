@@ -45,6 +45,8 @@ export interface SetupPorts {
   approveInApp(context: SetupPortContext): Promise<Of<'approvedInApp'>>;
   /** S8. `abandoned`: the server is back to open, and the controller retires the record and the attempt. */
   abandon(context: SetupPortContext): Promise<Of<'abandonRefused'> | Readonly<{kind: 'abandoned'}>>;
+  /** Finding #2. `startedOver`: the server is back to open with a fresh setup token the port keeps; the controller retires the record and the attempt. */
+  startOver(context: SetupPortContext): Promise<Of<'startedOver' | 'notLocalSource' | 'alreadyComplete'>>;
   /** S15. */
   retryDelivery(context: SetupPortContext): Promise<Of<'deliveryRetried' | 'tokenRefused' | 'alreadyComplete'>>;
   exchange(context: SetupPortContext): Promise<Of<'exchangeDone' | 'exchangeRefused' | 'tokenRefused'>>;
@@ -86,6 +88,8 @@ export interface SetupController {
   chooseKind(mode: SetupFormMode): void;
   back(): void;
   startAgain(): void;
+  /** Start over (finding #2): ends any unfinished setup on the server, whoever started it. */
+  startOver(): void;
   /** Try again. After a failure or an unconfirmed action it keeps the same intentId. */
   retry(): void;
   approveInApp(): void;
@@ -107,7 +111,7 @@ export function setupErrorOf(error: unknown): SetupError {
 
 const EFFECT_NAME: Partial<Record<SetupEffectKind, SetupEffectName>> = {
   start: 'start', 'initialize-hosted': 'initialize', 'initialize-local': 'initialize', 'request-approval': 'request-approval', 'approve-in-app': 'approve-in-app',
-  abandon: 'abandon', 'retry-delivery': 'retry-delivery', exchange: 'exchange', renew: 'renew', 'adopt-owner': 'adopt-owner', 'add-library': 'add-library',
+  abandon: 'abandon', 'start-over': 'start-over', 'retry-delivery': 'retry-delivery', exchange: 'exchange', renew: 'renew', 'adopt-owner': 'adopt-owner', 'add-library': 'add-library',
 };
 const failureOf = (effect: SetupEffect, error: SetupError): SetupInput =>
   effect.kind === 'read-state' ? {kind: 'readFailed', error} : {kind: 'effectFailed', effect: EFFECT_NAME[effect.kind]!, error};
@@ -231,6 +235,11 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
         if (!context.signal.aborted) {await retireQuietly('record'); await retireQuietly('attempt');}
         return undefined;
       }
+      case 'start-over': {
+        const result = await ports.startOver(context);
+        if (result.kind === 'startedOver' && !context.signal.aborted) {await retireQuietly('record'); await retireQuietly('attempt');}
+        return result;
+      }
       case 'retry-delivery': return ports.retryDelivery(context);
       case 'exchange': return ports.exchange(context);
       case 'renew': return written(ports.renew(context));
@@ -352,6 +361,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
       intent({kind: 'back'});
     },
     startAgain: () => intent({kind: 'startAgain'}),
+    startOver: () => intent({kind: 'startOver'}),
     retry() {
       if (disposed || working(user)) return;
       const {phase} = user.action.getSnapshot();
