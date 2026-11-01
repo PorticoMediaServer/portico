@@ -16,7 +16,7 @@
  */
 @interface PorticoActivity : NSObject <RCTBridgeModule> @end
 
-static NSString *const PorticoActivityType = @"tv.getportico.portico.title";
+static NSString *const PorticoActivityType = @"tv.getportico.app.title";
 static NSString *const PorticoContinueDomain = @"tv.getportico.continue";
 static NSString *const PorticoSavedDomain = @"tv.getportico.saved";
 

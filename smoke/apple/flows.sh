@@ -35,8 +35,8 @@ if [ -z "$APP" ] || [ -z "$OUT" ]; then
 fi
 
 case "$SURFACE" in
-  ios) BUNDLE=tv.getportico.portico.ios; DEVICE_NAME="iPhone 16 Pro"; RUNTIME_OS=ios ;;
-  tvos) BUNDLE=tv.getportico.portico.tv; DEVICE_NAME="Apple TV"; RUNTIME_OS=tvos ;;
+  ios) BUNDLE=tv.getportico.app; DEVICE_NAME="iPhone 16 Pro"; RUNTIME_OS=ios ;;
+  tvos) BUNDLE=tv.getportico.app; DEVICE_NAME="Apple TV"; RUNTIME_OS=tvos ;;
   *) echo "surface must be ios or tvos" >&2; exit 2 ;;
 esac
 

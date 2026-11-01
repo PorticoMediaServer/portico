@@ -3,7 +3,7 @@ schema-version = 1
 [package]
 title = "Portico"
 version = "0.0.0"
-id = "tv.getportico.portico.vega"
+id = "tv.getportico.vega"
 
 [os.version]
 min = "1.2"
@@ -65,7 +65,7 @@ id = "com.amazon.gipc.uuid.*"
 
 [components]
 [[components.interactive]]
-id = "tv.getportico.portico.vega.main"
+id = "tv.getportico.vega.main"
 runtime-module = "/com.amazon.kepler.runtime.react_native_kepler_4@IReactNativeKepler_0"
 launch-type = "singleton"
 # The media category and the interface below let the app answer the remote's transport keys and
@@ -74,7 +74,7 @@ categories = ["com.amazon.category.main", "com.amazon.category.kepler.media"]
 
 [[extras]]
 key = "interface.provider"
-component-id = "tv.getportico.portico.vega.main"
+component-id = "tv.getportico.vega.main"
 
 [extras.value.application]
 [[extras.value.application.interface]]

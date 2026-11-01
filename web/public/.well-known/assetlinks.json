@@ -3,8 +3,8 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "tv.getportico.portico",
-      "sha256_cert_fingerprints": ["PORTICO_PLAY_APP_SIGNING_SHA256"]
+      "package_name": "tv.getportico.app",
+      "sha256_cert_fingerprints": ["DB:88:A3:17:8D:49:86:03:FE:B6:63:B9:67:99:0C:76:39:2E:37:CD:43:E1:B9:53:44:AE:2E:A9:87:EF:56:FA"]
     }
   }
 ]

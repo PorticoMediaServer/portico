@@ -1,14 +1,14 @@
 {
   "activitycontinuation": {
     "apps": [
-      "WB7BUK5Z7C.tv.getportico.portico.ios"
+      "WB7BUK5Z7C.tv.getportico.app"
     ]
   },
   "applinks": {
     "details": [
       {
         "appIDs": [
-          "WB7BUK5Z7C.tv.getportico.portico.ios"
+          "WB7BUK5Z7C.tv.getportico.app"
         ],
         "components": [
           {
@@ -32,7 +32,7 @@
   },
   "webcredentials": {
     "apps": [
-      "WB7BUK5Z7C.tv.getportico.portico.ios"
+      "WB7BUK5Z7C.tv.getportico.app"
     ]
   }
 }

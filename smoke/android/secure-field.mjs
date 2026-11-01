@@ -3,7 +3,7 @@
 export function securePasswordTarget(snapshot, {appBundleId, refsGeneration}) {
   const refuse = () => { throw new Error('secure password metadata unavailable or ambiguous'); };
   const data = snapshot?.success === true ? snapshot.data : null;
-  if (!data || data.appBundleId !== appBundleId || appBundleId !== 'tv.getportico.portico' ||
+  if (!data || data.appBundleId !== appBundleId || appBundleId !== 'tv.getportico.app' ||
       !Number.isSafeInteger(refsGeneration) || refsGeneration < 0 ||
       data.refsGeneration !== refsGeneration || data.truncated !== false || !Array.isArray(data.nodes)) refuse();
   const focused = data.nodes.filter(node => node?.focused === true && node.editable === true);

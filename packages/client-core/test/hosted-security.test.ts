@@ -102,7 +102,7 @@ test('private continuation restores only allowed keys and expires',()=>{
  assert.equal(parseNativeAccountContinuation(null),undefined);assert.throws(()=>parseNativeAccountContinuation('not JSON'));
 });
 test('provider options expose per-app Apple configuration without granting an assertion',()=>{
- const options=parseIdentityOptions({password:true,registration:true,verifiedContactRequired:true,providers:[{id:'apple',enabled:true,native:true,nativeClientIds:['tv.getportico.portico.ios','tv.getportico.portico.tv']}]});assert.equal(options.providers[0].nativeClientIds.length,2);
+ const options=parseIdentityOptions({password:true,registration:true,verifiedContactRequired:true,providers:[{id:'apple',enabled:true,native:true,nativeClientIds:['tv.getportico.app']}]});assert.equal(options.providers[0].nativeClientIds.length,1);
  assert.throws(()=>providerRedirect('https://evil.example.test/oauth','google'));
  const tx={transactionId:'tx_A',provider:'apple',mode:'login',status:'verified',expiresAt:'2030-01-01T00:00:00Z',contactVerified:true,needsUsername:true,onboardingToken:'opaque'};
  assert.equal(parseIdentityTransaction(tx,'tx_A').onboardingToken,'opaque');assert.throws(()=>parseIdentityTransaction(tx,'tx_B'));

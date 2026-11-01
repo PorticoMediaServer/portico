@@ -19,7 +19,7 @@ private func decodeURL(_ value: String, count: Int? = nil, limit: Int = 65536) t
 }
 private func encodeURL(_ data: Data) -> String { data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }
 private func secret(_ account: String, create: () throws -> Data) throws -> Data {
-    let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "tv.getportico.portico.network", kSecAttrAccount as String: account]
+    let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "tv.getportico.app.network", kSecAttrAccount as String: account]
     var read = query; read[kSecReturnData as String] = true
     var result: CFTypeRef?; let status = SecItemCopyMatching(read as CFDictionary, &result)
     if status == errSecSuccess, let data = result as? Data { return data }
@@ -167,7 +167,7 @@ final class PorticoNetwork: RCTEventEmitter, NetServiceDelegate {
         } catch { reject("tv_grant_invalid", "The TV setup response could not be verified. No sign-in was installed.", nil) }
     }
     @objc func forgetTVKey(_ requestId: String) {
-        guard UUID(uuidString: requestId) != nil else { return }; let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "tv.getportico.portico.network", kSecAttrAccount as String: "tv-v1:" + requestId]; SecItemDelete(query as CFDictionary)
+        guard UUID(uuidString: requestId) != nil else { return }; let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "tv.getportico.app.network", kSecAttrAccount as String: "tv-v1:" + requestId]; SecItemDelete(query as CFDictionary)
     }
     @objc func advertiseTV(_ value: NSDictionary, resolver resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
         guard let code = value["code"] as? String, code.range(of: "^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$", options: .regularExpression) != nil,

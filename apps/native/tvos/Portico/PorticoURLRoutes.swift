@@ -207,7 +207,7 @@ public enum PorticoURLRoutes {
         }
       default: break
       }
-    case "tv.getportico.portico.title":
+    case "tv.getportico.app.title":
       if let id = userInfo?["itemId"] as? String { candidate = URL(string: "portico://item/" + id) }
     case "com.apple.corespotlightitem":
       // Spotlight results are indexed as "continueWatching:{id}" or "saved:{id}".

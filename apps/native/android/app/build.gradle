@@ -62,7 +62,7 @@ android {
     namespace "tv.getportico.portico"
     defaultConfig {
         // One application for phones and televisions; `Platform.isTV` chooses the layout.
-        applicationId "tv.getportico.portico"
+        applicationId "tv.getportico.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode storeVersionCode ?: 1

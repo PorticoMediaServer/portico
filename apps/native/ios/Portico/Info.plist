@@ -81,7 +81,7 @@
 	<string>Portico looks for servers, TVs and Google Cast devices on your network. Without it, addresses and TV codes still work.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
-		<string>tv.getportico.portico.title</string>
+		<string>tv.getportico.app.title</string>
 	</array>
 	<key>PorticoCastApplicationID</key>
 	<string>$(PORTICO_CAST_APPLICATION_ID)</string>

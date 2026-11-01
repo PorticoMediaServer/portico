@@ -155,7 +155,7 @@ export async function topShelfConfiguration(): Promise<Shelf | null> {
  */
 const originPattern = /^https?:\/\/[^\s/?#]+$/i;
 export const PorticoAccountAuth = {
-  bundleId: 'tv.getportico.portico.vega',
+  bundleId: 'tv.getportico.vega',
   canSignInApple: false,
   canOpenBrowser: false,
   newBinding(): Promise<string> {

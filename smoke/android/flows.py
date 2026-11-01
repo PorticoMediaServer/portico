@@ -20,7 +20,7 @@ import sys
 import time
 import xml.etree.ElementTree as ElementTree
 
-PACKAGE = "tv.getportico.portico"
+PACKAGE = "tv.getportico.app"
 
 # A drawn Home shows at least one of these rows. The shell's "Home" nav label alone is not enough:
 # a screen stuck on "Loading, busy" can carry the nav bar with no content behind it.

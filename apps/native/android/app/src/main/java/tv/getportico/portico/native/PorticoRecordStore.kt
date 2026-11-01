@@ -287,7 +287,7 @@ internal class PorticoRecordStore(
   companion object {
     private const val RESET_PROOF = "confirmed-key-loss-v2"
     private const val KEYSTORE = "AndroidKeyStore"
-    private const val KEY_ALIAS = "tv.getportico.portico.records.v1"
+    private const val KEY_ALIAS = "tv.getportico.app.records.v1"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val FORMAT: Byte = 1
     private const val IV_BYTES = 12

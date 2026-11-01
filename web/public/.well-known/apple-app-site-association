@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["PORTICO_APPLE_TEAM_ID.tv.getportico.portico.ios"],
+        "appIDs": ["WB7BUK5Z7C.tv.getportico.app"],
         "components": [
           {"/": "/account", "comment": "Portico Account pages"},
           {"/": "/device", "comment": "Approve a device"},

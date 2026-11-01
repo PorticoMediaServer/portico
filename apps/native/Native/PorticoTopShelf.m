@@ -13,7 +13,7 @@
 @implementation PorticoTopShelf
 RCT_EXPORT_MODULE()
 + (BOOL)requiresMainQueueSetup { return NO; }
-static NSString *const PorticoTopShelfGroup = @"group.tv.getportico.portico";
+static NSString *const PorticoTopShelfGroup = @"group.tv.getportico.app";
 
 static NSDictionary *PorticoTopShelfQuery(void) {
   return @{(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword, (__bridge id)kSecAttrService: @"tv.getportico.topshelf", (__bridge id)kSecAttrAccount: @"feed", (__bridge id)kSecAttrAccessGroup: PorticoTopShelfGroup};

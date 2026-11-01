@@ -20,9 +20,9 @@ The React Native (react-native-tvos) client for Portico. It builds on:
 | `src-next/shell` | The app frame: start-up, the television rail, the handheld tab bar, the playback layer. |
 | `src-next/screens` | Destinations: accounts, Home, Library, Search, Saved, Watch, Read, Downloads, People, Settings. |
 | `src-next/tv`, `src-next/dev` | Television-only pieces; development galleries and measurement hosts. |
-| `ios/` | iPhone/iPad Xcode project (`tv.getportico.portico.ios`). |
-| `tvos/` | Apple TV Xcode project (`tv.getportico.portico.tv`). |
-| `android/` | Android project (`tv.getportico.portico`): phones, tablets, Android TV, and Fire TV as the `firetv` flavor. |
+| `ios/` | iPhone/iPad Xcode project (`tv.getportico.app`). |
+| `tvos/` | Apple TV Xcode project (`tv.getportico.app`). |
+| `android/` | Android project (application ID `tv.getportico.app`; code namespace `tv.getportico.portico`): phones, tablets, Android TV, and Fire TV as the `firetv` flavor. |
 
 ## Product rules baked in
 
@@ -204,7 +204,7 @@ adb reverse tcp:19424 tcp:19424                       # Metro, for a debug build
   kind of device is absent there (`PorticoDownloads` on a television,
   `PorticoTopShelf` on a phone, `PorticoCast` on Fire TV), and the shared code
   hides the feature.
-- **Deep links** for checks: `adb shell am start -a android.intent.action.VIEW -d "portico://item/<id>" tv.getportico.portico`
+- **Deep links** for checks: `adb shell am start -a android.intent.action.VIEW -d "portico://item/<id>" tv.getportico.app`
   (`portico://play/<id>`, `portico://device`).
 - **Debug builds keep the fast-forward key** for React Native's developer menu;
   test that key on a release build.
