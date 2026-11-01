@@ -28,7 +28,7 @@ const runtimeValues = {
   analysisStorageGiB: 32, analysisStageStorageMiB: 256, subtitleTrackLimit: 128, subtitleFileLimitMiB: 128, planningPolicy: 'maximum_fidelity',
   throttleBufferMs: 60000, playedRetentionMs: 180000, temporaryDirectory: '', ffmpegPath: '', sessionStorageMiB: 4096,
   maxConcurrentSessions: 0, maxHardwareSessions: 0, maxSoftwareSessions: 0, maxBackgroundSessions: 0,
-  playHistoryDays: 0, 'home.communityActivityEnabled': false, 'updates.releaseChannel': 'stable', 'updates.feedUrl': '',
+  playHistoryDays: 0, 'home.communityActivityEnabled': false, 'recommendations.titleDataset': true, 'updates.releaseChannel': 'stable', 'updates.feedUrl': '',
   'library.missingTitles': 'after_days', 'library.missingTitlesDays': 30, 'library.segmentDetection': 'standard',
   remoteSignInPolicy: 'allow', remoteBitrateLimitKbps: 0, lanNetworks: [], accessUrls: [], lanDiscoveryEnabled: true, dlnaEnabled: false, secureConnections: 'preferred',
   trustedProxies: [], uploadCapacityKbps: 0, pausedSessionTimeoutMinutes: 0, advertisedInterface: '', ownAddressEnabled: false,

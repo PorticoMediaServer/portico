@@ -9610,6 +9610,7 @@ CREATE TABLE server_settings(singleton INTEGER PRIMARY KEY CHECK(singleton=1), u
  "playHistoryDays" INTEGER,
  "apiRequestsPerMinute" INTEGER,
  "integrations.compatibilityEnabled" INTEGER CHECK("integrations.compatibilityEnabled" IN(0,1)),
+ "recommendations.titleDataset" INTEGER CHECK("recommendations.titleDataset" IN(0,1)),
  "home.communityActivityEnabled" INTEGER,
  "updates.releaseChannel" TEXT,
  "updates.feedUrl" TEXT,
