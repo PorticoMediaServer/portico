@@ -158,12 +158,12 @@ internal/downloads/worker.go	(*Service).prune	ExecWrite	ClassBackgroundMedia	-
 internal/downloads/worker.go	(*Service).record	Begin	ClassBackgroundMedia	-
 internal/downloads/worker.go	(*Service).step	ExecWrite	ClassBackgroundMedia	-
 internal/downloads/worker.go	(*Service).tidy	Begin	ClassBackgroundMedia	-
+internal/enrichment/enrichment.go	(*Service).deleteChunk	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
 internal/enrichment/enrichment.go	(*Service).drainJobs	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
 internal/enrichment/enrichment.go	(*Service).importVocabulary	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
-internal/enrichment/enrichment.go	(*Service).importWorks	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
 internal/enrichment/enrichment.go	(*Service).noteChecked	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
-internal/enrichment/enrichment.go	(*Service).purge	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
 internal/enrichment/enrichment.go	(*Service).writeState	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
+internal/enrichment/enrichment.go	(*boundedWriter).next	Begin	ClassFrom(b.ctx, dbwork.ClassBackgroundMedia)	-
 internal/eventfeed/feed.go	flushPendingHints	WithWriteTx	ClassMaintenance	-
 internal/hosted/account_departure.go	(*Service).DeliverIdentityDepartures	ExecWrite	ClassMaintenance	-	×2
 internal/hosted/current_schedule.go	(*Service).ordinaryControlStep	ExecWrite	ClassInteractive	-
