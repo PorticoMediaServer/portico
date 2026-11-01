@@ -33,17 +33,14 @@ func (s *Service) compactMovieCategoriesForClass(library, classKey string, gener
 
 func (s *Service) currentCategoryClass(library, classKey string, generation int64) (int, int, error) {
 	var libraryID, classID int
-	var current bool
-	err := s.read().QueryRow(`SELECT c.library_id,c.id,c.catalog_revision=(SELECT revision FROM library_revisions WHERE library_id=?)
+	err := s.read().QueryRow(`SELECT c.library_id,c.id
 	 FROM compact_visibility_classes c JOIN catalog_libraries l ON l.id=c.library_id
-	 WHERE c.class_key=? AND c.active_generation=? AND l.library_id=?`, library, classKey, generation, library).Scan(&libraryID, &classID, &current)
+	 WHERE c.class_key=? AND c.active_generation=? AND l.library_id=?`, classKey, generation, library).Scan(&libraryID, &classID)
 	if err != nil {
 		return 0, 0, err
 	}
-	// A class one library revision behind is the last published generation:
-	// it serves (a refresh is already queued) and page rows are rechecked
-	// against current restrictions.
-	_ = current
+	// Rating-age fan-out journals this class through its captured source
+	// sequence; a raw library revision is not its policy freshness witness.
 	return libraryID, classID, nil
 }
 

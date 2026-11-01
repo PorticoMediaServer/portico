@@ -186,6 +186,10 @@ func visibilityClassKey(library string, r identity.ContentRestrictions) (string,
 	return hex.EncodeToString(digest[:]), string(raw)
 }
 
+// visibilityRevision is paired with the captured source sequence in
+// visibility_frontier.go. Rating classifications do not change this raw stamp:
+// their kind-4 source jobs expand into class journals and wake the incremental
+// rebuilder. Live row predicates still recheck the current rating table.
 func (s *Service) visibilityRevision(ctx context.Context, library string) (int64, error) {
 	var revision int64
 	err := dbwork.ReadHandle(ctx, s.db).QueryRowContext(ctx,
