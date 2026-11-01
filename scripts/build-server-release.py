@@ -137,6 +137,10 @@ def artifact_identity(artifact):
     if '-ldflags' not in settings:
         if len(proofs)!=1:raise ValueError('A release binary built without recorded -ldflags must carry exactly one identity proof')
         source,build_id,version,root=(x.decode() for x in next(iter(proofs)))
+        # The marker names the trust root; the binary must also carry that exact value outside the
+        # marker (the -X string the hostedtrust variable points at), so a marker can't claim a root
+        # the server doesn't use.
+        if artifact.read_bytes().count(root.encode())<2:raise ValueError('The proof marker names a trust root the binary does not otherwise carry')
         embedded={prefix+'SourceDigest':source,prefix+'BuildID':build_id,prefix+'Version':version,trust_symbol:root}
     expected=tuple(embedded.get(k,'').encode() for k in (prefix+'SourceDigest',prefix+'BuildID',prefix+'Version',trust_symbol))
     if proofs and proofs!={expected}:raise ValueError('Proof marker disagrees with compiler build identity')
@@ -181,6 +185,17 @@ def check_contents(directory,expected_source,manifest,development=False):
         RCLONE['verify'](rclone,manifest['target'])
         if hashlib.sha256((rclone/'bundle-manifest.json').read_bytes()).hexdigest()!=manifest.get('rcloneManifestSha256'):raise ValueError('rclone manifest changed')
     return manifest
+
+def merge_rclone(bundle,staged):
+    """The stage already holds third_party/rclone/bundle.lock.json (a test input), the same contract
+    file the bundle carries. Merge only files the bundle carries, each already byte-identical (the
+    merge overwrites it); the bundle's exact inventory and hashes are verified with the build."""
+    present={p.name for p in staged.iterdir()} if staged.exists() else set()
+    carried={p.name for p in bundle.iterdir()}
+    if not present<=carried:raise SystemExit('Unexpected files in the staged rclone directory: '+', '.join(sorted(present-carried)))
+    changed=sorted(name for name in present if (staged/name).read_bytes()!=(bundle/name).read_bytes())
+    if changed:raise SystemExit('Staged rclone files differ from the bundle: '+', '.join(changed))
+    shutil.copytree(bundle,staged,dirs_exist_ok=True)
 
 def check_engine(bundle,unsealed):
     """The qualified toolchain, or (only --unsealed) the pinned development engine."""
@@ -268,13 +283,7 @@ def main():
             if args.os!='linux':raise SystemExit('Sonic bundles currently support Linux only')
             SONIC['install'](args.sonic_bundle.resolve(),stage/'third_party/ffmpeg',target)
             manifest['sonicManifestSha256']=SONIC['digest'](stage/'third_party/ffmpeg/bin/sonic-manifest.json')
-        # The stage already holds third_party/rclone/bundle.lock.json (a test input); the bundle
-        # carries the same contract file. Merge only files the bundle itself carries, then the
-        # bundle's exact inventory and hashes are verified with the build.
-        rclone_stage=stage/'third_party/rclone'
-        present={p.name for p in rclone_stage.iterdir()} if rclone_stage.exists() else set()
-        if not present<={p.name for p in rclone_bundle.iterdir()}:raise SystemExit('Unexpected files in the staged rclone directory: '+', '.join(sorted(present-{p.name for p in rclone_bundle.iterdir()})))
-        shutil.copytree(rclone_bundle,rclone_stage,dirs_exist_ok=True)
+        merge_rclone(rclone_bundle,stage/'third_party/rclone')
         manifest['rcloneManifestSha256']=hashlib.sha256((rclone_bundle/'bundle-manifest.json').read_bytes()).hexdigest()
     (stage/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     if args.unsealed:

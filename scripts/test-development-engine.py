@@ -127,13 +127,34 @@ class BuilderRefusals(unittest.TestCase):
                            'Settings': [{'Key': '-trimpath', 'Value': 'true'}, {'Key': '-tags', 'Value': 'release'}]})
         prefix = 'github.com/PorticoMediaServer/portico/server/internal/buildinfo.'
         with mock.patch.object(subprocess, 'check_output', return_value=info):
+            # A marker alone isn't enough: the root must also be in the binary outside it.
             artifact.write_bytes(b'ELF...' + marker + b'...')
+            with self.assertRaises(ValueError) as unrooted:
+                self.builder['artifact_identity'](artifact)
+            self.assertIn('trust root', str(unrooted.exception))
+            artifact.write_bytes(b'ELF...' + root.encode() + b'...' + marker + b'...')
             embedded, _ = self.builder['artifact_identity'](artifact)
             self.assertEqual((embedded[prefix + 'SourceDigest'], embedded[prefix + 'BuildID'], embedded[prefix + 'Version']), (source, build, version))
             self.assertEqual(embedded['github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot'], root)
-            artifact.write_bytes(marker + marker.replace(b'0.0.1', b'0.0.2'))
+            artifact.write_bytes(root.encode() + marker + marker.replace(b'0.0.1', b'0.0.2'))
             with self.assertRaises(ValueError):
                 self.builder['artifact_identity'](artifact)
+
+
+    def test_the_rclone_merge_takes_only_identical_files_the_bundle_carries(self):
+        bundle, staged = self.dir / 'bundle', self.dir / 'stage'
+        bundle.mkdir(); staged.mkdir()
+        (bundle / 'bundle.lock.json').write_text('lock'); (bundle / 'rclone').write_text('binary')
+        (staged / 'bundle.lock.json').write_text('lock')
+        self.builder['merge_rclone'](bundle, staged)
+        self.assertEqual(sorted(p.name for p in staged.iterdir()), ['bundle.lock.json', 'rclone'])
+        (staged / 'bundle.lock.json').write_text('a different lock')
+        with self.assertRaises(SystemExit) as differs:
+            self.builder['merge_rclone'](bundle, staged)
+        self.assertIn('differ', str(differs.exception))
+        (staged / 'bundle.lock.json').write_text('lock'); (staged / 'stray').write_text('x')
+        with self.assertRaises(SystemExit):
+            self.builder['merge_rclone'](bundle, staged)
 
 
 if __name__ == '__main__':
