@@ -856,12 +856,12 @@ func (s *Service) applyObservationBatch(ctx context.Context, o *observations, ba
 		}
 		res, post, applyErr := s.applyObservationTx(txCtx, tx, o, c, false)
 		if before != 3 {
-			after, witnessErr := observationHistoryMask(txCtx, tx, c)
+			afterMask, witnessErr := observationHistoryMask(txCtx, tx, c)
 			if witnessErr != nil {
 				err = witnessErr
 				break
 			}
-			if after&^before != 0 {
+			if afterMask&^before != 0 {
 				activations++
 				if err = dbwork.UsePlan(tx, observationActivationPlan(len(batch), activations)); err != nil {
 					break
