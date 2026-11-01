@@ -33,6 +33,9 @@ class MesonPin(unittest.TestCase):
                 else:
                     self.assertIn(rust, dockerfile.read_text())
                     self.assertFalse((base / 'portico-rust-versions.json').exists())
+                self.assertEqual('ENV TMPDIR=/var/tmp/portico-ci' in dockerfile.read_text(), target == 'linux-arm64')
+                if target == 'linux-arm64':
+                    self.assertIn('RUN mkdir -p "$TMPDIR" && chmod 1777 "$TMPDIR"', dockerfile.read_text())
 
     def test_wrong_actual_windows_rust_or_cargo_c_never_gets_a_receipt(self):
         with tempfile.TemporaryDirectory() as temporary:
