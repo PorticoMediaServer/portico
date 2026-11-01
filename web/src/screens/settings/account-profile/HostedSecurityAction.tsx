@@ -11,14 +11,13 @@ const t = defaultI18n.t;
  * hidden request or click-side authority: the owner's callback opens the dialog it
  * guards, in place.
  */
-export function HostedSecurityAction({label, hasPassword, disabled, onOpen}: {
+export function HostedSecurityAction({label, disabled, onOpen}: {
+  /** The drawn Change password wording unless the row names its own. A Google- or Apple-only
+   * account never gets Set a password here: its Add a password row sits behind More sign-in options. */
   label?: string;
-  /** Provider-only accounts say Set a password; an absent value keeps the drawn
-   * Change password action, so existing callers read exactly as before. */
-  hasPassword?: boolean;
   disabled: boolean;
   onOpen: () => void;
 }) {
-  const wording = label ?? t(hasPassword === false ? 'account.setPassword' : 'next.settingsSpec.account.profile.groups.5.rows.1.control.label');
+  const wording = label ?? t('next.settingsSpec.account.profile.groups.5.rows.1.control.label');
   return <Button size="small" variant="glass" disabled={disabled} onClick={onOpen}>{wording}</Button>;
 }

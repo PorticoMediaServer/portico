@@ -273,3 +273,17 @@ export function parseNativeAccountContinuation(raw:unknown):NativeAccountContinu
  const expiresAt=timestamp(v.expiresAt);if(Date.parse(expiresAt)<=Date.now())return;
  return{version:1,binding:v.binding,expiresAt,...(v.transactionId?{transactionId:identifier(v.transactionId)}:{}),...(typeof v.completionCode==='string'?{completionCode:v.completionCode}:{}),...(v.mfa?{mfa:parseMFAChallenge(v.mfa)}:{})};
 }
+
+/** A Portico Account that signs in only with Google or Apple (Justin, 1 Nov): its linked providers,
+ * Apple before Google. Undefined when it has a password, or no provider to name. Such an account
+ * is never asked to set a password; Add a password waits behind More sign-in options. */
+export function providerOnlySignIn(state: Pick<SecurityState, 'hasPassword' | 'providers'>): readonly IdentityProvider[] | undefined {
+ if (state.hasPassword) return undefined;
+ const providers = [...new Set(state.providers.map(value => value.provider))].sort();
+ return providers.length ? Object.freeze(providers) : undefined;
+}
+/** The Password row's words for such an account: "Signs in with Google", or with Apple and Google. */
+export function providerOnlyLabel(providers: readonly IdentityProvider[], t: (key: 'web.hostedSecurity.signsInWith' | 'web.hostedSecurity.signsInWithBoth' | 'accounts.provider.apple' | 'accounts.provider.google', values?: {provider: string}) => string): string {
+ if (providers.length > 1) return t('web.hostedSecurity.signsInWithBoth');
+ return t('web.hostedSecurity.signsInWith', {provider: t(providers[0] === 'apple' ? 'accounts.provider.apple' : 'accounts.provider.google')});
+}

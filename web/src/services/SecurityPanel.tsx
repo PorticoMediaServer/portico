@@ -2,6 +2,7 @@ import {Fragment, useLayoutEffect, useEffect, useMemo, useRef, useState} from 'r
 import {goTo} from '../platform/hosted-navigation';
 import type {DeletionPreview, IdentityProvider, SecurityIntent, SecurityPurpose, SecurityResult, SecurityState} from '@core/hosted-security.ts';
 import {passwordStrength} from '@core/password-strength.ts';
+import {providerOnlyLabel, providerOnlySignIn} from '@core/hosted-security.ts';
 import {ApiError} from '@core/index.ts';
 import {AuthCodeBoxes, AuthPasswordField, AuthLinks} from '../kit/accounts';
 import {ServicesAuthenticator, ServicesBadge, ServicesDangerAction, ServicesGroup, ServicesRecoveryCodes, ServicesGroupNote, ServicesRowNote, ServicesWorkspaceRow} from '../kit/accounts/ServicesWorkspace';
@@ -28,6 +29,8 @@ export function SecurityPanel({account, api, identity, username, identityTransac
   const [error, setError] = useState<unknown>(), [task, setTask] = useState<Task>(), [deleting, setDeleting] = useState(false);
   const [disconnecting, setDisconnecting] = useState<{id: string; provider: IdentityProvider}>(), [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState<IdentityProvider>();
+  // A Google- or Apple-only account (Justin, 1 Nov): Add a password waits behind More sign-in options.
+  const [moreSignIn, setMoreSignIn] = useState(false);
   const life = useRef<AbortController | null>(null);
   const scope = identity.accountId + '/' + identity.familyId;
   useEffect(() => {
@@ -77,13 +80,15 @@ export function SecurityPanel({account, api, identity, username, identityTransac
   }; }, [account, scope, identity]);
   const credentialAvailable = !retained && state && (state.hasPassword || providerReady && state.providers.some(v => v.revision && offered.includes(v.provider)));
   const onlyProvider = state && !state.hasPassword && state.providers.length === 1;
+  const providerOnly = state ? providerOnlySignIn(state) : undefined;
   return <>{parentError || error ? <HostedError error={parentError ?? error} /> : null}
     {connected && <ServicesNotice tone="success">{t('web.hostedSecurity.providerConnected', {provider: providerName(connected)})}</ServicesNotice>}
     {state && <>
       <ServicesGroup title={t('web.hostedSecurity.signingIn')}>
-        <ServicesWorkspaceRow phoneIcon="i-key" title={t('web.password')} help={state.hasPassword ? t('web.hostedSecurity.passwordHelp') : state.providers.length ? t('web.hostedSecurity.noPassword', {providers: state.providers.map(value => providerName(value.provider)).join(', ')}) : t('web.hostedSecurity.noPasswordOther')}>
+        {providerOnly ? <ServicesWorkspaceRow phoneIcon="i-key" title={t('web.password')} help={providerOnlyLabel(providerOnly, t)} />
+        : <ServicesWorkspaceRow phoneIcon="i-key" title={t('web.password')} help={state.hasPassword ? t('web.hostedSecurity.passwordHelp') : t('web.hostedSecurity.noPasswordOther')}>
           {credentialAvailable && <Button size="small" onClick={() => setTask('password_set_or_change')}>{t(state.hasPassword ? 'web.hostedSecurity.change' : 'account.setPassword')}</Button>}
-        </ServicesWorkspaceRow>
+        </ServicesWorkspaceRow>}
         <ServicesWorkspaceRow phoneIcon="i-mail" title={t('web.hostedSecurity.email')} help={<>{state.contactAddress}{state.contactAddress && <br />}{t('services.security.emailHelp')}</>} helpPhone={state.contactAddress}>
           {credentialAvailable && <Button size="small" onClick={() => setTask('email_change')}>{t('web.hostedSecurity.change')}</Button>}
         </ServicesWorkspaceRow>
@@ -93,6 +98,9 @@ export function SecurityPanel({account, api, identity, username, identityTransac
         </ServicesWorkspaceRow>{onlyProvider && <ServicesRowNote>{t('web.hostedSecurity.lastMethod')}</ServicesRowNote>}</Fragment>)}
         {offered.filter(provider => !state.providers.some(item => item.provider === provider)).sort((a, b) => a.localeCompare(b)).map(provider => <ServicesWorkspaceRow key={provider} icon={provider === 'apple' ? 'i-apple' : 'i-google'} title={t('web.hostedSecurity.signInWith', {provider: providerName(provider)})}
           help={t('web.hostedSecurity.connectHelp', {provider: providerName(provider)})}><Button size="small" disabled={busy || Boolean(retained)} onClick={() => void connect(provider)}>{t('web.hostedSecurity.connect')}</Button></ServicesWorkspaceRow>)}
+        {providerOnly && (moreSignIn ? <ServicesWorkspaceRow phoneIcon="i-key" title={t('web.hostedSecurity.moreSignInOptions')}>
+          {credentialAvailable && <Button size="small" onClick={() => setTask('password_set_or_change')}>{t('web.hostedSecurity.addPassword')}</Button>}
+        </ServicesWorkspaceRow> : <Button size="small" variant="text" onClick={() => setMoreSignIn(true)}>{t('web.hostedSecurity.moreSignInOptions')}</Button>)}
       </ServicesGroup>
       {!state.hasPassword && <ServicesGroupNote><ServicesNotice tone="info">{t((retained || providerReady && state.providers.some(v=>v.revision&&offered.includes(v.provider)))?'web.hostedSecurity.providerConfirm':'web.hostedSecurity.providerOnly')}</ServicesNotice></ServicesGroupNote>}
       <ServicesGroup title={t('web.twoStep.title')} description={t('web.hostedSecurity.twoStepHelp')}>
