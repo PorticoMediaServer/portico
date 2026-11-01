@@ -43,6 +43,7 @@ jobs:
           python scripts/test-native-engine-context.py
           python scripts/test-engine-artifact.py
           python scripts/test-windows-rav1e-custody.py
+          python scripts/test-capture-engine-prepack.py
           python scripts/test-ci-ffmpeg-toolchain.py
           python scripts/test-ffmpeg-build-tools.py
           python scripts/test-native-rust-tools.py
@@ -104,6 +105,14 @@ jobs:
         env:
           ENGINE_TARGET: ${{ matrix.target }}
         run: python scripts/ci-ffmpeg-toolchain.py build --target "$ENGINE_TARGET" --work "$RUNNER_TEMP/engine-cold"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: failure() && runner.os == 'macOS'
+        with:
+          name: engine-prepack-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/engine-cold/prepack/*
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
