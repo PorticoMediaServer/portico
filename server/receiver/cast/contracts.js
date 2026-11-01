@@ -8037,6 +8037,7 @@ var PorticoCastContracts = (function(exports) {
 							"minimum": -9007199254740991,
 							"type": "integer"
 						},
+						"recommendations.titleDataset": { "type": "boolean" },
 						"remoteBitrateLimitKbps": {
 							"maximum": 9007199254740991,
 							"minimum": -9007199254740991,
@@ -8239,6 +8240,7 @@ var PorticoCastContracts = (function(exports) {
 						"playHistoryDays",
 						"apiRequestsPerMinute",
 						"integrations.compatibilityEnabled",
+						"recommendations.titleDataset",
 						"home.communityActivityEnabled",
 						"updates.releaseChannel",
 						"updates.feedUrl",
@@ -8444,6 +8446,7 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"recommendations.titleDataset": { "type": "boolean" },
 								"remoteBitrateLimitKbps": {
 									"maximum": 9007199254740991,
 									"minimum": -9007199254740991,
@@ -8646,6 +8649,7 @@ var PorticoCastContracts = (function(exports) {
 								"playHistoryDays",
 								"apiRequestsPerMinute",
 								"integrations.compatibilityEnabled",
+								"recommendations.titleDataset",
 								"home.communityActivityEnabled",
 								"updates.releaseChannel",
 								"updates.feedUrl",
@@ -8855,6 +8859,7 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"recommendations.titleDataset": { "type": "boolean" },
 								"remoteBitrateLimitKbps": {
 									"maximum": 9007199254740991,
 									"minimum": -9007199254740991,
@@ -9057,6 +9062,7 @@ var PorticoCastContracts = (function(exports) {
 								"playHistoryDays",
 								"apiRequestsPerMinute",
 								"integrations.compatibilityEnabled",
+								"recommendations.titleDataset",
 								"home.communityActivityEnabled",
 								"updates.releaseChannel",
 								"updates.feedUrl",
@@ -32148,6 +32154,7 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"recommendations.titleDataset": { "type": "boolean" },
 								"remoteBitrateLimitKbps": {
 									"maximum": 9007199254740991,
 									"minimum": -9007199254740991,
@@ -32350,6 +32357,7 @@ var PorticoCastContracts = (function(exports) {
 								"playHistoryDays",
 								"apiRequestsPerMinute",
 								"integrations.compatibilityEnabled",
+								"recommendations.titleDataset",
 								"home.communityActivityEnabled",
 								"updates.releaseChannel",
 								"updates.feedUrl",
@@ -32559,6 +32567,7 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"recommendations.titleDataset": { "type": "boolean" },
 								"remoteBitrateLimitKbps": {
 									"maximum": 9007199254740991,
 									"minimum": -9007199254740991,
@@ -32761,6 +32770,7 @@ var PorticoCastContracts = (function(exports) {
 								"playHistoryDays",
 								"apiRequestsPerMinute",
 								"integrations.compatibilityEnabled",
+								"recommendations.titleDataset",
 								"home.communityActivityEnabled",
 								"updates.releaseChannel",
 								"updates.feedUrl",
