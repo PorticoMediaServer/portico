@@ -50,7 +50,7 @@ func TestHomeRecentWalkMatchesTheFullQuery(t *testing.T) {
 func checkHomeRecentWalk(t *testing.T, s *Service, c *catalogtest.Catalog, movies []catalogtest.Item, libraries []string) {
 	{
 		r := engineRequest(libraries...).scoped()
-		src, err := s.homeSource(r, homeRowSpec{ID: "new_on_server"})
+		src, err := s.homeRecentPagedSource(r, false)
 		if err != nil || src.walk == nil {
 			t.Fatal("no walk on the recent row:", err)
 		}
