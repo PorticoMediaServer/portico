@@ -27453,6 +27453,102 @@ var PorticoCastContracts = (function(exports) {
 			],
 			"type": "object"
 		},
+		"GetAdminSecuritySummaryRequest": {
+			"properties": {},
+			"required": [],
+			"type": "object"
+		},
+		"GetAdminSecuritySummaryResponse": {
+			"properties": {
+				"blocks": {
+					"items": {
+						"properties": {
+							"blockCount": {
+								"maximum": 9007199254740991,
+								"minimum": -9007199254740991,
+								"type": "integer"
+							},
+							"blockedUntil": { "type": "string" },
+							"failedAttempts": {
+								"maximum": 9007199254740991,
+								"minimum": -9007199254740991,
+								"type": "integer"
+							},
+							"id": { "type": "string" },
+							"lastFailure": { "type": "string" },
+							"network": { "type": "string" }
+						},
+						"required": [
+							"id",
+							"network",
+							"failedAttempts",
+							"blockCount",
+							"blockedUntil"
+						],
+						"type": "object"
+					},
+					"type": "array"
+				},
+				"counts": {
+					"properties": {
+						"last24Hours": {
+							"properties": {
+								"blockedSources": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
+								},
+								"failedSignIns": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
+								},
+								"newRemoteDevices": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
+								}
+							},
+							"required": [
+								"failedSignIns",
+								"blockedSources",
+								"newRemoteDevices"
+							],
+							"type": "object"
+						},
+						"last7Days": {
+							"properties": {
+								"blockedSources": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
+								},
+								"failedSignIns": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
+								},
+								"newRemoteDevices": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
+								}
+							},
+							"required": [
+								"failedSignIns",
+								"blockedSources",
+								"newRemoteDevices"
+							],
+							"type": "object"
+						}
+					},
+					"required": ["last24Hours", "last7Days"],
+					"type": "object"
+				}
+			},
+			"required": ["counts", "blocks"],
+			"type": "object"
+		},
 		"GetAdminSegmentsRequest": {
 			"properties": {},
 			"required": [],
@@ -164128,6 +164224,16 @@ var PorticoCastContracts = (function(exports) {
 			"required": [],
 			"type": "object"
 		},
+		"PostAdminSecurityUnblockRequest": {
+			"properties": {},
+			"required": [],
+			"type": "object"
+		},
+		"PostAdminSecurityUnblockResponse": {
+			"properties": {},
+			"required": [],
+			"type": "object"
+		},
 		"PostAdminSegmentsTitlesIdApproveRequest": {
 			"properties": {
 				"kinds": {
@@ -207922,6 +208028,7 @@ var PorticoCastContracts = (function(exports) {
 		"get_admin_playback_operations_operationId": "/v1/admin/playback-operations/{operationId}",
 		"get_admin_playback_sessions": "/v1/admin/playback-sessions",
 		"get_admin_resource_usage": "/v1/admin/resource-usage",
+		"get_admin_security_summary": "/v1/admin/security/summary",
 		"get_admin_segments": "/v1/admin/segments",
 		"get_admin_segments_titles": "/v1/admin/segments/titles",
 		"get_admin_segments_titles_id": "/v1/admin/segments/titles/{id}",
@@ -208312,6 +208419,7 @@ var PorticoCastContracts = (function(exports) {
 		"post_admin_notifications_broadcast": "/v1/admin/notifications/broadcast",
 		"post_admin_playback_sessions_id_stop": "/v1/admin/playback-sessions/{id}/stop",
 		"post_admin_restart": "/v1/admin/restart",
+		"post_admin_security_unblock": "/v1/admin/security/blocks/{id}/unblock",
 		"post_admin_segments_titles_id_approve": "/v1/admin/segments/titles/{id}/approve",
 		"post_admin_segments_titles_id_redetect": "/v1/admin/segments/titles/{id}/redetect",
 		"post_admin_state_permissions_fix": "/v1/admin/state-permissions:fix",
