@@ -19,9 +19,43 @@ This section is about how Portico behaves by design, so you can set it up safely
 
 ### Network access
 
-- Portico accepts plain HTTP from any address. Use TLS on any network you don't trust. Routes advertised through Portico Services always use TLS.
-- You decide which networks count as your home network. Portico doesn't assume a network is trusted because it's Tailscale, behind a proxy or behind carrier-grade NAT.
+- **Remote access** is On, Private only or Off. Tailscale's ranges (100.64.0.0/10, fd7a:115c:a1e0::/48) count as home under On and Private only, since nothing from the internet comes from them. Private only means your home network and your tailnet, nothing from the internet; Off means your home network only. (100.64.0.0/10 is also the carrier-grade NAT range; traffic from the internet can't arrive from it.) This is only about which connections are answered: sign-in rules and the remote bitrate limit still treat a tailnet client as away from home. Off and Private only also stop port mapping, and Off removes the Portico address.
+- **Remote security** (while Remote access is On):
+  - **Enhanced** (the default): from outside, Portico answers only HTTPS, and only at its Portico addresses and the custom addresses you add. Anything else is refused before Portico says anything: a TLS handshake for another name, or with no name at all (connecting by IP), fails with `unrecognized_name`, and plain HTTP is closed without a byte. Enhanced lists recently refused names that point at your server, so you can allow one.
+  - **Standard**: from outside, Portico answers at any address, with or without TLS.
+- At home, the "Secure connections" setting decides whether plain HTTP is allowed (Preferred, the default, allows it; Required refuses it). Routes advertised through Portico Services always use TLS.
+- A custom address works over HTTPS only through your own certificate or a trusted reverse proxy. Behind a trusted proxy, Enhanced needs the forwarded host to be a custom address, and refuses only a proxy that says the request came over plain HTTP (`X-Forwarded-Proto: http`).
+- You decide which networks count as your home network. Apart from Tailscale (above), Portico doesn't assume a network is trusted because it's behind a proxy or behind carrier-grade NAT.
 - Forwarded headers are only trusted from proxies you've configured. See [INSTALLING.md](INSTALLING.md).
+
+### What anyone can see before signing in
+
+Before sign-in, Portico answers only what a client needs to find the server and sign in: its name and ID, how people sign in, whether setup is done, the API version, and facts about the connection itself (secure or not, home or away). It doesn't say which version of Portico it runs, which operating system it's on, where its files are, its home networks, its addresses or yours. A test pins the exact answer of every route that works without signing in.
+
+Once signed in, anyone sees the server version (in About), and apps learn the owner's home networks, so a VPN or Tailscale range you added counts as home.
+
+Integration tools that use the Jellyfin/Emby-compatible API are told a fixed version, 10.10.0, never the real one.
+
+### Common setups (Remote access On)
+
+| Setup | Enhanced | Standard |
+| --- | --- | --- |
+| Portico apps, at the server's Portico address | Works | Works |
+| Portico Services checking that your server is reachable | Works | Works |
+| A device at home, by IP over HTTP | Works | Works |
+| A device at home, by IP over HTTPS | Fails: no certificate can name an IP. Use the Portico address, or HTTP at home | Same |
+| Tailscale, by name or IP (Remote access On or Private only) | Works (the tailnet counts as home) | Works |
+| cloudflared or another tunnel on the same machine | Works. The tunnel connects from the machine itself, so Portico sees it as home: sign-ins through it are never blocked by network, though the per-account limits still apply | Works |
+| Caddy, Traefik or nginx at home, as a trusted proxy, for a custom address | Works, with or without X-Forwarded-Proto. Only an explicit `http` is refused | Works |
+| A trusted proxy that sends no X-Forwarded-For | Works for a custom address (judged as from outside) | Works |
+| A trusted proxy that replaces the Host with its own upstream address | Refused, and the proxy shows under Refused addresses. Have it pass Host or X-Forwarded-Host, or use Standard | Works |
+| A trusted proxy forwarding a name you haven't added | Refused, and shown under Refused addresses: **Allow this address** fixes it in one tap | Works |
+| Your own domain with your own certificate | Works | Works |
+| A DDNS name with no certificate, over HTTP | Refused, and shown under Refused addresses: **Standard** fixes it in one tap (or add a certificate or proxy) | Works |
+| A DDNS name with no certificate, over HTTPS | Fails the TLS handshake in both modes. Shown under Refused addresses in Enhanced; it needs a certificate or a proxy | Fails |
+| Anyone from outside by raw IP | Refused, and not listed (scanners do this all day) | Works over HTTP; HTTPS by IP fails |
+
+Refused addresses only lists names that point at your server, so scanner noise stays out.
 
 ### First-run setup
 
@@ -30,6 +64,10 @@ Anyone who can reach a server that hasn't been set up yet can complete setup. Th
 ### Passwords, PINs and sign-in
 
 - Local passwords need at least eight characters, up to bcrypt's 72-byte limit. There are no complexity rules and no permanent lockout, but failed attempts are rate limited and slowed down.
+- A network that fails sign-in across many accounts is blocked for a while. After 30 failed sign-ins from one network (one IPv4 address, or one IPv6 /64), its sign-in attempts are refused for 15 minutes. Each new block doubles that, up to a day. The threshold follows the password-attempts setting: twice as many with the relaxed setting, half as many with the strict one. Failures fade by half every 15 minutes.
+- Your home network is never blocked this way, and neither is a connection Portico can't place. A tailnet client counts as away here, as it does for the other sign-in rules, unless you add your tailnet to your home networks. Behind a trusted proxy, Portico counts the client address the proxy forwards, never the proxy's own, so one person guessing through your proxy doesn't lock out everyone else using it. The per-account limits above apply everywhere, home included.
+- A blocked network is told how long to wait. The owner sees the block as a range (a /24 or /48), never the exact address, and can lift it early.
+- The owner is alerted when a network is blocked (once per network per day), and when failed sign-ins spike across the server (50 within ten minutes, at most once an hour). Every sign-in from a new device sends a notice, whichever way the person signed in.
 - Profile PINs have their own temporary attempt limits. A PIN doesn't replace an account password.
 - Local two-factor sign-in is available.
 - Approving a TV sign-in code signs that TV in as you, with your role. If an owner approves their own code, that TV becomes an owner device. The device chooses its own name, so check the code on the TV you actually mean to approve.
