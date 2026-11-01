@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -62,6 +63,7 @@ func newSetupContinuationFixture(t *testing.T) setupContinuationFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operations.WireSetupRemote(s)
 	secret, err := s.BrowserSetupToken(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -170,6 +172,7 @@ func (f setupContinuationFixture) install(t *testing.T) {
 		t.Fatal("real signed approval/install", err)
 	}
 }
+
 // installed marks the captured setup installed, as the claim's install does (O-163): no
 // certificate, HTTPS route or return registration is involved.
 func (f setupContinuationFixture) installed(t *testing.T) serverreturn.SetupExchange {
