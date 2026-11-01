@@ -644,6 +644,6 @@
   },
   "macosRustTools": {
     "path": "third_party/ffmpeg/macos-rust-tools.lock.json",
-    "sha256": "a4d60f221341fb4d92c7d97e218fbd3fb8fb9a40c03e9330e5c039bd7196691e"
+    "sha256": "cb1baa26aeed16bdf3ed5a755d736f1e10d64557d9269d19db73a6eacbc31994"
   }
 }
