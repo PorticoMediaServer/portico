@@ -82,6 +82,35 @@ class MacPreparedSource(unittest.TestCase):
             self.assertNotIn('failure-was-ignored', failed.stdout)
             self.assertNotIn('parent-continued', failed.stdout)
 
+    @unittest.skipUnless(os.environ.get('PORTICO_NETWORK_BUILD_TOOL_CONTROL') == '1', 'hosted exact upstream source control')
+    def test_pinned_jellyfin_tls_shaderc_and_overlay_match_our_mac_flags_and_source(self):
+        lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
+        extra = json.loads((ROOT / 'third_party/ffmpeg/macos-extras.lock.json').read_text())['openssl']
+        def upstream(repository, commit, path):
+            url = 'https://raw.githubusercontent.com/' + repository + '/' + commit + '/' + path
+            with urllib.request.urlopen(url, timeout=30) as response:
+                return response.read(1024**2).decode()
+        jellyfin = upstream('jellyfin/jellyfin-ffmpeg', lock['ffmpeg']['commit'], 'builder/scripts.d/25-openssl.sh')
+        btbn = upstream('BtbN/FFmpeg-Builds', lock['btbn']['commit'], 'scripts.d/25-openssl.sh')
+        for script in (jellyfin, btbn):
+            self.assertIn('SCRIPT_REPO="' + extra['repository'] + '"', script)
+            self.assertIn('SCRIPT_COMMIT="' + extra['upstreamTag'] + '"', script)
+        self.assertIn('echo --enable-openssl', jellyfin)
+        self.assertIn('elif [[ $TARGET == mac* ]]', jellyfin)
+        self.assertEqual(extra['version'], '3.6.3')
+        self.assertEqual(extra['commit'], 'aae016bfd52fcad2bc9657c2c782cfdf73b1ed5f')
+        overlay = upstream('jellyfin/jellyfin-ffmpeg', lock['ffmpeg']['commit'],
+                           'debian/patches/0044-add-vf-overlay-videotoolbox-filter.patch')
+        self.assertIn('overlay_videotoolbox_filter_deps="metal corevideo coreimage videotoolbox"', overlay)
+        self.assertIn('ff_vf_overlay_videotoolbox;', overlay)
+        self.assertIn('libavfilter/vf_overlay_videotoolbox.m', overlay)
+        ours = (ROOT / 'scripts/build-macos-ffmpeg-extras.sh').read_text()
+        self.assertIn('portico_clone openssl', ours)
+        for option in ('threads', 'zlib', 'no-shared', 'no-tests', 'no-apps', 'no-legacy', 'no-ssl3',
+                       'enable-camellia', 'enable-ec', 'enable-srp'):
+            self.assertIn(option, jellyfin)
+            self.assertIn(option, ours)
+
     @unittest.skipUnless(os.environ.get('PORTICO_NETWORK_BUILD_TOOL_CONTROL') == '1', 'hosted pinned-recipe source control')
     def test_actual_pinned_recipe_configurator_and_download_consume_only_the_prepared_sentinel(self):
         lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
@@ -103,6 +132,9 @@ class MacPreparedSource(unittest.TestCase):
             subprocess.run([sys.executable, ROOT / 'scripts/configure-ffmpeg-recipe.py', recipe, root, 'macos-arm64'],
                            check=True, capture_output=True)
             configured = (recipe / 'build-ffmpeg').read_text()
+            for option in ('--enable-coreimage', '--enable-libshaderc', '--enable-openssl'):
+                self.assertIn('"' + option + '"', configured)
+            self.assertNotIn('"--enable-securetransport"', configured)
             final = configured.split('build "ffmpeg" "${FFMPEG_VERSION}"', 1)[1].split('# shellcheck', 1)[0]
             self.assertNotIn('ffmpeg.org', final)
             self.assertNotIn('FFmpeg-release-', final)

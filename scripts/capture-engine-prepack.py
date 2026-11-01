@@ -23,8 +23,11 @@ def inventory(prefix):
         mode = path.lstat().st_mode
         if stat.S_ISLNK(mode):
             resolved = path.resolve(strict=True)
-            if not resolved.is_relative_to(prefix.resolve()) or not resolved.is_file():
-                raise ValueError('Only internal file symlinks may be captured: ' + name)
+            internal = resolved.is_relative_to(prefix.resolve())
+            framework_directory = (resolved.is_dir() and
+                                   any(part.endswith('.framework') for part in path.relative_to(prefix).parts))
+            if not internal or not (resolved.is_file() or framework_directory):
+                raise ValueError('Only contained file/framework directory symlinks may be captured: ' + name)
             result[name] = {'link': os.readlink(path)}
         elif stat.S_ISREG(mode):
             result[name] = {'sha256': digest(path), 'bytes': path.stat().st_size,

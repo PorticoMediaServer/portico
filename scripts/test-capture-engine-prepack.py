@@ -51,6 +51,33 @@ class Prepack(unittest.TestCase):
                              (self.prefix / 'bin/ffmpeg').read_bytes())
             self.assertIn('sources.lock.json', archive.getnames())
 
+    def test_framework_directory_links_are_relative_contained_and_restore_with_data_filter(self):
+        framework = self.prefix / 'loader/vulkan.framework'
+        resources = framework / 'Versions/A/Resources'; resources.mkdir(parents=True)
+        (resources / 'Info.plist').write_text('framework resource fixture')
+        (framework / 'Versions/Current').symlink_to('A', target_is_directory=True)
+        (framework / 'Resources').symlink_to(resources, target_is_directory=True)
+        self.perform()
+        with tarfile.open(self.output / 'payload.tar') as archive:
+            self.assertEqual(archive.getmember('prefix/loader/vulkan.framework/Resources').linkname,
+                             'Versions/A/Resources')
+            archive.extractall(self.root / 'restored', filter='data')
+        restored = self.root / 'restored/prefix/loader/vulkan.framework'
+        self.assertEqual((restored / 'Resources/Info.plist').read_text(), 'framework resource fixture')
+        self.assertEqual((restored / 'Versions/Current/Resources/Info.plist').read_text(),
+                         'framework resource fixture')
+        receipt = json.loads((self.output / 'receipt.json').read_text())
+        self.assertIn('loader/vulkan.framework/Versions/A/Resources/Info.plist', receipt['files'])
+
+    def test_framework_escape_directory_and_link_cycle_refuse(self):
+        framework = self.prefix / 'loader/vulkan.framework'; framework.mkdir(parents=True)
+        outside = self.root / 'outside'; outside.mkdir()
+        link = framework / 'Resources'; link.symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'contained'): self.perform()
+        link.unlink(); link.symlink_to('Resources', target_is_directory=True)
+        with self.assertRaises((ValueError, RuntimeError, OSError)): self.perform()
+        self.assertFalse(self.output.exists())
+
     def test_incomplete_compilation_or_source_is_not_captured(self):
         source = self.build / 'corresponding-source.tar.xz'; source.unlink()
         self.assertIsNone(self.perform()); self.assertFalse(self.output.exists())
@@ -60,7 +87,7 @@ class Prepack(unittest.TestCase):
     def test_external_link_and_nonfree_refuse_without_partial_output(self):
         outside = self.root / 'outside'; outside.write_text('outside')
         link = self.prefix / 'bin/link'; link.symlink_to(outside)
-        with self.assertRaisesRegex(ValueError, 'internal file symlinks'):
+        with self.assertRaisesRegex(ValueError, 'contained file/framework directory symlinks'):
             self.perform()
         link.unlink()
         (self.prefix / 'bin/ffmpeg').write_bytes(b'--enable-gpl --enable-version3 --enable-libfdk-aac')

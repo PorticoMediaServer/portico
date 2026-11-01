@@ -264,8 +264,9 @@ Failed Mac packing can retain `engine-prepack-<target>-<sourceSHA>-NOT-FOR-USE`
 for **one day**. This is an opaque tar of the compiled prefix and complete
 corresponding-source archive, plus the checked contract inputs. Its separate
 receipt records the exact run/source/target, original prefix, file inventory,
-source/input hashes and tar hash/size. Internal file symlinks are stored relative;
-external links and special files are refused. Capture is atomic and rechecks
+source/input hashes and tar hash/size. Contained file symlinks and contained framework directory aliases (including
+Versions/Current and Resources) are stored relative without dereferencing. External
+links, cycles, other directory aliases and special files are refused. Capture is atomic and rechecks
 inputs after writing. It runs only after all three tools and corresponding source
 exist; a capture failure never hides the original build failure. This recovery
 input is unqualified, unreleased and not ready for publication. It is not an
