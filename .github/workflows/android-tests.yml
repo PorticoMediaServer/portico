@@ -76,7 +76,11 @@ jobs:
   ios-pilot:
     if: github.event_name == 'workflow_dispatch' && inputs.e2e_ios
     uses: ./.github/workflows/e2e-ios-pilot.yml
+  android-e2e-build:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e_android
+    uses: ./.github/workflows/e2e-android-build.yml
   android-pilot:
+    needs: android-e2e-build
     if: github.event_name == 'workflow_dispatch' && inputs.e2e_android
     uses: ./.github/workflows/e2e-android-pilot.yml
   vega-probe:
