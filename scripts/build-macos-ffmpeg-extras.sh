@@ -76,6 +76,9 @@ cp Package/Release/MoltenVK/dylib/macOS/MoltenVK_icd.json "$WORKSPACE/share/vulk
 portico_clone shaderc
 python3 utils/git-sync-deps
 portico_cmake -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON
+# Match the pinned BtbN static module selection; keep the shared build unused.
+python3 "$CWD/portico-configure-macos-shaderc.py" --prefix "$WORKSPACE" \
+ --receipt "$CWD/packages/portico-shaderc-static-link.json"
 portico_clone placebo
 git submodule update --init --recursive
 portico_meson -Dvulkan=enabled -Dshaderc=enabled -Dglslang=disabled -Ddemos=false -Dtests=false -Dbench=false

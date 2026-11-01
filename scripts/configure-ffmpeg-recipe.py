@@ -37,6 +37,7 @@ if target.startswith('macos'):
     import shutil
     shutil.copy2(root / 'scripts/build-macos-ffmpeg-extras.sh', recipe / 'portico-macos-extras.sh')
     shutil.copy2(root / 'scripts/build-macos-zvbi.sh', recipe / 'portico-build-macos-zvbi.sh')
+    shutil.copy2(root / 'scripts/configure-macos-shaderc.py', recipe / 'portico-configure-macos-shaderc.py')
     extra_pin = json.loads((root / 'third_party/ffmpeg/sources.lock.json').read_text())['macosRecipe']['extrasLock']
     if hashlib.sha256((root / extra_pin['path']).read_bytes()).hexdigest() != extra_pin['sha256']:
         raise ValueError('Checked Mac extras source lock changed')
