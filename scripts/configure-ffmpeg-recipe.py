@@ -53,6 +53,11 @@ if (rav1e.is_symlink() or not rav1e.is_file() or
         'ceebe7eea0b39ff3d0e6afd79b2d6450681ddf1daeef8da660fa2a2af136d072'):
     raise ValueError('pinned rav1e removal boundary changed')
 rav1e.unlink()
+final = recipe / 'scripts.d/zz-final.sh'
+text = final.read_text()
+if text.count('    echo rav1e\n') != 1:
+    raise ValueError('pinned rav1e final dependency boundary changed')
+final.write_text(text.replace('    echo rav1e\n', '', 1))
 # BtbN disables Linux ARM VAAPI by default, although libva supports it.
 import subprocess
 subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'recipe', '--recipe', recipe,
