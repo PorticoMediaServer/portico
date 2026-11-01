@@ -253,7 +253,7 @@ func TestHomeCommunityUsesThirtyDaysAndPreservesPrivacyThreshold(t *testing.T) {
 	}
 	f.c.Drain()
 	row, err := s.HomeSingleRow(r, "community_watching", HomeRowPage{Limit: 1})
-	if err != nil || row.Total != 1 || row.Entries[0].ID != f.items["m1"].Public || row.Period == nil || row.Period.Days != 30 || row.Period.Metric != "distinct_eligible_viewers" || row.Title != "Most watched on this server" {
+	if err != nil || row.Total != 1 || row.Entries[0].ID != f.items["m1"].Public || row.Period == nil || row.Period.Days != 30 || row.Period.Metric != "distinct_eligible_viewers" || row.Title != "Popular on this server" {
 		t.Fatalf("30-day ranked row %+v %v", row, err)
 	}
 	expired := r.Now.Add(-30*24*time.Hour - time.Second).Format("2006-01-02T15:04:05.000Z")
