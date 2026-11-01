@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
@@ -16,15 +17,20 @@ func TestLegacyInventoryConsumesRawRejectsAcrossRestart(t *testing.T) {
 	f := newLoopFixture(t, "movie")
 	c := catalogtest.New(t, f.db)
 	lib := c.Handle(f.library)
-	// Deterministic keys: two full rejected pages precede an eligible legacy row.
+	// Two full rejected pages precede the eligible legacy rows. Keep the real
+	// public tokens: dependent source records already reference those identities.
+	type candidate struct{ token, relative string }
+	candidates := make([]candidate, 0, 25)
 	for i := 0; i < 25; i++ {
 		relative := fmt.Sprintf("Film %02d.mkv", i)
 		item := c.Movie(lib, filepath.Join(f.root, relative), relative, 2000)
-		token := fmt.Sprintf("asset-%03d", i)
-		f.exec(`UPDATE catalog_assets SET token=? WHERE id=?`, token, item.Asset)
+		candidates = append(candidates, candidate{item.Token, relative})
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].token < candidates[j].token })
+	for i, v := range candidates {
 		if i < 16 {
 			f.exec(`INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,revision,evidence_json,size,modified_ns)
-    SELECT ?,id,?,incarnation,?,'fixture','{}',0,0 FROM library_sources WHERE id=?`, fmt.Sprintf("object-%03d", i), token, relative, f.source)
+    SELECT ?,id,?,incarnation,?,'fixture','{}',0,0 FROM library_sources WHERE id=?`, fmt.Sprintf("object-%03d", i), v.token, v.relative, f.source)
 		}
 	}
 	job := f.queue()
@@ -39,7 +45,7 @@ func TestLegacyInventoryConsumesRawRejectsAcrossRestart(t *testing.T) {
 		if err := f.db.QueryRow(`SELECT reconcile_cursor,phase FROM inventory_runs WHERE job_id=?`, job.ID).Scan(&cursor, &phase); err != nil {
 			t.Fatal(err)
 		}
-		if want := fmt.Sprintf("asset-%03d", (page+1)*8-1); cursor != want || phase != "legacy_inventory" {
+		if want := candidates[(page+1)*8-1].token; cursor != want || phase != "legacy_inventory" {
 			t.Fatalf("rejected page cursor=%q phase=%q, want %q legacy_inventory", cursor, phase, want)
 		}
 		// Recreate the owner. No process-local cursor can make progress for it.
