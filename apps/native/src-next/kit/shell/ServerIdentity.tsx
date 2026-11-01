@@ -1,4 +1,4 @@
-import React, {useId, type ReactNode} from 'react';
+import React, {useId, useState, type ReactNode} from 'react';
 import {StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-native';
 import Svg, {Defs, LinearGradient, Mask, RadialGradient, Rect, Stop} from 'react-native-svg';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
@@ -145,14 +145,18 @@ export type ServerHeaderProps = {
 };
 export function ServerHeader({serverName, viewerRole, audience, facts = [], variant = 'page', viewOnly = true, style, testID}: ServerHeaderProps) {
   const {colors, isTV, textScale} = useTheme();
+  // The phone gradient is drawn at the card's measured size: a percentage-sized SVG kept its
+  // first, smaller layout on Android and ended in a hard-edged box inside the card.
+  const [box, setBox] = useState<Readonly<{width: number; height: number}>>();
   const visibility = serverVisibilityKey(viewerRole, audience);
   if (!visibility) return null;
   const text = (size: number, weight: 600 | 700 | 800 = 600, tracking = 0) => shellType(size, weight, 'normal', tracking, textScale);
   // owner-server.html `.msrv`: on phone the header is its own raised, rounded card with an inset
   // accent edge, its gradient clipped inside (unclipped it read as a stray lighter box, walk 1 Nov).
   if (variant !== 'page') return <View testID={testID} style={[styles.groupHeader, {gap: isTV ? 16 : 12, padding: variant === 'phone' ? 14 : 0},
-    variant === 'phone' ? {borderRadius: 14, overflow: 'hidden', backgroundColor: colors.raised, borderWidth: 1, borderColor: alpha(colors.accentStrong, .28)} : null, style]}>
-    {variant === 'phone' && <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} accessible={false} pointerEvents="none"><Defs><LinearGradient id="server-phone-header" x1="0%" y1="0%" x2="100%" y2="57.735%"><Stop offset="0" stopColor={colors.accent} stopOpacity=".3"/><Stop offset="0.7" stopColor={colors.accent} stopOpacity=".06"/></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#server-phone-header)"/></Svg>}
+    variant === 'phone' ? {borderRadius: 14, overflow: 'hidden', backgroundColor: colors.raised, borderWidth: 1, borderColor: alpha(colors.accentStrong, .28)} : null, style]}
+    onLayout={variant === 'phone' ? event => {const {width, height} = event.nativeEvent.layout; if (box?.width !== width || box?.height !== height) setBox({width, height});} : undefined}>
+    {variant === 'phone' && box && <Svg width={box.width} height={box.height} style={StyleSheet.absoluteFill} accessible={false} pointerEvents="none"><Defs><LinearGradient id="server-phone-header" x1="0%" y1="0%" x2="100%" y2="57.735%"><Stop offset="0" stopColor={colors.accent} stopOpacity=".3"/><Stop offset="0.7" stopColor={colors.accent} stopOpacity=".06"/></LinearGradient></Defs><Rect width={box.width} height={box.height} fill="url(#server-phone-header)"/></Svg>}
     <ServerMark variant={isTV ? 'tv' : variant === 'phone' ? 'phone' : 'settings'}/>
     <View style={{flex: 1, minWidth: 0}}>
       {variant === 'phone' ? <><Text style={[text(12, 700), {color: colors.accentStrong}]}>{defaultI18n.t('next.shell.server')}</Text><Text numberOfLines={1} style={[text(16.5, 800, -.015), {color: colors.text}]}>{serverName}</Text></> : <><Text style={[text(isTV ? 24 : 15, 800), {color: colors.text}]}>{defaultI18n.t('next.shell.server')}</Text><Text numberOfLines={1} style={[text(isTV ? 18 : 13), {color: colors.textTertiary, marginTop: isTV ? 2 : 1}]}>{serverName}</Text></>}
