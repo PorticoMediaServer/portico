@@ -34,6 +34,14 @@ const tvEditable: ReadonlySet<TVServerPage> = new Set(['general', 'history', 'li
 /** TV36: the library directory is GET-only; the owner's settings below it edit through the
  * phone's revisioned forms. Composition admits only the owner's primary profile, and an
  * administrator's pages mount no writer at all. */
+/** Android's focus scroll keeps a focused row this far inside the page's edges (and fades
+ * the content there), as Home keeps its focused row 96 from the bottom; a row no longer
+ * stops flush on the screen's edge with its focus ring cut (walk, 1 Nov). */
+const TV_FOCUS_EDGE = 96;
+/** A focused full-width row scales to 1.02 on TV; this much room each side keeps its ring's
+ * sides inside the page instead of clipped by its edges. Layout is unchanged. */
+const TV_ROW_ROOM = 16;
+
 export function NativeTVServerScreen({ports, runtime, initialPage = 'general', dashboard}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; initialPage?: TVServerPage; dashboard: NativeDashboardController}) {
   const theme = useTheme(), t = runtime.text.t;
   const [page, setPage] = useState<TVServerPage>(initialPage);
@@ -69,7 +77,7 @@ export function NativeTVServerScreen({ports, runtime, initialPage = 'general', d
     <View style={{flex: 1, flexDirection: 'row', gap: 80}}>
       <TVServerPageMenu role={role} page={page} serverName={ports.serverName()} runtime={runtime} column={column} rows={rows} rail={ids.rail} onLayout={enter}
         onSelect={next => {if (lifetime.current() && (owner || next === 'dashboard' || next === 'people')) setPage(next);}}/>
-      {page === 'dashboard' ? <NativeDashboardScreen controller={dashboard} ports={ports} runtime={runtime} deniedFallback={null} tvContainer={{column, rows}}/> : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: 50}}>
+      {page === 'dashboard' ? <NativeDashboardScreen controller={dashboard} ports={ports} runtime={runtime} deniedFallback={null} tvContainer={{column, rows}}/> : <ScrollView style={{flex: 1, marginHorizontal: -TV_ROW_ROOM}} contentContainerStyle={{paddingBottom: 50, paddingHorizontal: TV_ROW_ROOM}} fadingEdgeLength={TV_FOCUS_EDGE}>
         <View style={{height: 60, overflow: 'hidden'}}><ServerHeader serverName={ports.serverName()} viewerRole={role} audience={audience} viewOnly={!editing}/></View>
         <Text accessibilityRole="header" style={[shellType(44, 800), {color: theme.colors.text, marginBottom: 28}]}>{t(tvServerPageDefinition(page).label)}</Text>
         <FocusRegion key={page} id={rows} orientation="vertical" edges={{left: column}}>
