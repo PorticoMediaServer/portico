@@ -69,8 +69,8 @@ for (const operation of apiReference.operations) {
 if (!ids.size) throw new Error('No generated API operations');
 for (const group of apiReference.groups) await access(new URL(`developers/api/clients/${group.id}/index.html`, root));
 for (const page of ['integrations', 'clients', 'integrations/quick-start', 'integrations/webhooks',
-  'integrations/sonarr', 'integrations/radarr', 'integrations/lidarr', 'integrations/bazarr',
-  'integrations/jellyseerr', 'integrations/home-assistant', 'integrations/jellystat']) {
+  'integrations/library-managers', 'integrations/subtitle-tools', 'integrations/request-tools',
+  'integrations/activity-tools', 'integrations/home-automation']) {
   await access(new URL(`developers/api/${page}/index.html`, root));
 }
 const integrationHtml = await readFile(new URL('developers/api/integrations/index.html', root), 'utf8');
