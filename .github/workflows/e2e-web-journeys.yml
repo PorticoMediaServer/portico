@@ -1,0 +1,48 @@
+name: E2E web journeys
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['tests/e2e/**', '.github/workflows/e2e-web-journeys.yml']
+permissions:
+  contents: read
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm, cache-dependency-path: 'package-lock.json'}
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/portico-e2e-media
+          key: e2e-media-${{ runner.os }}-${{ hashFiles('scripts/e2e-server.py', 'tests/e2e/augment_media.py', 'third_party/apple-subtitles/test/make-pgs.py', 'fixtures/library-layout/Audiobooks/Test Listener/cover.png') }}
+          save-always: true
+      - name: Install media and web dependencies
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/e2e/web --no-audit --no-fund --workspaces=false
+          (cd tests/e2e/web && npx playwright install --with-deps chromium)
+      - name: Build dev-only server
+        working-directory: server
+        run: go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server
+      - name: Run web journeys on the same runner as its server
+        env:
+          PORTICO_E2E_OUTPUT: ${{ runner.temp }}/portico-e2e-journeys
+        run: |
+          set -o pipefail
+          python3 tests/e2e/server.py --binary "$RUNNER_TEMP/portico-e2e-server" --media-cache "$RUNNER_TEMP/portico-e2e-media" -- \
+            bash -c 'cd tests/e2e/web && exec npx playwright test --config journeys.config.mjs' 2>&1 | tee "$RUNNER_TEMP/portico-e2e-journeys.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: e2e-web-journeys
+          path: |
+            ${{ runner.temp }}/portico-e2e-journeys/
+            ${{ runner.temp }}/portico-e2e-journeys.log
+          if-no-files-found: warn
+          retention-days: 14
