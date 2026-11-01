@@ -160,6 +160,10 @@ class Contract(unittest.TestCase):
                 for name, decision in policy['targets'][target].items():
                     self.assertIn(decision['action'], ('enable', 'skip'))
                     self.assertTrue(decision['reason'])
+                    option = name.replace('_', '-')
+                    choices = re.findall(r'--(enable|disable)-' + re.escape(option) + r'(?=[\s\"\\]|$)', flags)
+                    effective = bool(choices) and choices[-1] == 'enable'
+                    self.assertEqual(effective, decision['action'] == 'enable', target + ':' + name)
                     if decision['action'] == 'enable': self.assertIn(decision['flag'], flags, target + ':' + name)
                 terminal = (recipe / ('build.sh' if native else 'build-ffmpeg')).read_text()
                 self.assertIn('Effective configure component missing: CONFIG_BZLIB', terminal)

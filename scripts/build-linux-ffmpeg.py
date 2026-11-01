@@ -73,7 +73,7 @@ def main():
               '--enable-libzvbi', '--enable-vaapi', '--enable-libdrm', '--enable-libvpl',
               '--enable-opencl', '--enable-vulkan', '--enable-ffnvcodec', '--enable-cuda-llvm',
               '--enable-nvenc', '--enable-nvdec', '--enable-amf']
-    common += ['--enable-cuda', '--enable-cuvid', '--enable-openssl', '--enable-v4l2-m2m',
+    common += ['--disable-sdl2', '--enable-cuda', '--enable-cuvid', '--enable-openssl', '--enable-v4l2-m2m',
                '--enable-bzlib', '--enable-libopus', '--enable-libtheora', '--enable-zlib', '--enable-iconv', '--enable-lzma', '--enable-libxml2',
                '--enable-libmp3lame', '--enable-libvorbis', '--enable-libvpx', '--enable-libwebp',
                '--enable-libopenmpt', '--enable-chromaprint', '--enable-libsrt']

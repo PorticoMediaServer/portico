@@ -9,7 +9,7 @@ recipe, source, target = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 root = Path(__file__).resolve().parent.parent
 import runpy
 configure_checks = runpy.run_path(str(root / 'scripts/ffmpeg-configure-checks.py'))['shell'](target)
-common = '--disable-autodetect --enable-gpl --enable-version3 --enable-libdav1d --enable-libsvtav1 --disable-librav1e --enable-libx264 --enable-libx265 --enable-libzimg --enable-libdovi --enable-libass --enable-fontconfig --enable-libsoxr --enable-libbluray --enable-libdvdnav --enable-libdvdread --enable-libplacebo --enable-vulkan --disable-nonfree --disable-libfdk-aac'
+common = '--disable-sdl2 --disable-autodetect --enable-gpl --enable-version3 --enable-libdav1d --enable-libsvtav1 --disable-librav1e --enable-libx264 --enable-libx265 --enable-libzimg --enable-libdovi --enable-libass --enable-fontconfig --enable-libsoxr --enable-libbluray --enable-libdvdnav --enable-libdvdread --enable-libplacebo --enable-vulkan --disable-nonfree --disable-libfdk-aac'
 # Explicit broad-format parity with pinned Jellyfin; autodetection stays off.
 common += ' --enable-bzlib --enable-libopus --enable-libtheora --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-zlib --enable-iconv --enable-lzma --enable-libxml2 --enable-libmp3lame --enable-libvorbis --enable-libvpx --enable-libwebp --enable-chromaprint'
 if target != 'windows-arm64':
