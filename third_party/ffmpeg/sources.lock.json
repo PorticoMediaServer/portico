@@ -646,8 +646,8 @@
     "path": "third_party/ffmpeg/compiler-images.lock.json",
     "sha256": "9c830e8ca8ce2fadae4f0da241101466eeabfa09649b62a679c773bebd89d0fe"
   },
-  "macosRustTools": {
-    "path": "third_party/ffmpeg/macos-rust-tools.lock.json",
-    "sha256": "cb1baa26aeed16bdf3ed5a755d736f1e10d64557d9269d19db73a6eacbc31994"
+  "nativeRustTools": {
+    "path": "third_party/ffmpeg/native-rust-tools.lock.json",
+    "sha256": "6c0ed580147ac5f43ff5f3cb86132fe04d8bb9f589cb5607e605bfca00d8179f"
   }
 }
