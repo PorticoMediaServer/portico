@@ -69,9 +69,6 @@ def main():
             user = api.get('/v1/dev/e2e')['username']
             signed = api.post('/v1/dev/e2e/sign-in', {'username': user})
             api.token = signed['session']['accessToken']
-            state = api.get('/v1/setup/state')
-            if not state['ready']:
-                api.post('/v1/setup/finish', {'revision': state['revision']})
             server.scan()
             command = args.command
             if command and command[0] == '--':

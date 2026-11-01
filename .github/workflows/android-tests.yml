@@ -5,6 +5,38 @@ on:
 permissions:
   contents: read
 jobs:
+  vega-probe:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version}
+      - name: Install Vega tools and virtual device
+        env: {NONINTERACTIVE: 'true', VEGA_SDK_VERSION: '0.24.9311'}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb lz4
+          sudo chmod a+rw /dev/kvm
+          curl -fsSL https://sdk-installer.vega.labcollab.net/get_vvm.sh | bash
+      - name: Boot and capture the stock virtual device
+        env: {PORTICO_VEGA_GUI: '1', PORTICO_VEGA_GL_ACCEL: '0'}
+        run: |
+          export PATH="$HOME/vega/bin:$PATH"
+          xvfb-run -a -s '-screen 0 1920x1080x24' bash -c '
+            trap "node apps/vega/scripts/vega.mjs device stop || true" EXIT
+            node apps/vega/scripts/vega.mjs device start
+            node apps/vega/scripts/vega.mjs shot "$RUNNER_TEMP/vega-stock.png"
+          '
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: vega-hosted-probe
+          path: ${{ runner.temp }}/vega-stock.png
+          if-no-files-found: warn
+          retention-days: 14
   e2e-probe:
     if: github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/e2e-groundwork.yml
