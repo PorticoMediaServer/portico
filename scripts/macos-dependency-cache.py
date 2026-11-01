@@ -112,7 +112,8 @@ def configure(recipe, root=ROOT):
                    compiler=json.loads(os.environ['PORTICO_ENGINE_MAC_COMPILER']),
                    commonFunctionsSHA256=hashlib.sha256(functions.encode()).hexdigest(),
                    cacheAdapterSHA256=digest(Path(__file__)))
-    helper_names = ('portico-build-macos-libdovi.py', 'portico-rust-tools.py', 'portico-configure-macos-shaderc.py')
+    helper_names = ('portico-build-macos-libdovi.py', 'portico-rust-tools.py', 'portico-configure-macos-shaderc.py',
+                    'portico-macos-ffmpeg-source.py', 'portico-macos-system-libs.py')
     context['helpers'] = {name: digest(recipe / name) for name in helper_names if (recipe / name).is_file()}
     (recipe / 'portico-dependency-cache.json').write_text(json.dumps(dict(context=context, stages=programs), sort_keys=True) + '\n')
     shutil.copyfile(Path(__file__), recipe / 'portico-macos-dependency-cache.py')
