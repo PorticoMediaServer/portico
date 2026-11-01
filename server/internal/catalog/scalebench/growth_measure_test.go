@@ -135,6 +135,12 @@ func TestCrossKindGrowthMeasurement(t *testing.T) {
 		counts[table] = count
 	}
 	save("counts", counts)
+
+	planViewer := catalog.Viewer{Profile: "viewer", Fence: "growth", Libraries: []string{"movies"}}
+	explainRoute(db, "movies/see_all", func(s *catalog.Service) error {
+		_, e := s.HomeSingleRow(catalog.HomeRequest{Viewer: planViewer, ServerID: "s", Profile: planViewer.Profile, ViewerFence: planViewer.Fence, Libraries: planViewer.Libraries, Now: time.Now()}, "new_on_server", catalog.HomeRowPage{Limit: 40})
+		return e
+	}, s)
 	results := []routeResult{}
 	measure := func(name string, fn func(context.Context, *catalog.Service) error) {
 		r, e := exerciseRead(db, s, name, 10, fn)
