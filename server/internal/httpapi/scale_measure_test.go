@@ -194,6 +194,27 @@ func TestServerScaleMeasurement(t *testing.T) {
 	if os.Getenv("PORTICO_SCALE_SEED_ONLY") == "1" {
 		return
 	}
+	checkpointCtx, cancelCheckpoint := context.WithCancel(context.Background())
+	schedule, e := dbwork.NewCheckpointSchedule(checkpointCtx, f.db)
+	if e != nil {
+		cancelCheckpoint()
+		t.Fatal(e)
+	}
+	checkpointDone := make(chan struct{})
+	go func() {
+		defer close(checkpointDone)
+		tick := time.NewTicker(100 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-checkpointCtx.Done():
+				return
+			case <-tick.C:
+				schedule.Tick(checkpointCtx)
+			}
+		}
+	}()
+	defer func() { cancelCheckpoint(); <-checkpointDone }()
 	if os.Getenv("PORTICO_SCALE_PROVIDER_IDS") == "1" {
 		// Keep the cached generator and baseline intact; enrich this run's copy.
 		if e := dbwork.WithWriteTx(context.Background(), f.db, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
