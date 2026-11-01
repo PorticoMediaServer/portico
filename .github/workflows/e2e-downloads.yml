@@ -1,0 +1,40 @@
+name: E2E website downloads
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['website/**', 'tests/e2e/web/downloads.*', '.github/workflows/e2e-downloads.yml']
+  schedule:
+    - cron: '13 6 * * *'
+permissions:
+  contents: read
+jobs:
+  downloads:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version}
+      - name: Install dependencies
+        run: |
+          npm ci --prefix website --no-audit --no-fund
+          npm ci --prefix tests/e2e/web --no-audit --no-fund --workspaces=false
+          (cd tests/e2e/web && npx playwright install --with-deps chromium)
+      - name: Check downloads on the rendered website
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PORTICO_E2E_OUTPUT: ${{ runner.temp }}/portico-e2e-downloads
+        run: |
+          set -o pipefail
+          cd tests/e2e/web
+          npx playwright test --config downloads.config.mjs 2>&1 | tee "$RUNNER_TEMP/portico-e2e-downloads.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: e2e-website-downloads
+          path: |
+            ${{ runner.temp }}/portico-e2e-downloads/
+            ${{ runner.temp }}/portico-e2e-downloads.log
+          if-no-files-found: warn
+          retention-days: 14
