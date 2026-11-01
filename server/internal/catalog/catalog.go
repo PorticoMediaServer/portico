@@ -93,6 +93,7 @@ type Service struct {
 
 // serviceState is the process-lifetime state one database's catalogue keeps.
 type serviceState struct {
+	homeScans          homeScanCache
 	readPreparations   *readprep.Store
 	genreRuntime       *GenreRuntime
 	summaries          librarySummaryCache

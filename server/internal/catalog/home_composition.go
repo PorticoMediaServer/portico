@@ -298,6 +298,20 @@ func (s *Service) homeBecause(r HomeRequest) (*ContentEntityRef, []recCandidate,
 }
 
 func (s *Service) homeAudioSource(r HomeRequest, booksOnly bool) (homeSource, error) {
+	libraries, err := s.homeLibraries(r.Libraries)
+	if err != nil {
+		return homeSource{}, err
+	}
+	r.Libraries = nil
+	for _, library := range libraries {
+		if library.Kind == "audiobook" || (!booksOnly && library.Kind == "music") {
+			r.Libraries = append(r.Libraries, library.ID)
+		}
+	}
+	// An inapplicable row must not even construct its audio/recent relation.
+	if len(r.Libraries) == 0 {
+		return candidateSource(nil), nil
+	}
 	base := homeContinueBase("continue_listening")
 	visible, args := r.Viewer.itemVisibilitySQL("candidate.entity")
 	kind := "i.kind=7"
@@ -311,10 +325,17 @@ func (s *Service) homeAudioSource(r HomeRequest, booksOnly bool) (homeSource, er
  WHERE ` + visible + ` AND ` + kind + ` GROUP BY parent.id`
 	bound := append([]any{r.Profile, r.Profile, idsJSON(r.Libraries)}, args...)
 	if !booksOnly {
-		recent, err := s.homeRecentPagedSource(r, true)
-		if err != nil {
-			return homeSource{}, err
+		// Reuse each library's existing bounded Recently Added shelf. The
+		// old union grouped the complete audio library before taking a page.
+		values := [][2]string{}
+		for _, library := range r.Libraries {
+			head, err := s.homeRecentWorks(r, library)
+			if err != nil {
+				return homeSource{}, err
+			}
+			values = append(values, head...)
 		}
+		recent := homeRecentList(values)
 		source = `SELECT id,max(ord) AS ord FROM (` + source + ` UNION ALL SELECT id,'0:'||ord AS ord FROM (` + recent.base + `)) GROUP BY id`
 		bound = append(bound, recent.args...)
 	}
@@ -702,6 +723,18 @@ func (s *Service) homeSpotlightSeasonCounts(r HomeRequest, entries []ContentEntr
 // discloses another profile's history or calls providers to explain a row.
 func (s *Service) homeRecommendationWhy(r HomeRequest) (*ServerText, []ContentEntityRef, error) {
 	fallback := &ServerText{Code: "next.home.whyRecommended", Fallback: "Chosen from your viewing activity and available libraries."}
+	// Prove the absence of causal activity with two indexed existence seeks.
+	// A negative answer skips the expensive pool/scorer. A positive one still
+	// uses the original eligibility and explanation logic below.
+	var seed bool
+	if err := s.read().QueryRow(`SELECT
+ EXISTS(SELECT 1 FROM personal_items INDEXED BY personal_last_played WHERE profile_id=? AND last_played_at>'' LIMIT 1)
+ OR EXISTS(SELECT 1 FROM personal_items INDEXED BY personal_play_state WHERE profile_id=? AND watched=1 LIMIT 1)`, r.Profile, r.Profile).Scan(&seed); err != nil {
+		return nil, nil, err
+	}
+	if !seed {
+		return fallback, nil, nil
+	}
 	candidates, _, err := s.recommendationPool(r)
 	if err != nil || len(candidates) == 0 {
 		return fallback, nil, err

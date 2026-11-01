@@ -10,12 +10,12 @@ import (
 // HomeManifest publishes the layout without waiting for shelf composition.
 // Every row's existing endpoint composes its preview in a separate request;
 // the server still decides row policy, order, membership and family expansion.
-func (s *Service) HomeManifest(r HomeRequest) (HomeDocument, error) {
+func (s *Service) homeManifestFresh(r HomeRequest) (HomeDocument, error) {
 	if dbwork.Snapshot(s.Context()) == nil {
 		var out HomeDocument
 		err := dbwork.WithReadSnapshot(s.Context(), s.db, func(ctx context.Context) error {
 			var err error
-			out, err = s.WithContext(ctx).HomeManifest(r)
+			out, err = s.WithContext(ctx).homeManifestFresh(r)
 			return err
 		})
 		return out, err
