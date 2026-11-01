@@ -136,12 +136,16 @@ func scaleCall(client *http.Client, base, token, label, method, path string, bod
 		}
 		if a.Status >= 400 {
 			var envelope struct {
+				Code  string `json:"code"`
 				Error struct {
 					Code string `json:"code"`
 				} `json:"error"`
 			}
 			_ = json.Unmarshal(raw, &envelope)
 			a.Code = envelope.Error.Code
+			if a.Code == "" {
+				a.Code = envelope.Code
+			}
 		}
 	}
 	a.Ms = float64(time.Since(at)) / float64(time.Millisecond)
