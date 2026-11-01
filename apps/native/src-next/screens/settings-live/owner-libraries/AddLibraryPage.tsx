@@ -72,7 +72,7 @@ export function AddLibraryPage({api, serverName, onCreate, onCancel, busy, error
       {language !== undefined && chosenAgent && chosenAgent.languages.length > 0 && <>
         <SectionTitle>{t('next.ownerLibraries.addLibrary.language')}</SectionTitle>
         <LibraryGroup><LibraryRow first label={t('next.ownerLibraries.addLibrary.language')} help={t('next.ownerLibraries.addLibrary.languageHelp')}
-          trailing={<Select testID="owner-libraries-add-language" accessibilityLabel={t('next.ownerLibraries.addLibrary.language')} value={language} options={chosenAgent.languages.map(code => ({value: code, label: languageName(code, key => defaultI18n.has(key) ? defaultI18n.t(key) : undefined)}))} onValueChange={setLanguage} style={{backgroundColor: 'transparent', paddingHorizontal: 0}}/>}/></LibraryGroup>
+          trailing={<Select testID="owner-libraries-add-language" accessibilityLabel={t('next.ownerLibraries.addLibrary.language')} value={language} options={chosenAgent.languages.map(code => ({value: code, label: languageName(code, key => defaultI18n.has(key) ? defaultI18n.t(key) : undefined)}))} onValueChange={setLanguage}/>}/></LibraryGroup>
       </>}
 
       {error !== undefined && <Text accessibilityRole="alert" style={[shellType(13, 600, 18), {color: theme.colors.record, marginTop: 16}]}>{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</Text>}

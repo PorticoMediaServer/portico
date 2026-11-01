@@ -241,3 +241,24 @@ test('specialized cards forward episode context and the same viewer/session fact
     viewer: {name: 'Evening', username: 'owner', device: 'Bedroom TV'}, paused: true, onNavigate() {}}));
   assert.deepEqual(session.props.accessibilityDetails, ['S1 E2', 'owner', 'Evening', 'Bedroom TV', '1080p', '20:00 / 43:00', 'next.kit.session.paused']);
 });
+
+test('a closed Select keeps its value visible in a row with no width to give it', async () => {
+  // Walk, 1 Nov: in a settings row's trailing slot the value (flex: 1) collapsed to nothing.
+  // settings.html `.sel`: at least 176 wide, the value then the chevron spaced apart.
+  const f = fixture(1);
+  const {Select} = await screenModule(new URL('../src-next/kit/controls/Select.tsx', import.meta.url), {
+    ...f.common, '../../../../../packages/i18n/src/index': {defaultI18n}, '../Icon': {Icon: 'Icon'}, './Focusable': {Focusable: 'Focusable'},
+    '../overlays/surface': {Dialog: 'Dialog'}, './control-model': controlModel,
+    './useControlValue': {useControlValue: (value: any, initial: any) => [value ?? initial, () => {}]},
+  });
+  const outer = f.host.render(() => Select({value: 'second', options: [{value: 'first', label: 'First'}, {value: 'second', label: 'Same as the metadata language'}]}));
+  const tree = f.host.render(() => outer.type(outer.props)), all = nodes(tree);
+  const trigger = all.find(node => node.type === 'Focusable');
+  const style = flatten(trigger.props.style({focused: false, pressed: false}));
+  assert.equal(style.minWidth, 176);
+  assert.equal(style.justifyContent, 'space-between');
+  const value = all.find(node => node.type === 'Text' && node.props.children === 'Same as the metadata language');
+  const text = flatten(value.props.style);
+  assert.equal(text.flex, undefined, 'the value never takes leftover width it may not have');
+  assert.equal(text.flexShrink, 1);
+});

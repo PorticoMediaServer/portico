@@ -73,7 +73,10 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
       style={state => {
         const supplied = typeof style === 'function' ? style(state) : style, resolved = StyleSheet.flatten(supplied);
         const minimum = typeof resolved?.height === 'number' ? resolved.height : theme.isTV ? 64 : 44;
-        return [styles.trigger, {height: theme.isTV ? 64 : 44, borderRadius: theme.isTV ? 14 : 10,
+        // settings.html `.sel`: at least 176 wide off TV, the value then the chevron spaced apart.
+        // A value that took the row's leftover width (flex: 1) collapsed to nothing in a row's
+        // trailing slot, which has none (walk, 1 Nov).
+        return [styles.trigger, {height: theme.isTV ? 64 : 44, borderRadius: theme.isTV ? 14 : 10, minWidth: theme.isTV ? undefined : 176,
           paddingHorizontal: theme.isTV ? 20 : 16, gap: theme.isTV ? 20 : 14,
           borderColor: error ? theme.colors.danger : isOpen ? theme.colors.accent : 'transparent',
           backgroundColor: theme.colors.raisedBright, opacity: blocked ? .45 : 1}, supplied,
@@ -82,7 +85,7 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
       {rowLabel !== undefined
         ? <><Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, {fontFamily: fontFamilies[700], color: theme.colors.text, flex: 1, minWidth: 0}, textStyle]}>{rowLabel}</Text>
           <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, {fontFamily: fontFamilies[700], color: theme.colors.textTertiary, flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text></>
-        : <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, styles.label, {fontFamily: fontFamilies[700], color: selected ? theme.colors.text : theme.colors.textTertiary}, textStyle]}>{selected?.label ?? placeholder}</Text>}
+        : <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, styles.value, {fontFamily: fontFamilies[700], color: selected ? theme.colors.text : theme.colors.textTertiary}, textStyle]}>{selected?.label ?? placeholder}</Text>}
       <Icon name="i-updown" size={theme.isTV ? 26 : 18} color={theme.colors.textTertiary} />
     </Focusable>
     {error !== undefined ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{error}</Text>
@@ -144,4 +147,4 @@ function PickerHint() {
 export const Select = forwardRef<View, SelectProps>(function Select(props, ref) {return <NativeSelect {...props} rich={false} ref={ref} />;});
 export const RichSelect = forwardRef<View, RichSelectProps>(function RichSelect(props, ref) {return <NativeSelect {...props} rich ref={ref} />;});
 
-const styles = StyleSheet.create({container: {gap: 8, alignSelf: 'stretch'}, trigger: {alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', borderWidth: 2}, label: {flex: 1, minWidth: 0}, option: {flexDirection: 'row', alignItems: 'center'}, optionHeading: {flexDirection: 'row', alignItems: 'center', gap: 8}});
+const styles = StyleSheet.create({container: {gap: 8, alignSelf: 'stretch'}, trigger: {alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 2}, label: {flex: 1, minWidth: 0}, value: {flexShrink: 1, minWidth: 0}, option: {flexDirection: 'row', alignItems: 'center'}, optionHeading: {flexDirection: 'row', alignItems: 'center', gap: 8}});

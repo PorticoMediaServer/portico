@@ -45,8 +45,8 @@ test('Metadata exposes only published settings and routes row edits through the 
   const f = await fixture(), tree = f.render();
   for (const id of ['metadata.online', 'metadata.adult', 'metadata.language', 'metadata.region', 'metadata.artworkPrefer', 'metadata.artworkLanguage', 'metadata.artworkLimit', 'metadata.artworkSize']) assert.ok(byId(tree, id), id);
   for (const id of ['metadata.refresh', 'metadata.refreshAll', 'metadata.fallbackLanguage', 'metadata.animeTitles', 'metadata.castPhotos', 'metadata.acoustid']) assert.equal(byId(tree, id), undefined, id);
-  // settings.html `.sel`: the pill keeps room for its value beside a long row label (walk, 1 Nov).
-  for (const id of ['metadata.language', 'metadata.region', 'metadata.artworkPrefer', 'metadata.artworkLanguage']) assert.equal(byId(tree, id)!.props.style?.minWidth, 176, id);
+  // A long row label still leaves the value its pill (the 176 minimum is Select's own, walk 1 Nov).
+  for (const id of ['metadata.language', 'metadata.region', 'metadata.artworkPrefer', 'metadata.artworkLanguage']) assert.equal(byId(tree, id)!.props.style?.maxWidth, 220, id);
   byId(tree, 'metadata.adult')!.props.onCheckedChange(false); byId(tree, 'metadata.language')!.props.onValueChange('fr');
   assert.deepEqual(f.writes, [{includeAdult: false}, {defaultLanguage: 'fr'}]);
   const libraryLink = nodes(tree).find(value => value.props.label === t(settingsRowIndex.get('metadata.perLibrary')!.row.label))!;

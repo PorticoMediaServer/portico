@@ -64,7 +64,7 @@ export function LibrarySettingsRows({tab, document, busy, t, save, fetchLyrics}:
       const offered = options.map(option => ({value: String(option.value), label: t(option.label), description: option.hint ? t(option.hint) : undefined, disabled: option.locked || option.value === 'custom' && row.id !== 'libraries.scanDepth' && row.id !== 'libraries.scrub'}));
       if (!offered.some(option => option.value === String(current))) offered.push({value: String(current), label: String(current), description: undefined, disabled: true});
       return <View key={row.id}><LibraryRow first={index === 0} label={label} help={help} trailing={<Select testID={row.id} value={String(current)} disabled={disabled} accessibilityLabel={label} options={offered}
-        onValueChange={value => {const option = options.find(candidate => String(candidate.value) === value); if (option) change(row, option.value);}} style={{backgroundColor: 'transparent', paddingHorizontal: 0}}/>}/>
+        onValueChange={value => {const option = options.find(candidate => String(candidate.value) === value); if (option) change(row, option.value);}}/>}/>
         {reset && <View style={{alignItems: 'flex-end', paddingRight: 14}}>{reset}</View>}</View>;
     }
     if (row.control.type === 'number') return <LibraryRow key={row.id} testID={row.id} first={index === 0} label={label} help={help}
@@ -74,7 +74,7 @@ export function LibrarySettingsRows({tab, document, busy, t, save, fetchLyrics}:
       return <View key={row.id}>{(row.control.items ?? []).filter(item => item.id && Object.hasOwn(values, item.id)).map((item, position) => <LibraryRow key={item.id} first={index === 0 && position === 0} label={t(item.label)}
         trailing={<Select testID={`${row.id}.${item.id}`} accessibilityLabel={t(item.label)} disabled={disabled} value={values[item.id!]!}
           options={(row.control.columns ?? []).filter(column => column.value).map(column => ({value: column.value!, label: t(column.label)}))}
-          onValueChange={value => change(row, {[item.id!]: value})} style={{backgroundColor: 'transparent', paddingHorizontal: 0}}/>}/>)}</View>;
+          onValueChange={value => change(row, {[item.id!]: value})}/>}/>)}</View>;
     }
     return null;
   };
