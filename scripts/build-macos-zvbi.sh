@@ -28,9 +28,11 @@ roots[0].rename(tree);unpack.rmdir()
 PYSOURCE
  cd "$PACKAGES/portico-gettext"
  ./configure --prefix="$tools" --disable-shared --enable-static --disable-java --disable-csharp \
-  --without-emacs --disable-openmp --disable-libasprintf
- make -j "${PORTICO_BUILD_JOBS:-2}"
- make install
+  --without-emacs --disable-openmp --disable-libasprintf --with-xz --without-git --without-cvs
+ # Upstream's misc install target supplies autopoint/gettextize and the
+ # archived historical macros. Their use needs no libtextstyle or runtime.
+ make -C gettext-tools/misc -j "${PORTICO_BUILD_JOBS:-2}"
+ make -C gettext-tools/misc install
  export PATH="$tools/bin:$PATH"
  export ACLOCAL_PATH="$tools/share/aclocal:$WORKSPACE/share/aclocal:${ACLOCAL_PATH:-}"
  python3 - "$portico_lock" "$tools" "$PACKAGES/portico-gettext-tools.json" <<'PYTOOLS'
@@ -38,7 +40,8 @@ import hashlib,json,pathlib,re,subprocess,sys
 entry=json.load(open(sys.argv[1]))['gettextTools'];prefix=pathlib.Path(sys.argv[2])
 tool=prefix/'bin/autopoint';version=subprocess.check_output([str(tool),'--version'],text=True)
 if not re.search(r'\b'+re.escape(entry['version'])+r'(?:\s|$)',version.splitlines()[0]):raise ValueError('Installed gettext differs from its pin')
-record={'version':version,'source':entry,'autopointSHA256':hashlib.sha256(tool.read_bytes()).hexdigest(),'runtimeShipped':False}
+record={'version':version,'source':entry,'autopointSHA256':hashlib.sha256(tool.read_bytes()).hexdigest(),
+        'buildScope':'gettext-tools/misc scripts and archived macros only; no runtime libraries built','runtimeShipped':False}
 pathlib.Path(sys.argv[3]).write_text(json.dumps(record,indent=2)+'\n')
 PYTOOLS
  portico_clone zvbi
