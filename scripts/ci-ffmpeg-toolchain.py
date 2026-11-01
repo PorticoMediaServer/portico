@@ -52,7 +52,7 @@ def context(env=None, root=ROOT):
             not env.get('GITHUB_REF', '').startswith('refs/heads/') or
             env.get('GITHUB_EVENT_NAME') not in ('workflow_dispatch', 'push')):
         raise ValueError('dedicated same-repository hosted branch workflow required')
-    if env.get('GITHUB_EVENT_NAME') == 'push' and env.get('GITHUB_REF') != 'refs/heads/rebuild/D-hosted-toolchain-r1':
+    if env.get('GITHUB_EVENT_NAME') == 'push' and env.get('GITHUB_REF') != 'refs/heads/rebuild/D-hosted-toolchain-r2':
         raise ValueError('unapproved cold bootstrap branch')
     sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
     if sha != env.get('GITHUB_SHA') or not re.fullmatch(r'[a-f0-9]{40}', sha):
@@ -105,6 +105,20 @@ def resources(path):
     if Path('/proc/meminfo').is_file():
         result['meminfo'] = Path('/proc/meminfo').read_text()
     return result
+
+
+def preserve_diagnostics(directories, evidence):
+    for directory in directories:
+        if not directory.exists():
+            continue
+        for path in directory.rglob('*'):
+            relative = path.relative_to(directory)
+            if (path.is_file() and not path.is_symlink() and path.stat().st_size <= 4 * 1024**2 and
+                    path.suffix in ('.json', '.log') and '.git' not in relative.parts and
+                    not {'recipe', 'prefix', 'build', 'bundle'} & set(relative.parts)):
+                destination = evidence / 'custody' / directory.name / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(path, destination)
 
 
 def build(target, work):
@@ -180,17 +194,11 @@ def build(target, work):
     finally:
         # Preserve bounded raw source/compiler receipts and failure logs before
         # the hosted runner is discarded. No compiler image push or local job.
-        for directory in (work / 'state', scratch / 'ffmpeg-build' / target):
-            if not directory.exists():
-                continue
-            for path in directory.rglob('*'):
-                relative = path.relative_to(directory)
-                if (path.is_file() and not path.is_symlink() and path.stat().st_size <= 4 * 1024**2 and
-                        path.suffix in ('.json', '.log') and '.git' not in relative.parts and
-                        not {'recipe', 'prefix', 'build', 'bundle'} & set(relative.parts)):
-                    destination = evidence / 'custody' / directory.name / relative
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(path, destination)
+        try:
+            preserve_diagnostics((work / 'state', scratch / 'ffmpeg-build' / target), evidence)
+        except Exception as error:
+            receipt['diagnosticCollectionFailure'] = type(error).__name__ + ': ' + str(error)
+            receipt['constructionPassed'] = False
         receipt.update(elapsedSeconds=round(time.monotonic() - started, 3), resourcesAfter=resources(work))
         atomic(evidence / 'cold-build.json', receipt)
     print(json.dumps(receipt), flush=True)

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Refusal boundaries for the first hosted cold toolchain run."""
 import importlib.util
+import json
 from pathlib import Path
+import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -49,7 +52,7 @@ class ColdToolchain(unittest.TestCase):
 
     def test_bootstrap_push_is_one_exact_branch_only(self):
         with patch('subprocess.check_output', return_value=SHA):
-            env = dict(environment(), GITHUB_EVENT_NAME='push', GITHUB_REF='refs/heads/rebuild/D-hosted-toolchain-r1')
+            env = dict(environment(), GITHUB_EVENT_NAME='push', GITHUB_REF='refs/heads/rebuild/D-hosted-toolchain-r2')
             cold.context(env)
             with self.assertRaises(ValueError):
                 cold.context(dict(env, GITHUB_REF='refs/heads/main'))
@@ -74,6 +77,22 @@ class ColdToolchain(unittest.TestCase):
                 native.native('linux-arm64', 'github-actions', dict(environment(), GITHUB_WORKFLOW_REF='other'))
             with self.assertRaises(ValueError):
                 native.native('linux-arm64', 'github-actions', dict(environment(), PORTICO_SIGNING_KEY_FILE=''))
+
+    def test_native_transfer_from_another_run_never_reaches_extraction_or_gates(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); transfer = root / 'transfer'; transfer.mkdir()
+            sender = dict(engineSourceSHA=SHA, runId=11, runAttempt=1, context='github-actions',
+                          target='linux-x64', constructionPassed=True, qualified=False, release=False)
+            (transfer / 'transfer.json').write_text(json.dumps(sender))
+            def guard(name):
+                self.assertEqual(name, 'verify-native-engine')
+                return SimpleNamespace(native=lambda *args: None)
+            expected = dict(engineSourceSHA=SHA, runId=12, runAttempt=1, context='github-actions')
+            with patch.object(cold, 'context', return_value=expected), patch.object(cold, 'module', side_effect=guard):
+                self.assertEqual(cold.native('linux-x64', transfer, root / 'evidence'), 1)
+            report = json.loads((root / 'evidence/cold-native.json').read_text())
+            self.assertFalse(report['nativeEngineChecks'])
+            self.assertIn('exact-run/target/hash mismatch', report['failure'])
 
 
 if __name__ == '__main__':
