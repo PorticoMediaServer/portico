@@ -19,7 +19,11 @@ def macros(target):
         values += ['OPENSSL', 'COREIMAGE', 'METAL', 'LIBSHADERC', 'APPKIT', 'AVFOUNDATION',
                    'AUDIOTOOLBOX', 'VIDEOTOOLBOX', 'OVERLAY_VIDEOTOOLBOX_FILTER']
     result = set('CONFIG_' + value for value in values)
-    if target.startswith('windows'): result.add('HAVE_D3DCOMPILER_H')
+    # Jellyfin probes d3dcompiler.h and requires it for these four filters,
+    # but does not add d3dcompiler_h to HAVE_LIST/HEADERS_LIST. Consequently
+    # HAVE_D3DCOMPILER_H is never emitted, even when every filter is enabled.
+    # Check the real filter macros here; the compiler control includes the
+    # actual header independently before any dependency/FFmpeg compilation.
     return sorted(result)
 
 
