@@ -482,7 +482,7 @@
       "third_party/ffmpeg/patches/homebridge-intel-gmp-pic.patch"
     ],
     "pythonBuildTools": {
-      "meson": "1.7.0",
+      "meson": "1.12.1",
       "ninja": "1.11.1.4",
       "setuptools": "75.8.0"
     },
@@ -494,6 +494,10 @@
         "gmp-make-check",
         "nettle-pkcs1-conv-link"
       ]
+    },
+    "extrasLock": {
+      "path": "third_party/ffmpeg/macos-extras.lock.json",
+      "sha256": "dcacd53fa1002640d3dee96d7ec0f334c403e93c6c6e2540987b1894b11df507"
     }
   },
   "requiredConfigure": [
