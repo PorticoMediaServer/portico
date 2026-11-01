@@ -1,12 +1,15 @@
 import fs from 'node:fs';
 import {test, expect} from '../web/node_modules/@playwright/test/index.mjs';
 
-test('local-account setup over a private LAN address', async ({page, context}, info) => {
+test('local-account setup API over a private LAN address', async ({page, context}, info) => {
   const origin = new URL(process.env.PORTICO_E2E_LAN_URL);
   await context.route('**/*', route => new URL(route.request().url()).origin === origin.origin ? route.continue() : route.abort());
   await page.goto('/');
   await page.locator('#boot').waitFor({state: 'detached', timeout: 60000});
   await page.screenshot({path: info.outputPath('01-before-setup.png')});
+  await page.getByRole('radio', {name: /local sign-in/i}).click();
+  await expect(page.getByRole('radio', {name: /local sign-in/i})).toBeChecked();
+  await page.screenshot({path: info.outputPath('02-local-option.png')});
   // Supply a freshly generated credential directly to the setup API from this
   // browser origin; it is never entered into a field or written to artifacts.
   const completed = await page.evaluate(async () => {
@@ -33,7 +36,6 @@ test('local-account setup over a private LAN address', async ({page, context}, i
   expect(completed.complete).toBe(true);
   expect(completed.accessToken).toBeTruthy();
   fs.writeFileSync(process.env.PORTICO_E2E_SESSION_FILE, JSON.stringify({accessToken: completed.accessToken}), {mode: 0o600});
-  await page.reload();
-  await page.locator('#boot').waitFor({state: 'detached', timeout: 60000});
-  await page.screenshot({path: info.outputPath('02-after-setup.png')});
+  // The direct API path does not perform the app's owner-session handoff.
+  // A complete UI setup journey still needs a secret-free way to invoke it.
 });
