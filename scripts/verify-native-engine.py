@@ -11,6 +11,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = {'windows-x64': ('Windows', {'amd64', 'x86_64'}),
+           'linux-x64': ('Linux', {'amd64', 'x86_64'}),
+           'linux-arm64': ('Linux', {'arm64', 'aarch64'}),
            'windows-arm64': ('Windows', {'arm64', 'aarch64'}),
            'macos-arm64': ('Darwin', {'arm64', 'aarch64'}),
            'macos-x64': ('Darwin', {'amd64', 'x86_64'})}
@@ -34,10 +36,13 @@ def native(target, context, env):
         if any(key in env for key in ('GITHUB_ACTIONS', 'GITHUB_RUN_ID', 'GITHUB_WORKFLOW_REF')):
             raise ValueError('local engine qualification must not impersonate GitHub')
     elif (context != 'github-actions' or env.get('GITHUB_ACTIONS') != 'true' or
-          env.get('GITHUB_REPOSITORY') != 'PorticoMediaServer/portico' or env.get('GITHUB_EVENT_NAME') != 'workflow_dispatch' or
+          env.get('GITHUB_REPOSITORY') != 'PorticoMediaServer/portico' or
+          env.get('RUNNER_ENVIRONMENT') != 'github-hosted' or
+          env.get('GITHUB_EVENT_NAME') not in ('workflow_dispatch', 'push') or
           env.get('GITHUB_WORKFLOW_REF', '').split('@')[0] !=
-          'PorticoMediaServer/portico/.github/workflows/ffmpeg-engine-qualification.yml' or
-          env.get('GITHUB_REF', '').startswith('refs/tags/')):
+          'PorticoMediaServer/portico/.github/workflows/ffmpeg-toolchain.yml' or
+          not env.get('GITHUB_REF', '').startswith('refs/heads/') or
+          (env.get('GITHUB_EVENT_NAME') == 'push' and env.get('GITHUB_REF') != 'refs/heads/rebuild/D-hosted-toolchain-r1')):
         raise ValueError('dedicated manual engine qualification workflow required')
 
 
@@ -62,6 +67,8 @@ def verify(target, bundle, evidence, context):
                                  '--fixture-sha256', lock['discHelper']['fixtureManifestSHA256']]),
         ('verify-ffmpeg-recipes.py', ['--scratch', evidence,
                                     '--font', ROOT / 'packages/reader-core/assets/Literata[opsz,wght].ttf'])]
+    if target.startswith('linux-'):
+        commands.insert(1, ('verify-ffmpeg-abi.py', []))
     try:
         for name, args in commands:
             receipt['qualifierScripts'][name] = digest(ROOT / 'scripts' / name)
