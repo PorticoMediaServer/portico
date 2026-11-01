@@ -1,4 +1,5 @@
 // @fabric-react
+import * as hostedSecurity from '../../../packages/client-core/src/hosted-security';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -44,17 +45,17 @@ test('legal agreement follows translated link order and passes failures to its c
   assert.deepEqual(links, [porticoPublicLinks.privacy]);
 });
 
-async function securityFixture(context: import('node:test').TestContext) {
+async function securityFixture(context: import('node:test').TestContext, given?: any) {
   const failure = new Error('controller construction failed'), presented: unknown[][] = [];
   let rejection: Error | undefined = failure, tree: any;
   let state: any = {step: 'form', busy: false};
   const controller = {current: () => true, subscribe: () => () => {}, getSnapshot: () => state, dispose() {}};
   let workspace = {current: () => true, securityActions: () => {if (rejection) throw rejection; return controller;}};
-  const security = {hasPassword: true, mfaEnabled: false, providers: [], recoveryCodesRemaining: 0};
+  const security = given ?? {hasPassword: true, mfaEnabled: false, providers: [], recoveryCodesRemaining: 0};
   const {PhoneAccountSecurity, AccountSecuritySheet} = await screenModule(new URL('../src-next/screens/accounts/PhoneAccountSecurity.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View', NativeModules: {}},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: (...args: unknown[]) => {presented.push(args); return {body: 'Security could not be opened.'};}},
+    '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: (...args: unknown[]) => {presented.push(args); return {body: 'Security could not be opened.'};}},
     '../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
     '../../kit/theme': {useTheme: () => ({type: {body: {}, captionStrong: {}}, colors: {danger: '#f00'}})},
     '../../platform/clipboard': {copyText: async () => {}}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
@@ -108,7 +109,7 @@ test('the shared sheet keeps provider password input through factor verification
   const {AccountSecuritySheet} = await screenModule(new URL('../src-next/screens/accounts/PhoneAccountSecurity.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View', NativeModules: {}},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: () => {throw new Error('unexpected presentation');}},
+    '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: () => {throw new Error('unexpected presentation');}},
     '../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
     '../../kit/theme': {useTheme: () => ({type: {body: {}}, colors: {text: '#fff'}})},
     '../../platform/clipboard': {copyText: async () => {}}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
@@ -129,4 +130,30 @@ test('the shared sheet keeps provider password input through factor verification
   assert.equal(submit().props.disabled, false); await act(() => submit().props.onPress());
   assert.deepEqual(calls[1], ['submit', {password: '', factor: '', newPassword: 'new-password-fixture', email: '', code: 'fixture-factor', confirmation: ''}]);
   await act(() => submit().props.onPress()); assert.equal(finished, 1); assert.equal(tree.props.open, false);
+});
+
+// Justin, 1 Nov: a Google- or Apple-only Portico Account never sees Set a password. Its Password row
+// says how it signs in, and Add a password waits behind More sign-in options.
+test('a Google-only account: Password says Signs in with Google, and Add a password is behind More sign-in options', async context => {
+  const f = await securityFixture(context, {hasPassword: false, mfaEnabled: false, providers: [{id: 'google-link', provider: 'google'}], recoveryCodesRemaining: 0});
+  await f.recover();
+  const byTestID = (id: string) => nodes(f.tree()).find(node => node.props.testID === id);
+  assert.ok(words(f.tree()).includes(defaultI18n.t('web.hostedSecurity.signsInWith', {provider: defaultI18n.t('accounts.provider.google')})));
+  assert.equal(byTestID('account-security-password'), undefined, 'no button on the Password row');
+  assert.equal(words(f.tree()).includes(defaultI18n.t('account.setPassword')), false, 'never Set a password');
+  const more = byTestID('account-security-more-sign-in');
+  assert.ok(more); assert.equal(more.props.variant, 'text');
+  await act(() => more.props.onPress());
+  assert.equal(byTestID('account-security-more-sign-in'), undefined, 'the link gives way to the row');
+  const add = byTestID('account-security-password');
+  assert.ok(add, 'Add a password opens the password task');
+  assert.equal(add.props.children, defaultI18n.t('web.hostedSecurity.addPassword'));
+  assert.ok(byTestID('account-security-mfa-on'), 'two-step stays: Hosted asks for it after a provider sign-in too');
+});
+
+test('a password account keeps Change and has no More sign-in options', async context => {
+  const f = await securityFixture(context); await f.recover();
+  const password = nodes(f.tree()).find(node => node.props.testID === 'account-security-password');
+  assert.equal(password.props.children, defaultI18n.t('web.hostedSecurity.change'));
+  assert.equal(nodes(f.tree()).some(node => node.props.testID === 'account-security-more-sign-in'), false);
 });
