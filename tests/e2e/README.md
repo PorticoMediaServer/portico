@@ -1,7 +1,7 @@
 # Hosted E2E groundwork
 
-This is a work in progress. The server job is a fixture probe, not a passing UI
-journey. It runs a `devtrust` server from the checked-out commit, generates the
+The hosted web pilot has passed. This remains a work in progress until all
+platform pilots pass. It runs a `devtrust` server from the checked-out commit, generates the
 existing synthetic media outside the checkout, signs in through the development
 hook, and scans the libraries before starting an optional child command. Only
 the generated media is cached. State, session material and server logs remain in
@@ -17,10 +17,10 @@ Two server targets are needed:
   hook checks the actual socket peer; the hosted Android pilot must verify that
   this connection satisfies the check before relying on it.
 * **Persistent remote:** a separate test server on the approved `portico-runner`
-  Contabo host, provisioned by the ops lane and independent of the demo. Use it
+  Contabo host, provisioned independently of the demo. Use it
   for Portico Services sign-in and claiming, `portico.direct` and certificates,
   Enhanced and Standard remote access, and outside-network connections. These
-  tests require the environment and test-account handoff; no credentials belong
+  tests use the dedicated Services test account; no credentials belong
   in code, caches, screenshots, video or logs.
 
 Neither target is a replacement for the other. Never connect a client on one
@@ -34,7 +34,8 @@ requests. Each run needs fresh owner and member credentials and a restricted
 profile with a random PIN and age limit, delivered through the test harness,
 never entered into a device or browser. The development hook seeds and signs in
 the owner. The harness provisions a member and a PIN profile via the local API.
-The server probe passed for commit `5cba01c1` in [this hosted run](https://github.com/PorticoMediaServer/portico/actions/runs/41346434119).
+The server probe and web pilot passed in [this hosted run](https://github.com/PorticoMediaServer/portico/actions/runs/41347378676).
+Fresh local-account setup over a private runner IP passed in [this run](https://github.com/PorticoMediaServer/portico/actions/runs/41349602193).
 Credentials, tokens and state must not be cached or uploaded.
 
 The fixture needs small generated films (including editions and missing artwork),
@@ -46,8 +47,8 @@ never depend on remote metadata. Keep the full generated library to a few hundre
 MB at most and key its cache by all generator inputs and versions. The inherited
 generator is provisional: the E2E variant shortens its load fixture to twelve
 seconds and adds synthetic seasons, music, EPUB, CBZ, PGS, HDR tags and audio
-tracks. The generated files and their scanned catalogue still need hosted
-verification; HDR tagging does not imply a visually representative HDR sample.
+tracks. The hosted fixture probe scans and verifies these libraries; HDR tagging does
+not imply a visually representative HDR sample.
 
 Cache a pre-scanned library snapshot only after proving it can be restored on
 each runner OS and path without carrying usable credentials, sessions, keys or

@@ -21,12 +21,11 @@ jobs:
         with: {node-version-file: .node-version, cache: npm, cache-dependency-path: 'package-lock.json'}
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
         with: {distribution: temurin, java-version: '17', cache: gradle}
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
         id: app
         with:
           path: apps/native/android/app/build/outputs/apk/google/debug/app-google-debug.apk
           key: e2e-android-app-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
-          save-always: true
       - name: Install tooling
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
@@ -40,12 +39,11 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.1.12297006" >> "$GITHUB_ENV"
           rust="$(python3 -c "import json; print(json.load(open('third_party/media-engine/sources.lock.json'))['tools']['rust']['version'])")"
           rustup toolchain install "$rust" --profile minimal --target x86_64-linux-android
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
         id: engine
         with:
           path: third_party/media-engine/out/android
-          key: e2e-engine-x86_64-${{ hashFiles('third_party/media-engine/**') }}
-          save-always: true
+          key: e2e-engine-x86_64-${{ hashFiles('third_party/media-engine/sources.lock.json', 'third_party/media-engine/build-android.sh', 'third_party/media-engine/lib/**', 'third_party/media-engine/patches/**') }}
       - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: third_party/media-engine/work/downloads
@@ -64,6 +62,11 @@ jobs:
       - name: Build the x86_64 media engine
         if: steps.app.outputs.cache-hit != 'true' && steps.engine.outputs.cache-hit != 'true'
         run: MEDIA_ENGINE_JOBS=4 third_party/media-engine/build-android.sh --abis x86_64
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: steps.app.outputs.cache-hit != 'true' && steps.engine.outputs.cache-hit != 'true'
+        with:
+          path: third_party/media-engine/out/android
+          key: ${{ steps.engine.outputs.cache-primary-key }}
       - name: Install JavaScript dependencies
         if: steps.app.outputs.cache-hit != 'true'
         run: |
@@ -74,6 +77,11 @@ jobs:
         working-directory: apps/native/android
         env: {PORTICO_DEV_SIGN_IN: '1'}
         run: ./gradlew --no-daemon :app:assembleGoogleDebug -PreactNativeArchitectures=x86_64 -PporticoEmbeddedJs=true
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: steps.app.outputs.cache-hit != 'true'
+        with:
+          path: apps/native/android/app/build/outputs/apk/google/debug/app-google-debug.apk
+          key: ${{ steps.app.outputs.cache-primary-key }}
       - name: Build the test server
         working-directory: server
         run: go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server
