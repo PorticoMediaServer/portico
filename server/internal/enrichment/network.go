@@ -60,8 +60,25 @@ func datasetDiagnostic(problem error) string {
 	return datasetFailure(code, "").Error()
 }
 
+// devLoopback lets a development build (devtrust, never release) fetch the
+// dataset from a stand-in on this machine: http or https on a loopback
+// address. It is set only by dev_dataset.go, from PORTICO_DEV_DATASET_LOOPBACK.
+var devLoopback bool
+
+// devLoopbackHost is a loopback host a development build may fetch from.
+func devLoopbackHost(u *url.URL) bool {
+	if !devLoopback {
+		return false
+	}
+	ip := net.ParseIP(u.Hostname())
+	return ip != nil && ip.IsLoopback()
+}
+
 func datasetURL(target string) (*url.URL, error) {
 	u, err := url.Parse(target)
+	if err == nil && u.Scheme == "http" && devLoopbackHost(u) && u.User == nil && u.Fragment == "" && u.Opaque == "" && !strings.ContainsAny(target, "\x00\r\n\\") {
+		return u, nil
+	}
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" || u.Opaque != "" || len(u.Host) > 260 || strings.ContainsAny(target, "\x00\r\n\\") {
 		return nil, datasetFailure("network_policy", target)
 	}
@@ -78,6 +95,9 @@ func datasetOrigin(u *url.URL) string {
 	port := u.Port()
 	if port == "" {
 		port = "443"
+		if u.Scheme == "http" {
+			port = "80"
+		}
 	}
 	return net.JoinHostPort(strings.ToLower(strings.TrimSuffix(u.Hostname(), ".")), port)
 }
@@ -86,6 +106,9 @@ func (s *Service) admitDatasetURL(ctx context.Context, target string) error {
 	u, err := datasetURL(target)
 	if err != nil {
 		return err
+	}
+	if devLoopbackHost(u) {
+		return nil
 	}
 	// Only classify the origin. Signed URL paths and queries are opaque to the
 	// downloader and do not confer address approval.
@@ -130,6 +153,9 @@ func (s *Service) dialDataset(ctx context.Context, network, address string) (net
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, remotemedia.ErrPolicy
+	}
+	if devLoopbackHost(&url.URL{Host: host}) {
+		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, address)
 	}
 	origin := "https://" + net.JoinHostPort(host, port) + "/"
 	destination, err := (remotemedia.Policy{Resolver: s.resolver}).Classify(ctx, origin)

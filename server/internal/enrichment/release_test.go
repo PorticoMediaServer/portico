@@ -364,3 +364,17 @@ func TestDecompressionStopsAtTheSignedSize(t *testing.T) {
 		})
 	}
 }
+
+// newLoopbackFixture is a library with Heat and a publisher of a release that
+// holds it, for the stand-in tests.
+func newLoopbackFixture(t *testing.T) (*catalogtest.Catalog, *publisher) {
+	t.Helper()
+	c := catalogtest.Open(t)
+	films := c.Library("m", "Movies", "movie", "/m")
+	heat := c.Movie(films, "/m/heat.mkv", "Heat", 1995)
+	c.Exec(`INSERT INTO catalog_external_ids VALUES(?,'tmdb','movie','949')`, heat.ID)
+	c.Drain()
+	p := newPublisher(t)
+	p.domains["screen"] = ManifestDomain{DatasetVersion: "1", VocabularyVersion: 2, Full: p.build("screen-1", "full", "1", screenV1)}
+	return c, p
+}
