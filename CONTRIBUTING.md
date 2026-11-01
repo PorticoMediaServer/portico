@@ -24,6 +24,8 @@ Small, obvious fixes can go straight to a pull request. For anything else, inclu
 
 UI changes need to match the approved design. Keep each pull request to one problem.
 
+Tracked files over 1 MiB produce a notice in CI output and the step summary. Files over 50 MiB fail the size check, with no per-file exceptions. Built executables are rejected at any size.
+
 ## What to include in a pull request
 
 - The issue it fixes, or a line on why the fix is obvious
