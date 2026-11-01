@@ -57,7 +57,7 @@ cp -R "$APP" "$PKG_ROOT/Applications/"
 chmod +x "$ROOT/packaging/macos/package-scripts/"* "$PKG_ROOT/Applications/Portico Media Server.app/Contents/Resources/launchd/uninstall.sh"
 sign=()
 if [[ -n "${PORTICO_MACOS_INSTALLER_IDENTITY:-}" ]]; then sign=(--sign "$PORTICO_MACOS_INSTALLER_IDENTITY"); fi
-pkgbuild --component-plist "$ROOT/packaging/macos/components.plist" --root "$PKG_ROOT" --identifier tv.getportico.server --version "$VERSION" --install-location / --scripts "$ROOT/packaging/macos/package-scripts" "${sign[@]}" "$OUT/Portico-Media-Server-macOS-arm64$SUFFIX.pkg"
+pkgbuild --component-plist "$ROOT/packaging/macos/components.plist" --root "$PKG_ROOT" --identifier tv.getportico.server --version "$VERSION" --install-location / --scripts "$ROOT/packaging/macos/package-scripts" ${sign[@]+"${sign[@]}"} "$OUT/Portico-Media-Server-macOS-arm64$SUFFIX.pkg"
 # With a Developer ID Installer identity the PKG is signed above; notarise and staple it too.
 notarize() {
   xcrun notarytool submit "$1" --key "$PORTICO_NOTARY_KEY_FILE" --key-id "${PORTICO_NOTARY_KEY_ID:?}" --issuer "${PORTICO_NOTARY_ISSUER:?}" --wait --timeout 30m
