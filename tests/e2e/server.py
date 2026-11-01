@@ -84,7 +84,7 @@ def scan_libraries(server):
     for name, kind, pivot, count in libraries:
         api = server.api
         library = api.post('/v1/libraries', {'name': name, 'kind': kind,
-                           'path': str(server.directory / 'media' / name),
+                           'path': str((server.directory / 'media' / name).resolve()),
                            'metadataAgent': 'local'}, (201,))
         server.libs[name] = library['id']
         job = api.post('/v1/libraries/' + library['id'] + '/scans', expected=(202,))
@@ -101,11 +101,14 @@ def scan_libraries(server):
                 base = '/v1/libraries/' + library['id']
                 if query:
                     page, _ = api.call('GET', base + '/reading-browse-queries/' + query,
-                                       expected=(200, 202, 503))
+                                       expected=(200, 202, 409, 503))
                 else:
                     page, _ = api.call('POST', base + '/browse', {'pivot': pivot, 'limit': 100},
-                                       expected=(200, 202, 503))
+                                       expected=(200, 202, 409, 503))
                 if page.get('error', {}).get('code') == 'visibility_building':
+                    return False
+                if page.get('error', {}).get('code') == 'stale_continuation':
+                    query = None
                     return False
                 if page.get('kind') == 'reading-browse-preparing':
                     query = page['queryId']

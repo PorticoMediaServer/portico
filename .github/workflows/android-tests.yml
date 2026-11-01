@@ -32,10 +32,11 @@ jobs:
           sudo chmod a+rw /dev/kvm
           curl -fsSL https://sdk-installer.vega.labcollab.net/get_vvm.sh | bash
       - name: Boot and capture the stock virtual device
-        env: {PORTICO_VEGA_GUI: '1', PORTICO_VEGA_GL_ACCEL: '0'}
+        env: {PORTICO_VEGA_GUI: '1'}
         run: |
           export PATH="$HOME/vega/bin:$PATH"
           xvfb-run -a -s '-screen 0 1920x1080x24' bash -c '
+            set -e
             trap "node apps/vega/scripts/vega.mjs device stop || true" EXIT
             node apps/vega/scripts/vega.mjs device start
             node apps/vega/scripts/vega.mjs shot "$RUNNER_TEMP/vega-stock.png"
