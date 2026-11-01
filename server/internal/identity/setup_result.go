@@ -62,7 +62,6 @@ func (OwnerResetLocation) JSONSchema() map[string]any {
 		panic(e)
 	}
 	props := shape["properties"].(map[string]any)
-	props["systemKind"].(map[string]any)["enum"] = []string{"linux", "windows", "macos", "docker"}
 	props["fileName"].(map[string]any)["const"] = resetFileName
 	props["retryAfterSeconds"].(map[string]any)["minimum"] = 0
 	props["retryAfterSeconds"].(map[string]any)["maximum"] = 60

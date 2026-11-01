@@ -17,11 +17,14 @@ export function ownerResetFailure(error:unknown,purpose:OwnerResetFailurePurpose
  return undefined;
 }
 
-export type ResetFileLocation=Readonly<{systemKind:'linux'|'windows'|'macos'|'docker';dataDirectory:string;fileDirectory:string;fileName:'reset-code.txt';retryAfterSeconds:number}>;
+/** The reset file's public answer (O-169): its fixed name and how long until another can be
+ * written. The server no longer publishes its operating system or data directory, so no
+ * client claims an exact path it was not given. */
+export type ResetFileLocation=Readonly<{fileName:'reset-code.txt';retryAfterSeconds:number}>;
 export function parseResetFileLocation(raw:unknown):ResetFileLocation {
  const v=raw as Record<string,unknown>;
- if(!v||typeof v!=='object'||!['linux','windows','macos','docker'].includes(String(v.systemKind))||typeof v.dataDirectory!=='string'||!v.dataDirectory||typeof v.fileDirectory!=='string'||!v.fileDirectory||v.fileName!=='reset-code.txt'||!Number.isInteger(v.retryAfterSeconds)||Number(v.retryAfterSeconds)<0||Number(v.retryAfterSeconds)>60||'code' in v||'username' in v||'account' in v||'session' in v)throw new Error('The reset file response was invalid.');
- return Object.freeze({systemKind:v.systemKind as ResetFileLocation['systemKind'],dataDirectory:v.dataDirectory,fileDirectory:v.fileDirectory,fileName:'reset-code.txt',retryAfterSeconds:Number(v.retryAfterSeconds)});
+ if(!v||typeof v!=='object'||v.fileName!=='reset-code.txt'||!Number.isInteger(v.retryAfterSeconds)||Number(v.retryAfterSeconds)<0||Number(v.retryAfterSeconds)>60||'code' in v||'username' in v||'account' in v||'session' in v)throw new Error('The reset file response was invalid.');
+ return Object.freeze({fileName:'reset-code.txt',retryAfterSeconds:Number(v.retryAfterSeconds)});
 }
 export async function requestOwnerResetFile(api:ProfileAPI,username?:string,signal?:AbortSignal):Promise<ResetFileLocation>{
  return parseResetFileLocation(await api.request(routePath('post_auth_owner_reset_request'),'POST',routeBody('post_auth_owner_reset_request',username===undefined?{}:{username}),signal));

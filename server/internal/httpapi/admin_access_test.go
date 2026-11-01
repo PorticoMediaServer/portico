@@ -32,6 +32,7 @@ import (
 )
 
 type administrationFixture struct {
+	root         string
 	handler      http.Handler
 	owner        string
 	admin        string
@@ -106,7 +107,7 @@ func administrationFixtureNewWith(t *testing.T, configure func(*Dependencies)) a
 			t.Errorf("flush credential use: %v", err)
 		}
 	})
-	return administrationFixture{handler: handler, owner: ownerToken.AccessToken, admin: adminToken.AccessToken, member: memberToken.AccessToken, memberDevice: memberToken.DeviceID, recorder: recorder, deps: deps}
+	return administrationFixture{root: root, handler: handler, owner: ownerToken.AccessToken, admin: adminToken.AccessToken, member: memberToken.AccessToken, memberDevice: memberToken.DeviceID, recorder: recorder, deps: deps}
 }
 
 func (f administrationFixture) call(method, path, token, body string) *httptest.ResponseRecorder {

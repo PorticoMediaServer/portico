@@ -63,6 +63,9 @@ func advertisedCapabilities(registry []CapabilityEntry) []string {
 }
 
 // SystemInfo is public and contains only the facts needed before sign-in.
+// The exact build (version, id, source digest, build time) is for the owner,
+// who reads it from the authenticated updates report; published here it tells
+// a scanner which servers carry a known flaw (O-169).
 type SystemInfo struct {
 	ID     string               `json:"id"`
 	Name   string               `json:"name"`
@@ -74,7 +77,6 @@ type SystemInfo struct {
 	SetupRequired    bool    `json:"setupRequired"`
 	HostedConfigured bool    `json:"hostedConfigured"`
 	HostedAttached   bool    `json:"hostedAttached"`
-	Version          string  `json:"version"`
 	APILevel         int     `json:"apiLevel"`
 	// APIVersion is "major.minor" of the newest major (O-159).
 	APIVersion string `json:"apiVersion"`

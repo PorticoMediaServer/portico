@@ -25,7 +25,7 @@ function fixture(signIn: 'local' | 'portico' = 'portico') {
   api.request = (async (path, _method, body) => {
     calls.push({path, body});
     if (path === '/v1/system') return system;
-    if (path === '/v1/auth/owner-reset/request') return {systemKind: 'linux', dataDirectory: '/fixture/state', fileDirectory: '/fixture/state', fileName: 'reset-code.txt', retryAfterSeconds: 1};
+    if (path === '/v1/auth/owner-reset/request') return {fileName: 'reset-code.txt', retryAfterSeconds: 1};
     if (path === '/v1/auth/owner-reset/verify') {await gate; return response;}
     throw new Error('Unexpected request ' + path);
   }) as HttpLocalApi['request'];

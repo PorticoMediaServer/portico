@@ -17,11 +17,11 @@ import (
 
 func requestResetFileCode(t *testing.T, s *Service) string {
 	t.Helper()
-	location, e := s.RequestOwnerReset(context.Background(), OwnerResetRequest{Username: "unrelated-unknown"})
+	local, e := s.RequestOwnerReset(context.Background(), OwnerResetRequest{Username: "unrelated-unknown"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	raw, e := os.ReadFile(filepath.Join(location.FileDirectory, location.FileName))
+	raw, e := os.ReadFile(filepath.Join(s.resetDir, local.FileName))
 	if e != nil {
 		t.Fatal(e)
 	}

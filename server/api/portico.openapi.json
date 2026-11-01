@@ -44686,21 +44686,6 @@
       },
       "GetConnectionResponse": {
         "properties": {
-          "accessUrls": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "clientAddress": {
-            "type": "string"
-          },
-          "lanNetworks": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "plainHttpOutsideHome": {
             "type": "boolean"
           },
@@ -44715,13 +44700,10 @@
           }
         },
         "required": [
-          "lanNetworks",
           "secureConnections",
           "secure",
           "remote",
-          "plainHttpOutsideHome",
-          "clientAddress",
-          "accessUrls"
+          "plainHttpOutsideHome"
         ],
         "type": "object"
       },
@@ -216031,9 +216013,6 @@
               "local"
             ],
             "type": "string"
-          },
-          "version": {
-            "type": "string"
           }
         },
         "required": [
@@ -216045,7 +216024,6 @@
           "setupRequired",
           "hostedConfigured",
           "hostedAttached",
-          "version",
           "apiLevel",
           "apiVersion",
           "apiMajors",
@@ -251435,12 +251413,6 @@
       },
       "PostAuthOwnerResetRequestResponse": {
         "properties": {
-          "dataDirectory": {
-            "type": "string"
-          },
-          "fileDirectory": {
-            "type": "string"
-          },
           "fileName": {
             "const": "reset-code.txt",
             "type": "string"
@@ -251449,21 +251421,9 @@
             "maximum": 60,
             "minimum": 0,
             "type": "integer"
-          },
-          "systemKind": {
-            "enum": [
-              "linux",
-              "windows",
-              "macos",
-              "docker"
-            ],
-            "type": "string"
           }
         },
         "required": [
-          "systemKind",
-          "dataDirectory",
-          "fileDirectory",
           "fileName",
           "retryAfterSeconds"
         ],
@@ -458634,12 +458594,6 @@
               "application/json": {
                 "schema": {
                   "properties": {
-                    "dataDirectory": {
-                      "type": "string"
-                    },
-                    "fileDirectory": {
-                      "type": "string"
-                    },
                     "fileName": {
                       "const": "reset-code.txt",
                       "type": "string"
@@ -458648,21 +458602,9 @@
                       "maximum": 60,
                       "minimum": 0,
                       "type": "integer"
-                    },
-                    "systemKind": {
-                      "enum": [
-                        "linux",
-                        "windows",
-                        "macos",
-                        "docker"
-                      ],
-                      "type": "string"
                     }
                   },
                   "required": [
-                    "systemKind",
-                    "dataDirectory",
-                    "fileDirectory",
                     "fileName",
                     "retryAfterSeconds"
                   ],
@@ -666019,21 +665961,6 @@
               "application/json": {
                 "schema": {
                   "properties": {
-                    "accessUrls": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "clientAddress": {
-                      "type": "string"
-                    },
-                    "lanNetworks": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
                     "plainHttpOutsideHome": {
                       "type": "boolean"
                     },
@@ -666048,13 +665975,10 @@
                     }
                   },
                   "required": [
-                    "lanNetworks",
                     "secureConnections",
                     "secure",
                     "remote",
-                    "plainHttpOutsideHome",
-                    "clientAddress",
-                    "accessUrls"
+                    "plainHttpOutsideHome"
                   ],
                   "type": "object"
                 }
@@ -666093,7 +666017,7 @@
             "description": "Request refused or unavailable"
           }
         },
-        "summary": "Read the current connection and advertised addresses",
+        "summary": "Read what this connection is",
         "tags": [
           "Clients"
         ],
@@ -774637,9 +774561,6 @@
                         "local"
                       ],
                       "type": "string"
-                    },
-                    "version": {
-                      "type": "string"
                     }
                   },
                   "required": [
@@ -774651,7 +774572,6 @@
                     "setupRequired",
                     "hostedConfigured",
                     "hostedAttached",
-                    "version",
                     "apiLevel",
                     "apiVersion",
                     "apiMajors",

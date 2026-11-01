@@ -90,7 +90,7 @@ func TestBackupPortableAuthenticationFiles(t *testing.T) {
 				t.Fatal(err)
 			}
 			operations.WireSetupRemote(ident)
-			if err = ident.ConfigureResetFile(layout.Data, layout.Keys, true); err != nil {
+			if err = ident.ConfigureResetFile(layout.Data, layout.Keys); err != nil {
 				t.Fatal(err)
 			}
 			setup, err := os.ReadFile(storagepaths.Path(data, "setup-token"))
@@ -113,10 +113,12 @@ func TestBackupPortableAuthenticationFiles(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if location.DataDirectory != layout.Data || location.FileDirectory != layout.Keys || location.FileName != "reset-code.txt" || location.SystemKind != "docker" {
-					t.Fatalf("reset does not use the actual portable layout: %+v", location)
+				// The answer names the file, never a directory (O-169); the file
+				// itself still lands in the bound portable layout.
+				if location.FileName != "reset-code.txt" {
+					t.Fatalf("reset does not name its file: %+v", location)
 				}
-				raw, err := os.ReadFile(filepath.Join(location.FileDirectory, location.FileName))
+				raw, err := os.ReadFile(filepath.Join(layout.Keys, location.FileName))
 				if err != nil || len(strings.Split(string(raw), "\n")) < 4 {
 					t.Fatal("actual reset file", err)
 				}

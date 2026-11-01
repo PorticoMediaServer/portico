@@ -13,15 +13,16 @@ import {BUILD_ID} from '../../platform/build-id';
 /** Installation facts already supplied by bootstrap; no guessed version or device name. */
 export function DeviceAboutPanel({context, lifetime, t, runtime, openRoute}: NativeSettingsPanelDeps & {runtime: NativeShellRuntime}) {
   const theme = useTheme();
-  const [serverVersion, setServerVersion] = useState<string>(), [serverApi, setServerApi] = useState<string>(), [versionError, setVersionError] = useState<unknown>(), [retry, setRetry] = useState(0);
+  const [serverApi, setServerApi] = useState<string>(), [versionError, setVersionError] = useState<unknown>(), [retry, setRetry] = useState(0);
   useEffect(() => {
     const caller = new AbortController();
-    setServerVersion(undefined); setServerApi(undefined); setVersionError(undefined);
+    setServerApi(undefined); setVersionError(undefined);
     void lifetime.request(signal => context.api.request<RouteResponse<'get_system'>>(routePath('get_system'), 'GET', undefined, signal), caller.signal).then(system => {
       if (caller.signal.aborted || !lifetime.current()) return;
-      if (system.id !== lifetime.authority.serverId || typeof system.version !== 'string' || !system.version.trim()) throw new Error('native_settings_server_version_invalid');
-      setServerVersion(system.version);
-      // O-159: the server's API version names both sides of any report (absent on a pre-release server).
+      if (system.id !== lifetime.authority.serverId) throw new Error('native_settings_server_identity_invalid');
+      // O-159: the server's API version names both sides of any report (absent on a pre-release
+      // server). Its exact build is not public (O-169): the owner reads it in Settings › Server ›
+      // General › Updates, from the authenticated report.
       const api = (system as {apiVersion?: unknown}).apiVersion;
       setServerApi(typeof api === 'string' && /^\d{1,6}\.\d{1,6}$/.test(api) ? api : undefined);
     }).catch(error => {if (!caller.signal.aborted && lifetime.current()) setVersionError(error);});
@@ -40,7 +41,6 @@ export function DeviceAboutPanel({context, lifetime, t, runtime, openRoute}: Nat
     <SettingsRow first testID="settings-app-version" label={t('about.appVersion')} value={context.appVersion}/>
     <SettingsRow testID="settings-app-build" label={t('web.about.build')} value={BUILD_ID}/>
     <SettingsRow testID="settings-server-name" label={t('about.server')} value={context.serverName}/>
-    {serverVersion !== undefined && <SettingsRow testID="settings-server-version" label={t('about.serverVersion')} value={serverVersion}/>}
     {serverApi !== undefined && <SettingsRow testID="settings-server-api" label={t('web.about.serverApi')} value={serverApi}/>}
     {versionError !== undefined && <StateView {...runtime.error(versionError, () => setRetry(value => value + 1))}/>}
     <SettingsRow testID="settings-open-licenses" label={t('licenses.title')} value={t('next.settingsSpec.account.device.groups.5.rows.3.control.label')} onPress={() => {lifetime.assert(); openRoute({kind: 'licenses'});}}/>

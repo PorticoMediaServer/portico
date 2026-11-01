@@ -20,15 +20,16 @@ export function PhoneOwnerReset({phase, serverName, location, code, onCodeChange
     primaryAction={{id: 'open-server', label: t('accounts.recovery.continueServer', {server: serverName}), disabled: busy, loading: busy, onPress: onContinue}} secondaryAction={back}/>;
   if (phase === 'code') {
     const paths = ownerResetFilePaths(location);
-    const systems = paths.alternatives.map(system => system.name);
+    const systems = paths.systems.map(system => system.name);
     const disclosure = defaultI18n.list(systems, 'or');
     return <Layout testID="accounts-owner-reset-code" title={t('accounts.recovery.fileTitle')} body={t('accounts.recovery.fileBody')}
       beforeActions={<View style={{alignSelf: 'stretch', gap: 14, marginBottom: 18}}>{error}
-        <View><Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('accounts.recovery.fileLocation')}{' (' + paths.system + ')'}</Text><Text selectable style={[theme.type.caption, {color: theme.colors.text}]}>{paths.path}</Text></View>
+        <View><Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('accounts.recovery.fileLocation')}</Text><Text selectable style={[theme.type.caption, {color: theme.colors.text}]}>{paths.fileName}</Text>
+          <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t('accounts.recovery.fileFolder')}</Text></View>
         <Button testID="accounts-owner-reset-systems" variant="text" icon={showSystems ? 'i-up' : 'i-down'} size="small"
           accessibilityState={{expanded: showSystems}} onPress={() => setShowSystems(value => !value)}>{disclosure}</Button>
         {showSystems && <View testID="accounts-owner-reset-other-paths" style={{gap: 12, paddingHorizontal: 14}}>
-          {paths.alternatives.map(system => <View key={system.kind} style={{gap: 4}}>
+          {paths.systems.map(system => <View key={system.kind} style={{gap: 4}}>
             <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{system.name}</Text>
             <Text selectable style={[theme.type.caption, {color: theme.colors.text}]}>{system.path}</Text>
             {'detail' in system && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{'path' in system.detail ? t(system.detail.key, {path: system.detail.path}) : t(system.detail.key)}</Text>}

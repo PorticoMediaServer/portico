@@ -69,7 +69,7 @@ export function PorticoOwnerRecoveryFlow({entry, onBack}: {entry: BrowserAccount
   const failure = <AuthError error={state.error ?? error}/>;
   if (state.phase === 'ready' && state.ownerResetSessionReady) return <PorticoOwnerRecoveryDone serverName={state.server!.name} error={failure}
     busy={!!state.busy || working} onContinue={() => {void finish();}} onChangeOwner={() => {void finish('signin.changeOwner');}} onSwitchToLocal={() => {void finish('signin.switchToLocal');}}/>;
-  if (file) return <OwnerFile key={`${file.fileDirectory}:${file.retryAfterSeconds}`} serverName={state.server!.name} location={file}
+  if (file) return <OwnerFile key={`${file.fileName}:${file.retryAfterSeconds}`} serverName={state.server!.name} location={file}
     busy={!!state.busy || working} error={state.error ?? error} onVerify={verifyFile} onRewrite={() => {void requestFile();}} onBack={back}/>;
   return <PorticoOwnerRecoveryRequest serverName={state.server!.name} busy={!!state.busy || working} error={failure} onWriteFile={() => {void requestFile();}} onBack={back}
     onAccountRecovery={() => {

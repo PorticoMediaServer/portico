@@ -27,7 +27,7 @@ export function harness() {
   let libraryRead: (()=>Promise<unknown>) | undefined;
   const settings={effective:{},deviceClass:'web'} as ShellFacts['preferences'];
   const witnesses={system:system(),direct:parseDirectSnapshot(direct())};
-  const initial:ShellFacts={serverName:'Study',preferences:settings,identity:{viewer:session.viewer,serverName:'Study',serverVersion:'1',libraries,
+  const initial:ShellFacts={serverName:'Study',preferences:settings,identity:{viewer:session.viewer,serverName:'Study',libraries,
     ...shellAccount(witnesses.direct,'profile'),liveAvailable:true,unread:0,showNotificationDot:false}};
   const api={async request(path:string) {calls.push(path); if (path==='/v1/libraries') return libraryRead ? await libraryRead() : {items:libraries}; if (path==='/v1/direct') return record;
     if (path==='/v1/system') {if(systemError)throw systemError;return info;} if (path.startsWith('/v1/guide/sources?')) {if (guideError) throw guideError;return {protocolVersion:GUIDE_PROTOCOL,serverId:'server',viewerFence:'guide',revision:'1',sources:[]};}

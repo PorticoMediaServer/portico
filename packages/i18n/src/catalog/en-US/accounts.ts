@@ -239,6 +239,7 @@ export const accountMessages = {
   'accounts.recovery.fileTitle': 'Open the reset file',
   'accounts.recovery.fileBody': 'Portico has written a one-time code to a file on this server’s computer. Open the file there, then type the code here.',
   'accounts.recovery.fileLocation': 'The reset file is',
+  'accounts.recovery.fileFolder': 'In the server’s data folder, open the Keys folder.',
   'accounts.recovery.fileManual': 'When run by hand: {path}',
   'accounts.recovery.fileWindowsService': 'For a Windows service: {path}',
   'accounts.recovery.fileDocker': 'Inside the container, in its mapped data folder.',

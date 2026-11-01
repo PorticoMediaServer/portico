@@ -3,8 +3,10 @@
 ## Address and contract
 
 The API and bundled web app share the server's origin and listening port.
-`GET /v1/system` is public and reports the server ID, name, version and setup
-status. It does not publish a build fingerprint. The default port is 32500.
+`GET /v1/system` is public and reports the server ID, name, sign-in kind, setup
+status and API version. It does not publish the exact build: the server owner
+reads the version and build id from the authenticated updates report. The
+default port is 32500.
 Use a hostname of its own; hosting under `/portico` or any other sub-path is
 unsupported. HTTP is accepted from any address. Use TLS for untrusted networks.
 

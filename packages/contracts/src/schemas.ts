@@ -42180,21 +42180,6 @@ export const schemas = {
   },
   "GetConnectionResponse": {
     "properties": {
-      "accessUrls": {
-        "items": {
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "clientAddress": {
-        "type": "string"
-      },
-      "lanNetworks": {
-        "items": {
-          "type": "string"
-        },
-        "type": "array"
-      },
       "plainHttpOutsideHome": {
         "type": "boolean"
       },
@@ -42209,13 +42194,10 @@ export const schemas = {
       }
     },
     "required": [
-      "lanNetworks",
       "secureConnections",
       "secure",
       "remote",
-      "plainHttpOutsideHome",
-      "clientAddress",
-      "accessUrls"
+      "plainHttpOutsideHome"
     ],
     "type": "object"
   },
@@ -210758,9 +210740,6 @@ export const schemas = {
           "local"
         ],
         "type": "string"
-      },
-      "version": {
-        "type": "string"
       }
     },
     "required": [
@@ -210772,7 +210751,6 @@ export const schemas = {
       "setupRequired",
       "hostedConfigured",
       "hostedAttached",
-      "version",
       "apiLevel",
       "apiVersion",
       "apiMajors",
@@ -229310,12 +229288,6 @@ export const schemas = {
   },
   "PostAuthOwnerResetRequestResponse": {
     "properties": {
-      "dataDirectory": {
-        "type": "string"
-      },
-      "fileDirectory": {
-        "type": "string"
-      },
       "fileName": {
         "const": "reset-code.txt",
         "type": "string"
@@ -229324,21 +229296,9 @@ export const schemas = {
         "maximum": 60,
         "minimum": 0,
         "type": "integer"
-      },
-      "systemKind": {
-        "enum": [
-          "linux",
-          "windows",
-          "macos",
-          "docker"
-        ],
-        "type": "string"
       }
     },
     "required": [
-      "systemKind",
-      "dataDirectory",
-      "fileDirectory",
       "fileName",
       "retryAfterSeconds"
     ],

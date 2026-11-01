@@ -7,8 +7,9 @@ import (
 	"testing"
 )
 
-// The document anyone can read before signing in says how to sign in and
-// which version this is, and does not carry the exact build.
+// The document anyone can read before signing in says how to sign in and the
+// API level, and carries no exact build: no version, build id, source digest
+// or build time (O-169). The owner reads that from the authenticated report.
 func TestThePublicSystemDocumentDoesNotCarryTheBuildFingerprint(t *testing.T) {
 	f := memberLimitsFixture(t, 0)
 	w := f.raw("GET", "/v1/system", "", nil, nil)
@@ -16,12 +17,12 @@ func TestThePublicSystemDocumentDoesNotCarryTheBuildFingerprint(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &doc); err != nil || w.Code != 200 {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
-	for _, key := range []string{"id", "name", "setupRequired", "hostedConfigured", "hostedAttached", "version", "signIn"} {
+	for _, key := range []string{"id", "name", "setupRequired", "hostedConfigured", "hostedAttached", "apiLevel", "signIn"} {
 		if _, ok := doc[key]; !ok {
 			t.Errorf("the public system document lost %q", key)
 		}
 	}
-	for _, key := range []string{"buildId", "sourceDigest", "builtAt"} {
+	for _, key := range []string{"version", "buildId", "sourceDigest", "builtAt"} {
 		if _, ok := doc[key]; ok {
 			t.Errorf("the public system document still carries %q", key)
 		}

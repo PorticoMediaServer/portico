@@ -38,16 +38,19 @@ func TestSettingsReplayDoesNotRestoreProxyTrust(t *testing.T) {
 		t.Fatalf("second save %d %s", w.Code, w.Body)
 	}
 	probe := func() ConnectionDocument {
-		r := httptest.NewRequest("GET", "http://media.example/v1/networking/connection", nil)
+		r := httptest.NewRequest("GET", "http://media.example/v1/admin/connectivity/status", nil)
 		r.RemoteAddr = "203.0.113.9:42"
 		r.Header.Set("X-Forwarded-For", "127.0.0.1")
+		r.Header.Set("Authorization", "Bearer "+f.owner)
 		w := httptest.NewRecorder()
 		f.handler.ServeHTTP(w, r)
-		var out ConnectionDocument
+		var out struct {
+			Connection ConnectionDocument `json:"connection"`
+		}
 		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || w.Code != 200 {
 			t.Fatalf("probe %d %s %v", w.Code, w.Body, err)
 		}
-		return out
+		return out.Connection
 	}
 	if out := probe(); !out.Remote {
 		t.Fatalf("removed trust still honoured before replay: %+v", out)

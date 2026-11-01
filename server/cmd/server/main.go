@@ -515,13 +515,7 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 	if e != nil {
 		return e
 	}
-	container := false
-	for _, marker := range []string{"/.dockerenv", "/run/.containerenv"} {
-		if _, err := os.Stat(marker); err == nil {
-			container = true
-		}
-	}
-	if e = ident.ConfigureResetFile(layout.Data, layout.Keys, container); e != nil {
+	if e = ident.ConfigureResetFile(layout.Data, layout.Keys); e != nil {
 		return e
 	}
 	wireNativeServerIdentity(ident)

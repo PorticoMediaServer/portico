@@ -117,6 +117,8 @@ func (d Dependencies) changeConnectivity(r *http.Request, body ConnectivityChang
 
 // ConnectionDocument lets sign-in show a quiet HTTP note and lets owners see
 // the address actually used by rate limits and the home-network policy.
+// Only ConnectionFacts may be read before sign-in; this fuller document is
+// served in the owner's connectivity status.
 type ConnectionDocument struct {
 	LANNetworks          []string `json:"lanNetworks"`
 	SecureConnections    string   `json:"secureConnections"`
@@ -125,6 +127,22 @@ type ConnectionDocument struct {
 	PlainHTTPOutsideHome bool     `json:"plainHttpOutsideHome"`
 	ClientAddress        string   `json:"clientAddress"`
 	AccessURLs           []string `json:"accessUrls"`
+}
+
+// ConnectionFacts is the whole of ConnectionDocument any caller may read
+// before sign-in (O-169): what this connection is, never where the server is.
+// Home networks, advertised addresses and the caller's own address are owner
+// facts on ConnectivityStatusDocument, because published here they map the
+// server's network for a scanner.
+type ConnectionFacts struct {
+	SecureConnections    string `json:"secureConnections"`
+	Secure               bool   `json:"secure"`
+	Remote               bool   `json:"remote"`
+	PlainHTTPOutsideHome bool   `json:"plainHttpOutsideHome"`
+}
+
+func (c ConnectionDocument) facts() ConnectionFacts {
+	return ConnectionFacts{SecureConnections: c.SecureConnections, Secure: c.Secure, Remote: c.Remote, PlainHTTPOutsideHome: c.PlainHTTPOutsideHome}
 }
 
 func (d Dependencies) connectionDocument(r *http.Request) ConnectionDocument {
@@ -205,8 +223,8 @@ func connectivityIdentityCodeTx(ctx context.Context, tx *sql.Tx) (string, error)
 }
 
 func registerConnectivity(registry *apikit.Registry, d Dependencies) error {
-	err := apikit.Register(registry, apikit.Route[struct{}, ConnectionDocument]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "get_connection", Method: "GET", Path: "/v1/networking/connection", Summary: "Read the current connection and advertised addresses", Access: apikit.Public, Requires: apikit.ScopeOpen, Lane: apikit.Default, Cost: apikit.Constant, Status: 200, Errors: []string{"internal"}}, Handler: func(ctx context.Context, r *http.Request, _ struct{}) (ConnectionDocument, error) {
-		return d.connectionDocument(r), nil
+	err := apikit.Register(registry, apikit.Route[struct{}, ConnectionFacts]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "get_connection", Method: "GET", Path: "/v1/networking/connection", Summary: "Read what this connection is", Access: apikit.Public, Requires: apikit.ScopeOpen, Lane: apikit.Default, Cost: apikit.Constant, Status: 200, Errors: []string{"internal"}}, Handler: func(ctx context.Context, r *http.Request, _ struct{}) (ConnectionFacts, error) {
+		return d.connectionDocument(r).facts(), nil
 	}})
 	if err != nil {
 		return err

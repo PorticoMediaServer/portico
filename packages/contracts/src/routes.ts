@@ -20692,7 +20692,7 @@ export const routes = [
     "id": "get_connection",
     "method": "GET",
     "path": "/v1/networking/connection",
-    "summary": "Read the current connection and advertised addresses",
+    "summary": "Read what this connection is",
     "access": "public",
     "requires": "open",
     "lane": "default",

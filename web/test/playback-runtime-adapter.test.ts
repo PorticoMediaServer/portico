@@ -2993,7 +2993,7 @@ test('WEB002 EACH five same-authority hints preserve actual media owners in all 
     const direct=()=>({authority:'local',serverId:'server',canManage:true,capabilities:{manageAccount:true,managePeople:true,manageServer:true,manageSignIn:true},account:{id:'account',username:'viewer '+revision,primaryProfileId:'profile',role:'owner',revision,disabled:false,allowedLibraries:[]},profiles:[{id:'profile',name:'Evening '+revision,primary:true,position:0,art:'mint',revision,pinRevision:1,pinRequired:false}]});
     const witnesses={system,direct:parseDirectSnapshot(direct())};
     const preferences={effective:{},deviceClass:'web'} as import('../src/shell/bootstrap.ts').ShellFacts['preferences'];
-    const initial={serverName:'Study',preferences,identity:{viewer:session.viewer,serverName:'Study',serverVersion:'1',libraries:[{id:'library',name:'Films',kind:'movies'}],...shellAccount(witnesses.direct,'profile'),liveAvailable:false,unread:0,showNotificationDot:false}} as import('../src/shell/bootstrap.ts').ShellFacts;
+    const initial={serverName:'Study',preferences,identity:{viewer:session.viewer,serverName:'Study',libraries:[{id:'library',name:'Films',kind:'movies'}],...shellAccount(witnesses.direct,'profile'),liveAvailable:false,unread:0,showNotificationDot:false}} as import('../src/shell/bootstrap.ts').ShellFacts;
     const retire=()=>{if(retired)return;retired++;f.invalidate();f.runtime.dispose();};
     const home=new HomeService(f.api,{observation:{serverId:'server',isCurrent:f.source.isCurrent,observe:observation=>observation.viewerFence===homeViewerFence?'accept':'retire',retire,mismatch:retire}});
     const reads:string[]=[];

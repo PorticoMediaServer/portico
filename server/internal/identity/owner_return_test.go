@@ -17,6 +17,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/networking"
 	"github.com/PorticoMediaServer/portico/server/internal/serverreturn"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 )
 
 // The installed credential/remote route here are explicit local facts. These
@@ -305,7 +306,7 @@ func TestOwnerReturnComputerResetRetiresAttemptAndUsesExplicitSignedLocalLeave(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	file, err := os.ReadFile(filepath.Join(location.FileDirectory, location.FileName))
+	file, err := os.ReadFile(filepath.Join(storagepaths.At(f.root).Keys, location.FileName))
 	if err != nil {
 		t.Fatal(err)
 	}
