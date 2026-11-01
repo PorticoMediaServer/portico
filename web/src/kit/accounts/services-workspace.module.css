@@ -82,7 +82,7 @@
 .recoveryActions { display: flex; gap: 10px; margin-top: 14px; }
 .recoveryActions > button { height: 44px; padding: 0 18px; border-radius: 10px; gap: 8px; font-size: 15px; line-height: normal; font-weight: 700; letter-spacing: normal; }
 .rowNote { margin: 0; padding: 0 22px 18px 82px; font-size: 13.5px; line-height: 1.45; color: var(--color-text-tertiary); }
-.quietLink { display: inline-block; margin: 12px 0 0; padding: 0; border: 0; background: none; font: inherit; font-size: 14.5px; font-weight: 600; color: var(--color-accent-strong); cursor: pointer; }
+.quietLink { display: inline-block; margin: 12px 0 0; padding: 0 0 0 4px; border: 0; background: none; font: inherit; font-size: 14.5px; font-weight: 600; color: var(--color-accent-strong); cursor: pointer; }
 .quietLink:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
 .quietLink:focus-visible { outline: 2px solid var(--color-accent-strong); outline-offset: 3px; border-radius: 4px; }
 .quietLink:disabled { opacity: .5; cursor: default; }
