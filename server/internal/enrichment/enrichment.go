@@ -319,38 +319,58 @@ func (s *Service) purge(ctx context.Context, limit int) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	w, err := dbwork.Begin(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassBackgroundMedia))
-	if err != nil {
-		return false, err
-	}
-	defer w.Rollback()
-	tx := w.Tx()
-	raw, _ := json.Marshal(works)
-	statements := []string{
-		`DELETE FROM catalog_dataset_tags WHERE entity_id IN(SELECT value FROM json_each(?1))`,
-		`DELETE FROM catalog_similar WHERE source='portico-dataset' AND entity_id IN(SELECT value FROM json_each(?1))`,
-		`DELETE FROM catalog_dataset_works WHERE entity_id IN(SELECT value FROM json_each(?1))`,
-	}
-	if len(works) < limit {
-		// The last batch: nothing imported is left after it.
-		statements = append(statements, `DELETE FROM catalog_dataset_vocabulary`, `DELETE FROM enrichment_domains`)
-	}
-	// Works keep gaining provider ids while the switch is off; their queue
-	// entries mean nothing until it is on again, when every work is matched.
-	statements = append(statements, `DELETE FROM enrichment_jobs`)
-	if len(works) > 0 {
-		statements = append(statements, `UPDATE rec_data_revision SET revision=revision+1 WHERE id=1`)
-	}
-	for _, statement := range statements {
-		var args []any
-		if strings.Contains(statement, "?1") {
-			args = []any{string(raw)}
-		}
-		if _, err = tx.ExecContext(ctx, statement, args...); err != nil {
+	batch := s.boundedWrites(ctx)
+	defer batch.rollback()
+	for _, work := range works {
+		if err = removeWork(ctx, batch, work); err != nil {
 			return false, err
 		}
 	}
-	return len(works) == limit, w.Commit()
+	if err = batch.commit(); err != nil {
+		return false, err
+	}
+	if len(works) == limit {
+		return true, nil
+	}
+	// Nothing imported is left: the vocabulary (each row also moves its
+	// table bound), the per-domain state and the queue go, a plan at a time.
+	// Works keep gaining provider ids while the switch is off; their queue
+	// entries mean nothing until it is on again, when every work is matched.
+	chunk := int(dbwork.DefaultPlan(dbwork.ClassBackgroundMedia).Rows) / 2
+	for _, q := range []string{
+		`DELETE FROM catalog_dataset_vocabulary WHERE tag IN(SELECT tag FROM catalog_dataset_vocabulary LIMIT ?)`,
+		`DELETE FROM enrichment_jobs WHERE entity_id IN(SELECT entity_id FROM enrichment_jobs LIMIT ?)`,
+		`DELETE FROM enrichment_domains WHERE domain IN(SELECT domain FROM enrichment_domains LIMIT ?)`,
+	} {
+		for removed := 0; removed < limit; {
+			n, err := s.deleteChunk(ctx, q, chunk)
+			if err != nil {
+				return false, err
+			}
+			if n < int64(chunk) {
+				break
+			}
+			if removed += int(n); removed >= limit {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// deleteChunk runs one bounded DELETE … LIMIT ? in its own write.
+func (s *Service) deleteChunk(ctx context.Context, statement string, chunk int) (int64, error) {
+	w, err := dbwork.Begin(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassBackgroundMedia))
+	if err != nil {
+		return 0, err
+	}
+	defer w.Rollback()
+	result, err := w.Tx().ExecContext(ctx, statement, chunk)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := result.RowsAffected()
+	return n, w.Commit()
 }
 
 func (s *Service) neededDomains(ctx context.Context) ([]string, error) {
@@ -797,6 +817,7 @@ func (s *Service) drainJobs(ctx context.Context, limit int) (bool, error) {
 	if err != nil || len(works) == 0 {
 		return false, err
 	}
+	drained := len(works)
 	byDomain := map[string][]int64{}
 	for _, work := range works {
 		var kind int
@@ -819,16 +840,25 @@ func (s *Service) drainJobs(ctx context.Context, limit int) (bool, error) {
 			return false, err
 		}
 	}
-	w, err := dbwork.Begin(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassBackgroundMedia))
-	if err != nil {
-		return false, err
+	// The queue entries go a plan at a time, like every write of this pass.
+	chunk := int(dbwork.DefaultPlan(dbwork.ClassBackgroundMedia).Rows)
+	for len(works) > 0 {
+		part := works[:min(chunk, len(works))]
+		works = works[len(part):]
+		w, err := dbwork.Begin(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassBackgroundMedia))
+		if err != nil {
+			return false, err
+		}
+		raw, _ := json.Marshal(part)
+		if _, err = w.Tx().ExecContext(ctx, `DELETE FROM enrichment_jobs WHERE entity_id IN(SELECT value FROM json_each(?))`, string(raw)); err != nil {
+			w.Rollback()
+			return false, err
+		}
+		if err = w.Commit(); err != nil {
+			return false, err
+		}
 	}
-	defer w.Rollback()
-	raw, _ := json.Marshal(works)
-	if _, err = w.Tx().ExecContext(ctx, `DELETE FROM enrichment_jobs WHERE entity_id IN(SELECT value FROM json_each(?))`, string(raw)); err != nil {
-		return false, err
-	}
-	return len(works) == limit, w.Commit()
+	return drained == limit, nil
 }
 
 type matched struct {
@@ -865,36 +895,136 @@ func (s *Service) importWorks(ctx context.Context, domain string, works []int64)
 			found[work] = m
 		}
 	}
-	w, err := dbwork.Begin(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassBackgroundMedia))
-	if err != nil {
-		return err
-	}
-	defer w.Rollback()
-	tx := w.Tx()
+	batch := s.boundedWrites(ctx)
+	defer batch.rollback()
+	// A work's rows are written in parts that each fit the plan (its tags a
+	// few at a time, then its similar titles): a release gives a work up to
+	// eighty tags, more than one transaction may hold. The rows are derived
+	// and rewritten whole on every pass, so a pass cut short leaves at worst a
+	// work half updated until the next.
 	for _, work := range works {
 		m := found[work]
 		if m == nil {
-			for _, q := range []string{`DELETE FROM catalog_dataset_works WHERE entity_id=?`, `DELETE FROM catalog_dataset_tags WHERE entity_id=?`, `DELETE FROM catalog_similar WHERE entity_id=? AND source='portico-dataset'`} {
-				if _, err = tx.ExecContext(ctx, q, work); err != nil {
-					return err
-				}
+			if err = removeWork(ctx, batch, work); err != nil {
+				return err
 			}
 			continue
+		}
+		tx, err := batch.next(rowCost)
+		if err != nil {
+			return err
 		}
 		if _, err = tx.ExecContext(ctx, `INSERT INTO catalog_dataset_works(entity_id,domain,qid) VALUES(?,?,?) ON CONFLICT(entity_id) DO UPDATE SET domain=excluded.domain,qid=excluded.qid`, work, domain, m.qid); err != nil {
 			return err
 		}
-		if err = replaceTags(ctx, tx, work, m.tags); err != nil {
+		if err = replaceTags(ctx, batch, work, m.tags); err != nil {
 			return err
 		}
-		if err = replaceSimilar(ctx, tx, work, m.similar); err != nil {
+		if err = replaceSimilar(ctx, batch, work, m.similar); err != nil {
 			return err
 		}
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE rec_data_revision SET revision=revision+1 WHERE id=1`); err != nil {
+	return batch.commit()
+}
+
+// rowCost is what writing or removing one dataset row costs a transaction:
+// the row, the trigger write it causes (a catalog_dirty mark or a
+// rec_data_revision bump), and room for the index work the plan also counts.
+const rowCost = 3
+
+// removeWork removes a work's dataset rows, a plan at a time.
+func removeWork(ctx context.Context, batch *boundedWriter, work int64) error {
+	for _, q := range []string{
+		`DELETE FROM catalog_dataset_tags WHERE entity_id=?1 AND tag IN(SELECT tag FROM catalog_dataset_tags WHERE entity_id=?1 LIMIT ?2)`,
+		`DELETE FROM catalog_similar WHERE entity_id=?1 AND source='portico-dataset' AND rank IN(SELECT rank FROM catalog_similar WHERE entity_id=?1 AND source='portico-dataset' LIMIT ?2)`,
+	} {
+		for {
+			chunk := batch.room() / rowCost
+			tx, err := batch.next(chunk * rowCost)
+			if err != nil {
+				return err
+			}
+			result, err := tx.ExecContext(ctx, q, work, chunk)
+			if err != nil {
+				return err
+			}
+			if n, _ := result.RowsAffected(); n < int64(chunk) {
+				break
+			}
+		}
+	}
+	tx, err := batch.next(rowCost)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `DELETE FROM catalog_dataset_works WHERE entity_id=?`, work)
+	return err
+}
+
+// boundedWriter spreads one pass's writes over transactions that each stay
+// within the background-media write plan (dbwork.DefaultPlan), so an import or
+// a purge of a large library never holds the single writer for long. Every
+// transaction it commits marks the recommendation data changed.
+type boundedWriter struct {
+	ctx    context.Context
+	db     *sql.DB
+	budget int
+	used   int
+	w      *dbwork.Write
+}
+
+func (s *Service) boundedWrites(ctx context.Context) *boundedWriter {
+	// Three quarters of the plan: the costs below are estimates.
+	return &boundedWriter{ctx: ctx, db: s.db, budget: int(dbwork.DefaultPlan(dbwork.ClassBackgroundMedia).Rows) * 3 / 4}
+}
+
+// room is what the current transaction can still take (all of a fresh one's),
+// never less than one row's cost.
+func (b *boundedWriter) room() int {
+	if b.w == nil || b.budget-b.used < rowCost {
+		return b.budget - 1
+	}
+	return b.budget - b.used
+}
+
+// next returns the transaction for a write of about cost rows, committing the
+// current one first when the write would take it past the budget. A single
+// write larger than the budget gets a transaction of its own.
+func (b *boundedWriter) next(cost int) (*sql.Tx, error) {
+	if b.w != nil && b.used+cost > b.budget {
+		if err := b.commit(); err != nil {
+			return nil, err
+		}
+	}
+	if b.w == nil {
+		w, err := dbwork.Begin(b.ctx, b.db, dbwork.ClassFrom(b.ctx, dbwork.ClassBackgroundMedia))
+		if err != nil {
+			return nil, err
+		}
+		b.w, b.used = w, 1 // the revision mark below
+	}
+	b.used += cost
+	return b.w.Tx(), nil
+}
+
+func (b *boundedWriter) commit() error {
+	if b.w == nil {
+		return nil
+	}
+	w := b.w
+	b.w = nil
+	defer w.Rollback()
+	if _, err := w.Tx().ExecContext(b.ctx, `UPDATE rec_data_revision SET revision=revision+1 WHERE id=1`); err != nil {
 		return err
 	}
 	return w.Commit()
+}
+
+func (b *boundedWriter) rollback() {
+	if b.w != nil {
+		b.w.Rollback()
+		b.w = nil
+	}
 }
 
 // match finds the dataset work of a library work by its provider ids.
@@ -1023,9 +1153,9 @@ func bestTarget(ctx context.Context, ds *sql.DB, qid int64) ([3]string, bool, er
 	return [3]string{p[0], p[1], have[code]}, true, nil
 }
 
-func replaceTags(ctx context.Context, tx *sql.Tx, work int64, tags [][2]any) error {
+func replaceTags(ctx context.Context, batch *boundedWriter, work int64, tags [][2]any) error {
 	current := map[string]int{}
-	rows, err := tx.QueryContext(ctx, `SELECT tag,strength FROM catalog_dataset_tags WHERE entity_id=?`, work)
+	rows, err := batch.db.QueryContext(ctx, `SELECT tag,strength FROM catalog_dataset_tags WHERE entity_id=?`, work)
 	if err != nil {
 		return err
 	}
@@ -1049,6 +1179,10 @@ func replaceTags(ctx context.Context, tx *sql.Tx, work int64, tags [][2]any) err
 	// Unchanged rows aren't rewritten: every write re-derives the work's facets.
 	for tag, strength := range current {
 		if next[tag] != strength {
+			tx, err := batch.next(rowCost)
+			if err != nil {
+				return err
+			}
 			if _, err = tx.ExecContext(ctx, `DELETE FROM catalog_dataset_tags WHERE entity_id=? AND tag=?`, work, tag); err != nil {
 				return err
 			}
@@ -1056,6 +1190,10 @@ func replaceTags(ctx context.Context, tx *sql.Tx, work int64, tags [][2]any) err
 	}
 	for tag, strength := range next {
 		if current[tag] != strength {
+			tx, err := batch.next(rowCost)
+			if err != nil {
+				return err
+			}
 			if _, err = tx.ExecContext(ctx, `INSERT INTO catalog_dataset_tags(entity_id,tag,strength) VALUES(?,?,?)`, work, tag, strength); err != nil {
 				return err
 			}
@@ -1064,7 +1202,12 @@ func replaceTags(ctx context.Context, tx *sql.Tx, work int64, tags [][2]any) err
 	return nil
 }
 
-func replaceSimilar(ctx context.Context, tx *sql.Tx, work int64, similar []similarLink) error {
+// replaceSimilar rewrites a work's similar titles (at most fifteen) in one part.
+func replaceSimilar(ctx context.Context, batch *boundedWriter, work int64, similar []similarLink) error {
+	tx, err := batch.next(rowCost * (2*len(similar) + 1))
+	if err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM catalog_similar WHERE entity_id=? AND source='portico-dataset'`, work); err != nil {
 		return err
 	}
