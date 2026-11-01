@@ -9,6 +9,16 @@ apply plugin: "com.facebook.react"
 def embeddedJavaScript = project.findProperty("porticoEmbeddedJs")?.toString() == "true"
 def metroVariants = embeddedJavaScript ? [] : ["googleDebug", "firetvDebug"]
 
+// PORTICO_DEV_SIGN_IN=1 puts the development test-owner sign-in into the JavaScript bundle
+// (babel.config.js). A release variant refuses to build with it.
+if (System.getenv("PORTICO_DEV_SIGN_IN") == "1") {
+    gradle.taskGraph.whenReady { graph ->
+        if (graph.allTasks.any { it.name.toLowerCase().contains("release") }) {
+            throw new GradleException("PORTICO_DEV_SIGN_IN is for development builds only; unset it for a release variant.")
+        }
+    }
+}
+
 react {
     debuggableVariants = metroVariants
     autolinkLibrariesWithApp()
