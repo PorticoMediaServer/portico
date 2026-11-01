@@ -34,6 +34,7 @@ jobs:
         with:
           python-version: '3.13.17'
       - name: Check runner, custody, transport and native-context refusals
+        env: {PORTICO_NETWORK_BUILD_TOOL_CONTROL: '1'}
         run: |
           python scripts/test-build-engine.py
           python scripts/test-engine-final-cache.py
@@ -45,6 +46,7 @@ jobs:
           python scripts/test-ci-ffmpeg-toolchain.py
           python scripts/test-ffmpeg-build-tools.py
           python scripts/test-macos-libdovi.py
+          python scripts/test-macos-zvbi.py
           python scripts/test-libdovi-runtime-inventory.py
           python scripts/test-preserve-ffmpeg-compilers.py
       - id: plan

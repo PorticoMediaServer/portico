@@ -43,6 +43,7 @@ PYPATCH
  fi
 }
 export PKG_CONFIG_PATH="$WORKSPACE/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+source "$CWD/portico-build-macos-zvbi.sh"
 if declare -F portico_time_start >/dev/null; then portico_time_start portico-libdovi; fi
 python3 "$CWD/portico-build-macos-libdovi.py" build --recipe "$CWD" --prefix "$WORKSPACE" \
  --target "${PORTICO_FFMPEG_TARGET:?}" --tools "$CWD/../native-rust-tools"

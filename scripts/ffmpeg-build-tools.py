@@ -20,6 +20,17 @@ def pin(path):
     return {'version': match[1], 'wheelSHA256': match[2], 'requirementsSHA256': hashlib.sha256(raw).hexdigest()}
 
 
+def shared_meson(requirements, source_lock=None, media_lock=None):
+    root = Path(__file__).resolve().parents[1]
+    source_lock = source_lock or root / 'third_party/ffmpeg/sources.lock.json'
+    media_lock = media_lock or root / 'third_party/media-engine/sources.lock.json'
+    version = pin(requirements)['version']
+    source = json.loads(source_lock.read_text())['macosRecipe']['pythonBuildTools']['meson']
+    media = json.loads(media_lock.read_text())['tools']['meson']['version']
+    if version != source or version != media:
+        raise ValueError('Meson wheel, FFmpeg source lock and shared media-engine versions differ')
+
+
 def windows_rust(directory, media_lock=None):
     media_lock = media_lock or Path(__file__).resolve().parents[1] / 'third_party/media-engine/sources.lock.json'
     tools = json.loads(media_lock.read_text())['tools']
@@ -127,6 +138,7 @@ if __name__ == '__main__':
     if args.requirements is None:
         parser.error('shared Meson requirements required')
     if args.mode in ('recipe', 'macos-timing'):
+        shared_meson(args.requirements)
         if args.recipe is None:
             parser.error('recipe directory required')
         if args.mode == 'recipe':

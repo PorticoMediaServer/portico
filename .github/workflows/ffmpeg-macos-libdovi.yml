@@ -7,17 +7,25 @@ on:
         type: choice
         options: [none, macos-arm64, macos-x64]
         default: none
+      nativeComponent:
+        description: Required native library to exercise
+        type: choice
+        options: [libdovi, zvbi]
+        default: libdovi
   pull_request:
     paths:
       - '.github/workflows/ffmpeg-macos-libdovi.yml'
       - 'scripts/build-macos-libdovi.py'
       - 'scripts/test-macos-libdovi.py'
+      - 'scripts/build-macos-zvbi.sh'
+      - 'scripts/test-macos-zvbi.py'
+      - 'third_party/ffmpeg/macos-extras.lock.json'
       - 'scripts/test-libdovi-runtime-inventory.py'
       - 'third_party/ffmpeg/macos-rust-tools.lock.json'
 permissions:
   contents: read
 concurrency:
-  group: native-mac-libdovi-${{ github.event_name }}-${{ github.ref }}-${{ inputs.nativeTarget || 'none' }}
+  group: native-mac-libdovi-${{ github.event_name }}-${{ github.ref }}-${{ inputs.nativeTarget || 'none' }}-${{ inputs.nativeComponent || 'libdovi' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   controls:
@@ -29,8 +37,11 @@ jobs:
         with: {persist-credentials: false}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with: {python-version: '3.13.17'}
-      - run: |
+      - env: {PORTICO_NETWORK_BUILD_TOOL_CONTROL: '1'}
+        run: |
           python scripts/test-macos-libdovi.py
+          python scripts/test-macos-zvbi.py
+          python scripts/test-ffmpeg-build-tools.py
           python scripts/test-libdovi-runtime-inventory.py
           bash -n scripts/build-ffmpeg.sh scripts/build-macos-ffmpeg-extras.sh
   catalogue:
@@ -64,24 +75,55 @@ jobs:
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with: {python-version: '3.13.17'}
+      - name: Bootstrap build tools for the isolated ZVBI probe
+        if: inputs.nativeComponent == 'zvbi'
+        run: |
+          brew install autoconf automake libtool pkg-config
+          echo "$(brew --prefix libtool)/libexec/gnubin" >> "$GITHUB_PATH"
       - name: Build the native dependency with its real source and ABI controls
-        env: {NATIVE_TARGET: '${{ inputs.nativeTarget }}'}
+        env:
+          NATIVE_TARGET: ${{ inputs.nativeTarget }}
+          NATIVE_COMPONENT: ${{ inputs.nativeComponent }}
         run: |
           mkdir -p "$RUNNER_TEMP/native-libdovi"
           python3 - <<'PY' > "$RUNNER_TEMP/native-libdovi/build.log" 2>&1
-          import json, os, pathlib, runpy, shutil, time
+          import hashlib, json, os, pathlib, platform, runpy, shlex, shutil, subprocess, time
           root = pathlib.Path.cwd()
           work = pathlib.Path(os.environ['RUNNER_TEMP']) / 'native-libdovi'
           recipe, prefix = work / 'recipe', work / 'prefix'
           recipe.mkdir(); prefix.mkdir()
-          helper = runpy.run_path('scripts/build-macos-libdovi.py')
-          helper['configure'](recipe)
-          shutil.copyfile(root / 'third_party/ffmpeg/sources.lock.json', recipe / 'portico-ffmpeg-sources.lock.json')
+          component = os.environ['NATIVE_COMPONENT']
           started = time.monotonic()
           receipt = {'release': False, 'engineQualified': False, 'kind': 'native-dependency-build',
-                     'sourceSHA': os.environ['GITHUB_SHA'], 'target': os.environ['NATIVE_TARGET']}
+                     'sourceSHA': os.environ['GITHUB_SHA'], 'target': os.environ['NATIVE_TARGET'], 'component': component}
           try:
-              helper['build'](os.environ['NATIVE_TARGET'], recipe, prefix, work / 'tools')
+              if component == 'libdovi':
+                  helper = runpy.run_path('scripts/build-macos-libdovi.py')
+                  helper['configure'](recipe)
+                  shutil.copyfile(root / 'third_party/ffmpeg/sources.lock.json', recipe / 'portico-ffmpeg-sources.lock.json')
+                  helper['build'](os.environ['NATIVE_TARGET'], recipe, prefix, work / 'tools')
+              else:
+                  expected = 'arm64' if os.environ['NATIVE_TARGET'] == 'macos-arm64' else 'x86_64'
+                  assert platform.system() == 'Darwin' and platform.machine() == expected
+                  (recipe / 'packages').mkdir()
+                  shutil.copyfile(root / 'third_party/ffmpeg/macos-extras.lock.json', recipe / 'portico-macos-extras.lock.json')
+                  # Source only the checked common clone function, then the
+                  # isolated checked library stage, without starting FFmpeg.
+                  text = (root / 'scripts/build-macos-ffmpeg-extras.sh').read_text()
+                  functions = text[:text.index('export PKG_CONFIG_PATH=')]
+                  script = functions + '\nsource "$PORTICO_ZVBI_SCRIPT"\n'
+                  env = dict(os.environ, CWD=str(recipe), PACKAGES=str(recipe / 'packages'), WORKSPACE=str(prefix),
+                             PKG_CONFIG_PATH=str(prefix / 'lib/pkgconfig'), PORTICO_BUILD_JOBS='2',
+                             PORTICO_ZVBI_SCRIPT=str(root / 'scripts/build-macos-zvbi.sh'))
+                  subprocess.run(['bash', '-eu', '-c', script], cwd=recipe, env=env, check=True)
+                  probe = work / 'zvbi-probe.c'
+                  probe.write_text('#include <libzvbi.h>\n#include <stdio.h>\nint main(void){unsigned a,b,c; vbi_version(&a,&b,&c); printf("%u.%u.%u\\n",a,b,c); return !(a==0&&b==2&&c==45);}\n')
+                  flags = subprocess.check_output(['pkg-config', '--cflags', '--libs', '--static', 'zvbi-0.2'], env=env, text=True)
+                  binary = work / 'zvbi-probe'
+                  subprocess.run(['cc', str(probe), '-o', str(binary), *shlex.split(flags)], env=env, check=True)
+                  receipt['nativeCAbiVersion'] = subprocess.check_output([str(binary)], text=True).strip()
+                  receipt['nativeProbeSHA256'] = hashlib.sha256(binary.read_bytes()).hexdigest()
+                  receipt['buildTools'] = subprocess.check_output(['brew', 'list', '--versions', 'autoconf', 'automake', 'libtool', 'pkg-config'], text=True)
               receipt['buildPassed'] = True
           except BaseException as error:
               receipt['failure'] = str(error)
@@ -93,11 +135,12 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: native-libdovi-${{ inputs.nativeTarget }}-${{ github.sha }}-NOT-FOR-USE
+          name: native-${{ inputs.nativeComponent }}-${{ inputs.nativeTarget }}-${{ github.sha }}-NOT-FOR-USE
           path: |
             ${{ runner.temp }}/native-libdovi/build.log
             ${{ runner.temp }}/native-libdovi/native-dependency.json
             ${{ runner.temp }}/native-libdovi/prefix/libdovi-build.json
             ${{ runner.temp }}/native-libdovi/recipe/packages/portico-libdovi/native-tools.json
             ${{ runner.temp }}/native-libdovi/recipe/packages/portico-libdovi/compiler-and-licenses.json
+            ${{ runner.temp }}/native-libdovi/recipe/packages/portico-gettext-tools.json
           retention-days: 14

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -14,6 +15,16 @@ REQUIREMENTS = Path(__file__).with_name('requirements-ffmpeg-meson.txt')
 
 
 class MesonPin(unittest.TestCase):
+    def test_source_lock_shared_media_engine_and_actual_wheel_cannot_drift(self):
+        M.shared_meson(REQUIREMENTS)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); source = root / 'source.json'; media = root / 'media.json'
+            for ffmpeg_version, media_version in [('1.7.0', '1.12.1'), ('1.12.1', '1.7.0')]:
+                source.write_text(json.dumps({'macosRecipe': {'pythonBuildTools': {'meson': ffmpeg_version}}}))
+                media.write_text(json.dumps({'tools': {'meson': {'version': media_version}}}))
+                with self.subTest(source=ffmpeg_version, media=media_version), self.assertRaises(ValueError):
+                    M.shared_meson(REQUIREMENTS, source, media)
+
     def test_windows_uses_shared_rust_versions_without_changing_linux_installation(self):
         canonical = Path(__file__).resolve().parents[1] / 'third_party/media-engine/sources.lock.json'
         versions = json.loads(canonical.read_text())['tools']
@@ -83,6 +94,7 @@ class MesonPin(unittest.TestCase):
             with self.assertRaises(ValueError):
                 M.recipe(recipe, REQUIREMENTS)
 
+    @unittest.skipUnless(os.environ.get('PORTICO_NETWORK_BUILD_TOOL_CONTROL') == '1', 'Separate hosted wheel installation control')
     def test_actual_hashed_wheel_install_and_installed_receipt(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); env = root / 'python'
