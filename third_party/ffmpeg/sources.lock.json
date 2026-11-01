@@ -497,7 +497,7 @@
     },
     "extrasLock": {
       "path": "third_party/ffmpeg/macos-extras.lock.json",
-      "sha256": "abb00da4ed23d623d11ac77f5aa1061ca06f7662905b1205257327a156e7182d"
+      "sha256": "72b9ee8abb449d483b11f6f170c4716829f3f521d3f19e016f7f68bdf305f06e"
     }
   },
   "requiredConfigure": [

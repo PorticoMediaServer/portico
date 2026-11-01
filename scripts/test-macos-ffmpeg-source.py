@@ -82,6 +82,67 @@ class MacPreparedSource(unittest.TestCase):
             self.assertNotIn('failure-was-ignored', failed.stdout)
             self.assertNotIn('parent-continued', failed.stdout)
 
+    def test_download_pin_is_checked_before_extraction_for_fresh_and_cached_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            recipe = self.recipe(Path(temporary)); (recipe / 'packages').mkdir()
+            archive = recipe / 'packages/archive.tar.gz'; archive.write_bytes(b'controlled source bytes')
+            extras = recipe / 'portico-macos-extras.lock.json'
+            url = 'https://zlib.net/fossils/zlib-1.3.1.tar.gz'
+            sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+            extras.write_text(json.dumps({'archivePins': {url: sha}}))
+            authority = {'macosRecipe': {'extrasLock': {'sha256': hashlib.sha256(extras.read_bytes()).hexdigest()}}}
+            (recipe / 'portico-ffmpeg-sources.lock.json').write_text(json.dumps(authority))
+            self.assertEqual(M['verify_download'](recipe, url, archive), sha)
+            archive.write_bytes(b'changed cached or newly downloaded bytes')
+            with self.assertRaisesRegex(ValueError, 'checksum mismatch'): M['verify_download'](recipe, url, archive)
+            extras.write_text('{}')
+            with self.assertRaisesRegex(ValueError, 'sealed source contract'): M['verify_download'](recipe, url, archive)
+
+    @unittest.skipUnless(os.environ.get('PORTICO_NETWORK_BUILD_TOOL_CONTROL') == '1', 'hosted real Homebridge downloader control')
+    def test_actual_downloader_retries_same_url_with_bounded_backoff_and_refuses_corruption(self):
+        lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
+        url = 'https://raw.githubusercontent.com/homebridge/ffmpeg-for-homebridge/' + lock['macosRecipe']['commit'] + '/build-ffmpeg'
+        with urllib.request.urlopen(url, timeout=30) as response: raw = response.read(1024**2).decode()
+        configured = M['download_retries'](raw)
+        download = configured[configured.index('download() {'):configured.index('execute() {')]
+        for case, failures, expected_calls in (('recover', 2, 3), ('exhaust', 99, 5), ('corrupt', 0, 1), ('cached', 99, 0)):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                recipe = self.recipe(Path(temporary)); (recipe / 'packages').mkdir()
+                shutil.copyfile(ROOT / 'scripts/macos-ffmpeg-source.py', recipe / 'portico-macos-ffmpeg-source.py')
+                address = 'https://example.invalid/locked-fixture.tar.gz'
+                extras = recipe / 'portico-macos-extras.lock.json'
+                extras.write_text(json.dumps({'archivePins': {address: hashlib.sha256(b'inert downloaded source').hexdigest()}}))
+                authority = {'macosRecipe': {'extrasLock': {'sha256': hashlib.sha256(extras.read_bytes()).hexdigest()}}}
+                (recipe / 'portico-ffmpeg-sources.lock.json').write_text(json.dumps(authority))
+                fake = recipe / 'fixture-curl.py'
+                fake.write_text("""import json,os,pathlib,sys
+root=pathlib.Path(os.environ['PORTICO_FIXTURE_ROOT']); log=root/'calls.json'
+calls=json.loads(log.read_text()) if log.exists() else []
+calls.append(sys.argv[1:]);log.write_text(json.dumps(calls))
+output=pathlib.Path(sys.argv[sys.argv.index('-o')+1]);output.write_bytes(b'partial fixture')
+if len(calls)<=int(os.environ['PORTICO_FIXTURE_FAILURES']):sys.exit(6)
+output.write_bytes(b'corrupt fixture' if os.environ['PORTICO_FIXTURE_CASE']=='corrupt' else b'inert downloaded source')
+""")
+                if case == 'cached': (recipe / 'packages/fixture.tar.gz').write_bytes(b'corrupt cached input')
+                prefix = ('set -e; CWD="$1"; PACKAGES="$CWD/packages"\n'
+                          'make_dir(){ mkdir -p "$1"; }\n'
+                          'curl(){ python3 "$CWD/fixture-curl.py" "$@"; }\n'
+                          'sleep(){ echo "$1" >> "$CWD/sleeps"; }\n'
+                          'tar(){ echo extracted >> "$CWD/extractions"; }\n')
+                env = dict(os.environ, PORTICO_FIXTURE_ROOT=str(recipe), PORTICO_FIXTURE_FAILURES=str(failures), PORTICO_FIXTURE_CASE=case)
+                result = subprocess.run(['bash', '-c', prefix + download + '\ndownload "' + address + '" fixture.tar.gz ""\n',
+                    'fixture', str(recipe)], capture_output=True, text=True, timeout=20, env=env)
+                calls = json.loads((recipe / 'calls.json').read_text()) if (recipe / 'calls.json').exists() else []
+                self.assertEqual(len(calls), expected_calls, result.stderr)
+                self.assertTrue(all(call[-1] == address for call in calls))
+                self.assertTrue(all('--max-time' in call and call[call.index('--max-time')+1] == '15' for call in calls))
+                waits = (recipe / 'sleeps').read_text().splitlines() if (recipe / 'sleeps').exists() else []
+                self.assertEqual(waits, ['5', '10'] if case == 'recover' else ['5', '10', '15', '20'] if case == 'exhaust' else [])
+                self.assertEqual(result.returncode == 0, case == 'recover', result.stderr)
+                self.assertEqual((recipe / 'extractions').exists(), case == 'recover')
+                if case in ('corrupt', 'cached'): self.assertIn('checksum mismatch', result.stderr)
+                if case == 'exhaust': self.assertIn('after 5 attempts', result.stderr)
+
     @unittest.skipUnless(os.environ.get('PORTICO_NETWORK_BUILD_TOOL_CONTROL') == '1', 'hosted exact upstream source control')
     def test_pinned_jellyfin_tls_shaderc_and_overlay_match_our_mac_flags_and_source(self):
         lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
@@ -135,6 +196,7 @@ class MacPreparedSource(unittest.TestCase):
             for option in ('--enable-coreimage', '--enable-libshaderc', '--enable-openssl'):
                 self.assertIn('"' + option + '"', configured)
             self.assertNotIn('"--enable-securetransport"', configured)
+            actual_download = configured[configured.index('download() {'):configured.index('execute() {')]
             final = configured.split('build "ffmpeg" "${FFMPEG_VERSION}"', 1)[1].split('# shellcheck', 1)[0]
             self.assertNotIn('ffmpeg.org', final)
             self.assertNotIn('FFmpeg-release-', final)
