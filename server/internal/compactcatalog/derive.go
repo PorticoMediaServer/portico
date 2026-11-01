@@ -310,6 +310,13 @@ func (w *Worker) batchFor(domain, limit int) int {
 	if w.holdTarget <= 0 {
 		return limit
 	}
+	if domain == DomainSearch {
+		// Replacing one document includes native FTS writes and prefix-count
+		// triggers. Their spike is not predicted by preceding cheap documents.
+		// Keep this atomic unit on the existing single-unit plan; cleanup has
+		// its separate raw-leaf quantum below and never takes that exception.
+		return 1
+	}
 	// A cursor drain reports one holder key even when it consumed a larger
 	// raw page. Its key count cannot size that page: applying the doubling
 	// guard would permanently pin every such drain at two raw rows. The
