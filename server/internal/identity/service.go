@@ -118,6 +118,9 @@ type Service struct {
 	hashSlotWaiting   func()
 	setupHashKey      []byte
 	SetupClaimReadyTx func(context.Context, *sql.Tx) (bool, error)
+	// SetupRemoteTx writes setup's Remote access and Remote security choices
+	// (O-169) in setup's own transaction; cmd/server wires the console store.
+	SetupRemoteTx func(ctx context.Context, tx *sql.Tx, access, security string) error
 	// Integration must wire this before exposing descendant v2 authority.
 	OnFamilyRevokedTx func(context.Context, *sql.Tx, FamilyState) error
 	// Runs inside the accepting owner-transfer transaction, after its guards.

@@ -199115,6 +199115,8 @@ var PorticoCastContracts = (function(exports) {
 				"interactive": { "type": "boolean" },
 				"name": { "type": "string" },
 				"password": { "type": "string" },
+				"remoteAccess": { "type": "string" },
+				"remoteSecurity": { "type": "string" },
 				"requestId": { "type": "string" },
 				"setupToken": { "type": "string" },
 				"username": { "type": "string" }

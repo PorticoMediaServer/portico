@@ -26,6 +26,24 @@ type SetupOptions struct {
 	Name        string `json:"name"`
 	AuthMode    string `json:"authMode,omitempty"`
 	Interactive bool   `json:"interactive,omitempty"`
+	// O-169, asked beside each other in setup step 1. Empty takes the default:
+	// Remote access On for a Portico Account server, Off for local sign-in;
+	// Remote security Enhanced.
+	RemoteAccess   string `json:"remoteAccess,omitempty"`
+	RemoteSecurity string `json:"remoteSecurity,omitempty"`
+}
+
+// setupRemoteDefaults fills the O-169 choices setup didn't make.
+func setupRemoteDefaults(q *SetupOptions) {
+	if q.RemoteAccess == "" {
+		q.RemoteAccess = "on"
+		if q.AuthMode == "local" {
+			q.RemoteAccess = "off"
+		}
+	}
+	if q.RemoteSecurity == "" {
+		q.RemoteSecurity = "enhanced"
+	}
 }
 
 func setupOperationID() string {
@@ -50,7 +68,9 @@ func (s *Service) SetupWithOptions(ctx context.Context, q SetupOptions, private 
 	}
 	q.Username = strings.ToLower(strings.TrimSpace(q.Username))
 	q.Name = strings.TrimSpace(q.Name)
-	if !setupUUID.MatchString(q.RequestID) || (q.AuthMode != "local" && q.AuthMode != "hosted") || !setupLabel(q.Name, 100) {
+	setupRemoteDefaults(&q)
+	if !setupUUID.MatchString(q.RequestID) || (q.AuthMode != "local" && q.AuthMode != "hosted") || !setupLabel(q.Name, 100) ||
+		(q.RemoteAccess != "on" && q.RemoteAccess != "private" && q.RemoteAccess != "off") || (q.RemoteSecurity != "enhanced" && q.RemoteSecurity != "standard") {
 		return SetupResult{}, ErrDirectInput
 	}
 	if q.AuthMode == "hosted" && (q.Username != "" || q.Password != "") {
@@ -111,6 +131,12 @@ func (s *Service) SetupWithOptions(ctx context.Context, q SetupOptions, private 
 	}
 	if _, e = tx.ExecContext(ctx, `INSERT INTO configuration(key,value) VALUES('name',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, q.Name); e != nil {
 		return SetupResult{}, e
+	}
+	// Remote access and Remote security (O-169) commit with setup itself.
+	if s.SetupRemoteTx != nil {
+		if e = s.SetupRemoteTx(ctx, tx, q.RemoteAccess, q.RemoteSecurity); e != nil {
+			return SetupResult{}, e
+		}
 	}
 	kind := SignInPortico
 	if q.AuthMode == "local" {

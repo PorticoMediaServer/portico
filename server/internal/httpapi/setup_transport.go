@@ -93,6 +93,12 @@ func (d Dependencies) serveSetup(w http.ResponseWriter, r *http.Request) {
 		writeSetupError(w, e)
 		return
 	}
+	// Setup wrote Remote access and Remote security (O-169): the gate and the
+	// remote manager take them now, as after any settings save.
+	d.reloadConnectionPolicy(r.Context())
+	if d.SettingsApplied != nil {
+		d.SettingsApplied(r.Context())
+	}
 	writeAuth(w, r, 201, result)
 }
 

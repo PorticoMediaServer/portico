@@ -525,6 +525,10 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 		return e
 	}
 	wireNativeServerIdentity(ident)
+	// O-169: setup's Remote access and Remote security commit in setup's transaction.
+	ident.SetupRemoteTx = func(ctx context.Context, tx *sql.Tx, access, security string) error {
+		return operations.SetupRemoteChoicesTx(ctx, tx, access, security, time.Now())
+	}
 	// A restore that has just been applied signs everyone out, before anything
 	// can be served from the restored sessions. The copy of the previous
 	// database the restore set aside is scrubbed of its sessions too.

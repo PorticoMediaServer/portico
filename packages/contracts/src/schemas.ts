@@ -276297,6 +276297,12 @@ export const schemas = {
       "password": {
         "type": "string"
       },
+      "remoteAccess": {
+        "type": "string"
+      },
+      "remoteSecurity": {
+        "type": "string"
+      },
       "requestId": {
         "type": "string"
       },
