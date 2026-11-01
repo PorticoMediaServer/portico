@@ -1,11 +1,20 @@
 name: Android JVM tests
 on:
   workflow_dispatch:
+    inputs:
+      handheld_e2e:
+        description: Run hosted Android handheld E2E
+        type: boolean
+        default: false
   workflow_call:
 permissions:
   contents: read
 jobs:
+  handheld-e2e:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.handheld_e2e }}
+    uses: ./.github/workflows/e2e-android-pilot.yml
   unit-and-transport:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.handheld_e2e }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
