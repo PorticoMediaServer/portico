@@ -241,3 +241,9 @@ outputs. Mac's second terminal compile remains a separate acceptance item. The
 cache-only hosted controls compile tiny sentinel libraries, import caches on
 independent builders/runners, test input invalidation and execute two fresh
 terminal links. They measure cache transport rather than a full-engine speedup.
+
+Cache readers and transport planning require an explicit development build context;
+missing, qualified, release and publisher contexts refuse before cache I/O or
+registry arguments. Only the development build/control jobs set this capability.
+There is no publisher in this workflow; a later qualified/release producer cannot
+consume these caches. Cache-enabled development output remains NOT-FOR-USE.

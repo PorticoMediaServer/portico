@@ -44,6 +44,8 @@ class RegistryCache:
         self.write = env.get('PORTICO_ENGINE_CACHE_WRITE') == '1'
         if self.write and not self.enabled:
             raise ValueError('cache writes require explicit registry cache activation')
+        if self.enabled and env.get('PORTICO_ENGINE_BUILD_CONTEXT') != 'development':
+            raise ValueError('dependency caches are development-only; qualified/release builds refuse them')
         if self.enabled and (env.get('GITHUB_ACTIONS') != 'true' or
                 env.get('RUNNER_ENVIRONMENT') != 'github-hosted' or
                 env.get('GITHUB_REPOSITORY') != 'PorticoMediaServer/portico' or

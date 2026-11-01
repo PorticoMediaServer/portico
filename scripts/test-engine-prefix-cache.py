@@ -17,6 +17,8 @@ M = importlib.util.module_from_spec(spec); spec.loader.exec_module(M)
 
 class PrefixCache(unittest.TestCase):
     def setUp(self):
+        context = patch.dict(os.environ, PORTICO_ENGINE_BUILD_CONTEXT='development')
+        context.start(); self.addCleanup(context.stop)
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.roots = {name: self.root / name for name in ('prefix', 'sources')}
@@ -24,6 +26,17 @@ class PrefixCache(unittest.TestCase):
         self.cache = M.PrefixCache(self.root / 'store', self.root / 'state')
         self.inputs = dict(stage='library', compiler='sha256:' + 'a' * 64,
                            source='b' * 64, recipe='c' * 64, flags=['--static'])
+
+    def test_qualified_release_and_implicit_context_refuse_before_any_cache_io(self):
+        for value in ('qualified', 'release', '', 'publisher'):
+            directory = self.root / ('forbidden-' + value)
+            with self.subTest(context=value), patch.dict(os.environ, PORTICO_ENGINE_BUILD_CONTEXT=value):
+                with self.assertRaisesRegex(ValueError, 'development-only'):
+                    M.PrefixCache(directory, self.root / 'forbidden-state')
+                self.assertFalse(directory.exists())
+                # An existing development cache cannot be opened by a publisher.
+                with self.assertRaisesRegex(ValueError, 'development-only'):
+                    M.PrefixCache(self.root / 'store', self.root / 'state')
 
     def reset(self):
         for p in self.roots.values(): shutil.rmtree(p); p.mkdir()

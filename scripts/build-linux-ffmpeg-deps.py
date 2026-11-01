@@ -125,7 +125,7 @@ python3 /build-linux-ffmpeg-deps.py --inside
         cache_root = Path(os.environ['PORTICO_ENGINE_STAGE_CACHE']).resolve(strict=True)
         cache_arguments = ['-v', str(cache_root) + ':/portico-stage-cache',
             '-v', str(Path(__file__).with_name('engine-prefix-cache.py')) + ':/engine-prefix-cache.py:ro',
-            '-e', 'PORTICO_ENGINE_STAGE_CACHE=/portico-stage-cache']
+            '-e', 'PORTICO_ENGINE_BUILD_CONTEXT', '-e', 'PORTICO_ENGINE_STAGE_CACHE=/portico-stage-cache']
     run('docker', 'run', '--rm', '--name', 'portico-hardware-r29-linux-deps',
         '--network', source_network,
         '--cpus', str(jobs), '--memory', '4g', '--memory-swap', '4g',

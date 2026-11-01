@@ -43,6 +43,8 @@ def compiler(target):
 
 
 def plan(target, directory, output):
+    if os.environ.get('PORTICO_ENGINE_BUILD_CONTEXT') != 'development':
+        raise ValueError('dependency cache transport requires an explicit development producer')
     if target not in TARGETS:
         raise ValueError('unsupported dependency cache target')
     if (os.environ.get('GITHUB_ACTIONS') != 'true' or
