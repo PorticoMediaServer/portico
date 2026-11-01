@@ -522,16 +522,24 @@ func (s *Service) refresh(ctx context.Context, domain string, m Manifest) error 
 	}
 	if chain := deltaChain(d.Deltas, installed, d.DatasetVersion); installed != "" && chain != nil {
 		for _, delta := range chain {
-			if err = s.applyDelta(ctx, domain, delta); err != nil {
+			stop := importStage("pass: apply delta")
+			err = s.applyDelta(ctx, domain, delta)
+			stop()
+			if err != nil {
 				return err
 			}
 		}
 	} else {
+		stop := importStage("pass: download")
 		tmp, err := s.download(ctx, d.Full)
+		stop()
 		if err != nil {
 			return err
 		}
-		if err = checkFile(tmp, "full"); err != nil {
+		stop = importStage("pass: check file")
+		err = checkFile(tmp, "full")
+		stop()
+		if err != nil {
 			os.Remove(tmp)
 			return err
 		}
@@ -539,7 +547,10 @@ func (s *Service) refresh(ctx context.Context, domain string, m Manifest) error 
 			return err
 		}
 	}
-	if err = s.ImportAll(ctx, domain); err != nil {
+	stop := importStage("pass: import works and vocabulary")
+	err = s.ImportAll(ctx, domain)
+	stop()
+	if err != nil {
 		return err
 	}
 	return s.noteChecked(ctx, domain, d.DatasetVersion, nil)
@@ -757,9 +768,11 @@ func (s *Service) ImportAll(ctx context.Context, domain string) error {
 	for {
 		// Every work with provider ids, and every work matched before (one
 		// that lost its ids loses its dataset rows).
+		stop := importStage("enumerate library")
 		works, err := scanIDs(s.db.QueryContext(ctx, `SELECT entity_id FROM (
 		 SELECT x.entity_id FROM catalog_external_ids x CROSS JOIN catalog_entities e ON e.id=x.entity_id WHERE x.entity_id>?1 AND e.kind IN(SELECT value FROM json_each(?2))
 		 UNION SELECT entity_id FROM catalog_dataset_works WHERE entity_id>?1 AND domain=?3) ORDER BY entity_id LIMIT 200`, after, string(kinds), domain))
+		stop()
 		if err != nil {
 			return err
 		}
@@ -771,6 +784,7 @@ func (s *Service) ImportAll(ctx context.Context, domain string) error {
 		}
 		after = works[len(works)-1]
 	}
+	defer importStage("vocabulary")()
 	return s.importVocabulary(ctx, domain)
 }
 
@@ -883,7 +897,9 @@ var similarRelations = map[int]string{1: "tone", 2: "theme", 3: "premise", 4: "s
 // importWorks matches works by their provider ids and writes what the
 // dataset says about them; a work that no longer matches loses its rows.
 func (s *Service) importWorks(ctx context.Context, domain string, works []int64) error {
+	stop := importStage("open dataset")
 	ds, err := openDataset(s.path(domain), true)
+	stop()
 	if err != nil {
 		return err
 	}
@@ -900,6 +916,7 @@ func (s *Service) importWorks(ctx context.Context, domain string, works []int64)
 	}
 	batch := s.boundedWrites(ctx)
 	defer batch.rollback()
+	defer importStage("write (with begin and commit)")()
 	// A work's rows are written in parts that each fit the plan (its tags a
 	// few at a time, then its similar titles): a release gives a work up to
 	// eighty tags, more than one transaction may hold. The rows are derived
@@ -928,6 +945,19 @@ func (s *Service) importWorks(ctx context.Context, domain string, works []int64)
 		}
 	}
 	return batch.commit()
+}
+
+// importTrace, set only by the scale test, receives how long each stage of an
+// import took. It is nil in the server, where a stage costs one comparison.
+var importTrace func(stage string, elapsed time.Duration)
+
+// importStage starts timing a stage; the returned function ends it.
+func importStage(stage string) func() {
+	if importTrace == nil {
+		return func() {}
+	}
+	start := time.Now()
+	return func() { importTrace(stage, time.Since(start)) }
 }
 
 // rowCost is what writing or removing one dataset row costs a transaction:
@@ -1000,7 +1030,9 @@ func (b *boundedWriter) next(cost int) (*sql.Tx, error) {
 		}
 	}
 	if b.w == nil {
+		stop := importStage("begin")
 		w, err := dbwork.Begin(b.ctx, b.db, dbwork.ClassFrom(b.ctx, dbwork.ClassBackgroundMedia))
+		stop()
 		if err != nil {
 			return nil, err
 		}
@@ -1017,6 +1049,7 @@ func (b *boundedWriter) commit() error {
 	w := b.w
 	b.w = nil
 	defer w.Rollback()
+	defer importStage("commit")()
 	if _, err := w.Tx().ExecContext(b.ctx, `UPDATE rec_data_revision SET revision=revision+1 WHERE id=1`); err != nil {
 		return err
 	}
@@ -1032,6 +1065,7 @@ func (b *boundedWriter) rollback() {
 
 // match finds the dataset work of a library work by its provider ids.
 func (s *Service) match(ctx context.Context, ds *sql.DB, work int64) (*matched, error) {
+	stop := importStage("lookup: library ids")
 	rows, err := s.db.QueryContext(ctx, `SELECT provider,provider_kind,provider_id FROM catalog_external_ids WHERE entity_id=?`, work)
 	if err != nil {
 		return nil, err
@@ -1046,9 +1080,11 @@ func (s *Service) match(ctx context.Context, ds *sql.DB, work int64) (*matched, 
 		ids = append(ids, id)
 	}
 	rows.Close()
+	stop()
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
+	stop = importStage("lookup: dataset work")
 	var qid int64
 	for _, code := range similarTargetOrder {
 		p := datasetProviders[code]
@@ -1072,10 +1108,12 @@ func (s *Service) match(ctx context.Context, ds *sql.DB, work int64) (*matched, 
 			break
 		}
 	}
+	stop()
 	if qid == 0 {
 		return nil, nil
 	}
 	m := &matched{qid: qid}
+	stop = importStage("lookup: tags")
 	tags, err := ds.QueryContext(ctx, `SELECT v.tag,t.strength FROM work_tags t CROSS JOIN vocabulary v ON v.id=t.tag WHERE t.qid=? AND v.retired_in IS NULL ORDER BY v.tag`, qid)
 	if err != nil {
 		return nil, err
@@ -1090,9 +1128,11 @@ func (s *Service) match(ctx context.Context, ds *sql.DB, work int64) (*matched, 
 		m.tags = append(m.tags, [2]any{tag, strength})
 	}
 	tags.Close()
+	stop()
 	if err = tags.Err(); err != nil {
 		return nil, err
 	}
+	stop = importStage("lookup: similar")
 	rows, err = ds.QueryContext(ctx, `SELECT similar,relation FROM work_similar WHERE qid=? ORDER BY rank`, qid)
 	if err != nil {
 		return nil, err
@@ -1111,9 +1151,11 @@ func (s *Service) match(ctx context.Context, ds *sql.DB, work int64) (*matched, 
 		links = append(links, l)
 	}
 	rows.Close()
+	stop()
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
+	defer importStage("lookup: similar targets")()
 	for _, l := range links {
 		if id, ok, err := bestTarget(ctx, ds, l.target); err != nil {
 			return nil, err
