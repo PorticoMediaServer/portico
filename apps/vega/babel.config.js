@@ -1,4 +1,4 @@
 module.exports = {
   presets: ['module:@react-native/babel-preset'],
-  plugins: ['@amazon-devices/react-native-worklets/plugin'],
+  plugins: ['@amazon-devices/react-native-worklets/plugin', require('../native/babel-dev-sign-in')],
 };

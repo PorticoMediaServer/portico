@@ -16,13 +16,13 @@ const gated = ['src-next/platform/server-sign-in.ts', 'src-next/screens/accounts
 
 function config(env: Record<string, string | undefined>) {
   const saved = {flag: process.env.PORTICO_DEV_SIGN_IN, configuration: process.env.CONFIGURATION};
-  const path = require.resolve('../babel.config.js');
-  delete require.cache[path];
+  const path = require.resolve('../babel.config.js'), plugin = require.resolve('../babel-dev-sign-in.js');
+  delete require.cache[path]; delete require.cache[plugin];
   try {
     for (const [key, value] of Object.entries(env)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
     return require(path) as {presets: unknown[]; plugins: unknown[]};
   } finally {
-    delete require.cache[path];
+    delete require.cache[path]; delete require.cache[plugin];
     for (const [key, value] of [['PORTICO_DEV_SIGN_IN', saved.flag], ['CONFIGURATION', saved.configuration]] as const) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
@@ -73,6 +73,11 @@ test('release builds refuse the flag', async () => {
   assert.doesNotThrow(() => config({PORTICO_DEV_SIGN_IN: undefined, CONFIGURATION: 'Release'}));
   const gradle = await readFile(native + 'android/app/build.gradle', 'utf8');
   assert.match(gradle, /System\.getenv\("PORTICO_DEV_SIGN_IN"\) == "1"[\s\S]{0,200}allTasks\.any \{ it\.name\.toLowerCase\(\)\.contains\("release"\) \}[\s\S]{0,40}throw new GradleException/);
+  // Vega bundles the same screens with its own babel and Metro configs: both take the plugin.
+  const vega = fileURLToPath(new URL('../../vega/', import.meta.url));
+  assert.match(await readFile(vega + 'babel.config.js', 'utf8'), /require\('\.\.\/native\/babel-dev-sign-in'\)/);
+  assert.match(await readFile(vega + 'metro.config.js', 'utf8'), /cacheVersion: require\('\.\.\/native\/babel-dev-sign-in'\)\.cacheVersion/);
+  assert.match(await readFile(native + 'metro.config.js', 'utf8'), /cacheVersion: require\('\.\/babel-dev-sign-in'\)\.cacheVersion/);
   const workflows = fileURLToPath(new URL('../../../.github/workflows/', import.meta.url));
   for (const name of await readdir(workflows)) {
     assert.doesNotMatch(await readFile(workflows + name, 'utf8'), /PORTICO_DEV_SIGN_IN/, `${name} builds with the development sign-in`);

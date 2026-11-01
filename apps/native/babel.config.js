@@ -13,22 +13,14 @@ function buildId() {
   }
 }
 const stamp = buildId();
-// The development test-owner sign-in exists only in a bundle built with PORTICO_DEV_SIGN_IN=1.
-// Everywhere else __PORTICO_DEV_SIGN_IN__ is the literal false, and Metro's production constant
-// folding removes the code and the module it requires before the bundle is written. An Xcode
-// Release build refuses the flag here; android/app/build.gradle refuses it for release variants.
-const devSignIn = process.env.PORTICO_DEV_SIGN_IN === '1';
-if (devSignIn && /release/i.test(process.env.CONFIGURATION || '')) throw new Error('PORTICO_DEV_SIGN_IN is for development builds only; unset it for a Release build.');
 const portico = ({types}) => ({
   name: 'portico-build-id',
   visitor: {Identifier(path) {
-    if (!path.isReferencedIdentifier()) return;
-    if (path.node.name === '__PORTICO_BUILD_ID__') path.replaceWith(types.stringLiteral(stamp));
-    else if (path.node.name === '__PORTICO_DEV_SIGN_IN__') path.replaceWith(types.booleanLiteral(devSignIn));
+    if (path.node.name === '__PORTICO_BUILD_ID__' && path.isReferencedIdentifier()) path.replaceWith(types.stringLiteral(stamp));
   }},
 });
 
 module.exports = {
   presets: ['module:@react-native/babel-preset'],
-  plugins: ['react-native-worklets/plugin', portico],
+  plugins: ['react-native-worklets/plugin', portico, require('./babel-dev-sign-in')],
 };

@@ -74,6 +74,7 @@ function alias(moduleName) {
 }
 
 module.exports = mergeConfig(getDefaultConfig(app), {
+  cacheVersion: require('../native/babel-dev-sign-in').cacheVersion,
   watchFolders: [repoRoot],
   resolver: {
     nodeModulesPaths: [modules, path.join(repoRoot, 'node_modules')],

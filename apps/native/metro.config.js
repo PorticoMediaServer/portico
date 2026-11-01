@@ -5,9 +5,7 @@ const svgLite = path.resolve(__dirname, 'metro/svg-lite.js');
 const svgCssStub = path.resolve(__dirname, 'metro/svg-css-stub.js');
 const defaults = getDefaultConfig(__dirname);
 module.exports = mergeConfig(defaults, {
-  // babel.config.js substitutes PORTICO_DEV_SIGN_IN at transform time, so a bundle with the
-  // development sign-in never shares cached transforms with one without it.
-  cacheVersion: process.env.PORTICO_DEV_SIGN_IN === '1' ? 'portico-dev-sign-in' : 'portico',
+  cacheVersion: require('./babel-dev-sign-in').cacheVersion,
   watchFolders: [repoRoot],
   transformer: {unstable_allowRequireContext: true},
   resolver: {
