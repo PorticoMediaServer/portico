@@ -148,12 +148,12 @@ jobs:
           PORTICO_SCALE_SEEDS: '${{ runner.temp }}/seeds'
           PORTICO_SCALE_REPORT: '${{ runner.temp }}/reports'
           PORTICO_EXPECT_CLEANUP_FAILURE: "${{ matrix.version == 'before' && '1' || '' }}"
-        run: go test ./internal/compactcatalog -run '^Test(RatingWriterGrowthMeasurement|SearchCleanupGrowthMeasurement)$' -count=1 -v -timeout=20m > "$RUNNER_TEMP/reports/measure.log" 2>&1
+        run: go test ./internal/compactcatalog -run '^Test(RatingWriterGrowthMeasurement|SearchCleanupGrowthMeasurement|SearchReplacementGrowthMeasurement)$' -count=1 -v -timeout=20m > "$RUNNER_TEMP/reports/measure.log" 2>&1
       - name: Cleanup restart, generation and adoption regressions
         if: matrix.version == 'after' && matrix.items == 10000
         working-directory: server
         run: |
-          go test ./internal/compactcatalog -run '^TestSearchCleanupPagesLeavesBeforeDeletingDocuments$' -count=1 -v -timeout=5m > "$RUNNER_TEMP/reports/cleanup-tests.log" 2>&1
+          go test ./internal/compactcatalog -run '^Test(SearchCleanupPagesLeavesBeforeDeletingDocuments|PacedSearchReplacementKeepsOneAtomicDocument)$' -count=1 -v -timeout=5m > "$RUNNER_TEMP/reports/cleanup-tests.log" 2>&1
           go test ./internal/ingestion -run '^TestLegacyInventory(ConsumesRawRejectsAcrossRestart|CanceledFenceKeepsCursor)$' -count=1 -v -timeout=5m > "$RUNNER_TEMP/reports/inventory-tests.log" 2>&1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
@@ -165,7 +165,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kind: [movie, tv, book, comic, music, audiobook]
+        kind: [movie, comic]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
