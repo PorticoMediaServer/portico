@@ -522,6 +522,7 @@ func TestReadPathGoldenEquivalence(t *testing.T) {
 		t.Errorf("the matrix has %d cases and the golden file has %d", len(cases), len(byName))
 	}
 	differences := 0
+	rowRevisions := map[string]string{}
 	for _, actual := range cases {
 		want, known := byName[actual.Name]
 		if !known {
@@ -708,7 +709,22 @@ func TestReadPathGoldenEquivalence(t *testing.T) {
 			t.Errorf("%s: status %d, golden %d\n  body: %s", actual.Name, actual.Status, want.Status, truncate(actual.Response))
 			continue
 		}
-		if want.Response != actual.Response {
+		// Content revisions ({catalog, viewer}) count the catalogue's and the viewer's writes, which
+		// the fixture's derivation does not make byte-stable from run to run (lane A's gate saw
+		// row:continue at 296 against 295). Their shape is checked, a row's second page must carry
+		// its first page's revision, and then the value is compared as a placeholder.
+		actualStable, revisions := goldenStableRevisions(t, actual.Name, actual.Response)
+		wantStable, _ := goldenStableRevisions(t, "", want.Response)
+		if strings.HasPrefix(actual.Name, "row:") && len(revisions) > 0 {
+			pageKey := strings.Replace(actual.Name, ":page2/", "/", 1)
+			if first, ok := rowRevisions[pageKey]; ok && pageKey != actual.Name && first != revisions[0] {
+				t.Errorf("%s: page 2 revision %s differs from page 1's %s", actual.Name, revisions[0], first)
+			}
+			if pageKey == actual.Name {
+				rowRevisions[pageKey] = revisions[0]
+			}
+		}
+		if wantStable != actualStable {
 			differences++
 			// Name every changed case with its changed paths, not only the
 			// first few: the bodies stay a bounded preview, the diff does not.
@@ -1243,4 +1259,49 @@ func TestGoldenSearchEpisodeFactsBoundaries(t *testing.T) {
 	if err := applySearchEpisodeFacts(map[string]any{"id": "movie-0000000", "kind": "movie"}, goldenEpisodeFacts{season: number(1)}); err != nil {
 		t.Fatal("a title result must be left alone:", err)
 	}
+}
+
+// goldenStableRevisions replaces every content revision object ({catalog, viewer}, both numbers)
+// with a placeholder after checking its shape, and returns the values it replaced in order.
+// name is empty for a recorded golden, whose shape was checked when it was recorded.
+func goldenStableRevisions(t *testing.T, name, body string) (string, []string) {
+	t.Helper()
+	var decoded any
+	if json.Unmarshal([]byte(body), &decoded) != nil {
+		return body, nil
+	}
+	var found []string
+	var walk func(any) any
+	walk = func(value any) any {
+		switch typed := value.(type) {
+		case map[string]any:
+			for key, inner := range typed {
+				if revision, ok := inner.(map[string]any); ok && key == "revision" && len(revision) == 2 {
+					catalog, catalogOK := revision["catalog"].(float64)
+					viewer, viewerOK := revision["viewer"].(float64)
+					if catalogOK && viewerOK {
+						if name != "" && (catalog < 0 || viewer < 0 || catalog != float64(int64(catalog)) || viewer != float64(int64(viewer))) {
+							t.Errorf("%s: revision %v is not a pair of whole counts", name, revision)
+						}
+						found = append(found, fmt.Sprintf("%v:%v", catalog, viewer))
+						typed[key] = "<content-revision>"
+						continue
+					}
+				}
+				typed[key] = walk(inner)
+			}
+			return typed
+		case []any:
+			for index, inner := range typed {
+				typed[index] = walk(inner)
+			}
+			return typed
+		}
+		return value
+	}
+	encoded, err := json.Marshal(walk(decoded))
+	if err != nil {
+		return body, nil
+	}
+	return string(encoded), found
 }
