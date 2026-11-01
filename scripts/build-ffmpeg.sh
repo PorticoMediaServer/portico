@@ -202,6 +202,9 @@ cp "$ROOT/scripts/verify-ffmpeg-bluray.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-recipes.py" "$ROOT/scripts/verify-hdr10plus-encode.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-abi.py" "$WORK/provenance/scripts/"
 if [[ "$TARGET" == windows-* ]]; then cp "$ROOT/scripts/configure-windows-rav1e.py" "$WORK/provenance/scripts/"; fi
+if [[ "$TARGET" == linux-arm64 ]]; then
+  cp "$ROOT/scripts/configure-windows-libdovi.py" "$ROOT/scripts/build-linux-libdovi.py" "$WORK/provenance/scripts/"
+fi
 cp "$ROOT/scripts/check-ffmpeg-build-inputs.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/ffmpeg-build-tools.py" "$ROOT/scripts/requirements-ffmpeg-meson.txt" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/run-ffmpeg-runner-build.py" "$ROOT/scripts/repair-ffmpeg-runner-ownership.py" "$WORK/provenance/scripts/"
