@@ -89,6 +89,9 @@ PYGMPPATCH
   python3 "$ROOT/scripts/ffmpeg-build-tools.py" receipt --python "$WORK/python/bin/python" --requirements "$ROOT/scripts/requirements-ffmpeg-meson.txt" --output "$WORK/meson-tool.json"
   export PATH="$WORK/python/bin:$PATH"
   python3 "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/recipe" "$PREPARED_SOURCE" "$TARGET"
+  if [[ -n "${PORTICO_ENGINE_STAGE_CACHE:-}" ]]; then
+    PORTICO_FFMPEG_TARGET="$TARGET" python3 "$ROOT/scripts/macos-dependency-cache.py" configure --recipe "$WORK/recipe"
+  fi
   # Seed the exact verified source consumed by the pinned recipe.
   mkdir -p "$WORK/recipe/packages";python3 "$ROOT/scripts/archive-ffmpeg-source.py" "$PREPARED_SOURCE" "$WORK/recipe/packages/FFmpeg-release-$VERSION.tar.gz" "$SOURCE_DATE_EPOCH"
   (cd "$WORK/recipe" && FFMPEG_VERSION="$VERSION" SKIPINSTALL=yes SKIPRAV1E=yes ./build-ffmpeg --build --enable-gpl)
@@ -149,7 +152,14 @@ PYLICENSE
     fi
     # Build libdovi from its MAIN-qualified source/Cargo locks after the base
     # dependency job exits; never overlap two compiler pools.
+    portico_dovi_cache=DISABLED
+    if [[ -n "${PORTICO_ENGINE_STAGE_CACHE:-}" ]]; then
+      portico_dovi_cache=$(python3 "$ROOT/scripts/engine-dependency-cache.py" linux-dovi-begin --directory "$WORK")
+    fi
     python3 "$ROOT/scripts/build-linux-libdovi.py" --work "$WORK"
+    if [[ "$portico_dovi_cache" == MISS ]]; then
+      python3 "$ROOT/scripts/engine-dependency-cache.py" linux-dovi-finish --directory "$WORK" >/dev/null
+    fi
     # The source-built binaries use the exact immutable dependency prefix.
     compile_options=()
     [[ "$PHASE" != working ]] || compile_options+=(--first-build-only)
@@ -163,7 +173,18 @@ PYLICENSE
   else
     [[ "${PORTICO_FFMPEG_DEPS_ONLY:-0}" != 1 ]] || { echo 'Dependency-only phase currently supports linux-x64' >&2; exit 1; }
   cp "$SOURCE" "$WORK/recipe/portico-ffmpeg-source.tar.xz"
+  if [[ "${PORTICO_ENGINE_REGISTRY_CACHE:-0}" == 1 ]]; then
+    # Restore the checked hook on retries; registry hints never include final
+    # FFmpeg compilation, which still runs through build.sh and repeat proof.
+    git -C "$WORK/recipe" restore --source="$(readlock btbn commit)" -- makeimage.sh
+    export PORTICO_REGISTRY_CACHE_HELPER="$ROOT/scripts/engine-registry-cache.py"
+    export PORTICO_REGISTRY_CACHE_TARGET="$TARGET"
+    python3 "$PORTICO_REGISTRY_CACHE_HELPER" configure-makeimage --recipe "$WORK/recipe" --target "$TARGET"
+  fi
   (cd "$WORK/recipe" && export GIT_BRANCH_OVERRIDE="n$VERSION" && ./makeimage.sh "$native" gpl 8.1)
+  for cache_receipt in "$WORK"/portico-registry-cache-*.json; do
+    [[ ! -f "$cache_receipt" ]] || { mkdir -p "$WORK/provenance"; cp "$cache_receipt" "$WORK/provenance/"; }
+  done
   if [[ "$TARGET" == linux-arm64 && "${PORTICO_ENGINE_REPEAT_COMPILES:-0}" == 1 ]]; then
     INPUT="$(GIT_BRANCH_OVERRIDE="n$VERSION" python3 "$ROOT/scripts/repeat-btbn-ffmpeg.py" \
       --recipe "$WORK/recipe" --source "$SOURCE" --work "$WORK/repeat")"
@@ -203,7 +224,8 @@ if [[ -f "$WORK/meson-tool.json" ]]; then cp "$WORK/meson-tool.json" "$WORK/prov
 cp -R "$ROOT/third_party/ffmpeg/patches" "$WORK/provenance/contract/"
 cp "$ROOT/scripts/build-ffmpeg.sh" "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$ROOT/scripts/patch-btbn-winarm64-system-error.sh" "$ROOT/scripts/prepare-ffmpeg-source.py" "$ROOT/scripts/archive-ffmpeg-source.py" "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/build-portico-disc.py" "$ROOT/scripts/build-macos-ffmpeg-extras.sh" "$WORK/provenance/scripts/"
-if [[ "$TARGET" == linux-arm64 ]]; then cp "$ROOT/scripts/repeat-btbn-ffmpeg.py" "$ROOT/scripts/engine-final-cache.py" "$ROOT/scripts/fetch-engine.py" "$WORK/provenance/scripts/"; fi
+cp "$ROOT/scripts/engine-prefix-cache.py" "$ROOT/scripts/macos-dependency-cache.py" "$WORK/provenance/scripts/"
+if [[ "$TARGET" == linux-arm64 ]]; then cp "$ROOT/scripts/engine-registry-cache.py" "$ROOT/scripts/repeat-btbn-ffmpeg.py" "$ROOT/scripts/engine-final-cache.py" "$ROOT/scripts/fetch-engine.py" "$WORK/provenance/scripts/"; fi
 cp "$ROOT/scripts/verify-ffmpeg-bundle.sh" "$ROOT/scripts/verify-ffmpeg-manifest.py" "$ROOT/scripts/verify-ffmpeg-features.py" "$ROOT/scripts/verify-disc-bundle.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-bluray.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-recipes.py" "$ROOT/scripts/verify-hdr10plus-encode.py" "$WORK/provenance/scripts/"
@@ -245,6 +267,13 @@ if [[ "$TARGET" == linux-x64 ]]; then
   cp "$ROOT/third_party/ffmpeg/portico-bluray-playlist-minimum.patch" "$ROOT/third_party/ffmpeg/portico-x265-hdr10plus.patch" "$WORK/provenance/contract/"
   cp "$ROOT/scripts/qualify-linux-ffmpeg-hdr.py" "$ROOT/scripts/qualify-hdr-video.py" "$ROOT/scripts/qualify-dovi-join.py" "$WORK/provenance/scripts/"
 fi
+# Cache reuse carries the original stage source/output receipts into custody.
+for cache_receipts in "$WORK/dependency-cache-receipts" "$WORK/linux-deps/dependency-cache-receipts"; do
+  if [[ -d "$cache_receipts" ]]; then
+    mkdir -p "$WORK/provenance/dependency-cache/$(basename "$(dirname "$cache_receipts")")"
+    cp -a "$cache_receipts/." "$WORK/provenance/dependency-cache/$(basename "$(dirname "$cache_receipts")")/"
+  fi
+done
 # Include dependency sources and exact recipe, excluding only output binaries and git metadata.
 tar -C "$WORK" --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner --exclude=recipe/.git --exclude=recipe/workspace --exclude=recipe/artifacts --exclude=recipe/.cache/images -I 'xz -T1 -0' -cf "$WORK/corresponding-source.tar.xz" recipe provenance
 normalize_options=()

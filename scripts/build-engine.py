@@ -30,6 +30,10 @@ spec = importlib.util.spec_from_file_location('final_cache', Path(__file__).with
 final_cache = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(final_cache)
 
+spec = importlib.util.spec_from_file_location('registry_cache', Path(__file__).with_name('engine-registry-cache.py'))
+registry_cache = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(registry_cache)
+
 ROOT = Path(__file__).resolve().parents[1]
 LIMIT = 8 * 1024**3
 
@@ -162,22 +166,7 @@ def download_sources(recipe, execute, update=lambda _: None):
 
 
 def stage_key(recipe, name, deps, compiler_id, results):
-    text = (recipe / 'Dockerfile').read_text()
-    blocks = re.split(r'(?im)^(?=FROM )', text)
-    block = next(block for block in blocks if re.search(r'(?im)^FROM \S+ AS ' + re.escape(name) + r'$', block))
-    mounted = {}
-    for relative in re.findall(r'--mount=src=([^,\s]+)', block):
-        path = recipe / relative
-        if not path.resolve().is_relative_to(recipe.resolve()):
-            raise ValueError('source mount escaped recipe')
-        if path.is_file():
-            mounted[relative] = digest(path)
-        elif path.is_dir():
-            mounted[relative] = inventory(path)
-        else:
-            raise ValueError('missing dependency source: ' + relative)
-    return hashlib.sha256(json.dumps({'stage': block, 'sources': mounted, 'compiler': compiler_id,
-        'dependencies': {dep: results[dep]['key'] for dep in deps}}, sort_keys=True).encode()).hexdigest()
+    return registry_cache.stage_key(recipe, name, deps, compiler_id, results)
 
 
 def prune(cache, limit=LIMIT):
@@ -201,6 +190,7 @@ def main():
                    help='force two actual final compiles and compare all three executable hashes')
     a = p.parse_args()
     provenance = execution_context(a.context)
+    registry = registry_cache.RegistryCache(a.target)
     # Re-exec the entire lifetime under the machine's existing lock. No queue.
     if a.context == 'local' and os.environ.get('PORTICO_ENGINE_LOCKED') != '1':
         env = dict(os.environ, PORTICO_ENGINE_LOCKED='1')
@@ -222,6 +212,7 @@ def main():
     report = {'target': a.target, **provenance, 'qualified': False, 'stages': {},
               'forceFinalRebuild': a.rebuild_ffmpeg or a.repeat_compiles,
               'unexercised': ['bundle assembly', 'native runtime', 'ABI', 'repeat build', 'installer']}
+    report['registryCache'] = dict(enabled=registry.enabled, stages=registry.receipts)
     scratch = Path(tempfile.mkdtemp(prefix='scratch-', dir=state))
     def interrupted(signum, frame):
         raise KeyboardInterrupt('engine interrupted')
@@ -273,6 +264,9 @@ def main():
         env.update(PORTICO_ENGINE_REPOSITORY=owner + '/engine', REGISTRY_OVERRIDE='local')
         base = 'local/' + owner + '/engine/base:latest'
         compiler = 'local/' + owner + '/engine/base-win64:latest'
+        canonical = 'local/portico-engine/engine'
+        base_context = canonical + '/base:latest'
+        compiler_context = canonical + '/base-win64:latest'
         images.extend([compiler, base])
         config = scratch / 'buildkit.toml'
         # The real Windows graph exceeded its 12 GB GC budget, and an earlier
@@ -280,20 +274,32 @@ def main():
         # working set without changing any compile inputs.
         config.write_text('[worker.oci]\n max-parallelism = 1\n gc = true\n reservedSpace = "8GB"\n maxUsedSpace = "24GB"\n')
         run('generate', ['bash', 'generate.sh', 'win64', 'gpl', '8.1'], recipe)
+        adapter.stable_graph(recipe, 'local/' + owner + '/engine', canonical)
         (recipe / 'Dockerfile').write_text(dependency_steps((recipe / 'Dockerfile').read_text()))
         graph = stages((recipe / 'Dockerfile').read_text())
         report['stages'] = {n: {'state': 'pending'} for n in graph}
         atomic(state / 'report.json', report)
         run('builder', ['docker', 'buildx', 'create', '--name', owner, '--driver', 'docker-container', '--config', config,
                         '--driver-opt', 'env.BUILDKIT_STEP_LOG_MAX_SIZE=67108864', '--driver-opt', 'memory=4g', '--driver-opt', 'cpu-quota=200000', '--driver-opt', 'cpu-period=100000'])
-        common = ['docker', 'buildx', '--builder', owner, 'build', '--progress=plain']
-        run('base', common + ['--load', '-t', base, 'images/base'], recipe)
+        common = ['docker', 'buildx', '--builder', owner, 'build', '--progress=plain',
+                  '--build-arg', 'SOURCE_DATE_EPOCH=' + str(lock['sourceDateEpoch'])]
+        env['SOURCE_DATE_EPOCH'] = str(lock['sourceDateEpoch'])
+        base_key = registry_cache.context_key(recipe, 'images/base', source_date_epoch=lock['sourceDateEpoch'])
+        base_cache = registry.arguments('base', base_key)
+        run('base', common + base_cache + ['--load', '-t', base, 'images/base'], recipe)
         # buildx docker-container needs an explicit OCI context for local images.
         base_oci = scratch / 'base-oci'
-        run('base-export', common + ['--output', 'type=oci,tar=false,dest=' + str(base_oci), 'images/base'], recipe)
+        run('base-export', common + base_cache + ['--output', 'type=oci,tar=false,dest=' + str(base_oci), 'images/base'], recipe)
+        base_id = subprocess.check_output(['docker', 'image', 'inspect', '-f', '{{.Id}}', base], text=True).strip()
+        if not registry_cache.IMAGE_ID.fullmatch(base_id):
+            raise ValueError('actual immutable base image identity required')
+        compiler_key = registry_cache.context_key(recipe, 'images/base-win64',
+            {'base': base_key, 'baseImageId': base_id, 'buildArgs': {'GH_REPO': canonical}},
+            source_date_epoch=lock['sourceDateEpoch'])
+        compiler_cache = registry.arguments('compiler', compiler_key)
         compiler_env = dict(env, SOURCE_DATE_EPOCH=str(lock['sourceDateEpoch']))
-        run('compiler', common + ['--load', '-t', compiler, '--build-arg', 'GH_REPO=local/' + owner + '/engine',
-            '--build-context', base + '=oci-layout://' + str(base_oci), 'images/base-win64'], recipe, compiler_env)
+        run('compiler', common + compiler_cache + ['--load', '-t', compiler, '--build-arg', 'GH_REPO=' + canonical,
+            '--build-context', base_context + '=oci-layout://' + str(base_oci), 'images/base-win64'], recipe, compiler_env)
         compiler_id = subprocess.check_output(['docker', 'image', 'inspect', '-f', '{{.Id}}', compiler], text=True).strip()
         d3d11_control = state / 'd3d11-c-interface.c'
         d3d11_control.write_text('#include <d3d11.h>\nvoid portico_control(ID3D11DeviceContext *context, '
@@ -325,6 +331,7 @@ def main():
             raise ValueError('compiler source output must not be a symlink')
         if compiler_inputs.exists():
             shutil.rmtree(compiler_inputs)
+        inputs.verify_compiler_sources(source_export)
         shutil.copytree(source_export, compiler_inputs)
         meson_pin = runpy.run_path(str(ROOT / 'scripts/ffmpeg-build-tools.py'))['pin'](
             ROOT / 'scripts/requirements-ffmpeg-meson.txt')
@@ -341,8 +348,8 @@ def main():
         # BuildKit uses SOURCE_DATE_EPOCH for image config/history timestamps.
         # Both exports receive the same explicit environment as the loaded image.
         compiler_dir = scratch / 'compiler-layout'
-        run('compiler-export', common + ['--build-arg', 'GH_REPO=local/' + owner + '/engine',
-            '--build-context', base + '=oci-layout://' + str(base_oci),
+        run('compiler-export', common + compiler_cache + ['--build-arg', 'GH_REPO=' + canonical,
+            '--build-context', base_context + '=oci-layout://' + str(base_oci),
             '--output', 'type=oci,tar=false,dest=' + str(compiler_dir), 'images/base-win64'], recipe, compiler_env)
         report['compilerContext'] = inputs.compiler_layout(compiler_dir, compiler_id)
         atomic(state / 'report.json', report)
@@ -353,6 +360,7 @@ def main():
             lambda script: run('download-' + Path(script).stem, ['bash', 'download.sh', Path(script).name], recipe),
             publish_downloads)
         run('generate', ['bash', 'generate.sh', 'win64', 'gpl', '8.1'], recipe)
+        adapter.stable_graph(recipe, 'local/' + owner + '/engine', canonical)
         (recipe / 'Dockerfile').write_text(dependency_steps((recipe / 'Dockerfile').read_text()))
         if 'scripts.d/50-vaapi/50-libva.sh' in (recipe / 'Dockerfile').read_text():
             raise ValueError('Windows graph unexpectedly contains libva')
@@ -401,10 +409,13 @@ def main():
                 return {'state': 'blocked', 'prerequisites': ['download:' + p for p in unavailable]}
             key = stage_key(recipe, name, graph[name], compiler_id, stage_results)
             metadata = state / ('metadata-' + name + '.json')
-            args = common + ['--file', inputs.consumed_dockerfile(recipe, dockerfile_sha),
-                             '--target', name, '--build-context', compiler + '=oci-layout://' + str(compiler_dir),
+            terminal = name in ('portico-ffmpeg', 'portico-engine-output')
+            cache_args = [] if terminal else registry.arguments(name, key)
+            report['registryCache'] = dict(enabled=registry.enabled, stages=registry.receipts)
+            args = common + cache_args + ['--file', inputs.consumed_dockerfile(recipe, dockerfile_sha),
+                             '--target', name, '--build-context', compiler_context + '=oci-layout://' + str(compiler_dir),
                              '--metadata-file', metadata]
-            if (a.rebuild_ffmpeg or a.repeat_compiles) and name == 'portico-ffmpeg':
+            if name == 'portico-ffmpeg':
                 args += ['--no-cache-filter', 'portico-ffmpeg']
             run('dependency-' + name, args + ['.'], recipe)
             inputs.consumed_dockerfile(recipe, dockerfile_sha)
@@ -421,7 +432,7 @@ def main():
             args = common + ['--file', inputs.consumed_dockerfile(recipe, dockerfile_sha),
                              '--target', 'portico-engine-output',
                              '--output', 'type=local,dest=' + str(prefix),
-                             '--build-context', compiler + '=oci-layout://' + str(compiler_dir)]
+                             '--build-context', compiler_context + '=oci-layout://' + str(compiler_dir)]
             run('ffmpeg-export', args + ['.'], recipe)
             inputs.consumed_dockerfile(recipe, dockerfile_sha)
             if a.repeat_compiles:
@@ -432,7 +443,7 @@ def main():
                 repeated = common + ['--file', inputs.consumed_dockerfile(recipe, dockerfile_sha),
                     '--target', 'portico-engine-output', '--no-cache-filter', 'portico-ffmpeg',
                     '--output', 'type=local,dest=' + str(prefix),
-                    '--build-context', compiler + '=oci-layout://' + str(compiler_dir)]
+                    '--build-context', compiler_context + '=oci-layout://' + str(compiler_dir)]
                 run('ffmpeg-repeat-export', repeated + ['.'], recipe)
                 inputs.consumed_dockerfile(recipe, dockerfile_sha)
                 rounds = final_cache.repeat_rounds(first_prefix, prefix, source_archive, first)
