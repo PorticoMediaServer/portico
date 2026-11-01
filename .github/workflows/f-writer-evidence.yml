@@ -220,7 +220,7 @@ jobs:
         run: git rev-parse HEAD > "$RUNNER_TEMP/reports/source.txt"
       - name: Restricted 18+ to 7+ propagation through every real endpoint
         working-directory: server
-        run: go test ./internal/httpapi -run '^TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan$' -count=1 -v -timeout=3m > "$RUNNER_TEMP/reports/rating-e2e.log" 2>&1
+        run: go test ./internal/httpapi -run '^TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan$' -count=3 -v -timeout=3m > "$RUNNER_TEMP/reports/rating-e2e.log" 2>&1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with: {name: rating-audit, path: '${{ runner.temp }}/reports', retention-days: 7}
