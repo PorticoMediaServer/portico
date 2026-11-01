@@ -67,6 +67,11 @@ test('presentError: when Portico is already retrying there is no Try again (PC-V
 
 test('presentError: rate limits use the server hint; saves get save titles; playback keeps its own copy', () => {
   assert.match(presentError(new ApiError(429, 'rate_limited', 'x', true, 30)).body, /30 seconds/);
+  // A source blocked after failures across many accounts is the same rate limit:
+  // the server's own wait is shown, never the code.
+  const blocked = presentError(new ApiError(429, 'source_blocked', 'x', true, 300), 'sign-in');
+  assert.equal(blocked.category, 'rate-limited');
+  assert.match(blocked.body, /300 seconds/);
   assert.equal(presentError(new ApiError(409, 'x_conflict', 'x'), 'preferences', {operation: 'save'}).title, 'The preference couldn’t be saved');
   const playback = presentError({code: 'transcoding_disabled'}, 'playback');
   assert.equal(playback.title, 'Playback stopped');
