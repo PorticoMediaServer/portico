@@ -3,16 +3,28 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"net/http"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
+	"net/http"
 	"strconv"
 	"time"
 )
 
 // Recovery and sign-in use the same owner-configured home networks as playback.
 func (d Dependencies) privateSetupPeer(r *http.Request) bool { return !d.requestIsRemote(r) }
-func (d Dependencies) signInPeer(r *http.Request) string     { return d.setupPeerSubject(r) }
+
+// signInPeer is who a sign-in comes from, and so the source a block applies to:
+// behind a trusted proxy, the verified forwarded client (the rightmost
+// untrusted hop, as the gate reads it). A trusted proxy whose chain is missing
+// or unusable gives "unknown", which is never blocked: keying on the proxy's
+// own address would let one guesser lock out everyone behind it. Per-account
+// limits still apply.
+func (d Dependencies) signInPeer(r *http.Request) string {
+	if addr, ok := networkpolicy.Client(r, d.trustedProxyPrefixes(r.Context())); ok {
+		return addr.String()
+	}
+	return "unknown"
+}
 
 func (d Dependencies) setupPeerSubject(r *http.Request) string {
 	return clientAddress(r, d.trustedProxyPrefixes(r.Context()))
