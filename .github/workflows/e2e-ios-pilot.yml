@@ -47,7 +47,7 @@ jobs:
         run: |
           xcodebuild -workspace apps/native/ios/Portico.xcworkspace -scheme Portico -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/portico-ios" \
-            CODE_SIGNING_ALLOWED=NO build
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build
       - name: Build the test server
         working-directory: server
         run: go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server
