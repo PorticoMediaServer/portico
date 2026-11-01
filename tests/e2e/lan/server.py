@@ -78,6 +78,7 @@ def main():
                     server = RunningServer()
                     server.directory = Path(tmp)
                     server.base = origin
+                    server.binary = Path(os.environ['PORTICO_E2E_BINARY'])
                     server.api = e2e.fixture.API(origin)
                     server.api.token = json.loads(Path(tmp + '/session.json').read_text())['accessToken']
                     e2e.scan_libraries(server)
