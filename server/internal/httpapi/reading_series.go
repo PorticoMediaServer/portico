@@ -52,7 +52,7 @@ func (d Dependencies) readingSeriesScopeTx(ctx context.Context, tx *sql.Tx, capt
 	if d.Reading != nil {
 		out.Formats = d.Reading.SourceFormatScope()
 	}
-	err = tx.QueryRowContext(ctx, `SELECT r.revision,COALESCE(v.revision,0) FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id=?`, out.Profile, library).Scan(&out.Catalog, &out.Viewer)
+	err = tx.QueryRowContext(ctx, `SELECT r.revision+(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1),COALESCE(v.revision,0) FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id=?`, out.Profile, library).Scan(&out.Catalog, &out.Viewer)
 	return out, err
 }
 

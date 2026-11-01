@@ -305,7 +305,7 @@ func (s *Service) BrowseAcross(viewer Viewer, request AcrossRequest) (BrowseResu
 // order and this profile's marks, the group's own revision and the request.
 func (s *Service) acrossRevision(request AcrossRequest, pivot browsePivot, sorts []BrowseSortSelection) (string, error) {
 	var state sql.NullString
-	if err := s.read().QueryRow(`SELECT group_concat(state,',') FROM (SELECT r.library_id||':'||r.order_revision||':'||COALESCE(v.revision,0) AS state FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id IN(SELECT value FROM json_each(?)) ORDER BY r.library_id)`, request.profile, idsJSON(request.libraries)).Scan(&state); err != nil {
+	if err := s.read().QueryRow(`SELECT group_concat(state,',') FROM (SELECT r.library_id||':'||(r.order_revision+(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1))||':'||COALESCE(v.revision,0) AS state FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id IN(SELECT value FROM json_each(?)) ORDER BY r.library_id)`, request.profile, idsJSON(request.libraries)).Scan(&state); err != nil {
 		return "", err
 	}
 	group, err := s.browseGroupFence(request.Query, request.Rows, request.RowSources)

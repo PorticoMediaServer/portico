@@ -574,8 +574,14 @@ func TestRatingSpellingsAreReclassifiedOnceWhenTheTableChanges(t *testing.T) {
 	}
 	// The running process already classified once; a restart is a new service.
 	restarted := New(db)
-	if _, err := restarted.ClassifyPendingRatings(ctx); err != nil {
-		t.Fatal(err)
+	for {
+		more, err := restarted.ClassifyPendingRatings(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !more {
+			break
+		}
 	}
 	if age("tv-y7-fv") != 7 || age("pg") != 8 {
 		t.Fatalf("after a build with a newer table started: tv-y7-fv=%d pg=%d", age("tv-y7-fv"), age("pg"))

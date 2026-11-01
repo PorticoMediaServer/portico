@@ -7,7 +7,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 )
 
-// ClassifyPendingRatings publishes the minimum age of up to 5000 content-rating
+// RatingClassificationBatch bounds both new and corrected spelling writes.
+// Each spelling also advances policy epochs and queues deferred visibility work.
+const RatingClassificationBatch = 8
+
+// ClassifyPendingRatings publishes the minimum age of up to eight content-rating
 // spellings a trigger queued in content_rating_pending (a rating arrived that
 // content_rating_ages does not classify), in one gated write, and reports
 // whether more are queued. An unrecognised spelling is classified as unrated
@@ -23,7 +27,7 @@ func ClassifyPendingRatings(ctx context.Context, db *sql.DB, age func(string) (i
 		age int
 	}
 	read := dbwork.ReadHandle(ctx, db)
-	rows, err := read.QueryContext(ctx, `SELECT value_key,value FROM content_rating_pending LIMIT 5000`)
+	rows, err := read.QueryContext(ctx, `SELECT value_key,value FROM content_rating_pending ORDER BY value_key LIMIT ?`, RatingClassificationBatch)
 	if err != nil {
 		return false, err
 	}
@@ -48,7 +52,7 @@ func ClassifyPendingRatings(ctx context.Context, db *sql.DB, age func(string) (i
 	if len(pending) > 0 {
 		if err = dbwork.WithWriteTx(ctx, db, dbwork.ClassBackgroundMedia, func(tx *sql.Tx) error {
 			for _, row := range pending {
-				if _, err := tx.ExecContext(ctx, `INSERT INTO content_rating_ages(value_key,minimum_age) VALUES(?,?) ON CONFLICT(value_key) DO UPDATE SET minimum_age=excluded.minimum_age`, row.key, row.age); err != nil {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO content_rating_ages(value_key,minimum_age) VALUES(?,?) ON CONFLICT(value_key) DO UPDATE SET minimum_age=excluded.minimum_age WHERE minimum_age IS NOT excluded.minimum_age`, row.key, row.age); err != nil {
 					return err
 				}
 				if _, err := tx.ExecContext(ctx, `DELETE FROM content_rating_pending WHERE value_key=?`, row.key); err != nil {

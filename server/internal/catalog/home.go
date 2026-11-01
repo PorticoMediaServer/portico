@@ -51,7 +51,7 @@ func (s *Service) HomeRevision(libraries []string, profile string) (ContentRevis
 func (s *Service) homeRevision(libraries []string, profile string) (ContentRevision, error) {
 	raw, _ := json.Marshal(libraries)
 	var revision ContentRevision
-	e := s.read().QueryRow(`SELECT COALESCE(sum(r.revision),0),COALESCE(sum(v.revision),0) FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id IN(SELECT value FROM json_each(?))`, profile, string(raw)).Scan(&revision.Catalog, &revision.Viewer)
+	e := s.read().QueryRow(`SELECT COALESCE(sum(r.revision),0)+(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1),COALESCE(sum(v.revision),0) FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id IN(SELECT value FROM json_each(?))`, profile, string(raw)).Scan(&revision.Catalog, &revision.Viewer)
 	return revision, e
 }
 
@@ -63,7 +63,7 @@ func (s *Service) homeRevision(libraries []string, profile string) (ContentRevis
 func (s *Service) homePagingRevision(libraries []string, profile string) (ContentRevision, error) {
 	raw, _ := json.Marshal(libraries)
 	var revision ContentRevision
-	e := s.read().QueryRow(`SELECT COALESCE(sum(r.order_revision),0),COALESCE(sum(v.revision),0) FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id IN(SELECT value FROM json_each(?))`, profile, string(raw)).Scan(&revision.Catalog, &revision.Viewer)
+	e := s.read().QueryRow(`SELECT COALESCE(sum(r.order_revision),0)+(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1),COALESCE(sum(v.revision),0) FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id IN(SELECT value FROM json_each(?))`, profile, string(raw)).Scan(&revision.Catalog, &revision.Viewer)
 	return revision, e
 }
 

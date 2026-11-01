@@ -37,7 +37,7 @@ func (d Dependencies) gridTag(r *http.Request, p identity.Principal, bucket time
 		if err := d.DB.QueryRowContext(r.Context(), `SELECT cl.library_id FROM catalog_entities e JOIN catalog_libraries cl ON cl.id=e.library_id WHERE e.public_id=pid_blob(?)`, library).Scan(&resolved); err == nil {
 			library = resolved
 		}
-		if err := d.DB.QueryRowContext(r.Context(), `SELECT COALESCE(sum(r.revision),0),COALESCE(sum(v.revision),0) FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id=? OR NOT EXISTS(SELECT 1 FROM library_revisions WHERE library_id=?)`, identity.PersonalKey(p.Viewer), library, library).Scan(&content, &personal); err != nil {
+		if err := d.DB.QueryRowContext(r.Context(), `SELECT COALESCE(sum(r.revision),0)+(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1),COALESCE(sum(v.revision),0) FROM library_revisions r LEFT JOIN viewer_revisions v ON v.library_id=r.library_id AND v.profile_id=? WHERE r.library_id=? OR NOT EXISTS(SELECT 1 FROM library_revisions WHERE library_id=?)`, identity.PersonalKey(p.Viewer), library, library).Scan(&content, &personal); err != nil {
 			return ""
 		}
 		if err := d.DB.QueryRowContext(r.Context(), `SELECT revision FROM console_settings_revision WHERE singleton=1`).Scan(&settings); err != nil {
