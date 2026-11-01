@@ -213,3 +213,17 @@ proc-macro and target executable, records both linker invocations and executes
 the binary. This control and the actual compiler hashes are receipts, not final
 engine, ABI, hardware or compiler-source qualification. The dependency-only
 workflow proves this boundary without rebuilding FFmpeg for custody alone.
+
+Mac normalization carries only the already-selected Vulkan loader, MoltenVK
+and their ICD. Loader aliases are copied as regular bytes; all non-system
+Mach-O loads resolve to the contained selected libraries and all architectures
+must exactly match the target. Owned install names/rpaths and the ICD library
+path become bundle-relative before hashes and the engine manifest are sealed.
+macos-runtime-build.json records original and rewritten hashes/load commands;
+the native verifier independently rechecks the resulting closure. A native
+fixture deletes its original prefix and executes from an unrelated directory
+with loader/Vulkan overrides unset. This proves relocation of real Mach-O
+libraries, not a physical Vulkan device or automatic driver discovery in every
+application layout. App signing/notarisation must follow these rewrites; a later
+signature changes sealed bytes and belongs in the app's reviewed seal flow.
+This engine stage uses no signing identity, account or credential.

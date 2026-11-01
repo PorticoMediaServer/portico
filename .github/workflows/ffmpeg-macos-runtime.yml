@@ -1,0 +1,38 @@
+name: Native Mac engine relocation controls
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/ffmpeg-macos-runtime.yml'
+      - 'scripts/macos-engine-runtime.py'
+      - 'scripts/test-macos-engine-runtime.py'
+      - 'scripts/normalize-ffmpeg-bundle.py'
+permissions:
+  contents: read
+concurrency:
+  group: native-mac-runtime-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  controls:
+    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    strategy:
+      fail-fast: false
+      matrix: {runner: [macos-15, macos-15-intel]}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - env:
+          PORTICO_RUNTIME_FIXTURE_REPORT: ${{ runner.temp }}/macos-runtime-fixture.json
+        run: |
+          python scripts/test-macos-engine-runtime.py
+          bash -n scripts/build-ffmpeg.sh scripts/verify-ffmpeg-bundle.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: macos-runtime-${{ matrix.runner }}-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/macos-runtime-fixture.json
+          retention-days: 14
