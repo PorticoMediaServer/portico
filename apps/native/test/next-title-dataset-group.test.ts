@@ -9,7 +9,7 @@ const nodes = (node: any): Node[] => Array.isArray(node) ? node.flatMap(nodes) :
 const byId = (node: unknown, id: string) => nodes(node).find(value => value.props.testID === id);
 const t = (id: string) => id;
 
-async function fixture(on: boolean | undefined, tv = false) {
+async function fixture(on: boolean | undefined, tv = false, saving = false) {
   const outer = hooks(), inner = hooks(); let active = outer;
   const react = {...outer.react, useState: (...args: unknown[]) => active.react.useState(...args)};
   let draft: Record<string, unknown> = {name: 'Server', ...(on === undefined ? {} : {'recommendations.titleDataset': on})};
@@ -22,7 +22,7 @@ async function fixture(on: boolean | undefined, tv = false) {
     '../../../kit/controls/Switch': {Switch: 'Switch'}, '../../../kit/shell/visual': {shellType: () => ({})},
     '../../../kit/theme': {useTheme: () => ({colors: {textTertiary: '#999', raised: '#222'}})},
     '../owner-libraries/controls': {LibraryGroup: 'LibraryGroup', LibraryRow: 'LibraryRow', SectionTitle: 'SectionTitle'},
-    './storage/forms': {useStorageForms: () => group, useFormState: () => ({draft}), useStorageSet: () => ({saving: false})},
+    './storage/forms': {useStorageForms: () => group, useFormState: () => ({draft}), useStorageSet: () => ({saving})},
     './TVSettingRows': {TVSwitchRow: 'TVSwitchRow'},
   });
   const props = {ports: {}, runtime: {text: {t}, reportError() {}}, tv};
@@ -56,4 +56,13 @@ test('on TV the switch is the panel\'s focusable switch row', async () => {
   control.props.onChange(false);
   await Promise.resolve();
   assert.equal(f.saves[0]!['recommendations.titleDataset'], false);
+});
+
+test('on TV a save in progress keeps the switch focusable and ignores presses', async () => {
+  // A disabled Android TV row drops focus to the next control (walk, 1 Nov).
+  const f = await fixture(true, true, true), control = byId(f.render(), 'metadata.titleDataset')!;
+  assert.ok(!control.props.disabled, 'never disabled');
+  control.props.onChange(false);
+  await Promise.resolve();
+  assert.equal(f.saves.length, 0);
 });
