@@ -36,7 +36,7 @@ func (x *recSession) recWhy(row *recRow) error {
 	spec := &row.spec
 	switch {
 	case spec.ID == "for_you:rediscover":
-		spec.Why = &ServerText{Code: recWhyRediscover, Fallback: "Favorites you haven't watched in a while."}
+		spec.Why = &ServerText{Code: recWhyRediscover, Fallback: "Favorites you haven’t watched in a while."}
 		spec.WhyTitles = nil
 	case strings.HasPrefix(spec.ID, "for_you:genre:"):
 		label := spec.TitleParams["genre"]
@@ -72,7 +72,7 @@ func (x *recSession) recWhy(row *recRow) error {
 		if err != nil {
 			return err
 		}
-		spec.Why = &ServerText{Code: recWhyNext, Fallback: "Next after what you've finished."}
+		spec.Why = &ServerText{Code: recWhyNext, Fallback: "Next after what you’ve finished."}
 		spec.WhyTitles = titles
 	default:
 		// Short picks, Hidden gems, Top rated and anything new built like them.
@@ -133,7 +133,7 @@ func recWhyPersonFallback(count int, name string) string {
 	if count == 1 {
 		noun = "title"
 	}
-	return "Because you've watched " + strconv.Itoa(count) + " " + noun + " with " + name + "."
+	return "Because you’ve watched " + strconv.Itoa(count) + " " + noun + " with " + name + "."
 }
 
 // recWhyNext reads the finished titles a series or franchise row continues: the
