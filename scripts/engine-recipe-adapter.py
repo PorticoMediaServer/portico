@@ -83,6 +83,18 @@ def meson_wine_runtime(text):
 ''')
 
 
+def stable_graph(recipe, task_repository, canonical_repository):
+    """Keep generated Docker inputs independent of the task-owned image tags."""
+    path = recipe / 'Dockerfile'
+    text = path.read_text()
+    text = text.replace(task_repository + '/', canonical_repository + '/')
+    task_repo = task_repository.removeprefix('local/')
+    canonical_repo = canonical_repository.removeprefix('local/')
+    text = re.sub(r'(?m)(^ENV .*\bREPO=)' + re.escape(task_repo) + r'(?= |$)',
+                  lambda match: match[1] + canonical_repo, text)
+    path.write_text(text)
+
+
 def prepare_recipe(recipe, owner):
     # Task-local generated recipe only. Hard limits include dependency pools,
     # not just FFmpeg's final make invocation. No personal Docker state touched.

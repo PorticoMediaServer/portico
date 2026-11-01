@@ -11,6 +11,10 @@ on:
         description: Run source/refusal controls without compiling an engine
         type: boolean
         default: false
+      cacheControls:
+        description: Exercise persistent cache transport with tiny fixtures only (never an engine)
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -36,6 +40,9 @@ jobs:
       - name: Check runner, custody, transport and native-context refusals
         env: {PORTICO_NETWORK_BUILD_TOOL_CONTROL: '1'}
         run: |
+          python scripts/test-macos-dependency-cache.py
+          python scripts/test-engine-prefix-cache.py
+          python scripts/test-engine-registry-cache.py
           python scripts/test-build-engine.py
           python scripts/test-engine-final-cache.py
           python scripts/test-repeat-btbn-ffmpeg.py
@@ -78,12 +85,13 @@ jobs:
   build:
     name: Cold build (${{ matrix.target }})
     needs: controls
-    if: '!inputs.controlsOnly'
+    if: '!inputs.controlsOnly && !inputs.cacheControls'
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.controls.outputs.matrix) }}
     runs-on: ${{ matrix.buildRunner }}
+    permissions: {contents: read, actions: read, packages: write}
     timeout-minutes: 330
     defaults:
       run:
@@ -117,10 +125,37 @@ jobs:
           echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix gnu-tar)/libexec/gnubin" >> "$GITHUB_PATH"
           echo "$(brew --prefix coreutils)/libexec/gnubin" >> "$GITHUB_PATH"
+      - id: dependency-cache-plan
+        env: {ENGINE_TARGET: '${{ matrix.target }}'}
+        run: python scripts/engine-dependency-cache.py plan --target "$ENGINE_TARGET" --directory "$RUNNER_TEMP/engine-stage-cache" --output "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/engine-stage-cache
+          key: ${{ steps.dependency-cache-plan.outputs.key }}
+          restore-keys: ${{ steps.dependency-cache-plan.outputs.prefix }}
+      - name: Authenticate the explicit dependency cache writer
+        if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
       - name: Build once from pinned source, retaining custody and cold timing
         env:
           ENGINE_TARGET: ${{ matrix.target }}
+          PORTICO_ENGINE_STAGE_CACHE: ${{ runner.temp }}/engine-stage-cache
+          PORTICO_ENGINE_MAC_COMPILER: ${{ steps.dependency-cache-plan.outputs.compiler }}
+          PORTICO_ENGINE_REGISTRY_CACHE: ${{ (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64') && '1' || '0' }}
+          PORTICO_ENGINE_CACHE_WRITE: '1'
         run: python scripts/ci-ffmpeg-toolchain.py build --target "$ENGINE_TARGET" --work "$RUNNER_TEMP/engine-cold"
+      - id: dependency-cache-output
+        if: always()
+        run: python scripts/engine-dependency-cache.py has-output --directory "$RUNNER_TEMP/engine-stage-cache" --output "$GITHUB_OUTPUT"
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: always() && steps.dependency-cache-output.outputs.present == 'true'
+        with:
+          path: ${{ runner.temp }}/engine-stage-cache
+          key: ${{ steps.dependency-cache-plan.outputs.key }}
+      - name: Retire dependency cache authentication
+        if: always() && (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64')
+        run: docker logout ghcr.io
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -140,7 +175,7 @@ jobs:
   native:
     name: Native cold gates (${{ matrix.target }})
     needs: [controls, build]
-    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly
+    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.cacheControls
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
@@ -180,3 +215,83 @@ jobs:
             ${{ runner.temp }}/engine-native/gates/*.log
           retention-days: 14
           if-no-files-found: warn
+
+  registry-cache-control:
+    if: inputs.cacheControls && github.repository == 'PorticoMediaServer/portico'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions: {contents: read, packages: write}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - name: Authenticate the tiny cache control writer
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Prove cold import, two independent cache hits, exact invalidation and fresh terminal builds
+        env:
+          PORTICO_ENGINE_REGISTRY_CACHE: '1'
+          PORTICO_ENGINE_CACHE_WRITE: '1'
+          PORTICO_REGISTRY_CACHE_CONTROL: '1'
+          PORTICO_REGISTRY_CACHE_CONTROL_ROOT: ghcr.io/porticomediaserver/ffmpeg-cache-control
+        run: python scripts/test-engine-registry-cache.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: registry-cache-control-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/portico-registry-cache-control.json
+            ${{ runner.temp }}/registry-control-*/*.log
+          retention-days: 7
+      - if: always()
+        run: docker logout ghcr.io
+  prefix-cache-seed:
+    if: inputs.cacheControls && github.repository == 'PorticoMediaServer/portico'
+    strategy:
+      fail-fast: false
+      matrix: {runner: [ubuntu-24.04, macos-15, macos-15-intel]}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - run: python scripts/test-engine-prefix-cache.py
+      - run: python scripts/control-engine-prefix-cache.py seed --work "$RUNNER_TEMP/prefix-cache-control" --cache "$RUNNER_TEMP/prefix-cache-store"
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/prefix-cache-store
+          key: engine-prefix-proof-v1-${{ matrix.runner }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: prefix-cache-seed-${{ matrix.runner }}-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/prefix-cache-seed.json
+          retention-days: 7
+  prefix-cache-reuse:
+    needs: prefix-cache-seed
+    if: inputs.cacheControls && github.repository == 'PorticoMediaServer/portico'
+    strategy:
+      fail-fast: false
+      matrix: {runner: [ubuntu-24.04, macos-15, macos-15-intel]}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/prefix-cache-store
+          key: engine-prefix-proof-v1-${{ matrix.runner }}-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+      - run: python scripts/control-engine-prefix-cache.py reuse --work "$RUNNER_TEMP/prefix-cache-control" --cache "$RUNNER_TEMP/prefix-cache-store"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: prefix-cache-reuse-${{ matrix.runner }}-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/prefix-cache-reuse.json
+          retention-days: 7

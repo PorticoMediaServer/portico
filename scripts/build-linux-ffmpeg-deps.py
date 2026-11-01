@@ -6,6 +6,7 @@ All linked media dependencies are built from the pinned source recipes. Sources,
 licences, exact input hashes and the installed prefix remain in the job directory.
 """
 import argparse
+import importlib.util
 import hashlib
 import json
 import os
@@ -119,6 +120,12 @@ python3 /build-linux-ffmpeg-deps.py --inside
     # Writable paths are ordinary on-disk bind mounts. Docker's /tmp is never
     # used for source/build scratch. A single container holds small native build
     # tools (e.g. glslc) between dependency stages; exported before it exits.
+    cache_arguments = []
+    if os.environ.get('PORTICO_ENGINE_STAGE_CACHE'):
+        cache_root = Path(os.environ['PORTICO_ENGINE_STAGE_CACHE']).resolve(strict=True)
+        cache_arguments = ['-v', str(cache_root) + ':/portico-stage-cache',
+            '-v', str(Path(__file__).with_name('engine-prefix-cache.py')) + ':/engine-prefix-cache.py:ro',
+            '-e', 'PORTICO_ENGINE_STAGE_CACHE=/portico-stage-cache']
     run('docker', 'run', '--rm', '--name', 'portico-hardware-r29-linux-deps',
         '--network', source_network,
         '--cpus', str(jobs), '--memory', '4g', '--memory-swap', '4g',
@@ -129,7 +136,7 @@ python3 /build-linux-ffmpeg-deps.py --inside
         '-v', str(runner) + ':/build-linux-ffmpeg-deps.py:ro',
         '-v', str(requirements) + ':/portico-meson-requirements.txt:ro',
         '-v', str(tool_receipt) + ':/portico-meson-proof.py:ro',
-        '-e', 'TMPDIR=/portico/tmp', image, 'bash', '/portico/dependencies.sh')
+        '-e', 'TMPDIR=/portico/tmp', *cache_arguments, image, 'bash', '/portico/dependencies.sh')
 
 
 def inside():
@@ -140,6 +147,13 @@ def inside():
     recipe = Path('/recipe')
     os.environ['ACLOCAL_PATH'] = '/opt/ffbuild/share/aclocal'
     plan = json.loads((work / 'stage-plan.json').read_text())
+    cache = None
+    cache_roots = dict(prefix=Path('/opt/ffbuild'), sources=work / 'sources',
+                       licenses=work / 'licenses', receipts=work / 'receipts', extra=work / 'extra')
+    if os.environ.get('PORTICO_ENGINE_STAGE_CACHE'):
+        spec = importlib.util.spec_from_file_location('prefix_cache', Path(__file__).with_name('engine-prefix-cache.py'))
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        cache = module.PrefixCache(Path(os.environ['PORTICO_ENGINE_STAGE_CACHE']) / 'linux-native', work / '.cache-state')
     inputs = []
     for source in plan['stages']:
         name = Path(source).stem
@@ -157,6 +171,18 @@ def inside():
                     'downloadRecipeSHA256': contract, 'compilerImage': plan['compilerImage'],
                     'sourceFetchNetwork': plan['sourceFetchNetwork'],
                     'runnerSHA256': digest(Path(__file__))}
+        cache_inputs = dict(**expected, sourceDateEpoch=os.environ['SOURCE_DATE_EPOCH'],
+            recipeHelpers={str(p.relative_to(recipe)): digest(p) for directory in ('util', 'images/base')
+                           for p in sorted((recipe / directory).rglob('*')) if p.is_file()},
+            flags={key: os.environ.get(key, '') for key in ('CFLAGS', 'CXXFLAGS', 'LDFLAGS',
+                'CARGO_BUILD_JOBS', 'CMAKE_BUILD_PARALLEL_LEVEL', 'ZERO_AR_DATE')})
+        restored = cache.begin(cache_inputs, cache_roots) if cache and not receipt.exists() else None
+        if restored and restored['hit']:
+            cache_evidence = work / 'dependency-cache-receipts'; cache_evidence.mkdir(exist_ok=True)
+            atomic_json(cache_evidence / (name + '.json'), dict(cacheHit=True, **restored['receipt']))
+            if (work / 'extra/glslc').is_file():
+                for destination in ('/opt/glslc', '/usr/bin/glslc'):
+                    shutil.copyfile(work / 'extra/glslc', destination); Path(destination).chmod(0o755)
         if receipt.exists():
             saved = json.loads(receipt.read_text())
             if any(saved.get(k) != v for k, v in expected.items()) or not archive.is_file() or digest(archive) != saved['sourceArchiveSHA256']:
@@ -251,6 +277,12 @@ ffbuild_dockerbuild
         inputs.append(record)
         atomic_json(work / 'dependency-inputs.json', inputs)
         shutil.rmtree(stage)
+        if cache:
+            if Path('/opt/glslc').is_file():
+                shutil.copyfile('/opt/glslc', work / 'extra/glslc'); (work / 'extra/glslc').chmod(0o755)
+            cached = cache.finish(cache_inputs, cache_roots)
+            cache_evidence = work / 'dependency-cache-receipts'; cache_evidence.mkdir(exist_ok=True)
+            atomic_json(cache_evidence / (name + '.json'), dict(cacheHit=False, **cached))
         print('DONE ' + name, flush=True)
     CURRENT_STAGE = None
     glslc = Path('/opt/glslc')
