@@ -738,13 +738,9 @@ func TestBrowseMatchUsesCurrentOnlineAttentionIncludingKept(t *testing.T) {
 	}
 }
 
-// 1,203 current authorized members are a source, never a page-length cap. The
-// sorted/filtered See all cursor and facets keep that entire canonical source.
+// New on server selects the newest 500 authorized works before user sorting
+// and filtering. Its See all pages and facets share exactly that capped source.
 func TestBrowseHomeMembershipFacetsAndSortedExhaustion(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
-	}
-
 	c := catalogtest.Open(t)
 	lib := c.Library("m", "Movies", "movie", "/m")
 	hidden := c.Library("hidden", "Private", "movie", "/hidden")
@@ -761,8 +757,31 @@ func TestBrowseHomeMembershipFacetsAndSortedExhaustion(t *testing.T) {
 	}
 	forbidden := c.Movie(lib, "/m/forbidden.mkv", "Restricted title", 2026)
 	c.Attributes(forbidden.ID, "label", "private")
-	c.Movie(hidden, "/hidden/film.mkv", "Outside scope", 2026)
+	// Excluded works are newer, so the cap cannot hide a visibility regression.
+	c.Fields(forbidden.ID, map[string]any{"added_text": "2026-10-21T00:00:00.000Z"})
+	outside := c.Movie(hidden, "/hidden/film.mkv", "Outside scope", 2026)
+	c.Fields(outside.ID, map[string]any{"added_text": "2026-10-21T00:00:00.000Z"})
 	c.Drain()
+	// Every date ties: the independent cap oracle is public ID descending.
+	// Browse then applies its requested title order to just that membership.
+	recent := append([]string{}, want...)
+	sort.Sort(sort.Reverse(sort.StringSlice(recent)))
+	recent = recent[:500]
+	selected := map[string]bool{}
+	for _, id := range recent {
+		selected[id] = true
+	}
+	capped, cappedFiltered := []string{}, []string{}
+	for i, id := range want {
+		if !selected[id] {
+			continue
+		}
+		capped = append(capped, id)
+		if i%2 == 1 {
+			cappedFiltered = append([]string{id}, cappedFiltered...)
+		}
+	}
+	want, filtered = capped, cappedFiltered
 	s := New(c.DB)
 	viewer := Viewer{Profile: "p", Fence: "f", Libraries: []string{"m"}, Restrictions: identity.ContentRestrictions{BlockedLabels: []string{"private"}}}
 	home := HomeRequest{Viewer: viewer}
@@ -805,17 +824,17 @@ func TestBrowseHomeMembershipFacetsAndSortedExhaustion(t *testing.T) {
 			}
 			request.Cursor = page.PageInfo.NextCursor
 		}
-		if fmt.Sprint(got) != fmt.Sprint(tc.want) || tc.name == "all" && pages != 33 {
+		if fmt.Sprint(got) != fmt.Sprint(tc.want) || tc.name == "all" && pages != 14 {
 			t.Fatalf("%s incomplete %d/%d in %d pages", tc.name, len(got), len(tc.want), pages)
 		}
 	}
 	facet, err := s.FacetsAcross(viewer, FacetRequest{Pivot: "titles", Field: "library", Query: group, RowSources: sources})
-	if err != nil || len(facet.Values) != 1 || facet.Values[0].Count != 1203 {
+	if err != nil || len(facet.Values) != 1 || facet.Values[0].Count != 500 {
 		t.Fatalf("large facet %+v %v", facet, err)
 	}
 	q := browseAnd(group, &BrowseNode{Field: "year", Operator: "equals", Value: float64(2026)})
 	genres, err := s.FacetsAcross(viewer, FacetRequest{Pivot: "titles", Field: "genre", Query: q, RowSources: sources})
-	if err != nil || len(genres.Values) != 1 || genres.Values[0].Count != 601 {
+	if err != nil || len(genres.Values) != 1 || genres.Values[0].Count != len(filtered) {
 		t.Fatalf("large filtered genre %+v %v", genres, err)
 	}
 	first, err := s.BrowseAcross(viewer, AcrossRequest{Pivot: "titles", Query: group, Limit: 37, RowSources: sources})

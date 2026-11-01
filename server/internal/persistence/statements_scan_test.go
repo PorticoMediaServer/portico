@@ -151,10 +151,6 @@ var catalogueScanAllowed = map[string]string{
 // plans every production SQL literal as if the catalogue held millions of rows
 // and fails on any such scan not listed above.
 func TestProductionStatementsDoNotScanTheCatalogue(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
-	}
-
 	// A fixture's convergence census is intentionally proportional to its tiny
 	// seeded database. Keep that SQL out of the production cost model only
 	// while no non-test Go source imports the fixture package.

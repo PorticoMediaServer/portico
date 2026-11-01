@@ -13,10 +13,6 @@ import (
 )
 
 func TestSelectionProofReadyDriftRejectsEveryAdmission(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
-	}
-
 	s, scheduler, p, v, access, c, _ := bulkFixture(t, 3)
 	store, err := readprep.New(readprep.Config{Workers: 1})
 	if err != nil {
@@ -96,8 +92,9 @@ func TestSelectionProofReadyDriftRejectsEveryAdmission(t *testing.T) {
 		}
 	}
 	check(false)
-	// Predicate epoch changes with no ordinary order/publication revision change.
-	c.Exec(`INSERT INTO content_rating_ages(value_key,minimum_age) VALUES('held-proof-drift',18)`)
+	// Change only the held-selection predicate epoch. Rating classification now
+	// correctly moves ordinary page revisions too (#221).
+	c.Exec(`UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1`)
 	page, err := s.BrowseEntities(v, BrowseRequest{Library: "lib", Pivot: "episodes", Limit: 1})
 	if err != nil || page.PageInfo.Revision != revision {
 		t.Fatal("ordinary continuation changed", err)
