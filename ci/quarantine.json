@@ -1,5 +1,51 @@
 {
   "version": 1,
   "status": "approved",
-  "entries": []
+  "entries": [
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+      "test": "TestMusicPrivateConvertedHTTPFormatGainFramesAfterCommitR36",
+      "engine": "development",
+      "owner": "Justin Ehler",
+      "expires": "2026-12-01",
+      "until": "lane D's qualified FFmpeg engine release (D-STATUS: port the FFmpeg toolchain workflow); a qualified-engine release runs this test",
+      "reason": "development engine lacks libsoxr (upstream jellyfin-ffmpeg 8.1.3-1 portable): aresample with the soxr engine is unavailable; the qualified engine has it"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/decoder",
+      "test": "TestAudioConversionIsExact",
+      "engine": "development",
+      "owner": "Justin Ehler",
+      "expires": "2026-12-01",
+      "until": "lane D's qualified FFmpeg engine release (D-STATUS: port the FFmpeg toolchain workflow); a qualified-engine release runs this test",
+      "reason": "development engine lacks libsoxr (upstream jellyfin-ffmpeg 8.1.3-1 portable): aresample with the soxr engine is unavailable; the qualified engine has it"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/decoder",
+      "test": "TestAudioConversionAACStartsAfterItsPriming",
+      "engine": "development",
+      "owner": "Justin Ehler",
+      "expires": "2026-12-01",
+      "until": "lane D's qualified FFmpeg engine release (D-STATUS: port the FFmpeg toolchain workflow); a qualified-engine release runs this test",
+      "reason": "development engine lacks libsoxr (upstream jellyfin-ffmpeg 8.1.3-1 portable): aresample with the soxr engine is unavailable; the qualified engine has it"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/decoder",
+      "test": "TestAudioSeekMatchesFullPrefixTrim",
+      "engine": "development",
+      "owner": "Justin Ehler",
+      "expires": "2026-12-01",
+      "until": "lane D's qualified FFmpeg engine release (D-STATUS: port the FFmpeg toolchain workflow); a qualified-engine release runs this test",
+      "reason": "development engine lacks libsoxr (upstream jellyfin-ffmpeg 8.1.3-1 portable): aresample with the soxr engine is unavailable; the qualified engine has it"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/preparedmedia",
+      "test": "TestMusicDownloadEncodedMediaR29",
+      "engine": "development",
+      "owner": "Justin Ehler",
+      "expires": "2026-12-01",
+      "until": "lane D's qualified FFmpeg engine release (D-STATUS: port the FFmpeg toolchain workflow); a qualified-engine release runs this test",
+      "reason": "development engine lacks libsoxr (upstream jellyfin-ffmpeg 8.1.3-1 portable): aresample with the soxr engine is unavailable; the qualified engine has it"
+    }
+  ]
 }
