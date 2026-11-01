@@ -7,7 +7,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [rebuild/D-compiler-pins-r1]
+    branches: [rebuild/D-compiler-pins-r2]
     paths:
       - '.github/workflows/ffmpeg-compiler-custody.yml'
       - 'scripts/preserve-ffmpeg-compilers.py'
