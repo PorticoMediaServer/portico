@@ -64,7 +64,9 @@ var (
 	// Administration (workstream G) publishes connectivity and diagnostics
 	// policy through this same registry, so the console has one authority for
 	// every server setting rather than a second document per feature area.
-	RemoteSignInPolicies = []string{"allow", "owner-only", "off"}
+	// Who may sign in from outside, once Remote access is On. Closing remote
+	// access altogether is Remote access Off, not a sign-in policy.
+	RemoteSignInPolicies = []string{"allow", "owner-only"}
 	// RemoteSecurityModes and RemoteAccessModes are O-169's remote admission choices.
 	RemoteSecurityModes = []string{"enhanced", "standard"}
 	RemoteAccessModes   = []string{"on", "private", "off"}
