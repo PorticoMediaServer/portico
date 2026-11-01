@@ -153,3 +153,18 @@ assets with latest=false and an exact asset/hash release intake path. Its genera
 intake-lock change receives separate review. Existing qualification expiry and
 NOT-FOR-USE policy remain unchanged. mini-1 is reserved for the Windows VM; the
 already-running r7 engine is the sole exception and is not interrupted.
+
+
+All Meson-using engine targets share scripts/requirements-ffmpeg-meson.txt:
+Meson1.12.1's universal wheel is installed with require-hashes, only-binary and
+no-deps. BtbN base images consume that same file; the immutable Linux compiler
+uses an isolated build-tool environment for dependency compilation. macOS uses
+its existing private Python environment. Receipts record the requirement/wheel
+hashes and actual installed version; wrong-version receipts refuse. Neither the
+compiler mirror nor any engine is relabelled by the tool installation.
+
+Cold retries sample filesystem disk pressure every five seconds (short spikes
+may be missed) and retain dependency/stage timings. These measurements do not
+exist retroactively for the first cold run. A separate read-only PR-context pull
+probe checks access to every preserved compiler using the actual PR token and
+reviewed main pins. It does not execute PR code with registry credentials.

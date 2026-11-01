@@ -1,0 +1,54 @@
+name: PR-context FFmpeg compiler access
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ffmpeg-compiler-pull.yml'
+      - 'third_party/ffmpeg/**'
+permissions:
+  contents: read
+  packages: read
+jobs:
+  pull:
+    if: github.repository == 'PorticoMediaServer/portico' && github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {target: linux64, runner: ubuntu-24.04}
+          - {target: win64, runner: ubuntu-24.04}
+          - {target: linuxarm64, runner: ubuntu-24.04-arm}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      DOCKER_CONFIG: ${{ runner.temp }}/compiler-pull-auth
+    steps:
+      # This tests the PR token's package access to the reviewed main pins;
+      # no pull-request code is executed with registry credentials.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: main, persist-credentials: false}
+      - name: Pull the preserved compiler using the real PR-context token
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPILER_TARGET: ${{ matrix.target }}
+        run: |
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          python3 - <<'PY'
+          import json, os, pathlib, runpy, subprocess
+          target = os.environ['COMPILER_TARGET']
+          row = runpy.run_path('scripts/preserve-ffmpeg-compilers.py')['lock']()['images'][target]
+          report = {'context': 'pull_request', 'target': target, 'compiler': row['mirror'],
+                    'pullRequestSHA': os.environ['GITHUB_SHA'],
+                    'pinSourceSHA': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()}
+          result = subprocess.run(['docker', 'pull', row['mirror']], capture_output=True, text=True)
+          report.update(exitCode=result.returncode, stdout=result.stdout, stderr=result.stderr)
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'compiler-pull.json').write_text(json.dumps(report, indent=2)+'\n')
+          print(result.stdout); print(result.stderr)
+          raise SystemExit(result.returncode)
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: pr-compiler-pull-${{ matrix.target }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/compiler-pull.json
+          retention-days: 7

@@ -21,6 +21,7 @@ import uuid
 import signal
 import fcntl
 import platform
+import runpy
 
 spec = importlib.util.spec_from_file_location("engine_inputs", Path(__file__).with_name("engine_inputs.py"))
 inputs = importlib.util.module_from_spec(spec)
@@ -325,6 +326,12 @@ def main():
         if compiler_inputs.exists():
             shutil.rmtree(compiler_inputs)
         shutil.copytree(source_export, compiler_inputs)
+        meson_pin = runpy.run_path(str(ROOT / 'scripts/ffmpeg-build-tools.py'))['pin'](
+            ROOT / 'scripts/requirements-ffmpeg-meson.txt')
+        meson_version = json.loads((compiler_inputs / 'compiler-inputs.json').read_text())['versions']['meson']
+        if meson_version != meson_pin['version']:
+            raise ValueError('compiler Meson differs from the shared wheel pin')
+        report['mesonTool'] = {**meson_pin, 'installedVersion': meson_version}
         report.update(compilerImageId=compiler_id,
                       compilerSourceInventorySHA256=digest(compiler_inputs / 'compiler-inputs.json'))
         atomic(recipe / 'portico-compiler-image.json', {'compilerImageId': compiler_id,

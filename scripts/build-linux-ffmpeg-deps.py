@@ -13,6 +13,9 @@ from pathlib import Path
 import re
 import shlex
 import subprocess
+import time
+
+CURRENT_STAGE = None
 
 
 def digest(path):
@@ -27,7 +30,13 @@ def atomic_json(path, value):
 
 
 def run(*argv, **kwargs):
-    return subprocess.run(argv, check=True, **kwargs)
+    started = time.monotonic()
+    try:
+        return subprocess.run(argv, check=True, **kwargs)
+    finally:
+        if CURRENT_STAGE is not None and os.environ.get('PORTICO_STAGE_LOG'):
+            with Path(os.environ['PORTICO_STAGE_LOG']).open('a') as log:
+                log.write(json.dumps({'stage': CURRENT_STAGE, 'seconds': round(time.monotonic() - started, 3)}) + '\n')
 
 
 def prepare(recipe, config, jobs):
@@ -69,6 +78,8 @@ def container(recipe, work, config, stages, jobs):
     run('docker', 'pull', image)
     runner = work / 'dependency-runner.py'
     shutil.copyfile(Path(__file__), runner)
+    requirements = Path(__file__).with_name('requirements-ffmpeg-meson.txt')
+    tool_receipt = Path(__file__).with_name('ffmpeg-build-tools.py')
     script = work / 'dependencies.sh'
     script.write_text('''#!/bin/bash
 set -euo pipefail
@@ -89,6 +100,11 @@ export ACLOCAL_PATH=/opt/ffbuild/share/aclocal
 export ZERO_AR_DATE=1 LC_ALL=C.UTF-8 TZ=UTC
 export CFLAGS="$CFLAGS -ffile-prefix-map=/portico/build=/usr/src/portico"
 export CXXFLAGS="$CXXFLAGS -ffile-prefix-map=/portico/build=/usr/src/portico"
+python3 -m venv /portico/build-tools
+/portico/build-tools/bin/python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: --no-deps -r /portico-meson-requirements.txt
+python3 /portico-meson-proof.py receipt --python /portico/build-tools/bin/python --requirements /portico-meson-requirements.txt --output /portico/meson-tool.json
+export PATH="/portico/build-tools/bin:$PATH"
+export PORTICO_STAGE_LOG=/portico/stage-times.jsonl
 gcc --version > /portico/compiler.txt
 "$CC" --version >> /portico/compiler.txt
 "$CXX" --version >> /portico/compiler.txt
@@ -111,10 +127,13 @@ python3 /build-linux-ffmpeg-deps.py --inside
         '-v', str(work / 'prefix') + ':/opt/ffbuild',
         '-v', str(work / 'dest') + ':/opt/ffdest',
         '-v', str(runner) + ':/build-linux-ffmpeg-deps.py:ro',
+        '-v', str(requirements) + ':/portico-meson-requirements.txt:ro',
+        '-v', str(tool_receipt) + ':/portico-meson-proof.py:ro',
         '-e', 'TMPDIR=/portico/tmp', image, 'bash', '/portico/dependencies.sh')
 
 
 def inside():
+    global CURRENT_STAGE
     import shutil
     import tarfile
     work = Path('/portico')
@@ -124,6 +143,7 @@ def inside():
     inputs = []
     for source in plan['stages']:
         name = Path(source).stem
+        CURRENT_STAGE = name
         raw = subprocess.check_output(['bash', '-c',
             'source util/vars.sh linux64 gpl 8.1; source util/dl_functions.sh; '
             'source "$1"; ffbuild_dockerdl', 'source-contract', source], cwd=recipe, text=True).rstrip('\n')
@@ -232,6 +252,7 @@ ffbuild_dockerbuild
         atomic_json(work / 'dependency-inputs.json', inputs)
         shutil.rmtree(stage)
         print('DONE ' + name, flush=True)
+    CURRENT_STAGE = None
     glslc = Path('/opt/glslc')
     if glslc.is_file():
         shutil.copyfile(glslc, work / 'extra/glslc')

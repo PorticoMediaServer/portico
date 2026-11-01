@@ -84,7 +84,9 @@ PYGMPPATCH
   fi
   # Build tools and downloads are private to this job; never upgrade system Python.
   python3 -m venv "$WORK/python"
-  "$WORK/python/bin/pip" install --disable-pip-version-check 'meson==1.7.0' 'ninja==1.11.1.4' 'setuptools==75.8.0'
+  "$WORK/python/bin/pip" install --disable-pip-version-check 'ninja==1.11.1.4' 'setuptools==75.8.0'
+  "$WORK/python/bin/pip" install --disable-pip-version-check --require-hashes --only-binary=:all: --no-deps -r "$ROOT/scripts/requirements-ffmpeg-meson.txt"
+  python3 "$ROOT/scripts/ffmpeg-build-tools.py" receipt --python "$WORK/python/bin/python" --requirements "$ROOT/scripts/requirements-ffmpeg-meson.txt" --output "$WORK/meson-tool.json"
   export PATH="$WORK/python/bin:$PATH"
   python3 "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/recipe" "$PREPARED_SOURCE" "$TARGET"
   # Seed the exact verified source consumed by the pinned recipe.
@@ -191,6 +193,7 @@ cp "$ROOT/third_party/portico-disc/"{NOTICE.md,contract.md,schema1.json,fixture-
 cp -al "$ROOT/fixtures/discs" "$WORK/provenance/fixtures/discs"
 cp "$ROOT/third_party/ffmpeg/"*.json "$ROOT/third_party/ffmpeg/NOTICE.md" "$WORK/provenance/contract/"
 cp "$WORK/build-source-authority.json" "$WORK/provenance/contract/"
+if [[ -f "$WORK/meson-tool.json" ]]; then cp "$WORK/meson-tool.json" "$WORK/provenance/"; fi
 cp -R "$ROOT/third_party/ffmpeg/patches" "$WORK/provenance/contract/"
 cp "$ROOT/scripts/build-ffmpeg.sh" "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$ROOT/scripts/patch-btbn-winarm64-system-error.sh" "$ROOT/scripts/prepare-ffmpeg-source.py" "$ROOT/scripts/archive-ffmpeg-source.py" "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/build-portico-disc.py" "$ROOT/scripts/build-macos-ffmpeg-extras.sh" "$WORK/provenance/scripts/"
@@ -200,13 +203,14 @@ cp "$ROOT/scripts/verify-ffmpeg-recipes.py" "$ROOT/scripts/verify-hdr10plus-enco
 cp "$ROOT/scripts/verify-ffmpeg-abi.py" "$WORK/provenance/scripts/"
 if [[ "$TARGET" == windows-* ]]; then cp "$ROOT/scripts/configure-windows-rav1e.py" "$WORK/provenance/scripts/"; fi
 cp "$ROOT/scripts/check-ffmpeg-build-inputs.py" "$WORK/provenance/scripts/"
+cp "$ROOT/scripts/ffmpeg-build-tools.py" "$ROOT/scripts/requirements-ffmpeg-meson.txt" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/run-ffmpeg-runner-build.py" "$ROOT/scripts/repair-ffmpeg-runner-ownership.py" "$WORK/provenance/scripts/"
 cp "$ARCHIVE" "$SOURCE" "$WORK/provenance/"
 if [[ "$TARGET" == linux-x64 ]]; then
   mkdir -p "$WORK/provenance/linux-dependencies"
   cp -al "$WORK/linux-deps/sources" "$WORK/provenance/linux-dependencies/sources"
   cp -a "$WORK/linux-deps/licenses" "$WORK/provenance/linux-dependencies/licenses"
-  cp "$WORK/linux-deps/"{dependency-inputs.json,stage-plan.json,prefix-files.json,compiler.txt,license-inventory.json} "$WORK/provenance/linux-dependencies/"
+  cp "$WORK/linux-deps/"{dependency-inputs.json,stage-plan.json,prefix-files.json,compiler.txt,license-inventory.json,meson-tool.json} "$WORK/provenance/linux-dependencies/"
   cp "$WORK/repeat-build.json" "$WORK/provenance/"
   cp "$WORK/linux-build-inputs.json" "$WORK/provenance/"
   cp -a "$WORK/linux-build-inputs" "$WORK/provenance/"
