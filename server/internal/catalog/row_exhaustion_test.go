@@ -201,7 +201,9 @@ func TestRowCursorExhaustionStableRevision(t *testing.T) {
 		t.Fatal("saved Home view truncated or reordered the source")
 	}
 
-	c.Movie(movies, "/movies/new.mkv", "New publication", 2026)
+	// Change the shelf itself, rather than adding an older work below its cap.
+	newest := c.Movie(movies, "/movies/new.mkv", "New publication", 2026)
+	c.Fields(newest.ID, map[string]any{"added_text": "2026-10-21T00:00:01.000Z"})
 	c.Drain()
 	if _, err = s.HomeSingleRow(r, "new_on_server", HomeRowPage{Limit: 37, Cursor: first.NextCursor}); !errors.Is(err, ErrStaleContinuation) {
 		t.Fatalf("Home changed revision: %v", err)
