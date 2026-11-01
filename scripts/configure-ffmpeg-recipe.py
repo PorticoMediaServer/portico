@@ -22,7 +22,7 @@ if target == 'linux-arm64':
     import runpy
     runpy.run_path(str(root / 'scripts/repeat-btbn-ffmpeg.py'))['configure'](recipe)
 if target.startswith('macos'):
-    flags += ' --enable-videotoolbox --enable-metal'
+    flags += ' --enable-videotoolbox --enable-metal --enable-libzvbi'
     # Extras are built from the pinned source recipes into this private prefix.
     build = recipe / 'build-ffmpeg'
     text = build.read_text()
@@ -35,8 +35,13 @@ if target.startswith('macos'):
     import subprocess
     subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'macos-timing', '--recipe', recipe,
                     '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt'], check=True)
+    subprocess.run([sys.executable, root / 'scripts/build-macos-libdovi.py', 'configure', '--recipe', recipe], check=True)
     import shutil
     shutil.copy2(root / 'scripts/build-macos-ffmpeg-extras.sh', recipe / 'portico-macos-extras.sh')
+    shutil.copy2(root / 'scripts/build-macos-zvbi.sh', recipe / 'portico-build-macos-zvbi.sh')
+    extra_pin = json.loads((root / 'third_party/ffmpeg/sources.lock.json').read_text())['macosRecipe']['extrasLock']
+    if hashlib.sha256((root / extra_pin['path']).read_bytes()).hexdigest() != extra_pin['sha256']:
+        raise ValueError('Checked Mac extras source lock changed')
     shutil.copy2(root / 'third_party/ffmpeg/macos-extras.lock.json', recipe / 'portico-macos-extras.lock.json')
     shutil.copy2(root / 'third_party/ffmpeg/sources.lock.json', recipe / 'portico-ffmpeg-sources.lock.json')
     patches = recipe / 'portico-no-decryption'
