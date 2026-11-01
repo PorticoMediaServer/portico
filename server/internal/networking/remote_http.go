@@ -62,7 +62,9 @@ func (h *ClaimHandler) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Config = c
 		out.Warnings = remoteWarnings(c.PublicPort, h.remote.accessURLs(ctx))
-		if certificate.State == "claim_required" && !c.Enabled {
+		// Before the server is claimed nothing remote can run, whatever Remote
+		// access says: the status is unconfigured until then.
+		if certificate.State == "claim_required" {
 			out.State = "unconfigured"
 		}
 		return checkClaimRequest(ctx)
