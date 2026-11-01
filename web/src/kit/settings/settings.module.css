@@ -147,6 +147,7 @@
 .disabled { opacity: .42; }
 .rowError { font-size: 13px; color: var(--color-record); padding: 8px 22px; }
 .control { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 12px; min-width: 0; }
+.control[data-wide] { flex: 1 1 100%; }
 .control .settingSelect.settingSelect { min-width: 176px; max-width: 440px; }
 .control > div:has(> div > input[type='text']) { width: 300px; max-width: 100%; }
 .readonly { color: var(--color-text-secondary); font-size: 15px; }

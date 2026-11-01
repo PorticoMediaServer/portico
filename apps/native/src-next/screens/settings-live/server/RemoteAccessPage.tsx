@@ -89,7 +89,7 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
     {value: 'enhanced', label: t(`${R}.children.0.control.options.0.label`)},
     {value: 'standard', label: t(`${R}.children.0.control.options.1.label`)},
   ];
-  const outsideOn = connectivity.remoteAccess === 'on';
+  const outsideOn = connectivity.remoteAccess === 'on', outsideOpen = connectivity.remoteAccess !== 'off';
   const lines = (value: readonly string[]) => value.join('\n');
   const parseLines = (value: string) => value.split('\n').map(line => line.trim()).filter(Boolean);
   return <View style={{flex: 1}}>
@@ -135,13 +135,13 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
         </View>
         <Text style={[shellType(13, 700), {color: theme.colors.textTertiary, marginTop: 22, marginBottom: 8}]}>{t('web.connectivity.outside')}</Text>
         <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-          <SettingsRow testID="remote-access-mode" first label={t(`${R}.label`)} description={t(`${R}.help`)}
+          <SettingsRow testID="remote-access-mode" first label={t(`${R}.label`)} description={connectivity.remoteAccess === 'private' ? t(`${R}.control.options.1.hint`) : t(`${R}.help`)}
             control={<Select testID="remote-access-mode-select" value={connectivity.remoteAccess} options={accessOptions} onValueChange={value => {if (value === 'on' || value === 'private' || value === 'off') forms.connectivity.set(current => ({...current, remoteAccess: value}));}}/>}/>
           {outsideOn && <SettingsRow testID="remote-access-security" label={t(`${R}.children.0.label`)} description={t(`${R}.children.0.help`)}
             control={<Select testID="remote-access-security-select" value={connectivity.remoteSecurity} options={securityOptions} onValueChange={value => {if (value === 'enhanced' || value === 'standard') forms.connectivity.set(current => ({...current, remoteSecurity: value}));}}/>}/>}
           {outsideOn && connectivity.remoteSecurity === 'enhanced' && <NativeRefusedAddresses api={api} isCurrent={lifetime.current} t={t as (id: string, values?: Record<string, unknown>) => string}
             onAllowed={reloadConnectivity} onStandard={chooseStandard} onCertificate={showOwnAddress}/>}
-          {outsideOn && <SettingsRow testID="remote-access-policy" label={t('web.connectivity.whoMaySignIn')}
+          {outsideOpen && <SettingsRow testID="remote-access-policy" label={t('web.connectivity.whoMaySignIn')}
             control={<Select testID="remote-access-policy-select" value={connectivity.remoteSignInPolicy} options={signInOptions} onValueChange={value => forms.connectivity.set(current => ({...current, remoteSignInPolicy: value as ConnectivityDraft['remoteSignInPolicy']}))}/>}/>}
           <SettingsRow testID="remote-access-secure-connections" label={t('next.settingsSpec.server.remote.groups.0.rows.1.label')} description={t('next.settingsSpec.server.remote.groups.0.rows.1.help')}
             control={<Select testID="remote-access-secure-connections-select" value={connectivity.secureConnections} options={[
