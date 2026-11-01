@@ -67,6 +67,21 @@ func TestCrossKindGrowthMeasurement(t *testing.T) {
 			db.Close()
 			t.Fatal(e)
 		}
+		for {
+			more, err := catalog.New(db).RefreshListeningGroups(context.Background())
+			if err != nil {
+				db.Close()
+				t.Fatal(err)
+			}
+			if !more {
+				break
+			}
+		}
+		if e = compactcatalog.Drain(context.Background(), db); e != nil {
+			db.Close()
+			t.Fatal(e)
+		}
+
 		if e = persistence.RefreshPlannerStatistics(context.Background(), db); e != nil {
 			db.Close()
 			t.Fatal(e)
@@ -82,7 +97,14 @@ func TestCrossKindGrowthMeasurement(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	save("seed", map[string]any{"base_items": n, "new_seed": seeded, "seconds": time.Since(began).Seconds(), "peak_rss_kb": growthPeakRSS(), "cpus": runtime.NumCPU(), "go": runtime.Version(), "boundary": "reference seed, extra reading/audiobook facts, full derivation; not a scan"})
+	seedReport := "seed-reuse"
+	if seeded {
+		seedReport = "seed-build"
+	}
+	save(seedReport, map[string]any{"base_items": n, "new_seed": seeded, "seconds": time.Since(began).Seconds(), "peak_rss_kb": growthPeakRSS(), "cpus": runtime.NumCPU(), "go": runtime.Version(), "boundary": "reference seed, extra reading/audiobook facts, full derivation; not a scan"})
+	if os.Getenv("PORTICO_GROWTH_SEED_ONLY") == "1" {
+		return
+	}
 	path := filepath.Join(t.TempDir(), "db")
 	in, e := os.Open(seed)
 	if e != nil {
@@ -123,7 +145,7 @@ func TestCrossKindGrowthMeasurement(t *testing.T) {
 		save("growth", map[string]any{"base_items": n, "routes": results, "peak_rss_kb": growthPeakRSS()})
 	}
 	libs := []string{"movies", "tv", "music", "audio", "reading", "comics", "anime"}
-	for _, scope := range [][2]string{{"movies", "movies"}, {"tv", "shows"}, {"tv", "seasons"}, {"tv", "episodes"}, {"music", "artists"}, {"music", "albums"}, {"music", "songs"}, {"audio", "books"}, {"reading", "books"}, {"comics", "comics"}, {"anime", "shows"}} {
+	for _, scope := range [][2]string{{"movies", "movies"}, {"tv", "shows"}, {"tv", "episodes"}, {"music", "artists"}, {"music", "albums"}, {"music", "songs"}, {"audio", "books"}, {"reading", "books"}, {"comics", "comics"}, {"anime", "shows"}} {
 		library, pivot := scope[0], scope[1]
 		v := catalog.Viewer{Profile: "viewer", Fence: "growth", Libraries: []string{library}}
 		measure(library+"/browse/"+pivot, func(ctx context.Context, s *catalog.Service) error {
@@ -176,7 +198,7 @@ func TestCrossKindGrowthMeasurement(t *testing.T) {
 			}
 			measure(fmt.Sprintf("%s/detail/kind%d", lib, kind), func(ctx context.Context, s *catalog.Service) error {
 				if kind == 20 || kind == 21 {
-					_, e := s.ReadingDetail(v, "s", pid, nil)
+					_, e := s.ReadingDetail(v, "s", pid, func(context.Context, *sql.Tx) (catalog.Viewer, error) { return v, nil })
 					return e
 				}
 				_, e := s.DetailWithRelated(v, "s", pid, false, false)

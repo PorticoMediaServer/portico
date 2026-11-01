@@ -23,12 +23,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"io"
 	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"runtime"
 	"strings"
 	"sync"
@@ -675,7 +675,16 @@ func schemaKey() string {
 		// What the fixture writes is also a function of code: this file and the
 		// catalogue writers it calls. The running binary covers both, so a code
 		// change never reuses a fixture an older build wrote.
-		if !hashExecutable(sum) {
+		if identity := os.Getenv("PORTICO_FIXTURE_SEED_HASH"); identity != "" {
+			// Hosted measurement jobs supply the reviewed generator/dependency
+			// hash, allowing a new measurement binary to reuse unchanged seeds.
+			// Ordinary fixtures retain the conservative complete binary hash.
+			decoded, err := hex.DecodeString(identity)
+			if err != nil || len(decoded) != sha256.Size {
+				return
+			}
+			sum.Write(decoded)
+		} else if !hashExecutable(sum) {
 			return
 		}
 		schemaDigest = hex.EncodeToString(sum.Sum(nil)[:8])

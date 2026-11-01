@@ -179,6 +179,9 @@ func TestServerScaleMeasurement(t *testing.T) {
 	at := time.Now()
 	f := newLoadFixture(t, performanceTier{name: "F-" + mode, shape: shape, catalogItems: shape.Items(), concurrentViewers: users, capabilities: true})
 	scaleSave(t, "fixture", map[string]any{"setup_seconds": time.Since(at).Seconds(), "peak_rss_mib": scaleRSS()})
+	if os.Getenv("PORTICO_SCALE_SEED_ONLY") == "1" {
+		return
+	}
 	// New HTTP profiles carry the same sparse meaningful history as a real viewer.
 	c := catalogtest.New(t, f.db)
 	for p, env := range f.viewers {
@@ -284,6 +287,32 @@ func TestServerScaleMeasurement(t *testing.T) {
 		costs[name] = read()
 	}
 	scaleSave(t, "service_costs", costs)
+
+	// Separately time actual durable observation flushes, excluding Start/Stop.
+	probe := &scaleWindow{Attempts: map[string][]scaleAttempt{}}
+	token := f.viewers[0].AccessToken
+	status, raw := scaleCall(client, server.URL, token, "start", "POST", "/v1/playback/sessions", map[string]string{"itemId": f.playable, "startFrom": "beginning"}, map[string]string{"Idempotency-Key": "scale-observation-writer-probe-0001"}, probe)
+	var probeView playbackv1.SessionView
+	if status == 201 && json.Unmarshal(raw, &probeView) == nil {
+		path := "/v1/playback/sessions/" + probeView.ID
+		status, raw = scaleCall(client, server.URL, token, "observer", "POST", path+"/observer", map[string]any{"generation": probeView.Presentation.Generation}, nil, probe)
+		var grant playbackv1.ObserverGrant
+		if status == 200 && json.Unmarshal(raw, &grant) == nil {
+			var flushes []float64
+			dbwork.WriteGate().ResetPeak()
+			before := dbwork.WriteGate().Stats()
+			for seq := int64(1); seq <= 20; seq++ {
+				scaleCall(client, server.URL, token, "accepted", "PUT", path+"/observation", playbackv1.Observation{Epoch: grant.Epoch, Seq: seq, Generation: probeView.Presentation.Generation, State: "playing", PositionMs: seq * 1000, MonotonicMs: seq * 1000, PlayClockMs: seq * 1000, Rate: 1}, nil, probe)
+				at := time.Now()
+				if e := FlushPlaybackObservations(context.Background(), f.handler); e != nil {
+					t.Fatal(e)
+				}
+				flushes = append(flushes, float64(time.Since(at))/float64(time.Millisecond))
+			}
+			scaleSave(t, "progress-writer", map[string]any{"flush": scalePct(flushes), "gate_before": before, "gate_after": dbwork.WriteGate().Stats(), "http": probe.summary(), "boundary": "forced durable observation flush per accepted sample; Start/Stop excluded from gate window"})
+		}
+		scaleCall(client, server.URL, token, "stop", "DELETE", path, nil, nil, probe)
+	}
 	counts := []int{32, 50, 100, 200}
 	if mode != "films100" {
 		counts = []int{min(4, users)}
@@ -361,7 +390,7 @@ func TestServerScaleMeasurement(t *testing.T) {
 		scaleSave(t, fmt.Sprintf("users-%d", count), map[string]any{"users": count, "seconds": time.Since(at).Seconds(), "endpoints": w.summary(), "gate_before": before, "gate_after": after, "admission": dbwork.WriteGate().Admission(), "write_plans": dbwork.Plans(), "routes": RouteCosts(), "peak_rss_mib": scaleRSS()})
 	}
 	var sessions, durable, ended int
-	if e := f.db.QueryRow(`SELECT count(*),COALESCE(sum(CASE WHEN last_seq>=1 AND position_ms=3000 THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN ended_ms>0 AND end_reason='stopped' THEN 1 ELSE 0 END),0) FROM playback_v1_sessions`).Scan(&sessions, &durable, &ended); e != nil {
+	if e := f.db.QueryRow(`SELECT count(*),COALESCE(sum(CASE WHEN last_seq>=1 AND position_ms=3000 THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN ended_ms>0 AND end_reason='stopped' THEN 1 ELSE 0 END),0) FROM playback_v1_sessions WHERE start_key LIKE 'scale-measure-F-%'`).Scan(&sessions, &durable, &ended); e != nil {
 		t.Logf("durable reconciliation: %v", e)
 	}
 	scaleSave(t, "durability", map[string]int{"sessions": sessions, "durable_position_3000": durable, "stopped": ended})

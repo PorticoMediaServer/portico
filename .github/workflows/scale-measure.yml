@@ -17,6 +17,7 @@ jobs:
       - name: Pilot fixture, HTTP mix and scan before scale
         working-directory: server
         env:
+          PORTICO_FIXTURE_SEED_HASH: ${{ hashFiles('server/internal/httpapi/fixture/**', 'server/internal/compactcatalog/**', 'server/internal/persistence/**', 'server/internal/dbwork/**', 'server/go.sum') }}
           TMPDIR: ${{ runner.temp }}/scale-cache
           PORTICO_SCAN_GROWTH_ITEMS: 100
           PORTICO_GROWTH_ITEMS: 1000
@@ -44,7 +45,7 @@ jobs:
       - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: ${{ runner.temp }}/scale-cache/portico-fixture-*.sqlite
-          key: scale-F-v1-${{ matrix.mode }}-${{ hashFiles('server/internal/persistence/**', 'server/internal/compactcatalog/**', 'server/internal/httpapi/fixture/**') }}
+          key: scale-F-v1-${{ matrix.mode }}-${{ hashFiles('server/internal/persistence/**', 'server/internal/compactcatalog/**', 'server/internal/httpapi/fixture/**', 'server/internal/dbwork/**', 'server/go.sum') }}
       - name: Machine evidence
         run: |
           lscpu > "$RUNNER_TEMP/reports/machine.txt"
@@ -53,10 +54,13 @@ jobs:
       - name: Measure unchanged server
         working-directory: server
         env:
+          PORTICO_FIXTURE_SEED_HASH: ${{ hashFiles('server/internal/httpapi/fixture/**', 'server/internal/compactcatalog/**', 'server/internal/persistence/**', 'server/internal/dbwork/**', 'server/go.sum') }}
           TMPDIR: ${{ runner.temp }}/scale-cache
           PORTICO_SCALE_MODE: ${{ matrix.mode }}
           PORTICO_SCALE_REPORT: ${{ runner.temp }}/reports
-        run: go test -vet=off ./internal/httpapi -run '^TestServerScaleMeasurement$' -count=1 -v -timeout=170m > "$RUNNER_TEMP/reports/measure.log" 2>&1
+        run: |
+          PORTICO_SCALE_SEED_ONLY=1 go test -vet=off ./internal/httpapi -run '^TestServerScaleMeasurement$' -count=1 -v -timeout=150m > "$RUNNER_TEMP/reports/seed.log" 2>&1
+          go test -vet=off ./internal/httpapi -run '^TestServerScaleMeasurement$' -count=1 -v -timeout=20m > "$RUNNER_TEMP/reports/measure.log" 2>&1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with: {name: 'scale-${{ matrix.mode }}', path: '${{ runner.temp }}/reports', retention-days: 7}
@@ -81,10 +85,13 @@ jobs:
       - name: Measure catalogue growth using scalebench
         working-directory: server
         env:
+          PORTICO_FIXTURE_SEED_HASH: ${{ hashFiles('server/internal/httpapi/fixture/**', 'server/internal/compactcatalog/**', 'server/internal/persistence/**', 'server/internal/dbwork/**', 'server/go.sum') }}
           TMPDIR: ${{ runner.temp }}/scale-cache
           PORTICO_GROWTH_ITEMS: ${{ matrix.items }}
           PORTICO_SCALE_REPORT: ${{ runner.temp }}/reports
-        run: go test -vet=off ./internal/catalog/scalebench ./internal/httpapi -run '^Test(CrossKindGrowthMeasurement|ReadingGrowthMeasurement)$' -count=1 -v -timeout=110m > "$RUNNER_TEMP/reports/growth.log" 2>&1
+        run: |
+          PORTICO_GROWTH_SEED_ONLY=1 go test -vet=off ./internal/catalog/scalebench -run '^TestCrossKindGrowthMeasurement$' -count=1 -v -timeout=90m > "$RUNNER_TEMP/reports/seed.log" 2>&1
+          go test -p 1 -vet=off ./internal/catalog/scalebench ./internal/httpapi -run '^Test(CrossKindGrowthMeasurement|ReadingGrowthMeasurement)$' -count=1 -v -timeout=30m > "$RUNNER_TEMP/reports/growth.log" 2>&1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with: {name: 'growth-${{ matrix.items }}', path: '${{ runner.temp }}/reports', retention-days: 7}
@@ -105,6 +112,7 @@ jobs:
       - name: Scan while users browse
         working-directory: server
         env:
+          PORTICO_FIXTURE_SEED_HASH: ${{ hashFiles('server/internal/httpapi/fixture/**', 'server/internal/compactcatalog/**', 'server/internal/persistence/**', 'server/internal/dbwork/**', 'server/go.sum') }}
           TMPDIR: ${{ runner.temp }}/scale-cache
           PORTICO_SCAN_GROWTH_ITEMS: ${{ matrix.items }}
           PORTICO_SCALE_REPORT: ${{ runner.temp }}/reports
