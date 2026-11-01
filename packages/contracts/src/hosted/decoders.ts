@@ -25,10 +25,6 @@ export function decodeAccountSecurityEmailResendResponse(input: unknown): types.
 export function decodeAccountSecurityGetResponse(input: unknown): types.AccountSecurityGetResponse { return decode("AccountSecurityGetResponse", input) as types.AccountSecurityGetResponse; }
 export function decodeAccountSecurityMfaConfirmResponse(input: unknown): types.AccountSecurityMfaConfirmResponse { return decode("AccountSecurityMfaConfirmResponse", input) as types.AccountSecurityMfaConfirmResponse; }
 export function decodeAccountSecurityProofResponse(input: unknown): types.AccountSecurityProofResponse { return decode("AccountSecurityProofResponse", input) as types.AccountSecurityProofResponse; }
-export function decodeAccountSecurityReturnCancelResponse(input: unknown): types.AccountSecurityReturnCancelResponse { return decode("AccountSecurityReturnCancelResponse", input) as types.AccountSecurityReturnCancelResponse; }
-export function decodeAccountSecurityReturnCompleteResponse(input: unknown): types.AccountSecurityReturnCompleteResponse { return decode("AccountSecurityReturnCompleteResponse", input) as types.AccountSecurityReturnCompleteResponse; }
-export function decodeAccountSecurityReturnPrepareResponse(input: unknown): types.AccountSecurityReturnPrepareResponse { return decode("AccountSecurityReturnPrepareResponse", input) as types.AccountSecurityReturnPrepareResponse; }
-export function decodeAccountSecurityReturnStartResponse(input: unknown): types.AccountSecurityReturnStartResponse { return decode("AccountSecurityReturnStartResponse", input) as types.AccountSecurityReturnStartResponse; }
 export function decodeAccountSessionDeleteResponse(input: unknown): types.AccountSessionDeleteResponse { return decode("AccountSessionDeleteResponse", input) as types.AccountSessionDeleteResponse; }
 export function decodeAccountSessionsListResponse(input: unknown): types.AccountSessionsListResponse { return decode("AccountSessionsListResponse", input) as types.AccountSessionsListResponse; }
 export function decodeAccountSessionsRevokeOthersResponse(input: unknown): types.AccountSessionsRevokeOthersResponse { return decode("AccountSessionsRevokeOthersResponse", input) as types.AccountSessionsRevokeOthersResponse; }
@@ -48,7 +44,6 @@ export function decodeIdentityCurrentResponse(input: unknown): types.IdentityCur
 export function decodeIdentityMfaCompleteResponse(input: unknown): types.IdentityMfaCompleteResponse { return decode("IdentityMfaCompleteResponse", input) as types.IdentityMfaCompleteResponse; }
 export function decodeIdentityOptionsGetResponse(input: unknown): types.IdentityOptionsGetResponse { return decode("IdentityOptionsGetResponse", input) as types.IdentityOptionsGetResponse; }
 export function decodeIdentitySecurityCancelResponse(input: unknown): types.IdentitySecurityCancelResponse { return decode("IdentitySecurityCancelResponse", input) as types.IdentitySecurityCancelResponse; }
-export function decodeIdentitySecurityReturnResponse(input: unknown): types.IdentitySecurityReturnResponse { return decode("IdentitySecurityReturnResponse", input) as types.IdentitySecurityReturnResponse; }
 export function decodeIdentityStartResponse(input: unknown): types.IdentityStartResponse { return decode("IdentityStartResponse", input) as types.IdentityStartResponse; }
 export function decodeIdentityTransactionCompleteResponse(input: unknown): types.IdentityTransactionCompleteResponse { return decode("IdentityTransactionCompleteResponse", input) as types.IdentityTransactionCompleteResponse; }
 export function decodeIdentityTransactionContactResponse(input: unknown): types.IdentityTransactionContactResponse { return decode("IdentityTransactionContactResponse", input) as types.IdentityTransactionContactResponse; }
