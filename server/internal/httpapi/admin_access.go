@@ -354,6 +354,12 @@ func (d Dependencies) accessRoutes(mux *http.ServeMux) {
 			failure(w, e)
 			return
 		}
+		// A source blocked after failures across many accounts is refused
+		// before the invitation is read, exactly as on the sign-in routes.
+		if e := d.Identity.SourceBlocked(r.Context()); e != nil {
+			failure(w, e)
+			return
+		}
 		// The same limiter the sign-in routes use: a code is a secret, and an
 		// unauthenticated route that creates accounts must not be brute-forced.
 		if e := d.Identity.SetupLimit(r.Context(), d.setupPeerSubject(r), "invitation", 10); e != nil {
@@ -375,6 +381,11 @@ func (d Dependencies) accessRoutes(mux *http.ServeMux) {
 			})
 			if e != nil {
 				if errors.Is(e, access.ErrExpired) || errors.Is(e, access.ErrInvalid) || errors.Is(e, access.ErrInvitationRecipient) {
+					// An invitation code that names nothing is an evaluated
+					// guess; a code bound to someone else is not.
+					if errors.Is(e, access.ErrExpired) || errors.Is(e, access.ErrInvalid) {
+						_ = d.Identity.RecordSourceFailure(r.Context())
+					}
 					accessFailure(w, e)
 				} else {
 					failure(w, e)
@@ -391,6 +402,9 @@ func (d Dependencies) accessRoutes(mux *http.ServeMux) {
 		}
 		out, e := store.Accept(r.Context(), body.Acceptance, hash)
 		if e != nil {
+			if errors.Is(e, access.ErrExpired) || errors.Is(e, access.ErrInvalid) {
+				_ = d.Identity.RecordSourceFailure(r.Context())
+			}
 			accessFailure(w, e)
 			return
 		}

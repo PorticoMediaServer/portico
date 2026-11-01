@@ -406,6 +406,17 @@ func failure(w http.ResponseWriter, e error) {
 			w.Header().Set("Retry-After", strconv.FormatInt(wait.RetryAfterSeconds, 10))
 		}
 	}
+	// A source blocked after failures across many accounts is refused before
+	// any account is looked up, with the exact wait.
+	if errors.Is(e, identity.ErrSourceBlocked) {
+		status, code = 429, "source_blocked"
+		var blocked *identity.SourceBlockError
+		if errors.As(e, &blocked) {
+			w.Header().Set("Retry-After", strconv.FormatInt(blocked.RetryAfter, 10))
+		} else {
+			w.Header().Set("Retry-After", "60")
+		}
+	}
 	if errors.Is(e, identity.ErrProfilePIN) {
 		var wait *identity.ProfilePINError
 		if errors.As(e, &wait) {

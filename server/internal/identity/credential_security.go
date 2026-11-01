@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"net"
 	"net/netip"
 	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
 	"strings"
@@ -52,15 +51,7 @@ const (
 )
 
 func credentialSource(ctx context.Context) (string, bool) {
-	peer, _ := ctx.Value(signInSourceKey{}).(string)
-	if peer == "" {
-		claim, _ := ctx.Value(issuingDeviceKey{}).(issuingDevice)
-		peer = claim.peer
-	}
-	host, _, err := net.SplitHostPort(peer)
-	if err != nil {
-		host = peer
-	}
+	host := signInPeerAddress(ctx)
 	addr, err := netip.ParseAddr(host)
 	if err != nil {
 		return "unknown", false
@@ -158,6 +149,9 @@ func (s *Service) unknownCooloff(ctx context.Context, user string) error {
 func (s *Service) unknownAttempt(ctx context.Context, user string) error {
 	subject := s.unknownSubject(user)
 	return dbwork.WithWriteTx(ctx, s.db, dbwork.ClassSecurityFence, func(tx *sql.Tx) error {
+		if err := s.chargeSourceFailureTx(ctx, tx); err != nil {
+			return err
+		}
 		return unknownAttemptTx(ctx, tx, subject)
 	})
 }
@@ -349,6 +343,13 @@ func (s *Service) passwordAttemptTx(ctx context.Context, tx *sql.Tx, account str
 		return err
 	}
 	attempts++
+	// The password, and the two-step code that finishes the same sign-in, are
+	// one evaluated credential failure per guess. Charge it to the source
+	// before the account-wide delay is computed, so a stuffing run across many
+	// names meets the same budget as a run against one.
+	if err = s.chargeSourceFailureTx(ctx, tx); err != nil {
+		return err
+	}
 	delay := passwordDelay(policy.Values.PasswordAttempts, attempts)
 	_, err = tx.ExecContext(ctx, `INSERT INTO identity_credential_attempts(account_id,source_bucket,failed_attempts,last_failure,locked_until) VALUES(?,?,?,?,?) ON CONFLICT(account_id,source_bucket) DO UPDATE SET failed_attempts=excluded.failed_attempts,last_failure=excluded.last_failure,locked_until=excluded.locked_until`, account, source, attempts, now, max(until, now+delay))
 	if err != nil {

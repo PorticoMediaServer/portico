@@ -6,9 +6,12 @@ import (
 	"errors"
 	"net"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
+	"github.com/PorticoMediaServer/portico/server/internal/notify"
 	"github.com/PorticoMediaServer/portico/server/internal/requestinput"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -112,7 +115,7 @@ func (s *Service) RegisterDevice(ctx context.Context, bearer string, q DeviceReg
 	if e != nil {
 		return Device{}, e
 	}
-	device, e := s.registerDeviceTx(ctx, tx, c, q, peer)
+	device, _, e := s.registerDeviceTx(ctx, tx, c, q, peer)
 	if e != nil {
 		return device, e
 	}
@@ -125,7 +128,7 @@ func (s *Service) RegisterDevice(ctx context.Context, bearer string, q DeviceReg
 	return device, e
 }
 
-func (s *Service) registerDeviceTx(ctx context.Context, tx *sql.Tx, c deviceCaller, q DeviceRegistration, peer string) (Device, error) {
+func (s *Service) registerDeviceTx(ctx context.Context, tx *sql.Tx, c deviceCaller, q DeviceRegistration, peer string) (Device, bool, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	name, _ := deviceText(q.Name, 120)
 	if name == "" {
@@ -134,22 +137,91 @@ func (s *Service) registerDeviceTx(ctx context.Context, tx *sql.Tx, c deviceCall
 	platform, _ := deviceText(q.Platform, 64)
 	app, _ := deviceText(q.App, 64)
 	version, _ := deviceText(q.AppVersion, 64)
+	// A device row this account has never had is a new device, and the person
+	// and the owner are told about it (below, by the sign-in that made it).
+	// Re-registering a known installation is the same device and stays silent.
+	var known bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM identity_devices WHERE authority=? AND account_id=? AND installation_id=?)`, c.authority, c.account, q.InstallationID).Scan(&known); err != nil {
+		return Device{}, false, err
+	}
 	if _, e := tx.ExecContext(ctx, `INSERT INTO identity_devices(id,authority,account_id,installation_id,name,platform,app,app_version,ip,first_seen,last_seen) VALUES(?,?,?,?,?,?,?,?,?,?,?)
  ON CONFLICT(authority,account_id,installation_id) DO UPDATE SET platform=excluded.platform,app=excluded.app,app_version=excluded.app_version,ip=excluded.ip,last_seen=excluded.last_seen`,
 		Token(), c.authority, c.account, q.InstallationID, name, platform, app, version, clientIP(peer), now, now); e != nil {
-		return Device{}, e
+		return Device{}, false, e
 	}
 	// A real authenticated enrollment is the one place an installation lifetime
 	// is created (P2-62). It is a watermark for the registration handshake, not
 	// a grant, and it never rotates an existing lifetime.
 	if e := s.enrollInstallationTx(ctx, tx, q.InstallationID); e != nil {
-		return Device{}, e
+		return Device{}, false, e
 	}
 	device, e := s.deviceTx(ctx, tx, c.authority, c.account, q.InstallationID, "")
 	if e != nil {
-		return device, e
+		return device, false, e
 	}
-	return device, nil
+	return device, !known, nil
+}
+
+// newDeviceNoticeTx records that a device signed in to this account for the
+// first time. The account holder is told on every path that creates one —
+// password, Portico Account return, Quick Connect, invitation acceptance —
+// because the device record is created in the one sign-in transaction they all
+// pass through. The server's administrators get their own copy only when the
+// sign-in came from outside the home networks, deduped per device, and only the
+// /24 or /48 is named.
+func (s *Service) newDeviceNoticeTx(ctx context.Context, tx *sql.Tx, authority, account string, device Device) error {
+	label := notifyLabel(device.Name, device.Platform)
+	var profile string
+	if err := tx.QueryRowContext(ctx, `SELECT profile_id FROM accounts WHERE id=?`, account).Scan(&profile); err != nil {
+		return err
+	}
+	now := time.Now().UnixMilli()
+	if _, err := notify.NotifySecurityEvent(tx, now, authority, account, profile, notify.SecurityNewDevice, device.ID, label); err != nil {
+		return err
+	}
+	if networkpolicy.Home(ctx) {
+		return nil
+	}
+	network := ""
+	if bucket, ok := sourceBucket(ctx); ok {
+		network = sourceNetwork(bucket)
+	}
+	if _, err := notify.NotifyRemoteNewDevice(tx, now, device.ID, label, network); err != nil {
+		return err
+	}
+	return countSecurityEventTx(ctx, tx, time.Now().Unix(), "new_remote_device")
+}
+
+// notifyLabel is the device name the inboxes may hold. The name is a client
+// assertion: a control character or a bidi override in it must make the notice
+// plainer, never make the sign-in fail, so those runes are dropped and an
+// unusable name becomes the notice's own generic one.
+func notifyLabel(name, platform string) string {
+	clean := func(v string, max int) string {
+		v = strings.Map(func(r rune) rune {
+			if unicode.IsControl(r) || r >= 0x202a && r <= 0x202e || r >= 0x2066 && r <= 0x2069 {
+				return -1
+			}
+			return r
+		}, v)
+		if utf8.RuneCountInString(v) > max {
+			v = string([]rune(v)[:max])
+		}
+		return strings.TrimSpace(v)
+	}
+	label := clean(name, 120)
+	platform = clean(platform, 64)
+	if platform != "" {
+		if label == "" {
+			label = platform
+		} else {
+			label += " (" + platform + ")"
+		}
+	}
+	if label == "" {
+		return "A new device"
+	}
+	return label
 }
 
 const deviceColumns = `id,authority,installation_id,name,platform,app,app_version,ip,first_seen,last_seen,last_profile_id,remember_account`

@@ -190,6 +190,80 @@ func NotifySecurityEvent(tx *sql.Tx, now int64, authority, account, profile, kin
 	return Raise(tx, now, d)
 }
 
+// NotifySourceBlocked tells the account administrators that one remote network
+// was blocked after too many failed sign-ins. The caller decides when it may be
+// raised (once per network per day); the notice is deduped per network, so a
+// re-block inside that window updates the same record instead of stacking.
+//
+// network is the /24 or /48 the block covers, never the exact address: the
+// notice is about a network, and an address is not needed to act on it.
+func NotifySourceBlocked(tx *sql.Tx, now int64, network string, blockCount int, retryAfterSeconds int64) ([]Result, error) {
+	if network == "" || blockCount < 1 || retryAfterSeconds < 1 {
+		return nil, ErrInvalid
+	}
+	return RaiseForAdmins(tx, now, NoticeSecurity, Draft{
+		Severity:  SeverityWarning,
+		Source:    SourceSecurity,
+		Category:  "security.source-blocked",
+		DedupeKey: "source:" + strings.ReplaceAll(network, "/", "_"),
+		Title:     "Repeated sign-in failures blocked",
+		Body:      "Too many failed sign-ins came from " + network + ", so Portico is refusing that network for a while. Sign-ins from your home network are never blocked.",
+		Arguments: map[string]string{"network": network, "blockCount": strconv.Itoa(blockCount), "retryAfterSeconds": strconv.FormatInt(retryAfterSeconds, 10)},
+		Actions: []Action{
+			{Kind: "navigate", Label: "Review remote security", Target: &NavigateTarget{View: "settings-network"}},
+		},
+	})
+}
+
+// NotifySignInBurst tells the account administrators that sign-ins are failing
+// server-wide at a rate no person produces. The caller raises it at most once an
+// hour; the fixed dedupe key keeps one notice that moves as the count does.
+func NotifySignInBurst(tx *sql.Tx, now int64, failed int) ([]Result, error) {
+	if failed < 1 {
+		return nil, ErrInvalid
+	}
+	return RaiseForAdmins(tx, now, NoticeSecurity, Draft{
+		Severity:  SeverityWarning,
+		Source:    SourceSecurity,
+		Category:  "security.sign-in-burst",
+		DedupeKey: "sign-in-burst",
+		Title:     "Many sign-in attempts are failing",
+		Body:      "Portico recorded " + strconv.Itoa(failed) + " failed sign-ins in ten minutes. If this was not you, review the security summary and the server's remote access settings.",
+		Arguments: map[string]string{"failedSignIns": strconv.Itoa(failed)},
+		Actions: []Action{
+			{Kind: "navigate", Label: "Review remote security", Target: &NavigateTarget{View: "settings-network"}},
+		},
+	})
+}
+
+// NotifyRemoteNewDevice tells the account administrators that a device signed in
+// from outside the home network for the first time. It is deduped per device, so
+// the person's own notice and the administrators' copy of one sign-in never
+// multiply, and network is the /24 or /48 rather than the address.
+func NotifyRemoteNewDevice(tx *sql.Tx, now int64, deviceID, label, network string) ([]Result, error) {
+	if deviceID == "" || label == "" {
+		return nil, ErrInvalid
+	}
+	body := label + " signed in to this server from outside your home network."
+	arguments := map[string]string{"device": label, "deviceId": deviceID}
+	if network != "" {
+		body += " The connection came from " + network + "."
+		arguments["network"] = network
+	}
+	return RaiseForAdmins(tx, now, NoticeSecurity, Draft{
+		Severity:  SeverityWarning,
+		Source:    SourceSecurity,
+		Category:  "security.new-device",
+		DedupeKey: "device:" + deviceID,
+		Title:     "New device signed in remotely",
+		Body:      body,
+		Arguments: arguments,
+		Actions: []Action{
+			{Kind: "navigate", Label: "Review devices", Target: &NavigateTarget{View: "admin-devices"}},
+		},
+	})
+}
+
 // NotifyScanFailure tells the account admins that a library scan stopped. The
 // dedupe key is the source, so a source that keeps failing produces one notice
 // whose text and revision move rather than one notice per attempt.

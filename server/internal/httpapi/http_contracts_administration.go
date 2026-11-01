@@ -109,7 +109,7 @@ func registerAdministrationHTTPContracts(registry *apikit.Registry) error {
 		return err
 	}
 	// internal/httpapi/admin_access.go:139
-	if err := apikit.RegisterHTTP[InvitationAcceptRequest, InvitationAcceptanceResponse](registry, apikit.Metadata{Audience: apikit.Clients, ID: "post_access_invitations_accept", Method: "POST", Path: "/v1/access/invitations/accept", Summary: "Run access invitations accept", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Default, Admission: laneDefault, Cost: apikit.Constant, BodyLimit: 65536, Status: 201, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "sign_in_kind_local", "sign_in_kind_portico", "factor_setup_required", "internal"}}); err != nil {
+	if err := apikit.RegisterHTTP[InvitationAcceptRequest, InvitationAcceptanceResponse](registry, apikit.Metadata{Audience: apikit.Clients, ID: "post_access_invitations_accept", Method: "POST", Path: "/v1/access/invitations/accept", Summary: "Run access invitations accept", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Default, Admission: laneDefault, Cost: apikit.Constant, BodyLimit: 65536, Status: 201, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "source_blocked", "sign_in_kind_local", "sign_in_kind_portico", "factor_setup_required", "internal"}}); err != nil {
 		return err
 	}
 	// internal/httpapi/admin_concurrency.go:182

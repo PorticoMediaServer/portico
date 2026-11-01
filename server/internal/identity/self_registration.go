@@ -131,6 +131,9 @@ func (s *Service) Register(ctx context.Context, q SelfRegistrationRequest, priva
 	if err := s.RequireSignInKind(ctx, SignInLocal); err != nil {
 		return DirectSignIn{}, err
 	}
+	if err := s.sourceBlocked(ctx); err != nil {
+		return DirectSignIn{}, err
+	}
 	mode := s.SelfRegistration()
 	if mode == SelfRegistrationOff || s.SetupRequired() {
 		return DirectSignIn{}, ErrRegistrationClosed

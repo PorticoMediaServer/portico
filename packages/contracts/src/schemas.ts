@@ -36488,6 +36488,116 @@ export const schemas = {
     ],
     "type": "object"
   },
+  "GetAdminSecuritySummaryRequest": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "GetAdminSecuritySummaryResponse": {
+    "properties": {
+      "blocks": {
+        "items": {
+          "properties": {
+            "blockCount": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "blockedUntil": {
+              "type": "string"
+            },
+            "failedAttempts": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "lastFailure": {
+              "type": "string"
+            },
+            "network": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "network",
+            "failedAttempts",
+            "blockCount",
+            "blockedUntil"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "counts": {
+        "properties": {
+          "last24Hours": {
+            "properties": {
+              "blockedSources": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              "failedSignIns": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              "newRemoteDevices": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "failedSignIns",
+              "blockedSources",
+              "newRemoteDevices"
+            ],
+            "type": "object"
+          },
+          "last7Days": {
+            "properties": {
+              "blockedSources": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              "failedSignIns": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              "newRemoteDevices": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "failedSignIns",
+              "blockedSources",
+              "newRemoteDevices"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "last24Hours",
+          "last7Days"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "counts",
+      "blocks"
+    ],
+    "type": "object"
+  },
   "GetAdminSegmentsRequest": {
     "properties": {},
     "required": [],
@@ -228087,6 +228197,16 @@ export const schemas = {
     "type": "object"
   },
   "PostAdminRestartResponse": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "PostAdminSecurityUnblockRequest": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "PostAdminSecurityUnblockResponse": {
     "properties": {},
     "required": [],
     "type": "object"

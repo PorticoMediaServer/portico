@@ -234,6 +234,9 @@ func (s *Service) DirectLoginFrom(ctx context.Context, user, password string, pr
 	if RemoteSignInClosed(ctx) {
 		return DirectSignIn{}, ErrRemoteSignIn
 	}
+	if err := s.sourceBlocked(ctx); err != nil {
+		return DirectSignIn{}, err
+	}
 	for attempt := 0; attempt < 2; attempt++ {
 		out, stale, err := s.directLoginOnce(ctx, user, password, private)
 		if !stale {
@@ -310,6 +313,10 @@ func (s *Service) directAccountTx(ctx context.Context, tx *sql.Tx, account strin
 // directSignInTx mints one rotating device session. Until profile selection,
 // that family has account scope and cannot authorize media.
 func (s *Service) directSignInTx(ctx context.Context, tx *sql.Tx, c directCaller, private bool) (DirectSignIn, error) {
+	// This is a person's sign-in, whichever credential proved them: a device
+	// it creates for the first time is worth telling the person and the owner
+	// about.
+	ctx = withNewDeviceNotice(ctx)
 	// Apply access admission before registering a device or creating a family.
 	if err := s.admitSignInTx(ctx, tx, c.account.ID); err != nil {
 		return DirectSignIn{}, err

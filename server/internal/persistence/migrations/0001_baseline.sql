@@ -3644,6 +3644,39 @@ CREATE TABLE identity_unknown_attempts(
  locked_until INTEGER NOT NULL DEFAULT 0,
  PRIMARY KEY(subject_hash,source_bucket)
 ) STRICT;
+-- One failure budget per source, across every account: the exact address for
+-- IPv4 and the /64 for IPv6. Failures decay by half every fifteen minutes, the
+-- same as the per-account ledgers. A source that reaches the threshold is
+-- blocked; each re-block doubles the wait, capped at a day. source_id is the
+-- opaque handle the owner screen uses to unblock it, so an address with a slash
+-- or a colon never has to travel in a path.
+CREATE TABLE identity_source_attempts(
+ source_bucket TEXT PRIMARY KEY,
+ source_id TEXT NOT NULL,
+ failed_attempts INTEGER NOT NULL DEFAULT 0,
+ last_failure INTEGER NOT NULL DEFAULT 0,
+ blocked_until INTEGER NOT NULL DEFAULT 0,
+ block_count INTEGER NOT NULL DEFAULT 0,
+ last_block INTEGER NOT NULL DEFAULT 0
+) STRICT;
+-- Bounded counters behind the owner's security summary (hourly, kept seven
+-- days) and the server-wide burst alert (minutely, kept two hours).
+CREATE TABLE identity_security_counts(
+ hour INTEGER NOT NULL,
+ kind TEXT NOT NULL,
+ count INTEGER NOT NULL DEFAULT 0,
+ PRIMARY KEY(hour,kind)
+) STRICT;
+CREATE TABLE identity_security_minutes(
+ minute INTEGER PRIMARY KEY,
+ count INTEGER NOT NULL DEFAULT 0
+) STRICT;
+-- The last time a deduplicated owner alert was raised, so a source block is one
+-- notice per source per day and a burst is one per hour.
+CREATE TABLE identity_security_alerts(
+ alert_key TEXT PRIMARY KEY,
+ raised_at INTEGER NOT NULL
+) STRICT;
 CREATE TABLE "networking_remote_settings"(singleton INTEGER PRIMARY KEY CHECK(singleton=1),authority TEXT NOT NULL DEFAULT '',revision INTEGER NOT NULL DEFAULT 1,enabled INTEGER NOT NULL DEFAULT 0,lan_sharing INTEGER NOT NULL DEFAULT 0,mapping INTEGER NOT NULL DEFAULT 0,pcp INTEGER NOT NULL DEFAULT 1,natpmp INTEGER NOT NULL DEFAULT 1,upnp INTEGER NOT NULL DEFAULT 1,public_port INTEGER NOT NULL DEFAULT 32500,gateway TEXT NOT NULL DEFAULT '',manual_url TEXT NOT NULL DEFAULT '',signature_key BLOB NOT NULL, ipv6_open INTEGER NOT NULL DEFAULT 0) STRICT;
 CREATE TABLE networking_remote_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1),generation INTEGER NOT NULL DEFAULT 1,topology_digest TEXT NOT NULL DEFAULT '',route_digest TEXT NOT NULL DEFAULT '',next_attempt INTEGER NOT NULL DEFAULT 0,attempts INTEGER NOT NULL DEFAULT 0,retry_after INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT '{}') STRICT;
 CREATE TABLE networking_mappings(id TEXT PRIMARY KEY,authority TEXT NOT NULL,protocol TEXT NOT NULL,expires_at INTEGER NOT NULL,next_attempt INTEGER NOT NULL,payload TEXT NOT NULL) STRICT;
@@ -5086,6 +5119,9 @@ CREATE INDEX api_idempotency_expiry ON api_idempotency(expires_at);
 CREATE INDEX identity_refresh_predecessors_family ON identity_refresh_predecessors(family_id);
 CREATE INDEX identity_unknown_attempts_age ON identity_unknown_attempts(last_failure);
 CREATE INDEX identity_credential_attempts_age ON identity_credential_attempts(last_failure);
+CREATE UNIQUE INDEX identity_source_attempts_id ON identity_source_attempts(source_id);
+CREATE INDEX identity_source_attempts_age ON identity_source_attempts(last_failure);
+CREATE INDEX identity_security_alerts_age ON identity_security_alerts(raised_at);
 CREATE INDEX authorization_families_retention ON authorization_session_families(revoked,authorization_horizon,id);
 CREATE INDEX authorization_families_horizon ON authorization_session_families(authorization_horizon,id);
 CREATE INDEX networking_mappings_expiry ON networking_mappings(expires_at);

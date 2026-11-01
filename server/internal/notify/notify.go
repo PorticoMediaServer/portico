@@ -373,6 +373,7 @@ const (
 	NoticeCertificate = "certificate"
 	NoticeRecording   = "recording"
 	NoticeFeedback    = "feedback"
+	NoticeSecurity    = "security"
 )
 
 // Who receives a notice: the owner and the administrators, the owner alone, or no one.
@@ -383,7 +384,7 @@ const (
 )
 
 var (
-	NoticeKinds     = []string{NoticeScan, NoticeStorage, NoticeCertificate, NoticeRecording, NoticeFeedback}
+	NoticeKinds     = []string{NoticeScan, NoticeStorage, NoticeCertificate, NoticeRecording, NoticeFeedback, NoticeSecurity}
 	NoticeAudiences = []string{NoticeOwnerAndAdmins, NoticeOwnerOnly, NoticeNoOne}
 )
 
@@ -401,6 +402,10 @@ func NoticeRecords(kind string) (string, []any) {
 		return `source=?`, []any{SourceScan}
 	case NoticeStorage:
 		return `source=?`, []any{SourceStorage}
+	case NoticeSecurity:
+		// Only the administrators' copies are in scope here; a viewer's own
+		// security notice is a profile record, not an account-admin one.
+		return `source=? AND category LIKE 'security.%'`, []any{SourceSecurity}
 	}
 	return `0`, nil
 }
