@@ -11,8 +11,13 @@ appId: tv.getportico.app
 - inputText: ${SERVER_ADDRESS}
 - tapOn: 'Continue'
 - extendedWaitUntil:
-    visible:
+    visible: 'Username'
+    timeout: 60000
+- hideKeyboard
+- scrollUntilVisible:
+    element:
       id: accounts-dev-test-owner
+    direction: DOWN
     timeout: 60000
 - takeScreenshot: 02-local-sign-in
 - tapOn:
