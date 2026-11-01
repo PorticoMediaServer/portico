@@ -244,7 +244,7 @@ func TestAnalysisEnqueueRawWindowConsumesRejectedPrefix(t *testing.T) {
 		switch {
 		case strings.HasPrefix(entry.Shape, "SELECT o.id,o.revision FROM inventory_objects o INDEXED BY inventory_objects_source"):
 			raw += entry.Count
-		case strings.HasPrefix(entry.Shape, "WITH batch AS MATERIALIZED ( SELECT o.* FROM json_each(?) requested CROSS JOIN inventory_objects o ON"):
+		case strings.HasPrefix(entry.Shape, "WITH batch AS MATERIALIZED ( SELECT o.* FROM inventory_objects o JOIN inventory_runs r ON"):
 			needs += entry.Count
 		}
 	}
@@ -692,7 +692,7 @@ func TestAnalysisEnqueueWindowStatementsAreBounded(t *testing.T) {
 		switch {
 		case strings.HasPrefix(query, "SELECT o.id,o.revision FROM inventory_objects o INDEXED BY inventory_objects_source"):
 			raw, rawCount = query, rawCount+1
-		case strings.HasPrefix(query, "WITH batch AS MATERIALIZED ( SELECT o.* FROM json_each(?) requested CROSS JOIN inventory_objects o ON"):
+		case strings.HasPrefix(query, "WITH batch AS MATERIALIZED ( SELECT o.* FROM inventory_objects o JOIN inventory_runs r ON"):
 			needs, needsCount = query, needsCount+1
 		}
 	}
@@ -712,7 +712,7 @@ func TestAnalysisEnqueueWindowStatementsAreBounded(t *testing.T) {
 
 	// The needs statement must stay restricted to the window ids: it may not
 	// carry the old cursor range, which is what made it a source walk.
-	if !strings.Contains(needs, "FROM json_each(?) requested CROSS JOIN inventory_objects o ON o.id=requested.value") || strings.Contains(needs, "o.id>r.reconcile_cursor") {
+	if !strings.Contains(needs, "o.id IN (SELECT value FROM json_each(?))") || strings.Contains(needs, "o.id>r.reconcile_cursor") {
 		t.Fatalf("needs statement is not restricted to the window id set: %s", needs)
 	}
 	policy, err := f.s.catalog.ScanPolicy(context.Background(), f.library)
@@ -733,10 +733,10 @@ func TestAnalysisEnqueueWindowStatementsAreBounded(t *testing.T) {
 	}
 	// Strict reports add the actual mode and platform path separator bindings
 	// before the unchanged probe/policy bindings in the issued window query.
-	needsPlan := explainIssued(t, f.db, needs, string(idsJSON), job.ID, strictReportMode, string(filepath.Separator), false, policy.Revision,
+	needsPlan := explainIssued(t, f.db, needs, job.ID, string(idsJSON), strictReportMode, string(filepath.Separator), false, policy.Revision,
 		mediaanalysis.Algorithm, f.library, string(requiredJSON), string(requiredJSON),
 		mediaanalysis.Algorithm, "strm_target:0", job.ID)
-	pointSet := "SEARCH o USING INDEX sqlite_autoindex_inventory_objects_1 (id=?)"
+	pointSet := "SEARCH o USING INDEX inventory_objects_source (source_id=? AND retired=? AND id=?)"
 	if !strings.Contains(needsPlan, pointSet) {
 		t.Fatalf("needs statement does not reach the source by id: %s", needsPlan)
 	}

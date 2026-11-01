@@ -212,17 +212,15 @@ func (s *Service) analysisWindowTx(ctx context.Context, tx *sql.Tx, job string, 
 		}
 		idsJSON, _ := json.Marshal(ids)
 		rows, err = tx.QueryContext(ctx, `WITH batch AS MATERIALIZED (
- SELECT o.* FROM json_each(?) requested
- CROSS JOIN inventory_objects o ON o.id=requested.value
- CROSS JOIN inventory_runs r ON r.job_id=? AND r.source_id=o.source_id
- WHERE o.retired=0 AND o.state='available' AND o.root_incarnation=r.root_incarnation AND o.unsupported_reason=''
+ SELECT o.* FROM inventory_objects o JOIN inventory_runs r ON r.source_id=o.source_id
+ WHERE r.job_id=? AND o.id IN (SELECT value FROM json_each(?)) AND o.retired=0 AND o.state='available' AND o.root_incarnation=r.root_incarnation AND o.unsupported_reason=''
  AND (r.reported<>? OR (EXISTS(SELECT 1 FROM inventory_run_targets WHERE job_id=r.job_id) AND `+targetScopeSQL+`))
  ORDER BY o.id)
  SELECT o.id,o.revision,(lower(substr(o.relative_path,-5)) NOT IN('.epub','.mobi','.azw3') AND lower(substr(o.relative_path,-4)) NOT IN('.pdf','.cbz','.cb7','.cbr') AND (lower(substr(o.relative_path,-5))<>'.strm' OR ?=1) AND (o.analysis_revision<>o.revision OR o.analysis_policy<>? OR o.analysis_state='pending' OR o.analysis_generation<>r.source_generation OR (o.analysis_algorithm<>? AND EXISTS(SELECT 1 FROM json_each((SELECT operations_json FROM library_scan_policies WHERE library_id=?)) WHERE value IN('checksum','chapter_images','trickplay','waveform','loudness','fingerprint'))) OR
  (lower(substr(o.relative_path,-5))<>'.strm' AND EXISTS(SELECT 1 FROM json_each(?) wanted WHERE NOT EXISTS(SELECT 1 FROM json_each(o.analysis_operations_json) done WHERE done.value=wanted.value))) OR
  EXISTS(SELECT 1 FROM json_each(?) wanted WHERE wanted.value IN('checksum','chapter_images','trickplay','waveform','loudness','fingerprint') AND NOT EXISTS(SELECT 1 FROM analysis_heads h JOIN analysis_results a ON a.id=h.result_id WHERE h.object_id=o.id AND h.source_revision=o.revision AND h.stage=wanted.value AND a.algorithm=? AND a.root_incarnation=r.root_incarnation AND a.configuration_generation=r.source_generation AND a.retired_ms=0)) OR
  (lower(substr(o.relative_path,-5))='.strm' AND NOT EXISTS(SELECT 1 FROM json_each(o.analysis_operations_json) done WHERE done.value=?))))
- FROM batch o CROSS JOIN inventory_runs r ON r.job_id=? AND r.source_id=o.source_id ORDER BY o.id`, string(idsJSON), job, strictReportMode, string(filepath.Separator), strmEnabled && policy.Allows("probe"), policy.Revision, mediaanalysis.Algorithm, source.LibraryID, string(requiredJSON), string(requiredJSON), mediaanalysis.Algorithm, "strm_target:"+strconv.FormatInt(strmRevision, 10), job)
+ FROM batch o JOIN inventory_runs r ON r.source_id=o.source_id WHERE r.job_id=? ORDER BY o.id`, job, string(idsJSON), strictReportMode, string(filepath.Separator), strmEnabled && policy.Allows("probe"), policy.Revision, mediaanalysis.Algorithm, source.LibraryID, string(requiredJSON), string(requiredJSON), mediaanalysis.Algorithm, "strm_target:"+strconv.FormatInt(strmRevision, 10), job)
 		if err != nil {
 			return w, err
 		}
@@ -1239,14 +1237,22 @@ func finishScanTx(ctx context.Context, tx *sql.Tx, job, source string) error {
 	// looked at it: an incremental scan that skipped its folder still ends
 	// "with warnings" and the source isn't "healthy" while any remain. One
 	// seek on the issues-only index (0223).
-	attention := `EXISTS(SELECT 1 FROM episodic_sources e JOIN inventory_objects o ON o.asset_id=e.asset_id JOIN library_sources s ON s.id=o.source_id WHERE s.id=? AND e.library_id=s.library_id AND e.issue<>'' AND o.retired=0 AND o.state='available' AND o.root_incarnation=s.incarnation)`
-	if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status=CASE WHEN (SELECT warnings FROM inventory_runs WHERE job_id=?)>0 OR `+attention+` THEN 'complete_with_warnings' ELSE 'complete' END WHERE id=? AND status='running'`, job, source, job); err != nil {
+	// Start at the source, then its issues-only index. Starting at inventory
+	// made a healthy TV scan walk every object twice just to prove no warning.
+	var attention bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM library_sources s
+ CROSS JOIN episodic_sources e INDEXED BY episodic_sources_issues ON e.library_id=s.library_id
+ CROSS JOIN inventory_objects o INDEXED BY inventory_objects_asset ON o.asset_id=e.asset_id
+ WHERE s.id=? AND e.issue<>'' AND o.source_id=s.id AND o.retired=0 AND o.state='available' AND o.root_incarnation=s.incarnation)`, source).Scan(&attention); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status=CASE WHEN (SELECT warnings FROM inventory_runs WHERE job_id=?)>0 OR ? THEN 'complete_with_warnings' ELSE 'complete' END WHERE id=? AND status='running'`, job, attention, job); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE inventory_runs SET phase=(SELECT status FROM jobs WHERE id=?),finished_at=?,pause_reason='' WHERE job_id=?`, job, now, job); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE library_sources SET health=CASE WHEN (SELECT warnings FROM inventory_runs WHERE job_id=?)>0 OR `+attention+` THEN 'degraded' WHEN (SELECT reported FROM inventory_runs WHERE job_id=?)=? AND last_complete_at='' THEN 'ready' ELSE 'healthy' END WHERE id=?`, job, source, job, strictReportMode, source); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE library_sources SET health=CASE WHEN (SELECT warnings FROM inventory_runs WHERE job_id=?)>0 OR ? THEN 'degraded' WHEN (SELECT reported FROM inventory_runs WHERE job_id=?)=? AND last_complete_at='' THEN 'ready' ELSE 'healthy' END WHERE id=?`, job, attention, job, strictReportMode, source); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO library_source_progress(source_id,last_progress_at) SELECT id,? FROM library_sources WHERE id=? ON CONFLICT(source_id) DO UPDATE SET last_progress_at=excluded.last_progress_at`, now, source); err != nil {
