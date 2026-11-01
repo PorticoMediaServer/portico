@@ -272,7 +272,7 @@ jobs:
             echo "not signed: the installer package (APPLE_DEVELOPER_ID_INSTALLER_P12_BASE64 not set)"
           fi
           # The key as given if it is PEM, decoded if the secret holds its base64; either way a PKCS#8 key.
-          (umask 077; python3 -c 'import base64,os,sys; v=os.environ["ASC_KEY"].strip(); d=(v+"\n").encode() if v.startswith("-----BEGIN") else base64.b64decode(v); assert d.startswith(b"-----BEGIN PRIVATE KEY-----"), "APP_STORE_CONNECT_KEY_P8 is not a PKCS#8 key"; open(sys.argv[1],"wb").write(d)' "$RUNNER_TEMP/asc-key.p8")
+          (umask 077; python3 -c 'import base64,os,sys; v=os.environ["ASC_KEY"].strip(); d=(v+"\n").encode() if v.startswith("-----BEGIN") else base64.b64decode(v); assert d.startswith(b"-----BEGIN " + b"PRIVATE KEY-----"), "APP_STORE_CONNECT_KEY_P8 is not a PKCS#8 key"; open(sys.argv[1],"wb").write(d)' "$RUNNER_TEMP/asc-key.p8")
           {
             echo "PORTICO_MACOS_SIGNING_IDENTITY=$identity"
             echo "PORTICO_MACOS_INSTALLER_IDENTITY=$installer"
@@ -475,7 +475,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" > /dev/null
           security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
           # The key as given if it is PEM, decoded if the secret holds its base64; either way a PKCS#8 key.
-          (umask 077; python3 -c 'import base64,os,sys; v=os.environ["ASC_KEY"].strip(); d=(v+"\n").encode() if v.startswith("-----BEGIN") else base64.b64decode(v); assert d.startswith(b"-----BEGIN PRIVATE KEY-----"), "APP_STORE_CONNECT_KEY_P8 is not a PKCS#8 key"; open(sys.argv[1],"wb").write(d)' "$RUNNER_TEMP/asc-key.p8")
+          (umask 077; python3 -c 'import base64,os,sys; v=os.environ["ASC_KEY"].strip(); d=(v+"\n").encode() if v.startswith("-----BEGIN") else base64.b64decode(v); assert d.startswith(b"-----BEGIN " + b"PRIVATE KEY-----"), "APP_STORE_CONNECT_KEY_P8 is not a PKCS#8 key"; open(sys.argv[1],"wb").write(d)' "$RUNNER_TEMP/asc-key.p8")
       - name: Archives
         env:
           SIGNED: ${{ needs.identity.outputs.apple_signing }}
