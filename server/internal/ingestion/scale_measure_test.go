@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -211,8 +212,10 @@ func TestScanUnderUserLoadMeasurement(t *testing.T) {
 	var phase atomic.Int32
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
+	production := os.Getenv("PORTICO_SCAN_PRODUCTION") == "1"
+	shared := catalog.New(f.db)
 	users := 32
-	if count <= 300 {
+	if count <= 300 && !production {
 		users = 4
 	}
 	for u := 0; u < users; u++ {
@@ -220,7 +223,7 @@ func TestScanUnderUserLoadMeasurement(t *testing.T) {
 		go func(u int) {
 			defer wg.Done()
 			v := catalog.Viewer{Profile: fmt.Sprintf("scan-profile-%d", u), Fence: fmt.Sprintf("scan-profile-%d", u), Libraries: []string{"baseline"}}
-			s := catalog.New(f.db).WithContext(ctx)
+			s := shared.WithContext(ctx)
 			for round := 0; ctx.Err() == nil; round++ {
 				p := phase.Load()
 				at := time.Now()
@@ -258,7 +261,7 @@ func TestScanUnderUserLoadMeasurement(t *testing.T) {
 		}(u)
 	}
 	defer func() { cancel(); wg.Wait() }()
-	report := map[string]any{"items": count, "users": users, "users_per_core": float64(users) / float64(runtime.NumCPU()), "cpus": runtime.NumCPU(), "file_setup_seconds": setup, "boundary": "real scanner plus foreground catalogue service; HTTP/auth measured separately"}
+	report := map[string]any{"production_pacing": production, "shared_service": true, "items": count, "users": users, "users_per_core": float64(users) / float64(runtime.NumCPU()), "cpus": runtime.NumCPU(), "file_setup_seconds": setup, "boundary": "real scanner plus foreground catalogue service; HTTP/auth measured separately"}
 	save := func() {
 		w.mu.Lock()
 		summary := map[string]any{}
@@ -282,6 +285,19 @@ func TestScanUnderUserLoadMeasurement(t *testing.T) {
 	report["gate_before"] = dbwork.WriteGate().Stats()
 	job := f.queue()
 	worker := compactcatalog.NewWorker(f.db)
+	if production {
+		worker.PaceToHold(compactcatalog.BatchHoldTarget)
+	}
+	var cpu *os.File
+	if production {
+		cpu, _ = os.Create(filepath.Join(dir, "scan-load.pprof"))
+		if cpu != nil {
+			if e := pprof.StartCPUProfile(cpu); e != nil {
+				t.Fatal(e)
+			}
+			defer func() { pprof.StopCPUProfile(); cpu.Close() }()
+		}
+	}
 	scanStart := time.Now()
 	last := scanStart
 	var scan, derive time.Duration
@@ -289,9 +305,15 @@ func TestScanUnderUserLoadMeasurement(t *testing.T) {
 		at := time.Now()
 		f.s.processQuantum(context.Background(), job.ID, f.library)
 		scan += time.Since(at)
+		if production {
+			dbwork.PaceBackground(context.Background(), at)
+		}
 		at = time.Now()
 		_, e := worker.Step(context.Background(), 500)
 		derive += time.Since(at)
+		if production {
+			dbwork.PaceBackground(context.Background(), at)
+		}
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -318,7 +340,19 @@ func TestScanUnderUserLoadMeasurement(t *testing.T) {
 	report["scan_seconds"] = scan.Seconds()
 	report["interleaved_derive_seconds"] = derive.Seconds()
 	at := time.Now()
-	if e := compactcatalog.Drain(context.Background(), f.db); e != nil {
+	if production {
+		for {
+			at := time.Now()
+			n, e := worker.Step(context.Background(), 500)
+			if e != nil {
+				t.Fatal(e)
+			}
+			if n == 0 {
+				break
+			}
+			dbwork.PaceBackground(context.Background(), at)
+		}
+	} else if e := compactcatalog.Drain(context.Background(), f.db); e != nil {
 		t.Fatal(e)
 	}
 	report["final_derive_seconds"] = time.Since(at).Seconds()
@@ -342,4 +376,15 @@ func scanLoadPeakRSS() int64 {
 		}
 	}
 	return 0
+}
+
+// Same scanner and catalogue calls with normal production batch holds/pacing.
+func TestPacedScanUnderUserLoadMeasurement(t *testing.T) {
+	raw := os.Getenv("PORTICO_PACED_SCAN_ITEMS")
+	if raw == "" {
+		t.Skip("opt-in production-paced control")
+	}
+	t.Setenv("PORTICO_SCAN_GROWTH_ITEMS", raw)
+	t.Setenv("PORTICO_SCAN_PRODUCTION", "1")
+	TestScanUnderUserLoadMeasurement(t)
 }
