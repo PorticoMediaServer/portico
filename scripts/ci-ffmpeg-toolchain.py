@@ -150,12 +150,30 @@ def preserve_diagnostics(directories, evidence):
             continue
         for path in directory.rglob('*'):
             relative = path.relative_to(directory)
-            if (path.is_file() and not path.is_symlink() and path.stat().st_size <= 4 * 1024**2 and
-                    path.suffix in ('.json', '.log') and '.git' not in relative.parts and
+            if (path.is_file() and not path.is_symlink() and path.suffix in ('.json', '.log') and
+                    '.git' not in relative.parts and
                     not {'recipe', 'prefix', 'build', 'bundle'} & set(relative.parts)):
                 destination = evidence / 'custody' / directory.name / relative
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(path, destination)
+                size = path.stat().st_size
+                if size <= 4 * 1024**2:
+                    shutil.copyfile(path, destination)
+                elif path.suffix == '.log':
+                    # Large successful FFmpeg compiler output must not hide
+                    # its terminal failure when the hosted machine disappears.
+                    # Preserve a bounded head/tail with explicit original hash
+                    # and byte ranges; never present it as the complete log.
+                    head_size, tail_size = 64 * 1024, 1024**2
+                    with path.open('rb') as source:
+                        head = source.read(head_size)
+                        source.seek(-tail_size, os.SEEK_END)
+                        tail = source.read(tail_size)
+                    destination.with_name(destination.name + '.head').write_bytes(head)
+                    destination.with_name(destination.name + '.tail').write_bytes(tail)
+                    atomic(destination.with_name(destination.name + '.ranges.json'), {
+                        'originalBytes': size, 'originalSHA256': digest(path),
+                        'complete': False, 'head': [0, len(head)],
+                        'tail': [size - len(tail), size]})
 
 
 def stage_timings(work, scratch, target):
