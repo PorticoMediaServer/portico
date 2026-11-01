@@ -4036,14 +4036,15 @@ view inventory_library_availability
 view listening_book_context
 view mb_recording_accounting`
 
-// subsystemSchemaObjects is empty: the guardrail finds no runtime schema
-// declarations outside persistence. Persistence's own legacy installers need
-// a separate audit before claiming that every runtime DDL path is gone.
+// subsystemSchemaObjects lists the runtime schema declared outside
+// persistence: the enrichment dataset's qid index (internal/enrichment), built
+// on the installed dataset file. Persistence's own legacy installers need a
+// separate audit before claiming that every runtime DDL path is gone.
 //
 // Generated the same way as the list above, by TestSubsystemSchemaObjectsMatchTheSources, which
 // scans every CREATE ... IF NOT EXISTS outside this package and writes a replacement when the
 // two drift.
-const subsystemSchemaObjects = ""
+const subsystemSchemaObjects = `index work_ids_by_qid`
 
 var (
 	knownSchemaOnce sync.Once
