@@ -53,12 +53,16 @@ func TestTitleDatasetAtScale(t *testing.T) {
 	const tagsPerWork, similarPerWork, vocabulary, profiles = 10, 5, 300, 20
 	scratch := t.TempDir()
 	type phase struct {
-		Name        string  `json:"name"`
-		Seconds     float64 `json:"seconds"`
-		PeakRSSMiB  float64 `json:"peakRssMiB"`
-		HeapMiB     float64 `json:"heapMiB"`
-		Detail      string  `json:"detail,omitempty"`
-		BytesOnDisk int64   `json:"bytesOnDisk,omitempty"`
+		Name       string  `json:"name"`
+		Seconds    float64 `json:"seconds"`
+		PeakRSSMiB float64 `json:"peakRssMiB"`
+		HeapMiB    float64 `json:"heapMiB"`
+		Detail     string  `json:"detail,omitempty"`
+		// The database file after a checkpoint, and the write-ahead log the phase left
+		// before it. The fixture never runs the server's checkpointer, so the log is the
+		// test's, not a cost of the dataset (B2 R7: 16.5 GB was mostly log).
+		DatabaseBytes int64 `json:"databaseBytes,omitempty"`
+		WALBytes      int64 `json:"walBytes,omitempty"`
 		// Stages is the importer's own breakdown of the phase (importTrace): seconds and calls.
 		Stages []stageTiming `json:"stages,omitempty"`
 	}
@@ -197,7 +201,7 @@ func TestTitleDatasetAtScale(t *testing.T) {
 		db.QueryRow(`SELECT count(*) FROM catalog_rec_facets WHERE facet LIKE 'x:%'`).Scan(&facets)
 		return fmt.Sprintf("%d dataset facets", facets)
 	})
-	report.Phases[len(report.Phases)-1].BytesOnDisk = size(dbPath, dbPath+"-wal")
+	report.Phases[len(report.Phases)-1].DatabaseBytes, report.Phases[len(report.Phases)-1].WALBytes = databaseSize(t, db, dbPath)
 
 	// Twenty profiles with thirty films each, then Home with the dataset's rows.
 	for p := 0; p < profiles; p++ {
@@ -273,7 +277,7 @@ func TestTitleDatasetAtScale(t *testing.T) {
 		db.QueryRow(`SELECT count(*) FROM catalog_dataset_tags`).Scan(&left)
 		return fmt.Sprintf("%d steps, %d tags left", steps, left)
 	})
-	report.Phases[len(report.Phases)-1].BytesOnDisk = size(dbPath, dbPath+"-wal")
+	report.Phases[len(report.Phases)-1].DatabaseBytes, report.Phases[len(report.Phases)-1].WALBytes = databaseSize(t, db, dbPath)
 
 	raw, _ := json.MarshalIndent(report, "", " ")
 	if out := os.Getenv("PORTICO_DATASET_SCALE_REPORT"); out != "" {
@@ -457,4 +461,22 @@ type stageTiming struct {
 	Name    string  `json:"name"`
 	Seconds float64 `json:"seconds"`
 	Calls   int     `json:"calls"`
+}
+
+// databaseSize checkpoints the database and returns its file's size, with the
+// write-ahead log's size from before the checkpoint.
+func databaseSize(t *testing.T, db *sql.DB, path string) (database, wal int64) {
+	t.Helper()
+	if info, err := os.Stat(path + "-wal"); err == nil {
+		wal = info.Size()
+	}
+	if _, err := db.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("database %d MiB after a checkpoint; write-ahead log %d MiB before it", info.Size()>>20, wal>>20)
+	return info.Size(), wal
 }
