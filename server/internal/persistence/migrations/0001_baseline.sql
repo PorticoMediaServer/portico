@@ -1292,7 +1292,8 @@ CREATE TABLE catalog_dataset_tags(
 CREATE TABLE catalog_dataset_vocabulary(
  tag TEXT PRIMARY KEY,
  family TEXT NOT NULL,
- label TEXT NOT NULL) WITHOUT ROWID, STRICT;
+ label TEXT NOT NULL,
+ row_label TEXT NOT NULL DEFAULT '') WITHOUT ROWID, STRICT;
 CREATE TABLE enrichment_jobs(
  entity_id INTEGER PRIMARY KEY) STRICT;
 CREATE TABLE catalog_browse_blocks(

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Personal rows ("More recommendations" in Customize Home). Each generator is a ranking with a name:
@@ -132,49 +133,51 @@ func (x *recSession) recGenerators() ([]recRow, error) {
 	}
 	// Moods, themes, subgenres and appeals, from the Portico title dataset's
 	// tags ('x:<tag>'): the profile's strongest of each, named by the dataset's
-	// labels. Each family keeps its own count, so a profile with many genres of
-	// taste still gets the distinctive kind of row it has.
+	// row labels ("Comfort watches for you"). Each family keeps its own count,
+	// so a profile with many genres of taste still gets the distinctive kind
+	// of row it has.
 	moods, subgenres, appeals := 0, 0, 0
 	for _, f := range x.strongest {
 		if !strings.HasPrefix(f, "x:") {
 			continue
 		}
 		tag := strings.TrimPrefix(f, "x:")
-		var family, label string
-		if err := x.s.read().QueryRow(`SELECT family,label FROM catalog_dataset_vocabulary WHERE tag=?`, tag).Scan(&family, &label); err != nil {
+		family, running, ok := x.s.datasetRowLabel(tag)
+		if !ok {
 			continue
 		}
-		code, title, param, priority := "", "", "", 0
+		priority := 0
 		switch family {
 		case "mood", "tone", "pacing", "style":
 			if moods == recGenreRows {
 				continue
 			}
 			moods++
-			code, title, param, priority = "home.row.moodForYou", label+" picks for you", "mood", 62+moods
+			priority = 62 + moods
 		case "theme", "setting", "narrative":
 			if moods == recGenreRows {
 				continue
 			}
 			moods++
-			code, title, param, priority = "home.row.themeForYou", label+" for you", "theme", 62+moods
+			priority = 62 + moods
 		case "subgenre":
 			if subgenres == recSubgenreRows {
 				continue
 			}
 			subgenres++
-			code, title, param, priority = "home.row.subgenreForYou", label+" for you", "subgenre", 62+recGenreRows+subgenres
+			priority = 62 + recGenreRows + subgenres
 		case "appeal":
 			if appeals == recAppealRows {
 				continue
 			}
 			appeals++
-			code, title, param, priority = "home.row.appealForYou", label+" for you", "appeal", 62+recGenreRows+recSubgenreRows+appeals
+			priority = 62 + recGenreRows + recSubgenreRows + appeals
 		default:
 			continue // origin, audience and intensity describe, they don't make a row
 		}
 		facet := f
-		if err := add(recRowSpec("for_you:tag:"+tag, title, code, map[string]string{param: label}, priority), recRowMinimum, 0,
+		label := upperFirst(running)
+		if err := add(recRowSpec("for_you:tag:"+tag, label+" for you", "home.row.tagForYou", map[string]string{"label": label}, priority), recRowMinimum, 0,
 			func() ([]recCandidate, error) { return x.rank(x.facetRow(facet)) }); err != nil {
 			return nil, err
 		}
@@ -493,4 +496,27 @@ func recHasFacet(facets []string, facet string) bool {
 		}
 	}
 	return false
+}
+
+// datasetRowLabel is a dataset tag's family and its row label in running text
+// ("comfort watches", "folk horror"): the vocabulary's row_label, or, for a
+// tag without one, its label lowercased.
+func (s *Service) datasetRowLabel(tag string) (family, running string, ok bool) {
+	var label, rowLabel string
+	if err := s.read().QueryRow(`SELECT family,label,row_label FROM catalog_dataset_vocabulary WHERE tag=?`, tag).Scan(&family, &label, &rowLabel); err != nil {
+		return "", "", false
+	}
+	if rowLabel = strings.TrimSpace(rowLabel); rowLabel == "" {
+		rowLabel = strings.ToLower(strings.TrimSpace(label))
+	}
+	return family, rowLabel, rowLabel != ""
+}
+
+// upperFirst capitalises a running-text label's first letter for a title.
+func upperFirst(text string) string {
+	r, size := utf8.DecodeRuneInString(text)
+	if r == utf8.RuneError {
+		return text
+	}
+	return string(unicode.ToUpper(r)) + text[size:]
 }

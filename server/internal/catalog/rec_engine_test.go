@@ -576,13 +576,13 @@ func TestMoodRowFromTheTitleDataset(t *testing.T) {
 	}
 	for _, row := range doc.Rows {
 		if row.ID == "for_you:tag:tone:gritty" {
-			if row.TitleText.Code != "home.row.moodForYou" || row.TitleText.Params["mood"] != "Gritty" || len(row.Entries) < recRowMinimum {
+			if row.TitleText.Code != "home.row.tagForYou" || row.TitleText.Params["label"] != "Gritty" || len(row.Entries) < recRowMinimum {
 				t.Fatalf("mood row: %+v", row.TitleText)
 			}
 			return
 		}
 	}
-	t.Fatal("no Gritty picks row")
+	t.Fatal("no Gritty row")
 }
 
 // Taste stays exact when a job crosses the epoch rebase, and when a finished

@@ -52,7 +52,7 @@ import (
 // PORTICO_DATASET_PUBLIC_KEY (standard base64) override them, for testing a
 // release before it ships.
 const (
-	PublishedManifest  = "https://data.getportico.tv/v2/manifest.json"
+	PublishedManifest  = "https://data.getportico.tv/v3/manifest.json"
 	PublishedPublicKey = ""
 )
 
@@ -79,7 +79,7 @@ const MaxFileBytes = 2 << 30
 
 // SchemaVersion is the dataset schema this server reads (the file's
 // PRAGMA user_version and the manifest's schema_version).
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // The check cadence: weekly, plus a fixed offset of up to JitterWindow drawn
 // once per install from a random seed (never from anything about the server or
@@ -780,15 +780,15 @@ func (s *Service) importVocabulary(ctx context.Context, domain string) error {
 		return err
 	}
 	defer ds.Close()
-	rows, err := ds.QueryContext(ctx, `SELECT tag,family,label FROM vocabulary WHERE retired_in IS NULL`)
+	rows, err := ds.QueryContext(ctx, `SELECT tag,family,label,COALESCE(row_label,'') FROM vocabulary WHERE retired_in IS NULL`)
 	if err != nil {
 		return err
 	}
-	type entry struct{ tag, family, label string }
+	type entry struct{ tag, family, label, rowLabel string }
 	var all []entry
 	for rows.Next() {
 		var e entry
-		if err = rows.Scan(&e.tag, &e.family, &e.label); err != nil {
+		if err = rows.Scan(&e.tag, &e.family, &e.label, &e.rowLabel); err != nil {
 			rows.Close()
 			return err
 		}
@@ -807,7 +807,7 @@ func (s *Service) importVocabulary(ctx context.Context, domain string) error {
 		if err != nil {
 			return err
 		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO catalog_dataset_vocabulary(tag,family,label) VALUES(?,?,?) ON CONFLICT(tag) DO UPDATE SET family=excluded.family,label=excluded.label`, e.tag, e.family, e.label); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO catalog_dataset_vocabulary(tag,family,label,row_label) VALUES(?,?,?,?) ON CONFLICT(tag) DO UPDATE SET family=excluded.family,label=excluded.label,row_label=excluded.row_label`, e.tag, e.family, e.label, e.rowLabel); err != nil {
 			return err
 		}
 	}

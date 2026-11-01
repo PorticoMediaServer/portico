@@ -1,5 +1,5 @@
--- The dataset transport schema v2: a copy of portico-internal recommendations/schema/transport.sql (the contract).
-PRAGMA user_version = 2;
+-- The dataset transport schema v3: a copy of portico-internal recommendations/schema/transport.sql (the contract).
+PRAGMA user_version = 3;
 PRAGMA page_size = 4096;
 
 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
@@ -35,7 +35,10 @@ CREATE TABLE vocabulary(
   description TEXT NOT NULL,
   applies_to TEXT NOT NULL,
   added_in INTEGER NOT NULL,
-  retired_in INTEGER
+  retired_in INTEGER,
+  -- row_label: the tag's row name in running text ("comfort watches"); NULL for
+  -- families that make no row.
+  row_label TEXT
 ) STRICT;
 
 CREATE TABLE work_tags(

@@ -94,7 +94,7 @@ func TestTheDatasetReachesHomeAndSwitchingOffRestoresIt(t *testing.T) {
 	// The release: folk horror (a subgenre) and comfort (an appeal) on their films.
 	p := newPublisher(t)
 	p.domains["screen"] = ManifestDomain{DatasetVersion: "2026.45", VocabularyVersion: 2, Full: p.build("screen", "full", "2026.45", func(t *testing.T, db *sql.DB) {
-		mustExec(t, db, `INSERT INTO vocabulary VALUES(1,'subgenre:folk-horror','subgenre','Folk horror','d','["movie","show"]',2,NULL),(2,'appeal:comfort','appeal','Comfort watches','d','["movie","show"]',2,NULL),(3,'origin:remake','origin','Remakes','d','["movie","show"]',2,NULL)`)
+		mustExec(t, db, `INSERT INTO vocabulary VALUES(1,'subgenre:folk-horror','subgenre','Folk Horror','d','["movie","show"]',2,NULL,'folk horror'),(2,'appeal:comfort','appeal','Comfort Watch','d','["movie","show"]',2,NULL,'comfort watches'),(3,'origin:remake','origin','Remakes','d','["movie","show"]',2,NULL,NULL)`)
 		for i := 0; i < 120; i++ {
 			qid := 500000 + i
 			mustExec(t, db, `INSERT INTO works VALUES(?,1,0,0,1,2,?,10,?)`, qid, 1900+i, fmt.Sprintf("Film %03d", i))
@@ -121,7 +121,7 @@ func TestTheDatasetReachesHomeAndSwitchingOffRestoresIt(t *testing.T) {
 	if !ok {
 		t.Fatalf("no folk horror row: %v", ids(with))
 	}
-	if folkRow.Title != "Folk horror for you" || folkRow.Why == nil || !strings.HasPrefix(folkRow.Why.Code, "next.home.whyFacet") || folkRow.Why.Params["label"] != "Folk horror" {
+	if folkRow.Title != "Folk horror for you" || folkRow.Why == nil || !strings.HasPrefix(folkRow.Why.Code, "next.home.whyFacet") || folkRow.Why.Params["label"] != "folk horror" {
 		t.Fatalf("folk horror row: %q %+v", folkRow.Title, folkRow.Why)
 	}
 	watched := map[string]bool{}
