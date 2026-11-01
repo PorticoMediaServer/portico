@@ -73,6 +73,9 @@ def main():
               '--enable-libzvbi', '--enable-vaapi', '--enable-libdrm', '--enable-libvpl',
               '--enable-opencl', '--enable-vulkan', '--enable-ffnvcodec', '--enable-cuda-llvm',
               '--enable-nvenc', '--enable-nvdec', '--enable-amf']
+    common += ['--enable-zlib', '--enable-iconv', '--enable-lzma', '--enable-libxml2',
+               '--enable-libmp3lame', '--enable-libvorbis', '--enable-libvpx', '--enable-libwebp',
+               '--enable-libopenmpt', '--enable-chromaprint', '--enable-libsrt']
     options['FF_CONFIGURE'] += ' ' + ' '.join(common)
     source_sha = digest(args.source)
     object_cache = os.environ.get('PORTICO_FFMPEG_OBJECT_CACHE')

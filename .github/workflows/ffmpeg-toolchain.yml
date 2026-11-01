@@ -53,6 +53,7 @@ jobs:
           python scripts/test-macos-engine-runtime.py
           python scripts/test-macos-libdovi.py
           python scripts/test-macos-zvbi.py
+          python scripts/test-ffmpeg-format-parity.py
           python scripts/test-libdovi-runtime-inventory.py
           python scripts/test-preserve-ffmpeg-compilers.py
       - id: plan
@@ -193,3 +194,27 @@ jobs:
             ${{ runner.temp }}/engine-native/gates/*.log
           retention-days: 14
           if-no-files-found: warn
+
+  system-library-control:
+    if: inputs.controlsOnly && github.repository == 'PorticoMediaServer/portico'
+    strategy:
+      fail-fast: false
+      matrix: {runner: [macos-15, macos-15-intel]}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - run: python scripts/control-macos-system-libs.py --work "$RUNNER_TEMP/format-system-control"
+      - run: python scripts/control-macos-transpose-source.py --work "$RUNNER_TEMP/transpose-source-control"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: sdk-format-control-${{ matrix.runner }}-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/format-system-control/*.json
+            ${{ runner.temp }}/transpose-source-control/*.json
+            ${{ runner.temp }}/transpose-source-control/*.log
+          retention-days: 7

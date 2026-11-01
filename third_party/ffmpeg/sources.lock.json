@@ -497,7 +497,7 @@
     },
     "extrasLock": {
       "path": "third_party/ffmpeg/macos-extras.lock.json",
-      "sha256": "72b9ee8abb449d483b11f6f170c4716829f3f521d3f19e016f7f68bdf305f06e"
+      "sha256": "016751986606cb6f6dbf4c5c4ab9d17e63ef95fdb3779f2d5c7227f4e4e30403"
     }
   },
   "requiredConfigure": [
@@ -542,7 +542,12 @@
       "x265",
       "zimg",
       "zvbi",
-      "rpath"
+      "rpath",
+      "libvorbis",
+      "libwebp",
+      "openmpt",
+      "chromaprint",
+      "srt"
     ],
     "sourcePatches": [
       {

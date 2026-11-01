@@ -118,6 +118,7 @@ def configure(recipe):
     original = 'download "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" "ffmpeg-${FFMPEG_VERSION}.tar.xz"'
     replacement = '''portico_source_archive=$(python3 "${CWD}/portico-macos-ffmpeg-source.py" verify --recipe "$CWD") || exit "$?"
 download "file://${PACKAGES}/${portico_source_archive}" "$portico_source_archive" ""
+python3 "${CWD}/portico-macos-ffmpeg-source.py" check-source --recipe "$CWD" --source "$PWD" || exit "$?"
 '''
     if text.count(original) != 1:
         raise ValueError('pinned Homebridge final source boundary changed')
@@ -126,13 +127,19 @@ download "file://${PACKAGES}/${portico_source_archive}" "$portico_source_archive
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=('seed', 'verify', 'verify-download'))
+    parser.add_argument('mode', choices=('seed', 'verify', 'verify-download', 'check-source'))
     parser.add_argument('--recipe', type=Path, required=True)
     parser.add_argument('--source', type=Path)
     parser.add_argument('--url')
     parser.add_argument('--archive', type=Path)
     args = parser.parse_args()
-    if args.mode == 'seed':
+    if args.mode == 'check-source':
+        if args.source is None:
+            parser.error('check-source requires source directory')
+        collisions = sorted(p.name for p in (args.source / 'libavfilter').glob('*.m') if p.with_suffix('.c').exists())
+        if collisions:
+            raise SystemExit('C source shadows Objective-C filter: ' + ', '.join(collisions))
+    elif args.mode == 'seed':
         if args.source is None:
             parser.error('prepared source archive required')
         print(seed(args.recipe, args.source))

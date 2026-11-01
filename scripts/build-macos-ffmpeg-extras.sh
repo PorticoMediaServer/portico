@@ -56,6 +56,10 @@ PYPATCH
  fi
 }
 export PKG_CONFIG_PATH="$WORKSPACE/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+# The private pkg-config search path deliberately excludes Homebrew libraries.
+# Supply only metadata for the exact compiler SDK's built-in system libraries.
+python3 "$CWD/portico-macos-system-libs.py" --prefix "$WORKSPACE" \
+ --receipt "$PACKAGES/portico-system-libraries.json"
 source "$CWD/portico-build-macos-zvbi.sh"
 if declare -F portico_time_start >/dev/null; then portico_time_start portico-libdovi; fi
 python3 "$CWD/portico-build-macos-libdovi.py" build --recipe "$CWD" --prefix "$WORKSPACE" \
@@ -81,6 +85,28 @@ export CFLAGS="${CFLAGS:-} -fno-strict-aliasing"
  enable-camellia enable-ec enable-srp --prefix="$WORKSPACE" --libdir=lib
 make -j "${PORTICO_BUILD_JOBS:-4}" build_sw
 make install_sw
+# Use the same immutable component sources as the BtbN targets, with the
+# pinned Jellyfin native Mac settings. SDK iconv/libxml2 match Jellyfin's
+# explicit system-library exception; no Homebrew media library is used.
+portico_clone xz
+./autogen.sh --no-po4a --no-doxygen
+./configure --prefix="$WORKSPACE" --disable-symbol-versions --disable-shared --enable-static --with-pic
+make -j "${PORTICO_BUILD_JOBS:-2}"
+make install
+portico_clone openmpt
+make -j "${PORTICO_BUILD_JOBS:-2}" CONFIG=clang PREFIX="$WORKSPACE" \
+ CXXSTDLIB_PCLIBSPRIVATE="-lc++" VERBOSE=2 STATIC_LIB=1 SHARED_LIB=0 DYNLINK=0 \
+ EXAMPLES=0 OPENMPT123=0 IN_OPENMPT=0 XMP_OPENMPT=0 DEBUG=0 OPTIMIZE=1 TEST=0 MODERN=1 \
+ FORCE_DEPS=1 NO_MINIMP3=0 NO_ZLIB=0 NO_OGG=0 NO_VORBIS=0 NO_VORBISFILE=0 \
+ NO_MPG123=1 NO_SDL2=1 NO_PULSEAUDIO=1 NO_SNDFILE=1 NO_PORTAUDIO=1 NO_PORTAUDIOCPP=1 NO_FLAC=1 all install
+portico_clone chromaprint
+portico_cmake -DBUILD_TOOLS=OFF -DBUILD_TESTS=OFF -DFFT_LIB=vdsp
+# Apple clang uses libc++; the FFT backend is Apple's system Accelerate.
+printf '%s\n' 'Libs.private: -framework Accelerate -lc++' 'Cflags.private: -DCHROMAPRINT_NODLL' >> "$WORKSPACE/lib/pkgconfig/libchromaprint.pc"
+portico_clone srt
+portico_cmake -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DENABLE_CXX_DEPS=ON \
+ -DUSE_STATIC_LIBSTDCXX=ON -DENABLE_ENCRYPTION=ON -DENABLE_APPS=OFF \
+ -DOPENSSL_ROOT_DIR="$WORKSPACE" -DOPENSSL_USE_STATIC_LIBS=TRUE
 portico_clone soxr
 portico_cmake -DWITH_OPENMP=OFF -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 portico_clone fontconfig
