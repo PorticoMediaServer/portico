@@ -16,6 +16,9 @@ on:
       - 'third_party/ffmpeg/macos-rust-tools.lock.json'
 permissions:
   contents: read
+concurrency:
+  group: native-mac-libdovi-${{ github.event_name }}-${{ github.ref }}-${{ inputs.nativeTarget || 'none' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   controls:
     if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
