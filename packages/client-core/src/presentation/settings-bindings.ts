@@ -97,9 +97,11 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'remote.dlna':{form:'connectivity',key:'dlnaEnabled'},
  'remote.interface':{form:'connectivity',key:'advertisedInterface',codec:'interface'},
  'remote.connectionLimit':{form:'connectivity',key:'connectionLimit',codec:'unlimited'},
- 'remote.extraAddresses':{form:'connectivity',key:'accessUrls'},
+ 'remote.customAddresses':{form:'connectivity',key:'accessUrls'},
  'remote.trustedProxies':{form:'connectivity',key:'trustedProxies'},
- 'remote.who':{form:'connectivity',key:'remoteSignInPolicy',codec:'remote-policy'},
+ 'remote.access':{form:'connectivity',key:'remoteAccess'},
+ 'remote.security':{form:'connectivity',key:'remoteSecurity'},
+ 'remote.signInOutside':{form:'connectivity',key:'remoteSignInPolicy',codec:'remote-policy'},
  'general.heavyWork':{form:'maintenance',key:'enabled',window:'heavy',codec:'window-mode'},
  'general.heavyStart':{form:'maintenance',key:'startMinute',window:'heavy',codec:'number-choice'},
  'general.heavyLength':{form:'maintenance',key:'durationMinutes',window:'heavy',scale:60,codec:'number-choice'},
@@ -278,7 +280,7 @@ function presented(binding:SettingsBinding,v:unknown,sources:SettingsBindingSour
  if(binding.codec==='away-quality')return v===0?'original':canonicalQualityLadder.find(q=>q.height>0&&q.videoKbps===v)?.id.replace('2160p','4k')??'custom';
  if(binding.codec==='domain')return v?`https://${String(v)}`:'';
  if(binding.codec==='interface')return v||'all';
- if(binding.codec==='remote-policy')return v==='allow'?'anyone':v==='owner-only'?'owner':v==='off'?'none':undefined;
+ if(binding.codec==='remote-policy')return v==='allow'?'anyone':v==='owner-only'?'owner':undefined;
  if(binding.codec==='unlimited')return v===0||v===null?'unlimited':String(v);
  if(binding.codec==='days'&&Array.isArray(v)){const chosen=v;return Object.fromEntries(days.map(d=>[d,chosen.includes(d)?'runs':'skips']));}
  if(binding.codec==='log-retention'&&Array.isArray(v)){const entries=v as {category:string;days:number}[];return Object.fromEntries(categories.map(k=>[k,String(entries.find(r=>r.category===k)?.days??'default')]));}
@@ -402,7 +404,7 @@ export function settingsBindingPatch(binding:SettingsBinding,value:unknown,sourc
  }else if(binding.codec==='update-checks'){raw=value==='never'?'':value==='auto'?defaultFeed(sources):undefined;}
  else if(binding.codec==='away-quality'){raw=value==='original'?0:canonicalQualityLadder.find(q=>q.height>0&&q.id===(value==='4k'?'2160p':value))?.videoKbps;}
  else if(binding.codec==='interface')raw=value==='all'?'':value;
- else if(binding.codec==='remote-policy')raw=value==='anyone'?'allow':value==='owner'?'owner-only':value==='none'?'off':undefined;
+ else if(binding.codec==='remote-policy')raw=value==='anyone'?'allow':value==='owner'?'owner-only':undefined;
  else if(binding.codec==='unlimited')raw=value==='unlimited'||value==='auto'?(binding.key==='serverCap'?null:0):Number(value);
  else if(binding.codec==='history-retention'){
   raw=typeof value==='string'&&Object.hasOwn(historyRetentionDays,value)?historyRetentionDays[value]:typeof value==='number'||typeof value==='string'&&/^\d+$/.test(value)?Number(value):undefined;

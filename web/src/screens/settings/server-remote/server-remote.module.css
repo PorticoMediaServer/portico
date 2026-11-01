@@ -7,6 +7,14 @@
 .reach[data-tone='ok'] .reachTitle::before { background: var(--color-healthy); box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-healthy) 16%, transparent); }
 .reach[data-tone='warn'] .reachTitle::before { background: var(--color-amber); box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-amber) 16%, transparent); }
 .note { margin: 8px 0 0 23px; font-size: var(--type-fixed-size-14px); color: var(--color-text-secondary); }
+.refused { list-style: none; margin: 4px 0 0; padding: 0; border-radius: 12px; background: color-mix(in srgb, var(--color-raised) 60%, black); overflow: hidden; }
+.refusedItem { display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
+.refusedItem + .refusedItem { border-top: 1px solid var(--color-line); }
+.refusedIcon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--color-raised); color: var(--color-text-secondary); }
+.refusedText { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.refusedText strong { overflow-wrap: anywhere; }
+.refusedText small { font-size: var(--type-fixed-size-14px); color: var(--color-text-secondary); }
+.refusedEmpty { margin: 0; font-size: var(--type-fixed-size-14px); color: var(--color-text-secondary); }
 .certificateStatus { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 12px; font-size: var(--type-fixed-size-14px); }
 .certificateStatus[data-problem] { color: var(--color-amber); }
 @media (max-width: 599px) {

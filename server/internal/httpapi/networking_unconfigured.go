@@ -23,7 +23,7 @@ func (d Dependencies) unconfiguredNetworkingRoutes(mux *http.ServeMux) {
 			case "/v1/networking/certificate":
 				write(w, 200, networking.CertificateStatus{State: "unconfigured", Environment: "production", Reachability: "probe_required", Config: networking.CertificateConfig{PublicPort: 443, Revision: 1}})
 			case "/v1/networking/remote":
-				write(w, 200, networking.RemoteStatus{State: "unconfigured", Generation: 1, Config: networking.RemoteConfig{Revision: 1, PCP: true, NATPMP: true, UPnP: true, PublicPort: 32500}, Topology: networking.Topology{LAN: []string{}, Public: []string{}}, Candidates: []networking.RemoteCandidate{}, Mappings: []networking.MappingSummary{}})
+				write(w, 200, networking.RemoteStatus{Warnings: []networking.RemoteWarning{}, State: "unconfigured", Generation: 1, Config: networking.RemoteConfig{Revision: 1, PCP: true, NATPMP: true, UPnP: true, PublicPort: 32500}, Topology: networking.Topology{LAN: []string{}, Public: []string{}}, Candidates: []networking.RemoteCandidate{}, Mappings: []networking.MappingSummary{}})
 			}
 		})
 	}

@@ -17,7 +17,7 @@ export type AccessTier='owner'|'admin'|'member';
 export type InvitationState='pending'|'accepted'|'revoked'|'expired';
 export type LogLevel='error'|'warn'|'info'|'debug';
 export type LogCategory='server'|'playback'|'scan'|'network'|'client';
-export type RemoteSignInPolicy='allow'|'owner-only'|'off';
+export type RemoteSignInPolicy='allow'|'owner-only';
 export type DiscoveryState='stopped'|'advertising'|'announcing'|'degraded'|'unavailable';
 
 /**
@@ -82,7 +82,11 @@ export type ConnectivityPolicy=Readonly<{revision:number;remoteSignInPolicy:Remo
  ownAddressEnabled?:boolean;
  customCertificatePath:string;customCertificateKeyPath:string;customCertificateDomain:string;
  /** "Secure connections": `required` refuses plain HTTP for everyone; `preferred` (the default) allows it. */
- secureConnections:'preferred'|'required'}>;
+ secureConnections:'preferred'|'required';
+ /** O-169. Remote security: `enhanced` answers outside connections only over HTTPS at Portico and custom addresses. */
+ remoteSecurity:'enhanced'|'standard';
+ /** O-169. Remote access: only `on` answers outside connections and maps ports; `private` also allows the tailnet. */
+ remoteAccess:'on'|'private'|'off'}>;
 export type ConnectivityAddress=Readonly<{address:string;family:'ipv4'|'ipv6'|'hostname';class:'public'|'lan'|'loopback';source:'interface'|'accessUrl'}>;
 export type ConnectivityInterface=Readonly<{name:string;up:boolean;loopback:boolean;virtual:boolean;addresses:readonly string[]}>;
 export type CustomCertificateStatus=Readonly<{serving:boolean;state:'none'|'ready'|'error';errorCode?:string;domain?:string;notAfter?:string;issuer?:string}>;
@@ -304,7 +308,7 @@ export const parseClientLogUploadPage=(raw:unknown)=>page(raw,parseClientLogUplo
 
 export function parseConnectivityPolicy(raw:unknown):ConnectivityPolicy{
  if(!obj(raw))return invalid();
- return Object.freeze({revision:num(raw.revision,1),remoteSignInPolicy:oneOf(raw.remoteSignInPolicy,['allow','owner-only','off'] as const),
+ return Object.freeze({revision:num(raw.revision,1),remoteSignInPolicy:oneOf(raw.remoteSignInPolicy,['allow','owner-only'] as const),
   remoteBitrateLimitKbps:num(raw.remoteBitrateLimitKbps??0,0,200000),
   connectionLimit:num(raw.connectionLimit,0,65536),advertiseUrl:str(raw.advertiseUrl,300,true),
   lanNetworks:list(raw.lanNetworks,64,x=>str(x,64)),accessUrls:list(raw.accessUrls,32,x=>str(x,300)),
@@ -316,7 +320,9 @@ export function parseConnectivityPolicy(raw:unknown):ConnectivityPolicy{
   uploadCapacityKbps:num(raw.uploadCapacityKbps??0,0,10000000),pausedSessionTimeoutMinutes:num(raw.pausedSessionTimeoutMinutes??0,0,1440),
   advertisedInterface:str(raw.advertisedInterface??'',64,true),ownAddressEnabled:raw.ownAddressEnabled===undefined?false:bool(raw.ownAddressEnabled),customCertificatePath:str(raw.customCertificatePath??'',1024,true),
   customCertificateKeyPath:str(raw.customCertificateKeyPath??'',1024,true),customCertificateDomain:str(raw.customCertificateDomain??'',253,true),
-  secureConnections:oneOf(raw.secureConnections??'preferred',['preferred','required'] as const)});
+  secureConnections:oneOf(raw.secureConnections??'preferred',['preferred','required'] as const),
+  remoteSecurity:oneOf(raw.remoteSecurity??'enhanced',['enhanced','standard'] as const),
+  remoteAccess:oneOf(raw.remoteAccess??'on',['on','private','off'] as const)});
 }
 
 function parseCustomCertificate(raw:Record<string,unknown>):CustomCertificateStatus{

@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {remoteWarningLines, type RemoteAccess, type RemoteConfiguration} from '../../../../../../packages/client-core/src/remote-access';
 import type {ConnectivityStatus} from '../../../../../../packages/client-core/src/server-administration';
@@ -12,6 +12,7 @@ import {settingsSpec} from '../../../../../../packages/client-core/src/presentat
 import {readSettingsBinding, settingsBinding} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSummary} from './settings-values';
 import {NativeAdvancedSection} from './AdvancedSection';
+import {NativeRefusedAddresses} from './RefusedAddresses';
 import {Button, Select, Switch, TextField} from '../../../kit/controls';
 import {SettingsRow} from '../../../kit/shell';
 import {ServerHeader} from '../../../kit/shell/ServerIdentity';
@@ -51,6 +52,12 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
     catch (error) {if (lifetime.current() && !request.signal.aborted) setRetryError(error);}
     finally {if (retryFlight.current === request) {retryFlight.current = undefined; if (lifetime.current()) setRetrying(false);}}
   };
+  // O-169 refused addresses: allowing one changes Custom addresses; Use Standard
+  // changes Remote security; Add certificate… goes to Use your own address.
+  const scroll = useRef<ScrollView>(null), ownAddressY = useRef(0);
+  const reloadConnectivity = useCallback(() => {if (lifetime.current()) void forms.connectivity.load();}, [forms, lifetime]);
+  const chooseStandard = useCallback(() => {if (lifetime.current()) forms.connectivity.set(current => ({...current, remoteSecurity: 'standard'}));}, [forms, lifetime]);
+  const showOwnAddress = useCallback(() => {scroll.current?.scrollTo({y: ownAddressY.current, animated: true});}, []);
   const remote = remoteState.draft, connectivity = connectivityState.draft;
   const certificate = certificateState.status;
   const failed = connectivityState.loadError;
@@ -71,12 +78,22 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
   const signInOptions = [
     {value: 'allow', label: t('settings.server.signIn.allow')},
     {value: 'owner-only', label: t('settings.server.signIn.owner-only')},
-    {value: 'off', label: t('settings.server.signIn.off')},
   ];
+  const R = 'next.settingsSpec.server.remote.groups.2.rows.0';
+  const accessOptions = [
+    {value: 'on', label: t(`${R}.control.options.0.label`), description: t(`${R}.control.options.0.hint`)},
+    {value: 'private', label: t(`${R}.control.options.1.label`), description: t(`${R}.control.options.1.hint`)},
+    {value: 'off', label: t(`${R}.control.options.2.label`), description: t(`${R}.control.options.2.hint`)},
+  ];
+  const securityOptions = [
+    {value: 'enhanced', label: t(`${R}.children.0.control.options.0.label`)},
+    {value: 'standard', label: t(`${R}.children.0.control.options.1.label`)},
+  ];
+  const outsideOn = connectivity.remoteAccess === 'on';
   const lines = (value: readonly string[]) => value.join('\n');
   const parseLines = (value: string) => value.split('\n').map(line => line.trim()).filter(Boolean);
   return <View style={{flex: 1}}>
-    <ScrollView contentContainerStyle={{...settingsPageInset(theme, compactHeader)}}>
+    <ScrollView ref={scroll} contentContainerStyle={{...settingsPageInset(theme, compactHeader)}}>
       <ServerHeader serverName={context.serverName} viewerRole={role} audience={role === 'administrator' ? 'administrators' : 'owner'} variant="phone" style={{marginBottom: 12}}/>
       {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('settings.server.remote')}</Text>}
       <View testID="remote-access-status" style={{borderRadius: 14, backgroundColor: theme.colors.raised, padding: 16, marginTop: 14, flexDirection: 'row', gap: 12}}>
@@ -101,7 +118,7 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
         </>}
         {certificateState.loadError !== undefined && !!context.account.account.hostedAccountId && <StateView variant="inline" {...runtime.error(certificateState.loadError, () => {void forms.certificate.load();}, 'server-console')}/>}
         {retryError !== undefined && <StateView variant="inline" {...runtime.error(retryError, () => {void retry();}, 'server-console')}/>}
-        <Text style={[shellType(13, 700), {color: theme.colors.textTertiary, marginTop: 22, marginBottom: 8}]}>{t('next.settingsSpec.server.remote.groups.1.title')}</Text>
+        <Text onLayout={event => {ownAddressY.current = event.nativeEvent.layout.y;}} style={[shellType(13, 700), {color: theme.colors.textTertiary, marginTop: 22, marginBottom: 8}]}>{t('next.settingsSpec.server.remote.groups.1.title')}</Text>
         <View style={{borderRadius: 14, backgroundColor: theme.colors.raised, padding: 14, gap: 14}}>
         <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12}}>
           <Text style={[shellType(15, 600), {color: theme.colors.text, flex: 1}]}>{t('next.settingsSpec.server.remote.groups.1.rows.0.label')}</Text>
@@ -118,8 +135,14 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
         </View>
         <Text style={[shellType(13, 700), {color: theme.colors.textTertiary, marginTop: 22, marginBottom: 8}]}>{t('web.connectivity.outside')}</Text>
         <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-          <SettingsRow testID="remote-access-policy" label={t('web.connectivity.whoMaySignIn')}
-            control={<Select testID="remote-access-policy-select" value={connectivity.remoteSignInPolicy} options={signInOptions} onValueChange={value => forms.connectivity.set(current => ({...current, remoteSignInPolicy: value as ConnectivityDraft['remoteSignInPolicy']}))}/>}/>
+          <SettingsRow testID="remote-access-mode" first label={t(`${R}.label`)} description={t(`${R}.help`)}
+            control={<Select testID="remote-access-mode-select" value={connectivity.remoteAccess} options={accessOptions} onValueChange={value => {if (value === 'on' || value === 'private' || value === 'off') forms.connectivity.set(current => ({...current, remoteAccess: value}));}}/>}/>
+          {outsideOn && <SettingsRow testID="remote-access-security" label={t(`${R}.children.0.label`)} description={t(`${R}.children.0.help`)}
+            control={<Select testID="remote-access-security-select" value={connectivity.remoteSecurity} options={securityOptions} onValueChange={value => {if (value === 'enhanced' || value === 'standard') forms.connectivity.set(current => ({...current, remoteSecurity: value}));}}/>}/>}
+          {outsideOn && connectivity.remoteSecurity === 'enhanced' && <NativeRefusedAddresses api={api} isCurrent={lifetime.current} t={t as (id: string, values?: Record<string, unknown>) => string}
+            onAllowed={reloadConnectivity} onStandard={chooseStandard} onCertificate={showOwnAddress}/>}
+          {outsideOn && <SettingsRow testID="remote-access-policy" label={t('web.connectivity.whoMaySignIn')}
+            control={<Select testID="remote-access-policy-select" value={connectivity.remoteSignInPolicy} options={signInOptions} onValueChange={value => forms.connectivity.set(current => ({...current, remoteSignInPolicy: value as ConnectivityDraft['remoteSignInPolicy']}))}/>}/>}
           <SettingsRow testID="remote-access-secure-connections" label={t('next.settingsSpec.server.remote.groups.0.rows.1.label')} description={t('next.settingsSpec.server.remote.groups.0.rows.1.help')}
             control={<Select testID="remote-access-secure-connections-select" value={connectivity.secureConnections} options={[
               {value: 'preferred', label: t('next.settingsSpec.server.remote.groups.0.rows.1.control.options.0.label')},
@@ -140,8 +163,6 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
           return [bound === t('next.settings.allDefaults') ? '' : bound, connectivity.accessUrls.length ? t('web.connectivity.extraAddresses') : '', connectivity.trustedProxies.length ? t('web.connectivity.trustedProxies') : '', connectivity.lanNetworks.length ? t('web.connectivity.homeNetworks') : '', connectivity.advertiseUrl ? t('web.connectivity.advertiseUrl') : ''].filter(Boolean).join(' · ') || t('next.settings.allDefaults');
         })()}>
           {remote && <>
-          <SettingsRow testID="remote-access-enabled" first label={t('web.network.remoteTitle')} description={t('web.network.remoteHelp')}
-            control={<Switch testID="remote-access-enabled-switch" checked={remote.enabled} onCheckedChange={value => forms.remote.set(current => ({...current, enabled: value}))}/>}/>
         <TextField label={t('web.network.publicPort')} value={String(remote.publicPort)} keyboardType="number-pad"
           onChangeText={value => {const next = Number(value); if (Number.isInteger(next) && next >= 1 && next <= 65535) forms.remote.set(current => ({...current, publicPort: next}));}}/>
         <TextField label={t('web.network.gateway')} description={t('web.network.gatewayHelp')} value={remote.gateway}
@@ -149,7 +170,7 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
           {remote.ipv6Open !== undefined ? <SettingsRow testID="remote-access-ipv6" label={t('web.network.ipv6')} description={t('web.network.ipv6Help')}
             control={<Switch testID="remote-access-ipv6-switch" checked={remote.ipv6Open === true} onCheckedChange={value => forms.remote.set(current => ({...current, ipv6Open: value}))}/>}/> : null}
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 12}}>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}><Switch checked={remote.mapping} onCheckedChange={value => forms.remote.set(current => ({...current, mapping: value}))}/><Text style={[shellType(14), {color: theme.colors.text}]}>{t('web.network.mappingTitle')}</Text></View>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}><Switch testID="remote-access-mapping-switch" checked={remote.mapping} onCheckedChange={value => forms.remote.set(current => ({...current, mapping: value}))}/><Text style={[shellType(14), {color: theme.colors.text}]}>{t('web.network.mappingTitle')}</Text></View>
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}><Switch checked={remote.upnp} onCheckedChange={value => forms.remote.set(current => ({...current, upnp: value}))}/><Text style={[shellType(14), {color: theme.colors.text}]}>{t('settings.server.mapping.upnp')}</Text></View>
         </View>
           </>}

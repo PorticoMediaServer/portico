@@ -6,9 +6,13 @@ import {settingsRowIndex} from '../src/presentation/settings-spec.ts';
 
 test('O-151: only remote-access edits that can cut people off ask before saving', () => {
   const ask = 'settings.confirm.remoteAccess';
-  assert.equal(settingsChangeConfirmation('remote.who', 'none', 'anyone'), ask);
-  assert.equal(settingsChangeConfirmation('remote.who', 'owner', 'anyone'), ask);
-  assert.equal(settingsChangeConfirmation('remote.who', 'anyone', 'none'), undefined, 'opening up never asks');
+  assert.equal(settingsChangeConfirmation('remote.access', 'off', 'on'), ask);
+  assert.equal(settingsChangeConfirmation('remote.access', 'private', 'on'), ask);
+  assert.equal(settingsChangeConfirmation('remote.access', 'on', 'off'), undefined, 'opening up never asks');
+  assert.equal(settingsChangeConfirmation('remote.security', 'enhanced', 'standard'), ask);
+  assert.equal(settingsChangeConfirmation('remote.security', 'standard', 'enhanced'), undefined);
+  assert.equal(settingsChangeConfirmation('remote.signInOutside', 'owner', 'anyone'), ask);
+  assert.equal(settingsChangeConfirmation('remote.signInOutside', 'anyone', 'owner'), undefined, 'opening up never asks');
   assert.equal(settingsChangeConfirmation('remote.mapping', 'off', 'auto'), ask);
   assert.equal(settingsChangeConfirmation('remote.mapping', 'auto', 'off'), undefined);
   assert.equal(settingsChangeConfirmation('remote.secure', false, true), ask);
@@ -22,7 +26,7 @@ test('O-151: only remote-access edits that can cut people off ask before saving'
 });
 
 test('every confirmed row exists in the settings spec and its question is in the catalogue', () => {
-  for (const id of ['remote.who', 'remote.mapping', 'remote.secure', 'remote.publicPort', 'remote.interface', 'remote.homeNets', 'remote.trustedProxies']) {
+  for (const id of ['remote.access', 'remote.security', 'remote.signInOutside', 'remote.mapping', 'remote.secure', 'remote.publicPort', 'remote.interface', 'remote.homeNets', 'remote.trustedProxies']) {
     assert.ok(settingsRowIndex.get(id), id);
   }
   assert.notEqual(defaultI18n.t('settings.confirm.remoteAccess'), 'settings.confirm.remoteAccess');
