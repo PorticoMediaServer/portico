@@ -546,6 +546,7 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 	// starting) through the commit.
 	var began time.Time
 	var rows int64
+	cleaningSearch := false
 	err := dbwork.WithWriteTx(ctx, w.db, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
 		began = time.Now()
 		var before int64
@@ -560,7 +561,7 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 					log.Printf("F maintenance profile: domain=%d step=%d units=%d changed=%d rebuilding=%t retry=%t", domain, step, n, rows, backfilled, retried)
 				}
 			}
-			if n == 1 && !unpaced {
+			if n == 1 && !unpaced && !cleaningSearch {
 				// One unit is as small as a batch gets: its fan-out is the
 				// unit's own, held to the unit plan rather than the batch plan.
 				// The transaction is live here, so UsePlan cannot fail.
@@ -623,7 +624,18 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 			retried = true
 		}
 		paced = domain
-		n, failed, backfilled, err = w.drainDomain(ctx, tx, domain, rebuilding, w.batchFor(domain, limit), retried)
+		batch := w.batchFor(domain, limit)
+		if domain == DomainSearch && rebuilding == 1 {
+			if err = tx.QueryRowContext(ctx, `SELECT cleaning FROM catalog_derivations WHERE domain=17`).Scan(&cleaningSearch); err != nil {
+				return err
+			}
+			if cleaningSearch {
+				// Prefix leaves and their count effects have a structural raw
+				// bound. Do not size this phase from ordinary document costs.
+				batch = min(limit, searchCleanupRawRows)
+			}
+		}
+		n, failed, backfilled, err = w.drainDomain(ctx, tx, domain, rebuilding, batch, retried)
 		if err != nil {
 			return err
 		}
@@ -642,7 +654,7 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 		w.setAside(ctx, domain, failed, step, backfilled, retried, err)
 		return 0, err
 	}
-	if paced > -2 {
+	if paced > -2 && !cleaningSearch {
 		w.observeBatch(paced, n, took, rows)
 	}
 	w.mu.Lock()
@@ -759,22 +771,8 @@ func (w *Worker) drainDomain(ctx context.Context, tx *sql.Tx, domain, rebuilding
 			return 0, 0, false, err
 		}
 		if cleaning == 1 {
-			ids, err := scanIDs(ctx, tx, searchTables(`SELECT entity_id FROM catalog_search_documents WHERE entity_id>? ORDER BY entity_id LIMIT ?`, 1-slot), 0, limit)
-			if err != nil {
-				return 0, 0, false, err
-			}
-			if len(ids) > 0 {
-				raw := mustJSON(ids)
-				for _, query := range []string{`DELETE FROM catalog_search_documents WHERE entity_id IN(SELECT value FROM json_each(?))`} {
-					if _, err = tx.ExecContext(ctx, searchTables(query, 1-slot), raw); err != nil {
-						return 0, 0, false, err
-					}
-				}
-				return len(ids), 0, false, nil
-			}
-			if _, err = tx.ExecContext(ctx, `UPDATE catalog_derivations SET cleaning=0 WHERE domain=17`); err != nil {
-				return 0, 0, false, err
-			}
+			n, err := cleanSearchGeneration(ctx, tx, 1-slot, limit)
+			return n, 0, false, err
 		}
 	}
 	if !ok {
