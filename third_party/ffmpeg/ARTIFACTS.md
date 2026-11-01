@@ -240,3 +240,15 @@ is an annotated tag, HEAD must equal the commit peeled from that exact object;
 no floating tag name or fallback is used. Corresponding source records the
 original object, object type, checked-out commit and repository. A different
 existing checkout is refused. This changes no source pin or selected bytes.
+
+Read-only release receipt preflight uses one explicit source SHA/run/attempt,
+the four required targets and optional Intel evidence. It checks the actual
+construction/native target receipts, fixed qualifier hashes/report bytes,
+manifest contract/source digests and two matching compile rounds. Optional
+workflow success never promotes a failed optional target. Compiler acceptance
+must be explicit; the current native receipt's false value remains a hold.
+Native evidence retains small sealed manifest/repeat metadata separately when
+available; its absence does not stop app/media testing. Receipt inspection
+always reports qualified=false, release=false and readyForPublication=false.
+Exact artifact intake and complete binary/source/licence verification still
+precede any separately reviewed main-only release writer.

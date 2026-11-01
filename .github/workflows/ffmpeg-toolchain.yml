@@ -43,6 +43,7 @@ jobs:
           python scripts/test-native-engine-context.py
           python scripts/test-engine-artifact.py
           python scripts/test-windows-rav1e-custody.py
+          python scripts/test-engine-release-preflight.py
           python scripts/test-ci-ffmpeg-toolchain.py
           python scripts/test-ffmpeg-build-tools.py
           python scripts/test-native-rust-tools.py
