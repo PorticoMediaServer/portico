@@ -90,19 +90,27 @@ func (s *Service) homeRecentPagedSource(r HomeRequest, audio bool) (homeSource, 
 		kinds = "i.kind IN(6,8) AND l.kind IN('music','audiobook')"
 	}
 	visible, args := r.Viewer.itemVisibilitySQL("member.item_id")
-	base := `SELECT pid(i.public_id) AS id,COALESCE((SELECT max(metric.added) FROM catalog_browse_member_metrics metric
- CROSS JOIN catalog_item_availability available ON available.entity_id=metric.item_id
- WHERE metric.entity_id=i.id AND available.available=1 AND available.retired=0 AND `
 	metricVisible, metricArgs := r.Viewer.itemVisibilitySQL("metric.item_id")
-	base += metricVisible + recordingsClause("metric.item_id", r.Restrictions) + `),'') AS ord,` + homeRecentWorkKeySQL("i") + ` AS work
+	ord := `COALESCE((SELECT max(metric.added) FROM catalog_browse_member_metrics metric
+ CROSS JOIN catalog_item_availability available ON available.entity_id=metric.item_id
+ WHERE metric.entity_id=i.id AND available.available=1 AND available.retired=0 AND ` + metricVisible + recordingsClause("metric.item_id", r.Restrictions) + `),'')`
+	works := `
  FROM catalog_browse_rows br CROSS JOIN catalog_entities i ON i.id=br.entity_id
  JOIN catalog_libraries cl ON cl.id=i.library_id JOIN libraries l ON l.id=cl.library_id
  WHERE i.retired=0 AND cl.retired=0 AND cl.library_id IN(SELECT value FROM json_each(?)) AND ` + kinds + `
  AND EXISTS(SELECT 1 FROM catalog_browse_memberships member CROSS JOIN catalog_item_availability available ON available.entity_id=member.item_id
  WHERE member.entity_id=i.id AND available.available=1 AND available.retired=0 AND ` + visible + recordingsClause("member.item_id", r.Restrictions) + `)
  AND NOT EXISTS(SELECT 1 FROM dvr_catalog_retirements gone WHERE gone.item_id=i.id)`
+	key := homeRecentWorkKeySQL("i") + ` AS work`
 	bind := append(append(append([]any{}, metricArgs...), idsJSON(r.Libraries)), args...)
-	return homeSource{base: `SELECT min(id) AS id,max(ord) AS ord FROM (` + base + `) GROUP BY work`, args: bind, selfRestricted: true}, nil
+	return homeSource{
+		base: `SELECT min(id) AS id,max(ord) AS ord FROM (SELECT pid(i.public_id) AS id,` + ord + ` AS ord,` + key + works + `) GROUP BY work`,
+		args: bind,
+		// The row's total is its number of works, which needs no order values.
+		count:          `SELECT count(*) FROM (SELECT 1 FROM (SELECT ` + key + works + `) GROUP BY work)`,
+		countArgs:      append([]any{idsJSON(r.Libraries)}, args...),
+		selfRestricted: true,
+	}, nil
 }
 
 // HomeDisplayTarget relates a stable work membership to the real episode or
