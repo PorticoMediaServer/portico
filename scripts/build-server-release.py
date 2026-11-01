@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build only from an isolated source snapshot; never seal a supplied executable."""
 import runpy
-import argparse,datetime,hashlib,json,os,pathlib,shutil,subprocess,uuid,shlex,re,base64
+import argparse,sys,datetime,hashlib,json,os,pathlib,shutil,subprocess,uuid,shlex,re,base64
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,Ed25519PublicKey
 ROOT=pathlib.Path(__file__).resolve().parent.parent
@@ -217,7 +217,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--version',required=False,type=release_version);parser.add_argument('--os',choices=['linux','darwin','windows'],default='linux');parser.add_argument('--arch',choices=['amd64','arm64'],default='amd64');parser.add_argument('--component',choices=['server'],default='server');parser.add_argument('--ffmpeg-bundle',type=pathlib.Path,default=ROOT/'third_party/ffmpeg/bundle');parser.add_argument('--sonic-bundle',type=pathlib.Path);parser.add_argument('--source-dir',type=pathlib.Path);parser.add_argument('--print-tags',action='store_true',help='print the official Go build tags this builder uses and exit')
     # An internal build: no signing key, no manifest.sig; the only way to build with a development engine.
     parser.add_argument('--unsealed',action='store_true',help='build without the release seal (NOT FOR USE); allows a development engine')
-    # A release run tests once: the full -race suite in its gate job, the plain suite on each native-OS build.
+    # A release run tests once, in its gate job (the full suite on Linux). Native-OS builds pass --tests none;
+    # --tests plain/full stay available for running a platform suite outside the release.
     parser.add_argument('--tests',choices=['full','plain','none'],default='full',help='full: -race suite; plain: the suite without -race; none: tested by the release gate')
     args=parser.parse_args()
     # Dry run for the CI guard: the tags below are the ones the build uses, not a
@@ -258,7 +259,7 @@ def main():
     # instrumentation of pure-Go SQLite exceeds Go's default ten-minute limit.
     # --tests none: the release run's gate job ran the full suite on this same commit.
     if args.tests!='none':
-        subprocess.run([str(ROOT/'scripts/env.sh'),'go','test',*(['-race'] if args.tests=='full' else []),'-timeout=60m','./...'],cwd=source,env=checked_env,check=True)
+        subprocess.run([str(ROOT/'scripts/env.sh'),'go','test',*(['-race'] if args.tests=='full' else []),'-timeout=60m','./...'],cwd=source,env=checked_env,check=True,stdout=sys.stderr)
     subprocess.run([str(ROOT/'scripts/env.sh'),'sh',str(stage/'scripts/vet-go.sh')],cwd=source,env=checked_env,check=True)
     built_at=datetime.datetime.now(datetime.timezone.utc).isoformat()
     prefix=module_path(args.component)+'/internal/buildinfo.'

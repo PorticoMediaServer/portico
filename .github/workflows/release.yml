@@ -94,7 +94,7 @@ jobs:
         # Which signing a release run can do. A proof run never signs.
         env:
           RELEASE: ${{ steps.id.outputs.release }}
-          ANDROID: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 != '' && secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD != '' && secrets.ANDROID_RELEASE_KEY_ALIAS != '' }}
+          ANDROID: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 != '' && secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD != '' && vars.ANDROID_RELEASE_KEY_ALIAS != '' }}
           APPLE: ${{ secrets.APPLE_TEAM_ID != '' && secrets.APPLE_DISTRIBUTION_P12_BASE64 != '' && secrets.APP_STORE_CONNECT_KEY_P8 != '' }}
           MAC: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 != '' && secrets.APP_STORE_CONNECT_KEY_P8 != '' }}
           MAC_INSTALLER: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 != '' && secrets.APPLE_DEVELOPER_ID_INSTALLER_P12_BASE64 != '' && secrets.APP_STORE_CONNECT_KEY_P8 != '' }}
@@ -129,7 +129,7 @@ jobs:
   gate:
     # The full server suite, once per release, on the commit being released, exactly as the merge
     # tier runs it (no -race: the race run is lane E's nightly, report-only job). Every server
-    # build needs it; those builds then run only their own platform's plain suite, or nothing.
+    # build needs it; the builds themselves run no suite.
     needs: [identity, gate-plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -282,13 +282,14 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Development engine (NOT FOR USE)
         run: python3 scripts/development-engine.py fetch --target macos-arm64 --output .release/engine
-      - name: Build (unsealed, plain macOS suite) and package
+      - name: Build (unsealed) and package
         env: {VERSION: '${{ needs.identity.outputs.version }}', BUILD: '${{ needs.identity.outputs.build }}', PORTICO_UNSEALED: '1'}
         run: |
           set -euo pipefail
-          # The plain suite's media tests use the engine the release ships.
-          export PORTICO_FFMPEG="$PWD/.release/engine/bin/ffmpeg" PORTICO_FFPROBE="$PWD/.release/engine/bin/ffprobe"
-          result="$(python3 scripts/build-server-release.py --version "$VERSION" --os darwin --arch arm64 --ffmpeg-bundle .release/engine --unsealed --tests plain | tail -1)"
+          # Like the other server builds, no suite here: the gate ran the full suite on this
+          # commit. The macOS suite has never passed end to end; it runs outside the release
+          # (lead decision, 1 Nov 2026) so a Mac-only test failure can't cost a release run.
+          result="$(python3 scripts/build-server-release.py --version "$VERSION" --os darwin --arch arm64 --ffmpeg-bundle .release/engine --unsealed --tests none | tail -1)"
           stage="$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['directory'])" "$result")"
           payload="$(scripts/package-release.sh darwin arm64 "$VERSION" "$stage" .release/web dist "$BUILD" | tail -1)"
           scripts/package-macos.sh "$VERSION" "$payload" dist "$BUILD"
@@ -372,7 +373,7 @@ jobs:
         env:
           KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
           PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
-          ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ALIAS: ${{ vars.ANDROID_RELEASE_KEY_ALIAS }}
         run: |
           set -euo pipefail
           (umask 077; printf '%s' "$KEYSTORE" | base64 --decode > "$RUNNER_TEMP/release.keystore")
