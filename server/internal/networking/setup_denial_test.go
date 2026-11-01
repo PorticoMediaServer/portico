@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -44,13 +45,59 @@ func TestADeniedSetupClaimEndsHereAndContinueStartsANewOne(t *testing.T) {
 			return nil, r.Context().Err()
 		}
 	}
+	f := setupDecisionFixture(t, events)
+	call, phase, db, pending := f.call, f.phase, f.db, f.pending
+	registered := f.registered
+	code, first, body := call()
+	if code != 200 || first.Operation == nil {
+		t.Fatalf("first approval: %d %s", code, body)
+	}
+	if p := phase(); p.Phase != setupflow.AwaitingApproval {
+		t.Fatalf("before the decision: %+v", p)
+	}
+	decide()
+	waitFor(t, func() bool { return phase().Phase == setupflow.Started })
+	if p := phase(); p.Operation != nil || p.Cancelling || p.RequestID != pending.RequestID || p.Outcome != "denied" {
+		t.Fatalf("after the denial the setup request stays, with no claim, and says it was declined: %+v", p)
+	}
+	var stage string
+	if err := db.QueryRow(`SELECT stage FROM networking_claim_intents WHERE operation_id=?`, first.Operation.OperationID).Scan(&stage); err != nil || stage != "cancelled" {
+		t.Fatalf("the denied claim is %q (%v)", stage, err)
+	}
+
+	// Continue again: a new claim and a new request on Portico Services.
+	code, again, body := call()
+	if code != 200 || again.Operation == nil || again.Operation.OperationID == first.Operation.OperationID {
+		t.Fatalf("continue after the denial: %d %s", code, body)
+	}
+	if n := registered(); n != 2 {
+		t.Fatalf("Portico Services got %d requests, want a new one after the denial", n)
+	}
+	if p := phase(); p.Phase != setupflow.AwaitingApproval || p.Outcome != "" {
+		t.Fatalf("a new request no longer says declined: %+v", p)
+	}
+}
+
+type setupDecision struct {
+	h          *ClaimHandler
+	db         *sql.DB
+	pending    identity.PendingAccountSetup
+	call       func() (int, ClaimStatus, string)
+	phase      func() setupflow.State
+	registered func() int
+}
+
+// setupDecisionFixture is a hosted first-run setup whose Portico Services decision stream
+// answers with events: one approval call prepares, signs and registers a claim.
+func setupDecisionFixture(t *testing.T, events func(*http.Request) (*http.Response, error)) setupDecision {
+	t.Helper()
 	ctx := context.Background()
 	root := t.TempDir()
 	db, err := persistence.Open(filepath.Join(root, "server.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	t.Cleanup(func() { db.Close() })
 	gate, err := authoritygate.NewAuthorityGate(strings.Repeat("a", 64), false)
 	if err != nil {
 		t.Fatal(err)
@@ -63,7 +110,7 @@ func TestADeniedSetupClaimEndsHereAndContinueStartsANewOne(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer keys.Close()
+	t.Cleanup(func() { keys.Close() })
 	id, err := identity.New(db, root)
 	if err != nil {
 		t.Fatal(err)
@@ -178,35 +225,30 @@ func TestADeniedSetupClaimEndsHereAndContinueStartsANewOne(t *testing.T) {
 		return state
 	}
 
-	code, first, body := call()
+	return setupDecision{h: h, db: db, pending: pending, call: call, phase: phase,
+		registered: func() int { mu.Lock(); defer mu.Unlock(); return len(registered) }}
+}
+
+// Portico Services answers exactly approved, denied or closed. Any other answer decides
+// nothing: the claim stays prepared and the setup stays awaiting approval, never ended
+// or approved on a guess.
+func TestAnUnknownDecisionChangesNothing(t *testing.T) {
+	var asked atomic.Int32
+	events := func(r *http.Request) (*http.Response, error) {
+		asked.Add(1)
+		return reply(200, `{"status":"rejected"}`), nil
+	}
+	f := setupDecisionFixture(t, events)
+	code, first, body := f.call()
 	if code != 200 || first.Operation == nil {
-		t.Fatalf("first approval: %d %s", code, body)
+		t.Fatalf("approval: %d %s", code, body)
 	}
-	if p := phase(); p.Phase != setupflow.AwaitingApproval {
-		t.Fatalf("before the decision: %+v", p)
-	}
-	decide()
-	waitFor(t, func() bool { return phase().Phase == setupflow.Started })
-	if p := phase(); p.Operation != nil || p.Cancelling || p.RequestID != pending.RequestID || p.Outcome != "denied" {
-		t.Fatalf("after the denial the setup request stays, with no claim, and says it was declined: %+v", p)
+	waitFor(t, func() bool { _, watching := f.h.webWatches.Load(first.Operation.OperationID); return asked.Load() > 0 && !watching })
+	if p := f.phase(); p.Phase != setupflow.AwaitingApproval || p.Outcome != "" || p.Operation == nil || p.Operation.ID != first.Operation.OperationID {
+		t.Fatalf("an unknown decision changed the setup: %+v", p)
 	}
 	var stage string
-	if err := db.QueryRow(`SELECT stage FROM networking_claim_intents WHERE operation_id=?`, first.Operation.OperationID).Scan(&stage); err != nil || stage != "cancelled" {
-		t.Fatalf("the denied claim is %q (%v)", stage, err)
-	}
-
-	// Continue again: a new claim and a new request on Portico Services.
-	code, again, body := call()
-	if code != 200 || again.Operation == nil || again.Operation.OperationID == first.Operation.OperationID {
-		t.Fatalf("continue after the denial: %d %s", code, body)
-	}
-	mu.Lock()
-	n := len(registered)
-	mu.Unlock()
-	if n != 2 {
-		t.Fatalf("Portico Services got %d requests, want a new one after the denial", n)
-	}
-	if p := phase(); p.Phase != setupflow.AwaitingApproval || p.Outcome != "" {
-		t.Fatalf("a new request no longer says declined: %+v", p)
+	if err := f.db.QueryRow(`SELECT stage FROM networking_claim_intents WHERE operation_id=?`, first.Operation.OperationID).Scan(&stage); err != nil || stage != "prepared" {
+		t.Fatalf("an unknown decision left the claim %q (%v)", stage, err)
 	}
 }

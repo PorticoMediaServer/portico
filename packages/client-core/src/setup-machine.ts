@@ -16,7 +16,7 @@ export type SetupKind = 'hosted' | 'local';
 /** `choose` offers both kinds; `hosted` and `local` are the two forms. Arriving in `form` always shows `choose`. */
 export type SetupFormMode = 'choose' | SetupKind;
 export type SetupRefusal = 'not_local_source' | 'address_not_allowed' | 'already_set_up';
-export type SetupOutcome = 'denied' | 'expired' | 'superseded' | 'cancelled' | 'approval_lapsed';
+export type SetupOutcome = 'expired' | 'superseded' | 'cancelled' | 'approval_lapsed';
 export type SetupError = Readonly<{code: string; retryable: boolean; retryAfterMs?: number}>;
 /** How far the server has gone with this person's attempt, which decides what Back may do:
  * `none` nothing to abandon; `unapproved` Back sends S8 abandon; `committed` the server won't take it, so Back shows its phase. */
@@ -233,7 +233,9 @@ function awaitingApproval(view: Extract<SetupView, {kind: 'awaiting_approval'}>,
       if (own.phase === 'expired') return go(ended('expired', view.name));
       // The server says the Portico Account declined: the same page, with one line saying so.
       if (own.phase === 'started' && own.outcome === 'denied') return go(waiting(view.name, own, view.polls + 1), [readAfter(view.polls + 1, floorOf(r))]);
-      if (own.phase === 'started' && view.serverPhase === 'awaiting_approval') return go(ended('denied', view.name));
+      // Leaving awaiting approval for started, a server always says why (outcome). Without it the reading is a
+      // protocol error, never a guessed denial: the page says so and Try again reads again.
+      if (own.phase === 'started' && view.serverPhase === 'awaiting_approval') return failedStep({code: 'invalid_response', retryable: true}, view.name, 'unapproved', view, [{kind: 'read-state'}]);
       if (own.phase === 'started' || own.phase === 'awaiting_approval') {
         const polls = view.polls + 1;
         const {declined: _earlier, ...rest} = view;

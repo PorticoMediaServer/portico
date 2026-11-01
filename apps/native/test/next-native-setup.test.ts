@@ -290,7 +290,7 @@ test('a failed setup offers Try again that retries the same controller step', as
 });
 
 test('an ended setup offers Try again that starts again', async () => {
-  const f = await fixture({view: view('ended', {outcome: 'denied', name: 'Studio'})});
+  const f = await fixture({view: view('ended', {outcome: 'cancelled', name: 'Studio'})});
   try {
     const layout = f.layout()!;
     assert.equal(layout.props.title, t('accounts.setup.declinedTitle', {server: 'Studio'}));

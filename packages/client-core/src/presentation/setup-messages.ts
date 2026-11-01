@@ -28,7 +28,6 @@ export function setupBusyMessage(retryAt: number | undefined): string {
 }
 /** How an attempt ended, in the existing words. */
 export function setupEndedMessage(outcome: SetupOutcome, server: string): string {
-  if (outcome === 'denied') return defaultI18n.t('web.claim.denied', {server});
   if (outcome === 'expired') return defaultI18n.t('web.setup.earlierExpired');
   return defaultI18n.t('web.claim.expired');
 }
