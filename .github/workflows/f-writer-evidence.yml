@@ -206,3 +206,19 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with: {name: writer-metadata, path: '${{ runner.temp }}/reports', retention-days: 7}
+  rating-audit:
+    if: contains(github.event.head_commit.message, 'rating audit')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false, ref: '05823322'}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - run: mkdir -p "$RUNNER_TEMP/reports"
+      - name: Restricted 18+ to 7+ propagation through every real endpoint
+        working-directory: server
+        run: go test ./internal/httpapi -run '^TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan$' -count=1 -v -timeout=3m > "$RUNNER_TEMP/reports/rating-e2e.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: rating-audit, path: '${{ runner.temp }}/reports', retention-days: 7}
