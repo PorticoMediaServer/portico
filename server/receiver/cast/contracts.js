@@ -128675,6 +128675,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -128720,6 +128724,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -128767,6 +128775,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -128812,6 +128824,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -128859,6 +128875,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -128904,6 +128924,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -128951,6 +128975,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -128996,6 +129024,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -166976,106 +167008,6 @@ var PorticoCastContracts = (function(exports) {
 			"required": ["items"],
 			"type": "object"
 		},
-		"PostDirectSecurityReturnCancelRequest": {
-			"properties": { "context": {
-				"properties": {
-					"payload": { "type": "string" },
-					"signature": { "type": "string" }
-				},
-				"required": ["payload", "signature"],
-				"type": "object"
-			} },
-			"required": ["context"],
-			"type": "object"
-		},
-		"PostDirectSecurityReturnCancelResponse": {
-			"properties": {},
-			"required": [],
-			"type": "object"
-		},
-		"PostDirectSecurityReturnCheckRequest": {
-			"properties": { "context": {
-				"properties": {
-					"payload": { "type": "string" },
-					"signature": { "type": "string" }
-				},
-				"required": ["payload", "signature"],
-				"type": "object"
-			} },
-			"required": ["context"],
-			"type": "object"
-		},
-		"PostDirectSecurityReturnCheckResponse": {
-			"properties": {},
-			"required": [],
-			"type": "object"
-		},
-		"PostDirectSecurityReturnConfirmRequest": {
-			"properties": {
-				"code": { "type": "string" },
-				"context": {
-					"properties": {
-						"payload": { "type": "string" },
-						"signature": { "type": "string" }
-					},
-					"required": ["payload", "signature"],
-					"type": "object"
-				},
-				"transactionId": { "type": "string" }
-			},
-			"required": [
-				"context",
-				"transactionId",
-				"code"
-			],
-			"type": "object"
-		},
-		"PostDirectSecurityReturnConfirmResponse": {
-			"properties": {
-				"payload": { "type": "string" },
-				"signature": { "type": "string" }
-			},
-			"required": ["payload", "signature"],
-			"type": "object"
-		},
-		"PostDirectSecurityReturnPrepareRequest": {
-			"properties": {
-				"expiresAt": {
-					"format": "date-time",
-					"type": "string"
-				},
-				"nonce": { "type": "string" },
-				"openingId": { "type": "string" },
-				"operationId": { "type": "string" },
-				"origin": { "type": "string" },
-				"providerIdentityId": { "type": "string" },
-				"providerRevision": { "type": "string" },
-				"purpose": { "type": "string" },
-				"target": { "type": "string" },
-				"taskId": { "type": "string" }
-			},
-			"required": [
-				"purpose",
-				"target",
-				"origin",
-				"openingId",
-				"taskId",
-				"operationId",
-				"providerIdentityId",
-				"providerRevision",
-				"nonce",
-				"expiresAt"
-			],
-			"type": "object"
-		},
-		"PostDirectSecurityReturnPrepareResponse": {
-			"properties": {
-				"payload": { "type": "string" },
-				"signature": { "type": "string" }
-			},
-			"required": ["payload", "signature"],
-			"type": "object"
-		},
 		"PostDirectSignInRequest": {
 			"properties": {
 				"password": { "type": "string" },
@@ -178179,6 +178111,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -178224,6 +178160,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -178271,6 +178211,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -178316,6 +178260,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -178363,6 +178311,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -178408,6 +178360,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -178455,6 +178411,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -178500,6 +178460,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -179072,6 +179036,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -179117,6 +179085,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -179164,6 +179136,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -179209,6 +179185,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -179256,6 +179236,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -179301,6 +179285,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -179348,6 +179336,10 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
+								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
 								"revision": { "type": "string" },
@@ -179393,6 +179385,10 @@ var PorticoCastContracts = (function(exports) {
 										"revision"
 									],
 									"type": "object"
+								},
+								"outcome": {
+									"enum": ["denied"],
+									"type": "string"
 								},
 								"renewable": { "type": "boolean" },
 								"requestId": { "type": "string" },
@@ -208124,10 +208120,6 @@ var PorticoCastContracts = (function(exports) {
 		"post_direct_profiles_id_avatar": "/v1/direct/profiles/{id}/avatar",
 		"post_direct_profiles_id_select": "/v1/direct/profiles/{id}/select",
 		"post_direct_remembered_accounts": "/v1/direct/remembered-accounts",
-		"post_direct_security_return_cancel": "/v1/direct/security-return/cancel",
-		"post_direct_security_return_check": "/v1/direct/security-return/check",
-		"post_direct_security_return_confirm": "/v1/direct/security-return/confirm",
-		"post_direct_security_return_prepare": "/v1/direct/security-return/prepare",
 		"post_direct_sign_in": "/v1/direct/sign-in",
 		"post_direct_sign_out_everywhere": "/v1/direct/sessions/sign-out-everywhere",
 		"post_direct_two_factor_enrol": "/v1/direct/two-factor/enrol",

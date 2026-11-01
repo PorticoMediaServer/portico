@@ -26,7 +26,6 @@ func (d Dependencies) directIdentityRoutes(mux *http.ServeMux) {
 	d.signInPolicyRoutes(mux)
 	d.ownerResetFileRoutes(mux)
 	d.serverReturnRoutes(mux)
-	d.securityReturnRoutes(mux)
 	// A challenge for a Portico identity assertion: the installation asks this
 	// server, has Hosted sign the challenge into its assertion, then signs in
 	// with it. The answer is signed with this server's identity key over the

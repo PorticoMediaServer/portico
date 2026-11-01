@@ -6,7 +6,7 @@ import {createRenderer, tree, textOf} from './helpers/interaction-harness.mjs';
 // H09: an owner who arrived through the normal Hosted return holds a server session, not a Hosted
 // session on this origin. A Portico Account server's Sign-in section must render from what the server
 // knows and open the Portico Account's own Security page, without any Hosted read on this origin.
-async function fixture({signIn = 'portico', providerReturn, hostedAccountId = 'portico-account-1', canManage = true, origin = 'https://server.example:32500'} = {}) {
+async function fixture({signIn = 'portico', hostedAccountId = 'portico-account-1', canManage = true, origin = 'https://server.example:32500'} = {}) {
   const h = createRenderer(), hostedCalls = [], opened = [];
   const savedOpen = globalThis.open, savedLocation = globalThis.location;
   globalThis.open = (...args) => {opened.push(args);};
@@ -20,10 +20,9 @@ async function fixture({signIn = 'portico', providerReturn, hostedAccountId = 'p
     react: h.react, '@i18n': {defaultI18n: {t: label}},
     '../../../services/session': {servicesAccount: () => {hostedCalls.push('servicesAccount'); throw new Error('Sign in with your Portico Account.');},
       currentAccountWork: () => {hostedCalls.push('currentAccountWork'); throw new Error('Sign in with your Portico Account.');}, accountIdentity: () => ({}), sameAccount: () => false},
-    '../../../platform/account-security-context': {useOriginalAccountSecurity: () => providerReturn},
     '../../../platform/account-origin': {browserAccountOrigin: () => 'https://web.getportico.tv'},
     '../../../platform/account-security-policy': {accountSecurityBrowserAvailable: () => true,
-      accountSecurityUIURL: (kind, origin, href) => kind === 'hosted-account' && href === `${origin}/account?tab=security`},
+      accountSecurityUIURL: (origin, href) => href === `${origin}/account?tab=security`},
     '../../../kit/settings/SettingsGroups': {SettingsGroup: 'SettingsGroup'}, '../../../kit/shell/SettingsSurfaces': {SettingsRow: 'SettingsRow'},
     '../../../kit/controls': {Button: 'Button', Switch: 'Switch', TextField: 'TextField'},
   });

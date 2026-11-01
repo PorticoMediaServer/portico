@@ -477,9 +477,6 @@ internal/networking/claim_sqlite.go	(*SQLiteStore).tx	Begin	ClassFrom(ctx, dbwor
 internal/networking/claim_web.go	(*ClaimHandler).beginWebClaim	ExecWrite	ClassInteractive	-	×2
 internal/networking/claim_web.go	(*ClaimHandler).watchWebClaim	ExecWrite	ClassInteractive	-
 internal/networking/remote_store.go	seedRemoteSettings	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	-
-internal/networking/security_return.go	(*RouteIdentityHandler).CancelSecurityReturn	Begin	ClassSecurityFence	-
-internal/networking/security_return.go	(*RouteIdentityHandler).ConfirmSecurityReturn	Begin	ClassSecurityFence	-
-internal/networking/security_return.go	(*RouteIdentityHandler).SignSecurityReturn	Begin	ClassSecurityFence	-
 internal/operations/events.go	updateOperation	WithWriteTx	class	-
 internal/operations/evidence.go	(*Store).Alert	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	-
 internal/operations/evidence.go	(*Store).Prune	WithWriteTx	class	-	×3

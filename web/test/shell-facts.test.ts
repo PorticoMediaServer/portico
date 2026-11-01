@@ -41,9 +41,6 @@ test('strict direct eligibility proof retires before input settles; malformed pr
   assert.equal(broken.counts().retired,0);assert.equal(broken.owner.source.getSnapshot().identity.profileName,'Evening');
   await broken.time.advance(2500);assert.ok(broken.calls.filter(path=>path==='/v1/direct').length>1);broken.dispose();
 });
-test('readonly admission does not restart a stopped mutating permission owner', async () => {
-  const h=harness(true);h.owner.all();await h.time.advance(1500);assert.equal(h.counts().permission,0);assert.equal(h.counts().retired,0);h.dispose();
-});
 test('system name/version are display but actual scope/security changes replace authority', () => {
   const initial={system:system(),direct:parseDirectSnapshot(direct())};
   assert.equal(shellProofChanged(initial,{system:{...system(),name:'Den',version:'2'}},'profile'),false);

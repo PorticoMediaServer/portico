@@ -54,13 +54,12 @@ function sameSelection(a:RememberedServer|undefined,b:RememberedServer):boolean 
 }
 const selectionChanged=()=>new RouteError('cancelled','The saved selection changed during reconnect.');
 /** R-17: the store may hold a newer rotation of the same sign-in (another tab, a foreground
- * refresh) by the time reconnect checks it again. Adopt it instead of cancelling. Exact
- * restoration (captured Security continuations) still needs the very same token.
+ * refresh) by the time reconnect checks it again. Adopt it instead of cancelling.
  * Returns true when record.session was replaced by the newer rotation. */
-function followSelection(selected:RememberedServer|undefined,record:RememberedServer,exact:boolean):boolean{
+function followSelection(selected:RememberedServer|undefined,record:RememberedServer):boolean{
  const change=selected&&selected.selectionId===record.selectionId&&selected.pin.serverId===record.pin.serverId?compareSessionAuthority(record.session,selected.session):'replaced';
  if(change==='same')return false;
- if(change!=='rotated'||exact)throw selectionChanged();
+ if(change!=='rotated')throw selectionChanged();
  const next=parseRememberedServer(selected);if(!next)throw selectionChanged();
  record.session=next.session;record.pendingRefresh=next.pendingRefresh;
  return true;
@@ -134,22 +133,14 @@ export async function rememberNativeSession(api:HttpLocalApi,session:LocalSessio
  * renewal). Not offline and not a reset: say so once, keep the credential, don't retry. */
 export const ACCESS_REFUSED='access_refused';
 export async function restoreNativeSession(env:ConnectionEnvironment,source?:(record:RememberedServer)=>HostedConnectionSource|undefined,expected?:LocalSession,signal?:AbortSignal):Promise<{api:HttpLocalApi;session:LocalSession}|undefined>{
- return restoreStoredSession(env,source,expected,false,signal);
-}
-/** Closed Security continuations may inspect only their exact original saved
- * family/token generation and viewer. They never renew, adopt a newer token, contact Hosted
- * for routes, or publish route persistence into another opening. */
-export async function restoreExactNativeSession(env:ConnectionEnvironment,expected:LocalSession,signal?:AbortSignal):Promise<{api:HttpLocalApi;session:LocalSession}|undefined>{
- return restoreStoredSession(env,undefined,expected,true,signal);
+ return restoreStoredSession(env,source,expected,signal);
 }
 function checkRestoreCancellation(signal:AbortSignal|undefined){if(signal?.aborted)throw new RouteError('cancelled','The session restore was cancelled.');}
-async function restoreStoredSession(env:ConnectionEnvironment,source:((record:RememberedServer)=>HostedConnectionSource|undefined)|undefined,expected:LocalSession|undefined,exact:boolean,signal?:AbortSignal):Promise<{api:HttpLocalApi;session:LocalSession}|undefined>{
+async function restoreStoredSession(env:ConnectionEnvironment,source:((record:RememberedServer)=>HostedConnectionSource|undefined)|undefined,expected:LocalSession|undefined,signal?:AbortSignal):Promise<{api:HttpLocalApi;session:LocalSession}|undefined>{
  const check=()=>checkRestoreCancellation(signal);check();
  try{
  const stored=await env.storage.read();check();
  const record=parseRememberedServer(stored);if(!record)return;
- const exactViewerMatches=(saved:RememberedServer|undefined)=>!!saved&&!!expected&&(['authority','accountId','profileId','serverId','role'] as const).every(field=>saved.session.viewer[field]===expected.viewer[field]);
- if(exact&&(!expected||!exactViewerMatches(record)||record.pendingRefresh||record.session.tokenGeneration!==expected.tokenGeneration||record.session.accessToken!==expected.accessToken||Date.parse(record.session.expiresAt)<=Date.now()))return;
  // The protected store may hold a newer rotation of the same family than the caller's copy.
  if(expected&&(record.session.sessionFamilyId!==expected.sessionFamilyId||BigInt(record.session.tokenGeneration)<BigInt(expected.tokenGeneration)||(record.session.tokenGeneration===expected.tokenGeneration&&record.session.accessToken!==expected.accessToken)||record.session.viewer.serverId!==expected.viewer.serverId||record.session.viewer.accountId!==expected.viewer.accountId||record.session.viewer.profileId!==expected.viewer.profileId))return;
  const pin=await serverPin(record.pin.serverId,record.pin.publicKey,record.pin.fingerprint,env.crypto??webRouteCrypto);check();
@@ -161,10 +152,10 @@ async function restoreStoredSession(env:ConnectionEnvironment,source:((record:Re
  try{
   await connection.resolve(signal);check();
   const selected=await env.storage.read();check();
-  followSelection(selected,record,exact);if(exact&&!exactViewerMatches(selected))throw selectionChanged();
+  followSelection(selected,record);
   const api=new HttpLocalApi(record.logicalOrigin,'',env.fetcher);api.useRoutes(connection);api.setAccessToken(record.session.accessToken);let renewedNow=false;
   // A sign-in saved more than a few minutes ago has an expired access token: renew it first.
-  if(!exact&&record.session.refreshToken&&(record.pendingRefresh||Date.parse(record.session.expiresAt)-Date.now()<REFRESH_MIN_VALID_MS)){
+  if(record.session.refreshToken&&(record.pendingRefresh||Date.parse(record.session.expiresAt)-Date.now()<REFRESH_MIN_VALID_MS)){
    bindSessionRoute(record.session.accessToken,connection);
    const renewed=await refreshStoredSession({env,api,family:{sessionFamilyId:record.session.sessionFamilyId,serverId:record.pin.serverId},signal});check();
    record.session=renewed;record.pendingRefresh=undefined;api.setAccessToken(renewed.accessToken);renewedNow=true;
@@ -192,8 +183,8 @@ async function restoreStoredSession(env:ConnectionEnvironment,source:((record:Re
    const me=await api.me(signal);check();
    for(const field of ['authority','accountId','profileId','serverId'] as const)if(me.viewer[field]!==viewer[field])throw new RouteError('identity_mismatch','The saved viewer no longer matches this server session.');
    if(me.viewer.role!==viewer.role){
-    // Ordinary restoration adopts current permissions; captured Security continuations stay exact.
-    if(exact||!['owner','admin','member'].includes(me.viewer.role))throw new RouteError('identity_mismatch','The saved viewer no longer matches this server session.');
+    // Restoration adopts current permissions.
+    if(!['owner','admin','member'].includes(me.viewer.role))throw new RouteError('identity_mismatch','The saved viewer no longer matches this server session.');
     const next=parseLocalSession({...record.session,viewer:me.viewer},{authority:viewer.authority,accountId:viewer.accountId,profileId:viewer.profileId,serverId:viewer.serverId},{stored:true});
     check();await env.storage.change(current=>{check();return sameSelection(current,record)&&current!.session.accessToken===record.session.accessToken?{...current!,session:{...current!.session,viewer:next.viewer}}:current;},check);check();
     record.session=next;
@@ -203,7 +194,7 @@ async function restoreStoredSession(env:ConnectionEnvironment,source:((record:Re
   catch(e){
    check();const status=statusOf(e);
    if(status===403||(status===401&&renewedNow))throw refusedAccess();
-   if(exact||!record.session.refreshToken||status!==401)throw e;
+   if(!record.session.refreshToken||status!==401)throw e;
    bindSessionRoute(record.session.accessToken,connection);
    const renewed=await refreshStoredSession({env,api,family:{sessionFamilyId:record.session.sessionFamilyId,serverId:record.pin.serverId},rejected:record.session.accessToken,signal});check();
    record.session=renewed;record.pendingRefresh=undefined;api.setAccessToken(renewed.accessToken);
@@ -211,8 +202,8 @@ async function restoreStoredSession(env:ConnectionEnvironment,source:((record:Re
    catch(again){check();const s=statusOf(again);if(s===401||s===403)throw refusedAccess();throw again;}
   }
   const selectedAfter=await env.storage.read();check();
-  if(followSelection(selectedAfter,record,exact))api.setAccessToken(record.session.accessToken);if(exact&&!exactViewerMatches(selectedAfter))throw selectionChanged();
-  if(!exact){attachPersistence(connection,env,record,hosted);bindSessionRoute(record.session.accessToken,connection);}return {api,session:record.session};
+  if(followSelection(selectedAfter,record))api.setAccessToken(record.session.accessToken);
+  attachPersistence(connection,env,record,hosted);bindSessionRoute(record.session.accessToken,connection);return {api,session:record.session};
  }catch(e){connection.dispose();throw e;}
  }catch(e){check();throw e;}
 }

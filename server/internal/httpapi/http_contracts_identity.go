@@ -7,9 +7,6 @@ import (
 )
 
 func registerIdentityHTTPContracts(registry *apikit.Registry) error {
-	if e := registerSecurityReturnHTTPContracts(registry); e != nil {
-		return e
-	}
 	if e := registerSignInPolicyHTTPContracts(registry); e != nil {
 		return e
 	}

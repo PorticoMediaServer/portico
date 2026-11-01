@@ -4,7 +4,7 @@ import {createHash,generateKeyPairSync,sign} from 'node:crypto';
 import {ApiError,HttpLocalApi,type LocalSession} from '../src/index.ts';
 import {RouteConnection,sessionRoute} from '../src/route-connection.ts';
 import {type ServerPin} from '../src/route-identity.ts';
-import {parseRememberedServer,rememberNativeSession,restoreNativeSession,restoreExactNativeSession,rememberRotatedSession,prepareRoutedSession,commitRoutedSession,type RememberedServer,type ServerConnectionStorage} from '../src/server-connections.ts';
+import {parseRememberedServer,rememberNativeSession,restoreNativeSession,rememberRotatedSession,prepareRoutedSession,commitRoutedSession,type RememberedServer,type ServerConnectionStorage} from '../src/server-connections.ts';
 import {SetupCodeService,type SetupCodeJournal} from '../src/setup-code.ts';
 const tick=()=>new Promise<void>(r=>setTimeout(r,5));
 async function until(check:()=>boolean){for(let i=0;i<120&&!check();i++)await tick();assert.ok(check(),'condition did not settle');}
@@ -418,35 +418,14 @@ test('ordinary restore reconciles promotions and demotions into the matching pro
  }
 });
 
-test('exact Security restore still rejects a changed role without reconciling the stored viewer',async()=>{
- const h=await roleRestoreCase('owner','member');
- try{await assert.rejects(restoreExactNativeSession(h.env,h.saved),{code:'identity_mismatch'});assert.equal((await h.store.read())?.session.viewer.role,'owner');assert.equal(h.refreshes(),0);}
- finally{h.initial.connection.dispose();}
-});
-
-test('exact Security restore refuses an old role after ordinary reconciliation before sending any request',async()=>{
- const h=await roleRestoreCase('owner','member');let restored:Awaited<ReturnType<typeof restoreNativeSession>>,requests=0;
+test('ordinary restore adopts a reconciled role and keeps its access token',async()=>{
+ const h=await roleRestoreCase('owner','member');let restored:Awaited<ReturnType<typeof restoreNativeSession>>;
  try{
   restored=await restoreNativeSession(h.env,undefined,h.saved);
   assert.equal(restored?.session.viewer.role,'member');
   assert.equal(restored?.session.accessToken,h.saved.accessToken);
-  const exact=await restoreExactNativeSession({...h.env,fetcher:async(input,init)=>{requests++;return h.env.fetcher(input,init);}},h.saved);
-  assert.equal(exact,undefined);assert.equal(requests,0);assert.equal(h.refreshes(),0);
+  assert.equal(h.refreshes(),0);
  }finally{restored?.api.getRouteConnection()?.dispose();h.initial.connection.dispose();}
-});
-
-test('exact Security restore rejects a role reconciled while proof or live validation is in flight',async()=>{
- for(const during of ['proof','me'] as const){
-  const h=await roleRestoreCase('owner','owner');let bearers=0;
-  const fetcher:typeof fetch=async(input,init)=>{
-   const result=await h.env.fetcher(input,init),isMe=String(input).endsWith('/v1/me');
-   if(isMe)bearers++;
-   if((during==='me')===isMe)await h.store.change(current=>({...current!,session:{...current!.session,viewer:{...current!.session.viewer,role:'member'}}}));
-   return result;
-  };
-  try{await assert.rejects(restoreExactNativeSession({...h.env,fetcher},h.saved),{code:'cancelled'});assert.equal(bearers,during==='proof'?0:1);assert.equal((await h.store.read())?.session.viewer.role,'member');}
-  finally{h.initial.connection.dispose();}
- }
 });
 
 test('ordinary role reconciliation preserves all stable viewer identity fences',async()=>{
@@ -471,11 +450,10 @@ test('role reconciliation cannot overwrite a newer saved selection',async()=>{
  finally{h.initial.connection.dispose();}
 });
 
-test('BOOT-013: already-cancelled restore reads nothing, including exact Security restores',async()=>{
+test('BOOT-013: already-cancelled restore reads nothing',async()=>{
  const cancelled=new AbortController();cancelled.abort();let reads=0;
  const env={storage:{read:async()=>{reads++;return undefined;},change:async()=>{throw new Error('unexpected write');}}};
  await assert.rejects(restoreNativeSession(env,undefined,undefined,cancelled.signal),{code:'cancelled'});
- await assert.rejects(restoreExactNativeSession(env,session(),cancelled.signal),{code:'cancelled'});
  assert.equal(reads,0);
 });
 
@@ -486,8 +464,8 @@ test('BOOT-013: cancelling the earliest saved read wins over a late malformed re
  await rejected;assert.equal(writes,0);assert.equal(requests,0);
 });
 
-test('BOOT-013: cancellation reaches proof, me, and exact validation without publishing or writing',async()=>{
- for(const exact of [false,true])for(const stage of ['proof','me'] as const){
+test('BOOT-013: cancellation reaches proof and me validation without publishing or writing',async()=>{
+ for(const stage of ['proof','me'] as const){
   const h=await roleRestoreCase('owner','owner'),cancelled=new AbortController(),gate=deferred<void>();let requested=false,requestSignal:AbortSignal|undefined;
   const before=await h.store.read();
   const fetcher:typeof fetch=async(input,init)=>{
@@ -497,7 +475,7 @@ test('BOOT-013: cancellation reaches proof, me, and exact validation without pub
    return h.env.fetcher(input,init);
   };
   try{
-   const result=exact?restoreExactNativeSession({...h.env,fetcher},h.saved,cancelled.signal):restoreNativeSession({...h.env,fetcher},undefined,h.saved,cancelled.signal);
+   const result=restoreNativeSession({...h.env,fetcher},undefined,h.saved,cancelled.signal);
    const rejected=assert.rejects(result,{code:'cancelled'});await until(()=>requested);cancelled.abort();
    gate.resolve();await rejected;assert.equal(requestSignal?.aborted,true);assert.deepEqual(await h.store.read(),before);assert.equal(h.refreshes(),0);
   }finally{gate.resolve();h.initial.connection.dispose();}

@@ -1393,14 +1393,6 @@ export type PostDirectProfilesIdSelectRequest = { "installationId": string; "pin
 export type PostDirectProfilesIdSelectResponse = { "remembered"?: { "expiresAt": string }; "session": { "accessToken": string; "authorizationHorizon": string; "deviceId": string; "expiresAt": string; "installationId": string; "refreshToken"?: string; "serverIdentity"?: { "fingerprint": string; "publicKey": string }; "sessionFamilyId": string; "tokenGeneration": string; "viewer": { "accountId": string; "authority": string; "profileId": string; "role": string; "serverId": string } } };
 export type PostDirectRememberedAccountsRequest = { "automaticSignIn": boolean; "installationId": string };
 export type PostDirectRememberedAccountsResponse = { "items": Array<{ "accountId": string; "automaticSignIn": boolean; "avatarUrl"?: string; "avatarVersion": number; "displayName": string; "lastUsed": string; "username": string }> };
-export type PostDirectSecurityReturnCancelRequest = { "context": { "payload": string; "signature": string } };
-export type PostDirectSecurityReturnCancelResponse = {  };
-export type PostDirectSecurityReturnCheckRequest = { "context": { "payload": string; "signature": string } };
-export type PostDirectSecurityReturnCheckResponse = {  };
-export type PostDirectSecurityReturnConfirmRequest = { "code": string; "context": { "payload": string; "signature": string }; "transactionId": string };
-export type PostDirectSecurityReturnConfirmResponse = { "payload": string; "signature": string };
-export type PostDirectSecurityReturnPrepareRequest = { "expiresAt": string; "nonce": string; "openingId": string; "operationId": string; "origin": string; "providerIdentityId": string; "providerRevision": string; "purpose": string; "target": string; "taskId": string };
-export type PostDirectSecurityReturnPrepareResponse = { "payload": string; "signature": string };
 export type PostDirectSignInRequest = { "password": string; "porticoIdentity"?: { "certificate"?: { "keyId": string; "notAfter": string; "notBefore": string; "publicKey": string; "purpose": string; "revision": number; "revoked": Array<string>; "signature": string }; "keyId": string; "payload": string; "signature": string }; "username": string };
 export type PostDirectSignInResponse = { "account": { "allowedLibraries": Array<string>; "disabled": boolean; "disabledAt"?: string; "disabledReason"?: string; "hostedAccountId"?: string; "id": string; "primaryProfileId": string; "revision": number; "role": string; "username": string }; "authority": string; "canManage": boolean; "capabilities": { "manageAccount": boolean; "managePeople": boolean; "manageServer": boolean; "manageSignIn": boolean }; "challenge"?: { "expiresAt": string; "token": string }; "custodyPending"?: boolean; "deviceId"?: string; "installationId"?: string; "managePinRequired"?: boolean; "passwordChangeRequired"?: boolean; "profiles": Array<{ "allowedLibraries": Array<string>; "art": string; "id": string; "name": string; "pinRequired": boolean; "pinRevision": number; "position": number; "primary": boolean; "revision": number }>; "rememberProfiles": boolean; "resetFileOwnerSession"?: boolean; "serverId": string; "session"?: { "accessToken": string; "authorizationHorizon": string; "deviceId": string; "expiresAt": string; "installationId": string; "refreshToken"?: string; "serverIdentity"?: { "fingerprint": string; "publicKey": string }; "sessionFamilyId": string; "tokenGeneration": string; "viewer": { "accountId": string; "authority": string; "profileId": string; "role": string; "serverId": string } }; "twoStepSetupRequired"?: boolean };
 export type PostDirectSignOutEverywhereRequest = {  };
@@ -2627,10 +2619,6 @@ export type RouteContracts = {
 "post_direct_profiles_id_avatar": { request: PostDirectProfilesIdAvatarRequest; response: PostDirectProfilesIdAvatarResponse };
 "post_direct_profiles_id_select": { request: PostDirectProfilesIdSelectRequest; response: PostDirectProfilesIdSelectResponse };
 "post_direct_remembered_accounts": { request: PostDirectRememberedAccountsRequest; response: PostDirectRememberedAccountsResponse };
-"post_direct_security_return_cancel": { request: PostDirectSecurityReturnCancelRequest; response: PostDirectSecurityReturnCancelResponse };
-"post_direct_security_return_check": { request: PostDirectSecurityReturnCheckRequest; response: PostDirectSecurityReturnCheckResponse };
-"post_direct_security_return_confirm": { request: PostDirectSecurityReturnConfirmRequest; response: PostDirectSecurityReturnConfirmResponse };
-"post_direct_security_return_prepare": { request: PostDirectSecurityReturnPrepareRequest; response: PostDirectSecurityReturnPrepareResponse };
 "post_direct_sign_in": { request: PostDirectSignInRequest; response: PostDirectSignInResponse };
 "post_direct_sign_out_everywhere": { request: PostDirectSignOutEverywhereRequest; response: PostDirectSignOutEverywhereResponse };
 "post_direct_two_factor_enrol": { request: PostDirectTwoFactorEnrolRequest; response: PostDirectTwoFactorEnrolResponse };

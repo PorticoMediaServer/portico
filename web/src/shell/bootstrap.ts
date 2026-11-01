@@ -187,8 +187,6 @@ export class ShellBootstrap {
     selected: Pick<typeof browserViewerStorage, 'read'>;
     restore: typeof restoreBrowserConnection;
     actions?: () => BrowserAppSessionActions;
-    /** Closed Account Settings return: inspect the original access only. */
-    readonlyAccess?: true;
   } = {selected: browserViewerStorage, restore: restoreBrowserConnection}) {
     this.startedAt = environment.startedAt ?? documentStartedAt();
     this.state = Object.freeze({phase: 'restoring', startedAt: this.startedAt});
@@ -412,7 +410,6 @@ export class ShellBootstrap {
         void browserViewerStorage.clearIfFamily?.(captured.sessionFamilyId).catch(() => {});
       },
     });
-    if (this.environment.readonlyAccess) auth.stop();
     cleanups.push(() => auth.stop());
     const events = new EventsClient({http: localV1Http(api), openStream: browserEventStream(api, session.viewer.serverId + ':' + viewerId(session), () => session.accessToken)});
     cleanups.push(() => events.stop());
@@ -455,7 +452,7 @@ export class ShellBootstrap {
     const {facts: initialFacts, witnesses} = await readFacts(api, session, preferences, inbox, signal);
     if (!isCurrent()) return;
     factOwner = createShellFactOwner({api, session: () => session, auth, preferences, home, hub: freshness.hub,
-      initial: initialFacts, witnesses, libraryRouteProof, isCurrent, retire: () => {if (isCurrent()) this.restart();}, readonlyAccess: this.environment.readonlyAccess});
+      initial: initialFacts, witnesses, libraryRouteProof, isCurrent, retire: () => {if (isCurrent()) this.restart();}});
     cleanups.push(factOwner.dispose);
     // The directory did not answer at sign-in: one automatic try after a short wait; after that the
     // freshness hub's own backoff and the inline Try again take over. Nothing blocks meanwhile.

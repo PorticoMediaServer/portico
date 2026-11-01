@@ -1,7 +1,5 @@
 import {routeBody as hostedRouteBody} from "../../contracts/src/hosted/routes.ts";
 import {routePath as hostedRoutePath, encodedRoutePath as hostedEncodedRoutePath, routePrefix as hostedRoutePrefix} from "../../contracts/src/hosted/routes.ts";
-import {parseSecuritySigned,parseSecurityReturnIntent,parseSecurityReturnCode,type SecuritySigned} from './security-return.ts';
-import {routeOrigin,routeBytes} from './route-identity.ts';
 import {ApiError, type HostedSession} from './index.ts';
 
 export type IdentityProvider = 'google' | 'apple';
@@ -10,7 +8,7 @@ export type AccountMode = 'browser' | 'native';
  * when the start asks for it. Only a service that says so is asked: an older one refuses unknown
  * start fields. */
 export type IdentityOptions = {credentialProviderReauthentication?:'account-settings-v1';password:boolean;registration:boolean;recovery:boolean;accountSecurity:boolean;verifiedContactRequired:boolean;nativeCompletion?:'code';providers:{id:IdentityProvider;enabled:boolean;native:boolean;nativeClientIds:string[]}[]};
-export type IdentityTransaction = {transactionId:string;provider:IdentityProvider;mode:'login'|'reauthenticate'|'link';status:'started'|'exchanging'|'onboarding'|'contact_pending'|'verified'|'completed'|'proof_issued'|'failed';expiresAt:string;contactVerified:boolean;needsUsername:boolean;onboardingToken?:string;suggestedName?:string;verifiedEmail?:string;mfaRequired:boolean;securityReturn?:true};
+export type IdentityTransaction = {transactionId:string;provider:IdentityProvider;mode:'login'|'reauthenticate'|'link';status:'started'|'exchanging'|'onboarding'|'contact_pending'|'verified'|'completed'|'proof_issued'|'failed';expiresAt:string;contactVerified:boolean;needsUsername:boolean;onboardingToken?:string;suggestedName?:string;verifiedEmail?:string;mfaRequired:boolean};
 export type Registration = {kind:'registration';registrationId:string;status:'contact_pending'|'verified'|'completed';revision:string;maskedAddress:string;expiresAt:string;contactVerified:boolean};
 export type MFAChallenge = {mfaRequired:true;challengeId:string;challengeToken:string;expiresAt:string};
 export type ContactChallenge = {challengeId:string;maskedAddress:string;expiresAt:string};
@@ -26,7 +24,6 @@ export type SecurityState = AccountScope & {contactAddress:string;privateEmail:b
 export type DeletionPreview = {deletionToken:string;expiresAt:string;ownedServers:{id:string;name:string}[];affectedServers:{id:string;name:string}[];canDelete:boolean};
 export type SecurityResult = AccountScope & {status:string;signOut?:boolean;challengeId?:string;maskedAddress?:string;resendsRemaining?:number;expiresAt?:string;secret?:string;otpAuthUri?:string;recoveryCodes?:string[];deletionPreview?:DeletionPreview};
 export type OIDCStart = {transactionId:string;expiresAt:string;mode:'login'|'reauthenticate'|'link';authorizationUrl?:string;nativeNonce?:string};
-export type HostedSecurityReturnStart = OIDCStart & {provider:IdentityProvider;intentId:string;registeredOrigin:string;state:string;context:SecuritySigned};
 export type SecurityCompletion = {recentProof?:RecentProof;securityResult?:SecurityResult};
 /** `completion` is a native provider return's completion code (SEC-01), sent as `X-Portico-Completion`. */
 export type AccountTransport = (path:string,method:string,body:unknown,signal?:AbortSignal,token?:string,completion?:string)=>Promise<unknown>;
@@ -51,12 +48,11 @@ export function parseIdentityOptions(v:unknown):IdentityOptions {
 export function parseIdentityTransaction(v:unknown,expected?:string):IdentityTransaction {
  if(!object(v))return invalid();const transactionId=identifier(v.transactionId);
  if(expected&&transactionId!==expected||!['login','reauthenticate','link'].includes(String(v.mode))||!['started','exchanging','onboarding','contact_pending','verified','completed','proof_issued','failed'].includes(String(v.status)))return invalid();
- if(v.securityReturn!==undefined&&(typeof v.securityReturn!=='boolean'||v.securityReturn&&v.mode!=='reauthenticate'))return invalid();
  const contactVerified=boolean(v.contactVerified);
  // This optional fact is the current transaction's verified contact, never the account's
  // primary address. Older services and privacy-gated transaction views omit it entirely.
  if(v.verifiedEmail!==undefined&&(!contactVerified||!['onboarding','verified','completed','proof_issued'].includes(String(v.status))))return invalid();
- return{transactionId,provider:provider(v.provider),mode:v.mode as IdentityTransaction['mode'],status:v.status as IdentityTransaction['status'],expiresAt:timestamp(v.expiresAt),contactVerified,needsUsername:boolean(v.needsUsername),mfaRequired:v.mfaRequired===true,...(v.securityReturn===true&&v.mode==='reauthenticate'?{securityReturn:true as const}:{}),...(v.onboardingToken?{onboardingToken:text(v.onboardingToken,256)}:{}),...(v.suggestedName?{suggestedName:text(v.suggestedName,120)}:{}),...(v.verifiedEmail!==undefined?{verifiedEmail:text(v.verifiedEmail,320)}:{})};
+ return{transactionId,provider:provider(v.provider),mode:v.mode as IdentityTransaction['mode'],status:v.status as IdentityTransaction['status'],expiresAt:timestamp(v.expiresAt),contactVerified,needsUsername:boolean(v.needsUsername),mfaRequired:v.mfaRequired===true,...(v.onboardingToken?{onboardingToken:text(v.onboardingToken,256)}:{}),...(v.suggestedName?{suggestedName:text(v.suggestedName,120)}:{}),...(v.verifiedEmail!==undefined?{verifiedEmail:text(v.verifiedEmail,320)}:{})};
 }
 export function parseRegistration(v:unknown):Registration {
  if(!object(v)||v.kind!=='registration'||!['contact_pending','verified','completed'].includes(String(v.status))||typeof v.revision!=='string'||!/^\d+$/.test(v.revision))return invalid();
@@ -192,39 +188,10 @@ export class HostedAccountClient {
  async start(p:IdentityProvider,input:{mode:OIDCStart['mode'];requestId:string;intent?:SecurityIntent;proof?:string;expectedIdentity?:{id:string;revision:string};nativeApple?:boolean;completion?:'code'},signal?:AbortSignal,token?:string){
   const {completion,...rest}=input;const asks=completion==='code'&&this.mode==='native'&&!input.nativeApple;
   return parseOIDCStart(await this.request(hostedEncodedRoutePath("identity_start", {"provider": p}),'POST',hostedRouteBody("identity_start", {...rest,sessionMode:this.mode,...(asks?{completion}:{})}),signal,token),p,input.nativeApple);}
- /** Distinct Security APIs never parse a Hosted session or server sign-in grant. */
- async prepareSecurityReturn(input:{context:SecuritySigned;state:string;codeChallenge:string},expiresAt:string,token:string,signal?:AbortSignal){
-  return parseSecurityReturnIntent(await this.request(hostedRoutePath("account_security_return_prepare"),'POST',hostedRouteBody("account_security_return_prepare",input),signal,token),expiresAt);
- }
- async startSecurityReturn(intentId:string,requestId:string,signal?:AbortSignal):Promise<HostedSecurityReturnStart>{
-  if(!/^sri_[A-Za-z0-9_-]{43}$/.test(intentId))return invalid();
-  const raw=await this.request(hostedEncodedRoutePath("account_security_return_start",{id:pathID(intentId)}),'POST',hostedRouteBody("account_security_return_start",{requestId}),signal);
-  if(!object(raw)||raw.intentId!==intentId||typeof raw.registeredOrigin!=='string'||!raw.registeredOrigin.startsWith('https://')||routeOrigin(raw.registeredOrigin)!==raw.registeredOrigin||typeof raw.state!=='string')return invalid();
-  routeBytes(raw.state,32);const selected=provider(raw.provider),started=parseOIDCStart(raw,selected);
-  if(started.mode!=='reauthenticate')return invalid();
-  return {...started,provider:selected,intentId,registeredOrigin:raw.registeredOrigin,state:raw.state,context:parseSecuritySigned(raw.context)};
- }
- async finishSecurityReturn(original:HostedSecurityReturnStart,signal?:AbortSignal):Promise<string>{
-  const transactionId=identifier(original.transactionId),origin=original.registeredOrigin,state=original.state;
-  if(!origin.startsWith('https://')||routeOrigin(origin)!==origin)return invalid();routeBytes(state,32);
-  const raw=await this.request(hostedEncodedRoutePath("identity_security_return",{id:pathID(transactionId)}),'POST',{},signal);
-  if(!object(raw)||Object.keys(raw).join(',')!=='location'||typeof raw.location!=='string')return invalid();
-  const returned=parseSecurityReturnCode(raw.location,{origin,state});
-  if(returned.transactionId!==transactionId)return invalid();return raw.location;
- }
- async completeSecurityReturn(transactionId:string,input:{code:string;verifier:string;confirmation:SecuritySigned;factor:string},scope:AccountScope,token:string,signal?:AbortSignal):Promise<RecentProof>{
-  const expected={accountId:identifier(scope.accountId),familyId:identifier(scope.familyId)},confirmation=input.confirmation;
-  const captured=Object.freeze({code:input.code,verifier:input.verifier,factor:input.factor,confirmation:Object.freeze({payload:confirmation.payload,signature:confirmation.signature})});
-  const raw=await this.request(hostedEncodedRoutePath("account_security_return_complete",{id:pathID(transactionId)}),'POST',hostedRouteBody("account_security_return_complete",captured),signal,token);
-  if(!object(raw)||Object.keys(raw).join(',')!=='recentProof'||!raw.recentProof)return invalid();return parseRecentProof(raw.recentProof,expected);
- }
+ /** Cancels only the captured reauthenticate transaction of a hosted Security return. */
  async cancelSecurityTransaction(transactionId:string,signal?:AbortSignal){
   if(this.mode!=='browser'||!/^oid_[A-Za-z0-9_-]{43}$/.test(transactionId))return invalid();
   await this.request(hostedEncodedRoutePath("identity_security_cancel",{id:pathID(transactionId)}),'POST',{},signal);
- }
- async cancelSecurityReturn(intentId:string,token:string,signal?:AbortSignal){
-  if(!/^sri_[A-Za-z0-9_-]{43}$/.test(intentId))return invalid();
-  await this.request(hostedEncodedRoutePath("account_security_return_cancel",{id:pathID(intentId)}),'POST',{},signal,token);
  }
  /** `completionCode`: a native browser sign-in's provider return code (SEC-01). The service refuses
   * that sign-in's completion without it. */
