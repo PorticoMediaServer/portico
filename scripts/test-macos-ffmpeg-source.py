@@ -105,7 +105,7 @@ class MacPreparedSource(unittest.TestCase):
         self.assertIn('ff_vf_overlay_videotoolbox;', overlay)
         self.assertIn('libavfilter/vf_overlay_videotoolbox.m', overlay)
         ours = (ROOT / 'scripts/build-macos-ffmpeg-extras.sh').read_text()
-        self.assertIn('portico_clone openssl', ours)
+        self.assertIn('portico_clone openssl\ngit submodule update --init --recursive --depth=1', ours)
         for option in ('threads', 'zlib', 'no-shared', 'no-tests', 'no-apps', 'no-legacy', 'no-ssl3',
                        'enable-camellia', 'enable-ec', 'enable-srp'):
             self.assertIn(option, jellyfin)

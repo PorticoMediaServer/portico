@@ -63,6 +63,7 @@ python3 "$CWD/portico-build-macos-libdovi.py" build --recipe "$CWD" --prefix "$W
 # Match pinned Jellyfin builder/scripts.d/25-openssl.sh on native macOS.
 # Static source-built TLS; sources/notices remain in the corresponding archive.
 portico_clone openssl
+git submodule update --init --recursive --depth=1
 python3 - <<'PYOPENSSL'
 from pathlib import Path
 path = Path('Configure')
