@@ -64,6 +64,11 @@ video and sanitized logs as CI artifacts for 14 days. Do not upload credentials,
 session stores or server state. A playback step must verify an advancing playback
 position, not just an open player.
 
+For each walk step bind the captured screen to its exact mock-up frame, with the
+same viewport, state and relevant content. Record separate works and matches
+verdicts and an element checklist. Missing or ambiguous frames and differences
+that need a product decision go to the lead; they are not silently accepted.
+
 Keep the first failure visible. Permit at most one fresh-run retry for diagnosis,
 record both outcomes, and never turn a retry pass into an unqualified pass. A
 reproduced intermittent failure may be quarantined only with a linked finding,

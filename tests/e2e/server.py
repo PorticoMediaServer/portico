@@ -50,8 +50,7 @@ def provision_member(server):
     pin = f'{secrets.randbelow(10000):04d}'
     server.api.post('/v1/direct/members', {
         'username': 'e2e-member', 'password': password, 'name': 'E2E Member',
-        'allowedLibraries': list(server.libs.values()), 'disabled': False,
-        'expectedRevision': 0,
+        'allowedLibraries': list(server.libs.values()),
     }, (201,))
     member = fixture.API(server.base)
     sign_in = member.post('/v1/direct/sign-in', {'username': 'e2e-member', 'password': password})
@@ -77,8 +76,11 @@ def scan_libraries(server):
     server.libs = {}
     libraries = [('Movies', 'movie', 'movies', 16), ('Shows', 'tv', 'shows', 2),
                  ('Anime', 'anime', 'shows', 1), ('Music', 'music', 'albums', 3),
-                 ('Books', 'audiobook', 'books', 1), ('Reading', 'book', None, None),
-                 ('Comics', 'comic', None, None)]
+                 ('Books', 'audiobook', 'books', 1), ('Reading', 'book', 'books', 1),
+                 ('Comics', 'comic', 'comics', 1)]
+    required_titles = {'Movies': {'Arrival', 'HDR Tagged', 'Multiple Audio', '星の港'},
+                       'Shows': {'Example Show'}, 'Music': {'Example Album', 'Second Album'},
+                       'Books': {'Example Book'}}
     for name, kind, pivot, count in libraries:
         api = server.api
         library = api.post('/v1/libraries', {'name': name, 'kind': kind,
@@ -93,14 +95,28 @@ def scan_libraries(server):
             return current['status'] in ('complete', 'complete_with_warnings')
         fixture.wait(done, 120)
         if pivot:
+            query = None
             def published():
-                page, _ = api.call('POST', '/v1/libraries/' + library['id'] + '/browse',
-                                   {'pivot': pivot, 'limit': 100}, expected=(200, 503))
+                nonlocal query
+                base = '/v1/libraries/' + library['id']
+                if query:
+                    page, _ = api.call('GET', base + '/reading-browse-queries/' + query,
+                                       expected=(200, 202, 503))
+                else:
+                    page, _ = api.call('POST', base + '/browse', {'pivot': pivot, 'limit': 100},
+                                       expected=(200, 202, 503))
                 if page.get('error', {}).get('code') == 'visibility_building':
+                    return False
+                if page.get('kind') == 'reading-browse-preparing':
+                    query = page['queryId']
                     return False
                 if 'entries' not in page:
                     raise RuntimeError(f'{name} browse failed: {page}')
-                return len(page['entries']) == count
+                titles = {entry.get('title') for entry in page['entries']}
+                if len(page['entries']) >= count and required_titles.get(name, set()).issubset(titles):
+                    return True
+                query = None
+                return False
             fixture.wait(published, 120)
 
 
