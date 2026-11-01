@@ -38,11 +38,10 @@ def native(target, context, env):
     elif (context != 'github-actions' or env.get('GITHUB_ACTIONS') != 'true' or
           env.get('GITHUB_REPOSITORY') != 'PorticoMediaServer/portico' or
           env.get('RUNNER_ENVIRONMENT') != 'github-hosted' or
-          env.get('GITHUB_EVENT_NAME') not in ('workflow_dispatch', 'push') or
+          env.get('GITHUB_EVENT_NAME') != 'workflow_dispatch' or
           env.get('GITHUB_WORKFLOW_REF', '').split('@')[0] !=
           'PorticoMediaServer/portico/.github/workflows/ffmpeg-toolchain.yml' or
-          not env.get('GITHUB_REF', '').startswith('refs/heads/') or
-          (env.get('GITHUB_EVENT_NAME') == 'push' and env.get('GITHUB_REF') != 'refs/heads/rebuild/D-hosted-toolchain-r1')):
+          not env.get('GITHUB_REF', '').startswith('refs/heads/')):
         raise ValueError('dedicated manual engine qualification workflow required')
 
 

@@ -44,13 +44,11 @@ def execution_context(context, root=ROOT, env=None):
     if (context != 'github-actions' or env.get('GITHUB_ACTIONS') != 'true' or
             env.get('RUNNER_ENVIRONMENT') != 'github-hosted' or
             env.get('GITHUB_REPOSITORY') != 'PorticoMediaServer/portico' or
-            env.get('GITHUB_EVENT_NAME') not in ('workflow_dispatch', 'push') or
+            env.get('GITHUB_EVENT_NAME') != 'workflow_dispatch' or
             not env.get('GITHUB_WORKFLOW_REF', '').startswith(prefix) or
             not env.get('GITHUB_REF', '').startswith('refs/heads/') or
             platform.system() != 'Linux' or platform.machine().lower() not in ('x86_64', 'amd64')):
         raise ValueError('dedicated hosted Linux x64 engine workflow required')
-    if env.get('GITHUB_EVENT_NAME') == 'push' and env.get('GITHUB_REF') != 'refs/heads/rebuild/D-hosted-toolchain-r2':
-        raise ValueError('only the first cold-run branch may bootstrap through push')
     sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
     if env.get('GITHUB_SHA') != sha:
         raise ValueError('hosted engine checkout differs from workflow SHA')

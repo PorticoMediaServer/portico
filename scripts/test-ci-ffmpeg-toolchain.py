@@ -50,12 +50,11 @@ class ColdToolchain(unittest.TestCase):
                 with self.subTest(key=key), self.assertRaises(ValueError):
                     cold.context(dict(environment(), **{key: value}))
 
-    def test_bootstrap_push_is_one_exact_branch_only(self):
+    def test_completed_bootstrap_no_longer_admits_push_context(self):
         with patch('subprocess.check_output', return_value=SHA):
             env = dict(environment(), GITHUB_EVENT_NAME='push', GITHUB_REF='refs/heads/rebuild/D-hosted-toolchain-r2')
-            cold.context(env)
             with self.assertRaises(ValueError):
-                cold.context(dict(env, GITHUB_REF='refs/heads/main'))
+                cold.context(env)
 
     def test_hosted_windows_producer_bypasses_no_guard_through_local_lock_flag(self):
         with patch('subprocess.check_output', return_value=SHA), patch('platform.system', return_value='Linux'), patch('platform.machine', return_value='x86_64'):
