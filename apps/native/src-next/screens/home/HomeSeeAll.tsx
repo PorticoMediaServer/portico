@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {browseToolbarModel} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
@@ -60,11 +61,11 @@ export function HomeSeeAll(props: HomeSeeAllProps) {
 }
 
 function HomeSeeAllSkeleton({runtime, surface}: {runtime: NativeShellRuntime; surface: number}) {
-  const theme = useTheme(), window = useWindowDimensions(), tv = theme.isTV, phone = !tv && theme.platform === 'phone';
+  const theme = useTheme(), window = useWindowDimensions(), tv = theme.isTV, phone = !tv && theme.platform === 'phone', top = useSafeAreaInsets().top;
   const gutter = tv ? 200 : theme.gutter, right = tv ? 96 : gutter, gap = tv ? 32 : phone ? 10 : 12;
   const width = homeSeeAllCardWidth(surface, gutter, tv ? 200 : theme.spec.card.width.poster[theme.platform], (runtime.appearanceCardSizePercent ?? 100) / 100, phone);
   const content = Math.max(1, surface - gutter - right), columns = Math.max(1, Math.floor((content + gap) / (width + gap)));
-  return <View testID="home-see-all-skeleton" style={{paddingLeft: gutter, paddingRight: right, paddingTop: tv ? 64 : 20}}>
+  return <View testID="home-see-all-skeleton" style={{paddingLeft: gutter, paddingRight: right, paddingTop: tv ? 64 : top + 20}}>
     <SkeletonBlock width={tv ? 100 : 64} height={tv ? 26 : 18} style={{marginBottom: tv ? 18 : 16}}/>
     <SkeletonBlock width="78%" height={tv ? 62 : phone ? 36 : 30} style={{marginBottom: tv ? 12 : 8}}/>
     <SkeletonBlock width="90%" height={tv ? 26 : 14}/><SkeletonBlock width="68%" height={tv ? 26 : 14} style={{marginTop: 7, marginBottom: 24}}/>
@@ -83,7 +84,8 @@ function HomeSeeAllSkeleton({runtime, surface}: {runtime: NativeShellRuntime; su
 }
 
 function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, onPlayEntry, onMenu, onFilters, onReshuffle, kindLabel, selection, surface}: HomeSeeAllProps & {surface: number}) {
-  const theme = useTheme(), registry = useFocusRegistry(), t = runtime.text.t, labels = {t, has: defaultI18n.has};
+  // A pushed page starts under the status bar: the header and the sticky toolbar clear it.
+  const theme = useTheme(), registry = useFocusRegistry(), t = runtime.text.t, labels = {t, has: defaultI18n.has}, top = useSafeAreaInsets().top;
   const [view, setView] = useState<'grid' | 'list'>('grid'), [collapsed, setCollapsed] = useState(false), [headerHeight, setHeaderHeight] = useState(0),
     list = !theme.isTV && view === 'list';
   const visible = useRef(active); visible.current = active;
@@ -108,7 +110,7 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
   const artwork = row.entries.find(entry => entry.backdropUrl || entry.posterUrl);
   const tv = theme.isTV, phone = !tv && theme.platform === 'phone', gutter = tv ? 200 : theme.gutter, cardScale = (runtime.appearanceCardSizePercent ?? 100) / 100,
     width = homeSeeAllCardWidth(surface, gutter, tv ? 200 : theme.spec.card.width.poster[theme.platform], cardScale, phone);
-  const header = <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)} style={{paddingLeft: gutter, paddingRight: tv ? 96 : theme.gutter, paddingTop: tv ? 64 : 20, paddingBottom: tv ? 24 : 16}}>
+  const header = <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)} style={{paddingLeft: gutter, paddingRight: tv ? 96 : theme.gutter, paddingTop: tv ? 64 : top + 20, paddingBottom: tv ? 24 : 16}}>
         <Focusable focusId="back" onPress={onBack} accessibilityRole="button" accessibilityLabel={t('next.home.shell.home')} style={{height: tv ? 32 : 28, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start'}}>
           <Icon name="i-left" size={tv ? 22 : 16} color={theme.colors.textTertiary}/><Text style={[nativeType({size: tv ? 22 : 14, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{t('next.home.shell.home')}</Text>
         </Focusable>
@@ -130,7 +132,7 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
   }}>{quick.label?.text ?? homeBrowseLabel(quick, labels)}</QuickToggle></FocusItem>);
   const countLabel = total && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t('count.titles', {count: total.total})}</Text>;
   const toolbar = <View style={{backgroundColor: collapsed && !tv ? theme.colors.ink : undefined}}>
-    {!tv && collapsed && <View style={{paddingHorizontal: theme.gutter, paddingTop: 12, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10}}>
+    {!tv && collapsed && <View style={{paddingHorizontal: theme.gutter, paddingTop: top + 12, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10}}>
       <Focusable focusId="toolbar-back" onPress={onBack} accessibilityRole="button" accessibilityLabel={t('next.home.shell.home')} style={{flexDirection: 'row', alignItems: 'center', gap: 4}}><Icon name="i-left" size={20}/><Text style={[theme.type.body, {color: theme.colors.text}]}>{t('next.home.shell.home')}</Text></Focusable>
       <Text numberOfLines={1} accessibilityRole="header" style={[nativeType({size: 17, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {flex: 1, color: theme.colors.text}]}>{title}</Text>
     </View>}
