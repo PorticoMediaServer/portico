@@ -60,11 +60,13 @@ def go(plan,index):
     for module, groups, whole in batches(plan, selected):
         workers=os.environ.get('PORTICO_CI_GO_PACKAGE_JOBS','4')
         if workers not in ('1','2','4'): raise ValueError('invalid Go package worker budget')
-        args=['go','test','-json','-count=1','-p='+workers,'-timeout=780s','-tags',plan['tags']]
+        # The release gate (release.yml) runs these same shards with -race and a longer limit.
+        race=os.environ.get('PORTICO_CI_GO_RACE')=='1'; limit=int(os.environ.get('PORTICO_CI_GO_TIMEOUT','780'))
+        args=['go','test','-json','-count=1','-p='+workers,'-timeout=%ds'%limit,'-tags',plan['tags']]+(['-race'] if race else [])
         if plan.get('tier')=='short': args+=['-short']
         if not whole: args+=['-run','^(?:'+'|'.join(re.escape(t['name']) for t in groups[0][1])+')$']
         args += [package for package,tests in groups]
-        result=subprocess.run(args,cwd=ROOT/module,capture_output=True,text=True,timeout=900)
+        result=subprocess.run(args,cwd=ROOT/module,capture_output=True,text=True,timeout=limit+120)
         try: events=[json.loads(line) for line in result.stdout.splitlines()]
         except ValueError: events=[]
         requested={package for package,tests in groups}
