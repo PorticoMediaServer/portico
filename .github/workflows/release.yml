@@ -104,36 +104,57 @@ jobs:
             [ "$value" = true ] || echo "not signed: $name (proof run, or its secrets are not set)"
           done
 
-  gate:
-    # The full -race server suite, once per release, on the commit being released. Every server
-    # build needs it; those builds then run only their own platform's plain suite, or nothing.
+  gate-plan:
+    # The merge tier's own Go selection and duration-balanced test-level split
+    # (ci/release_gate_plan.py), with more shards because -race is several times slower.
     needs: identity
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    strategy:
-      fail-fast: true
-      matrix: {shard: [0, 1, 2, 3, 4, 5]}
+    timeout-minutes: 15
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - id: plan
+        # The planner chooses tiers from the event; the gate always takes the full merge tier.
+        env: {GITHUB_EVENT_NAME: ''}
+        run: python3 ci/release_gate_plan.py --shards 36 --output gate-plan.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: gate-plan, path: gate-plan.json, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+
+  gate:
+    # The full server suite with -race, once per release, on the commit being released: Portico's
+    # only race run. Every server build needs it; those builds then run only their own platform's
+    # plain suite, or nothing.
+    needs: [identity, gate-plan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.gate-plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: gate-plan}
       - name: The engine the release ships
         run: |
           python3 scripts/development-engine.py fetch --target linux-x64 --output "$RUNNER_TEMP/engine"
           echo "PORTICO_FFMPEG=$RUNNER_TEMP/engine/bin/ffmpeg" >> "$GITHUB_ENV"
           echo "PORTICO_FFPROBE=$RUNNER_TEMP/engine/bin/ffprobe" >> "$GITHUB_ENV"
           echo "$RUNNER_TEMP/engine/bin" >> "$GITHUB_PATH"
-      - name: Server suite with -race, shard ${{ matrix.shard }} of 6
-        env: {SHARD: '${{ matrix.shard }}'}
-        working-directory: server
-        run: |
-          set -euo pipefail
-          tags="$(python3 ../scripts/release-build-tags.py --capability)"
-          go build -tags "$tags" -o "$RUNNER_TEMP/portico-server" ./cmd/server
-          export PORTICO_PLAYBACK_TEST_HELPER="$RUNNER_TEMP/portico-server"
-          go list -tags "$tags" ./... | awk -v n=6 -v i="$SHARD" '(NR-1) % n == i' > "$RUNNER_TEMP/packages"
-          go test -race -count=1 -timeout=55m -tags "$tags" $(cat "$RUNNER_TEMP/packages")
+      - name: Server suite with -race, shard ${{ matrix.index }}
+        # One go test call covers a shard's whole packages, so its limit is the shard's, well above
+        # the expected time; a shard near it is a real slow test, reported by name.
+        env: {PORTICO_CI_GO_RACE: '1', PORTICO_CI_GO_TIMEOUT: '2700'}
+        run: python3 ci/run.py go --plan gate-plan.json --index '${{ matrix.index }}'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ !cancelled() }}
+        with: {name: 'gate-results-${{ matrix.index }}', path: ci-results/, if-no-files-found: warn, retention-days: '${{ env.RETENTION_DAYS }}'}
 
   web:
     needs: identity
