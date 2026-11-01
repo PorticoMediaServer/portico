@@ -617,9 +617,14 @@ export function SettingsEntry() {
       rowState: (row, selected) => {
         if (remoteForm?.has(row.id)) return remoteForm.rowState(row);
         if (certificate?.has(row.id)) {const state = certificate.rowState(row);return row.id === 'remote.secureStatus' && state.present ? {...state, control: <CertificateStatusControl source={certificate}/>} : state;}
+        // Private only: the help line says what it allows, as setup's frame 14f does.
+        if (row.id === 'remote.access') {
+          const state = source.rowState(row, selected);
+          return state.present && state.value === 'private' && row.control.options?.[1]?.hint ? {...state, help: defaultI18n.t(row.control.options[1].hint)} : state;
+        }
         if (refused?.has(row.id)) {
           const securityRow = settingsRowIndex.get('remote.security')!.row;
-          return {present: true, control: <RefusedAddressesControl source={refused} disabled={!current()}
+          return {present: true, wide: true, control: <RefusedAddressesControl source={refused} disabled={!current()}
             onStandard={() => source.change(securityRow, 'standard', selected)}
             onCertificate={() => openSettingsRow({scope: 'server', section: 'remote', row: 'remote.ownCertificate'})}/>};
         }
