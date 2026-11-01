@@ -80,6 +80,9 @@ test('Remote access offers the Portico Services switch only for a linked server 
   assert.equal(ids(local).includes('remote.refused'), false);
   const closed = state('remote', {connectivity: {...connectivity, remoteAccess: 'private'}});
   assert.equal(ids(closed).includes('remote.security'), false, 'Remote security only while Remote access is On');
+  assert.ok(ids(closed).includes('remote.signInOutside'), 'tailnet clients still sign in as remote under Private only');
+  const off = state('remote', {connectivity: {...connectivity, remoteAccess: 'off'}});
+  assert.equal(ids(off).includes('remote.signInOutside'), false, 'Off: nobody signs in from outside');
   assert.ok(ids(local).includes('remote.dlna'));
   // Lists of networks and proxies stay with the phone and web.
   assert.equal(ids(local, true).includes('remote.trustedProxies'), false);
