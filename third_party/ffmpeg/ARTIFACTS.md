@@ -228,6 +228,15 @@ application layout. App signing/notarisation must follow these rewrites; a later
 signature changes sealed bytes and belongs in the app's reviewed seal flow.
 This engine stage uses no signing identity, account or credential.
 
+The pinned MoltenVK generic Mac target can produce a universal arm64/x86_64
+dylib. For that selected library only, the packer extracts exactly the engine
+target's native slice before rewriting load paths and sealing. It records the
+original universal hash/architecture set and the selected slice hash. A missing
+target, unknown architecture, wrong-only library or mixed Vulkan loader still
+refuses; the final verifier requires one exact native architecture everywhere.
+A real two-slice native fixture executes the selected chain after deleting its
+original prefix. This adds no source, feature, tool or signing identity.
+
 The Mac shaderc stage selects the existing shaderc_combined pkg-config module,
 as the pinned BtbN stage does, and includes its system libc++ link dependency.
 It retains the original combined module unchanged, records both metadata hashes

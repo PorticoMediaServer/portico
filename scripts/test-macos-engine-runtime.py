@@ -109,6 +109,55 @@ class NativeRuntime(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Wrong or mixed Mach-O'):
                 M['pack'](prefix, bundle, target)
 
+    def test_actual_universal_moltenvk_selects_only_native_slice_and_executes_after_prefix_deletion(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('RUNNER_TEMP')) as temporary:
+            root = Path(temporary); prefix, bundle, target = self.fixture(root)
+            driver = prefix / 'lib/libMoltenVK.dylib'
+            native_sha = M['digest'](driver)
+            other = 'x86_64' if platform.machine() == 'arm64' else 'arm64'
+            source = root / 'other.c'; source.write_text('int fixture_driver(void){return 99;}\n')
+            opposite = root / 'other.dylib'
+            subprocess.run(['/usr/bin/cc', '-arch', other, '-dynamiclib', source,
+                '-Wl,-headerpad_max_install_names', '-Wl,-install_name,' + str(driver), '-o', opposite], check=True)
+            universal = root / 'universal.dylib'
+            subprocess.run(['/usr/bin/lipo', '-create', driver, opposite, '-output', universal], check=True)
+            shutil.copyfile(universal, driver)
+            universal_sha = M['digest'](driver)
+            self.assertNotEqual(native_sha, universal_sha)
+            record = M['pack'](prefix, bundle, target)
+            selected = record['runtimeInputs']['libMoltenVK.dylib']
+            self.assertEqual(set(selected['architectures']), {'arm64', 'x86_64'})
+            self.assertEqual(selected['selectedArchitecture'], platform.machine())
+            self.assertEqual(selected['sha256'], universal_sha)
+            self.assertEqual(selected['selectedSliceSHA256'], native_sha)
+            shutil.rmtree(prefix)
+            elsewhere = root / 'unrelated'; elsewhere.mkdir()
+            env = {k: v for k, v in os.environ.items() if not k.startswith(('DYLD_', 'VK_', 'VULKAN_'))}
+            for name in M['TOOLS']:
+                result = subprocess.run([bundle / 'bin' / name], cwd=elsewhere, env=env,
+                                        capture_output=True, text=True, check=True, timeout=10)
+                self.assertEqual(result.stdout.strip(), '7')
+            M['verify'](bundle, target)
+            destination = os.environ.get('PORTICO_RUNTIME_FIXTURE_REPORT')
+            if destination:
+                Path(destination).with_suffix('.universal.json').write_text(json.dumps(dict(record,
+                    originalPrefixDeleted=True, realNativeLibraryChainExecuted=True,
+                    selectedNativeSliceOnly=True, engineQualified=False, release=False), indent=2) + '\n')
+
+    def test_a_mixed_architecture_vulkan_loader_still_refuses(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('RUNNER_TEMP')) as temporary:
+            root = Path(temporary); prefix, bundle, target = self.fixture(root)
+            loader = prefix / 'lib/libvulkan.1.dylib'
+            other = 'x86_64' if platform.machine() == 'arm64' else 'arm64'
+            source = root / 'other.c'; source.write_text('int fixture_loader(void){return 99;}\n')
+            opposite = root / 'other.dylib'
+            subprocess.run(['/usr/bin/cc', '-arch', other, '-dynamiclib', source, '-o', opposite], check=True)
+            universal = root / 'universal.dylib'
+            subprocess.run(['/usr/bin/lipo', '-create', loader, opposite, '-output', universal], check=True)
+            shutil.copyfile(universal, loader)
+            with self.assertRaisesRegex(ValueError, 'Wrong or mixed Mach-O'):
+                M['pack'](prefix, bundle, target)
+
 
 if __name__ == '__main__':
     unittest.main()
