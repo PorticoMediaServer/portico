@@ -42,6 +42,7 @@ import (
 	_ "github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite" // the dataset file is a plain SQLite file
 
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"github.com/PorticoMediaServer/portico/server/internal/diskspace"
 	"github.com/PorticoMediaServer/portico/server/internal/remotemedia"
 )
 
@@ -354,6 +355,10 @@ type ManifestFile struct {
 	URL         string `json:"url"`
 	SHA256      string `json:"sha256"`
 	Bytes       int64  `json:"bytes"`
+	// UncompressedBytes is the file's signed size once decompressed:
+	// decompression stops there, so a damaged but signed file can't fill the
+	// disk, and a file of any other size is refused.
+	UncompressedBytes int64 `json:"uncompressed_bytes"`
 }
 
 // FetchManifest downloads the manifest and its detached signature and
@@ -483,8 +488,13 @@ func (s *Service) download(ctx context.Context, f ManifestFile) (string, error) 
 	if datasetOrigin(target) != origin {
 		return "", datasetFailure("network_policy", s.cfg.ManifestURL)
 	}
-	if f.Bytes < 1 || f.Bytes > MaxFileBytes {
+	if f.Bytes < 1 || f.Bytes > MaxFileBytes || f.UncompressedBytes < 1 || f.UncompressedBytes > MaxFileBytes {
 		return "", datasetFailure("asset_too_large", target.String())
+	}
+	// Room for the download, the decompressed file and the producer floor
+	// that protects the database's volume.
+	if !diskspace.Room(s.cfg.Dir, f.Bytes+f.UncompressedBytes+diskspace.ProducerFloor) {
+		return "", datasetFailure("disk_space", target.String())
 	}
 	res, err := s.openDatasetURL(ctx, target.String())
 	if err != nil {
@@ -521,12 +531,12 @@ func (s *Service) download(ctx context.Context, f ManifestFile) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	written, err := io.Copy(out, io.LimitReader(zr, MaxFileBytes+1))
+	written, err := io.Copy(out, io.LimitReader(zr, f.UncompressedBytes+1))
 	if closeErr := out.Close(); err == nil {
 		err = closeErr
 	}
-	if err == nil && written > MaxFileBytes {
-		err = datasetFailure("asset_too_large", target.String())
+	if err == nil && written != f.UncompressedBytes {
+		err = datasetFailure("asset_integrity", target.String())
 	}
 	if err != nil {
 		os.Remove(out.Name())
