@@ -31,8 +31,8 @@ func TestSingleHolderKeyDoesNotClampItsRawPageToTwoRows(t *testing.T) {
 		}
 	}
 	// A true multi-key drain retains the original growth guard.
-	w.observeBatch(DomainSearch, 1, 100*time.Microsecond, 1)
-	if got := w.batchFor(DomainSearch, BatchMax); got != 2 {
+	w.observeBatch(DomainCategories, 1, 100*time.Microsecond, 1)
+	if got := w.batchFor(DomainCategories, BatchMax); got != 2 {
 		t.Fatalf("multi-key drain growth guard changed: %d", got)
 	}
 }
