@@ -212,13 +212,56 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {persist-credentials: false, ref: '058233220fcc140e5be639e250c2e2f67536d70a'}
+        with: {persist-credentials: false, ref: 'rebuild/F1-rating-r1'}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
       - run: mkdir -p "$RUNNER_TEMP/reports"
+      - name: Record exact production source
+        run: git rev-parse HEAD > "$RUNNER_TEMP/reports/source.txt"
       - name: Restricted 18+ to 7+ propagation through every real endpoint
         working-directory: server
         run: go test ./internal/httpapi -run '^TestRatingReclassificationReachesEveryRestrictedSurfaceWithoutRescan$' -count=1 -v -timeout=3m > "$RUNNER_TEMP/reports/rating-e2e.log" 2>&1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with: {name: rating-audit, path: '${{ runner.temp }}/reports', retention-days: 7}
+  finish-curves:
+    if: contains(github.event.head_commit.message, 'cleanup probes')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        items: [10000, 30000, 100000]
+        version: [before, after]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false, fetch-depth: 0}
+      - name: Restore finalizer baseline for before probes
+        if: matrix.version == 'before'
+        run: git restore --source=3ad4b5de -- server/internal/ingestion/analysis.go
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - run: mkdir -p "$RUNNER_TEMP/seeds" "$RUNNER_TEMP/reports"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: '${{ runner.temp }}/seeds/*.sqlite'
+          key: F-inventory-${{ matrix.items }}-${{ hashFiles('server/internal/ingestion/legacy_inventory_scale_measure_test.go', 'server/internal/persistence/migrations/**') }}
+      - name: Measure finalization with N resolved episodic-source facts
+        working-directory: server
+        env:
+          PORTICO_INVENTORY_SCALE_ITEMS: '${{ matrix.items }}'
+          PORTICO_SCALE_SEEDS: '${{ runner.temp }}/seeds'
+          PORTICO_SCALE_REPORT: '${{ runner.temp }}/reports'
+          PORTICO_EXPECT_FINISH_FAILURE: "${{ matrix.version == 'before' && '1' || '' }}"
+        run: |
+          if [ ! -f "$PORTICO_SCALE_SEEDS/inventory-$PORTICO_INVENTORY_SCALE_ITEMS.sqlite" ]; then
+            go test ./internal/ingestion -run '^TestLegacyInventoryGrowthMeasurement$' -count=1 -v -timeout=20m > "$RUNNER_TEMP/reports/seed.log" 2>&1
+          fi
+          go test ./internal/ingestion -run '^TestScanFinishGrowthMeasurement$' -count=1 -v -timeout=5m > "$RUNNER_TEMP/reports/finish.log" 2>&1
+      - name: Existing completion, source and analysis-window regressions
+        if: matrix.version == 'after' && matrix.items == 10000
+        working-directory: server
+        run: go test ./internal/ingestion -run 'Test.*(ScanAttention|SourceProgressFinish|FinishScan|AnalysisEnqueue)' -count=1 -v -timeout=10m > "$RUNNER_TEMP/reports/tests.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: 'finish-${{ matrix.version }}-${{ matrix.items }}', path: '${{ runner.temp }}/reports', retention-days: 7}
