@@ -102,6 +102,12 @@ func Derive(ctx context.Context, q Querier, now time.Time, delivery DeliveryLook
 	if err != nil {
 		return State{}, err
 	}
+	if purpose == "setup" && setupOperation != out.RequestID && (op.Stage == "cancel_pending" || op.Stage == "cancelled") {
+		// A setup started over: the earlier setup's claim is still being withdrawn at
+		// Portico Services. This setup can't prepare its own claim until that ends.
+		out.Phase, out.Cancelling = Started, true
+		return out, nil
+	}
 	if purpose != "setup" || setupOperation != out.RequestID {
 		return State{}, inconsistent("active claim belongs to another request")
 	}
