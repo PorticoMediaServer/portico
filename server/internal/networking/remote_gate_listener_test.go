@@ -192,21 +192,33 @@ func TestRemoteGateClosedRefusesEverythingFromOutside(t *testing.T) {
 	}
 }
 
-func TestRemoteGateWithoutPolicyJudgesNothing(t *testing.T) {
-	// A listener whose gate has no policy yet serves as before.
-	inner, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+// Until the settings are installed the gate refuses every outside
+// connection, before any byte, and still answers loopback: no route, startup
+// page or otherwise, is served outside in that window.
+func TestRemoteGateBeforeSettingsRefusesOutside(t *testing.T) {
+	serve := func(peer string) string {
+		inner, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		listener, err := NewDirectListener(&peerListener{inner, peer}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		listener.UseGate(remotegate.New())
+		server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, "ok") }), ReadHeaderTimeout: 2 * time.Second}
+		go server.Serve(listener)
+		t.Cleanup(func() { server.Close() })
+		return inner.Addr().String()
 	}
-	listener, err := NewDirectListener(&peerListener{inner, "203.0.113.9"}, nil)
-	if err != nil {
-		t.Fatal(err)
+	outside := serve("203.0.113.9")
+	if got := plain(t, outside, "own.example.com"); got != "" {
+		t.Fatalf("outside, before settings: %q", got)
 	}
-	listener.UseGate(remotegate.New())
-	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, "ok") })}
-	go server.Serve(listener)
-	defer server.Close()
-	if got := plain(t, inner.Addr().String(), "x.example"); !strings.HasSuffix(got, "ok") {
-		t.Fatalf("no policy: %q", got)
+	if body, err := overTLS(t, gatedServer{addr: outside}, ""); err == nil {
+		t.Fatalf("outside TLS, before settings: %q", body)
+	}
+	if got := plain(t, serve("127.0.0.1"), "localhost"); !strings.HasSuffix(got, "ok") {
+		t.Fatalf("loopback, before settings: %q", got)
 	}
 }

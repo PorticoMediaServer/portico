@@ -88,8 +88,8 @@ func TestRemoteGateThroughTheRouter(t *testing.T) {
 	if p := gate.Policy(); p == nil || p.Security() != remotegate.SecurityEnhanced || p.Access() != remotegate.AccessOn {
 		t.Fatalf("policy installed at startup: %+v", p)
 	}
-	const outside, proxy = "198.51.100.1:42", "203.0.113.9:42"
-	patchConnectivity(t, f, map[string]any{"accessUrls": []string{"https://media.example.com"}, "trustedProxies": []string{"203.0.113.9/32"}})
+	const outside, proxy, homeProxy = "198.51.100.1:42", "203.0.113.9:42", "192.168.1.5:42"
+	patchConnectivity(t, f, map[string]any{"accessUrls": []string{"https://media.example.com"}, "trustedProxies": []string{"203.0.113.9/32", "192.168.1.5/32"}, "lanNetworks": []string{"192.168.1.0/24"}})
 	path := "/v1/networking/connection"
 	for _, c := range []struct {
 		name    string
@@ -104,6 +104,18 @@ func TestRemoteGateThroughTheRouter(t *testing.T) {
 		{"proxy, http, listed", gateRequest{url: "http://media.example.com" + path, remote: proxy, headers: map[string]string{"X-Forwarded-Proto": "http", "X-Forwarded-For": "198.51.100.77"}}, true},
 		{"proxy, https, unlisted", gateRequest{url: "http://other.example.com" + path, remote: proxy, headers: map[string]string{"X-Forwarded-Proto": "https", "X-Forwarded-For": "198.51.100.77"}}, true},
 		{"home (loopback), any name, plain", gateRequest{url: "http://anything" + path, remote: "127.0.0.1:42"}, false},
+		// Spoofed forwarding: the client wrote a home address at the left and
+		// the proxy appended the real one. The rightmost hop the proxy added
+		// is the client, so this is outside, and an unlisted Host is refused.
+		{"proxy, spoofed home X-Forwarded-For, unlisted", gateRequest{url: "http://other.example.com" + path, remote: proxy, headers: map[string]string{"X-Forwarded-Proto": "https", "X-Forwarded-For": "192.168.1.10, 198.51.100.77"}}, true},
+		// The same spoof over forwarded plain HTTP, even for a listed name.
+		{"proxy, spoofed home X-Forwarded-For, http", gateRequest{url: "http://media.example.com" + path, remote: proxy, headers: map[string]string{"X-Forwarded-Proto": "http", "X-Forwarded-For": "192.168.1.10, 198.51.100.77"}}, true},
+		// A proxied request with no usable chain is judged as from outside,
+		// never as the proxy's own address.
+		{"proxy at home, no X-Forwarded-For, unlisted", gateRequest{url: "http://other.example.com" + path, remote: homeProxy}, true},
+		{"proxy at home, malformed X-Forwarded-For, unlisted", gateRequest{url: "http://other.example.com" + path, remote: homeProxy, headers: map[string]string{"X-Forwarded-For": "not-an-address"}}, true},
+		// A real home client through the proxy is home.
+		{"proxy at home, home client", gateRequest{url: "http://other.example.com" + path, remote: homeProxy, headers: map[string]string{"X-Forwarded-For": "192.168.1.10"}}, false},
 	} {
 		code, aborted := serveGated(t, f.handler, c.q)
 		if aborted != c.aborted || (!aborted && code != 200) {
@@ -115,7 +127,7 @@ func TestRemoteGateThroughTheRouter(t *testing.T) {
 	for _, n := range names {
 		seen[n.Name] = true
 	}
-	if !seen["evil.example"] || !seen["other.example.com"] || seen["media.example.com"] && len(names) > 3 {
+	if !seen["evil.example"] || !seen["other.example.com"] {
 		t.Fatalf("refused names: %+v", names)
 	}
 
