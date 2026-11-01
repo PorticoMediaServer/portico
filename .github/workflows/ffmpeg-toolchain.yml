@@ -361,6 +361,9 @@ jobs:
         with: {python-version: '3.13.17'}
       - run: python scripts/control-macos-system-libs.py --work "$RUNNER_TEMP/format-system-control"
       - run: python scripts/control-macos-transpose-source.py --work "$RUNNER_TEMP/transpose-source-control"
+      - name: Prove final disc identity after native Mach-O relocation
+        env: {PORTICO_RUNTIME_FIXTURE_REPORT: '${{ runner.temp }}/format-system-control/runtime-relocation.json'}
+        run: python scripts/test-macos-engine-runtime.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
