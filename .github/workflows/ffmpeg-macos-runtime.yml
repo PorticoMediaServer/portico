@@ -34,5 +34,5 @@ jobs:
         if: always()
         with:
           name: macos-runtime-${{ matrix.runner }}-${{ github.sha }}-NOT-FOR-USE
-          path: ${{ runner.temp }}/macos-runtime-fixture.json
+          path: ${{ runner.temp }}/macos-runtime-fixture*.json
           retention-days: 14

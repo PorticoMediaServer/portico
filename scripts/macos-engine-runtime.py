@@ -42,6 +42,26 @@ def metadata(path, architecture):
     return parse_commands(run(['/usr/bin/otool', '-l', path]))
 
 
+def copy_runtime(source, destination, architecture):
+    architectures = run(['/usr/bin/lipo', '-archs', source]).strip().split()
+    before = digest(source)
+    if architectures == [architecture]:
+        shutil.copyfile(source, destination)
+    elif (source.name == 'libMoltenVK.dylib' and len(architectures) == 2 and
+          set(architectures) == {'arm64', 'x86_64'} and architecture in architectures):
+        # The pinned generic macOS MoltenVK target produces both slices.
+        # Keep only this engine's target; the final verifier still accepts
+        # exactly one native architecture for every executable and library.
+        run(['/usr/bin/lipo', source, '-thin', architecture, '-output', destination])
+    else:
+        raise ValueError('Wrong or mixed Mach-O architecture: ' + str(source))
+    metadata(destination, architecture)
+    if digest(source) != before:
+        raise ValueError('Selected runtime source changed during copy/thinning')
+    return {'architectures': architectures, 'selectedArchitecture': architecture,
+            'selectedSliceSHA256': digest(destination)}
+
+
 def parse_commands(text):
     result = {'loads': [], 'rpaths': [], 'ids': []}
     for block in re.split(r'(?m)^Load command \d+\n', text)[1:]:
@@ -142,7 +162,9 @@ def pack(prefix, bundle, target):
         inputs[name] = {'path': str(source), 'sha256': digest(source)}
         aliases[name] = name
         aliases[source.name] = 'libvulkan.1.dylib' if name.startswith('libvulkan') else name
-        shutil.copyfile(source, library_dir / name)
+        inputs[name].update(copy_runtime(source, library_dir / name, architecture))
+        if digest(source) != inputs[name]['sha256']:
+            raise ValueError('Selected runtime source changed while packing')
     if inputs['libvulkan.1.dylib']['sha256'] != inputs['libvulkan.dylib']['sha256']:
         raise ValueError('Vulkan loader aliases have different bytes')
     originals = {}
