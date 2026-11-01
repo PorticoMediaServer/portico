@@ -212,7 +212,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {persist-credentials: false, ref: '05823322'}
+        with: {persist-credentials: false, ref: '058233220fcc140e5be639e250c2e2f67536d70a'}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
       - run: mkdir -p "$RUNNER_TEMP/reports"
