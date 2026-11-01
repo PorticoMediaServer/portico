@@ -246,7 +246,7 @@ def build(target, work):
         if target == 'windows-x64':
             state = work / 'state'
             receipt['phases']['compileSeconds'] = run([sys.executable, ROOT / 'scripts/build-engine.py',
-                target, '--context', 'github-actions', '--state', state], evidence / 'build.log', env)
+                target, '--context', 'github-actions', '--state', state, '--repeat-compiles'], evidence / 'build.log', env)
             report = json.loads((state / 'report.json').read_text())
             raw = Path(report['rawOutputRoot'])
             if report.get('rawCompilation') is not True or len(report['rawArchives']) != 1:

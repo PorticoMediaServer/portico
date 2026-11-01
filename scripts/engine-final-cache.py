@@ -1,8 +1,35 @@
 """Make the pinned Windows compile payload an ordinary BuildKit cache stage."""
 from pathlib import Path
+import hashlib
 import re
 import subprocess
 import zipfile
+
+
+def round_fingerprint(prefix, source):
+    no_links(prefix)
+    def digest(path):
+        with path.open('rb') as stream:
+            return hashlib.file_digest(stream, 'sha256').hexdigest()
+    binaries = {}
+    for name in ('ffmpeg', 'ffprobe', 'portico-disc'):
+        path = prefix / 'bin' / (name + '.exe')
+        if not path.is_file() or path.stat().st_size == 0:
+            raise ValueError('repeat compile missing executable: ' + name)
+        binaries[name] = digest(path)
+    if source.is_symlink() or not source.is_file():
+        raise ValueError('repeat compile needs a regular sealed source archive')
+    return {'sourceArchiveSHA256': digest(source), 'binaries': binaries}
+
+
+def repeat_rounds(first, second, source, first_fingerprint):
+    if first.resolve() == second.resolve():
+        raise ValueError('independent compiler output directories required')
+    if round_fingerprint(first, source) != first_fingerprint:
+        raise ValueError('first compile or source changed during the repeat')
+    if round_fingerprint(second, source) != first_fingerprint:
+        raise ValueError('repeated engine executable fingerprints differ')
+    return [dict(round=index, **first_fingerprint) for index in (1, 2)]
 
 
 def shell_setup():

@@ -115,6 +115,18 @@ compile again while retaining dependency caches. Each invocation retains a fresh
 raw archive and report; compare the actual executable hashes from two fresh
 compiles. A cache hit alone is not repeat-build acceptance.
 
+The hosted Windows producer requests --repeat-compiles: both terminal FFmpeg
+and portico-disc compiles force BuildKit's portico-ffmpeg stage to execute,
+while compiler/dependency layers remain reusable. Two fresh export directories
+must have the same actual three executable hashes and sealed source archive;
+the first export and source are rechecked after round two. repeat-build.json
+survives the raw package and bundle seal, and the producer retains the exact
+compiler image, consumed Dockerfile and both compile-log hashes. This does not
+grant compiler/runtime-source, native, installer or release acceptance. Source
+controls are transport/refusal fixtures; actual repeated compilation must be
+proved by the next naturally required hosted Windows build, without restarting
+an otherwise usable development run solely for this receipt.
+
 The Dockerfile is hashed after final generation, copied to a content-addressed
 read-only file outside the recipe tree, and re-hashed. Docker consumes that copy;
 both the original and copy are checked around every build. Assembly seals its

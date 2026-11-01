@@ -197,6 +197,8 @@ def main():
     p.add_argument('--context', choices=('local', 'github-actions'), default='local')
     p.add_argument('--rebuild-ffmpeg', action='store_true',
                    help='force a fresh final engine compile, retaining dependency caches')
+    p.add_argument('--repeat-compiles', action='store_true',
+                   help='force two actual final compiles and compare all three executable hashes')
     a = p.parse_args()
     provenance = execution_context(a.context)
     # Re-exec the entire lifetime under the machine's existing lock. No queue.
@@ -218,7 +220,7 @@ def main():
     cache = state / 'cache'
     cache.mkdir(exist_ok=True)
     report = {'target': a.target, **provenance, 'qualified': False, 'stages': {},
-              'forceFinalRebuild': a.rebuild_ffmpeg,
+              'forceFinalRebuild': a.rebuild_ffmpeg or a.repeat_compiles,
               'unexercised': ['bundle assembly', 'native runtime', 'ABI', 'repeat build', 'installer']}
     scratch = Path(tempfile.mkdtemp(prefix='scratch-', dir=state))
     def interrupted(signum, frame):
@@ -402,7 +404,7 @@ def main():
             args = common + ['--file', inputs.consumed_dockerfile(recipe, dockerfile_sha),
                              '--target', name, '--build-context', compiler + '=oci-layout://' + str(compiler_dir),
                              '--metadata-file', metadata]
-            if a.rebuild_ffmpeg and name == 'portico-ffmpeg':
+            if (a.rebuild_ffmpeg or a.repeat_compiles) and name == 'portico-ffmpeg':
                 args += ['--no-cache-filter', 'portico-ffmpeg']
             run('dependency-' + name, args + ['.'], recipe)
             inputs.consumed_dockerfile(recipe, dockerfile_sha)
@@ -422,8 +424,28 @@ def main():
                              '--build-context', compiler + '=oci-layout://' + str(compiler_dir)]
             run('ffmpeg-export', args + ['.'], recipe)
             inputs.consumed_dockerfile(recipe, dockerfile_sha)
+            if a.repeat_compiles:
+                source_archive = recipe / 'portico-ffmpeg-source.tar.xz'
+                first_prefix = prefix
+                first = final_cache.round_fingerprint(first_prefix, source_archive)
+                prefix = scratch / 'engine-prefix-round2'
+                repeated = common + ['--file', inputs.consumed_dockerfile(recipe, dockerfile_sha),
+                    '--target', 'portico-engine-output', '--no-cache-filter', 'portico-ffmpeg',
+                    '--output', 'type=local,dest=' + str(prefix),
+                    '--build-context', compiler + '=oci-layout://' + str(compiler_dir)]
+                run('ffmpeg-repeat-export', repeated + ['.'], recipe)
+                inputs.consumed_dockerfile(recipe, dockerfile_sha)
+                rounds = final_cache.repeat_rounds(first_prefix, prefix, source_archive, first)
+                atomic(prefix / 'repeat-build.json', rounds)
+                report['repeatBuild'] = {'rounds': rounds, 'freshCompileRequestedBothRounds': True,
+                    'compilerImageId': compiler_id, 'dockerfileSHA256': dockerfile_sha,
+                    'compileLogs': {name: digest(state / name) for name in
+                                    ('dependency-portico-ffmpeg.log', 'ffmpeg-repeat-export.log')}}
+                report['unexercised'].remove('repeat build')
             package = scratch / ('ffmpeg-' + lock['ffmpeg']['version'] + '-win64-gpl-8.1')
             final_cache.package(recipe, 'win64', prefix, prepared, package, env)
+            if a.repeat_compiles:
+                shutil.copyfile(prefix / 'repeat-build.json', package / 'repeat-build.json')
             if inputs.json_digest(inputs.recipe_tree(recipe)) != recipe_sha:
                 raise ValueError('recipe inputs changed during compilation')
             if inputs.checked_source(ROOT) != source_sha:

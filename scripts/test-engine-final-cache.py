@@ -111,5 +111,54 @@ EOF
             cache.archive(output, self.root / 'bad.zip')
 
 
+    def repeat_fixture(self):
+        source = self.root / 'source.tar.xz'; source.write_bytes(b'controlled source transport fixture')
+        prefixes = [self.root / 'round-one', self.root / 'round-two']
+        for prefix in prefixes:
+            (prefix / 'bin').mkdir(parents=True)
+            for name in ('ffmpeg', 'ffprobe', 'portico-disc'):
+                (prefix / 'bin' / (name + '.exe')).write_bytes(b'non-executable repeat fixture: ' + name.encode())
+        return source, *prefixes
+
+    def test_two_independent_output_fingerprints_bind_all_tools_and_the_same_source(self):
+        source, first, second = self.repeat_fixture()
+        fingerprint = cache.round_fingerprint(first, source)
+        records = cache.repeat_rounds(first, second, source, fingerprint)
+        self.assertEqual([row['round'] for row in records], [1, 2])
+        self.assertEqual(records[0]['binaries'], records[1]['binaries'])
+        self.assertEqual(set(records[0]['binaries']), {'ffmpeg', 'ffprobe', 'portico-disc'})
+        self.assertEqual(records[0]['sourceArchiveSHA256'], records[1]['sourceArchiveSHA256'])
+        with self.assertRaisesRegex(ValueError, 'independent'):
+            cache.repeat_rounds(first, first, source, fingerprint)
+
+    def test_changed_source_or_first_output_and_each_mismatched_second_tool_refuse(self):
+        source, first, second = self.repeat_fixture()
+        fingerprint = cache.round_fingerprint(first, source)
+        original = source.read_bytes(); source.write_bytes(b'changed source')
+        with self.assertRaisesRegex(ValueError, 'first compile or source changed'):
+            cache.repeat_rounds(first, second, source, fingerprint)
+        source.write_bytes(original)
+        for name in ('ffmpeg', 'ffprobe', 'portico-disc'):
+            for prefix in (first, second):
+                path = prefix / 'bin' / (name + '.exe'); original = path.read_bytes()
+                path.write_bytes(b'changed executable transport fixture')
+                with self.subTest(tool=name, prefix=prefix.name), self.assertRaises(ValueError):
+                    cache.repeat_rounds(first, second, source, fingerprint)
+                path.write_bytes(original)
+
+    def test_missing_empty_or_linked_second_output_never_counts_as_a_matching_compile(self):
+        source, first, second = self.repeat_fixture()
+        fingerprint = cache.round_fingerprint(first, source)
+        path = second / 'bin/portico-disc.exe'; path.unlink()
+        with self.assertRaises(ValueError):
+            cache.repeat_rounds(first, second, source, fingerprint)
+        path.write_bytes(b'')
+        with self.assertRaises(ValueError):
+            cache.repeat_rounds(first, second, source, fingerprint)
+        path.unlink(); path.symlink_to(first / 'bin/portico-disc.exe')
+        with self.assertRaisesRegex(ValueError, 'links'):
+            cache.repeat_rounds(first, second, source, fingerprint)
+
+
 if __name__ == '__main__':
     unittest.main()
