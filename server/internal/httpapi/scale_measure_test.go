@@ -28,6 +28,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/playbackv1"
+	"github.com/PorticoMediaServer/portico/server/internal/readprep"
 )
 
 type scaleAttempt struct {
@@ -514,6 +515,9 @@ func TestReadingGrowthMeasurement(t *testing.T) {
 		kind, format, path string
 		leaf               compactcatalog.Kind
 	}{{"book", "epub", "/assets/EPUB/chapter.xhtml", compactcatalog.Ebook}, {"comic", "cbz", "/pages/0", compactcatalog.Comic}, {"book", "pdf", "/source", compactcatalog.Ebook}} {
+		if os.Getenv("PORTICO_PREPARED_READING_MEASURE") == "1" && tc.format == "pdf" {
+			continue
+		}
 		if only := os.Getenv("PORTICO_READING_FORMAT"); only != "" && only != tc.format {
 			continue
 		}
@@ -559,6 +563,89 @@ func TestReadingGrowthMeasurement(t *testing.T) {
 				}
 			}
 			scaleSave(t, "reading-"+tc.format, map[string]any{"base_items": n, "publication_count": max(10, n/20) + 1, "prepare": scalePct(prepare), "chapter_or_page_bytes": scalePct(body), "prepare_costs": costs, "peak_rss_mib": scaleRSS(), "boundary": "fixed EPUB chapter / comic page / PDF source range; growing publication and author/series facts; no PDF raster claim"})
+			if os.Getenv("PORTICO_PREPARED_READING_MEASURE") == "1" {
+				catalogtest.New(t, r.f.db).Drain()
+				scalePreparedReading(t, r, n, tc.format)
+			}
 		})
+	}
+}
+
+func scalePreparedReading(t *testing.T, r *readingFixture, n int, format string) {
+	t.Helper()
+	store, e := readprep.New(readprep.DefaultConfig())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer store.Close()
+	r.d.Catalog.UseReadPreparations(store)
+	r.d.PrepareReadingBrowse, r.d.PrepareReadingFacets = true, true
+	h := New(r.d)
+	call := func(method, path string, body any) (*httptest.ResponseRecorder, float64, dbwork.Cost) {
+		var raw []byte
+		if body != nil {
+			raw, _ = json.Marshal(body)
+		}
+		ctx, cost := dbwork.Measure(context.Background())
+		req := httptest.NewRequest(method, path, bytes.NewReader(raw)).WithContext(ctx)
+		req.Header.Set("Authorization", "Bearer "+r.f.owner.AccessToken)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		at := time.Now()
+		h.ServeHTTP(w, req)
+		return w, float64(time.Since(at)) / float64(time.Millisecond), cost()
+	}
+	base := "/v1/libraries/" + r.library
+	results := map[string]any{}
+	for _, route := range []string{"browse", "author", "series"} {
+		method, path := "GET", base+"/facets?field="+route+"&pivot="+map[string]string{"author": "authors", "series": "series"}[route]+"&limit=12"
+		var body any
+		if route == "browse" {
+			method, path = "POST", base+"/browse"
+			pivot := "books"
+			if format == "cbz" {
+				pivot = "comics"
+			}
+			body = map[string]any{"pivot": pivot, "limit": 12}
+		}
+		began := time.Now()
+		w, initialMS, initialCost := call(method, path, body)
+		initialStatus := w.Code
+		var pollMS []float64
+		var pollCosts []dbwork.Cost
+		statuses := map[int]int{w.Code: 1}
+		observedBytes := store.Stats().Bytes
+		for w.Code == 202 && time.Since(began) < 2*time.Minute {
+			var pending struct {
+				RetryAfterMS int `json:"retryAfterMs"`
+			}
+			if e := json.Unmarshal(w.Body.Bytes(), &pending); e != nil || pending.RetryAfterMS < 1 || w.Header().Get("Location") == "" {
+				t.Fatalf("invalid pending envelope: %d %s", w.Code, w.Body.String())
+			}
+			time.Sleep(time.Duration(pending.RetryAfterMS) * time.Millisecond)
+			var ms float64
+			var cost dbwork.Cost
+			w, ms, cost = call("GET", w.Header().Get("Location"), nil)
+			pollMS, pollCosts = append(pollMS, ms), append(pollCosts, cost)
+			statuses[w.Code]++
+			observedBytes = max(observedBytes, store.Stats().Bytes)
+		}
+		if w.Code != 200 {
+			t.Fatalf("prepared %s: %d %s", route, w.Code, w.Body.String())
+		}
+		readyMS := float64(time.Since(began)) / float64(time.Millisecond)
+		var warmMS []float64
+		var warmCosts []dbwork.Cost
+		for i := 0; i < 10; i++ {
+			got, ms, cost := call(method, path, body)
+			statuses[got.Code]++
+			if got.Code != 200 {
+				t.Fatalf("warm prepared %s: %d %s", route, got.Code, got.Body.String())
+			}
+			warmMS, warmCosts = append(warmMS, ms), append(warmCosts, cost)
+			observedBytes = max(observedBytes, store.Stats().Bytes)
+		}
+		results[route] = map[string]any{"initial_status": initialStatus, "initial_ms": initialMS, "initial_cost": initialCost, "time_to_ready_ms": readyMS, "poll": scalePct(pollMS), "poll_costs": pollCosts, "warm": scalePct(warmMS), "warm_costs": warmCosts, "statuses": statuses, "observed_store_bytes": observedBytes, "store_max_bytes": store.MaxBytes()}
+		scaleSave(t, "reading-prepared-"+format, map[string]any{"base_items": n, "publications": max(10, n/20) + 1, "routes": results, "peak_rss_mib": scaleRSS(), "boundary": "shipped preparation-enabled HTTP dispatch; initial/poll/ready measured separately; no legacy synchronous browse claim"})
 	}
 }
