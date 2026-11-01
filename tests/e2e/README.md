@@ -35,7 +35,7 @@ profile with a random PIN and age limit, delivered through the test harness,
 never entered into a device or browser. The development hook seeds and signs in
 the owner. The harness provisions a member and a PIN profile via the local API.
 The server probe and web pilot passed in [this hosted run](https://github.com/PorticoMediaServer/portico/actions/runs/41347378676).
-The [private-IP run](https://github.com/PorticoMediaServer/portico/actions/runs/41349602193) verified local setup through the browser API, but did not prove the app owner-session handoff; a complete UI setup journey remains open.
+The private-IP setup journey uses the application setup controller with a random credential held in memory, then verifies the owner handoff and first-library Home state. A [previous API-only probe](https://github.com/PorticoMediaServer/portico/actions/runs/41349602193) did not prove the client handoff.
 Credentials, tokens and state must not be cached or uploaded.
 
 The fixture needs small generated films (including editions and missing artwork),
