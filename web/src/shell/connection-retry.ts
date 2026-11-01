@@ -44,6 +44,20 @@ export function launchFailure(error: unknown, deviceOnline: boolean | undefined)
   return category === 'unreachable' || category === 'offline' || category === 'timeout' ? category : 'other';
 }
 
+/** The saved sign-in can't open here, and waiting won't change that. `kept`: the address now
+ * proves a different server (it was reset or replaced), the saved record can never be read again,
+ * or the server refuses this profile; the record stays for the sign-in page to offer its choices.
+ * `ended`: the server or this device ended the sign-in. Either way launch goes to sign-in, never
+ * the page failure, and nothing is softened into a retry. */
+export type SavedSignInUnusable = 'kept' | 'ended';
+export function savedSignInUnusable(error: unknown): SavedSignInUnusable | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const value = error as {code?: unknown; signOut?: unknown};
+  if (value.signOut === true) return 'ended';
+  if (value.code === 'identity_mismatch' || value.code === 'invalid_saved_connection' || value.code === 'access_refused') return 'kept';
+  return undefined;
+}
+
 /** The early-bound server listener publishes this exact unavailable response.
  * No message, arbitrary503 or identity refusal can become startup progress. */
 export function serverIsStarting(error: unknown): boolean {
