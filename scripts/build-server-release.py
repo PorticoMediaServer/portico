@@ -8,6 +8,7 @@ ROOT=pathlib.Path(__file__).resolve().parent.parent
 RCLONE=runpy.run_path(str(ROOT/'scripts/rclone-bundle.py'))
 SONIC=runpy.run_path(str(ROOT/'scripts/sonic-bundle.py'))
 TAGS=runpy.run_path(str(ROOT/'scripts/release-build-tags.py'))
+DEV_ENGINE=runpy.run_path(str(ROOT/'scripts/development-engine.py'))
 BUILD_TAGS=TAGS['value']()
 
 def module_path(component):
@@ -136,6 +137,10 @@ def verify_manifest(directory,expected_source,trusted_public_key):
     manifest_bytes=(directory/'manifest.json').read_bytes()
     Ed25519PublicKey.from_public_bytes(trusted_public_key).verify((directory/'manifest.sig').read_bytes(),manifest_bytes)
     manifest=json.loads(manifest_bytes)
+    if manifest.get('sealed') is not True or manifest.get('engine',{}).get('development'):raise ValueError('An unsealed build or a development engine never verifies as a release')
+    return check_contents(directory,expected_source,manifest)
+
+def check_contents(directory,expected_source,manifest,development=False):
     if manifest['sourceDigest']!=expected_source:raise ValueError('Release source does not match expected source')
     component=manifest.get('component','server')
     if component not in ('server','hosted'):raise ValueError('Invalid release component')
@@ -158,6 +163,8 @@ def verify_manifest(directory,expected_source,trusted_public_key):
             target='linux-'+{'amd64':'x64','arm64':'arm64'}[manifest['target'].split('-')[1]]
             SONIC['verify_installed'](bundle,target)
             if SONIC['digest'](bundle/'bin/sonic-manifest.json')!=manifest['sonicManifestSha256']:raise ValueError('Sonic manifest changed')
+        elif development:
+            DEV_ENGINE['verify'](bundle,manifest['target'].replace('darwin-','macos-').replace('-amd64','-x64'))
         else:
             subprocess.run(['python3',str(ROOT/'scripts/verify-ffmpeg-manifest.py'),str(bundle)],check=True)
         if hashlib.sha256((bundle/'toolchain-manifest.json').read_bytes()).hexdigest()!=manifest.get('toolchainManifestSha256'):raise ValueError('Toolchain manifest changed')
@@ -165,6 +172,15 @@ def verify_manifest(directory,expected_source,trusted_public_key):
         RCLONE['verify'](rclone,manifest['target'])
         if hashlib.sha256((rclone/'bundle-manifest.json').read_bytes()).hexdigest()!=manifest.get('rcloneManifestSha256'):raise ValueError('rclone manifest changed')
     return manifest
+
+def check_engine(bundle,unsealed):
+    """The qualified toolchain, or (only --unsealed) the pinned development engine."""
+    if json.loads((bundle/'toolchain-manifest.json').read_text()).get('development'):
+        if not unsealed:raise SystemExit('A development engine is allowed only in an --unsealed build')
+        DEV_ENGINE['verify'](bundle)
+        return True
+    subprocess.run(['python3',str(ROOT/'scripts/verify-ffmpeg-manifest.py'),str(bundle)],check=True)
+    return False
 
 def release_version(value):
     numeric=r"(?:0|[1-9][0-9]*)"
@@ -174,19 +190,25 @@ def release_version(value):
     return value
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--version',required=False,type=release_version);parser.add_argument('--os',choices=['linux','darwin','windows'],default='linux');parser.add_argument('--arch',choices=['amd64','arm64'],default='amd64');parser.add_argument('--component',choices=['server'],default='server');parser.add_argument('--ffmpeg-bundle',type=pathlib.Path,default=ROOT/'third_party/ffmpeg/bundle');parser.add_argument('--sonic-bundle',type=pathlib.Path);parser.add_argument('--source-dir',type=pathlib.Path);parser.add_argument('--print-tags',action='store_true',help='print the official Go build tags this builder uses and exit');args=parser.parse_args()
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--version',required=False,type=release_version);parser.add_argument('--os',choices=['linux','darwin','windows'],default='linux');parser.add_argument('--arch',choices=['amd64','arm64'],default='amd64');parser.add_argument('--component',choices=['server'],default='server');parser.add_argument('--ffmpeg-bundle',type=pathlib.Path,default=ROOT/'third_party/ffmpeg/bundle');parser.add_argument('--sonic-bundle',type=pathlib.Path);parser.add_argument('--source-dir',type=pathlib.Path);parser.add_argument('--print-tags',action='store_true',help='print the official Go build tags this builder uses and exit')
+    # An internal build: no signing key, no manifest.sig; the only way to build with a development engine.
+    parser.add_argument('--unsealed',action='store_true',help='build without the release seal (NOT FOR USE); allows a development engine')
+    # A release run tests once: the full -race suite in its gate job, the plain suite on each native-OS build.
+    parser.add_argument('--tests',choices=['full','plain','none'],default='full',help='full: -race suite; plain: the suite without -race; none: tested by the release gate')
+    args=parser.parse_args()
     # Dry run for the CI guard: the tags below are the ones the build uses, not a
     # second copy of the list.
     if args.print_tags:print(build_tags(args.component));return
     if not args.version:parser.error('--version is required to build')
-    key=signing_key()
+    key=None if args.unsealed else signing_key()
     root_key,root_pem=official_root()
     if args.component=='server':
         bundle=args.ffmpeg_bundle.resolve()
-        subprocess.run(['python3',str(ROOT/'scripts/verify-ffmpeg-manifest.py'),str(bundle)],check=True)
+        development=check_engine(bundle,args.unsealed)
         toolchain=json.loads((bundle/'toolchain-manifest.json').read_text())
         target={'darwin':'macos','linux':'linux','windows':'windows'}[args.os]+'-'+{'amd64':'x64','arm64':'arm64'}[args.arch]
         if toolchain['target']!=target:raise SystemExit('FFmpeg bundle target does not match server')
+        if development and args.sonic_bundle:raise SystemExit('Development builds leave Sonic out')
     rclone_bundle=args.ffmpeg_bundle.resolve().parent/('rclone-'+args.os+'-'+args.arch)
     if not rclone_bundle.exists():RCLONE['prepare'](rclone_bundle,args.os+'-'+args.arch,ROOT/'.cache/rclone')
     RCLONE['verify'](rclone_bundle,args.os+'-'+args.arch)
@@ -204,13 +226,15 @@ def main():
         checked_env['PORTICO_TEST_DATABASE_URL_FILE']=str(database_file)
     checked_env['GOWORK']=str(stage/'go.work')
     subprocess.run([str(ROOT/'scripts/env.sh'),'go','mod','verify'],cwd=source,env=checked_env,check=True)
-    if args.component=='server':
+    if args.component=='server' and args.tests!='none':
         helper=stage/'test-helper'
         subprocess.run([str(ROOT/'scripts/env.sh'),'go','build','-mod=readonly','-o',str(helper),'./cmd/server'],cwd=source,env=checked_env,check=True)
         checked_env['PORTICO_PLAYBACK_TEST_HELPER']=str(helper)
     # The 20,000-row metadata boundary test is deliberately exhaustive. Race
     # instrumentation of pure-Go SQLite exceeds Go's default ten-minute limit.
-    subprocess.run([str(ROOT/'scripts/env.sh'),'go','test','-race','-timeout=60m','./...'],cwd=source,env=checked_env,check=True)
+    # --tests none: the release run's gate job ran the full suite on this same commit.
+    if args.tests!='none':
+        subprocess.run([str(ROOT/'scripts/env.sh'),'go','test',*(['-race'] if args.tests=='full' else []),'-timeout=60m','./...'],cwd=source,env=checked_env,check=True)
     subprocess.run([str(ROOT/'scripts/env.sh'),'sh',str(stage/'scripts/vet-go.sh')],cwd=source,env=checked_env,check=True)
     built_at=datetime.datetime.now(datetime.timezone.utc).isoformat()
     prefix=module_path(args.component)+'/internal/buildinfo.'
@@ -221,11 +245,12 @@ def main():
     subprocess.run([str(ROOT/'scripts/env.sh'),'go','build','-tags',build_tags(args.component),'-buildvcs=false','-mod=readonly','-trimpath','-ldflags',flags,'-o',str(stage/('portico-'+args.component+('.exe' if args.os=='windows' else ''))),'./cmd/'+args.component],cwd=source,env=env,check=True)
     if snapshot_digest(source)[0]!=snapshot:raise SystemExit('Source snapshot changed during build.')
     if hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()!=builder_digest:raise SystemExit('Builder changed during execution; discard output and retry.')
-    binary=stage/('portico-'+args.component+('.exe' if args.os=='windows' else ''));manifest={'schema':1,'version':args.version,'component':args.component,'buildId':build_id,'sourceDigest':snapshot,'officialRoot':root_key,'builtAt':built_at,'target':args.os+'-'+args.arch,'builderSha256':builder_digest,'sourceFiles':copied,'artifact':{'path':binary.name,'sha256':hashlib.sha256(binary.read_bytes()).hexdigest()}}
+    binary=stage/('portico-'+args.component+('.exe' if args.os=='windows' else ''));manifest={'schema':1,'version':args.version,'component':args.component,'buildId':build_id,'sourceDigest':snapshot,'officialRoot':root_key,'builtAt':built_at,'target':args.os+'-'+args.arch,'builderSha256':builder_digest,'sourceFiles':copied,'artifact':{'path':binary.name,'sha256':hashlib.sha256(binary.read_bytes()).hexdigest()},'sealed':not args.unsealed,'tests':args.tests}
     if args.component=='server':
         bundle=args.ffmpeg_bundle.resolve()
-        subprocess.run(['python3',str(ROOT/'scripts/verify-ffmpeg-manifest.py'),str(bundle)],check=True)
+        if check_engine(bundle,args.unsealed)!=development:raise SystemExit('FFmpeg bundle changed during build')
         toolchain=json.loads((bundle/'toolchain-manifest.json').read_text())
+        if development:manifest['engine']={'development':True,'qualification':toolchain['qualification'],'upstream':toolchain['upstream']}
         target={'darwin':'macos','linux':'linux','windows':'windows'}[args.os]+'-'+{'amd64':'x64','arm64':'arm64'}[args.arch]
         if toolchain['target']!=target:raise SystemExit('FFmpeg bundle target does not match server')
         shutil.copytree(bundle,stage/'third_party/ffmpeg')
@@ -236,6 +261,11 @@ def main():
             manifest['sonicManifestSha256']=SONIC['digest'](stage/'third_party/ffmpeg/bin/sonic-manifest.json')
         shutil.copytree(rclone_bundle,stage/'third_party/rclone')
         manifest['rcloneManifestSha256']=hashlib.sha256((rclone_bundle/'bundle-manifest.json').read_bytes()).hexdigest()
-    (stage/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n');(stage/'manifest.sig').write_bytes(key.sign((stage/'manifest.json').read_bytes()));verify_manifest(stage,snapshot,key.public_key().public_bytes_raw())
+    (stage/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+    if args.unsealed:
+        # No manifest.sig: nothing that verifies a release accepts this build.
+        check_contents(stage,snapshot,manifest,development=bool(manifest.get('engine',{}).get('development')))
+    else:
+        (stage/'manifest.sig').write_bytes(key.sign((stage/'manifest.json').read_bytes()));verify_manifest(stage,snapshot,key.public_key().public_bytes_raw())
     print(json.dumps({'directory':str(stage),'sourceDigest':snapshot,'artifactSha256':manifest['artifact']['sha256'],'buildId':build_id}))
 if __name__=='__main__':main()
