@@ -18,7 +18,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCRIPTS = (
     "package-release.sh", "package-macos.sh", "rclone-bundle.py",
     "seal-macos-payload.py", "verify-ffmpeg-manifest.py",
-    "build-server-release.py", "release-build-tags.py", "sonic-bundle.py", "env.sh",
+    "build-server-release.py", "release-build-tags.py", "sonic-bundle.py", "development-engine.py", "env.sh",
 )
 PORTABLE_INPUTS = (
     "LICENSE", "THIRD-PARTY-NOTICES.md", "packaging/portable",
