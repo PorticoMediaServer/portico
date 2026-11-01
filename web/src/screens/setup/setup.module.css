@@ -71,3 +71,4 @@
 .folderChoose small { min-width: 0; font-size: var(--type-chip-size); line-height: var(--type-fixed-line-1point-45); color: var(--color-text-tertiary); }
 .setupFolder .folderClass { flex: none; font-size: var(--type-chip-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-tertiary); }
 .remoteAccess { width: 100%; }
+.remoteAccess [role='radio'] { flex: 1 1 0; justify-content: center; }
