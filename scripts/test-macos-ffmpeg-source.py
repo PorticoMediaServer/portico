@@ -190,8 +190,9 @@ output.write_bytes(b'corrupt fixture' if os.environ['PORTICO_FIXTURE_CASE']=='co
                           'homebridge-zix-build.patch', 'homebridge-private-pkgconfig.patch'):
                 subprocess.run(['git', 'apply', str(ROOT / 'third_party/ffmpeg/patches' / patch)],
                                cwd=recipe, check=True, capture_output=True)
-            subprocess.run([sys.executable, ROOT / 'scripts/configure-ffmpeg-recipe.py', recipe, root, 'macos-arm64'],
-                           check=True, capture_output=True)
+            result = subprocess.run([sys.executable, ROOT / 'scripts/configure-ffmpeg-recipe.py', recipe, root, 'macos-arm64'],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
             configured = (recipe / 'build-ffmpeg').read_text()
             for option in ('--enable-coreimage', '--enable-libshaderc', '--enable-openssl'):
                 self.assertIn('"' + option + '"', configured)

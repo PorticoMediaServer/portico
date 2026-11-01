@@ -47,9 +47,11 @@ if target.startswith('macos'):
     build.write_text(text)
     mac_source['configure'](recipe)
     text = build.read_text()
+    start = text.index('build "ffmpeg" "${FFMPEG_VERSION}"')
+    terminal = text[start:]
     marker = 'execute make -j ${MJOBS}'
-    if text.count(marker) != 1: raise ValueError('pinned Mac pre-compile boundary changed')
-    build.write_text(text.replace(marker, configure_checks + '\n' + marker, 1))
+    if terminal.count(marker) != 1: raise ValueError('pinned Mac pre-compile boundary changed')
+    build.write_text(text[:start] + terminal.replace(marker, configure_checks + '\n' + marker, 1))
     import subprocess
     subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'macos-timing', '--recipe', recipe,
                     '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt'], check=True)

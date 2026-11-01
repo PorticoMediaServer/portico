@@ -5,7 +5,11 @@
     "runId": 41313883932,
     "comparisonOnly": true,
     "artifactPins": "scripts/inspect-jellyfin-autodetect.py",
-    "windowsRuntime": "pending long-path checkout correction",
+    "windowsRuntime": {
+      "runId": 41314529638,
+      "artifactId": 13086940779,
+      "artifactSHA256": "b8341abfcee8ecfa6ce1654b9efd19cb52b6efd4e92502b1ab72e8fd3e179328"
+    },
     "windowsARM64": "deferred"
   },
   "lists": {

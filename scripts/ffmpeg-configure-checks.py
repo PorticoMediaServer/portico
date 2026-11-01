@@ -14,10 +14,13 @@ def macros(target):
         values += ['CUDA', 'CUVID', 'FFNVCODEC', 'NVDEC', 'NVENC', 'H264_CUVID_DECODER', 'HEVC_CUVID_DECODER']
     if target.startswith('windows'):
         values += ['DXVA2', 'MEDIAFOUNDATION', 'SCHANNEL', 'H264_MF_ENCODER']
+        values += ['SCALE_D3D11_FILTER', 'OVERLAY_D3D11_FILTER', 'BWDIF_D3D11_FILTER', 'TONEMAP_D3D11_FILTER']
     if target.startswith('macos'):
         values += ['OPENSSL', 'COREIMAGE', 'METAL', 'LIBSHADERC', 'APPKIT', 'AVFOUNDATION',
                    'AUDIOTOOLBOX', 'VIDEOTOOLBOX', 'OVERLAY_VIDEOTOOLBOX_FILTER']
-    return sorted(set('CONFIG_' + value for value in values))
+    result = set('CONFIG_' + value for value in values)
+    if target.startswith('windows'): result.add('HAVE_D3DCOMPILER_H')
+    return sorted(result)
 
 
 def shell(target):
