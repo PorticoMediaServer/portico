@@ -143,6 +143,8 @@ func TestTitleDatasetAtScale(t *testing.T) {
 	var films []int64
 	measure("seed library", func() string {
 		lib := c.Library("films", "Films", "movie", "/films")
+		// A minute apart, as a scan stamps them: Home's recent row orders by added time.
+		added := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 		var root string
 		if err := db.QueryRow(`SELECT root FROM catalog_libraries WHERE id=?`, lib).Scan(&root); err != nil {
 			t.Fatal(err)
@@ -151,7 +153,7 @@ func TestTitleDatasetAtScale(t *testing.T) {
 			c.Write(func(ctx context.Context, tx *sql.Tx) error {
 				for i := start; i < min(start+20000, library); i++ {
 					path := fmt.Sprintf("/films/f%08d.mkv", i)
-					id, _, err := compactcatalog.UpsertEntityTx(ctx, tx, compactcatalog.Entity{Library: lib, Kind: compactcatalog.Movie, Key: compactcatalog.ItemKey(root, path, 0), Title: fmt.Sprintf("Film %d", i), Year: 1950 + i%70, Added: "2026-01-01T00:00:00Z"})
+					id, _, err := compactcatalog.UpsertEntityTx(ctx, tx, compactcatalog.Entity{Library: lib, Kind: compactcatalog.Movie, Key: compactcatalog.ItemKey(root, path, 0), Title: fmt.Sprintf("Film %d", i), Year: 1950 + i%70, Added: added.Add(time.Duration(i) * time.Minute).Format("2006-01-02T15:04:05.000Z")})
 					if err != nil {
 						return err
 					}

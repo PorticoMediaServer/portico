@@ -196,6 +196,10 @@ type homeSource struct {
 	// countArgs. It describes base as built, so wrapping or capping base drops it.
 	count     string
 	countArgs []any
+	// walk, when set, answers a descending page without ordering the whole
+	// projection (home_recent_walk.go), or declines and the page runs the full
+	// query. Like count it describes base as built.
+	walk homeWalker
 	// selfRestricted marks a projection whose SQL already applies the viewer's
 	// restriction itself, so the generic item wrap must not run again.
 	selfRestricted bool
@@ -330,12 +334,12 @@ func (s *Service) homeSource(r HomeRequest, spec homeRowSpec) (homeSource, error
 		if restriction != "1" {
 			src.base = `SELECT candidate.id,candidate.ord FROM (` + src.base + `) candidate WHERE ` + restriction
 			src.args = append(src.args, restrictionArgs...)
-			src.count, src.countArgs = "", nil
+			src.count, src.countArgs, src.walk = "", nil, nil
 		}
 	}
 	if src.cap > 0 {
 		src.base = `SELECT id,ord FROM (` + src.base + `) ORDER BY ord DESC,id DESC LIMIT ` + strconv.Itoa(src.cap)
-		src.count, src.countArgs = "", nil
+		src.count, src.countArgs, src.walk = "", nil, nil
 	}
 	return src, nil
 }
@@ -585,6 +589,16 @@ func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage,
 			// Later pages of a computed list keep the revision of its first page.
 			base.Catalog = cursor.Catalog
 		}
+		if src.walk != nil && order == "DESC" {
+			walked, walkedOrds, ok, e := src.walk(homeWalkRequest{take: limit + 1, after: &[2]string{cursor.Value, cursor.ID}})
+			if e != nil {
+				return nil, nil, 0, 0, "", "", e
+			}
+			if ok {
+				ids, ords, next, _, lead, e := s.homePage(walked, walkedOrds, base, cursor.Offset, limit)
+				return ids, ords, total, cursor.Offset, next, lead, e
+			}
+		}
 		args := append(append([]any{}, src.args...), cursor.Value, cursor.Value, cursor.ID)
 		query := `SELECT id,ord FROM (` + src.base + `) WHERE (ord` + operator + `? OR (ord=? AND id` + operator + `?)) ORDER BY ord ` + order + `,id ` + order + ` LIMIT ` + strconv.Itoa(limit+1)
 		ids, ords, next, _, lead, e := s.homeScanPage(query, args, base, cursor.Offset, limit)
@@ -615,9 +629,22 @@ func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage,
 			start = total - 1
 		}
 	}
-	args := append([]any{}, src.args...)
-	query := `SELECT id,ord FROM (` + src.base + `) ORDER BY ord ` + order + `,id ` + order + ` LIMIT ` + strconv.Itoa(limit+1) + ` OFFSET ` + strconv.Itoa(start)
-	ids, ords, next, scanned, lead, e := s.homeScanPage(query, args, base, start, limit)
+	var scanned int
+	walked := false
+	if src.walk != nil && order == "DESC" && page.AnchorID == "" {
+		var walkedIDs, walkedOrds []string
+		if walkedIDs, walkedOrds, walked, e = src.walk(homeWalkRequest{skip: start, take: limit + 1}); e != nil {
+			return nil, nil, 0, 0, "", "", e
+		}
+		if walked {
+			ids, ords, next, scanned, lead, e = s.homePage(walkedIDs, walkedOrds, base, start, limit)
+		}
+	}
+	if !walked {
+		args := append([]any{}, src.args...)
+		query := `SELECT id,ord FROM (` + src.base + `) ORDER BY ord ` + order + `,id ` + order + ` LIMIT ` + strconv.Itoa(limit+1) + ` OFFSET ` + strconv.Itoa(start)
+		ids, ords, next, scanned, lead, e = s.homeScanPage(query, args, base, start, limit)
+	}
 	if e != nil {
 		return nil, nil, 0, 0, "", "", e
 	}
@@ -655,6 +682,12 @@ func (s *Service) homeScanPage(query string, args []any, base homeCursor, offset
 	if e != nil {
 		return nil, nil, "", 0, "", e
 	}
+	return s.homePage(ids, orders, base, offset, limit)
+}
+
+// homePage is a page from up to limit+1 ordered rows: the first limit, and a
+// cursor after them when there was one more.
+func (s *Service) homePage(ids, orders []string, base homeCursor, offset, limit int) (_, _ []string, next string, scanned int, lead string, e error) {
 	scanned = len(ids)
 	if len(orders) > 0 {
 		lead = orders[0]

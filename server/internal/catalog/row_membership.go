@@ -110,6 +110,7 @@ func (s *Service) homeRecentPagedSource(r HomeRequest, audio bool) (homeSource, 
 		count:          `SELECT count(*) FROM (SELECT 1 FROM (SELECT ` + key + works + `) GROUP BY work)`,
 		countArgs:      append([]any{idsJSON(r.Libraries)}, args...),
 		selfRestricted: true,
+		walk:           s.homeRecentWalker(r, ord, key, works, metricArgs, append([]any{idsJSON(r.Libraries)}, args...)),
 	}, nil
 }
 
