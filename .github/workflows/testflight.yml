@@ -1,0 +1,42 @@
+name: TestFlight upload
+# Uploads the signed iPhone/iPad and Apple TV builds a published release already carries, so a
+# release can reach TestFlight without rebuilding (release.yml's own TestFlight step needs a new
+# dispatch, and a version can be released once).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag, for example v0.0.1
+        required: true
+permissions:
+  contents: read
+jobs:
+  upload:
+    runs-on: macos-15
+    timeout-minutes: 45
+    environment: release-seal
+    steps:
+      - name: The release's signed IPAs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a release tag: $TAG" >&2; exit 1; }
+          mkdir -p dist
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir dist --pattern 'Portico-ios.ipa' --pattern 'Portico-tvos.ipa' --pattern SHA256SUMS
+          (cd dist && grep -E ' Portico-(ios|tvos)\.ipa$' SHA256SUMS | shasum -a 256 -c -)
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.appstoreconnect/private_keys
+          (umask 077; python3 -c 'import base64,os,sys; v=os.environ["ASC_KEY"].strip(); d=(v+"\n").encode() if v.startswith("-----BEGIN") else base64.b64decode(v); assert d.startswith(b"-----BEGIN " + b"PRIVATE KEY-----"), "APP_STORE_CONNECT_KEY_P8 is not a PKCS#8 key"; open(sys.argv[1],"wb").write(d)' ~/.appstoreconnect/private_keys/AuthKey_"$ASC_KEY_ID".p8)
+          xcrun altool --upload-app -f dist/Portico-ios.ipa -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
+          xcrun altool --upload-app -f dist/Portico-tvos.ipa -t appletvos --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
+      - name: Forget the key
+        if: always()
+        run: rm -rf ~/.appstoreconnect
