@@ -162,6 +162,7 @@ internal/enrichment/enrichment.go	(*Service).drainJobs	Begin	ClassFrom(ctx, dbwo
 internal/enrichment/enrichment.go	(*Service).importVocabulary	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
 internal/enrichment/enrichment.go	(*Service).importWorks	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
 internal/enrichment/enrichment.go	(*Service).noteChecked	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
+internal/enrichment/enrichment.go	(*Service).writeState	Begin	ClassFrom(ctx, dbwork.ClassBackgroundMedia)	-
 internal/eventfeed/feed.go	flushPendingHints	WithWriteTx	ClassMaintenance	-
 internal/hosted/account_departure.go	(*Service).DeliverIdentityDepartures	ExecWrite	ClassMaintenance	-	×2
 internal/hosted/current_schedule.go	(*Service).ordinaryControlStep	ExecWrite	ClassInteractive	-
@@ -178,6 +179,7 @@ internal/httpapi/events_routes.go	(Dependencies).bridgeReceiverEvents	WithWriteT
 internal/httpapi/fixture/fixture.go	GenerateWithConfig	WithWriteTx	ClassMaintenance	-	×2
 internal/httpapi/metadata_attention.go	registerMetadataRefresh	Begin	ClassInteractive	-
 internal/httpapi/recording_permissions.go	(Dependencies).recordingPermissionRoutes	WithWriteTxContext	ClassSecurityFence	-
+internal/httpapi/remote_gate.go	saveRefusedNames	WithWriteTx	ClassMaintenance	-
 internal/httpapi/user_mutations.go	registerUserMutationRoutes	WithWriteTxContext	ClassSecurityFence	-
 internal/identity/account_move_frontdoor.go	(*Service).ProveMovePassword	WithWriteTx	ClassSecurityFence	-
 internal/identity/account_moves.go	(*Service).CancelAccountMove	WithWriteTx	ClassSecurityFence	-

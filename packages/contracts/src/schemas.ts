@@ -3681,13 +3681,13 @@ export const schemas = {
             "name": {
               "type": "string"
             },
-            "via": {
+            "reason": {
               "type": "string"
             }
           },
           "required": [
             "name",
-            "via",
+            "reason",
             "firstSeen",
             "lastSeen",
             "count"
@@ -165997,13 +165997,13 @@ export const schemas = {
             "name": {
               "type": "string"
             },
-            "via": {
+            "reason": {
               "type": "string"
             }
           },
           "required": [
             "name",
-            "via",
+            "reason",
             "firstSeen",
             "lastSeen",
             "count"

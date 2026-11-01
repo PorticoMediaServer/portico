@@ -63,7 +63,7 @@ func (d Dependencies) remoteAdmits(r *http.Request) bool {
 	proxied := policy.Proxy(peer)
 	client := peer
 	host := r.Host
-	forwardedHTTPS := false
+	forwardedProto := ""
 	if proxied {
 		// The client is the rightmost hop the trusted proxies didn't add
 		// (networkpolicy.Forwarded), never a value the client wrote at the
@@ -76,19 +76,19 @@ func (d Dependencies) remoteAdmits(r *http.Request) bool {
 		if value := firstForwarded(r.Header.Get("X-Forwarded-Host")); value != "" {
 			host = value
 		}
-		forwardedHTTPS = strings.EqualFold(firstForwarded(r.Header.Get("X-Forwarded-Proto")), "https")
+		forwardedProto = firstForwarded(r.Header.Get("X-Forwarded-Proto"))
 	}
 	serverName := ""
 	if r.TLS != nil {
 		serverName = r.TLS.ServerName
 	}
-	admit, record := policy.Request(client, proxied, serverName, forwardedHTTPS, host)
-	if !admit && record {
-		via := "http"
-		if serverName != "" {
-			via = "tls"
-		}
-		d.RemoteGate.Record(host, via)
+	admit, reason := policy.Request(client, proxied, serverName, forwardedProto, host)
+	if !admit && reason == remotegate.ReasonName && proxied && !remotegate.Plausible(remotegate.HostName(host)) {
+		// The proxy passed its upstream address, not the name people used:
+		// show the owner the proxy, since there's no name to allow.
+		d.RemoteGate.RecordProxy(peer)
+	} else if !admit && reason != "" {
+		d.RemoteGate.Record(host, reason)
 	}
 	return admit
 }
@@ -202,7 +202,7 @@ func RunRemoteGate(ctx context.Context, db *sql.DB, gate *remotegate.Gate) {
 }
 
 func loadRefusedNames(ctx context.Context, db *sql.DB) ([]remotegate.RefusedName, error) {
-	rows, err := db.QueryContext(ctx, `SELECT name,via,first_seen_ms,last_seen_ms,count FROM remote_refused_names`)
+	rows, err := db.QueryContext(ctx, `SELECT name,reason,first_seen_ms,last_seen_ms,count FROM remote_refused_names`)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +211,7 @@ func loadRefusedNames(ctx context.Context, db *sql.DB) ([]remotegate.RefusedName
 	for rows.Next() {
 		var n remotegate.RefusedName
 		var first, last int64
-		if err = rows.Scan(&n.Name, &n.Via, &first, &last, &n.Count); err != nil {
+		if err = rows.Scan(&n.Name, &n.Reason, &first, &last, &n.Count); err != nil {
 			return nil, err
 		}
 		n.FirstSeen, n.LastSeen = time.UnixMilli(first), time.UnixMilli(last)
@@ -230,8 +230,8 @@ func saveRefusedNames(ctx context.Context, db *sql.DB, refused *remotegate.Refus
 			return err
 		}
 		for _, n := range names {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO remote_refused_names(name,via,first_seen_ms,last_seen_ms,count) VALUES(?,?,?,?,?)`,
-				n.Name, n.Via, n.FirstSeen.UnixMilli(), n.LastSeen.UnixMilli(), n.Count); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO remote_refused_names(name,reason,first_seen_ms,last_seen_ms,count) VALUES(?,?,?,?,?)`,
+				n.Name, n.Reason, n.FirstSeen.UnixMilli(), n.LastSeen.UnixMilli(), n.Count); err != nil {
 				return err
 			}
 		}

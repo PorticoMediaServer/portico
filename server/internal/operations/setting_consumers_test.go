@@ -188,6 +188,8 @@ var settingConsumers = map[string]settingConsumer{
 	"operations.Settings.lanDiscoveryEnabled":                                {"cmd/server/administration.go", "LANDiscoveryEnabled", "Start or stop LAN advertisement"},
 	"operations.Settings.dlnaEnabled":                                        {"internal/httpapi/connection_settings.go", "DLNAEnabled", "Start or stop the DLNA server and its SSDP advertisement"},
 	"operations.Settings.secureConnections":                                  {"internal/httpapi/connection_policy.go", "SecureConnections", "Require secure HTTP transport by owner policy"},
+	"operations.Settings.remoteSecurity":                                     {"internal/httpapi/remote_gate.go", "RemoteSecurity", "Enhanced answers outside connections only over HTTPS at own and custom addresses (O-169)"},
+	"operations.Settings.remoteAccess":                                       {"internal/httpapi/remote_gate.go", "RemoteAccess", "Off and Private only refuse outside connections; Private only counts the tailnet as home (O-169)"},
 	"operations.Settings.lanNetworks":                                        {"internal/httpapi/request_locality.go", "LANNetworks", "Classify home connections and forwarded client addresses"},
 	"operations.Settings.library.missingTitles":                              {"internal/catalog/missing.go", "literal:library.missingTitles", "Keep or remove missing titles by the owner rule"},
 	"operations.Settings.library.segmentDetection":                           {"internal/mediaanalysis/segment_modes.go", "literal:library.segmentDetection", "Choose the server's intro and credits detection mode"},

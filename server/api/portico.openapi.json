@@ -3663,13 +3663,13 @@
                 "name": {
                   "type": "string"
                 },
-                "via": {
+                "reason": {
                   "type": "string"
                 }
               },
               "required": [
                 "name",
-                "via",
+                "reason",
                 "firstSeen",
                 "lastSeen",
                 "count"
@@ -170467,13 +170467,13 @@
                 "name": {
                   "type": "string"
                 },
-                "via": {
+                "reason": {
                   "type": "string"
                 }
               },
               "required": [
                 "name",
-                "via",
+                "reason",
                 "firstSeen",
                 "lastSeen",
                 "count"
@@ -405965,13 +405965,13 @@
                           "name": {
                             "type": "string"
                           },
-                          "via": {
+                          "reason": {
                             "type": "string"
                           }
                         },
                         "required": [
                           "name",
-                          "via",
+                          "reason",
                           "firstSeen",
                           "lastSeen",
                           "count"
@@ -406099,13 +406099,13 @@
                           "name": {
                             "type": "string"
                           },
-                          "via": {
+                          "reason": {
                             "type": "string"
                           }
                         },
                         "required": [
                           "name",
-                          "via",
+                          "reason",
                           "firstSeen",
                           "lastSeen",
                           "count"

@@ -2623,11 +2623,11 @@ var PorticoCastContracts = (function(exports) {
 								"type": "string"
 							},
 							"name": { "type": "string" },
-							"via": { "type": "string" }
+							"reason": { "type": "string" }
 						},
 						"required": [
 							"name",
-							"via",
+							"reason",
 							"firstSeen",
 							"lastSeen",
 							"count"
@@ -119781,11 +119781,11 @@ var PorticoCastContracts = (function(exports) {
 								"type": "string"
 							},
 							"name": { "type": "string" },
-							"via": { "type": "string" }
+							"reason": { "type": "string" }
 						},
 						"required": [
 							"name",
-							"via",
+							"reason",
 							"firstSeen",
 							"lastSeen",
 							"count"

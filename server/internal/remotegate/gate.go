@@ -173,37 +173,66 @@ func (p *Policy) Socket(peer netip.Addr, tls bool) Connection {
 	return Admit
 }
 
+// Why a name was refused, which says what fixes it (the owner sees it with
+// the name):
+//   - ReasonName: the name isn't one this server answers, over this server's
+//     TLS or through a trusted proxy. Allow this address fixes it.
+//   - ReasonHTTP: plain HTTP from outside (or a proxy saying it forwarded
+//     plain HTTP). Enhanced needs HTTPS; Standard fixes it.
+//   - ReasonCertificate: HTTPS for a name this server has no certificate for,
+//     refused by the handshake in either mode. Your own certificate (or a
+//     reverse proxy) for the name fixes it.
+//   - ReasonProxy: a trusted proxy forwarded a request without the address
+//     people used (its Host is the proxy's upstream address, not a name), so
+//     no name can be allowed. Recorded under the proxy's own address. Setting
+//     the proxy to pass Host (or X-Forwarded-Host), or Standard, fixes it.
+const (
+	ReasonName        = "name"
+	ReasonHTTP        = "http"
+	ReasonCertificate = "certificate"
+	ReasonProxy       = "proxy"
+)
+
 // Request judges one HTTP request from a client outside the home network.
 // client is the real client (the forwarded one behind a trusted proxy);
 // serverName is the TLS server name this server validated, empty without TLS;
-// forwardedHTTPS reports a trusted proxy's X-Forwarded-Proto of https.
-// It returns whether to answer, and whether the Host should be recorded as a
-// refused name.
-func (p *Policy) Request(client netip.Addr, proxied bool, serverName string, forwardedHTTPS bool, host string) (admit, record bool) {
+// forwardedProto is a trusted proxy's X-Forwarded-Proto, empty when it sent
+// none. It returns whether to answer and, for a refusal worth showing the
+// owner, its reason ("" records nothing).
+func (p *Policy) Request(client netip.Addr, proxied bool, serverName, forwardedProto, host string) (admit bool, reason string) {
 	if p.Home(client) {
-		return true, false
+		return true, ""
 	}
 	if p.access != AccessOn {
-		return false, false
+		return false, ""
 	}
 	if p.security == SecurityStandard {
-		return true, false
+		return true, ""
 	}
 	name := HostName(host)
 	// Over this server's own TLS, the certificate already proved the server
 	// name is one it serves; the Host must be that name or one the owner added.
 	if serverName != "" {
 		if name != "" && (name == HostName(serverName) || p.Listed(name)) {
-			return true, false
+			return true, ""
 		}
-		return false, true
+		return false, ReasonName
 	}
-	// Without this server's TLS, only a trusted proxy that terminated HTTPS
-	// may forward, and only for an address the owner added.
-	if proxied && forwardedHTTPS && p.Listed(name) {
-		return true, false
+	// Without this server's TLS, only a trusted proxy may forward, and only
+	// for an address the owner added. A proxy that sends no X-Forwarded-Proto
+	// (nginx's default) is taken at its word as terminating HTTPS: the owner
+	// declared it trusted and added the name. Only an explicit "http" is
+	// refused.
+	if proxied {
+		if strings.EqualFold(strings.TrimSpace(forwardedProto), "http") {
+			return false, ReasonHTTP
+		}
+		if p.Listed(name) {
+			return true, ""
+		}
+		return false, ReasonName
 	}
-	return false, true
+	return false, ReasonHTTP
 }
 
 // Gate holds the live Policy and the refused-name record.
@@ -250,11 +279,20 @@ func (g *Gate) Set(p *Policy) {
 // Record notes a refused name, only while remote access is On in Enhanced
 // (with access Off or Private only, or before the settings are installed,
 // a name is never the reason for a refusal).
-func (g *Gate) Record(name, via string) {
+func (g *Gate) Record(name, reason string) {
 	if p := g.Policy(); p == nil || g.Refused == nil || p.security != SecurityEnhanced || p.access != AccessOn {
 		return
 	}
-	g.Refused.Record(name, via)
+	g.Refused.Record(name, reason)
+}
+
+// RecordProxy notes that a trusted proxy forwarded a request without a name,
+// under the proxy's address, in Enhanced with remote access On only.
+func (g *Gate) RecordProxy(proxy netip.Addr) {
+	if p := g.Policy(); p == nil || g.Refused == nil || p.security != SecurityEnhanced || p.access != AccessOn {
+		return
+	}
+	g.Refused.RecordProxy(proxy)
 }
 
 // PeerAddr extracts the peer address of a socket.
