@@ -33,9 +33,9 @@ Every disposable server uses local accounts only and makes no Portico Services
 requests. Each run needs fresh owner and member credentials and a restricted
 profile with a random PIN and age limit, delivered through the test harness,
 never entered into a device or browser. The development hook seeds and signs in
-the owner. The harness provisions a member and a PIN profile via the local API;
-that path still needs hosted verification. Credentials, tokens and state must
-not be cached or uploaded.
+the owner. The harness provisions a member and a PIN profile via the local API.
+The server probe passed for commit `5cba01c1` in [this hosted run](https://github.com/PorticoMediaServer/portico/actions/runs/41346434119).
+Credentials, tokens and state must not be cached or uploaded.
 
 The fixture needs small generated films (including editions and missing artwork),
 shows with seasons and specials, several artists and albums including a

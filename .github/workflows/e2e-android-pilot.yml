@@ -21,29 +21,39 @@ jobs:
         with: {node-version-file: .node-version, cache: npm, cache-dependency-path: 'package-lock.json'}
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
         with: {distribution: temurin, java-version: '17', cache: gradle}
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        id: app
+        with:
+          path: apps/native/android/app/build/outputs/apk/google/debug/app-google-debug.apk
+          key: e2e-android-app-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
       - name: Install tooling
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          curl -fsSL https://get.maestro.mobile.dev -o "$RUNNER_TEMP/install-maestro"
+          MAESTRO_VERSION=2.0.10 bash "$RUNNER_TEMP/install-maestro"
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Install the build toolchain
+        if: steps.app.outputs.cache-hit != 'true'
+        run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' > /dev/null
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.1.12297006" >> "$GITHUB_ENV"
           rust="$(python3 -c "import json; print(json.load(open('third_party/media-engine/sources.lock.json'))['tools']['rust']['version'])")"
           rustup toolchain install "$rust" --profile minimal --target x86_64-linux-android
-          MAESTRO_VERSION=2.0.10 curl -fsSL https://get.maestro.mobile.dev -o "$RUNNER_TEMP/install-maestro"
-          MAESTRO_VERSION=2.0.10 bash "$RUNNER_TEMP/install-maestro"
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
       - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
         id: engine
         with:
           path: third_party/media-engine/out/android
           key: e2e-engine-x86_64-${{ hashFiles('third_party/media-engine/**') }}
       - name: Build the x86_64 media engine
-        if: steps.engine.outputs.cache-hit != 'true'
+        if: steps.app.outputs.cache-hit != 'true' && steps.engine.outputs.cache-hit != 'true'
         run: MEDIA_ENGINE_JOBS=4 third_party/media-engine/build-android.sh --abis x86_64
       - name: Install JavaScript dependencies
+        if: steps.app.outputs.cache-hit != 'true'
         run: |
           npm ci --no-audit --no-fund
           (cd apps/native && npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false)
       - name: Build the debug app with its development-only sign-in
+        if: steps.app.outputs.cache-hit != 'true'
         working-directory: apps/native/android
         env: {PORTICO_DEV_SIGN_IN: '1'}
         run: ./gradlew --no-daemon :app:assembleGoogleDebug -PreactNativeArchitectures=x86_64 -PporticoEmbeddedJs=true

@@ -20,10 +20,41 @@ on:
       e2e_tvos:
         type: boolean
         default: false
+      e2e_remote_build:
+        type: boolean
+        default: false
   workflow_call:
 permissions:
   contents: read
 jobs:
+  remote-test-server-build:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e_remote_build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: main, persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm, cache-dependency-path: 'package-lock.json'}
+      - name: Build main for the isolated remote test server
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/remote-server"
+          git rev-parse HEAD > "$RUNNER_TEMP/remote-server/commit.txt"
+          root="$(openssl pkey -pubin -in trust/hosted-root-public-key.pem -outform DER | tail -c 32 | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
+          tags="$(python3 scripts/release-build-tags.py --capability)"
+          (cd server && go build -tags "$tags" -ldflags "-X github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot=$root" -o "$RUNNER_TEMP/remote-server/portico-server" ./cmd/server)
+          npm ci --no-audit --no-fund
+          npm run build --workspace portico-web
+          cp -a web/dist "$RUNNER_TEMP/remote-server/web"
+          (cd "$RUNNER_TEMP/remote-server" && sha256sum portico-server > SHA256SUMS && tar -czf "$RUNNER_TEMP/remote-server.tar.gz" .)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: remote-test-server-main
+          path: ${{ runner.temp }}/remote-server.tar.gz
+          retention-days: 14
   tvos-pilot:
     if: github.event_name == 'workflow_dispatch' && inputs.e2e_tvos
     uses: ./.github/workflows/e2e-tvos-pilot.yml
