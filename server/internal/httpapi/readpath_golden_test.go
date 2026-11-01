@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -326,11 +327,15 @@ func goldenMatrix(libraries fixture.Libraries, item string) []goldenCase {
 	add("home", "GET", "/v1/home", "")
 	add("content", "GET", "/v1/content?limit=10", "")
 	add("suggestions", "GET", "/v1/suggestions?limit=10", "")
-	for _, row := range []string{"continue", "continue_listening", "ondeck", "recommended", "trending",
-		"recent_" + libraries.Movies, "recent_" + libraries.Shows, "recent_" + libraries.Music, "recent_" + libraries.Books} {
+	// Today's Home rows, and retired IDs that must stay not found.
+	rows := append(append([]string{}, goldenHomeRows...), goldenRetiredHomeRows...)
+	rows = append(rows, "recent_"+libraries.Movies, "recent_"+libraries.Shows, "recent_"+libraries.Music, "recent_"+libraries.Books)
+	for _, row := range rows {
 		add("row:"+row, "GET", "/v1/home/rows/"+row+"?limit=6", "")
 		add("row:"+row+":page2", "GET", "/v1/home/rows/"+row+"?limit=6&start=6", "")
 	}
+	// The personal family pages only by its own children.
+	add("row:for_you", "GET", "/v1/home/rows/for_you?limit=6", "")
 
 	type pivotCase struct{ library, pivot string }
 	pivots := []pivotCase{
@@ -415,6 +420,16 @@ func canonical(body string) string {
 }
 
 const goldenPath = "testdata/readpath_golden.json"
+
+// goldenHomeRows are today's Home row IDs the golden reads, first page and second.
+var goldenHomeRows = []string{"continue", "recommended", "new_on_server", "because_you_watched", "listen_next", "continue_books", "trending_now"}
+
+// goldenRetiredHomeRows are row IDs Home no longer has; they must answer not found.
+var goldenRetiredHomeRows = []string{"continue_listening", "ondeck", "trending"}
+
+func goldenRetiredHomeRow(id string) bool {
+	return slices.Contains(goldenRetiredHomeRows, id) || strings.HasPrefix(id, "recent_")
+}
 
 func TestReadPathGoldenEquivalence(t *testing.T) {
 	if testing.Short() {
@@ -613,10 +628,16 @@ func TestReadPathGoldenEquivalence(t *testing.T) {
 		if strings.HasPrefix(actual.Name, "row:") {
 			rowID := strings.Split(strings.TrimPrefix(actual.Name, "row:"), "/")[0]
 			rowID = strings.TrimSuffix(rowID, ":page2")
-			if rowID != "continue" && rowID != "recommended" {
+			if goldenRetiredHomeRow(rowID) {
 				if actual.Status != 404 || !strings.Contains(actual.Response, `"code":"not_found"`) {
 					t.Errorf("%s: retired route answered %d %s", actual.Name, actual.Status, actual.Response)
 				}
+				continue
+			}
+			// Every current row answers, so a renamed or removed row cannot
+			// leave its cases quietly recording an error.
+			if actual.Status < 200 || actual.Status > 299 {
+				t.Errorf("%s: a current Home row answered %d %s", actual.Name, actual.Status, truncate(actual.Response))
 				continue
 			}
 			if rowID == "recommended" {
