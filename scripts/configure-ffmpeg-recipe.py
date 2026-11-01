@@ -22,7 +22,7 @@ if target == 'linux-arm64':
 if target.startswith('macos'):
     import runpy
     mac_source = runpy.run_path(str(root / 'scripts/macos-ffmpeg-source.py'))
-    flags += ' --enable-videotoolbox --enable-metal --enable-libzvbi'
+    flags += ' --enable-videotoolbox --enable-metal --enable-coreimage --enable-libshaderc --enable-openssl --enable-libzvbi'
     # Extras are built from the pinned source recipes into this private prefix.
     build = recipe / 'build-ffmpeg'
     text = build.read_text()

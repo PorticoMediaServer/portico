@@ -1,4 +1,11 @@
 {
+  "openssl": {
+    "repository": "https://github.com/openssl/openssl.git",
+    "commit": "aae016bfd52fcad2bc9657c2c782cfdf73b1ed5f",
+    "version": "3.6.3",
+    "upstreamTag": "openssl-3.6.3",
+    "upstreamTagObject": "e5c234b0c471a676ae6141d2f157df61eb293477"
+  },
   "soxr": {
     "repository": "https://git.code.sf.net/p/soxr/code",
     "commit": "945b592b70470e29f917f4de89b4281fbbd540c0"

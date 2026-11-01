@@ -60,6 +60,27 @@ source "$CWD/portico-build-macos-zvbi.sh"
 if declare -F portico_time_start >/dev/null; then portico_time_start portico-libdovi; fi
 python3 "$CWD/portico-build-macos-libdovi.py" build --recipe "$CWD" --prefix "$WORKSPACE" \
  --target "${PORTICO_FFMPEG_TARGET:?}" --tools "$CWD/../native-rust-tools"
+# Match pinned Jellyfin builder/scripts.d/25-openssl.sh on native macOS.
+# Static source-built TLS; sources/notices remain in the corresponding archive.
+portico_clone openssl
+git submodule update --init --recursive --depth=1
+python3 - <<'PYOPENSSL'
+from pathlib import Path
+path = Path('Configure')
+text = path.read_text()
+lines = text.splitlines(keepends=True)
+indices = [i for i, line in enumerate(lines) if line.startswith('my @disablables =')]
+if len(indices) != 1 or not lines[indices[0]].rstrip().endswith('('):
+    raise SystemExit('Pinned OpenSSL apps-disable boundary changed')
+i = indices[0]
+lines[i] = lines[i].rstrip('\n') + '"apps",\n'
+path.write_text(''.join(lines))
+PYOPENSSL
+export CFLAGS="${CFLAGS:-} -fno-strict-aliasing"
+./Configure threads zlib no-shared no-tests no-apps no-legacy no-ssl3 \
+ enable-camellia enable-ec enable-srp --prefix="$WORKSPACE" --libdir=lib
+make -j "${PORTICO_BUILD_JOBS:-4}" build_sw
+make install_sw
 portico_clone soxr
 portico_cmake -DWITH_OPENMP=OFF -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 portico_clone fontconfig
