@@ -129,6 +129,16 @@ def ensure_ffmpeg(plan, index=0, component=None):
             result=subprocess.run([path,'-version'],capture_output=True,text=True,check=True,timeout=10)
             print(tool+' '+path+': '+result.stdout.splitlines()[0],flush=True)
 
+def prepare_httpapi_producer(files, directory):
+    consumers={'packages/contracts/test/invitation-producer-contract.test.ts',
+               'packages/contracts/test/reset-producer-contract.test.ts'}
+    if consumers.intersection(files):
+        # Both Node files need the same Go package. Compile once, before their
+        # 120-second execution budgets and before concurrent Node workers start.
+        binary=Path(directory)/'httpapi-producer.test'
+        execute(['go','test','-c','-o',str(binary),'./internal/httpapi'],ROOT/'server')
+        os.environ['PORTICO_HTTPAPI_PRODUCER_BINARY']=str(binary)
+
 def fixture_producers(files, directory):
     producers = [
         ('home-reading-wire.test.ts', 'PORTICO_READING_HOME_FIXTURE_DIR', 'TestHomeReadingSavedDeferredHTTP'),
@@ -157,12 +167,14 @@ def js(plan,component,index=0):
             'node_version':subprocess.check_output(['node','--version'],text=True,timeout=10).strip()}
     raw=[]
     scratch=ROOT/'ci-results/tmp'; scratch.mkdir(parents=True,exist_ok=True)
-    saved = {k:os.environ.get(k) for k in ['PORTICO_READING_HOME_FIXTURE_DIR','PORTICO_CONCURRENCY_DIAGNOSTICS_FIXTURE_DIR','PORTICO_CONSOLE_REGISTRY_FIXTURE_DIR']}
+    saved = {k:os.environ.get(k) for k in ['PORTICO_READING_HOME_FIXTURE_DIR','PORTICO_CONCURRENCY_DIAGNOSTICS_FIXTURE_DIR','PORTICO_CONSOLE_REGISTRY_FIXTURE_DIR','PORTICO_HTTPAPI_PRODUCER_BINARY']}
     try:
         if 'web/test/licences.test.ts' in files: download()
         before=time.monotonic(); execute(['npm','run','build'],ROOT/'packages/contracts')
         record['steps_seconds']['contracts']=time.monotonic()-before
         with tempfile.TemporaryDirectory(prefix='fixtures-',dir=scratch) as directory:
+            before=time.monotonic(); prepare_httpapi_producer(files,directory)
+            record['steps_seconds']['producer_compile']=time.monotonic()-before
             before=time.monotonic(); fixture_producers(files,directory)
             record['steps_seconds']['producers']=time.monotonic()-before
             code=0

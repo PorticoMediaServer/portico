@@ -13,7 +13,10 @@ test('actual reset HTTP producers satisfy generated schemas and client authority
  const directory=mkdtempSync(join(tmpdir(),'portico-reset-contract-'));
  try{
   const path=join(directory,'responses.json');
-  execFileSync('go',['test','./internal/httpapi','-run','^TestResetFileHTTPProducerContractsAndAuthority$','-count=1'],{cwd:fileURLToPath(new URL('../../../server/',import.meta.url)),env:{...process.env,PORTICO_TEST_RESET_RESPONSES:path},timeout:120_000,stdio:'pipe'});
+  const binary=process.env.PORTICO_HTTPAPI_PRODUCER_BINARY;
+  execFileSync(binary??'go',binary
+   ? ['-test.run','^TestResetFileHTTPProducerContractsAndAuthority$','-test.count=1']
+   : ['test','./internal/httpapi','-run','^TestResetFileHTTPProducerContractsAndAuthority$','-count=1'],{cwd:fileURLToPath(new URL('../../../server/',import.meta.url)),env:{...process.env,PORTICO_TEST_RESET_RESPONSES:path},timeout:120_000,stdio:'pipe'});
   const responses=JSON.parse(readFileSync(path,'utf8'));
   for(const mode of ['local','portico']){
    const result=decode('PostAuthOwnerResetVerifyResponse',responses[mode]);
