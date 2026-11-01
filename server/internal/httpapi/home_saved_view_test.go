@@ -108,7 +108,7 @@ func TestHomeSavedBookViewHydratesPublishedEndpoint(t *testing.T) {
 			if err := json.Unmarshal(w.Body.Bytes(), &first); err != nil {
 				t.Fatal(err)
 			}
-			if first.Total != 3 || len(first.Entries) != 2 || first.NextCursor == "" || first.Entries[0].ID != books[2].Public || first.Entries[1].ID != books[1].Public {
+			if rowTotal(first) != 3 || len(first.Entries) != 2 || first.NextCursor == "" || first.Entries[0].ID != books[2].Public || first.Entries[1].ID != books[1].Public {
 				t.Fatalf("first page: %+v", first)
 			}
 			var next catalog.HomeRow
@@ -187,7 +187,7 @@ func TestHomeDynamicGenreRowHydratesPublishedEndpoint(t *testing.T) {
 	path := (&url.URL{Path: genre.Endpoint}).EscapedPath()
 	var hydrated catalog.HomeRow
 	f.call("GET", path, nil, nil, http.StatusOK, &hydrated)
-	if hydrated.ID != genre.ID || hydrated.Total != genre.Total || len(hydrated.Entries) == 0 || hydrated.Entries[0].ID != genre.Entries[0].ID {
+	if hydrated.ID != genre.ID || rowTotal(hydrated) != rowTotal(*genre) || len(hydrated.Entries) == 0 || hydrated.Entries[0].ID != genre.Entries[0].ID {
 		t.Fatalf("published genre row changed on hydration: %+v", hydrated)
 	}
 }

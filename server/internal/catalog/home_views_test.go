@@ -32,7 +32,7 @@ func TestHomeSavedViewKeepsOwnerLibraryAndContinuationFences(t *testing.T) {
 	rowID := homeViewPrefix + made.ResourceID
 	r := HomeRequest{Viewer: Viewer{Profile: actorKey(actor), Fence: "owner", Libraries: []string{"books"}}, RowOrder: []string{rowID}}
 	page, err := s.HomeSingleRow(r, rowID, HomeRowPage{Limit: 2})
-	if err != nil || len(page.Entries) != 2 || page.Total != 3 || page.NextCursor == "" || page.Entries[0].ID != books[0].Public || page.Entries[0].Title != "Alpha (Unabridged)" || page.Entries[1].Title != "Beta: Special Edition" {
+	if err != nil || len(page.Entries) != 2 || rowTotal(page) != 3 || page.NextCursor == "" || page.Entries[0].ID != books[0].Public || page.Entries[0].Title != "Alpha (Unabridged)" || page.Entries[1].Title != "Beta: Special Edition" {
 		t.Fatalf("owner page: %+v %v", page, err)
 	}
 	// The same raw profile ID in a different account or authority is not the
@@ -70,14 +70,14 @@ func TestHomeSavedViewKeepsOwnerLibraryAndContinuationFences(t *testing.T) {
 	restricted := r
 	restricted.Viewer.Restrictions = identity.ContentRestrictions{MaximumAge: &age, BlockUnrated: true}
 	visible, err := s.HomeSingleRow(restricted, rowID, HomeRowPage{Limit: 2})
-	if err != nil || visible.Total != 0 || len(visible.Entries) != 0 {
+	if err != nil || rowTotal(visible) != 0 || len(visible.Entries) != 0 {
 		t.Fatalf("pending ratings did not stay closed: %+v %v", visible, err)
 	}
 	if _, err := s.ClassifyPendingRatings(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	visible, err = s.HomeSingleRow(restricted, rowID, HomeRowPage{Limit: 2})
-	if err != nil || visible.Total != 2 || len(visible.Entries) != 2 || visible.Entries[0].ID != books[0].Public || visible.Entries[1].ID != books[2].Public {
+	if err != nil || rowTotal(visible) != 2 || len(visible.Entries) != 2 || visible.Entries[0].ID != books[0].Public || visible.Entries[1].ID != books[2].Public {
 		t.Fatalf("restriction did not narrow saved query: %+v %v", visible, err)
 	}
 	page, err = s.HomeSingleRow(r, rowID, HomeRowPage{Limit: 2})

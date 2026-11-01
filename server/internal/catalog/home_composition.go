@@ -406,7 +406,7 @@ func (s *Service) homeSpotlight(r HomeRequest) ([]HomeSpotlight, error) {
 	if err != nil {
 		return nil, err
 	}
-	continuation, err := s.homeRowFor(r, homeRowSpec{ID: "continue", Direction: "desc"}, ContentRevision{}, HomeRowPage{Limit: 5}, false)
+	continuation, err := s.homeRowFor(r, homeRowSpec{ID: "continue", Direction: "desc"}, ContentRevision{}, HomeRowPage{Limit: 5}, false, false)
 	if err != nil {
 		return nil, err
 	}

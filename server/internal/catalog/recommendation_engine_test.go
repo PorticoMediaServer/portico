@@ -279,16 +279,16 @@ func TestRecommendationProviderTrendsPolicyExpiryAndLocalMatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, _, total, start, cursor, _, err := s.homeRowIDs(spec, source, HomeRowPage{Limit: 2}, revision, r.ViewerFence, r.Profile)
-	if err != nil || total != 3 || start != 0 || cursor == "" || !reflect.DeepEqual(first, []string{f.items["m1"].Public, f.items["m2"].Public}) {
+	first, _, total, start, cursor, _, err := s.homeRowIDs(spec, source, HomeRowPage{Limit: 2}, revision, r.ViewerFence, r.Profile, true)
+	if err != nil || total == nil || *total != 3 || start != 0 || cursor == "" || !reflect.DeepEqual(first, []string{f.items["m1"].Public, f.items["m2"].Public}) {
 		t.Fatal(first, total, start, cursor, err)
 	}
-	next, _, nextTotal, nextStart, exhausted, _, err := s.homeRowIDs(spec, source, HomeRowPage{Limit: 2, Cursor: cursor}, revision, r.ViewerFence, r.Profile)
-	if err != nil || nextTotal != 3 || nextStart != 2 || exhausted != "" || !reflect.DeepEqual(next, []string{f.items["m3"].Public}) {
+	next, _, nextTotal, nextStart, exhausted, _, err := s.homeRowIDs(spec, source, HomeRowPage{Limit: 2, Cursor: cursor}, revision, r.ViewerFence, r.Profile, true)
+	if err != nil || nextTotal == nil || *nextTotal != 3 || nextStart != 2 || exhausted != "" || !reflect.DeepEqual(next, []string{f.items["m3"].Public}) {
 		t.Fatal(next, nextTotal, nextStart, exhausted, err)
 	}
 	weekly, err := s.HomeSingleRow(r, "trending_now", HomeRowPage{Limit: 2})
-	if err != nil || weekly.Total != 0 || len(weekly.Entries) != 0 || weekly.NextCursor != "" {
+	if err != nil || rowTotal(weekly) != 0 || len(weekly.Entries) != 0 || weekly.NextCursor != "" {
 		t.Fatal("provider feed invented genuine weekly Home activity", weekly, err)
 	}
 	for _, mutation := range []string{`UPDATE screen_metadata_consent SET confirmed=0`, `UPDATE screen_metadata_policies SET enabled=0`, `UPDATE screen_metadata_policies SET providers='["tvdb"]'`, `UPDATE metadata_discovery_items SET expires_at='2020-01-01T00:00:00Z'`, `UPDATE metadata_discovery_items SET fetched_at='2020-01-01T00:00:00Z',expires_at='2099-01-01T00:00:00Z'`} {
@@ -411,14 +411,14 @@ func TestRecommendationLargeCatalogRetrievalAndStablePaging(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Total != 1 || len(got.Entries) != 1 || got.Entries[0].ID != f.items["m2"].Public {
+	if rowTotal(got) != 1 || len(got.Entries) != 1 || got.Entries[0].ID != f.items["m2"].Public {
 		t.Fatal("old relevant candidate excluded or irrelevant works used as filler", got.Total, got.Entries)
 	}
 	r.Profile, r.Viewer.Profile = "cold", "cold"
 	got, err = s.HomeSingleRow(r, "recommended", HomeRowPage{Limit: 12})
 	// A new profile gets the best-rated titles (a cold start, ranked by
 	// quality), paged stably.
-	if err != nil || got.Total < 24 || len(got.Entries) != 12 {
+	if err != nil || rowTotal(got) < 24 || len(got.Entries) != 12 {
 		t.Fatal(got.Total, err)
 	}
 	again, err := s.HomeSingleRow(r, "recommended", HomeRowPage{Limit: 12})
@@ -431,7 +431,7 @@ func TestRecommendationLargeCatalogRetrievalAndStablePaging(t *testing.T) {
 		t.Fatal("unstable first page")
 	}
 	next, err := s.HomeSingleRow(r, "recommended", HomeRowPage{Limit: 12, Cursor: got.NextCursor})
-	if err != nil || next.Total != got.Total || next.Start != 12 {
+	if err != nil || rowTotal(next) != rowTotal(got) || next.Start != 12 {
 		t.Fatal(next, err)
 	}
 	seen := map[string]bool{}
@@ -447,7 +447,7 @@ func TestRecommendationLargeCatalogRetrievalAndStablePaging(t *testing.T) {
 	r.Profile, r.Viewer.Profile = "p", "p"
 	r.Viewer.Restrictions = identity.ContentRestrictions{BlockedLabels: []string{"adult"}}
 	got, err = s.HomeSingleRow(r, "recommended", HomeRowPage{Limit: 12})
-	if err != nil || got.Total != 0 {
+	if err != nil || rowTotal(got) != 0 {
 		t.Fatal("restricted candidate escaped large-catalog scorer", got, err)
 	}
 }

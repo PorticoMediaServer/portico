@@ -98,7 +98,7 @@ func TestContinueListeningLargeHistoryLatency(t *testing.T) {
 	var cursor string
 	measure("listen_next first page", func() error {
 		row, err := s.HomeSingleRow(r, "listen_next", HomeRowPage{Limit: 12})
-		if err == nil && (row.Total != 2 || len(row.Entries) != 2 || row.HasMore || row.NextCursor != "") {
+		if err == nil && (rowTotal(row) != 2 || len(row.Entries) != 2 || row.HasMore || row.NextCursor != "") {
 			err = fmt.Errorf("row total %d entries %d", row.Total, len(row.Entries))
 		}
 		cursor = row.NextCursor

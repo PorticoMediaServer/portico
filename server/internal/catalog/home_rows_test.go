@@ -313,7 +313,7 @@ func TestHomeContinueAcrossSeasons(t *testing.T) {
 	homeWatched(t, db, "p", "2026-09-04T00:00:00.000Z", "e201", "e202")
 	settleCompact(t, db)
 	row, e = service.HomeSingleRow(homeRequestFixture("tv"), "continue", HomeRowPage{})
-	if e != nil || len(row.Entries) != 0 || row.Total != 0 {
+	if e != nil || len(row.Entries) != 0 || rowTotal(row) != 0 {
 		t.Fatal("finished show still on deck", row.Entries, e)
 	}
 }
@@ -438,7 +438,7 @@ func TestHomeContinueOwnerMaximumCapsBeforePaging(t *testing.T) {
 	homeExec(t, db, `INSERT INTO admin_documents(scope,revision,body,updated_ms) VALUES('library:movies',2,'{"continueWatching":{"weeks":16,"maximumItems":2,"includeSeasonPremieres":true}}',0)`)
 	settleCompact(t, db)
 	row, err := s.HomeSingleRow(homeRequestFixture("movies"), "continue", HomeRowPage{Limit: 1})
-	if err != nil || row.Total != 2 || len(row.Entries) != 1 || row.Entries[0].ID != homeItem(t, db, "m5").Public || row.NextCursor == "" {
+	if err != nil || rowTotal(row) != 2 || len(row.Entries) != 1 || row.Entries[0].ID != homeItem(t, db, "m5").Public || row.NextCursor == "" {
 		t.Fatalf("owner maximum did not cap the row before paging: %+v %v", row, err)
 	}
 }
@@ -467,7 +467,7 @@ func TestHomeContinueExpandsPastHiddenRecentShows(t *testing.T) {
 	r.Viewer.Restrictions = restrictionOf(ceiling(13), false)
 	settleCompact(t, db)
 	row, err := s.HomeSingleRow(r, "continue", HomeRowPage{Limit: 2})
-	if err != nil || row.Total != 2 || len(row.Entries) != 2 || row.Entries[0].ID != homeItem(t, db, "extra-episode-1").Public || row.Entries[1].ID != homeItem(t, db, "extra-episode-0").Public {
+	if err != nil || rowTotal(row) != 2 || len(row.Entries) != 2 || row.Entries[0].ID != homeItem(t, db, "extra-episode-1").Public || row.Entries[1].ID != homeItem(t, db, "extra-episode-0").Public {
 		t.Fatalf("a hidden recent show consumed the owner cap: %+v %v", row, err)
 	}
 }
@@ -556,7 +556,7 @@ func TestHomeRowPagingAnchorAfterPublication(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(row.Entries) != 2 || row.Entries[0].ID != homeItem(t, db, "m5").Public || row.Entries[1].ID != homeItem(t, db, "m4").Public || row.Total != 5 || row.NextCursor == "" {
+	if len(row.Entries) != 2 || row.Entries[0].ID != homeItem(t, db, "m5").Public || row.Entries[1].ID != homeItem(t, db, "m4").Public || rowTotal(row) != 5 || row.NextCursor == "" {
 		t.Fatal("first page", row.Entries, row.Total, row.NextCursor)
 	}
 	settleCompact(t, db)
@@ -580,7 +580,7 @@ func TestHomeRowPagingAnchorAfterPublication(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if anchored.Start != 3 || anchored.Entries[0].ID != homeItem(t, db, "m3").Public || anchored.Total != 6 {
+	if anchored.Start != 3 || anchored.Entries[0].ID != homeItem(t, db, "m3").Public || rowTotal(anchored) != 6 {
 		t.Fatal("anchor did not re-resolve after publication", anchored.Start, anchored.Entries, anchored.Total)
 	}
 	settleCompact(t, db)
@@ -743,7 +743,7 @@ func TestHomeListenNextGroupsResumesAcrossLibraries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.Total != 3 || len(row.Entries) != 3 || row.Entries[0].ID != album1.Public || row.Entries[1].ID != album2.Public || row.Entries[2].ID != homeItem(t, db, "book").Public {
+	if rowTotal(row) != 3 || len(row.Entries) != 3 || row.Entries[0].ID != album1.Public || row.Entries[1].ID != album2.Public || row.Entries[2].ID != homeItem(t, db, "book").Public {
 		t.Fatalf("resume containers/order: %+v", row)
 	}
 	if _, err = s.HomeSingleRow(r, "continue_listening", HomeRowPage{}); !errors.Is(err, ErrHomeRowUnknown) {
@@ -798,13 +798,13 @@ func TestHomeContinueWalksStartedShowsInSlices(t *testing.T) {
 	homeExec(t, db, `INSERT INTO admin_documents(scope,revision,body,updated_ms) VALUES('library:tv',2,'{"continueWatching":{"weeks":16,"maximumItems":2,"includeSeasonPremieres":true}}',0)`)
 	settleCompact(t, db)
 	row, err := s.HomeSingleRow(homeRequestFixture("tv"), "continue", HomeRowPage{Limit: 5})
-	if err != nil || row.Total != 2 || len(row.Entries) != 2 || row.Entries[0].ID != homeItem(t, db, "walk-episode-04").Public || row.Entries[1].ID != homeItem(t, db, "walk-episode-03").Public {
+	if err != nil || rowTotal(row) != 2 || len(row.Entries) != 2 || row.Entries[0].ID != homeItem(t, db, "walk-episode-04").Public || row.Entries[1].ID != homeItem(t, db, "walk-episode-03").Public {
 		t.Fatalf("slice walk did not reach the older open shows: %+v %v", row, err)
 	}
 	homeExec(t, db, `UPDATE admin_documents SET body='{"continueWatching":{"weeks":16,"maximumItems":40,"includeSeasonPremieres":true}}' WHERE scope='library:tv'`)
 	settleCompact(t, db)
 	row, err = s.HomeSingleRow(homeRequestFixture("tv"), "continue", HomeRowPage{Limit: 40})
-	if err != nil || row.Total != 5 || row.Entries[0].ID != homeItem(t, db, "walk-episode-04").Public || row.Entries[4].ID != homeItem(t, db, "walk-episode-00").Public {
+	if err != nil || rowTotal(row) != 5 || row.Entries[0].ID != homeItem(t, db, "walk-episode-04").Public || row.Entries[4].ID != homeItem(t, db, "walk-episode-00").Public {
 		t.Fatalf("exhausted walk: %+v %v", row, err)
 	}
 }
@@ -831,7 +831,7 @@ func TestHomeRecentShelfPagesTheFullSourceNewestFirst(t *testing.T) {
 	r := homeRequestFixture("movies")
 	settleCompact(t, db)
 	row, err := s.HomeSingleRow(r, "new_on_server", HomeRowPage{Limit: 12})
-	if err != nil || row.Total != 155 || row.Entries[0].ID != homeItem(t, db, "new150").Public || row.Entries[1].ID != homeItem(t, db, "new149").Public {
+	if err != nil || rowTotal(row) != 155 || row.Entries[0].ID != homeItem(t, db, "new150").Public || row.Entries[1].ID != homeItem(t, db, "new149").Public {
 		t.Fatalf("open shelf: total %d first %v: %v", row.Total, row.Entries[:2], err)
 	}
 	r.Restrictions = identity.ContentRestrictions{BlockedLabels: []string{"adult"}}

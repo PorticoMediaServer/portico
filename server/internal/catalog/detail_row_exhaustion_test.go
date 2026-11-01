@@ -43,7 +43,7 @@ func TestDetailRowsCursorExhaustionStableRevision(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if page.Total != 537 {
+		if rowTotal(page) != 537 {
 			t.Fatalf("eligible total %d", page.Total)
 		}
 		if cursor == "" {

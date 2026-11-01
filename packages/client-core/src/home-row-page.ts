@@ -17,6 +17,7 @@ export type HomeRowPageSnapshot = Readonly<{
   /** The first page's row: title, titleText, kind, artwork shape. */
   row?: HomeRow;
   entries: readonly ContentEntry[];
+  /** The row's length; the row endpoint always sends it. */
   total: number;
   nextCursor: string;
   /** A next page is being read. */
@@ -58,7 +59,7 @@ export class HomeRowPager {
     try {
       const row = await fetchHomeRow(this.api, this.rowId, {limit: this.limit}, controller.signal);
       if (mine !== this.generation) return;
-      this.publish({phase: 'ready', row, entries: row.entries, total: row.total, nextCursor: row.nextCursor});
+      this.publish({phase: 'ready', row, entries: row.entries, total: row.total ?? row.entries.length, nextCursor: row.nextCursor});
     } catch (e) {
       if (mine !== this.generation || controller.signal.aborted) return;
       this.publish({phase: 'error', error: e});
@@ -107,7 +108,7 @@ export class HomeRowPager {
     if (!current() || this.state.phase !== 'ready' || this.state.paging) return;
     const entries = mergeRevalidatedList(this.state.entries, fresh, e => e.id, {complete: hasFencedHomeMembership(this.rowId) || !cursor, same: (a, b) => JSON.stringify(a) === JSON.stringify(b)});
     const keptTail = entries.length > fresh.length;
-    this.publish({row, entries: entries === this.state.entries ? entries : Object.freeze([...entries]), total: row.total, nextCursor: keptTail ? this.state.nextCursor : cursor});
+    this.publish({row, entries: entries === this.state.entries ? entries : Object.freeze([...entries]), total: row.total ?? entries.length, nextCursor: keptTail ? this.state.nextCursor : cursor});
   }
   /** The next page, once per cursor. A stale cursor restarts from the first page. */
   async more(): Promise<void> {
@@ -122,7 +123,7 @@ export class HomeRowPager {
       const entries = [...this.state.entries, ...page.entries.filter(e => !seen.has(e.id))];
       if(page.nextCursor===cursor)throw Object.assign(new Error('The row cursor did not advance.'),{code:'nonprogressing_cursor'});
       this.appendEpoch++;
-      this.publish({entries: Object.freeze(entries), total: page.total, nextCursor: page.nextCursor, paging: false});
+      this.publish({entries: Object.freeze(entries), total: page.total ?? entries.length, nextCursor: page.nextCursor, paging: false});
     } catch (e) {
       if (mine !== this.generation) return;
       if (codeOf(e) === 'stale_continuation' || codeOf(e) === 'invalid_cursor') { await this.load(true); return; }

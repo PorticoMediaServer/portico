@@ -41,7 +41,7 @@ func TestHomeReadingSavedViewAndPickerProjection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if page.Total != 4 || len(page.Entries) != 2 || page.NextCursor == "" {
+			if rowTotal(page) != 4 || len(page.Entries) != 2 || page.NextCursor == "" {
 				t.Fatalf("first page %+v", page)
 			}
 			next, err := s.HomeSingleRow(request, rowID, HomeRowPage{Limit: 2, Cursor: page.NextCursor})
@@ -65,7 +65,7 @@ func TestHomeReadingSavedViewAndPickerProjection(t *testing.T) {
 			restricted := request
 			restricted.Viewer.Restrictions = identity.ContentRestrictions{BlockUnrated: true}
 			filtered, err := s.HomeSingleRow(restricted, rowID, HomeRowPage{Limit: 2})
-			if err != nil || filtered.Total != 0 {
+			if err != nil || rowTotal(filtered) != 0 {
 				t.Fatalf("restriction revocation %+v %v", filtered, err)
 			}
 			foreign := request

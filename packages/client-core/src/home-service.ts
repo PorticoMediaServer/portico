@@ -791,7 +791,7 @@ export class HomeService {
     const rows = before.rows.map(row => {
       if (!row.entries.some(e => e.id === entryId)) return row;
       touched = true;
-      return Object.freeze({...row, entries: Object.freeze(row.entries.filter(e => e.id !== entryId)), total: Math.max(0, row.total - 1)});
+      return Object.freeze({...row, entries: Object.freeze(row.entries.filter(e => e.id !== entryId)), ...(row.total !== undefined ? {total: Math.max(0, row.total - 1)} : {})});
     });
     if (!touched) return () => {};
     const after = Object.freeze({...before, rows: Object.freeze(rows)});
