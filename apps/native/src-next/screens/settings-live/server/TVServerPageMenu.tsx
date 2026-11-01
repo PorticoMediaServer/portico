@@ -25,6 +25,8 @@ const administratorPages: ReadonlySet<TVServerPage> = new Set(['dashboard', 'peo
 
 /** Only pages with a real mounted reader enter the menu. Admission is still
  * checked by route composition; this list never grants a reader authority. */
+const MENU_RING_ROOM = 12;
+
 export function TVServerPageMenu({role, page, serverName, runtime, column, rows, rail, onLayout, onSelect}: {
   role: 'owner' | 'administrator'; page: TVServerPage; serverName: string;
   runtime: NativeShellRuntime; column: string; rows: string; rail: string;
@@ -35,7 +37,9 @@ export function TVServerPageMenu({role, page, serverName, runtime, column, rows,
   return <View style={{width: 480, flexShrink: 0}}>
     <Text accessibilityRole="header" style={[shellType(44, 800), {color: theme.colors.text, marginLeft: 20, marginBottom: 24}]}>{t('next.shell.serverSettings')}</Text>
     <ServerHeader serverName={serverName} viewerRole={role} audience={role === 'owner' ? 'owner' : 'administrators'} variant="group" style={{padding: 20}}/>
-    <ScrollView style={{flex: 1}} contentContainerStyle={{paddingHorizontal: 16, paddingBottom: 24}}><FocusRegion id={column} entry={page} orientation="vertical" edges={{left: rail, right: rows}} onLayout={onLayout}>
+    {/* Room above the first page too, so its focus ring is not cut by the list's top edge
+        (it already has room at the sides and bottom); the list does not move. */}
+    <ScrollView style={{flex: 1, marginTop: -MENU_RING_ROOM}} contentContainerStyle={{paddingHorizontal: 16, paddingTop: MENU_RING_ROOM, paddingBottom: 24}}><FocusRegion id={column} entry={page} orientation="vertical" edges={{left: rail, right: rows}} onLayout={onLayout}>
       {tvServerPageOrder.filter(id => role === 'owner' || administratorPages.has(id)).map(tvServerPageDefinition).map(item => <Focusable key={item.id} focusId={item.id} testID={`server-page-${item.id}`} focusKind="row" accessibilityRole="button" accessibilityLabel={t(item.label)} accessibilityState={{selected: page === item.id}}
         onFocus={() => {if (page !== item.id) onSelect(item.id);}} onPress={() => onSelect(item.id)} style={{minHeight: 56, paddingHorizontal: 20, borderRadius: 14, backgroundColor: page === item.id ? `${theme.colors.accent}29` : 'transparent', flexDirection: 'row', alignItems: 'center', gap: 16}}>
         {page === item.id && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 14, bottom: 14, width: 4, borderRadius: 2, backgroundColor: theme.colors.accent}}/>}
