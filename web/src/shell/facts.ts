@@ -53,7 +53,7 @@ const answered: InterestOutcome = {kind: 'answered'};
 export function createShellFactOwner(o: Readonly<{
   api: HttpLocalApi; session(): LocalSession; auth: LocalSessionRefresher; preferences: PreferencesReader;
   home: HomeService; libraryRouteProof?: LibraryRouteProofOwner; hub: FreshnessHub; initial: ShellFacts; witnesses: ShellFactWitnesses;
-  isCurrent(): boolean; retire(): void; readonlyAccess?: boolean;
+  isCurrent(): boolean; retire(): void;
 }>) {
   const source = createShellFactsSource(o.initial), admitted = o.session(), initial = o.witnesses;
   let closed = false, retained = false, confirmedGuide = initial.guide;
@@ -166,7 +166,7 @@ export function createShellFactOwner(o: Readonly<{
       directProjection = {snapshot, session: captured}; members.invalidate(); return answered;
     } catch (error) {return failed(error);}
   }, true);
-  const permission = o.readonlyAccess ? undefined : add('permission-authority', [dependsOn.list('members')], async context => {
+  const permission = add('permission-authority', [dependsOn.list('members')], async context => {
     const result = await o.auth.reconcilePermissions({signal: context.signal});
     switch (result.kind) {
       case 'confirmed-unchanged': return answered;
@@ -189,7 +189,7 @@ export function createShellFactOwner(o: Readonly<{
     if (!current()) return;
     if (group === 'directory') o.libraryRouteProof?.invalidate();
     if (group === 'members' || group === 'server') o.libraryRouteProof?.invalidateHome();
-    if (group === 'members') {direct.invalidate(); permission?.invalidate();} else groups[group].invalidate();
+    if (group === 'members') {direct.invalidate(); permission.invalidate();} else groups[group].invalidate();
     if (group === 'members' || group === 'directory' || group === 'server') homeAuthority.invalidate();
   };
   return {
@@ -197,8 +197,8 @@ export function createShellFactOwner(o: Readonly<{
     observeDirect: (snapshot: DirectSnapshot) => {acceptDirect(snapshot);},
     preferences: () => o.hub.note(dependsOn.settings('preferences')),
     authority: () => {o.libraryRouteProof?.invalidateHome(); homeAuthority.invalidate();},
-    all() {if (!current()) return; for (const group of ['directory', 'server', 'members', 'liveSources', 'libraryChannels'] as const) request(group); preferences.invalidate(); direct.invalidate(); permission?.invalidate(); homeAuthority.invalidate();},
-    setRetained(value: boolean) {if (closed || retained === value) return; retained = value; for (const interest of [homeAuthority, direct, permission]) interest?.setRetained(value);},
+    all() {if (!current()) return; for (const group of ['directory', 'server', 'members', 'liveSources', 'libraryChannels'] as const) request(group); preferences.invalidate(); direct.invalidate(); permission.invalidate(); homeAuthority.invalidate();},
+    setRetained(value: boolean) {if (closed || retained === value) return; retained = value; for (const interest of [homeAuthority, direct, permission]) interest.setRetained(value);},
     dispose() {if (closed) return; closed = true; directProjection = undefined; for (const interest of interests) interest.dispose(); source.dispose();},
   };
 }

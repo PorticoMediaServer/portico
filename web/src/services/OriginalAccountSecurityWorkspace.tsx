@@ -2,7 +2,6 @@ import {useLayoutEffect, useRef, useState, type ReactNode} from 'react';
 import {CredentialSessionService, type CredentialRecord} from '@core/index.ts';
 import {parseBrowserCredentialRecord, type BrowserCredentialAuthority} from '@core/credential-format.ts';
 import {HostedAccountClient} from '@core/hosted-security.ts';
-import {selectedViewerRecord} from '@core/viewer-selection.ts';
 import {BrowserAccountApi} from '../platform/account';
 import type {OriginalProviderSecurity} from '../platform/account-security';
 import {OriginalAccountSecurityContext} from '../platform/account-security-context';
@@ -45,34 +44,15 @@ export function OriginalAccountSecurityWorkspace({proof, children, onRetired}: {
   const retired = useRef(onRetired);retired.current=onRetired;
   const [page, setPage] = useState<ReactNode>(), [error, setError] = useState<unknown>();
   useLayoutEffect(() => {
-    const life = new AbortController(); let retire: (() => void) | undefined, offRoute: (() => void) | undefined;
+    const life = new AbortController();
     const moved = () => {if (!life.signal.aborted && !proof.current()) retired.current();};
     addEventListener('popstate',moved);
     const current = () => !life.signal.aborted && proof.current();
     void (async () => {
-      if (!proof.original.server) {
-        const account = await hostedReadView(proof, life.signal);
-        if (current()) setPage(<AccountPage account={account} session={proof.original.session} section="security"/>);
-        return;
-      }
-      const original = proof.original.server, origin = proof.pending.prepare?.origin;
-      if (!origin) ended();
-      const [app, shell, assembly, routes] = await Promise.all([import('../App'), import('../shell/bootstrap'), import('../shell/assembly'), import('../router')]);
-      life.signal.throwIfAborted();
-      const bootstrap = new shell.ShellBootstrap(assembly.assembleShellBindings, {
-        selected: {read: async () => proof.withUIRead(async () => selectedViewerRecord(origin, original.session), life.signal)},
-        restore: async expected => {
-          if (JSON.stringify(expected) !== JSON.stringify(selectedViewerRecord(origin, original.session).session)) ended();
-          return proof.openServerUI(life.signal);
-        },
-        readonlyAccess: true,
-      });
-      offRoute=routes.router.subscribe('onBeforeNavigate',event=>{if(!proof.acceptsUIURL(event.toLocation.href))retired.current();});
-      retire = bootstrap.dispose;
-      if (!current()) {retire();return;}
-      setPage(<app.App bootstrap={bootstrap}/>);
+      const account = await hostedReadView(proof, life.signal);
+      if (current()) setPage(<AccountPage account={account} session={proof.original.session} section="security"/>);
     })().catch(value => {if (!life.signal.aborted) setError(value);});
-    return () => {life.abort();removeEventListener('popstate',moved);offRoute?.();retire?.();};
+    return () => {life.abort();removeEventListener('popstate',moved);};
   }, [proof]);
   return <OriginalAccountSecurityContext value={proof}>
     {page ?? <ServicesAuthStage>{error ? <HostedError error={error}/> : null}</ServicesAuthStage>}

@@ -8,7 +8,7 @@ import type {ServicesLinkStore} from '../src/services/intake.ts';
 test('web.getportico.tv starts the Services entry only to capture a link (H14)', async () => {
   const page = (pathname: string, search = '', hash = '') => ({pathname, search, hash});
   for (const [path, search, hash] of [['/claim', '', '#code=x'], ['/join', '?code=abc', ''], ['/join', '', '#abc'], ['/reset', '?token=x', ''], ['/reset-password', '', '#t'], ['/verify-email', '?token=x', ''], ['/device', '?code=ABCD', ''],
-    ['/account', '?securityIntent=x', ''], ['/account', '?identityTransaction=x', ''], ['/app/account-return', '', ''], ['/', '', '#signIn=abc'], ['/', '', '#join'], ['/', '?mode=forgot', ''], ['/', '?identityError=google', ''], ['/servers', '', '#signIn=abc']] as const)
+    ['/account', '?identityTransaction=x', ''], ['/app/account-return', '', ''], ['/', '', '#signIn=abc'], ['/', '', '#join'], ['/', '?mode=forgot', ''], ['/', '?identityError=google', ''], ['/servers', '', '#signIn=abc']] as const)
     assert.equal(await hostedServicesPage(page(path, search, hash)), true, path + search + hash);
   for (const [path, search] of [['/', ''], ['/account', ''], ['/account', '?tab=security'], ['/device', ''], ['/join', ''], ['/sign-in', ''], ['/sign-in', '?x=1'], ['/welcome', ''], ['/servers', ''], ['/settings', ''], ['/item/x', ''], ['/profiles', '']] as const)
     assert.equal(await hostedServicesPage(page(path, search)), false, path + search);

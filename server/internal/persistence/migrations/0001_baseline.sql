@@ -10790,39 +10790,6 @@ BEGIN SELECT RAISE(ABORT,'private disc subtitle is still retained'); END;
 CREATE TRIGGER playback_disc_subtitle_resource_retire AFTER DELETE ON playback_disc_subtitle_resources
 BEGIN UPDATE subtitle_resources SET deleted=1 WHERE id=OLD.resource_id AND scope='personal'; END;
 
--- Closed provider Security return openings. No credentials or sign-in grants.
-CREATE TABLE identity_security_return_openings(
- operation_id TEXT PRIMARY KEY,
- actor_binding TEXT NOT NULL CHECK(length(actor_binding)=43),
- request_hash TEXT NOT NULL CHECK(length(request_hash)=43),
- opening_id TEXT NOT NULL,
- task_id TEXT NOT NULL,
- phase TEXT NOT NULL CHECK(phase IN('prepared','confirmed','cancelled')),
- payload TEXT NOT NULL,
- signature TEXT NOT NULL,
- expires_ms INTEGER NOT NULL,
- transaction_id TEXT NOT NULL DEFAULT '',
- code_digest TEXT NOT NULL DEFAULT '',
- confirmation_payload TEXT NOT NULL DEFAULT '',
- confirmation_signature TEXT NOT NULL DEFAULT '',
- CHECK(phase<>'prepared' OR (transaction_id='' AND code_digest='' AND confirmation_payload='' AND confirmation_signature='')),
- CHECK(phase<>'confirmed' OR (length(transaction_id)>=20 AND length(code_digest)=43 AND confirmation_payload<>'' AND confirmation_signature<>''))
-) STRICT;
-CREATE INDEX identity_security_return_actor ON identity_security_return_openings(actor_binding,phase);
-CREATE TRIGGER identity_security_return_original_immutable BEFORE UPDATE ON identity_security_return_openings
-WHEN NEW.operation_id<>OLD.operation_id OR NEW.actor_binding<>OLD.actor_binding
- OR NEW.request_hash<>OLD.request_hash OR NEW.opening_id<>OLD.opening_id OR NEW.task_id<>OLD.task_id
- OR NEW.payload<>OLD.payload OR NEW.signature<>OLD.signature OR NEW.expires_ms<>OLD.expires_ms
- OR (OLD.phase='cancelled' AND NEW.phase<>'cancelled')
- OR (OLD.phase='confirmed' AND NEW.phase NOT IN('confirmed','cancelled'))
- OR (OLD.phase<>'prepared' AND (NEW.transaction_id<>OLD.transaction_id OR NEW.code_digest<>OLD.code_digest
-   OR NEW.confirmation_payload<>OLD.confirmation_payload OR NEW.confirmation_signature<>OLD.confirmation_signature))
-BEGIN SELECT RAISE(ABORT,'original Security return cannot be replaced or reopened'); END;
-CREATE TRIGGER identity_security_return_confirmation_complete BEFORE UPDATE ON identity_security_return_openings
-WHEN NEW.phase='confirmed' AND (length(NEW.transaction_id)<20 OR length(NEW.code_digest)<>43
- OR NEW.confirmation_payload='' OR NEW.confirmation_signature='')
-BEGIN SELECT RAISE(ABORT,'Security return confirmation requires its complete original tuple'); END;
-
 -- Reverse FK keys: every foreign-key child column set leads an index (or is a rowid
 -- alias or a partial index whose only exclusion is NULL child values). A parent
 -- delete or cascade otherwise scans the whole child table; PERF-DB-006.

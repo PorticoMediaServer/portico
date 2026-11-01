@@ -32,7 +32,7 @@ async function resumed(mode: 'login' | 'link', store?: HostedOwnerPendingStore) 
       '../platform/account-security': {originalSecurityClient: () => ({transaction: async () => ({mode, status: 'verified'})})},
       './owner-pending': {providerReturnPath, hostedOwnerPendingStore: () => {if (!store) throw new Error('secure_context_required'); return store;}},
     });
-    const render = () => tree(h.render(() => AccountSecurityReturnEntry({arrival: {kind: 'hosted', captured: {kind: 'transaction', transactionId: 'oid_' + 'a'.repeat(43)}}})));
+    const render = () => tree(h.render(() => AccountSecurityReturnEntry({arrival: {kind: 'transaction', transactionId: 'oid_' + 'a'.repeat(43)}})));
     let ordinary: any;
     render(); for (let i = 0; i < 200 && !ordinary; i++) {await new Promise(resolve => setTimeout(resolve, 0)); ordinary = render().find(node => node.type === 'ServicesApp');}
     assert.ok(ordinary, 'the ordinary consumer opens');

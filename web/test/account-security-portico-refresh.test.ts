@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {securityCoordinatorHolds} from '../src/platform/account-security-journal.ts';
-import {captureAccountSecurity} from '../src/platform/account-security.ts';
+import {captureAccountSecurity, securityReturnDeadline} from '../src/platform/account-security.ts';
 import {hostedFixture} from './support/account-security-journal-fixture.ts';
 
 // A Portico Account Security return is bound to the sign-in, not to one stored session: another tab's routine
@@ -51,4 +51,11 @@ test('capturing on a nearly expired token renews it first and gets the whole fiv
   const window = Date.parse(pending.original.expiresAt) - Date.parse(pending.original.createdAt);
   assert.ok(window >= 299000 && window <= 300000, `the whole window: ${window} ms`);
   assert.ok(Date.parse(pending.original.createdAt) >= before - 1000);
+});
+
+test('the return window is five minutes, never past the account session, and an unreadable date ends it', () => {
+  const now = Date.parse('2026-10-31T12:00:00Z');
+  assert.equal(securityReturnDeadline(now, '2026-10-31T13:00:00Z'), now + 300000);
+  assert.equal(securityReturnDeadline(now, '2026-10-31T12:02:00Z'), now + 120000);
+  assert.equal(securityReturnDeadline(now, 'not a date'), now);
 });

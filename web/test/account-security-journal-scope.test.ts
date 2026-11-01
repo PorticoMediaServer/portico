@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createHash, generateKeyPairSync} from 'node:crypto';
 import {AccountSecurityJournal} from '../src/platform/account-security-journal.ts';
 import {clone, hostedFixture, iso} from './support/account-security-journal-fixture.ts';
 
@@ -77,43 +76,4 @@ test('an expired original refuses an ordinary read but is returned for exact cle
   await assert.rejects(journalOf(expired).read());
   const parsed = await journalOf(expired).read(true);
   assert.equal(parsed && 'original' in parsed ? parsed.original.openingId : undefined, f.original.openingId);
-});
-
-// The server variant: a real Ed25519-derived pin whose viewer names it, plus the
-// access/horizon and refresh-credential boundaries. Derived exactly as the signed
-// route tests do; this remains data validation, not accepting authority.
-const keys = generateKeyPairSync('ed25519');
-const rawKey = keys.publicKey.export({format: 'der', type: 'spki'}).subarray(-32);
-const b64 = (value: Buffer | Uint8Array) => Buffer.from(value).toString('base64url');
-const serverId = 'srv_' + b64(createHash('sha256').update('portico.server.identity.v1\0').update(rawKey).digest());
-const pin = {serverId, publicKey: b64(rawKey), fingerprint: b64(createHash('sha256').update(rawKey).digest())};
-const selectionId = 'S'.repeat(32);
-function serverFixture(over: {access?: string; horizon?: string; viewer?: string; refresh?: boolean} = {}) {
-  const localSession: Record<string, unknown> = {
-    accessToken: 'l'.repeat(43), expiresAt: over.access ?? iso(600000),
-    viewer: {accountId: 'acct_server', profileId: 'profile_server', serverId: over.viewer ?? serverId, authority: 'local', role: 'owner'},
-    sessionFamilyId: 'family_server', tokenGeneration: '1', authorizationHorizon: over.horizon ?? iso(3600000),
-  };
-  if (over.refresh) localSession.refreshToken = 'r'.repeat(43);
-  const f = hostedFixture();
-  return {...clone(f.pending), original: {...clone(f.pending).original, kind: 'server-account',
-    server: {revision: 1, selectionId, pin, session: localSession}}};
-}
-
-test('a real key-derived server DTO parses', async () => {
-  const parsed = await journalOf(serverFixture()).read();
-  assert.equal(parsed && 'original' in parsed ? parsed.original.server?.pin.serverId : undefined, serverId);
-});
-
-test('a refresh credential, a pin/viewer mismatch or a horizon refuses', async () => {
-  for (const variant of [serverFixture({refresh: true}), serverFixture({viewer: 'srv_other'}),
-    serverFixture({access: iso(60000), horizon: iso(60000)})]) {
-    await assert.rejects(journalOf(variant).read());
-  }
-});
-
-// Bound to the sign-in, not its token: a server token ending before the return is replaced by a refresh.
-test('a server token that ends before the return does not refuse it', async () => {
-  const parsed = await journalOf(serverFixture({access: iso(60000)})).read();
-  assert.equal(parsed && 'original' in parsed ? parsed.original.server?.pin.serverId : undefined, serverId);
 });

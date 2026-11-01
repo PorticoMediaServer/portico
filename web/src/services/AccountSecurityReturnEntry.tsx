@@ -1,9 +1,8 @@
 import {useLayoutEffect, useRef, useState} from 'react';
 import {DocumentBootReady} from '../shell/DocumentBootReady';
 import {ApiError} from '@core/index.ts';
-import type {CapturedPorticoReturn} from '../platform/portico-return-dispatch';
-import {acceptSecurityReturn, OriginalProviderSecurity, originalSecurityClient, cancelOriginalAccountSecurity} from '../platform/account-security';
-import {browserSecurityJournal, type AccountSecurityPending, type HostedSecurityBridge} from '../platform/account-security-journal';
+import {OriginalProviderSecurity, originalSecurityClient, cancelOriginalAccountSecurity} from '../platform/account-security';
+import {browserSecurityJournal, type AccountSecurityPending} from '../platform/account-security-journal';
 import {ServicesApp} from './ServicesApp';
 import {HostedSecurityTask, SignedOutRecoveryCodes} from './SecurityPanel';
 import {ProviderSecurityFactorFields} from '../screens/settings/account-profile/ProviderSecurityFactorFields';
@@ -13,22 +12,21 @@ import {OriginalAccountSecurityWorkspace} from './OriginalAccountSecurityWorkspa
 import {credentialTaskTitle} from './ProviderSecurityStartDialog';
 import {servicesI18n} from './i18n';
 import {hostedOwnerPendingStore, providerReturnPath} from './owner-pending';
-import {beginHostedSecurityBridge, finishHostedSecurityBridge, cancelHostedSecurityBridge, type HostedSecurityArrival} from './account-security-return';
+import type {HostedSecurityArrival} from './account-security-return';
 
-export type AccountSecurityEntry = Readonly<{kind: 'server'; captured: CapturedPorticoReturn} | {kind: 'hosted'; captured: HostedSecurityArrival}>;
 const invalid = () => new Error('This account security continuation no longer matches its original opening.');
 
 /** This fixed intake renders the original Account Settings credential task.
  * Ordinary app/bootstrap/session renewal starts only after the task is closed.
  * No LocalSession is created, admitted or replaced by a provider Security return. */
-export function AccountSecurityReturnEntry({arrival}: {arrival: AccountSecurityEntry}) {
+export function AccountSecurityReturnEntry({arrival}: {arrival: HostedSecurityArrival}) {
   const {t} = servicesI18n();
   const [pending, setPending] = useState<AccountSecurityPending>(), [proof, setProof] = useState<OriginalProviderSecurity>();
   const [factor, setFactor] = useState(''), [busy, setBusy] = useState(true), [error, setError] = useState<unknown>();
   const [ordinary, setOrdinary] = useState<{identityTransaction?: string; providerReturn?: boolean}>(), [ended, setEnded] = useState<{codes?: readonly string[]}>();
-  type Opening = {live: boolean; mounted: boolean; busy: boolean; closed?: boolean; retired?: boolean; cancelTicket?: symbol; handedOff?: boolean; abort: AbortController; record?: AccountSecurityPending; bridge?: HostedSecurityBridge; retryFactor?: string};
+  type Opening = {live: boolean; mounted: boolean; busy: boolean; closed?: boolean; retired?: boolean; cancelTicket?: symbol; handedOff?: boolean; abort: AbortController; record?: AccountSecurityPending; retryFactor?: string};
   const life = useRef<Opening | undefined>(undefined);
-  const originalDestination = () => arrival.kind === 'server' ? '/settings?scope=account&section=profile' : '/account?tab=security';
+  const originalDestination = () => '/account?tab=security';
   const back = () => location.assign(originalDestination());
   const current = (o: Opening) => life.current === o && o.live && !o.retired && !o.abort.signal.aborted;
   const complete = async (original: Opening, record: AccountSecurityPending, input: string) => {
@@ -58,44 +56,32 @@ export function AccountSecurityReturnEntry({arrival}: {arrival: AccountSecurityE
     const original: Opening = {live: true, mounted: true, busy: true, abort: new AbortController()}; life.current = original;
     void (async () => {
       const signal = original.abort.signal, journal = browserSecurityJournal();
-      if (arrival.kind === 'server') {
-        const record = await acceptSecurityReturn(arrival.captured.href + arrival.captured.fragment, signal, journal, record => {original.record = record;});
-        if (!current(original)) return;
-        original.record = record; setPending(record);
+      const captured = arrival;
+      if (captured.kind === 'invalid') throw invalid();
+      const record = await journal.read(); signal.throwIfAborted();
+      if (record) {
+        if (record.transactionId !== captured.transactionId || record.original.hostedOrigin !== location.origin) throw invalid();
+        const tx = await originalSecurityClient(record.original.hostedOrigin).transaction(captured.transactionId, signal);
+        if (!tx || tx.mode !== 'reauthenticate' || tx.provider !== record.original.provider.provider || !['verified', 'proof_issued'].includes(tx.status)) throw invalid();
+        original.record = record;
+        if (current(original)) setPending(record);
         if (!record.original.state.mfaEnabled) await complete(original, record, '');
       } else {
-        const captured = arrival.captured;
-        if (captured.kind === 'invalid') throw invalid();
-        if (captured.kind === 'begin') {await beginHostedSecurityBridge(captured.intentId, signal, journal, () => {original.handedOff = true;}, record => {original.bridge = record;}); return;}
-        const record = await journal.read(); signal.throwIfAborted();
-        if (record && !('original' in record)) {
-          original.bridge = record;
-          await finishHostedSecurityBridge(record, captured.transactionId, signal, journal, () => {original.handedOff = true;}); return;
-        }
-        if (record && 'original' in record) {
-          if (record.original.kind !== 'hosted-account' || record.transactionId !== captured.transactionId || record.original.hostedOrigin !== location.origin) throw invalid();
-          const tx = await originalSecurityClient(record.original.hostedOrigin).transaction(captured.transactionId, signal);
-          if (!tx || tx.mode !== 'reauthenticate' || tx.securityReturn || tx.provider !== record.original.provider.provider || !['verified', 'proof_issued'].includes(tx.status)) throw invalid();
-          original.record = record;
-          if (current(original)) setPending(record);
-          if (!record.original.state.mfaEnabled) await complete(original, record, '');
-        } else {
-          // Preserve ordinary provider login/link consumers. A missing protected
-          // Security original can never fall through to either grant consumer.
-          const tx = await originalSecurityClient(location.origin).transaction(captured.transactionId, signal);
-          if (!tx || tx.securityReturn || tx.mode === 'reauthenticate') throw invalid();
-          // A sign-in or sign-up that began on a server's claim goes back to that claim.
-          const resume = tx.mode === 'login' ? await providerReturnPath(hostedOwnerPendingStore, location.origin) : undefined;
-          if (current(original)) {
-            // Login callbacks share Hosted's /account callback URL with Security,
-            // but resume the original sign-in/start root (or the claim). Only linking stays here.
-            if (resume) history.replaceState(null, '', resume);
-            setOrdinary(tx.mode === 'link' ? {identityTransaction: captured.transactionId} : {providerReturn: true});
-          }
+        // Preserve ordinary provider login/link consumers. A missing protected
+        // Security original can never fall through to either grant consumer.
+        const tx = await originalSecurityClient(location.origin).transaction(captured.transactionId, signal);
+        if (!tx || tx.mode === 'reauthenticate') throw invalid();
+        // A sign-in or sign-up that began on a server's claim goes back to that claim.
+        const resume = tx.mode === 'login' ? await providerReturnPath(hostedOwnerPendingStore, location.origin) : undefined;
+        if (current(original)) {
+          // Login callbacks share Hosted's /account callback URL with Security,
+          // but resume the original sign-in/start root (or the claim). Only linking stays here.
+          if (resume) history.replaceState(null, '', resume);
+          setOrdinary(tx.mode === 'link' ? {identityTransaction: captured.transactionId} : {providerReturn: true});
         }
       }
     })().catch(value => {if (current(original)) {original.handedOff=false;setError(value);}}).finally(() => {original.busy = false; if (current(original)) setBusy(false);});
-    return () => {original.mounted = false;original.cancelTicket=undefined;original.live = false; original.abort.abort(); if (!original.closed && !original.handedOff) {if (original.record) void cancelOriginalAccountSecurity(original.record).catch(()=>undefined); if (original.bridge) void cancelHostedSecurityBridge(original.bridge).catch(()=>undefined);} if (life.current === original) life.current = undefined;};
+    return () => {original.mounted = false;original.cancelTicket=undefined;original.live = false; original.abort.abort(); if (!original.closed && !original.handedOff) {if (original.record) void cancelOriginalAccountSecurity(original.record).catch(()=>undefined);} if (life.current === original) life.current = undefined;};
   }, [arrival]);
   const cancel = async () => {
     const original = life.current;
@@ -107,7 +93,6 @@ export function AccountSecurityReturnEntry({arrival}: {arrival: AccountSecurityE
     original.closed = true;original.busy = true;original.live = false; original.abort.abort(); setBusy(true);setFactor('');
     try {
       if (original.record) await cancelOriginalAccountSecurity(original.record).catch(() => undefined);
-      if (original.bridge) await cancelHostedSecurityBridge(original.bridge).catch(() => undefined);
       // live=false/abort above deliberately retire the operation, not its page.
       // Only this still-mounted close ticket can navigate that original page.
       if(life.current===original&&original.mounted&&!original.retired&&original.cancelTicket===ticket&&location.href===originalPage)location.assign(destination);

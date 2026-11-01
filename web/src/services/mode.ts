@@ -13,7 +13,7 @@ export async function hostedServicesPage(page: Pick<Location, 'pathname' | 'sear
   if (pathname === '/app/account-return') return true;
   if (pathname === '/') return continuation.test(hash) || query.has('mode') || query.has('identityError');
   if (hash.startsWith('#signIn=')) return true;
-  if (pathname === '/account') return query.has('securityIntent') || query.has('identityTransaction') || query.has('identityError');
+  if (pathname === '/account') return query.has('identityTransaction') || query.has('identityError');
   if (pathname === '/sign-in') return false;
   return (servicesPaths as readonly string[]).includes(pathname) && Boolean(search || hash);
 }

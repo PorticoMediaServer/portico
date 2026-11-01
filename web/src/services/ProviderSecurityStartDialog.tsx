@@ -7,7 +7,7 @@ import type {AccountIdentity, ServicesAccount} from './session';
 import {servicesI18n} from './i18n';
 import type {HostedSecurityTaskKind} from './SecurityPanel';
 import {ProviderSecurityPrepareFields} from '../screens/settings/account-profile/ProviderSecurityPrepareFields';
-import {captureAccountSecurity, leaveForSecurityProvider, cancelOriginalAccountSecurity, type AccountSecurityServerScope} from '../platform/account-security';
+import {captureAccountSecurity, leaveForSecurityProvider, cancelOriginalAccountSecurity} from '../platform/account-security';
 import {browserSecurityJournal, type AccountSecurityPending} from '../platform/account-security-journal';
 import styles from './services.module.css';
 
@@ -18,9 +18,9 @@ export function credentialTaskTitle(task: HostedSecurityTaskKind, hasPassword = 
 
 /** Existing Account Settings owns this dialog. Only the selected provider and
  * original credential task cross the whole-tab navigation in protected storage. */
-export function ProviderSecurityStartDialog({account, identity, state, task, enabledProviders, onClose, isCurrent, server}: {
+export function ProviderSecurityStartDialog({account, identity, state, task, enabledProviders, onClose, isCurrent}: {
   account: ServicesAccount; identity: AccountIdentity; state: SecurityState; task: HostedSecurityTaskKind;
-  enabledProviders: readonly IdentityProvider[]; onClose: () => void; isCurrent: () => boolean; server?: AccountSecurityServerScope;
+  enabledProviders: readonly IdentityProvider[]; onClose: () => void; isCurrent: () => boolean;
 }) {
   const {t} = servicesI18n(), [email, setEmail] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>();
   type Opening = {live: boolean; busy: boolean; leaving?: boolean; record?: AccountSecurityPending};
@@ -28,7 +28,7 @@ export function ProviderSecurityStartDialog({account, identity, state, task, ena
   useLayoutEffect(() => {
     const original: Opening = {live: true, busy: false}; current.current = original;
     return () => {original.live = false; if (!original.leaving && original.record) void cancelOriginalAccountSecurity(original.record).catch(()=>undefined); if (current.current === original) current.current = undefined;};
-  }, [account, identity.accountId, identity.familyId, task, isCurrent, server?.serverId, server?.familyId, server?.accountId, server?.profileId]);
+  }, [account, identity.accountId, identity.familyId, task, isCurrent]);
   const active = (original: Opening) => original.live && current.current === original && isCurrent();
   const close = async () => {
     const original = current.current;
@@ -50,7 +50,7 @@ export function ProviderSecurityStartDialog({account, identity, state, task, ena
       const journal = browserSecurityJournal();
       // A retry keeps its first selected provider and target. Editing cannot
       // silently create a second operation after an uncertain preparation.
-      const pending = original.record ?? await captureAccountSecurity({account, identity, state, purpose: task, target, providerId, assertCurrent: check, server}, journal);
+      const pending = original.record ?? await captureAccountSecurity({account, identity, state, purpose: task, target, providerId, assertCurrent: check}, journal);
       if (pending.original.provider.id !== providerId || pending.original.intent.target !== target) throw new Error(t('web.link.invalid'));
       original.record = pending;
       await leaveForSecurityProvider(pending, check, journal, () => {original.leaving = true;});

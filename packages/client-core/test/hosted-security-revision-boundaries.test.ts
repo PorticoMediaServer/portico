@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {parseIdentityOptions, parseIdentityTransaction, parseSecurityState} from '../src/hosted-security.ts';
+import {parseIdentityOptions, parseSecurityState} from '../src/hosted-security.ts';
 
 // ACC-LEAF-29: the real provider-revision and closed reauthenticate-marker
 // boundaries of the Hosted response parsers, authored UNRUN. Response data only;
@@ -12,11 +12,6 @@ const state = (over: Record<string, unknown> = {}) => ({
   mfaEnabled: false, recoveryCodesRemaining: 0,
   providers: [{id: 'identity_1', provider: 'google', revision: '7'}], ...over,
 });
-const transaction = (over: Record<string, unknown> = {}) => ({
-  transactionId: 'tx_A', provider: 'google', mode: 'reauthenticate', status: 'started',
-  expiresAt: '2030-01-01T00:00:00Z', contactVerified: false, needsUsername: false, ...over,
-});
-
 test('a real provider revision survives, a missing one stays absent', () => {
   assert.equal(parseSecurityState(state(), scope).providers[0].revision, '7');
   const older = parseSecurityState(state({providers: [{id: 'identity_1', provider: 'google'}]}), scope).providers[0];
@@ -35,15 +30,6 @@ test('a wrong account or family, or a bad provider, refuses', () => {
     assert.throws(() => parseSecurityState(state(), bad));
   }
   assert.throws(() => parseSecurityState(state({providers: [{id: 'identity_1', provider: 'github', revision: '1'}]}), scope));
-});
-
-test('the security-return marker is true only for a reauthenticate transaction', () => {
-  assert.equal(parseIdentityTransaction(transaction({securityReturn: true})).securityReturn, true);
-  assert.equal('securityReturn' in parseIdentityTransaction(transaction({mode: 'login'})), false);
-  for (const variant of [transaction({mode: 'login', securityReturn: true}), transaction({mode: 'link', securityReturn: true}),
-    transaction({securityReturn: 'yes'}), transaction({securityReturn: 1})]) {
-    assert.throws(() => parseIdentityTransaction(variant), JSON.stringify(variant));
-  }
 });
 
 test('the credential-provider capability is preserved exactly and only as a known string', () => {

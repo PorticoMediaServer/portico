@@ -429,7 +429,6 @@ index identity_refresh_device
 index identity_refresh_predecessors_family
 index identity_refresh_receipts_expiry
 index identity_refresh_receipts_family
-index identity_security_return_actor
 index identity_setup_one_active
 index identity_unknown_attempts_age
 index integration_ids_expiry
@@ -1306,7 +1305,6 @@ table identity_recovery_codes
 table identity_refresh_credentials
 table identity_refresh_predecessors
 table identity_refresh_receipts
-table identity_security_return_openings
 table identity_service_outbox
 table identity_setup_completions
 table identity_sign_in_policy
@@ -2894,8 +2892,6 @@ trigger identity_local_no_portico_link_update
 trigger identity_portico_no_password_insert
 trigger identity_portico_no_password_update
 trigger identity_restrictions_revision
-trigger identity_security_return_confirmation_complete
-trigger identity_security_return_original_immutable
 trigger identity_server_short_invitation_deleted
 trigger identity_server_short_invitation_retire
 trigger inventory_availability_object
