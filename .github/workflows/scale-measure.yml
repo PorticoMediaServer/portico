@@ -199,7 +199,7 @@ jobs:
   cached-http:
     if: ${{ contains(github.event.head_commit.message, 'cached profile activity') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -220,9 +220,10 @@ jobs:
           PORTICO_FIXTURE_SEED_HASH: ${{ hashFiles('server/internal/httpapi/fixture/**', 'server/internal/compactcatalog/**', 'server/internal/persistence/**', 'server/internal/dbwork/**', 'server/go.sum') }}
           TMPDIR: ${{ runner.temp }}/scale-cache
           PORTICO_REQUIRE_SCALE_SEED: 1
+          PORTICO_SCALE_HOME_ROWS: 1
           PORTICO_SCALE_MODE: ${{ matrix.mode }}
           PORTICO_SCALE_REPORT: ${{ runner.temp }}/reports
-        run: go test -vet=off ./internal/httpapi -run '^TestServerScaleMeasurement$' -count=1 -v -timeout=15m > "$RUNNER_TEMP/reports/measure.log" 2>&1
+        run: go test -vet=off ./internal/httpapi -run '^TestServerScaleMeasurement$' -count=1 -v -timeout=35m > "$RUNNER_TEMP/reports/measure.log" 2>&1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with: {name: 'cached-scale-${{ matrix.mode }}', path: '${{ runner.temp }}/reports', retention-days: 7}

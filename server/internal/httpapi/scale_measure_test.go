@@ -71,7 +71,7 @@ func (w *scaleWindow) summary() map[string]any {
 		for _, a := range aa {
 			all = append(all, a.Ms)
 			codes[fmt.Sprintf("%d/%s", a.Status, a.Code)]++
-			if a.Status >= 200 && a.Status < 300 {
+			if a.Status >= 200 && a.Status < 300 && a.Code == "" {
 				ok = append(ok, a.Ms)
 			}
 		}
@@ -243,6 +243,16 @@ func TestServerScaleMeasurement(t *testing.T) {
 	defer server.Close()
 	client := server.Client()
 	client.Timeout = 30 * time.Second
+	_, shapeBody := scaleCall(client, server.URL, f.viewers[0].AccessToken, "", "GET", "/v1/home", nil, nil, nil)
+	var shapeDoc catalog.HomeDocument
+	if e := json.Unmarshal(shapeBody, &shapeDoc); e != nil {
+		t.Fatal(e)
+	}
+	shapeRows := []map[string]any{}
+	for _, row := range shapeDoc.Rows {
+		shapeRows = append(shapeRows, map[string]any{"id": row.ID, "deferred": row.Deferred, "endpoint": row.Endpoint, "limit": row.Limit, "entries": len(row.Entries)})
+	}
+	scaleSave(t, "home-shape", map[string]any{"wire": "GET /v1/home serves HomeManifest; row previews are separate HTTP reads", "rows": shapeRows})
 	// Measure each endpoint in isolation before mixed load, preserving every error.
 	isolated := &scaleWindow{Attempts: map[string][]scaleAttempt{}}
 	endpoints := []struct {
@@ -362,7 +372,20 @@ func TestServerScaleMeasurement(t *testing.T) {
 						op := (step + u + round) % 5
 						switch op {
 						case 0:
-							scaleCall(client, server.URL, token, "home", "GET", "/v1/home", nil, nil, w)
+							status, raw := scaleCall(client, server.URL, token, "home", "GET", "/v1/home", nil, nil, w)
+							if os.Getenv("PORTICO_SCALE_HOME_ROWS") == "1" && status == 200 {
+								var doc catalog.HomeDocument
+								if json.Unmarshal(raw, &doc) == nil {
+									for _, row := range doc.Rows {
+										if row.ID != "new_on_server" && row.ID != "recommended" {
+											continue
+										}
+										if row.Endpoint != "" {
+											scaleCall(client, server.URL, token, "home_row/"+row.ID, "GET", row.Endpoint+"?limit=12", nil, nil, w)
+										}
+									}
+								}
+							}
 						case 1:
 							scaleCall(client, server.URL, token, "browse", "POST", "/v1/libraries/fixture-movies/browse", map[string]any{"pivot": "movies", "limit": 40, "sort": []map[string]string{{"field": "title", "direction": "asc"}}}, nil, w)
 						case 2:

@@ -135,14 +135,18 @@ func TestFilesystemScaleMeasurement(t *testing.T) {
 // measurements call the real catalogue service, while the separate HTTP load
 // experiment includes routing, authentication and admission.
 type scanCurveHistogram struct {
-	Buckets   [15002]uint64
-	N, Errors uint64
+	Buckets              [15002]uint64
+	N, Errors, Cancelled uint64
 }
 
-func (h *scanCurveHistogram) add(d time.Duration, err error) {
+func (h *scanCurveHistogram) add(d time.Duration, err error, cancelled bool) {
 	h.N++
 	if err != nil {
-		h.Errors++
+		if cancelled {
+			h.Cancelled++
+		} else {
+			h.Errors++
+		}
 	}
 	bucket := min(15001, int(d/(2*time.Millisecond)))
 	h.Buckets[bucket]++
@@ -159,7 +163,7 @@ func (h *scanCurveHistogram) summary() map[string]any {
 		}
 		return 30002
 	}
-	return map[string]any{"n": h.N, "errors": h.Errors, "p50_ms_upper": q(50) + 2, "p95_ms_upper": q(95) + 2, "p99_ms_upper": q(99) + 2, "histogram_resolution_ms": 2}
+	return map[string]any{"n": h.N, "errors": h.Errors, "harness_cancellations": h.Cancelled, "p50_ms_upper": q(50) + 2, "p95_ms_upper": q(95) + 2, "p99_ms_upper": q(99) + 2, "histogram_resolution_ms": 2}
 }
 func TestScanUnderUserLoadMeasurement(t *testing.T) {
 	count, _ := strconv.Atoi(os.Getenv("PORTICO_SCAN_GROWTH_ITEMS"))
@@ -250,7 +254,7 @@ func TestScanUnderUserLoadMeasurement(t *testing.T) {
 					h = &scanCurveHistogram{}
 					w.h[key] = h
 				}
-				h.add(time.Since(at), e)
+				h.add(time.Since(at), e, ctx.Err() != nil)
 				w.mu.Unlock()
 				select {
 				case <-ctx.Done():
