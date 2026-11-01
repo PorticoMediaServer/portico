@@ -8,6 +8,13 @@ import sys
 recipe, source, target = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 root = Path(__file__).resolve().parent.parent
 common = '--disable-autodetect --enable-gpl --enable-version3 --enable-libdav1d --enable-libsvtav1 --disable-librav1e --enable-libx264 --enable-libx265 --enable-libzimg --enable-libdovi --enable-libass --enable-fontconfig --enable-libsoxr --enable-libbluray --enable-libdvdnav --enable-libdvdread --enable-libplacebo --enable-vulkan --disable-nonfree --disable-libfdk-aac'
+# Explicit broad-format parity with pinned Jellyfin; autodetection stays off.
+common += ' --enable-zlib --enable-iconv --enable-lzma --enable-libxml2 --enable-libmp3lame --enable-libvorbis --enable-libvpx --enable-libwebp --enable-chromaprint'
+if target != 'windows-arm64':
+    # The optional/deferred BtbN Windows ARM recipe disables OpenMPT itself.
+    common += ' --enable-libopenmpt'
+if not target.startswith('windows'):
+    common += ' --enable-libsrt'
 flags = common
 if target.startswith('linux'):
     flags += ' --enable-vaapi --enable-libdrm --enable-opencl'
@@ -22,21 +29,32 @@ if target == 'linux-arm64':
     import runpy
     runpy.run_path(str(root / 'scripts/repeat-btbn-ffmpeg.py'))['configure'](recipe)
 if target.startswith('macos'):
-    flags += ' --enable-videotoolbox --enable-metal'
+    import runpy
+    mac_source = runpy.run_path(str(root / 'scripts/macos-ffmpeg-source.py'))
+    flags += ' --enable-videotoolbox --enable-metal --enable-coreimage --enable-libshaderc --enable-openssl --enable-libzvbi --enable-gmp --enable-audiotoolbox --enable-runtime-cpudetect --enable-opencl'
     # Extras are built from the pinned source recipes into this private prefix.
     build = recipe / 'build-ffmpeg'
     text = build.read_text()
     marker = 'build "ffmpeg" "${FFMPEG_VERSION}"'
-    addition = 'source "${CWD}/portico-macos-extras.sh"\nCONFIGURE_OPTIONS+=(' + ' '.join('"' + x + '"' for x in flags.split()) + ')\n'
+    addition = mac_source['extras_block']() + 'CONFIGURE_OPTIONS+=(' + ' '.join('"' + x + '"' for x in flags.split()) + ')\n'
     if marker not in text:
         raise ValueError('macOS recipe changed')
     text = text.replace(marker, addition + marker, 1)
     build.write_text(text)
+    mac_source['configure'](recipe)
     import subprocess
     subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'macos-timing', '--recipe', recipe,
                     '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt'], check=True)
+    subprocess.run([sys.executable, root / 'scripts/build-macos-libdovi.py', 'configure', '--recipe', recipe], check=True)
     import shutil
     shutil.copy2(root / 'scripts/build-macos-ffmpeg-extras.sh', recipe / 'portico-macos-extras.sh')
+    shutil.copy2(root / 'scripts/prepare-macos-system-libs.py', recipe / 'portico-macos-system-libs.py')
+    shutil.copy2(root / 'scripts/build-macos-zvbi.sh', recipe / 'portico-build-macos-zvbi.sh')
+    shutil.copy2(root / 'scripts/configure-macos-shaderc.py', recipe / 'portico-configure-macos-shaderc.py')
+    shutil.copy2(root / 'scripts/macos-ffmpeg-source.py', recipe / 'portico-macos-ffmpeg-source.py')
+    extra_pin = json.loads((root / 'third_party/ffmpeg/sources.lock.json').read_text())['macosRecipe']['extrasLock']
+    if hashlib.sha256((root / extra_pin['path']).read_bytes()).hexdigest() != extra_pin['sha256']:
+        raise ValueError('Checked Mac extras source lock changed')
     shutil.copy2(root / 'third_party/ffmpeg/macos-extras.lock.json', recipe / 'portico-macos-extras.lock.json')
     shutil.copy2(root / 'third_party/ffmpeg/sources.lock.json', recipe / 'portico-ffmpeg-sources.lock.json')
     patches = recipe / 'portico-no-decryption'

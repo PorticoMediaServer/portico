@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Build the qualified libdovi source and a test-only oracle after base libraries.
 
-The compiler image supplies Rust/cargo-c, never a prebuilt media library. Cargo
+The compiler image supplies the C toolchain; private pinned Rust/cargo-c build
+the Rust inputs without its nightly Cargo configuration. Cargo
 verifies the locked registry checksums; the complete vendored source and notices
 are retained for offline reproduction. Only one bounded compiler runs at a time.
 """
@@ -27,6 +28,19 @@ def atomic_json(path, value):
     temporary.replace(path)
 
 
+def tool_source_inventory(stage):
+    source = stage / 'tool-sources'
+    if any(p.is_symlink() for p in source.rglob('*')):
+        raise ValueError('Native tool source inventory must contain regular files')
+    return {p.relative_to(source).as_posix(): digest(p)
+            for p in sorted(source.rglob('*')) if p.is_file()}
+
+
+def verify_tool_sources(stage, expected):
+    if not expected or tool_source_inventory(stage) != expected:
+        raise ValueError('Native Rust/cargo-c corresponding source changed')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work', type=Path, required=True)
@@ -38,6 +52,15 @@ def main():
         raise ValueError('libdovi must stay in the lane scratch directory')
     lock = json.loads((root / 'third_party/ffmpeg/sources.lock.json').read_text())
     source = lock['libdovi']
+    tool_pin_file = root / lock['nativeRustTools']['path']
+    if digest(tool_pin_file) != lock['nativeRustTools']['sha256']:
+        raise ValueError('Native Rust tool lock changed')
+    import runpy
+    tool_helper = root / 'scripts/ffmpeg-rust-tools.py'
+    tool_api = runpy.run_path(str(tool_helper))
+    tool_pin = json.loads(tool_pin_file.read_text())
+    media_lock = root / 'third_party/media-engine/sources.lock.json'
+    tool_api['shared_versions'](tool_pin, media_lock)
     source_network = os.environ.get('PORTICO_BUILD_SOURCE_NETWORK', 'bridge')
     if source_network not in ('bridge', 'host'):
         raise ValueError('Unsupported public source-intake container network')
@@ -66,7 +89,10 @@ def main():
                 'licenseSupplementsSHA256': source['licenseSupplements']['sha256'],
                 'compilerImage': lock['linuxSourceBuild']['compilerImage'],
                 'sourceFetchNetwork': source_network,
-                'builderSHA256': digest(Path(__file__))}
+                'builderSHA256': digest(Path(__file__)),
+                'nativeRustToolsSHA256': digest(tool_pin_file),
+                'nativeRustBuilderSHA256': digest(tool_helper),
+                'linkerControlSHA256': digest(root / 'scripts/check-rust-linkers.py')}
     record_file = prefix / 'libdovi-build.json'
     if record_file.exists():
         record = json.loads(record_file.read_text())
@@ -79,6 +105,10 @@ def main():
             raise ValueError('Official test oracle bytes changed')
         if digest(stage / 'vendor-source.tar.xz') != record['vendorSourceSHA256']:
             raise ValueError('libdovi vendored source changed')
+        verify_tool_sources(stage, record['nativeToolSources'])
+        for name, sha in record['nativeTools']['executables'].items():
+            if digest(stage / 'tools/prefix/bin' / name) != sha:
+                raise ValueError('Private native Rust executable changed: ' + name)
         print('Reused exact source-built libdovi and test oracle')
         return
     cache = scratch / 'libdovi/sources'
@@ -121,6 +151,33 @@ def main():
     shutil.copyfile(Path(__file__), frozen_builder)
     if digest(frozen_builder) != expected['builderSHA256']:
         raise ValueError('libdovi builder changed during capture')
+    for source_path, name in [(tool_pin_file, 'native-rust-tools.lock.json'),
+                              (media_lock, 'media-engine-sources.lock.json'),
+                              (tool_helper, 'ffmpeg-rust-tools.py'),
+                              (root / 'scripts/check-rust-linkers.py', 'check-rust-linkers.py')]:
+        shutil.copyfile(source_path, stage / name)
+    prepare_tools = stage / 'prepare-tools.sh'
+    prepare_tools.write_text('''#!/bin/bash
+set -euo pipefail
+portico_output_owner="$(stat -c '%u:%g' /dovi)"
+trap 'chown -hRP "$portico_output_owner" /dovi' EXIT
+export TMPDIR=/dovi/tmp
+python3 - <<'TOOLS'
+import json, runpy
+from pathlib import Path
+api = runpy.run_path('/dovi/ffmpeg-rust-tools.py')
+pin = json.loads(Path('/dovi/native-rust-tools.lock.json').read_text())
+api['shared_versions'](pin, Path('/dovi/media-engine-sources.lock.json'))
+api['tools'](pin, 'x86_64-unknown-linux-gnu', Path('/dovi/tools'), Path('/dovi/tool-sources'))
+TOOLS
+''')
+    subprocess.run(['docker', 'run', '--rm', '--name', 'portico-linux-libdovi-tools',
+        '--label', 'portico.lane=D-engine', '--cpus', '2', '--memory', '4g', '--memory-swap', '4g',
+        '--network', source_network, '-v', str(stage) + ':/dovi',
+        lock['linuxSourceBuild']['compilerImage'], 'bash', '/dovi/prepare-tools.sh'], check=True)
+    native_tools = json.loads((stage / 'tool-sources/native-tools.json').read_text())
+    native_sources = tool_source_inventory(stage)
+    atomic_json(stage / 'native-tool-source-files.json', native_sources)
     script = stage / 'build.sh'
     script.write_text('''#!/bin/bash
 set -euo pipefail
@@ -134,8 +191,13 @@ portico_restore_owner() {
 trap portico_restore_owner EXIT
 export LC_ALL=C.UTF-8 TZ=UTC ZERO_AR_DATE=1
 export TMPDIR=/dovi/tmp CARGO_HOME=/dovi/cargo-home CARGO_TARGET_DIR=/dovi/build
-export CARGO_BUILD_JOBS=2 CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="$CC"
+export PATH="/dovi/tools/prefix/bin:$PATH"
+unset RUSTC RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER RUSTUP_TOOLCHAIN CARGO_BUILD_TARGET CARGO_ENCODED_RUSTFLAGS
+unset CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER
+export CARGO_BUILD_JOBS=2
+python3 /dovi/check-rust-linkers.py --work /dovi/linker-probe --linker "$CC"
 export RUSTFLAGS='--remap-path-prefix=/dovi=/usr/src/libdovi -Crelocation-model=pic -Ctarget-cpu=x86-64'
+export RUSTFLAGS="$RUSTFLAGS -Clinker=$CC"
 export PKG_CONFIG_PATH= PKG_CONFIG_LIBDIR=/opt/ffbuild/lib/pkgconfig:/opt/ffbuild/share/pkgconfig
 cd /dovi/source
 mkdir -p .cargo
@@ -163,6 +225,8 @@ portico_restore_owner() {
 }
 trap portico_restore_owner EXIT
 export TMPDIR=/dovi/tmp CARGO_HOME=/dovi/cargo-home LC_ALL=C.UTF-8 TZ=UTC
+export PATH="/dovi/tools/prefix/bin:$PATH"
+unset RUSTC RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER RUSTUP_TOOLCHAIN CARGO_BUILD_TARGET CARGO_ENCODED_RUSTFLAGS
 cd /dovi/source
 mkdir -p .cargo
 cargo vendor --locked --sync dolby_vision/Cargo.toml --versioned-dirs /dovi/vendor > .cargo/config.toml
@@ -191,6 +255,7 @@ cargo vendor --locked --sync dolby_vision/Cargo.toml --versioned-dirs /dovi/vend
         '-v', str(frozen_builder) + ':/builder.py:ro',
         '-e', 'SOURCE_DATE_EPOCH=' + str(lock['sourceDateEpoch']),
         lock['linuxSourceBuild']['compilerImage'], 'bash', '/dovi/build.sh'], check=True)
+    verify_tool_sources(stage, native_sources)
     installed = ['lib/libdovi.a', 'include/libdovi/rpu_parser.h', 'lib/pkgconfig/dovi.pc']
     if digest(prefix / installed[1]) != contract['cAbi']['headerSha256']:
         raise ValueError('libdovi generated C ABI header differs from qualified source')
@@ -199,6 +264,8 @@ cargo vendor --locked --sync dolby_vision/Cargo.toml --versioned-dirs /dovi/vend
               'vendorSourceSHA256': digest(stage / 'vendor-source.tar.xz'),
               'oracleSHA256': digest(stage / 'oracle/dovi_tool'),
               'sourceArchive': archive.name,
+              'nativeTools': native_tools, 'nativeToolSources': native_sources,
+              'rustLinkerControl': json.loads((stage / 'rust-linker-control.json').read_text()),
               'scope': 'static libdovi plus test-only official CLI; packet/video gates still required'}
     atomic_json(vendor_lock, {'sourceSHA256': source['sha256'], 'cargoLocks': source['cargoLocks'],
                              'vendorSourceSHA256': record['vendorSourceSHA256']})

@@ -282,6 +282,12 @@ def build(target, work):
         (product / 'NOT-FOR-USE.txt').write_text('Cold engine construction intermediate. NOT-FOR-USE; no release or complete acceptance.\n')
     except BaseException as error:
         receipt.update(constructionPassed=False, failure=type(error).__name__ + ': ' + str(error))
+        if target.startswith('macos-'):
+            try:
+                receipt['prepackCapture'] = module('capture-engine-prepack').capture(
+                    target, scratch / 'ffmpeg-build' / target, work / 'prepack', receipt, ROOT)
+            except Exception as capture_error:
+                receipt['prepackCaptureFailure'] = type(capture_error).__name__ + ': ' + str(capture_error)
     finally:
         # Preserve bounded raw source/compiler receipts and failure logs before
         # the hosted runner is discarded. No compiler image push or local job.

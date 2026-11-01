@@ -764,6 +764,104 @@
       "acceptable": [
         "libdovi"
       ]
+    },
+    {
+      "id": "library.formats",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "zlib",
+        "iconv",
+        "lzma",
+        "libxml2",
+        "libmp3lame",
+        "libvorbis",
+        "libvpx",
+        "libwebp",
+        "libopenmpt",
+        "chromaprint"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "encode.mp3",
+      "kind": "encoder",
+      "required": true,
+      "acceptable": [
+        "libmp3lame"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "container.format-libraries",
+      "kind": "demuxer",
+      "required": true,
+      "acceptable": [
+        "dash",
+        "libopenmpt"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "fingerprint.chromaprint",
+      "kind": "muxer",
+      "required": true,
+      "acceptable": [
+        "chromaprint"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "library.srt",
+      "kind": "library",
+      "required": true,
+      "acceptable": [
+        "libsrt"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
+    },
+    {
+      "id": "protocol.srt",
+      "kind": "protocol",
+      "required": true,
+      "acceptable": [
+        "srt"
+      ],
+      "platforms": [
+        "linux-amd64",
+        "linux-arm64",
+        "darwin-amd64",
+        "darwin-arm64"
+      ]
     }
   ],
   "matching": "All acceptable entries are required unless match is any; platforms use Go OS-architecture names."

@@ -66,6 +66,8 @@ def verify(target, bundle, evidence, context):
                                  '--fixture-sha256', lock['discHelper']['fixtureManifestSHA256']]),
         ('verify-ffmpeg-recipes.py', ['--scratch', evidence,
                                     '--font', ROOT / 'packages/reader-core/assets/Literata[opsz,wght].ttf'])]
+    if target.startswith('macos-'):
+        commands.insert(1, ('macos-engine-runtime.py', ['verify', '--target', target]))
     if target.startswith('linux-'):
         commands.insert(1, ('verify-ffmpeg-abi.py', []))
     try:
@@ -73,6 +75,8 @@ def verify(target, bundle, evidence, context):
             receipt['qualifierScripts'][name] = digest(ROOT / 'scripts' / name)
             report = evidence / (name + '.json')
             command = [sys.executable, ROOT / 'scripts' / name, bundle, *args]
+            if name == 'macos-engine-runtime.py':
+                command = [sys.executable, ROOT / 'scripts' / name, *args, '--bundle', bundle]
             if name != 'verify-ffmpeg-manifest.py':
                 command += ['--report', report]
             with (evidence / (name + '.log')).open('w') as output:

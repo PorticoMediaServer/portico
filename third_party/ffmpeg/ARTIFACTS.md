@@ -194,6 +194,7 @@ may be missed) and retain dependency/stage timings. These measurements do not
 exist retroactively for the first cold run. A separate read-only PR-context pull
 probe checks access to every preserved compiler using the actual PR token and
 reviewed main pins. It does not execute PR code with registry credentials.
+
 Windows recipe construction takes its Rust and cargo-c versions from
 `third_party/media-engine/sources.lock.json`, currently 1.99.0 and 0.10.26.
 The base installs those exact versions, uses Cargo's locked tool resolution,
@@ -247,3 +248,110 @@ missing, qualified, release and publisher contexts refuse before cache I/O or
 registry arguments. Only the development build/control jobs set this capability.
 There is no publisher in this workflow; a later qualified/release producer cannot
 consume these caches. Cache-enabled development output remains NOT-FOR-USE.
+
+The native macOS libdovi stage uses the same checked source archive, both Cargo
+locks, C ABI header hash and shared crate/Rust notice collector as the other
+platforms. `native-rust-tools.lock.json`, sealed through the source lock, selects
+Rust compiler/Cargo/standard-library components and matching library source
+from one exact official distribution manifest, plus the exact cargo-c crate and
+its Cargo.lock. Tools install in a private prefix outside the source recipe;
+complete libdovi and cargo-c registry vendors, original archives/locks and Rust
+library source stay in corresponding source. Both builds run locked and offline
+after source preparation. The receipt records the actual native compiler/target,
+tool executable hashes and linked-runtime archive inventory; these build records
+do not themselves establish native media or final engine acceptance.
+
+Mac's required ZVBI uses the same Git commit as the existing pinned BtbN ZVBI
+stage. A private source-built GNU gettext0.26 supplies its autoreconf tools;
+the exact official source archive SHA-256 is in the sealed Mac extras lock.
+No gettext runtime is added to the engine, and ZVBI retains static/PIC builds
+with X, DVB, BKTR, NLS and proxy support disabled as in the checked BtbN recipe.
+The complete tool/library sources and actual tool receipt remain in the source
+archive. The source lock's Meson version now matches the shared1.12.1 wheel and
+media-engine pin; a producer control refuses drift among those inputs.
+The real wheel installation control is explicitly enabled in hosted tool jobs;
+the general Python fixture suite stays offline.
+
+Linux x64 libdovi also uses this private pinned Rust/cargo-c implementation,
+not the preserved C compiler image's nightly Cargo setup. Its complete cargo-c
+vendor, original lock/archive and matching Rust library source are retained
+with a checked per-file inventory. The preserved C compiler digest stays the
+same. Cargo runs with a private home and explicit target; target-only RUSTFLAGS
+select the cross-linker while host build scripts/proc-macros use native cc.
+Before libdovi, a real locked/offline fixture builds a host build script, host
+proc-macro and target executable, records both linker invocations and executes
+the binary. This control and the actual compiler hashes are receipts, not final
+engine, ABI, hardware or compiler-source qualification. The dependency-only
+workflow proves this boundary without rebuilding FFmpeg for custody alone.
+
+Mac normalization carries only the already-selected Vulkan loader, MoltenVK
+and their ICD. Loader aliases are copied as regular bytes; all non-system
+Mach-O loads resolve to the contained selected libraries and all architectures
+must exactly match the target. Owned install names/rpaths and the ICD library
+path become bundle-relative before hashes and the engine manifest are sealed.
+macos-runtime-build.json records original and rewritten hashes/load commands;
+the native verifier independently rechecks the resulting closure. A native
+fixture deletes its original prefix and executes from an unrelated directory
+with loader/Vulkan overrides unset. This proves relocation of real Mach-O
+libraries, not a physical Vulkan device or automatic driver discovery in every
+application layout. App signing/notarisation must follow these rewrites; a later
+signature changes sealed bytes and belongs in the app's reviewed seal flow.
+This engine stage uses no signing identity, account or credential.
+
+The pinned MoltenVK generic Mac target can produce a universal arm64/x86_64
+dylib. For that selected library only, the packer extracts exactly the engine
+target's native slice before rewriting load paths and sealing. It records the
+original universal hash/architecture set and the selected slice hash. A missing
+target, unknown architecture, wrong-only library or mixed Vulkan loader still
+refuses; the final verifier requires one exact native architecture everywhere.
+A real two-slice native fixture executes the selected chain after deleting its
+original prefix. This adds no source, feature, tool or signing identity.
+
+The Mac shaderc stage selects the existing shaderc_combined pkg-config module,
+as the pinned BtbN stage does, and includes its system libc++ link dependency.
+It retains the original combined module unchanged, records both metadata hashes
+and the actual pkg-config flags in corresponding source, and adds no shared
+shaderc runtime. The real Mac runtime audit must still show no external shaderc
+load; metadata controls alone are not a library compilation or engine proof.
+
+Mac source checkout retains the exact reviewed Git object SHA. When that object
+is an annotated tag, HEAD must equal the commit peeled from that exact object;
+no floating tag name or fallback is used. Corresponding source records the
+original object, object type, checked-out commit and repository. A different
+existing checkout is refused. This changes no source pin or selected bytes.
+
+Mac extras execute in an unconditional subshell: their strict options, build
+directory and tool environment do not leak into Homebridge's remaining code,
+and their nonzero status still stops the parent. The final FFmpeg download is
+replaced with the already checked, post-series patched source archive, copied
+read-only under its SHA-256 filename. Its receipt binds the archive to the exact
+source lock; absence or mutation refuses before any upstream download. The
+recipe, receipt, original prepared archive and checking script remain in full
+corresponding source. A hosted control runs the actual pinned download function
+against an inert prepared-source sentinel and proves there is no fallback.
+
+Failed Mac packing can retain `engine-prepack-<target>-<sourceSHA>-NOT-FOR-USE`
+for **one day**. This is an opaque tar of the compiled prefix and complete
+corresponding-source archive, plus the checked contract inputs. Its separate
+receipt records the exact run/source/target, original prefix, file inventory,
+source/input hashes and tar hash/size. Contained file symlinks and contained framework directory aliases (including
+Versions/Current and Resources) are stored relative without dereferencing. External
+links, cycles, other directory aliases and special files are refused. Capture is atomic and rechecks
+inputs after writing. It runs only after all three tools and corresponding source
+exist; a capture failure never hides the original build failure. This recovery
+input is unqualified, unreleased and not ready for publication. It is not an
+engine intake artifact. A future repacker must verify the exact artifact and
+receipt hashes and restore safely before running normal packing and native gates;
+this slice does not add a repacker or waive those gates.
+
+The working Mac recipe retries the **same URL** at most five times, with a
+15-second limit per attempt and 5/10/15/20-second backoff (125 seconds maximum
+network/backoff budget). It never substitutes a mirror or floating source.
+Archive pins in the sealed Mac extras lock are checked before extraction for
+both newly downloaded and cached files; zlib 1.3.1 is pinned for this retry.
+The remaining legacy Homebridge archives are not yet all pinned. **All Mac
+sources pinned** is a required publication condition: a qualified Mac engine
+cannot be published until the complete archive table has upstream hash checks
+where available, unpinned downloads refuse, and publication preflight enforces
+that condition. Working build success does not satisfy it. Complete pinning and
+source caching follow the first green engine set.

@@ -56,6 +56,15 @@ jobs:
           python scripts/test-libdovi-runtime-inventory.py
           python scripts/test-ci-ffmpeg-toolchain.py
           python scripts/test-ffmpeg-build-tools.py
+          python scripts/test-native-rust-tools.py
+          python scripts/test-macos-source-checkout.py
+          python scripts/test-macos-ffmpeg-source.py
+          python scripts/test-macos-shaderc.py
+          python scripts/test-macos-engine-runtime.py
+          python scripts/test-macos-libdovi.py
+          python scripts/test-macos-zvbi.py
+          python scripts/test-ffmpeg-format-parity.py
+          python scripts/test-capture-engine-prepack.py
           python scripts/test-preserve-ffmpeg-compilers.py
       - id: plan
         env:
@@ -157,6 +166,14 @@ jobs:
       - name: Retire dependency cache authentication
         if: always() && (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64')
         run: docker logout ghcr.io
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: failure() && runner.os == 'macOS'
+        with:
+          name: engine-prepack-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/engine-cold/prepack/*
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -304,4 +321,28 @@ jobs:
         with:
           name: prefix-cache-reuse-${{ matrix.runner }}-${{ github.sha }}-NOT-FOR-USE
           path: ${{ runner.temp }}/prefix-cache-reuse.json
+          retention-days: 7
+
+  system-library-control:
+    if: inputs.controlsOnly && github.repository == 'PorticoMediaServer/portico'
+    strategy:
+      fail-fast: false
+      matrix: {runner: [macos-15, macos-15-intel]}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - run: python scripts/control-macos-system-libs.py --work "$RUNNER_TEMP/format-system-control"
+      - run: python scripts/control-macos-transpose-source.py --work "$RUNNER_TEMP/transpose-source-control"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: sdk-format-control-${{ matrix.runner }}-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/format-system-control/*.json
+            ${{ runner.temp }}/transpose-source-control/*.json
+            ${{ runner.temp }}/transpose-source-control/*.log
           retention-days: 7
