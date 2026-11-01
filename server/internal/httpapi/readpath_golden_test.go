@@ -588,7 +588,8 @@ func TestReadPathGoldenEquivalence(t *testing.T) {
 			if err := json.Unmarshal([]byte(actual.Response), &doc); err != nil {
 				t.Fatal(err)
 			}
-			wantIDs := []string{"continue", "new_on_server", "because_you_watched", "featured_collection", "listen_next", "continue_books"}
+			// Home's default rows (mock-up frame 23): the personal and trending rows show by default.
+			wantIDs := []string{"continue", "new_on_server", "because_you_watched", "featured_collection", "listen_next", "continue_books", "recommended", "for_you", "trending_now"}
 			ids := []string{}
 			for _, row := range doc.Rows {
 				ids = append(ids, row.ID)
