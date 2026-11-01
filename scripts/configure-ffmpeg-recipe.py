@@ -30,6 +30,9 @@ if target.startswith('macos'):
         raise ValueError('macOS recipe changed')
     text = text.replace(marker, addition + marker, 1)
     build.write_text(text)
+    import subprocess
+    subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'macos-timing', '--recipe', recipe,
+                    '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt'], check=True)
     import shutil
     shutil.copy2(root / 'scripts/build-macos-ffmpeg-extras.sh', recipe / 'portico-macos-extras.sh')
     shutil.copy2(root / 'third_party/ffmpeg/macos-extras.lock.json', recipe / 'portico-macos-extras.lock.json')
@@ -41,6 +44,9 @@ if target.startswith('macos'):
     sys.exit(0)
 
 # BtbN disables Linux ARM VAAPI by default, although libva supports it.
+import subprocess
+subprocess.run([sys.executable, root / 'scripts/ffmpeg-build-tools.py', 'recipe', '--recipe', recipe,
+                '--requirements', root / 'scripts/requirements-ffmpeg-meson.txt'], check=True)
 if target.startswith('windows'):
     import subprocess
     subprocess.run([sys.executable, root / 'scripts/configure-windows-libdovi.py', recipe], check=True)

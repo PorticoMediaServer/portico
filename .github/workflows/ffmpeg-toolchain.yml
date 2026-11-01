@@ -7,11 +7,6 @@ on:
         type: choice
         default: all
         options: [all, windows-x64, linux-x64, linux-arm64, macos-arm64, macos-x64]
-  # Bootstrap the first cold run before the manual workflow is on main.
-  # Remove this branch-only trigger before adding a publisher.
-  push:
-    branches: [rebuild/D-hosted-toolchain-r2]
-    paths: ['.github/workflows/ffmpeg-toolchain.yml']
 permissions:
   contents: read
   actions: read
@@ -44,6 +39,7 @@ jobs:
           python scripts/test-engine-artifact.py
           python scripts/test-windows-rav1e-custody.py
           python scripts/test-ci-ffmpeg-toolchain.py
+          python scripts/test-ffmpeg-build-tools.py
       - id: plan
         env:
           COLD_TARGET: ${{ inputs.target || 'all' }}

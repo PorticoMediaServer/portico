@@ -160,6 +160,30 @@ def preserve_diagnostics(directories, evidence):
                 shutil.copyfile(path, destination)
 
 
+def stage_timings(work, scratch, target):
+    stages = {}
+    native_log = work / 'evidence/stage-times.tsv'
+    active = None
+    if native_log.is_file():
+        for line in native_log.read_text().splitlines():
+            event, name, timestamp = line.split('\t'); timestamp = int(timestamp)
+            if event == 'start':
+                active = (name, timestamp)
+            elif event == 'end' and active is not None and active[0] == name:
+                stages[name] = stages.get(name, 0) + max(0, timestamp - active[1]); active = None
+        if active is not None:
+            stages[active[0]] = stages.get(active[0], 0) + max(0, int(time.time()) - active[1])
+    dependency_log = scratch / 'ffmpeg-build' / target / 'linux-deps/stage-times.jsonl'
+    if dependency_log.is_file():
+        for line in dependency_log.read_text().splitlines():
+            value = json.loads(line)
+            stages[value['stage']] = stages.get(value['stage'], 0) + value['seconds']
+    producer = work / 'state/report.json'
+    if producer.is_file():
+        stages.update(json.loads(producer.read_text()).get('phaseTimingsSeconds', {}))
+    return stages
+
+
 def build(target, work):
     receipt = dict(schemaVersion=1, target=target, **context(), qualified=False, release=False,
                    cold=True, startedUTC=time.strftime('%FT%TZ', time.gmtime()), phases={})
@@ -168,6 +192,7 @@ def build(target, work):
     product = work / 'product'; product.mkdir()
     started = time.monotonic()
     receipt['resourcesBefore'] = resources(work)
+    receipt['mesonPin'] = module('ffmpeg-build-tools').pin(ROOT / 'scripts/requirements-ffmpeg-meson.txt')
     sampler = DiskSampler(work, evidence / 'disk-samples.json'); sampler.thread.start()
     env = dict(os.environ, PORTICO_BUILD_JOBS='2', MAKEFLAGS='-j1', NUMJOBS='2',
                CMAKE_BUILD_PARALLEL_LEVEL='2', CARGO_BUILD_JOBS='2', RAYON_NUM_THREADS='2')
@@ -176,6 +201,7 @@ def build(target, work):
         (scratch / name).mkdir(parents=True)
     lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
     env.update(PORTICO_LANE_SCRATCH=str(scratch), TMPDIR=str(scratch / 'tmp'), GOTMPDIR=str(scratch / 'go-tmp'),
+               PORTICO_ENGINE_TIMINGS=str(evidence / 'stage-times.tsv'),
                PORTICO_DISC_SOURCE_COMMIT=lock['discHelper']['sourceCommit'],
                PORTICO_DISC_FIXTURES=str(ROOT / lock['discHelper']['fixtureManifest']),
                PORTICO_DISC_FIXTURES_SHA256=lock['discHelper']['fixtureManifestSHA256'],
@@ -241,6 +267,18 @@ def build(target, work):
             receipt['constructionPassed'] = False
         receipt.update(elapsedSeconds=round(time.monotonic() - started, 3), resourcesAfter=resources(work))
         receipt['sampledDisk'] = sampler.finish()
+        receipt['stageSeconds'] = stage_timings(work, scratch, target)
+        for tool_receipt in (scratch / 'ffmpeg-build' / target / 'meson-tool.json',
+                             scratch / 'ffmpeg-build' / target / 'linux-deps/meson-tool.json'):
+            if tool_receipt.is_file():
+                receipt['mesonTool'] = json.loads(tool_receipt.read_text())
+        producer = work / 'state/report.json'
+        if producer.is_file() and 'mesonTool' in json.loads(producer.read_text()):
+            receipt['mesonTool'] = json.loads(producer.read_text())['mesonTool']
+        if receipt['stageSeconds']:
+            name = max(receipt['stageSeconds'], key=receipt['stageSeconds'].get)
+            receipt['longestStage'] = {'name': name, 'seconds': receipt['stageSeconds'][name],
+                'scope': 'Recorded build stage intervals/commands; includes source and prerequisite work in that stage.'}
         atomic(evidence / 'cold-build.json', receipt)
     print(json.dumps(receipt), flush=True)
     return int(not receipt.get('constructionPassed'))

@@ -5,6 +5,7 @@ set -euo pipefail
 portico_lock="${CWD}/portico-macos-extras.lock.json"
 portico_clone() {
  local name="$1" repo revision
+ if declare -F portico_time_start >/dev/null; then portico_time_start "portico-$name"; fi
  repo=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))[sys.argv[2]]["repository"])' "$portico_lock" "$name")
  revision=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))[sys.argv[2]]["commit"])' "$portico_lock" "$name")
  if [ ! -d "$PACKAGES/portico-$name/.git" ]; then
