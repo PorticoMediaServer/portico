@@ -46,7 +46,8 @@ type Owned = {service: ReturnType<typeof metadataSettingsService>; current: () =
 
 /** Only fields with real metadata-settings producers are offered. Credentials are local,
  * write-only drafts; neither a failed read nor a revision conflict silently resends them. */
-export function MetadataSettingsPage({api, isCurrent, onLibraries}: {api: LibraryContentApi; isCurrent: () => boolean; onLibraries: () => void}) {
+/** `recommendations`: the spec's Recommendations group (the title dataset switch), rendered by the generic runtime rows. */
+export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendations}: {api: LibraryContentApi; isCurrent: () => boolean; onLibraries: () => void; recommendations?: ReactNode}) {
   const active = useRef<{api: LibraryContentApi; isCurrent: () => boolean}>({api, isCurrent}); active.current = {api, isCurrent};
   const [owned, setOwned] = useState<Owned>(), [document, setDocument] = useState<MetadataSettings>(), [draft, setDraft] = useState<Draft>();
   const [busy, setBusy] = useState(false), [error, setError] = useState<string>(), [denied, setDenied] = useState(false), [reload, setReload] = useState(0);
@@ -198,6 +199,7 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries}: {api: Librar
         <div><p>{summary.text}</p><Button size="small" disabled={busy || !!Object.keys(subtitleChanges).length || document.openSubtitles.keySource === 'none'} onClick={() => {void check();}}>{t(busy ? 'server.metadata.openSubtitlesTesting' : 'server.metadata.openSubtitlesTest')}</Button></div>
       </SettingsRow>
     </SettingsGroup>
+    {recommendations}
     {document.advanced && draft.advanced ? <SettingsAdvanced open={advancedOpen} onOpenChange={setAdvancedOpen} summary={advancedSummary(document.advanced)}>
       <SettingsGroup title={t('next.settingsSpec.server.metadata.advanced.groups.0.title')} advanced>
         {specSelect('metadata.refresh', 'refreshPolicy')}
