@@ -20,7 +20,7 @@ jobs:
           curl -fsSL https://get.maestro.mobile.dev -o "$RUNNER_TEMP/install-maestro"
           MAESTRO_VERSION=2.0.10 bash "$RUNNER_TEMP/install-maestro"
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
         id: app
         with:
           path: ${{ runner.temp }}/portico-ios/Build/Products/Debug-iphonesimulator/Portico.app
@@ -48,6 +48,11 @@ jobs:
           xcodebuild -workspace apps/native/ios/Portico.xcworkspace -scheme Portico -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/portico-ios" \
             ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: steps.app.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/portico-ios/Build/Products/Debug-iphonesimulator/Portico.app
+          key: ${{ steps.app.outputs.cache-primary-key }}
       - name: Build the test server
         working-directory: server
         run: go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server

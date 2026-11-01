@@ -88,12 +88,13 @@ def scan_libraries(server):
                            'metadataAgent': 'local'}, (201,))
         server.libs[name] = library['id']
         job = api.post('/v1/libraries/' + library['id'] + '/scans', expected=(202,))
+        print(f'Waiting for {name} library scan', flush=True)
         def done():
             current = api.get('/v1/admin/ingestion/jobs/' + job['id'])
             if current['status'] in ('failed', 'cancelled'):
                 raise RuntimeError(f'{name} scan failed')
             return current['status'] in ('complete', 'complete_with_warnings')
-        fixture.wait(done, 120)
+        fixture.wait(done, 360)
         if pivot:
             query = None
             def published():

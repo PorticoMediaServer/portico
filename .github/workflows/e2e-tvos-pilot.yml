@@ -21,7 +21,7 @@ jobs:
           echo 'fd9abfd350659585e9b317877a38dc159b0dda4bb6c4f081a3f79d3388a90ea3  '"$RUNNER_TEMP/maestro.zip" | shasum -a 256 -c -
           unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro"
           echo "$RUNNER_TEMP/maestro/maestro/bin" >> "$GITHUB_PATH"
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
         id: app
         with:
           path: ${{ runner.temp }}/portico-tvos/Build/Products/Debug-appletvsimulator/Portico.app
@@ -49,6 +49,11 @@ jobs:
           xcodebuild -workspace apps/native/tvos/Portico.xcworkspace -scheme Portico -configuration Debug \
             -sdk appletvsimulator -destination 'generic/platform=tvOS Simulator' -derivedDataPath "$RUNNER_TEMP/portico-tvos" \
             ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: steps.app.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/portico-tvos/Build/Products/Debug-appletvsimulator/Portico.app
+          key: ${{ steps.app.outputs.cache-primary-key }}
       - name: Build the test server
         working-directory: server
         run: go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server
