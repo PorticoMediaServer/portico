@@ -8,7 +8,6 @@ import (
 	"math"
 	"net/http/httptest"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/testtier"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/playback"
 	"github.com/PorticoMediaServer/portico/server/internal/playbackv1"
+	"github.com/PorticoMediaServer/portico/server/internal/testtier"
 )
 
 // musicFixture: a v1 fixture whose films play as songs (audio sessions with a
@@ -305,7 +305,7 @@ func TestPlaybackV1QueueTransitionFences(t *testing.T) {
 			updatePlaybackAssetSize(t, f, f.records[1])
 		}},
 		{"expired", "prepared_expired", "", func(f *v1Fixture, q playbackv1.QueueReply) {
-			f.v1.Now = func() time.Time { return time.Now().Add(61 * time.Second) }
+			f.clockOffset.Store(int64(61 * time.Second))
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -321,7 +321,7 @@ func TestPlaybackV1QueueTransitionFences(t *testing.T) {
 			if !strings.Contains(w.Body.String(), `"code":"`+tc.code+`"`) || tc.reason != "" && !strings.Contains(w.Body.String(), `"reason":"`+tc.reason+`"`) {
 				t.Fatalf("%d %s", w.Code, w.Body.String())
 			}
-			f.v1.Now = nil
+			f.clockOffset.Store(0)
 			var now playbackv1.QueueView
 			f.call("GET", "/v1/queues/"+q.Queue.ID, nil, nil, 200, &now)
 			if now.Current == nil || now.Current.Position != 0 {
@@ -469,9 +469,9 @@ func TestPlaybackV1ExpiredPreparationIsSwept(t *testing.T) {
 	f, player := renderingFixture(t, 2)
 	q := playingQueue(t, f, "swept-prep-queue-0001")
 	p := prepareNext(t, f, q, "swept-prep-prepare-01")
-	f.v1.Now = func() time.Time { return time.Now().Add(61 * time.Second) }
+	f.clockOffset.Store(int64(61 * time.Second))
 	f.v1.SweepQueues(context.Background())
-	f.v1.Now = nil
+	f.clockOffset.Store(0)
 	var state, reason string
 	if err := f.db.QueryRow(`SELECT state,cancel_reason FROM playback_v1_prepared WHERE token=?`, p.Token).Scan(&state, &reason); err != nil || state != "canceled" || reason != "expired" {
 		t.Fatalf("after the sweep: %s %s %v", state, reason, err)
