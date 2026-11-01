@@ -170,6 +170,31 @@ func (d Dependencies) setupStart(ctx context.Context, r *http.Request, bucket st
 	return BrowserSetupResponse{d.Identity.ID(), token}, nil
 }
 
+// setupStartOver ends whatever setup is unfinished and starts a new one at this address.
+// The earlier claim is withdrawn first (queued for Portico Services when it was approved),
+// then the earlier setup is retired and a fresh setup secret issued.
+func (d Dependencies) setupStartOver(ctx context.Context, r *http.Request) (BrowserSetupResponse, error) {
+	if !d.setupSourceAllowed(r) {
+		return BrowserSetupResponse{}, errSetupSourceNotLocal
+	}
+	if err := d.Identity.SetupLimit(ctx, d.setupPeerSubject(r), "setup-start-over", 10); err != nil {
+		return BrowserSetupResponse{}, setupTransportError(err)
+	}
+	if d.Networking != nil {
+		if _, err := d.Networking.RetireSetupClaim(ctx); err != nil {
+			return BrowserSetupResponse{}, &apierror.Error{Code: "portico_services_unavailable", Cause: err}
+		}
+	}
+	token, err := d.Identity.StartOverSetup(ctx)
+	if errors.Is(err, identity.ErrSetupClaimLive) {
+		return BrowserSetupResponse{}, &apierror.Error{Code: "portico_services_unavailable", Cause: err}
+	}
+	if err != nil {
+		return BrowserSetupResponse{}, setupTransportError(err)
+	}
+	return BrowserSetupResponse{d.Identity.ID(), token}, nil
+}
+
 func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 	err := apikit.RegisterRaw(registry, apikit.RawRoute[identity.SetupOptions, identity.SetupResult]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneAuth, ID: "setup_server", Method: "POST", Path: "/v1/setup", Summary: "Create the first owner", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 201, BodyLimit: 65536, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_in_progress", "setup_portico_mode", "internal"}}, Serve: d.serveSetup})
 	if err != nil {
@@ -180,6 +205,17 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 			return BrowserSetupResponse{}, foundationAuthError(identity.ErrUnauthorized)
 		}
 		return d.setupStart(ctx, r, "browser-setup")
+	}})
+	if err != nil {
+		return err
+	}
+	// Finding #2: any unfinished setup can be started over by whoever may start setup.
+	err = apikit.Register(registry, apikit.Route[struct{}, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "post_setup_start_over", Method: "POST", Path: "/v1/setup/start-over", Summary: "End any unfinished first-run setup and start again from this address", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_source_not_local", "portico_services_unavailable", "internal"}}, Handler: func(ctx context.Context, r *http.Request, _ struct{}) (BrowserSetupResponse, error) {
+		origin := r.Header.Get("Origin")
+		if !d.setupRequestAllowed(r) || (origin == "" && !d.appSetupRequest(r)) || (origin != "" && !d.sameRequestOrigin(r, origin)) {
+			return BrowserSetupResponse{}, foundationAuthError(identity.ErrUnauthorized)
+		}
+		return d.setupStartOver(ctx, r)
 	}})
 	if err != nil {
 		return err

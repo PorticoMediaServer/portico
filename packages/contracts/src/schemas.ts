@@ -250455,6 +250455,26 @@ export const schemas = {
     ],
     "type": "object"
   },
+  "PostSetupStartOverRequest": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "PostSetupStartOverResponse": {
+    "properties": {
+      "serverId": {
+        "type": "string"
+      },
+      "setupToken": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "serverId",
+      "setupToken"
+    ],
+    "type": "object"
+  },
   "PostShowsIdMetadataScreenRetryRequest": {
     "properties": {
       "expectedRevision": {
