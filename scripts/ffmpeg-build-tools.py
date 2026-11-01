@@ -72,6 +72,12 @@ def recipe(directory, requirements, target=None):
     (base / 'portico-meson-pin.json').write_text(json.dumps(expected, indent=2) + '\n')
     if target in ('windows-x64', 'windows-arm64', 'linux-arm64'):
         btbn_rust(directory)
+    if target == 'linux-arm64':
+        # The runner's TMPDIR is not inherited by Docker build stages. The
+        # checked shaderc installer requires this path inside its image.
+        text = path.read_text()
+        path.write_text(text + '\nENV TMPDIR=/var/tmp/portico-ci\n'
+                        'RUN mkdir -p "$TMPDIR" && chmod 1777 "$TMPDIR"\n')
 
 
 def receipt(python, requirements, output):
