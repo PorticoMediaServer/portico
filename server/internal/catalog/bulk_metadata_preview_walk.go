@@ -47,7 +47,7 @@ func (s *Service) BulkMetadataLocalSelectionBasisTx(ctx context.Context, tx *sql
 		return out, err
 	}
 	var catalogRevision, metadataRevision, orderRevision, namespace, input, ready int64
-	err = tx.QueryRowContext(ctx, `SELECT r.revision,r.metadata_revision,r.order_revision,COALESCE(a.namespace,0),COALESCE(a.input_generation,0),COALESCE(a.ready_generation,0)
+	err = tx.QueryRowContext(ctx, `SELECT r.revision+(SELECT revision FROM catalog_summary_classification_revision WHERE singleton=1),r.metadata_revision,r.order_revision,COALESCE(a.namespace,0),COALESCE(a.input_generation,0),COALESCE(a.ready_generation,0)
  FROM library_revisions r JOIN catalog_libraries l ON l.library_id=r.library_id AND l.retired=0
  LEFT JOIN reading_attribution_state a ON a.library_id=l.id WHERE r.library_id=?`, q.LibraryID).Scan(&catalogRevision, &metadataRevision, &orderRevision, &namespace, &input, &ready)
 	if err != nil {

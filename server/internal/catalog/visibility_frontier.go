@@ -11,6 +11,10 @@ import (
 
 // A maintenance attempt keeps its captured source target and matching library
 // revision across retries. New events belong to the following attempt.
+// The revision is deliberately the raw content stamp. Rating-age triggers
+// advance the source sequence and enqueue kind-4 spelling fan-out; target
+// readiness includes its descendants and this class's dirty prefix before
+// publication. The raw revision alone is never a complete policy fence.
 func captureVisibilityTargetTx(ctx context.Context, tx *sql.Tx, classID int64, library string) (int64, int64, error) {
 	var target, covered, revision int64
 	err := tx.QueryRowContext(ctx, `SELECT source_target,captured_sequence,source_revision FROM compact_visibility_classes WHERE id=?`, classID).Scan(&target, &covered, &revision)
