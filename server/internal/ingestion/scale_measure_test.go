@@ -178,6 +178,10 @@ func TestScanUnderUserLoadMeasurement(t *testing.T) {
 		t.Fatal(e)
 	}
 	f := newLoopFixture(t, "music")
+	production := os.Getenv("PORTICO_SCAN_PRODUCTION") == "1"
+	if production {
+		defer scanMeasurementCheckpointer(t, f.db)()
+	}
 	c := catalogtest.New(t, f.db)
 	baseRoot := t.TempDir()
 	library := c.Library("baseline", "Baseline", "movie", baseRoot)
@@ -216,7 +220,6 @@ func TestScanUnderUserLoadMeasurement(t *testing.T) {
 	var phase atomic.Int32
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
-	production := os.Getenv("PORTICO_SCAN_PRODUCTION") == "1"
 	shared := catalog.New(f.db)
 	users := 32
 	if count <= 300 && !production {
@@ -265,7 +268,7 @@ func TestScanUnderUserLoadMeasurement(t *testing.T) {
 		}(u)
 	}
 	defer func() { cancel(); wg.Wait() }()
-	report := map[string]any{"production_pacing": production, "shared_service": true, "items": count, "users": users, "users_per_core": float64(users) / float64(runtime.NumCPU()), "cpus": runtime.NumCPU(), "file_setup_seconds": setup, "boundary": "real scanner plus foreground catalogue service; HTTP/auth measured separately"}
+	report := map[string]any{"checkpoint_schedule": production, "production_pacing": production, "shared_service": true, "items": count, "users": users, "users_per_core": float64(users) / float64(runtime.NumCPU()), "cpus": runtime.NumCPU(), "file_setup_seconds": setup, "boundary": "real scanner plus foreground catalogue service; HTTP/auth measured separately"}
 	save := func() {
 		w.mu.Lock()
 		summary := map[string]any{}
@@ -380,6 +383,31 @@ func scanLoadPeakRSS() int64 {
 		}
 	}
 	return 0
+}
+
+func scanMeasurementCheckpointer(t *testing.T, db *sql.DB) func() {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	schedule, e := dbwork.NewCheckpointSchedule(ctx, db)
+	if e != nil {
+		cancel()
+		t.Fatal(e)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		tick := time.NewTicker(100 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				schedule.Tick(ctx)
+			}
+		}
+	}()
+	return func() { cancel(); <-done }
 }
 
 // Same scanner and catalogue calls with normal production batch holds/pacing.
