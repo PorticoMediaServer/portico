@@ -49,6 +49,9 @@ jobs:
             curl -v --connect-timeout 15 --max-time 25 "$scheme://66.94.102.39:32520/" -o /dev/null
             echo "RESULT $scheme exit=$?"
           done
+          echo 'PROBE managed HTTPS on the test server port'
+          curl -v --connect-timeout 15 --max-time 25 https://66-94-102-39.ptc-iymxvojsq3y5a5tutbsa.portico.direct:32520/v1/system -o /dev/null
+          echo "RESULT managed HTTPS exit=$?"
   remote-test-server-build:
     if: github.event_name == 'workflow_dispatch' && inputs.e2e_remote_build
     uses: ./.github/workflows/e2e-remote-build.yml
