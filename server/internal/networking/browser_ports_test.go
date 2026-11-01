@@ -69,9 +69,10 @@ func TestOwnerBrowserRestrictedPortsWarnWithoutRejecting(t *testing.T) {
 	f, m, _, ctx := accessURLsFixture(t, func(context.Context) []string {
 		return []string{"http://owner.example.com:6667", "https://owner.example.com"}
 	})
-	if _, err := f.db.Exec(`UPDATE networking_remote_settings SET enabled=0,public_port=6000`); err != nil {
+	if _, err := f.db.Exec(`UPDATE networking_remote_settings SET public_port=6000`); err != nil {
 		t.Fatal(err)
 	}
+	useRemoteAccess(m, "off")
 	captureAccessURLs(t, m, ctx)
 	if err := m.step(ctx); err != nil {
 		t.Fatal(err)

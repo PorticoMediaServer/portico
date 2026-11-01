@@ -17,11 +17,13 @@ func TestManagedHTTPSAbsenceNamesItsReason(t *testing.T) {
 	for _, c := range []struct{ name, sql, reason string }{
 		{"serving", "", ""},
 		{"managed route off", `UPDATE identity_managed_route SET enabled=0`, "sign-in kind not portico or managed route off"},
-		{"remote access off", `UPDATE networking_remote_settings SET enabled=0`, "remote access off or remote state stale"},
+		{"remote access off", "remote-off", "remote access off or remote state stale"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			f, h, ctx, _ := managedHTTPSFixture(t)
-			if c.sql != "" {
+			if c.sql == "remote-off" {
+				useRemoteAccess(h.remote, "off")
+			} else if c.sql != "" {
 				if _, err := f.db.Exec(c.sql); err != nil {
 					t.Fatal(err)
 				}

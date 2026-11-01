@@ -1,61 +1,61 @@
 package networking
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
-func TestNewRemoteScopeUsesOnlyInstalledPorticoLifecycleDefault(t *testing.T) {
+// Remote access (the console setting) is the one switch for port mapping and
+// the Portico address: the remote config reports it as Enabled, only "on"
+// enables, the config can't store it, and a settings read error keeps the
+// last answer.
+func TestRemoteConfigEnabledIsTheRemoteAccessSetting(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
-
-	for _, test := range []struct {
-		name, kind                  string
-		managed, acknowledged, want bool
-	}{
-		{"Local", "local", true, true, false},
-		{"no kind", "", true, true, false},
-		{"Portico before ACK", "portico", true, false, false},
-		{"Portico managed off", "portico", false, true, false},
-		{"Portico installed", "portico", true, true, true},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			f, remote, _, calls, ctx := contactFixture(t)
-			f.store.installedGuard = GuardInstalledClaim
-			if test.kind != "" {
-				if _, err := f.db.Exec(`INSERT INTO identity_state(singleton,sign_in_kind) VALUES(1,?)`, test.kind); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if _, err := f.db.Exec(`UPDATE identity_managed_route SET enabled=? WHERE singleton=1`, test.managed); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := f.db.Exec(`UPDATE networking_claim_intents SET installation_acknowledged=? WHERE stage='installed'`, test.acknowledged); err != nil {
-				t.Fatal(err)
-			}
-			config, _, authority, _, key, err := remote.snapshot(ctx)
-			clear(key)
-			if err != nil || config.Enabled != test.want {
-				t.Fatalf("new scope enabled=%v want=%v error=%v", config.Enabled, test.want, err)
-			}
-			if calls.publishes != 0 || calls.names != 0 {
-				t.Fatal("local configuration read contacted Hosted")
-			}
-			var observations int
-			if err := f.db.QueryRow(`SELECT count(*) FROM networking_claim_authority`).Scan(&observations); err != nil || observations != 0 {
-				t.Fatal("new scope required a fabricated authority observation", err)
-			}
-			if test.want {
-				config.Enabled = false
-				if err := remote.configure(ctx, authority, config); err != nil {
-					t.Fatal(err)
-				}
-				for range 2 {
-					config, _, current, _, key, err := remote.snapshot(ctx)
-					clear(key)
-					if err != nil || current != authority || config.Enabled {
-						t.Fatal("same-scope read overrode the owner's off choice", err)
-					}
-				}
-			}
-		})
+	f, remote, _, calls, ctx := contactFixture(t)
+	f.store.installedGuard = GuardInstalledClaim
+	enabled := func() bool {
+		t.Helper()
+		config, _, _, _, key, err := remote.snapshot(ctx)
+		clear(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return config.Enabled
+	}
+	if !enabled() {
+		t.Fatal("no setting yet reads as On, the setting's default")
+	}
+	for _, c := range []struct {
+		value string
+		want  bool
+	}{{"off", false}, {"private", false}, {"on", true}} {
+		useRemoteAccess(remote, c.value)
+		if got := enabled(); got != c.want {
+			t.Fatalf("%s: enabled=%v", c.value, got)
+		}
+	}
+	// The config can't switch it: Enabled in a configure call is ignored.
+	useRemoteAccess(remote, "off")
+	config, _, authority, _, key, err := remote.snapshot(ctx)
+	clear(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.Enabled = true
+	if err := remote.configure(ctx, authority, config); err != nil {
+		t.Fatal(err)
+	}
+	if enabled() {
+		t.Fatal("configure turned remote access on")
+	}
+	// A read error ("") keeps the last answer.
+	remote.SetRemoteAccess(func(context.Context) string { return "" })
+	if enabled() {
+		t.Fatal("a settings read error flipped remote access")
+	}
+	if calls.publishes != 0 || calls.names != 0 {
+		t.Fatal("a local configuration read contacted Hosted")
 	}
 }

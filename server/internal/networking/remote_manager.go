@@ -7,10 +7,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"math/rand/v2"
 	"net"
 	"net/netip"
-	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"sort"
 	"strconv"
 	"strings"
@@ -38,6 +38,13 @@ type RemoteManager struct {
 	accessURLsProvider atomic.Pointer[accessURLsFunc]
 	accessMu           sync.Mutex
 	lastAccess         []string
+	// remoteAccess is the console setting Remote access (on, private, off),
+	// the one switch for port mapping and the Portico address: only "on"
+	// enables them. A nil function reads as "on", the setting's default.
+	// remoteOff caches the last good answer, so a settings read error never
+	// flips it, and readers inside a transaction use it without a read.
+	remoteAccessProvider atomic.Pointer[remoteAccessFunc]
+	remoteOff            atomic.Bool
 	// quiescent is set by the step itself: remote access is switched off, or
 	// this server has no claim, and so there is nothing for this loop to observe
 	// or publish until something changes and wakes it. A thirty-second tick in
@@ -91,6 +98,35 @@ func (m *RemoteManager) SetAccessURLs(fn func(context.Context) []string) {
 	}
 	p := accessURLsFunc(fn)
 	m.accessURLsProvider.Store(&p)
+}
+
+// remoteAccessFunc reads the Remote access setting; "" reports a read error.
+type remoteAccessFunc func(context.Context) string
+
+// SetRemoteAccess installs the Remote access seam (cmd/server, and tests).
+func (m *RemoteManager) SetRemoteAccess(fn func(context.Context) string) {
+	if m == nil {
+		return
+	}
+	if fn == nil {
+		m.remoteAccessProvider.Store(nil)
+		return
+	}
+	p := remoteAccessFunc(fn)
+	m.remoteAccessProvider.Store(&p)
+}
+
+// remoteOn reports whether Remote access is On, reading the setting. Call it
+// outside any transaction.
+func (m *RemoteManager) remoteOn(ctx context.Context) bool {
+	if p := m.remoteAccessProvider.Load(); p != nil && *p != nil {
+		if v := (*p)(ctx); v != "" {
+			m.remoteOff.Store(v != "on")
+		}
+	} else {
+		m.remoteOff.Store(false)
+	}
+	return !m.remoteOff.Load()
 }
 
 // PublicPort reports the configured remote public port for published routes,

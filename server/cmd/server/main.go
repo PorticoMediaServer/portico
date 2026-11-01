@@ -1321,6 +1321,7 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 	// observation, so it publishes exactly once.
 	if manager := claimHandler.Remote(); manager != nil {
 		manager.SetAccessURLs(accessURLsProvider(console, manager))
+		manager.SetRemoteAccess(remoteAccessProvider(console))
 	}
 	// Both storage pages read one maintained measurement; the data folder
 	// walk is part of the same pass.

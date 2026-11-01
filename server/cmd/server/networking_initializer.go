@@ -8,9 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"io"
-	"os"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/authoritygate"
 	"github.com/PorticoMediaServer/portico/server/internal/dirsync"
 	"github.com/PorticoMediaServer/portico/server/internal/hosted"
@@ -19,6 +16,9 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/networking"
 	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
+	"io"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -185,6 +185,19 @@ func accessURLsProvider(console *operations.Store, manager *networking.RemoteMan
 			return nil
 		}
 		return accessURLsForPublication(document.Effective, manager.PublicPort(ctx))
+	}
+}
+
+// remoteAccessProvider reads Remote access (on, private, off) from the console
+// settings for the remote manager: only "on" maps ports and publishes the
+// Portico address. "" reports a read error, which keeps the last answer.
+func remoteAccessProvider(console *operations.Store) func(context.Context) string {
+	return func(ctx context.Context) string {
+		document, err := console.RuntimeSettings(ctx, operations.AllowServerScope)
+		if err != nil {
+			return ""
+		}
+		return document.Effective.RemoteAccess
 	}
 }
 
