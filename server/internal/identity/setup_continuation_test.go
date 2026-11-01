@@ -40,6 +40,11 @@ type setupContinuationFixture struct {
 }
 
 func newSetupContinuationFixture(t *testing.T) setupContinuationFixture {
+	return newSetupContinuationFixtureAt(t, "https://server.example")
+}
+
+// newSetupContinuationFixtureAt signs the setup claim and start for one original address.
+func newSetupContinuationFixtureAt(t *testing.T, address string) setupContinuationFixture {
 	t.Helper()
 	ctx := context.Background()
 	root := t.TempDir()
@@ -109,7 +114,7 @@ func newSetupContinuationFixture(t *testing.T) setupContinuationFixture {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	claim := claimweb.Request{Kind: "portico.claim.web.v2", Audience: "https://hosted.example", OperationID: intent.OperationID, ServerID: server, PublicKey: base64.RawURLEncoding.EncodeToString(pub), Name: "Setup server", Address: "https://server.example", Purpose: "setup", IssuedAt: now, ExpiresAt: now.Add(10 * time.Minute)}
+	claim := claimweb.Request{Kind: "portico.claim.web.v2", Audience: "https://hosted.example", OperationID: intent.OperationID, ServerID: server, PublicKey: base64.RawURLEncoding.EncodeToString(pub), Name: "Setup server", Address: address, Purpose: "setup", IssuedAt: now, ExpiresAt: now.Add(10 * time.Minute)}
 	original := ownerCaptureSigned(t, key, claim)
 	raw, _ := base64.RawURLEncoding.DecodeString(original.Payload)
 	hash := sha256.Sum256(raw)
@@ -350,5 +355,58 @@ func TestSetupContinuationInstalledExchangeCreatesOnlyMatchingOwner(t *testing.T
 				t.Fatal("setup completion replayed")
 			}
 		})
+	}
+}
+
+// The setup claim's return completes at every plain-HTTP address setup itself admits
+// (finding #1: a claim signed for http://127.0.0.1 was refused at the return). The
+// exchange compares the caller's origin with the signed address exactly.
+func TestSetupReturnCompletesAtLocalPlainHTTPAddresses(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
+	}
+	for _, address := range []string{"http://127.0.0.1:41327", "http://[::1]:41327", "http://192.168.1.50:32500"} {
+		t.Run(address, func(t *testing.T) {
+			if !claimweb.SetupStartAddress(address) {
+				t.Fatal("setup does not admit", address)
+			}
+			f := newSetupContinuationFixtureAt(t, address)
+			f.capture(t)
+			f.install(t)
+			q := f.installed(t)
+			ctx := context.Background()
+			var operation, attempt string
+			if err := f.write(func(tx *sql.Tx) error {
+				if e := identity.CheckSetupReturnOriginTx(ctx, tx, f.intent.OperationID, "http://localhost:41327", f.claim.Audience); e == nil {
+					t.Error("another origin matched the signed address")
+				}
+				if e := identity.CheckSetupReturnOriginTx(ctx, tx, f.intent.OperationID, address, f.claim.Audience); e != nil {
+					return e
+				}
+				var e error
+				operation, attempt, e = f.s.BeginSetupReturnTx(ctx, tx, f.pending, f.proofHash, q)
+				return e
+			}); err != nil {
+				t.Fatal(err)
+			}
+			who := identity.PorticoIdentity{AccountID: "account-approved", Username: "actual_setup_owner", DisplayName: "Actual setup owner", Consent: "verified-identity-fixture", SignerKeyID: "current-document-key", Return: &identity.PorticoReturnBinding{Purpose: "setup", InstallationID: q.InstallationID, RegistrationID: "", OperationID: operation, ClaimGeneration: 1, CredentialGeneration: 1, ExpiresAt: time.Now().Add(45 * time.Second)}}
+			var out identity.DirectSignIn
+			if err := f.write(func(tx *sql.Tx) error {
+				var e error
+				out, e = f.s.CompleteSetupReturnTx(ctx, tx, f.pending, f.proofHash, operation, attempt, q, who, identity.Token())
+				return e
+			}); err != nil || out.Session == nil || out.Account.Role != identity.TierOwner {
+				t.Fatal("owner exchange at", address, err)
+			}
+		})
+	}
+}
+
+// Plain HTTP to a public address is never a setup address.
+func TestSetupStartRefusesPublicPlainHTTP(t *testing.T) {
+	for _, address := range []string{"http://203.0.113.5:32500", "http://8.8.8.8", "http://[2001:db8::1]:32500"} {
+		if claimweb.SetupStartAddress(address) {
+			t.Fatal("public plain HTTP admitted", address)
+		}
 	}
 }
