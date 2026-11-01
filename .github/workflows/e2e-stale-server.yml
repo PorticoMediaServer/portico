@@ -1,0 +1,45 @@
+name: E2E stale server sign-in
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '43 5 * * *'
+permissions:
+  contents: read
+jobs:
+  stale-server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm, cache-dependency-path: 'package-lock.json'}
+      - name: Install web and browser test dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/e2e/web --no-audit --no-fund --workspaces=false
+          (cd tests/e2e/web && npx playwright install --with-deps chromium webkit)
+      - name: Build dev-only server
+        working-directory: server
+        run: go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server
+      - name: Build the web app
+        working-directory: web
+        run: npx --no-install vite build --outDir "$RUNNER_TEMP/portico-e2e-web-build"
+      - name: Check saved sign-in after server reset in Chromium and WebKit
+        env:
+          PORTICO_SERVER_BIN: ${{ runner.temp }}/portico-e2e-server
+          PORTICO_WEB_DIR: ${{ runner.temp }}/portico-e2e-web-build
+          PLAYWRIGHT: ${{ github.workspace }}/tests/e2e/web/node_modules/playwright/index.mjs
+          ENGINES: webkit,chromium
+        run: |
+          set -o pipefail
+          node web/test/stale-server-state.browser.mjs 2>&1 | tee "$RUNNER_TEMP/portico-e2e-stale-server.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: e2e-stale-server-log
+          path: ${{ runner.temp }}/portico-e2e-stale-server.log
+          if-no-files-found: warn
+          retention-days: 14
