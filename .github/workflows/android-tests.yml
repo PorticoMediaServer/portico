@@ -1,6 +1,10 @@
 name: Android JVM tests
 on:
   workflow_dispatch:
+    inputs:
+      e2e_probe_only:
+        type: boolean
+        default: false
   workflow_call:
 permissions:
   contents: read
@@ -41,6 +45,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/e2e-groundwork.yml
   unit-and-transport:
+    if: ${{ !inputs.e2e_probe_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
