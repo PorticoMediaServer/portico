@@ -41,6 +41,7 @@ export type RuntimeSettings=TranscodingSettings&{
  customCertificatePath:string;customCertificateKeyPath:string;customCertificateDomain:string;ownAddressEnabled:boolean;
  /** "Secure connections": `required` refuses plain HTTP for everyone; `preferred` allows it. */
  secureConnections:'preferred'|'required';
+ remoteSecurity:'enhanced'|'standard';remoteAccess:'on'|'private'|'off';
  connectionLimit:number;advertiseUrl:string;apiRequestsPerMinute:number;
  'integrations.compatibilityEnabled'?:boolean;
  logLevel:string;logRetention:{category:string;days:number}[];
@@ -84,6 +85,8 @@ function checkOwnerDocument(s:Record<string,any>){
  for(const key of ['remoteBitrateLimitKbps','uploadCapacityKbps','pausedSessionTimeoutMinutes','connectionLimit','apiRequestsPerMinute'])if(!integer(s[key]))invalid();
  for(const key of ['lanDiscoveryEnabled','ownAddressEnabled'])if(typeof s[key]!=='boolean')invalid();
  if(s.secureConnections!=='preferred'&&s.secureConnections!=='required')invalid();
+ if(s.remoteSecurity!=='enhanced'&&s.remoteSecurity!=='standard')invalid();
+ if(s.remoteAccess!=='on'&&s.remoteAccess!=='private'&&s.remoteAccess!=='off')invalid();
  // An older server has no DLNA switch, which reads as off.
  if(s.dlnaEnabled===undefined)s.dlnaEnabled=false;else if(typeof s.dlnaEnabled!=='boolean')invalid();
  for(const key of ['lanNetworks','accessUrls','trustedProxies'])if(!Array.isArray(s[key])||s[key].length>64||!s[key].every((v:unknown)=>text(v,4096)))invalid();

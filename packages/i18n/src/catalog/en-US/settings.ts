@@ -694,7 +694,7 @@ export const settingsMessages = {
   'settings.server.yourConnection': 'This device',
   'settings.server.homeNetworksHelp': 'An address or a range, such as 192.168.2.0/24. The list starts with the usual private ranges and the networks this server is attached to. Add a VPN range if it should count as home. With an empty list, every device is away from home.',
   'settings.server.advertiseUrlHelp': 'The address people outside your home use to reach this server, such as https://media.example.com. Use a hostname with no path after it.',
-  'settings.server.extraAddressesHelp': 'More addresses apps may try, such as a VPN name. Apps test each one themselves.',
+  'settings.server.extraAddressesHelp': 'Via your own certificate or reverse proxy.',
   'settings.server.trustedProxiesHelp': 'The address of a reverse proxy in front of this server, such as 127.0.0.1. The server believes the viewer address a listed proxy passes on. Leave empty if you don’t use one.',
   'settings.server.ownCertificateLede': 'For your own domain without a reverse proxy: the certificate and key files on this server, in PEM form, and the domain they cover. The server picks up renewed files by itself.',
   'settings.server.automatic': 'Automatic',

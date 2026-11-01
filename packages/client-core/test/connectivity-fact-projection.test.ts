@@ -5,7 +5,7 @@ import {schemas} from '../../contracts/src/schemas.ts';
 
 const status = {
   observedAt: '2026-10-24T00:00:00Z',
-  policy: {revision: 1, remoteSignInPolicy: 'off', remoteBitrateLimitKbps: 0,
+  policy: {revision: 1, remoteSignInPolicy: 'owner-only', remoteBitrateLimitKbps: 0,
     connectionLimit: 0, advertiseUrl: '', lanNetworks: [], accessUrls: [], lanDiscoveryEnabled: false},
 };
 

@@ -69,11 +69,17 @@ test('Custom stores a window mode or the current removal days; other customs onl
 });
 
 test('Remote access offers the Portico Services switch only for a linked server and opens own-address rows on demand', () => {
-  const connectivity = {remoteSignInPolicy: 'allow', lanDiscoveryEnabled: true, dlnaEnabled: false, ownAddressEnabled: false, customCertificateDomain: '', customCertificatePath: '', customCertificateKeyPath: '', advertisedInterface: '', connectionLimit: 0, lanNetworks: [], accessUrls: [], trustedProxies: []};
+  const connectivity = {remoteSignInPolicy: 'allow', remoteAccess: 'on', remoteSecurity: 'enhanced', lanDiscoveryEnabled: true, dlnaEnabled: false, ownAddressEnabled: false, customCertificateDomain: '', customCertificatePath: '', customCertificateKeyPath: '', advertisedInterface: '', connectionLimit: 0, lanNetworks: [], accessUrls: [], trustedProxies: []};
   const local = state('remote', {connectivity});
   assert.equal(ids(local).includes('remote.secure'), false);
   assert.equal(ids(local).includes('remote.externalAddress'), false);
-  assert.ok(ids(local).includes('remote.who'));
+  // O-169: Remote access, with Remote security and sign-in from outside while it's On; the refused list is a list, so not on TV.
+  assert.ok(ids(local).includes('remote.access'));
+  assert.ok(ids(local).includes('remote.security'));
+  assert.ok(ids(local).includes('remote.signInOutside'));
+  assert.equal(ids(local).includes('remote.refused'), false);
+  const closed = state('remote', {connectivity: {...connectivity, remoteAccess: 'private'}});
+  assert.equal(ids(closed).includes('remote.security'), false, 'Remote security only while Remote access is On');
   assert.ok(ids(local).includes('remote.dlna'));
   // Lists of networks and proxies stay with the phone and web.
   assert.equal(ids(local, true).includes('remote.trustedProxies'), false);

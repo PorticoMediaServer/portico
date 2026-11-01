@@ -9,7 +9,10 @@ import type {SettingsValue} from './settings-spec.ts';
  */
 const remote: MessageId = 'settings.confirm.remoteAccess';
 const confirmations: Readonly<Record<string, Readonly<{message: MessageId; values?: readonly SettingsValue[]}>>> = Object.freeze({
-  'remote.who': {message: remote, values: ['owner', 'none']},
+  // O-169: Private only and Off close the door to the internet; Enhanced refuses plain HTTP and unknown names from outside.
+  'remote.access': {message: remote, values: ['private', 'off']},
+  'remote.security': {message: remote, values: ['enhanced']},
+  'remote.signInOutside': {message: remote, values: ['owner']},
   'remote.mapping': {message: remote, values: ['off']},
   'remote.secure': {message: remote, values: [false]},
   // Required drops every plain-HTTP connection, including the owner's own if they are on one.

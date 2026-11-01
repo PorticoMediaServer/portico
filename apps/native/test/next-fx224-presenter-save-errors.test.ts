@@ -30,7 +30,7 @@ const runtimeValues = {
   maxConcurrentSessions: 0, maxHardwareSessions: 0, maxSoftwareSessions: 0, maxBackgroundSessions: 0,
   playHistoryDays: 0, 'home.communityActivityEnabled': false, 'updates.releaseChannel': 'stable', 'updates.feedUrl': '',
   'library.missingTitles': 'after_days', 'library.missingTitlesDays': 30, 'library.segmentDetection': 'standard',
-  remoteSignInPolicy: 'allow', remoteBitrateLimitKbps: 0, lanNetworks: [], accessUrls: [], lanDiscoveryEnabled: true, dlnaEnabled: false, secureConnections: 'preferred',
+  remoteSignInPolicy: 'allow', remoteBitrateLimitKbps: 0, lanNetworks: [], accessUrls: [], lanDiscoveryEnabled: true, dlnaEnabled: false, secureConnections: 'preferred', remoteSecurity: 'enhanced', remoteAccess: 'on',
   trustedProxies: [], uploadCapacityKbps: 0, pausedSessionTimeoutMinutes: 0, advertisedInterface: '', ownAddressEnabled: false,
   customCertificatePath: '', customCertificateKeyPath: '', customCertificateDomain: '', deviceApprovalRequired: false,
   connectionLimit: 0, advertiseUrl: '', apiRequestsPerMinute: 0, blockMemberAccessTokens: false, logLevel: 'info', logRetention: [],
@@ -330,7 +330,8 @@ test('a retired original bootstrap authority refuses its captured retry', async 
 test('a rejected Remote access save projects the same inline state and retries the same configuration', async t => {
   const f = await presenterFixture(t);
   await f.mount('remote');
-  const toggle = f.byTestId('remote-access-enabled-switch');
+  // Remote access itself is the connectivity setting now (O-169); port mapping is a remote-config edit.
+  const toggle = f.byTestId('remote-access-mapping-switch');
   assert.ok(toggle, 'the real Remote access presenter rendered its switch');
   press(f.app, toggle);
   await f.settle();
@@ -342,7 +343,7 @@ test('a rejected Remote access save projects the same inline state and retries t
   assert.ok(f.pressable('Save'), 'the rejected save keeps the remote form dirty');
   const writes = f.writes('/v1/networking/remote/config', 'POST');
   assert.equal(writes.length, 5);
-  assert.equal(writes[0].body.config.enabled, true, 'the retry keeps the owner edit');
+  assert.equal(writes[0].body.config.mapping, true, 'the retry keeps the owner edit');
   f.failure.remoteWrite = false;
   press(f.app, f.pressable('Try again'));
   await f.retryPending();
