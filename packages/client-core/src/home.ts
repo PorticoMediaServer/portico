@@ -58,7 +58,10 @@ export type HomeRow = Readonly<{
   /** How long the server would let the row be reused. No client reads it; absent when the server does not send it. */
   cacheTtlMs?: number;
   required: boolean; hideable: boolean; reorderable: boolean; critical: boolean; cursorCapable: boolean;
-  entries: readonly HomeEntry[]; total: number; start: number; limit: number; hasMore: boolean;
+  entries: readonly HomeEntry[];
+  /** The row's exact length. A Home document row carries it only when the server knew it without counting the row; a row's own page request always does. */
+  total?: number;
+  start: number; limit: number; hasMore: boolean;
   nextCursor: string; anchorId?: string; revision: HomeRevision;
 }>;
 export type HomeLayout = Readonly<{revision: number; rowOrder: readonly string[]; hiddenRowIds: readonly string[]}>;
@@ -243,8 +246,8 @@ function parseHomeRow(value: unknown, allowChildren: boolean): HomeRow {
     // A required row is never hideable, whatever the two flags say together.
     required, hideable: flag('hideable') && !required,
     reorderable: flag('reorderable'), critical: flag('critical'), cursorCapable: flag('cursorCapable'),
-    // The total is at least the entries kept.
-    entries: Object.freeze(entries), total: Math.max(amount('total'), entries.length), start: amount('start'), limit: amount('limit'),
+    // The total, when sent, is at least the entries kept.
+    entries: Object.freeze(entries), ...(whole(value.total) ? {total: Math.max(value.total as number, entries.length)} : {}), start: amount('start'), limit: amount('limit'),
     hasMore: flag('hasMore'), nextCursor: value.nextCursor ?? '', revision: revision(value.revision),
   };
   if (value.deferred === true) row.deferred = true;
@@ -429,7 +432,7 @@ export function appendHomeRowPage(row: HomeRow, page: HomeRow): HomeRow {
     const seen=new Set(row.live.channels.map(key));
     const channels=Object.freeze([...row.live.channels,...page.live.channels.filter(v=>!seen.has(key(v)))]);
     const expiresAt=Date.parse(page.live.expiresAt)<Date.parse(row.live.expiresAt)?page.live.expiresAt:row.live.expiresAt;
-    return Object.freeze({...row,live:Object.freeze({...row.live,channels,expiresAt}),nextCursor:page.nextCursor,hasMore:page.hasMore,total:page.total});
+    return Object.freeze({...row,live:Object.freeze({...row.live,channels,expiresAt}),nextCursor:page.nextCursor,hasMore:page.hasMore,...(page.total!==undefined?{total:page.total}:{})});
   }
   const seen = new Set(row.entries.map(e => e.id));
   const entries = [...row.entries, ...page.entries.filter(e => !seen.has(e.id))];
@@ -440,7 +443,7 @@ export function appendHomeRowPage(row: HomeRow, page: HomeRow): HomeRow {
     if(previous&&(previous.membershipId!==target.membershipId||previous.entryId!==target.entryId))throw Object.assign(new Error('The row display target changed.'),{code:'stale_continuation'});
     if(!previous)targets.push(target);
   }
-  return Object.freeze({...row, entries, ...(resumes?{resumes}:{}), ...(targets.length?{displayTargets:Object.freeze(targets)}:{}), nextCursor: page.nextCursor, hasMore: page.hasMore, total: page.total});
+  return Object.freeze({...row, entries, ...(resumes?{resumes}:{}), ...(targets.length?{displayTargets:Object.freeze(targets)}:{}), nextCursor: page.nextCursor, hasMore: page.hasMore, ...(page.total !== undefined ? {total: page.total} : {})});
 }
 
 export async function fetchHomeRow(api: HomeApi, rowId: string, page: HomeRowPage = {}, signal?: AbortSignal): Promise<HomeRow> {

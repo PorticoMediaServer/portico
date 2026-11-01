@@ -46,7 +46,7 @@ func TestRestrictedRecentlyAddedIsCompleteBehindHiddenTitles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.Total != 3 || len(row.Entries) != 3 {
+	if rowTotal(row) != 3 || len(row.Entries) != 3 {
 		t.Fatalf("restricted recently added: total %d, %d entries", row.Total, len(row.Entries))
 	}
 	for _, entry := range row.Entries {

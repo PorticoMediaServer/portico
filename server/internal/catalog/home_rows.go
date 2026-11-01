@@ -75,24 +75,27 @@ type HomeRow struct {
 	Relation           string              `json:"relation,omitempty"`
 	// Family groups rows the layout arranges as one ("for_you": the personal
 	// rows, which vary with the profile and the day).
-	Family        string          `json:"family,omitempty"`
-	Provider      string          `json:"provider,omitempty"`
-	EvidenceID    string          `json:"evidenceId,omitempty"`
-	Priority      int             `json:"priority"`
-	CacheTTLMs    int             `json:"cacheTtlMs"`
-	Required      bool            `json:"required"`
-	Hideable      bool            `json:"hideable"`
-	Reorderable   bool            `json:"reorderable"`
-	Critical      bool            `json:"critical"`
-	CursorCapable bool            `json:"cursorCapable"`
-	Entries       []ContentEntry  `json:"entries"`
-	Total         int             `json:"total"`
-	Start         int             `json:"start"`
-	Limit         int             `json:"limit"`
-	HasMore       bool            `json:"hasMore"`
-	NextCursor    string          `json:"nextCursor"`
-	AnchorID      string          `json:"anchorId,omitempty"`
-	Revision      ContentRevision `json:"revision"`
+	Family        string         `json:"family,omitempty"`
+	Provider      string         `json:"provider,omitempty"`
+	EvidenceID    string         `json:"evidenceId,omitempty"`
+	Priority      int            `json:"priority"`
+	CacheTTLMs    int            `json:"cacheTtlMs"`
+	Required      bool           `json:"required"`
+	Hideable      bool           `json:"hideable"`
+	Reorderable   bool           `json:"reorderable"`
+	Critical      bool           `json:"critical"`
+	CursorCapable bool           `json:"cursorCapable"`
+	Entries       []ContentEntry `json:"entries"`
+	// Total is the row's exact number of entries. A Home document row carries
+	// it only when it is known without counting the row (a short first page, or
+	// a maintained count); a row's own page request always carries it.
+	Total      *int            `json:"total,omitempty"`
+	Start      int             `json:"start"`
+	Limit      int             `json:"limit"`
+	HasMore    bool            `json:"hasMore"`
+	NextCursor string          `json:"nextCursor"`
+	AnchorID   string          `json:"anchorId,omitempty"`
+	Revision   ContentRevision `json:"revision"`
 	// lead is the first entry's own order value, retained for bounded paging.
 	lead string
 }
@@ -246,6 +249,12 @@ func (spec homeRowSpec) titleText() ServerText {
 		}
 	}
 	return ServerText{Code: code, Params: spec.TitleParams, Fallback: spec.Title}
+}
+
+// homeRowBelow reports a row known to hold fewer than n entries. Engine rows
+// always know their total; a row without one filled its page and more.
+func homeRowBelow(row HomeRow, n int) bool {
+	return row.Total != nil && *row.Total < n
 }
 
 func homeLimit(limit int) int {
@@ -537,9 +546,10 @@ func homeOrder(direction string) (string, string) {
 }
 
 // ords are the page's order values, one per id.
-func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage, revision ContentRevision, viewer string, profile string) (ids, ords []string, total, start int, next, lead string, err error) {
+// total is nil only when exactTotal is false and the first page cannot answer it.
+func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage, revision ContentRevision, viewer string, profile string, exactTotal bool) (ids, ords []string, total *int, start int, next, lead string, err error) {
 	if page.Revision != "" && page.Revision != fmt.Sprintf("%d:%d", revision.Catalog, revision.Viewer) {
-		return nil, nil, 0, 0, "", "", ErrStaleContinuation
+		return nil, nil, nil, 0, "", "", ErrStaleContinuation
 	}
 	order, operator := homeOrder(spec.Direction)
 	limit := homeLimit(page.Limit)
@@ -548,7 +558,7 @@ func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage,
 	// cursor values and all authority predicates remain bound parameters.
 	start = page.Start
 	if start < 0 {
-		return nil, nil, 0, 0, "", "", ErrCursor
+		return nil, nil, nil, 0, "", "", ErrCursor
 	}
 	// The count is asked for only when the page cannot answer it.
 	//
@@ -571,19 +581,20 @@ func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage,
 		return total, e
 	}
 	var e error
+	var count int
 	if page.Cursor != "" || page.AnchorID != "" || start != 0 || src.total != nil {
-		if total, e = countTotal(); e != nil {
-			return nil, nil, 0, 0, "", "", e
+		if count, e = countTotal(); e != nil {
+			return nil, nil, nil, 0, "", "", e
 		}
 	}
 	base := homeCursor{EvaluationAt: src.evaluationAt, Fingerprint: src.fingerprint, Row: spec.ID, Profile: profile, Viewer: viewer, Direction: spec.Direction, Limit: limit, Catalog: revision.Catalog, Revision: revision.Viewer}
 	if page.Cursor != "" {
 		if page.Start != 0 || page.AnchorID != "" {
-			return nil, nil, 0, 0, "", "", ErrCursor
+			return nil, nil, nil, 0, "", "", ErrCursor
 		}
 		cursor, e := s.decodeHomeCursor(page.Cursor, base, revision)
 		if e != nil {
-			return nil, nil, 0, 0, "", "", e
+			return nil, nil, nil, 0, "", "", e
 		}
 		if src.fingerprint != "" {
 			// Later pages of a computed list keep the revision of its first page.
@@ -592,17 +603,17 @@ func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage,
 		if src.walk != nil && order == "DESC" {
 			walked, walkedOrds, ok, e := src.walk(homeWalkRequest{take: limit + 1, after: &[2]string{cursor.Value, cursor.ID}})
 			if e != nil {
-				return nil, nil, 0, 0, "", "", e
+				return nil, nil, nil, 0, "", "", e
 			}
 			if ok {
 				ids, ords, next, _, lead, e := s.homePage(walked, walkedOrds, base, cursor.Offset, limit)
-				return ids, ords, total, cursor.Offset, next, lead, e
+				return ids, ords, &count, cursor.Offset, next, lead, e
 			}
 		}
 		args := append(append([]any{}, src.args...), cursor.Value, cursor.Value, cursor.ID)
 		query := `SELECT id,ord FROM (` + src.base + `) WHERE (ord` + operator + `? OR (ord=? AND id` + operator + `?)) ORDER BY ord ` + order + `,id ` + order + ` LIMIT ` + strconv.Itoa(limit+1)
 		ids, ords, next, _, lead, e := s.homeScanPage(query, args, base, cursor.Offset, limit)
-		return ids, ords, total, cursor.Offset, next, lead, e
+		return ids, ords, &count, cursor.Offset, next, lead, e
 	}
 	if page.AnchorID != "" {
 		anchor := page.AnchorID
@@ -610,7 +621,7 @@ func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage,
 			// Delivery cards navigate to a real episode or season, while the
 			// stable row cursor and order belong to the canonical show work.
 			if err := s.read().QueryRow(`SELECT COALESCE((SELECT pid(parent.public_id) FROM catalog_entities child JOIN catalog_entities parent ON parent.id=CASE child.kind WHEN 4 THEN (SELECT show_id FROM catalog_episodes WHERE entity_id=child.id) WHEN 3 THEN (SELECT show_id FROM catalog_seasons WHERE entity_id=child.id) ELSE child.id END WHERE child.public_id=pid_blob(?)),?)`, anchor, anchor).Scan(&anchor); err != nil {
-				return nil, nil, 0, 0, "", "", err
+				return nil, nil, nil, 0, "", "", err
 			}
 		}
 		args := append(append([]any{}, src.args...), anchor)
@@ -619,14 +630,14 @@ func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage,
 		if rankErr == nil {
 			start = rank
 		} else if !errors.Is(rankErr, sql.ErrNoRows) {
-			return nil, nil, 0, 0, "", "", rankErr
+			return nil, nil, nil, 0, "", "", rankErr
 		}
 	}
 	if src.total != nil || page.AnchorID != "" || start != 0 {
-		if total == 0 {
+		if count == 0 {
 			start = 0
-		} else if start > total-1 {
-			start = total - 1
+		} else if start > count-1 {
+			start = count - 1
 		}
 	}
 	var scanned int
@@ -634,7 +645,7 @@ func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage,
 	if src.walk != nil && order == "DESC" && page.AnchorID == "" {
 		var walkedIDs, walkedOrds []string
 		if walkedIDs, walkedOrds, walked, e = src.walk(homeWalkRequest{skip: start, take: limit + 1}); e != nil {
-			return nil, nil, 0, 0, "", "", e
+			return nil, nil, nil, 0, "", "", e
 		}
 		if walked {
 			ids, ords, next, scanned, lead, e = s.homePage(walkedIDs, walkedOrds, base, start, limit)
@@ -646,18 +657,20 @@ func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage,
 		ids, ords, next, scanned, lead, e = s.homeScanPage(query, args, base, start, limit)
 	}
 	if e != nil {
-		return nil, nil, 0, 0, "", "", e
+		return nil, nil, nil, 0, "", "", e
 	}
 	if src.total == nil && page.AnchorID == "" && start == 0 {
 		if scanned <= limit {
 			// The page is the whole row: it asked for one more than it wanted and
 			// did not get it, so the count is what it read.
-			total = scanned
-		} else if total, e = countTotal(); e != nil {
-			return nil, nil, 0, 0, "", "", e
+			count = scanned
+		} else if !exactTotal {
+			return ids, ords, nil, start, next, lead, nil
+		} else if count, e = countTotal(); e != nil {
+			return nil, nil, nil, 0, "", "", e
 		}
 	}
-	return ids, ords, total, start, next, lead, nil
+	return ids, ords, &count, start, next, lead, nil
 }
 
 // homeScanPage reads one page and its order values. lead is the first entry's order value.
@@ -753,7 +766,9 @@ func (r HomeRequest) now() time.Time {
 	return r.Now
 }
 
-func (s *Service) homeRowFor(r HomeRequest, spec homeRowSpec, revision ContentRevision, page HomeRowPage, enrich bool) (HomeRow, error) {
+// homeRowFor composes one row's page. exactTotal counts the row when its page
+// cannot answer the total; a Home document row leaves an unanswered total out.
+func (s *Service) homeRowFor(r HomeRequest, spec homeRowSpec, revision ContentRevision, page HomeRowPage, enrich, exactTotal bool) (HomeRow, error) {
 	row := spec.descriptor()
 	row.ViewerFence = r.ViewerFence
 	row.Revision = revision
@@ -782,8 +797,12 @@ func (s *Service) homeRowFor(r HomeRequest, spec homeRowSpec, revision ContentRe
 			return row, err
 		}
 		row.Collection = c
+		total := 0
 		if c != nil {
-			row.Total = 1
+			total = 1
+		}
+		row.Total = &total
+		if c != nil {
 			row.SeeAll = &HomeSeeAll{Type: "collection", ResourceID: c.Collection.ID, LibraryID: c.Collection.LibraryID}
 		}
 		return row, nil
@@ -808,7 +827,7 @@ func (s *Service) homeRowFor(r HomeRequest, spec homeRowSpec, revision ContentRe
 	if e != nil {
 		return row, e
 	}
-	ids, ords, total, start, next, lead, e := s.homeRowIDs(spec, src, page, revision, r.ViewerFence, r.Profile)
+	ids, ords, total, start, next, lead, e := s.homeRowIDs(spec, src, page, revision, r.ViewerFence, r.Profile, exactTotal)
 	if e != nil {
 		return row, e
 	}
@@ -912,7 +931,7 @@ func (s *Service) homeRowFor(r HomeRequest, spec homeRowSpec, revision ContentRe
 	row.Total = total
 	row.Start = start
 	row.NextCursor = next
-	row.HasMore = next != "" || start+len(entries) < total
+	row.HasMore = next != "" || total != nil && start+len(entries) < *total
 	row.AnchorID = page.AnchorID
 	return row, nil
 }
@@ -1122,11 +1141,11 @@ func (s *Service) HomeRows(r HomeRequest) (HomeDocument, error) {
 			}
 			continue
 		}
-		row, e := s.homeRowFor(r, spec, paging, HomeRowPage{Limit: r.Limit}, false)
+		row, e := s.homeRowFor(r, spec, paging, HomeRowPage{Limit: r.Limit}, false, false)
 		if e != nil {
 			return out, e
 		}
-		if (len(row.Entries) == 0 && row.Collection == nil && (row.Live == nil || len(row.Live.Channels) == 0) && !spec.Critical) || (spec.ID == "recommended" && row.Total < recMinimumShelf) || (spec.ID == "trending_now" && row.Total < recMinimumTrend) {
+		if (len(row.Entries) == 0 && row.Collection == nil && (row.Live == nil || len(row.Live.Channels) == 0) && !spec.Critical) || (spec.ID == "recommended" && homeRowBelow(row, recMinimumShelf)) || (spec.ID == "trending_now" && homeRowBelow(row, recMinimumTrend)) {
 			continue
 		}
 		if len(out.Rows) == operations.HomeLayoutMaxRows {
@@ -1217,6 +1236,9 @@ func (s *Service) HomeSingleRow(r HomeRequest, id string, page HomeRowPage) (Hom
 			if spec.ID == recFamily {
 				row := spec.descriptor()
 				row.Children = children
+				// The family's own entries are its children's; it has none itself.
+				none := 0
+				row.Total = &none
 				row.ViewerFence = r.ViewerFence
 				row.Revision = revision
 				row.Limit = r.Limit
@@ -1247,7 +1269,7 @@ func (s *Service) HomeSingleRow(r HomeRequest, id string, page HomeRowPage) (Hom
 		return HomeRow{}, e
 	}
 
-	row, e := s.homeRowFor(r, *found, before, page, true)
+	row, e := s.homeRowFor(r, *found, before, page, true, true)
 	if e != nil {
 		return row, e
 	}
@@ -1278,7 +1300,7 @@ func (s *Service) recFamilyRows(r HomeRequest, revision ContentRevision) ([]Home
 	out := make([]HomeRow, 0, len(generated))
 	for _, g := range generated {
 		s.recSources[g.spec.ID+":"+idsJSON(r.Libraries)] = candidateSource(g.items)
-		row, err := s.homeRowFor(r, g.spec, revision, HomeRowPage{Limit: r.Limit}, false)
+		row, err := s.homeRowFor(r, g.spec, revision, HomeRowPage{Limit: r.Limit}, false, false)
 		if err != nil {
 			return nil, err
 		}

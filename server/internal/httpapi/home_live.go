@@ -198,10 +198,11 @@ func (d Dependencies) homeOnNow(r *http.Request, p identity.Principal, page cata
 	}
 	live.ExpiresAt = time.Unix(cursor.Until, 0).UTC().Format(time.RFC3339)
 	out.Live = live
-	out.Total = directory.Total
+	total := directory.Total
+	out.Total = &total
 	out.Start = directory.Offset
 	out.Limit = limit
-	out.HasMore = out.Start+len(live.Channels) < out.Total
+	out.HasMore = out.Start+len(live.Channels) < total
 	if out.HasMore {
 		cursor.Offset = out.Start + len(live.Channels)
 		cursor.Revision = directory.Revision

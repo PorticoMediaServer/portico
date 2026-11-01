@@ -220,7 +220,7 @@ func TestBrowseRelativeSavedViewAndHomeStayCurrent(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if first.CacheTTLMs != 30000 || first.Total != 3 || len(first.Entries) != 1 || first.Entries[0].ID != names["m1"].Public || first.NextCursor == "" {
+	if first.CacheTTLMs != 30000 || rowTotal(first) != 3 || len(first.Entries) != 1 || first.Entries[0].ID != names["m1"].Public || first.NextCursor == "" {
 		t.Fatalf("Home before: %+v", first)
 	}
 	now = now.Add(61 * time.Second)
@@ -232,14 +232,14 @@ func TestBrowseRelativeSavedViewAndHomeStayCurrent(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if next.Total != 3 || len(next.Entries) != 1 || next.Entries[0].ID != names["m2"].Public {
+	if rowTotal(next) != 3 || len(next.Entries) != 1 || next.Entries[0].ID != names["m2"].Public {
 		t.Fatalf("Home snapshot: %+v", next)
 	}
 	fresh, e := s.HomeSingleRow(home, rowID, HomeRowPage{Limit: 1})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if fresh.Total != 2 || fresh.Entries[0].ID != names["m2"].Public {
+	if rowTotal(fresh) != 2 || fresh.Entries[0].ID != names["m2"].Public {
 		t.Fatalf("Home stale: %+v", fresh)
 	}
 }

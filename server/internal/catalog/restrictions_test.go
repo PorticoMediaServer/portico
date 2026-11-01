@@ -431,11 +431,11 @@ func TestRestrictionPredicateFiltersHomeRowsAndTheirCounts(t *testing.T) {
 		return out
 	}
 	open := row(identity.ContentRestrictions{})
-	if open.Total != 9 {
+	if rowTotal(open) != 9 {
 		t.Fatalf("unrestricted recent total %d", open.Total)
 	}
 	limited := row(restrictionOf(ceiling(13), false))
-	if limited.Total >= open.Total || len(limited.Entries) != limited.Total {
+	if rowTotal(limited) >= rowTotal(open) || len(limited.Entries) != rowTotal(limited) {
 		t.Fatalf("restricted recent total=%d entries=%+v", limited.Total, limited.Entries)
 	}
 	for _, entry := range limited.Entries {

@@ -60,7 +60,7 @@ func TestRowCursorExhaustionStableRevision(t *testing.T) {
 			t.Fatalf("prefix/order changed at page %d", pages)
 		}
 		pages++
-		if page.Total != 1203 {
+		if rowTotal(page) != 1203 {
 			t.Fatalf("count %d", page.Total)
 		}
 		if page.NextCursor == "" {
@@ -190,7 +190,7 @@ func TestRowCursorExhaustionStableRevision(t *testing.T) {
 		for _, entry := range page.Entries {
 			viewIDs = append(viewIDs, entry.ID)
 		}
-		if page.Total != 1203 {
+		if rowTotal(page) != 1203 {
 			t.Fatal("saved Home view total", page.Total)
 		}
 		if page.NextCursor == "" {

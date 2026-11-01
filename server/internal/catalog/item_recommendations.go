@@ -311,7 +311,8 @@ func (s *Service) filterRecommendationRows(viewer Viewer, rows []HomeRow) ([]Hom
 			entries[i].BackdropURL = ""
 		}
 		row.Entries = entries
-		row.Total = len(entries)
+		total := len(entries)
+		row.Total = &total
 		row.Limit = len(entries)
 		out = append(out, row)
 	}
