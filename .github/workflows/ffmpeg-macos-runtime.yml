@@ -1,9 +1,6 @@
 name: Native Mac engine relocation controls
 on:
   workflow_dispatch:
-  # Temporary exact-topic bootstrap; remove before merge.
-  push:
-    branches: [rebuild/D-mac-runtime-r1]
   pull_request:
     paths:
       - '.github/workflows/ffmpeg-macos-runtime.yml'
