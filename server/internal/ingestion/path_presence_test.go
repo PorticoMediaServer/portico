@@ -176,15 +176,17 @@ func TestSamePathPresenceLeavesRemoteOwnedSourcesAlone(t *testing.T) {
 }
 
 func TestSamePathDifferentMediaScanStopsBeforePublishingAbsence(t *testing.T) {
-	for _, state := range []string{"native-change", "offline", "settings-change"} {
+	for _, state := range []string{"native-change", "offline", "degraded", "root-changed-current", "settings-change"} {
 		t.Run(state, func(t *testing.T) {
 			f := presenceFixture(t)
 			if err := os.Remove(filepath.Join(f.root, "Film (2000).mkv")); err != nil {
 				t.Fatal(err)
 			}
 			f.write("Different (2020).mkv", "different")
-			if state == "offline" {
-				f.exec(`UPDATE library_sources SET health='offline' WHERE id=?`, f.source)
+			if state == "offline" || state == "degraded" {
+				f.exec(`UPDATE library_sources SET health=? WHERE id=?`, state, f.source)
+			} else if state == "root-changed-current" {
+				f.exec(`UPDATE library_sources SET health='root_changed' WHERE id=?`, f.source)
 			} else {
 				f.exec(`UPDATE library_sources SET root_identity='prior-machine',health='healthy' WHERE id=?`, f.source)
 				if state == "settings-change" {

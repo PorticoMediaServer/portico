@@ -449,7 +449,7 @@ func (s *Service) SaveSourceThen(ctx context.Context, library, id string, input 
 		if busy != 0 {
 			return result, ErrSourceBusy
 		}
-		replacement := old.Path != input.Path || old.Health == "root_changed" && !old.IdentityConfirmed
+		replacement := old.Path != input.Path || old.Health == "root_changed" && !old.IdentityConfirmed || old.Kind == "remote" && old.RootIdentity != "" && !storage.SameRoot(old.RootIdentity, rootID)
 		if replacement && !input.AcceptReplacement {
 			return result, ErrSourceChanged
 		}
@@ -602,6 +602,9 @@ func (s *Service) UpdateScanPolicy(ctx context.Context, library string, p ScanPo
 // Device and inode changes do not change the source's identity, incarnation or
 // analysis. The running scan is moved to the new physical observation with it.
 func (s *Service) AdoptRootIdentity(ctx context.Context, job string, source LibrarySource, observed string) error {
+	if source.Kind == "remote" && !storage.SameRoot(source.RootIdentity, observed) {
+		return ErrSourceChanged
+	}
 	return dbwork.WithWriteTx(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassBackgroundMedia), func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE library_sources SET root_identity=? WHERE id=? AND generation=? AND root_identity=?`, observed, source.ID, source.Generation, source.RootIdentity)
 		if err != nil {

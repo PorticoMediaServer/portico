@@ -61,40 +61,11 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 	if actual == "" {
 		return catalog.ErrSourceChanged
 	}
-	// A native identity change is never an admission gate. If this source
-	// already had files, however, a later complete listing must prove at least
-	// one catalogued path before publishing any absence. A previously accepted
-	// replacement has an explicit new lifetime and owes no such confirmation.
-	if !remote && (source.Health == "offline" || source.RootIdentity != "" && actual != source.RootIdentity) {
-		var discovered int64
-		if err := s.db.QueryRowContext(ctx, `SELECT discovered FROM inventory_runs WHERE job_id=?`, job).Scan(&discovered); err != nil {
+	presence := 0
+	if !remote {
+		presence, err = s.prepareScanPresence(ctx, job, *source, actual)
+		if err != nil {
 			return err
-		}
-		if discovered > 0 {
-			// A root returned partway through this listing. Its earlier
-			// observations cannot prove this root's absences. Retain the
-			// catalogue; the stat-only worker recovers it without a prompt.
-			return catalog.ErrSourceLooksUnmounted
-		}
-		accepted := false
-		if source.Generation > 1 && source.LastCompleteAt == "" {
-			var incarnation string
-			err := s.db.QueryRowContext(ctx, `SELECT root_incarnation FROM inventory_objects INDEXED BY inventory_objects_source WHERE source_id=? AND retired=0 ORDER BY id LIMIT 1`, source.ID).Scan(&incarnation)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
-			accepted = errors.Is(err, sql.ErrNoRows) || incarnation != source.Incarnation
-		}
-		var known bool
-		if !accepted {
-			if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM inventory_objects INDEXED BY inventory_objects_source WHERE source_id=? AND retired=0 LIMIT 1)`, source.ID).Scan(&known); err != nil {
-				return err
-			}
-		}
-		if known {
-			if _, err := dbwork.ExecWrite(ctx, s.db, dbwork.ClassBackgroundMedia, `UPDATE inventory_runs SET root_rebound=1 WHERE job_id=? AND root_rebound=0`, job); err != nil {
-				return err
-			}
 		}
 	}
 	if source.RootIdentity != "" && actual != source.RootIdentity {
@@ -139,7 +110,11 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 	if _, e = catalog.InventoryFenceTx(ctx, tx, job); e != nil {
 		return e
 	}
-	if _, e = tx.ExecContext(ctx, `UPDATE library_sources SET health='inventory_running' WHERE id=? AND health!='inventory_running'`, source.ID); e != nil {
+	health := "inventory_running"
+	if presence == scanPresenceAbsent {
+		health = "degraded"
+	}
+	if _, e = tx.ExecContext(ctx, `UPDATE library_sources SET health=? WHERE id=? AND health!=?`, health, source.ID, health); e != nil {
 		return e
 	}
 	return gated2.Commit()
@@ -516,7 +491,7 @@ func (s *Service) verifyPage(ctx context.Context, job string, source catalog.Lib
 		_, err = tx.ExecContext(ctx, `UPDATE inventory_runs SET verify_cursor=? WHERE job_id=?`, dirs[len(dirs)-1].path, job)
 	} else {
 		var ambiguous bool
-		if err := tx.QueryRowContext(ctx, `SELECT root_rebound=1 AND discovered>0 FROM inventory_runs WHERE job_id=?`, job).Scan(&ambiguous); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT root_rebound=? AND discovered>0 FROM inventory_runs WHERE job_id=?`, scanPresenceAbsent, job).Scan(&ambiguous); err != nil {
 			return err
 		}
 		if ambiguous {
