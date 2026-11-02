@@ -1,4 +1,5 @@
 import {routePath} from "../../contracts/src/route-paths.ts";
+import {observeResponseClock} from './server-clock.ts';
 import {addressClass,formatIP,parseDirectName,parseIP,sameIP} from './network-locality.ts';
 /** P09 connection evidence. None of these values grants a viewer or media lease. */
 export type ServerPin = Readonly<{serverId:string;publicKey:string;fingerprint:string}>;
@@ -145,31 +146,25 @@ function envelope(value:unknown,keyId?:string):SignedRoutes {
  routeBytes(value.payload,undefined,32768);routeBytes(value.signature,64);return Object.freeze({payload:value.payload,signature:value.signature});
 }
 function parseSignedJSON(value:SignedRoutes):Record<string,unknown>{try{const v:unknown=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(routeBytes(value.payload,undefined,32768)));if(object(v))return v;}catch{}throw new RouteError('invalid_identity','Invalid signed connection evidence.');}
-function times(v:Record<string,unknown>,maxAge:number,now:number,allowExpired:boolean):void {
- const issued=typeof v.issuedAt==='string'?Date.parse(v.issuedAt):NaN,expires=typeof v.expiresAt==='string'?Date.parse(v.expiresAt):NaN;
- if(!Number.isFinite(issued)||!Number.isFinite(expires)||issued>now+120000||expires<=issued||expires-issued>maxAge||(!allowExpired&&expires<=now))throw new RouteError('route_stale','The connection evidence is expired or has an invalid clock.');
-}
 /**
- * The time check for a proof the server signed over this client's own nonce. The nonce already
- * proves the answer is fresh, so a failure here can only mean the two clocks disagree: this
- * device's is allowed to be up to two minutes off in either direction (the same allowance the
- * issue time always had), and beyond that the failure says so plainly instead of reading as a
- * wrong server. Call only after the signature has been verified.
+ * A route document's own times, checked only against each other: both present, in order, and no
+ * longer-lived than its kind allows. Never against this device's clock ("No client-clock
+ * requirements"): a document only suggests addresses, and every address must still answer the
+ * pinned key's nonce proof (`probeRoute`) before anything is sent, so an old document can point
+ * at an old address but can never stand in for the server.
  */
-const PROOF_CLOCK_ALLOWANCE=120000;
-function proofTimes(v:Record<string,unknown>,maxAge:number,now:number):void {
+function times(v:Record<string,unknown>,maxAge:number):void {
  const issued=typeof v.issuedAt==='string'?Date.parse(v.issuedAt):NaN,expires=typeof v.expiresAt==='string'?Date.parse(v.expiresAt):NaN;
- if(!Number.isFinite(issued)||!Number.isFinite(expires)||expires<=issued||expires-issued>maxAge)throw new RouteError('route_stale','The connection evidence is expired or has an invalid clock.');
- if(issued>now+PROOF_CLOCK_ALLOWANCE||expires+PROOF_CLOCK_ALLOWANCE<=now)throw new RouteError('clocks_disagree','This device and the server do not agree on the time. No credentials were sent.');
+ if(!Number.isFinite(issued)||!Number.isFinite(expires)||expires<=issued||expires-issued>maxAge)throw new RouteError('route_stale','The connection evidence has invalid times.');
 }
-export async function verifyRoutes(value:unknown,key:RouteKey,expected:{accountId:string;serverId:string;pin?:ServerPin;allowExpiredHint?:boolean;now?:number},crypto:RouteCrypto=webRouteCrypto):Promise<VerifiedRoutes> {
+export async function verifyRoutes(value:unknown,key:RouteKey,expected:{accountId:string;serverId:string;pin?:ServerPin},crypto:RouteCrypto=webRouteCrypto):Promise<VerifiedRoutes> {
  // A rotated transport key ID must take the same bounded fresh-key path as a payload/signature mismatch.
  if(object(value)&&typeof value.keyId==='string'&&value.keyId!==key.keyId)throw new RouteError('invalid_signature','The account service signing key changed.');
  const signed=envelope(value,key.keyId),v=parseSignedJSON(signed);
  if(!text(key.keyId,256)||v.keyId!==key.keyId||!await crypto.verify(routeBytes(key.publicKey,32),routeBytes(signed.signature,64),routeBytes(signed.payload)))throw new RouteError('invalid_signature','The account service did not sign these server routes.');
  if(v.kind!=='portico.routes'||v.version!=='1'||v.algorithm!=='Ed25519'||v.audience!==expected.accountId||v.serverId!==expected.serverId||!text(v.name,2048)||typeof v.publicKey!=='string'||typeof v.fingerprint!=='string'||!generation(v.generation)||!generation(v.claimGeneration)||!generation(v.credentialGeneration)||!Number.isSafeInteger(v.policyRevision)||Number(v.policyRevision)<0||!Array.isArray(v.candidates)||v.candidates.length>MAX_ROUTE_CANDIDATES)throw new RouteError('invalid_routes','The account service returned incompatible connection information.');
  const pin=await serverPin(v.serverId as string,v.publicKey,v.fingerprint,crypto);if(expected.pin&&!sameServerPin(pin,expected.pin))throw new RouteError('identity_mismatch','The selected server identity changed.');
- times(v,45*60000,expected.now??Date.now(),expected.allowExpiredHint===true);
+ times(v,45*60000);
  const suffixes=new Set<string>(),candidates=v.candidates.map(c=>routeCandidate(c,v.generation as string,suffixes));
  // One server, one namespace: every automatic name in a document shares its `ptc-<ns>.<domain>`.
  if(suffixes.size>1)throw new RouteError('invalid_routes','Signed route candidates name more than one server.');
@@ -197,10 +192,13 @@ export async function probeRoute(origin:string,pin:ServerPin|undefined,options:{
  const controller=new AbortController(),cancel=()=>controller.abort();options.signal?.addEventListener('abort',cancel,{once:true});const timer=setTimeout(cancel,3000);
  try{
   if(options.signal?.aborted)cancel();if(controller.signal.aborted)throw new RouteError('cancelled','Connection check cancelled.');
+  const sentAt=Date.now();
   const response=await (options.fetcher??globalThis.fetch)((baseUrl) + routePath("prove_network_identity"),{method:'POST',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',signal:controller.signal,headers:{Accept:'application/json; portico-route-proof=2','Content-Type':'application/json'},body:JSON.stringify({baseUrl,nonce})});
+  // The first answer on every connection: it teaches this server's clock before anything is judged by it.
+  observeResponseClock(baseUrl,response,sentAt);
   const tlsLeaf=options.observedTLSLeaf?.(response);if(tlsLeaf!==undefined)routeBytes(tlsLeaf,32);
   const signed=envelope(await routeJSON(response,controller.signal,8192)),v=parseSignedJSON(signed);
-  if(Object.keys(v).some(k=>!['kind','version','baseUrl','nonce','serverId','publicKey','fingerprint','issuedAt','expiresAt',...(v.version==='2'?['tlsCertificateFingerprints']:[])].includes(k))||v.kind!=='portico.route-proof'||(v.version!=='1'&&v.version!=='2')||v.baseUrl!==baseUrl||v.nonce!==nonce||typeof v.serverId!=='string'||typeof v.publicKey!=='string'||typeof v.fingerprint!=='string')throw new RouteError('identity_mismatch','The server did not prove this connection.');
+  if(Object.keys(v).some(k=>!['kind','version','baseUrl','nonce','serverId','publicKey','fingerprint',...(v.version==='2'?['tlsCertificateFingerprints']:[])].includes(k))||v.kind!=='portico.route-proof'||(v.version!=='1'&&v.version!=='2')||v.baseUrl!==baseUrl||v.nonce!==nonce||typeof v.serverId!=='string'||typeof v.publicKey!=='string'||typeof v.fingerprint!=='string')throw new RouteError('identity_mismatch','The server did not prove this connection.');
   let fingerprints:readonly string[]|undefined;
   if(v.tlsCertificateFingerprints!==undefined){
    const values=v.tlsCertificateFingerprints;
@@ -210,8 +208,10 @@ export async function probeRoute(origin:string,pin:ServerPin|undefined,options:{
   }
   const actual=await serverPin(v.serverId,v.publicKey,v.fingerprint,crypto);if(pin&&!sameServerPin(actual,pin))throw new RouteError('identity_mismatch','This address belongs to a different server. No credentials were sent.');
   if(!await crypto.verify(routeBytes(actual.publicKey,32),routeBytes(signed.signature,64),routeBytes(signed.payload)))throw new RouteError('identity_mismatch','The server could not prove its identity. No credentials were sent.');
-  // After the signature: only a proof this server really signed over our nonce can blame the clocks.
-  const receivedAt=options.now?.()??Date.now();proofTimes(v,30000,receivedAt);
+  // The signature over this client's own fresh nonce is what makes the proof current. It carries
+  // no times, so a device whose clock is wrong connects all the same ("No client-clock requirements").
+  // `receivedAt` is this device's clock only, measured against itself in `isCurrentRouteProof`.
+  const receivedAt=options.now?.()??Date.now();
   if(controller.signal.aborted)throw new RouteError('cancelled','Connection check cancelled.');
   const proof:RouteProof=fingerprints?Object.freeze({...actual,tlsCertificateFingerprints:fingerprints}):actual;
   proofObservations.set(proof,Object.freeze({origin:baseUrl,receivedAt,...(tlsLeaf===undefined?{}:{tlsLeaf})}));return proof;

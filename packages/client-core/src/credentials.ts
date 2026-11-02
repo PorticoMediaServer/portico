@@ -1,3 +1,4 @@
+import {serverNow} from './server-clock.ts';
 import {routeBody as hostedRouteBody} from "../../contracts/src/hosted/routes.ts";
 import {routePath as hostedRoutePath} from "../../contracts/src/hosted/routes.ts";
 import {randomId} from './random-id.ts';
@@ -37,6 +38,8 @@ export interface CredentialApi<Authority = string> {
   revoke(authority: Authority, signal?: AbortSignal): Promise<void>;
   /** Shared circuit for this account service; automatic work defers to it. */
   gate?: HostedGate;
+  /** The account service's clock (`server-clock.ts`), for its expiries. */
+  serverNow?(): number;
 }
 export class HttpCredentialApi implements CredentialApi {
   private http: HttpLocalApi;
@@ -45,6 +48,7 @@ export class HttpCredentialApi implements CredentialApi {
     this.http = new HttpLocalApi(origin, "", fetcher);
     this.gate = hostedGate(origin);
   }
+  serverNow() { return this.http.serverNow(); }
   authorityFromSession(session: HostedSession) {
     if (!session.refreshToken)
       throw new Error("Native refresh credentials missing.");
@@ -82,6 +86,8 @@ export type CredentialSnapshot = {
 const unusableCredentialCodes = new Set(["csrf_required", "origin_denied", "session_mode_denied"]);
 
 export class CredentialSessionService<Authority = string> {
+  /** No client-clock requirements: the account service's expiries are judged on its clock, never this device's. */
+  private serviceNow(): number { return this.api.serverNow?.() ?? serverNow(); }
   private api: CredentialApi<Authority>;
   private storage: CredentialStorage<Authority>;
   private requestId: () => Promise<string>;
@@ -325,10 +331,10 @@ export class CredentialSessionService<Authority = string> {
       // A different request already renewed this family. A stale 401 must not
       // rotate that newer credential again; the caller may retry its safe read once.
       if(original&&active.session.accessToken!==original.accessToken){
-        if(!active.session.accessToken||Date.parse(active.session.expiresAt)<=Date.now())throw new CodedError('account_session_changed',"Session changed.");
+        if(!active.session.accessToken||Date.parse(active.session.expiresAt)<=this.serviceNow())throw new CodedError('account_session_changed',"Session changed.");
         return this.publicSession(active.session);
       }
-      if(!forceRefresh&&!active.pendingRequestId&&active.session.accessToken&&Date.parse(active.session.expiresAt)>Date.now()+60000)return this.publicSession(active.session);
+      if(!forceRefresh&&!active.pendingRequestId&&active.session.accessToken&&Date.parse(active.session.expiresAt)>this.serviceNow()+60000)return this.publicSession(active.session);
       return this.rotate(this.generation);
     });
     this.flight={generation,promise};try{return await promise}finally{if(this.flight?.promise===promise)this.flight=undefined}
@@ -460,7 +466,7 @@ export class CredentialSessionService<Authority = string> {
    * its own server may go months without one. Renewing once the window is a third used costs
    * about twelve requests a year. Automatic: it defers to the shared circuit and never signs
    * anyone out on failure (only an explicit refusal does that, in rotate). */
-  async keepAlive(now=Date.now()):Promise<boolean>{
+  async keepAlive(now=this.serviceNow()):Promise<boolean>{
     await this.ensureLoaded();
     const expires=Date.parse(this.record.active?.session.refreshExpiresAt??"");
     if(!Number.isFinite(expires)||expires-now>KEEP_ALIVE_REMAINING_MS||(this.api.gate?.blockedFor()??0)>0)return false;

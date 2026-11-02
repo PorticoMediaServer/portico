@@ -24,18 +24,18 @@ import (
 // possession of the already pinned identity key. Fingerprint is SHA256 of the
 // identity public key; TLSCertificateFingerprints are SHA256 of leaf DER. A
 // client must compare its own observed leaf with the signed v2 list, as well as
-// verify the signature, origin, nonce and lifetime. See IDENTITY.md.
+// verify the signature, origin and nonce. The proof carries no times: the
+// client's fresh nonce is what makes it current, so no client ever compares
+// its own clock with the server's ("No client-clock requirements"). See IDENTITY.md.
 type RouteIdentity struct {
-	Kind                       string    `json:"kind"`
-	Version                    string    `json:"version"`
-	ServerID                   string    `json:"serverId"`
-	PublicKey                  string    `json:"publicKey"`
-	Fingerprint                string    `json:"fingerprint"`
-	BaseURL                    string    `json:"baseUrl"`
-	Nonce                      string    `json:"nonce"`
-	IssuedAt                   time.Time `json:"issuedAt"`
-	ExpiresAt                  time.Time `json:"expiresAt"`
-	TLSCertificateFingerprints []string  `json:"tlsCertificateFingerprints,omitempty"`
+	Kind                       string   `json:"kind"`
+	Version                    string   `json:"version"`
+	ServerID                   string   `json:"serverId"`
+	PublicKey                  string   `json:"publicKey"`
+	Fingerprint                string   `json:"fingerprint"`
+	BaseURL                    string   `json:"baseUrl"`
+	Nonce                      string   `json:"nonce"`
+	TLSCertificateFingerprints []string `json:"tlsCertificateFingerprints,omitempty"`
 }
 type RouteIdentityHandler struct {
 	keys         *ProtectedKeys
@@ -138,11 +138,10 @@ func (h *RouteIdentityHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 			return stepFailure("key mismatch", ErrStale)
 		}
 		fp := sha256.Sum256(id.PublicKey)
-		now := time.Now().UTC()
 		raw, e := json.Marshal(RouteIdentity{
 			Kind: "portico.route-proof", Version: version, ServerID: id.ServerID,
 			PublicKey: base64.RawURLEncoding.EncodeToString(id.PublicKey), Fingerprint: base64.RawURLEncoding.EncodeToString(fp[:]),
-			BaseURL: q.BaseURL, Nonce: q.Nonce, IssuedAt: now, ExpiresAt: now.Add(30 * time.Second),
+			BaseURL: q.BaseURL, Nonce: q.Nonce,
 			TLSCertificateFingerprints: fingerprints,
 		})
 		if e != nil {

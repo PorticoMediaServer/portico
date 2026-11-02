@@ -9,26 +9,28 @@ const publicKey=rawKey.toString('base64url');
 const pin={publicKey,serverId:'srv_'+createHash('sha256').update('portico.server.identity.v1\0').update(rawKey).digest('base64url'),fingerprint:createHash('sha256').update(rawKey).digest('base64url')};
 const key={keyId:'routes-key',publicKey};
 const expected={accountId:'account',serverId:pin.serverId};
-function proofServer(serverNow:()=>number,signer=keys.privateKey){
+function proofServer(_serverNow:()=>number,signer=keys.privateKey,extra:Record<string,unknown>={},nonce?:(asked:string)=>string){
  return (async(_url:RequestInfo|URL,init?:RequestInit)=>{
-  const asked=JSON.parse(String(init?.body));const at=serverNow();
-  const payload=Buffer.from(JSON.stringify({kind:'portico.route-proof',version:'1',...pin,baseUrl:asked.baseUrl,nonce:asked.nonce,issuedAt:new Date(at).toISOString(),expiresAt:new Date(at+30000).toISOString()}));
+  const asked=JSON.parse(String(init?.body));
+  const payload=Buffer.from(JSON.stringify({kind:'portico.route-proof',version:'1',...pin,baseUrl:asked.baseUrl,nonce:nonce?nonce(asked.nonce):asked.nonce,...extra}));
   return new Response(JSON.stringify({payload:payload.toString('base64url'),signature:sign(null,payload,signer).toString('base64url')}),{status:200,headers:{'Content-Type':'application/json'}});
  }) as typeof fetch;
 }
-test('a device clock up to two minutes off in either direction still accepts a fresh proof',async()=>{
+const YEAR=365*86400000;
+test('No client-clock requirements: a device a year ahead or behind still accepts a fresh proof',async()=>{
  const {probeRoute}=await import('../src/route-identity.ts');
  const server=Date.parse('2026-10-13T12:00:00.000Z');
- for(const offset of [0,45_000,110_000,-110_000]){
+ for(const offset of [0,YEAR,-YEAR,10*YEAR]){
   assert.deepEqual(await probeRoute('http://192.168.1.20:32500',undefined,{fetcher:proofServer(()=>server),now:()=>server+offset}),pin,String(offset));
  }
 });
-test('clocks further apart are named as a clock problem, not as a wrong server',async()=>{
+test('the nonce, not a clock, keeps a proof fresh: an answer over another nonce is refused',async()=>{
  const {probeRoute}=await import('../src/route-identity.ts');
- const server=Date.parse('2026-10-13T12:00:00.000Z');
- for(const offset of [200_000,-200_000]){
-  await assert.rejects(probeRoute('http://192.168.1.20:32500',undefined,{fetcher:proofServer(()=>server),now:()=>server+offset}),(e:{code?:string})=>e.code==='clocks_disagree',String(offset));
- }
+ await assert.rejects(probeRoute('http://192.168.1.20:32500',undefined,{fetcher:proofServer(()=>0,keys.privateKey,{},()=>Buffer.alloc(32,7).toString('base64url'))}),(e:{code?:string})=>e.code==='identity_mismatch');
+});
+test('a proof carrying times is not the current contract and is refused',async()=>{
+ const {probeRoute}=await import('../src/route-identity.ts');
+ await assert.rejects(probeRoute('http://192.168.1.20:32500',undefined,{fetcher:proofServer(()=>0,keys.privateKey,{issuedAt:'2026-10-13T12:00:00Z',expiresAt:'2026-10-13T12:00:30Z'})}),(e:{code?:string})=>e.code==='identity_mismatch');
 });
 test('a proof signed by another key is still a wrong server, whatever the clocks say',async()=>{
  const {probeRoute}=await import('../src/route-identity.ts');
