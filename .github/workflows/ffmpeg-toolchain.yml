@@ -189,6 +189,10 @@ jobs:
           path: ${{ runner.temp }}/engine-download-cache
           key: engine-downloads-v1-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: engine-downloads-v1-${{ matrix.target }}-
+      - name: Seed exact source bytes without rebuilding dependencies
+        if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/seed-engine-download-cache.py --store "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-source-seed"
       - name: Authenticate the explicit dependency cache writer
         if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
         env: {GH_TOKEN: '${{ github.token }}'}

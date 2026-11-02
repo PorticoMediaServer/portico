@@ -392,3 +392,13 @@ caches. The configure/graph controls precede any compiler job, and the actual
 configure macro checks precede FFmpeg make. Failed-job reruns retain the original
 producer attempt separately from the current native qualifier. Windows assembly
 has a ten-minute floor and compiler execution reserves that time within its job.
+
+The initial BtbN source cache can be seeded from the same explicitly pinned,
+not-for-use Windows development artifact used by the approved native retest.
+The seed checks the original Actions identity, ZIP digest, transfer, manifest
+and corresponding-source archive hashes. It extracts only regular command-hash
+named files immediately inside recipe/.cache/downloads; duplicates, links and
+escapes refuse. It never executes or reuses a binary, never changes intake locks,
+and records original producer and current seed identities separately. Both BtbN
+targets may use matching source command names; absent or changed commands still
+run their pinned downloader. This does not manufacture a Mac/Linux prefix cache.
