@@ -5,6 +5,7 @@ import type {LocalSession} from '@core/index.ts';
 import {RouteError} from '@core/route-identity.ts';
 import type {RememberedServer} from '@core/server-connections.ts';
 import {BrowserAccountEntry} from '../src/platform/account-entry.ts';
+import {BrowserAppSessionActions} from '../src/platform/app-sessions.ts';
 import {savedServerIsThisPage} from '../src/platform/served-origin.ts';
 
 const origin = 'https://demo.example', serverId = 'srv_' + 's'.repeat(43);
@@ -18,11 +19,14 @@ async function fixture(served: string | undefined) {
   let raw: AppSessionRecord | undefined;
   const store = new AppSessionStore({read: async () => raw, change: async update => {raw = update(raw);}});
   await store.connectionStorage(serverId, {signIn: 'local', expectedRevision: (await store.read()).revision}).change(() => record);
-  const forgotten: string[] = [];
+  const forgotten: string[] = [], network: string[] = [];
+  // The real actions: any connection or revoke would reach a server whose identity just failed.
+  const real = new BrowserAppSessionActions(store, () => {network.push('connection'); throw new Error('No connection expected.');},
+    async () => {network.push('revoke'); throw new Error('No revocation expected.');});
   const entry = new BrowserAccountEntry({store,
     actions: {forgetServer: async (value: LocalSession, capture?: {isCurrent: () => boolean; expectedRevision: number}) => {
       forgotten.push(value.sessionFamilyId);
-      return (await store.signOutServer(value.viewer.serverId, value.sessionFamilyId, capture?.isCurrent, capture?.expectedRevision)).length > 0;
+      return real.forgetServer(value, capture);
     }} as never,
     environment: () => ({storage: store.connectionStorage(serverId)}) as never,
     restore: async () => {throw new RouteError('identity_mismatch', 'This address belongs to a different server.');},
@@ -30,7 +34,7 @@ async function fixture(served: string | undefined) {
     serverName: () => 'Portico demo', servedOrigin: () => served,
   });
   await entry.loadProfiles();
-  return {entry, store, forgotten};
+  return {entry, store, forgotten, network};
 }
 
 test('the saved server is this page only when its address is the origin that served the page', () => {
@@ -43,8 +47,15 @@ test('the saved server is this page only when its address is the origin that ser
 });
 
 test('on the saved server’s own page a changed identity drops that sign-in and shows no identity page', async () => {
-  const {entry, store, forgotten} = await fixture(origin);
+  const fetches: string[] = [], realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: unknown) => {fetches.push(String(input)); throw new Error('No request expected.');}) as typeof fetch;
+  let result;
+  try {result = await fixture(origin);} finally {globalThis.fetch = realFetch;}
+  const {entry, store, forgotten, network} = result;
   assert.deepEqual(forgotten, ['family-a']);
+  // Dropped on this device only: no revoke, connection or request carries the old credentials anywhere.
+  assert.deepEqual(network, []);
+  assert.deepEqual(fetches, []);
   assert.equal(entry.getSnapshot().phase, 'welcome');
   assert.equal(entry.getSnapshot().identityFailure, undefined);
   assert.equal(entry.serverIdentityFailure(() => {}), undefined);
