@@ -125,6 +125,9 @@ type ContentEntry struct {
 	Edition         string                 `json:"edition,omitempty"`
 	PublishedYear   *int                   `json:"publishedYear,omitempty"`
 	BookProgress    *BookProgress          `json:"bookProgress,omitempty"`
+	// ReadingProgress is a book, comic or magazine's latest saved position for
+	// this profile (Continue your books).
+	ReadingProgress *ReadingProgress `json:"readingProgress,omitempty"`
 	// HomeTitleContext contains authorized parent-show facts for a Home episode.
 	// The episode's own identity, metadata and playback target remain separate.
 	HomeTitleContext *HomeTitleContext `json:"homeTitleContext,omitempty"`

@@ -302,11 +302,18 @@ func (s *Service) homeAudioSource(r HomeRequest, booksOnly bool) (homeSource, er
 	if err != nil {
 		return homeSource{}, err
 	}
+	reading := []string{}
 	r.Libraries = nil
 	for _, library := range libraries {
 		if library.Kind == "audiobook" || (!booksOnly && library.Kind == "music") {
 			r.Libraries = append(r.Libraries, library.ID)
 		}
+		if booksOnly && isReadingLibrary(library.Kind) {
+			reading = append(reading, library.ID)
+		}
+	}
+	if booksOnly {
+		return s.homeBooksSource(r, reading)
 	}
 	// An inapplicable row must not even construct its audio/recent relation.
 	if len(r.Libraries) == 0 {

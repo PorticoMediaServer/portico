@@ -21,6 +21,7 @@ import {createShellSelection} from './selection';
 import {HomeDocumentResources} from './home-resources';
 import {shellLanguage, shellPlaybackSettings, shellPlaybackSkips} from './settings';
 import {homePlaybackItem} from '../screens/home/model';
+import {readChosenDestination} from '../screens/read/navigation';
 import type {HomeSelection} from '../screens/home/Home';
 import type {ShellPlaybackBinding} from './Playback';
 import {openAppLogContext} from '../platform/app-log';
@@ -143,6 +144,7 @@ export const assembleShellBindings: ShellAssembler = async context => {
         }, openEntry: entry => {const destination = entryDestination(entry);void navigateArtworkEntry(entry, destination, artworkScope, current, current, manual => router.navigate({...destination, ...(manual ? {viewTransition: false} : {})})).catch(feedback.reportError);}, entryHref: entry => { try { return router.buildLocation(entryDestination(entry)).publicHref; } catch { return undefined; } }, openSeeAll: target => { void router.navigate(seeAllDestination(target)).catch(feedback.reportError); },
           openMore: (row, entry, element) => homeSelectionOwner().openMore(row, entry, element), reportError: feedback.reportError, notify: feedback.notify,
           openHome: () => {void router.navigate({to: '/'}).catch(feedback.reportError);},
+          openReader: entry => {if (current()) void router.navigate(readChosenDestination(entry.id)).catch(feedback.reportError);},
           playChannel: async channel => {
             const document = context.home.getSnapshot().document;
             const item = document?.rows.flatMap(row => row.live?.channels ?? []).find(value => value.channel === channel);
