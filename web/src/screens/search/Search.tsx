@@ -393,7 +393,9 @@ function SearchGroupWindow({binding, group, result, selection, onCommit}: {bindi
   return <section className={styles.single}><h2>{t(searchGroupLabel(group))}{songs && result?.totalCountExact && <span className={styles.resultTotal}>{t('web.search.results', {count: result.totalCount})}</span>}</h2>
     {songs && <div className={styles.songColumns} aria-hidden="true"><span>{t('next.browse.number')}</span><span>{t('next.browse.title')}</span><span>{t('next.browse.artist')}</span><span>{t('next.browse.album')}</span><span>{t('next.browse.plays')}</span><span>{t('next.browse.duration')}</span></div>}
     <WindowedGrid collection={window.collection} label={t(searchGroupLabel(group))}
-    cardWidth={group === 'songs' ? 10000 : group === 'episodes' ? 316 : 174} rowHeight={group === 'songs' ? 58 : group === 'episodes' ? 285 : 320} height="calc(100vh - 270px)" gap={16}
+    cardWidth={group === 'episodes' ? 316 : 174} fullWidth={songs} rowHeight={group === 'songs' ? 58 : group === 'episodes' ? 285 : 320} height="calc(100vh - 270px)" gap={16}
+    // Desktop-search frame 3 draws the Songs table as contiguous rows, like the Music library's.
+    {...(songs ? {rowGap: 0} : {})}
     renderItem={(entry, item) => songs ? <SongTableRow entry={entry} binding={binding} selection={selection} position={item.index} onCommit={onCommit} /> : <SearchResult entry={entry} binding={binding} selection={selection} position={item.index} onCommit={onCommit} />} renderPlaceholder={index => <span className={styles.placeholder} key={index} />}
     onVisibleRange={(_, last) => { if (last >= entries.current.length - 20 && result?.nextCursor && binding.service.getSnapshot().phase === 'ready') void binding.service.next(group); }} /></section>;
 }

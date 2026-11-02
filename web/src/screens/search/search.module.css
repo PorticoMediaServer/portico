@@ -194,8 +194,9 @@
 
 /* Desktop-search frame 3: a full-width Songs answer carries the Music library's columns. */
 .resultTotal { margin-left: 12px; font-size: var(--type-person-title-size); font-weight: var(--type-fixed-weight-400); color: var(--color-text-tertiary); }
+/* The header keeps the right inset rows reserve for their ⋯, so every column lines up. */
 .songColumns,.songTableRow { display: grid; grid-template-columns: 44px minmax(0,2.3fr) minmax(0,1.25fr) minmax(0,1.7fr) 64px 64px; align-items: center; gap: 14px; }
-.songColumns { padding: 0 12px 8px 6px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.songColumns { padding: 0 48px 8px 6px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 .songColumns > :nth-child(n+5) { text-align: right; }
 .songTableRow { position: relative; width: 100%; min-height: 58px; padding: 0 12px 0 6px; border-radius: 10px; }
 .songTableRow:hover { background: var(--color-raised); }

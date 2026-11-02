@@ -702,6 +702,7 @@ func TestReadPathGoldenEquivalence(t *testing.T) {
 		// generated section carries the same published card facts.
 		want.Response = goldenAggregateCardFacts(t, f, actual, want.Response)
 		want.Response = goldenSearchEpisodeFacts(t, f, actual, want.Response)
+		want.Response = goldenSearchCardFacts(t, f, actual, want.Response)
 		// Offers decorate every container the pages above composed.
 		want.Response = goldenBrowseOffers(t, f, actual, want.Response)
 		if want.Status != actual.Status {
@@ -1304,4 +1305,80 @@ func goldenStableRevisions(t *testing.T, name, body string) (string, []string) {
 		return body, nil
 	}
 	return string(encoded), found
+}
+
+// goldenSearchCardFacts records the card facts a search row carries since SR-4/SR-5,
+// read independently from the fixture: an episode's show, a song's album and its
+// album's artist, and a show's count of numbered seasons that hold an episode. The
+// recording predates them; nothing else in a search answer changed.
+func goldenSearchCardFacts(t *testing.T, f *goldenFixture, c goldenCase, want string) string {
+	t.Helper()
+	if c.Status != 200 || !strings.HasPrefix(c.Name, "search:") {
+		return want
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(want), &doc); err != nil {
+		t.Fatal(err)
+	}
+	groups, ok := doc["groups"].([]any)
+	if !ok {
+		return want
+	}
+	ref := func(query, public string) map[string]any {
+		var id, name sql.NullString
+		if err := f.db.QueryRow(query, public).Scan(&id, &name); err != nil && err != sql.ErrNoRows {
+			t.Fatalf("%s: %v", c.Name, err)
+		}
+		if !id.Valid || id.String == "" || name.String == "" {
+			return nil
+		}
+		return map[string]any{"id": goldenNames.Replace(id.String), "name": name.String}
+	}
+	for _, raw := range groups {
+		group, _ := raw.(map[string]any)
+		items, _ := group["items"].([]any)
+		for _, rawItem := range items {
+			entry, ok := rawItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			kind, _ := entry["kind"].(string)
+			id, _ := entry["id"].(string)
+			public := f.public[id]
+			if public == "" || kind != "episode" && kind != "song" && kind != "show" {
+				continue
+			}
+			switch kind {
+			case "episode":
+				if show := ref(`SELECT pid(show.public_id),show.title FROM catalog_episodes ep JOIN catalog_entities e ON e.id=ep.entity_id
+ JOIN catalog_entities show ON show.id=ep.show_id AND show.library_id=e.library_id WHERE e.public_id=pid_blob(?)`, public); show != nil {
+					entry["show"] = show
+				}
+			case "song":
+				if album := ref(`SELECT pid(album.public_id),album.title FROM catalog_songs sg JOIN catalog_entities e ON e.id=sg.entity_id
+ JOIN catalog_entities album ON album.id=sg.album_id AND album.library_id=e.library_id WHERE e.public_id=pid_blob(?)`, public); album != nil {
+					entry["album"] = album
+				}
+				if artist := ref(`SELECT pid(artist.public_id),artist.title FROM catalog_songs sg JOIN catalog_entities e ON e.id=sg.entity_id
+ JOIN catalog_entities album ON album.id=sg.album_id AND album.library_id=e.library_id JOIN catalog_albums a ON a.entity_id=album.id
+ JOIN catalog_entities artist ON artist.id=a.artist_id AND artist.library_id=e.library_id WHERE e.public_id=pid_blob(?)`, public); artist != nil {
+					entry["artist"] = artist
+				}
+			case "show":
+				var count int
+				if err := f.db.QueryRow(`SELECT count(*) FROM catalog_seasons sn JOIN catalog_entities e ON e.id=sn.show_id
+ WHERE e.public_id=pid_blob(?) AND sn.number>0 AND EXISTS(SELECT 1 FROM catalog_episodes ep WHERE ep.show_id=sn.show_id AND ep.season_id=sn.entity_id)`, public).Scan(&count); err != nil {
+					t.Fatalf("%s: %v", c.Name, err)
+				}
+				if count > 0 {
+					entry["seasonCount"] = float64(count)
+				}
+			}
+		}
+	}
+	encoded, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(encoded)
 }
