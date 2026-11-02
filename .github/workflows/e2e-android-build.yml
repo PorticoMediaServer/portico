@@ -1,0 +1,82 @@
+name: Build the shared Android E2E app
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Make space for the media engine on this disposable runner
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/share/swift /usr/local/share/powershell /usr/local/share/chromium
+          df -h /
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm, cache-dependency-path: 'package-lock.json'}
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with: {distribution: temurin, java-version: '17', cache: gradle}
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        id: app
+        with:
+          path: apps/native/android/app/build/outputs/apk/google/debug/app-google-debug.apk
+          key: e2e-android-app-v2-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+      - name: Install the build toolchain
+        if: steps.app.outputs.cache-hit != 'true'
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.1.12297006" >> "$GITHUB_ENV"
+          rust="$(python3 -c "import json; print(json.load(open('third_party/media-engine/sources.lock.json'))['tools']['rust']['version'])")"
+          rustup toolchain install "$rust" --profile minimal --target x86_64-linux-android
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        id: engine
+        with:
+          path: third_party/media-engine/out/android
+          key: e2e-engine-x86_64-${{ hashFiles('third_party/media-engine/**') }}
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: third_party/media-engine/work/downloads
+          key: e2e-engine-downloads-${{ hashFiles('third_party/media-engine/sources.lock.json') }}
+          save-always: true
+      - name: Prefetch the pinned GNU source from a mirror
+        if: steps.app.outputs.cache-hit != 'true' && steps.engine.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p third_party/media-engine/work/downloads
+          file=third_party/media-engine/work/downloads/libiconv-1.19.tar.gz
+          if [ ! -f "$file" ]; then
+            curl -fsSL --retry 2 --connect-timeout 15 https://mirrors.kernel.org/gnu/libiconv/libiconv-1.19.tar.gz -o "$file"
+          fi
+          printf '%s  %s\n' 88dd96a8c0464eca144fc791ae60cd31cd8ee78321e67397e25fc095c4a19aa6 "$file" | sha256sum -c -
+      - name: Build the x86_64 media engine
+        if: steps.app.outputs.cache-hit != 'true' && steps.engine.outputs.cache-hit != 'true'
+        run: MEDIA_ENGINE_JOBS=4 third_party/media-engine/build-android.sh --abis x86_64
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: steps.app.outputs.cache-hit != 'true' && steps.engine.outputs.cache-hit != 'true'
+        with:
+          path: third_party/media-engine/out/android
+          key: ${{ steps.engine.outputs.cache-primary-key }}
+      - name: Install JavaScript dependencies
+        if: steps.app.outputs.cache-hit != 'true'
+        run: |
+          npm ci --no-audit --no-fund
+          (cd apps/native && npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false)
+      - name: Build the debug app with its development-only sign-in
+        if: steps.app.outputs.cache-hit != 'true'
+        working-directory: apps/native/android
+        env: {PORTICO_DEV_SIGN_IN: '1'}
+        run: ./gradlew --no-daemon :app:assembleGoogleDebug -PreactNativeArchitectures=x86_64 -PporticoEmbeddedJs=true
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: steps.app.outputs.cache-hit != 'true'
+        with:
+          path: apps/native/android/app/build/outputs/apk/google/debug/app-google-debug.apk
+          key: ${{ steps.app.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: e2e-android-apk-${{ github.sha }}
+          path: apps/native/android/app/build/outputs/apk/google/debug/app-google-debug.apk
+          if-no-files-found: error
+          retention-days: 14

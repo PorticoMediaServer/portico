@@ -1,11 +1,19 @@
 name: Android JVM tests
 on:
   workflow_dispatch:
+    inputs:
+      build_walk_apk:
+        type: boolean
+        default: false
   workflow_call:
 permissions:
   contents: read
 jobs:
+  walk-build:
+    if: github.event_name == 'workflow_dispatch' && inputs.build_walk_apk
+    uses: ./.github/workflows/e2e-android-build.yml
   unit-and-transport:
+    if: ${{ !inputs.build_walk_apk }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
