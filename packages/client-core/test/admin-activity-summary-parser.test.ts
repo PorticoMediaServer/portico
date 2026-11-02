@@ -176,3 +176,26 @@ test('qualified issue code, effect and destination agree instead of inferring a 
   assert.throws(()=>parseActivitySummary({...raw,majorIssues:[change]}),ActivitySummaryContractError);
  }
 });
+
+test('OW-2: a CD-quality music session is a real server quality mode and must not fail the whole summary', () => {
+  const raw = document();
+  const song = {
+    ...session('cd-quality-song'), kind: 'audio', converting: false,
+    item: {id: 'song', kind: 'song', title: 'Song name', artist: 'Artist name', album: 'Album name', art: []},
+    decision: {}, quality: {mode: 'cd-quality'},
+  };
+  raw.streams = {count: 1, convertingCount: 0, overflow: {count: 0, convertingCount: 0}, items: [song]};
+  assert.equal(parseActivitySummary(raw).streams.items[0].quality?.mode, 'cd-quality');
+});
+
+test('OW-2: the Dashboard reads a CD-quality music session too, and CD quality stays as strict as original', async () => {
+  const {parseDashboardSessions} = await import('../src/admin/activity-summary/parser.ts');
+  const song = {id: 'cd', protocol: 'v1', user: {id: 'account', name: 'account name'}, profile: {id: 'profile', name: 'profile name'}, device: {id: 'device', name: 'device name'},
+    kind: 'audio', state: 'playing', positionMs: 1000, decision: {}, location: 'home', startedAt: stamp,
+    item: {id: 'song', kind: 'song', title: 'Song name', artist: 'Artist name', album: 'Album name', art: []}, quality: {mode: 'cd-quality'}};
+  const page = (item: unknown) => ({scope: {serverId: 'server', viewerFence: fence}, observedAt: stamp, items: [item], page: {limit: 50, total: 1, start: 0, revision: 'r'},
+    totals: {streams: 1, paused: 0, converting: 0, bandwidthKbps: 0, people: 1, atHome: 1, away: 0}});
+  assert.equal((parseDashboardSessions(page(song)).items[0] as {quality?: {mode?: string}}).quality?.mode, 'cd-quality');
+  for (const quality of [{mode: 'cd-quality', id: '1080p'}, {mode: 'cd-quality', maxAudioBitrateKbps: 320}, {mode: 'lossless'}])
+    assert.throws(() => parseDashboardSessions(page({...song, quality})), ActivitySummaryContractError, JSON.stringify(quality));
+});

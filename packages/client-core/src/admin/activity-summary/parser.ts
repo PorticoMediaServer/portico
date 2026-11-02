@@ -50,8 +50,9 @@ const qualityShape = record({mode: label}, {id: label, maxHeight: integer(8640, 
 const quality: Reader = v => {
   const out = qualityShape(v) as ObjectValue;
   const numbers = ['maxHeight', 'maxVideoBitrateKbps', 'maxAudioBitrateKbps'].some(k => Object.hasOwn(out, k));
-  if (!['original', 'fixed', 'automatic', 'limit'].includes(out.mode as string) ||
-      out.mode === 'original' && (numbers || out.id !== undefined) ||
+  // Every mode the server publishes (playbackv1/quality.go). CD quality, like original, carries no ladder id or bounds (OW-2).
+  if (!['original', 'cd-quality', 'fixed', 'automatic', 'limit'].includes(out.mode as string) ||
+      (out.mode === 'original' || out.mode === 'cd-quality') && (numbers || out.id !== undefined) ||
       out.mode === 'fixed' && (numbers || out.id === undefined) ||
       out.mode === 'automatic' && numbers || out.mode === 'limit' && out.id !== undefined) invalid();
   return out;
