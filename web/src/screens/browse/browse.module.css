@@ -10,7 +10,11 @@
 /* J-4: desktop-browse puts the rail 18px in from the window edge, in the page's own gutter, and
    starts it just above the first poster row (the grid's 26px top gap less 18px). The old -46px
    assumed a 64px gutter and pushed 14px of the rail off-screen at 1024. */
-.rail { position: absolute; right: calc(18px - var(--shell-gutter, var(--gutter-desktop)) + var(--grid-overflow, 0px)); top: 8px; }
+/* W2-A3: the rail is 28px wide and sits 18px in, so it needs 46px of gutter plus a clear gap. Below about
+   1200 the fluid gutter is narrower than that, so a grid that draws the rail keeps at least 56px on its
+   right (10px clear of the last column); at 1440 and wider the page gutter is already wider. */
+.results:has(> .rail) { margin-right: calc(max(var(--shell-gutter, var(--gutter-desktop)), 56px) - var(--grid-overflow, 0px)); }
+.rail { position: absolute; right: calc(18px - max(var(--shell-gutter, var(--gutter-desktop)), 56px) + var(--grid-overflow, 0px)); top: 8px; }
 .listHead, .listRow { display: grid; grid-template-columns: minmax(0,1fr) 84px 118px 86px 112px 136px 60px 92px; align-items: center; column-gap: 8px; padding: 0 12px; }
 .listHead { height: 44px; border-bottom: 1px solid var(--color-line); font-size: var(--type-caption-size); font-weight: var(--type-row-heading-weight); color: var(--color-text-tertiary); }
 .listHead > :not(:first-child) { text-align: right; }
@@ -49,7 +53,7 @@
 .listActions { display: flex; justify-content: flex-end; gap: 6px; opacity: 0; }
 .listRow:hover .listActions, .listRow:focus-within .listActions { opacity: 1; }
 @media (pointer: coarse) { .listActions { opacity: 1; } }
-@media (max-width: 1023px) { .results { margin: 0 20px; margin-right: calc(20px - var(--grid-overflow, 0px)); } .rail { right: calc(-18px + var(--grid-overflow, 0px)); } }
+@media (max-width: 1023px) { .results { margin: 0 20px; margin-right: calc(20px - var(--grid-overflow, 0px)); } .results:has(> .rail) { margin-right: calc(44px - var(--grid-overflow, 0px)); } .rail { right: calc(-36px + var(--grid-overflow, 0px)); } }
 /* E-web-20: the phone rail sits 4px from the edge in a 30px gutter of its own, clear of the cards. */
 @media (max-width: 599px) { .results:has(> .rail) { margin-right: calc(30px - var(--grid-overflow, 0px)); } .rail { right: calc(-26px + var(--grid-overflow, 0px)); } }
 @media (prefers-reduced-motion: reduce) { .results * { scroll-behavior: auto; } }
