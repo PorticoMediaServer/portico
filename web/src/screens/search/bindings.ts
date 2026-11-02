@@ -11,7 +11,7 @@ import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 import {createDetailBindings} from '../detail/bindings';
 import {createShowBindings} from '../detail/show-bindings';
-import {SEARCH_CHIPS} from '@core/presentation/search-model.ts';
+import {searchReadingOffered, searchRequestGroups} from '@core/presentation/search-model.ts';
 import type {SearchData, SearchGroupResult} from '@core/search.ts';
 import {SearchGenresController} from './genres';
 import {SearchOnNowController} from './on-now';
@@ -151,15 +151,15 @@ export function createSearchBindings(context: ScreenContext) {
     life.assert(); const attempt = ++selectionAttempt; text = q; group = options.group;
     if (q.trim()) { genres.cancel(); onNow.cancel(); }
     const defaults = !options.group && !options.groups, includedReading = readingOffered;
-    const groups = SEARCH_CHIPS.flatMap(chip => chip.id === 'all' || chip.id === 'reading' && !readingOffered ? [] : [chip.id]);
+    const groups = searchRequestGroups(readingOffered);
     const work = service.select(q, defaults ? {...options, groups} : options), generation = service.getSnapshot().generation;
     await work;
     const state = service.getSnapshot();
     if (!life.current() || attempt !== selectionAttempt || state.generation !== generation || state.phase !== 'ready' || state.data?.query.q !== q.trim()) return;
-    readingOffered = state.data.capabilities.groups.some(value => value.id === 'reading' && value.available);
+    readingOffered = searchReadingOffered(state.data.capabilities);
     // Older servers never receive an unknown default group. Once actually offered,
     // add Reading by a read-only repeat; an explicit history gesture is recorded once.
-    if (defaults && readingOffered && !includedReading) await service.select(q, {...options, groups: SEARCH_CHIPS.flatMap(chip => chip.id === 'all' ? [] : [chip.id]), record: false});
+    if (defaults && readingOffered && !includedReading) await service.select(q, {...options, groups: searchRequestGroups(true), record: false});
   };
   const live = {
     getSnapshot: () => cards,

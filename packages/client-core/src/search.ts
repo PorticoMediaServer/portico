@@ -190,6 +190,13 @@ export async function deleteSearchHistoryEntry(api:LibraryContentApi,scope:Conte
  const namedQuery=new URLSearchParams({query:named}).toString();
  return parseSearchHistory(await api.request<RouteResponse<"delete_search_history">>(routePath("delete_search_history")+'?'+namedQuery,'DELETE',undefined,signal),bound(scope));
 }
+/** Records one committed query in this viewer's history (`record=1`), as opening a result does
+ * (httpapi/search.go:236). One read of a single named group at the smallest page; it answers
+ * whether the server recorded it, which it declines when history is off for this profile. */
+export async function recordSearch(api:LibraryContentApi,q:string,group:SearchGroup,signal?:AbortSignal):Promise<boolean>{
+ const raw=await api.request<unknown>(searchPath({q,group,record:true},1),'GET',undefined,signal);
+ return object(raw)&&object(raw.query)&&raw.query.recorded===true&&raw.query.q===q;
+}
 export function searchPath(q:SearchQuery,limit:number,cursor?:string|null):string{
  const params=new URLSearchParams({q:q.q,limit:String(limit)});
  if(q.group)params.set('group',q.group);
