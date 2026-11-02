@@ -23,6 +23,9 @@ export type DirectAccount=Readonly<{id:string;username:string;primaryProfileId:s
 export type ManagementCapabilities=Readonly<{manageAccount:boolean;managePeople:boolean;manageServer:boolean;manageSignIn:boolean}>;
 /** `rememberProfiles`: the PIN screen may offer Remember this profile. `managePinRequired`: this remembered
  * main profile enters its PIN again before it manages the account (profile_pin_manage). */
+/** PR-1: the server refused a management request until this remembered main profile enters its PIN again
+ * (`profile_pin_manage`). It acted on nothing, so what the screen holds is still current; the app's shell asks for the PIN. */
+export const managementPinRefused = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'profile_pin_manage';
 export type DirectSnapshot=Readonly<{capabilities:ManagementCapabilities;authority:'local';serverId:string;account:DirectAccount;profiles:readonly ManagedProfile[];canManage:boolean;custodyPending?:boolean;twoStepSetupRequired?:true;rememberProfiles?:boolean;managePinRequired?:true}>;
 /**
  * C45 direct sign-in (Justin's account decisions). There is no separate account token any more:

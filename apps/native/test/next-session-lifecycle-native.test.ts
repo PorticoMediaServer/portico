@@ -184,7 +184,7 @@ test('remembered is true only for the exact family and profile before expiry', a
 test('connect restores the held sign-in, maps the profiles, and keeps the PIN state and connection', async () => {
   const fx = await fixture();
   const facts = await fx.ports.connect('a', new AbortController().signal);
-  assert.deepEqual(facts, {rememberProfiles: true, profiles: [{id: 'p1', name: 'Main', primary: true, pinRequired: true}, {id: 'p2', name: 'Kids', primary: false, pinRequired: false}]});
+  assert.deepEqual(facts, {rememberProfiles: true, manageLocked: false, profiles: [{id: 'p1', name: 'Main', primary: true, pinRequired: true}, {id: 'p2', name: 'Kids', primary: false, pinRequired: false}]});
   assert.deepEqual(fx.apis[0].requests, ['get_direct_account']);
   assert.equal(fx.entry()!.profilePinRequired, true);
   assert.equal(fx.ports.connection('a')?.api, fx.apis[0]); assert.equal(fx.ports.connection('b'), undefined);

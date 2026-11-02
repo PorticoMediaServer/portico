@@ -72,6 +72,18 @@ export async function switchNativeProfile(familyId: string, profileId: string, p
   }
 }
 
+/**
+ * PR-1: the management unlock. A remembered main profile with a PIN that is past the server's management hour enters
+ * its PIN; the lifecycle chooses the same profile again (remembered), which opens management for the hour. Resolves once
+ * the new sign-in is published (the root then reopens on it); a wrong PIN rejects with the server's refusal.
+ */
+export async function unlockNativeManagement(familyId: string, pin: string): Promise<void> {
+  const {lifecycle} = nativeSessionLifecycle();
+  const open = lifecycle.getSnapshot().state;
+  if (open.kind !== 'ready' || open.viewer.familyId !== familyId || !open.manageLocked) throw profilesChanged();
+  await settle(lifecycle.actions.unlockManagement, pin);
+}
+
 /** Resolves once launch has decided (anything but starting or connecting), or rejects when `signal` aborts. */
 export function lifecycleSettled(lifecycle: SessionLifecycle, signal: AbortSignal): Promise<LifecycleState> {
   return new Promise((resolve, reject) => {

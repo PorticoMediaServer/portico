@@ -129,8 +129,8 @@ export class SessionLifecycle implements AuthoritySource {
   otherProfiles(): void {void this.dispatch({type: 'otherProfiles'});}
   switchProfile(): void {void this.dispatch({type: 'switchProfile'});}
   cancelSwitch(): void {void this.dispatch({type: 'cancelSwitch'});}
-  /** A request on the mounted shell answered profile_pin_reentry, a terminal refresh refusal, or an identity failure. */
-  report(event: Extract<LifecycleEvent, {type: 'gated' | 'signInEnded' | 'identityFailed' | 'networkLost'}>): void {void this.dispatch(event);}
+  /** A request on the mounted shell answered profile_pin_reentry or profile_pin_manage, a terminal refresh refusal, or an identity failure. */
+  report(event: Extract<LifecycleEvent, {type: 'gated' | 'manageRefused' | 'signInEnded' | 'identityFailed' | 'networkLost'}>): void {void this.dispatch(event);}
 
   dispose(): void {
     if (this.disposed) return;

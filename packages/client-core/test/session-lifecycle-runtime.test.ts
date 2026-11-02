@@ -255,7 +255,7 @@ test('a select failure after dispose() does not publish or throw', async () => {
 });
 
 test('picking another profile with no PIN signs in as it with remember false and fences the shell', async () => {
-  const {life, ports} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})})});
+  const {life, ports} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true})});
   assert.equal(kind(life), 'ready');
   life.switchProfile();
   life.actions.pickProfile.start('kids'); await flush();
@@ -353,7 +353,7 @@ test('a double tap on submitPin selects once', async () => {
 });
 
 test('unlockManagement sends a same-profile select with remember true and clears manageLocked', async () => {
-  const {life, ports} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})})});
+  const {life, ports} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true})});
   assert.equal(state(life, 'ready').manageLocked, true);
   const before = life.getSnapshot().generation;
   life.actions.unlockManagement.start('4321'); await flush();
@@ -373,7 +373,7 @@ test('unlockManagement sends a same-profile select with remember true and clears
 
 test('a wrong management PIN keeps ready locked and fails the action', async () => {
   const scheduler = createManualScheduler(0);
-  const {life} = await launched({scheduler, readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}),
+  const {life} = await launched({scheduler, readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true}),
     select: async () => {throw new ApiError(403, 'profile_pin_invalid', 'no');}});
   life.actions.unlockManagement.start('0000'); await flush();
   const s = state(life, 'ready');
@@ -424,7 +424,7 @@ test('a switchServer whose storeSelect fails stays on its screen and fails visib
 });
 
 test('signing out of the last server goes to signedOut', async () => {
-  const {life, ports} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})})});
+  const {life, ports} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true})});
   ports.calls.length = 0;
   const before = life.getSnapshot().generation;
   life.actions.signOutServer.start(true); await flush();
@@ -455,7 +455,7 @@ test('signing out of the Portico Account: none left → signedOut, some local on
 });
 
 test('a failed sign-out stays put and fails visibly', async () => {
-  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}),
+  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true}),
     signOutServer: async () => {throw new Error('network');}});
   life.actions.signOutServer.start(false); await flush();
   assert.equal(kind(life), 'ready');
@@ -536,7 +536,7 @@ test('history() is bounded at 200 and its records carry only t, from, event, to,
 });
 
 test('history records carry no ids, names, addresses or secrets', async () => {
-  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})})});
+  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true})});
   life.actions.unlockManagement.start('4321'); await flush();
   life.report({type: 'signInEnded', username: 'justin'}); await flush();
   const text = JSON.stringify(life.history());
@@ -562,7 +562,7 @@ test('a throwing or rejecting log port or listener never breaks a transition', a
   try {
     let n = 0;
     const {life} = await launched({
-      readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}),
+      readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true}),
       log: () => {if (n++ % 2) throw new Error('log sink'); return Promise.reject(new Error('async log sink')) as never;},
     });
     let heard = 0;
@@ -584,7 +584,7 @@ test('a throwing or rejecting log port or listener never breaks a transition', a
 test('a throwing fenceShell or drainRevocations does not stop the move', async () => {
   setCleanupLog(() => {});
   try {
-    const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}),
+    const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true}),
       fenceShell: () => {throw new Error('fence');}, drainRevocations: () => {throw new Error('drain');}});
     assert.equal(kind(life), 'ready');
     life.report({type: 'gated'}); await flush();
@@ -640,7 +640,7 @@ test('a readHeld that throws on an echo is ignored', async () => {
 
 test("another tab's pick on a ready shell is followed with a fence and no sign-out", async () => {
   let listener = () => {}, now: HeldSignIn = held({remembered: true});
-  const {life, ports} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}),
+  const {life, ports} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true}),
     observeRecords: l => {listener = l; return () => {};}, readHeld: async () => ({servers: 1, held: now})});
   assert.equal(kind(life), 'ready');
   ports.calls.length = 0;
@@ -665,7 +665,7 @@ test('dispose() stops observing the record and ends every action', async () => {
 });
 
 test('authority() is the shell\'s sign-in: kept while switching, gone when gated, and a token refresh does not move it', async () => {
-  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})})});
+  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true})});
   assert.deepEqual(life.authority(), {serverId: 's1', accountId: 'a1', profileId: 'main', familyId: 'f1'});
   life.report({type: 'networkLost'}); await flush();
   assert.equal(kind(life), 'ready');
@@ -696,7 +696,7 @@ test('lane A bindAuthority over the lifecycle: survives nothing but the same sig
   const {bindAuthority} = await import('../src/session-authority.ts');
   let listener = () => {};
   let next: HeldSignIn | undefined;
-  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}),
+  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true}),
     observeRecords: l => {listener = l; return () => {};}, readHeld: async () => ({servers: 1, ...(next ? {held: next} : {})})});
   assert.equal(kind(life), 'ready');
   const binding = bindAuthority(life);
@@ -724,7 +724,7 @@ test('a ticked pick asks the port to remember; an unticked one does not', async 
 });
 
 test('Forget remembered profile clears the marker through the port and leaves the profile open on the same sign-in', async () => {
-  const {life, ports} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})})});
+  const {life, ports} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true})});
   assert.equal(state(life, 'ready').remembered, true);
   const generation = life.getSnapshot().generation;
   life.actions.forgetRemembered.start(); await flush();
@@ -738,7 +738,7 @@ test('Forget remembered profile clears the marker through the port and leaves th
 });
 
 test('when the marker cannot be cleared the profile stays remembered and the action reports the failure', async () => {
-  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}),
+  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}), connect: async () => ({...facts(), manageLocked: true}),
     clearMarker: async () => {throw new Error('write refused');}});
   life.actions.forgetRemembered.start(); await flush();
   assert.equal(life.actions.forgetRemembered.getSnapshot().phase, 'failed');

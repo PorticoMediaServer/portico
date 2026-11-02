@@ -291,6 +291,7 @@ export const enUS = {
   'error.unknown': 'Something went wrong. Try again.',
   'error.readingProgressPending': 'Connect as this profile and sync reading progress before removing this download.',
   'error.factorSetupRequired': 'Turn on two-step verification for this account, then try again.',
+  'error.profilePinManage': 'Enter this profile’s PIN to manage this account.',
   'content.openFailed': 'This content could not be opened.',
   'error.screenCrashed': 'Something went wrong on this screen.',
   'error.title.load': '{subject, select, home {Home couldn’t load} library {This library couldn’t load} detail {This title couldn’t load} show {This show couldn’t load} person {This person couldn’t load} search {Search couldn’t finish} saved {Saved couldn’t load} playlist {This playlist couldn’t load} collection {This collection couldn’t load} downloads {Downloads couldn’t load} live {The guide couldn’t load} together {Watch Together couldn’t load} notifications {Notifications couldn’t load} account {Your account couldn’t load} profiles {Profiles couldn’t load} devices {Devices couldn’t load} settings {Settings couldn’t load} preferences {Preferences couldn’t load} server-console {This page couldn’t load} sign-in {Sign-in couldn’t start} feedback {Reporting isn’t available} playback {Playback stopped} portico-account {Your Portico Account couldn’t load} claim {This server couldn’t be claimed} link {This link couldn’t open} other {This couldn’t load}}',

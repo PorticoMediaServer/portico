@@ -18,5 +18,6 @@ export function restoredShellLifecycleStub() {
       nativeProfileGated: error => error?.code === 'profile_pin_reentry',
     },
     '../screens/accounts/LifecycleProfileGate': {LifecycleProfileGate: () => null},
+    '../screens/accounts/ManageUnlockHost': {ManageUnlockHost: () => null},
   };
 }

@@ -117,3 +117,25 @@ test('cancelled, superseded, disposed and malformed Profile reads cannot feed di
   f.release();await pending;await newer;assert.equal(observations,action==='newer'?2:1);f.source.dispose();
  }
 });
+
+// PR-1: a remembered main profile past its management hour is refused with profile_pin_manage before anything changes.
+// The list stays and the page doesn't fail (no snapshot error); the shell's manage gate asks for the PIN.
+test('a management refusal keeps the profile list and reports no page failure', async () => {
+  const {ApiError} = await import('@core/index.ts');
+  let refuse = false;
+  const document = {authority: 'local', serverId: 'server', canManage: true, managePinRequired: true,
+    capabilities: {manageAccount: true, managePeople: true, manageServer: true, manageSignIn: true},
+    account: {id: 'account', username: 'actual', primaryProfileId: 'main', role: 'owner', revision: 1, disabled: false, allowedLibraries: []},
+    profiles: [{id: 'main', name: 'Actual', primary: true, position: 0, art: 'blue', revision: 2, pinRevision: 1, pinRequired: true}]};
+  const source = new ProfileSettingsSource({request: async <T>(_path: string, method?: string) => {
+    if (refuse && method !== 'GET' && method !== undefined) throw new ApiError(403, 'profile_pin_manage', 'Enter this profile\'s PIN to manage this account.', false);
+    return structuredClone(document) as T;
+  }}, {serverId: 'server', accountId: 'account', profileId: 'main'}, () => true);
+  await source.load(); refuse = true;
+  await assert.rejects(source.rename('Nope'), {code: 'profile_pin_manage'});
+  const snapshot = source.getSnapshot();
+  assert.equal(snapshot.error, undefined, 'no page failure');
+  assert.equal(snapshot.busy, false);
+  assert.equal(snapshot.document?.profiles[0]?.name, 'Actual', 'the list stays');
+  source.dispose();
+});

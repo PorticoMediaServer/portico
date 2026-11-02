@@ -1,5 +1,5 @@
 import {IdentityClient} from '@core/identity-client.ts';
-import type {ProfileAPI} from '@core/profile-management.ts';
+import {managementPinRefused, type ProfileAPI} from '@core/profile-management.ts';
 import type {ProfileRestrictions, RatingSystem} from '@core/identity-restrictions.ts';
 import {CodedError} from '@core/server-messages.ts';
 import type {ProfileSettingsSource} from './source';
@@ -42,7 +42,7 @@ export class ProfileRestrictionsSource {
       if (!admitted()) return;
       if (document.profileId !== id) throw new CodedError('invalid_response', 'The profile limits could not be read.');
       this.publish({loading: false, busy: false, document, systems});
-    }).catch(error => {if (epoch === this.epoch) this.publish({loading: false, busy: false, error});});
+    }).catch(error => {if (epoch === this.epoch) this.publish(managementPinRefused(error) ? {loading: false, busy: false} : {loading: false, busy: false, error});});
   };
   save = async (changes: Parameters<IdentityClient['saveRestrictions']>[1]): Promise<void> => {
     const state = this.getSnapshot(), account = this.profiles.getSnapshot().document, selected = this.profiles.selected();
@@ -64,7 +64,11 @@ export class ProfileRestrictionsSource {
       if (!admitted()) return;
       if (document.profileId !== captured.profileId) throw new CodedError('invalid_response', 'The profile limits could not be read.');
       this.publish({loading: false, busy: false, document, systems: state.systems});
-    } catch (error) {if (epoch === this.epoch) this.publish({loading: false, busy: false, error});throw error;}
+    } catch (error) {
+      // PR-1: refused before anything changed: keep the limits on screen; the shell asks for the PIN.
+      if (epoch === this.epoch) this.publish(managementPinRefused(error) ? {...state, busy: false} : {loading: false, busy: false, error});
+      throw error;
+    }
   };
   dispose = () => {this.closed = true;++this.epoch;this.off();this.lifetime.abort();this.state = empty;this.listeners.clear();};
 }
