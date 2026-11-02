@@ -114,3 +114,10 @@ func TestReadPoolHotLoopStaysWarm(t *testing.T) {
 		t.Error("warm bursts never reused cached bytecode")
 	}
 }
+
+// Opening a connection parses the whole schema, so no pool retires one by age.
+func TestReadConnectionsAreNotRetiredByAge(t *testing.T) {
+	if lifetime := DefaultPolicy().ConnMaxLifetime; lifetime != 0 {
+		t.Fatalf("read connections are retired after %s", lifetime)
+	}
+}

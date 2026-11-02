@@ -45,10 +45,14 @@ const (
 	safeMaxOpenConns       = 16
 	safeMaxBackgroundConns = 8
 	// Retain the already-allowed reader peak and its per-connection bytecode.
-	safeMaxIdleConns      = safeMaxOpenConns
-	safeCacheSizeKiB      = 4 * 1024 // 4 MiB per connection
-	safeMmapSizeBytes     = 0        // mmap deliberately off; it is untracked memory
-	safeConnMaxLifetime   = 30 * time.Minute
+	safeMaxIdleConns  = safeMaxOpenConns
+	safeCacheSizeKiB  = 4 * 1024 // 4 MiB per connection
+	safeMmapSizeBytes = 0        // mmap deliberately off; it is untracked memory
+	// Connections are never retired by age. Opening one parses the whole schema
+	// (160-630 ms measured today), and a request paid that each time a
+	// connection's 30-minute lifetime expired. Planner-statistics changes still
+	// retire them (planner_statistics.go).
+	safeConnMaxLifetime   = 0
 	safeBusyTimeoutMilli  = 15000
 	safeWALAutocheckpoint = 1000
 	// safeWriterBusyTimeoutMilli (F §3) applies only to the writer connection,
@@ -107,7 +111,7 @@ func (p Policy) Validate() error {
 	if p.MmapSizeBytes != 0 {
 		return fmt.Errorf("%w: mmap must be disabled, got %d", ErrPolicy, p.MmapSizeBytes)
 	}
-	if p.ConnMaxLifetime <= 0 {
+	if p.ConnMaxLifetime < 0 {
 		return fmt.Errorf("%w: connection lifetime %s", ErrPolicy, p.ConnMaxLifetime)
 	}
 	if p.BusyTimeoutMilli < 1000 || p.BusyTimeoutMilli > 30000 {

@@ -101,7 +101,7 @@ func TestPolicyRejectsAnUnvalidatedPreset(t *testing.T) {
 	idle.MaxIdleConns = 32
 	cases = append(cases, idle)
 	life := DefaultPolicy()
-	life.ConnMaxLifetime = 0
+	life.ConnMaxLifetime = -time.Second
 	cases = append(cases, life)
 	for index, policy := range cases {
 		if err := policy.Validate(); !errors.Is(err, ErrPolicy) {
