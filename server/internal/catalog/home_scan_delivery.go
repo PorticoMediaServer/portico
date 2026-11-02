@@ -182,7 +182,7 @@ func (s *Service) refreshCachedHomeRows(r HomeRequest, rows []HomeRow) error {
 		if !ok {
 			return ErrReadingProjectionChanged
 		}
-		fresh.New, fresh.AddedAt = entry.New, entry.AddedAt
+		fresh.New, fresh.AddedAt, fresh.ReadingProgress = entry.New, entry.AddedAt, entry.ReadingProgress
 		*entry = fresh
 	}
 	return nil

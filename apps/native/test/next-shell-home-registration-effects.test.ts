@@ -80,6 +80,7 @@ for (const tv of [false, true]) test(`actual ${tv ? 'TV' : 'phone'} Home/Row eff
     react, 'react-native': native, 'react-native-reanimated': animated, '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard, homeContinuationSource},
     '../../../../../packages/client-core/src/presentation/home-spotlight': homePresentation, '../../../../../packages/client-core/src/home-selection': homeCapabilities,
+    '../../../../../packages/client-core/src/presentation/continue-books': {continueBookFacts: () => ({reading: false, shape: 'audiobook'})},
     '../../../../../packages/client-core/src/presentation/server-text': serverText, '../../../../../packages/client-core/src/presentation/kit-model': {},
     '../../platform/ArtworkPipeline': {}, '../../kit/artwork': {}, '../../kit/controls': {Button: 'Button'}, '../../kit/cards': {},
     '../../kit/layout': {Row, Hero: 'Hero', FocusPreviewHero: 'Preview'}, '../../kit/layout/types': {}, '../../kit/layout/FocusAnchor': {useFocusAnchor},

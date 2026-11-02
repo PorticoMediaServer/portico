@@ -44,6 +44,8 @@ export type ContentEntry = Readonly<{
   /** The original admitted radio seed; a radio card is not a catalogue song. */
   radioSeed?: Readonly<{id: string; kind: 'artist' | 'album' | 'song'}>;
   pageCount?: number;
+  /** A book, comic or magazine's latest saved position for this profile (Continue your books). */
+  readingProgress?: ReadingEntryProgress;
   readingMark?: ReadingEntryMark;
   audioFacts?: MusicTechnicalFacts;
   badges?: readonly MusicFormatBadge[];
@@ -208,6 +210,10 @@ function entry(v: unknown): ContentEntry {
   if ((v.kind === 'ebook' || v.kind === 'comic') && (v.publicationType === 'book' || v.publicationType === 'magazine' || v.publicationType === 'newspaper')) row.publicationType = v.publicationType;
   if (v.kind === 'ebook' || v.kind === 'comic') {
     if (count(v.pageCount) && v.pageCount > 0) row.pageCount = v.pageCount; else left('entry.pageCount', v.pageCount);
+    if (v.readingProgress !== undefined) {
+      const progress = parseReadingEntryProgress(v.readingProgress);
+      if (progress) row.readingProgress = progress; else left('entry.readingProgress', v.readingProgress);
+    }
     const mark = v.readingMark;
     if (mark !== undefined) {
       if (record(mark) && mark.itemId === row.id && typeof mark.read === 'boolean' && count(mark.revision)) {
@@ -786,3 +792,14 @@ export async function readListeningSimilar<S extends ListeningViewerScope>(api:L
  return Object.freeze({itemId,libraryId:raw.libraryId,bySound:raw.bySound,revision:Object.freeze({catalog:raw.revision.catalog,viewer:raw.revision.viewer}),entries:Object.freeze(entries),...(raw.hasMore===true&&raw.nextCursor?{nextCursor:raw.nextCursor as string}:{})});
 }
 
+
+/** The saved position's own facts: the fraction read and, for paged formats, a zero-based page.
+ *  A stale position (the file changed since) is progress only. */
+export type ReadingEntryProgress = Readonly<{progression: number; pageIndex?: number; stale?: boolean}>;
+export function parseReadingEntryProgress(v: unknown): ReadingEntryProgress | undefined {
+  if (!record(v) || typeof v.progression !== 'number' || !Number.isFinite(v.progression) || v.progression < 0 || v.progression > 1) return undefined;
+  if (v.pageIndex !== undefined && !count(v.pageIndex)) return undefined;
+  if (v.stale !== undefined && typeof v.stale !== 'boolean') return undefined;
+  return Object.freeze({progression: v.progression,
+    ...(typeof v.pageIndex === 'number' ? {pageIndex: v.pageIndex} : {}), ...(v.stale === true ? {stale: true} : {})});
+}

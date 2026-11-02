@@ -5234,6 +5234,19 @@ var PorticoCastContracts = (function(exports) {
 										],
 										"type": "object"
 									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
+										"type": "object"
+									},
 									"releaseDate": { "type": "string" },
 									"removed": { "type": "boolean" },
 									"resolution": { "type": "string" },
@@ -5444,6 +5457,19 @@ var PorticoCastContracts = (function(exports) {
 									"read",
 									"revision"
 								],
+								"type": "object"
+							},
+							"readingProgress": {
+								"properties": {
+									"pageIndex": {
+										"maximum": 9007199254740991,
+										"minimum": -9007199254740991,
+										"type": "integer"
+									},
+									"progression": { "type": "number" },
+									"stale": { "type": "boolean" }
+								},
+								"required": ["progression"],
 								"type": "object"
 							},
 							"releaseDate": { "type": "string" },
@@ -7090,6 +7116,19 @@ var PorticoCastContracts = (function(exports) {
 											],
 											"type": "object"
 										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
+											"type": "object"
+										},
 										"releaseDate": { "type": "string" },
 										"removed": { "type": "boolean" },
 										"resolution": { "type": "string" },
@@ -7300,6 +7339,19 @@ var PorticoCastContracts = (function(exports) {
 										"read",
 										"revision"
 									],
+									"type": "object"
+								},
+								"readingProgress": {
+									"properties": {
+										"pageIndex": {
+											"maximum": 9007199254740991,
+											"minimum": -9007199254740991,
+											"type": "integer"
+										},
+										"progression": { "type": "number" },
+										"stale": { "type": "boolean" }
+									},
+									"required": ["progression"],
 									"type": "object"
 								},
 								"releaseDate": { "type": "string" },
@@ -39037,6 +39089,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -39247,6 +39312,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -40769,6 +40847,19 @@ var PorticoCastContracts = (function(exports) {
 																	],
 																	"type": "object"
 																},
+																"readingProgress": {
+																	"properties": {
+																		"pageIndex": {
+																			"maximum": 9007199254740991,
+																			"minimum": -9007199254740991,
+																			"type": "integer"
+																		},
+																		"progression": { "type": "number" },
+																		"stale": { "type": "boolean" }
+																	},
+																	"required": ["progression"],
+																	"type": "object"
+																},
 																"releaseDate": { "type": "string" },
 																"removed": { "type": "boolean" },
 																"resolution": { "type": "string" },
@@ -40979,6 +41070,19 @@ var PorticoCastContracts = (function(exports) {
 																"read",
 																"revision"
 															],
+															"type": "object"
+														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
 															"type": "object"
 														},
 														"releaseDate": { "type": "string" },
@@ -46240,6 +46344,19 @@ var PorticoCastContracts = (function(exports) {
 																		],
 																		"type": "object"
 																	},
+																	"readingProgress": {
+																		"properties": {
+																			"pageIndex": {
+																				"maximum": 9007199254740991,
+																				"minimum": -9007199254740991,
+																				"type": "integer"
+																			},
+																			"progression": { "type": "number" },
+																			"stale": { "type": "boolean" }
+																		},
+																		"required": ["progression"],
+																		"type": "object"
+																	},
 																	"releaseDate": { "type": "string" },
 																	"removed": { "type": "boolean" },
 																	"resolution": { "type": "string" },
@@ -46450,6 +46567,19 @@ var PorticoCastContracts = (function(exports) {
 																	"read",
 																	"revision"
 																],
+																"type": "object"
+															},
+															"readingProgress": {
+																"properties": {
+																	"pageIndex": {
+																		"maximum": 9007199254740991,
+																		"minimum": -9007199254740991,
+																		"type": "integer"
+																	},
+																	"progression": { "type": "number" },
+																	"stale": { "type": "boolean" }
+																},
+																"required": ["progression"],
 																"type": "object"
 															},
 															"releaseDate": { "type": "string" },
@@ -47454,6 +47584,19 @@ var PorticoCastContracts = (function(exports) {
 																],
 																"type": "object"
 															},
+															"readingProgress": {
+																"properties": {
+																	"pageIndex": {
+																		"maximum": 9007199254740991,
+																		"minimum": -9007199254740991,
+																		"type": "integer"
+																	},
+																	"progression": { "type": "number" },
+																	"stale": { "type": "boolean" }
+																},
+																"required": ["progression"],
+																"type": "object"
+															},
 															"releaseDate": { "type": "string" },
 															"removed": { "type": "boolean" },
 															"resolution": { "type": "string" },
@@ -47664,6 +47807,19 @@ var PorticoCastContracts = (function(exports) {
 															"read",
 															"revision"
 														],
+														"type": "object"
+													},
+													"readingProgress": {
+														"properties": {
+															"pageIndex": {
+																"maximum": 9007199254740991,
+																"minimum": -9007199254740991,
+																"type": "integer"
+															},
+															"progression": { "type": "number" },
+															"stale": { "type": "boolean" }
+														},
+														"required": ["progression"],
 														"type": "object"
 													},
 													"releaseDate": { "type": "string" },
@@ -48954,6 +49110,19 @@ var PorticoCastContracts = (function(exports) {
 																		],
 																		"type": "object"
 																	},
+																	"readingProgress": {
+																		"properties": {
+																			"pageIndex": {
+																				"maximum": 9007199254740991,
+																				"minimum": -9007199254740991,
+																				"type": "integer"
+																			},
+																			"progression": { "type": "number" },
+																			"stale": { "type": "boolean" }
+																		},
+																		"required": ["progression"],
+																		"type": "object"
+																	},
 																	"releaseDate": { "type": "string" },
 																	"removed": { "type": "boolean" },
 																	"resolution": { "type": "string" },
@@ -49164,6 +49333,19 @@ var PorticoCastContracts = (function(exports) {
 																	"read",
 																	"revision"
 																],
+																"type": "object"
+															},
+															"readingProgress": {
+																"properties": {
+																	"pageIndex": {
+																		"maximum": 9007199254740991,
+																		"minimum": -9007199254740991,
+																		"type": "integer"
+																	},
+																	"progression": { "type": "number" },
+																	"stale": { "type": "boolean" }
+																},
+																"required": ["progression"],
 																"type": "object"
 															},
 															"releaseDate": { "type": "string" },
@@ -50589,6 +50771,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -50799,6 +50994,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -51800,6 +52008,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -52010,6 +52231,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -53300,6 +53534,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -53510,6 +53757,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -54803,6 +55063,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -55013,6 +55286,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -56014,6 +56300,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -56224,6 +56523,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -57377,6 +57689,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -57587,6 +57912,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -58591,6 +58929,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -58801,6 +59152,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -60091,6 +60455,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -60301,6 +60678,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -61726,6 +62116,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -61936,6 +62339,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -62937,6 +63353,19 @@ var PorticoCastContracts = (function(exports) {
 										],
 										"type": "object"
 									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
+										"type": "object"
+									},
 									"releaseDate": { "type": "string" },
 									"removed": { "type": "boolean" },
 									"resolution": { "type": "string" },
@@ -63147,6 +63576,19 @@ var PorticoCastContracts = (function(exports) {
 									"read",
 									"revision"
 								],
+								"type": "object"
+							},
+							"readingProgress": {
+								"properties": {
+									"pageIndex": {
+										"maximum": 9007199254740991,
+										"minimum": -9007199254740991,
+										"type": "integer"
+									},
+									"progression": { "type": "number" },
+									"stale": { "type": "boolean" }
+								},
+								"required": ["progression"],
 								"type": "object"
 							},
 							"releaseDate": { "type": "string" },
@@ -64437,6 +64879,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -64647,6 +65102,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -68319,6 +68787,19 @@ var PorticoCastContracts = (function(exports) {
 														],
 														"type": "object"
 													},
+													"readingProgress": {
+														"properties": {
+															"pageIndex": {
+																"maximum": 9007199254740991,
+																"minimum": -9007199254740991,
+																"type": "integer"
+															},
+															"progression": { "type": "number" },
+															"stale": { "type": "boolean" }
+														},
+														"required": ["progression"],
+														"type": "object"
+													},
 													"releaseDate": { "type": "string" },
 													"removed": { "type": "boolean" },
 													"resolution": { "type": "string" },
@@ -68529,6 +69010,19 @@ var PorticoCastContracts = (function(exports) {
 													"read",
 													"revision"
 												],
+												"type": "object"
+											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
 												"type": "object"
 											},
 											"releaseDate": { "type": "string" },
@@ -70051,6 +70545,19 @@ var PorticoCastContracts = (function(exports) {
 																],
 																"type": "object"
 															},
+															"readingProgress": {
+																"properties": {
+																	"pageIndex": {
+																		"maximum": 9007199254740991,
+																		"minimum": -9007199254740991,
+																		"type": "integer"
+																	},
+																	"progression": { "type": "number" },
+																	"stale": { "type": "boolean" }
+																},
+																"required": ["progression"],
+																"type": "object"
+															},
 															"releaseDate": { "type": "string" },
 															"removed": { "type": "boolean" },
 															"resolution": { "type": "string" },
@@ -70261,6 +70768,19 @@ var PorticoCastContracts = (function(exports) {
 															"read",
 															"revision"
 														],
+														"type": "object"
+													},
+													"readingProgress": {
+														"properties": {
+															"pageIndex": {
+																"maximum": 9007199254740991,
+																"minimum": -9007199254740991,
+																"type": "integer"
+															},
+															"progression": { "type": "number" },
+															"stale": { "type": "boolean" }
+														},
+														"required": ["progression"],
 														"type": "object"
 													},
 													"releaseDate": { "type": "string" },
@@ -74377,6 +74897,19 @@ var PorticoCastContracts = (function(exports) {
 																		],
 																		"type": "object"
 																	},
+																	"readingProgress": {
+																		"properties": {
+																			"pageIndex": {
+																				"maximum": 9007199254740991,
+																				"minimum": -9007199254740991,
+																				"type": "integer"
+																			},
+																			"progression": { "type": "number" },
+																			"stale": { "type": "boolean" }
+																		},
+																		"required": ["progression"],
+																		"type": "object"
+																	},
 																	"releaseDate": { "type": "string" },
 																	"removed": { "type": "boolean" },
 																	"resolution": { "type": "string" },
@@ -74587,6 +75120,19 @@ var PorticoCastContracts = (function(exports) {
 																	"read",
 																	"revision"
 																],
+																"type": "object"
+															},
+															"readingProgress": {
+																"properties": {
+																	"pageIndex": {
+																		"maximum": 9007199254740991,
+																		"minimum": -9007199254740991,
+																		"type": "integer"
+																	},
+																	"progression": { "type": "number" },
+																	"stale": { "type": "boolean" }
+																},
+																"required": ["progression"],
 																"type": "object"
 															},
 															"releaseDate": { "type": "string" },
@@ -75591,6 +76137,19 @@ var PorticoCastContracts = (function(exports) {
 																],
 																"type": "object"
 															},
+															"readingProgress": {
+																"properties": {
+																	"pageIndex": {
+																		"maximum": 9007199254740991,
+																		"minimum": -9007199254740991,
+																		"type": "integer"
+																	},
+																	"progression": { "type": "number" },
+																	"stale": { "type": "boolean" }
+																},
+																"required": ["progression"],
+																"type": "object"
+															},
 															"releaseDate": { "type": "string" },
 															"removed": { "type": "boolean" },
 															"resolution": { "type": "string" },
@@ -75801,6 +76360,19 @@ var PorticoCastContracts = (function(exports) {
 															"read",
 															"revision"
 														],
+														"type": "object"
+													},
+													"readingProgress": {
+														"properties": {
+															"pageIndex": {
+																"maximum": 9007199254740991,
+																"minimum": -9007199254740991,
+																"type": "integer"
+															},
+															"progression": { "type": "number" },
+															"stale": { "type": "boolean" }
+														},
+														"required": ["progression"],
 														"type": "object"
 													},
 													"releaseDate": { "type": "string" },
@@ -77091,6 +77663,19 @@ var PorticoCastContracts = (function(exports) {
 																		],
 																		"type": "object"
 																	},
+																	"readingProgress": {
+																		"properties": {
+																			"pageIndex": {
+																				"maximum": 9007199254740991,
+																				"minimum": -9007199254740991,
+																				"type": "integer"
+																			},
+																			"progression": { "type": "number" },
+																			"stale": { "type": "boolean" }
+																		},
+																		"required": ["progression"],
+																		"type": "object"
+																	},
 																	"releaseDate": { "type": "string" },
 																	"removed": { "type": "boolean" },
 																	"resolution": { "type": "string" },
@@ -77301,6 +77886,19 @@ var PorticoCastContracts = (function(exports) {
 																	"read",
 																	"revision"
 																],
+																"type": "object"
+															},
+															"readingProgress": {
+																"properties": {
+																	"pageIndex": {
+																		"maximum": 9007199254740991,
+																		"minimum": -9007199254740991,
+																		"type": "integer"
+																	},
+																	"progression": { "type": "number" },
+																	"stale": { "type": "boolean" }
+																},
+																"required": ["progression"],
 																"type": "object"
 															},
 															"releaseDate": { "type": "string" },
@@ -78726,6 +79324,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -78936,6 +79547,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -79937,6 +80561,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -80147,6 +80784,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -81437,6 +82087,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -81647,6 +82310,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -83103,6 +83779,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -83313,6 +84002,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -84317,6 +85019,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -84527,6 +85242,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -85817,6 +86545,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -86027,6 +86768,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -87452,6 +88206,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -87662,6 +88429,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -88663,6 +89443,19 @@ var PorticoCastContracts = (function(exports) {
 										],
 										"type": "object"
 									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
+										"type": "object"
+									},
 									"releaseDate": { "type": "string" },
 									"removed": { "type": "boolean" },
 									"resolution": { "type": "string" },
@@ -88873,6 +89666,19 @@ var PorticoCastContracts = (function(exports) {
 									"read",
 									"revision"
 								],
+								"type": "object"
+							},
+							"readingProgress": {
+								"properties": {
+									"pageIndex": {
+										"maximum": 9007199254740991,
+										"minimum": -9007199254740991,
+										"type": "integer"
+									},
+									"progression": { "type": "number" },
+									"stale": { "type": "boolean" }
+								},
+								"required": ["progression"],
 								"type": "object"
 							},
 							"releaseDate": { "type": "string" },
@@ -90163,6 +90969,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -90373,6 +91192,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -92027,6 +92859,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -92237,6 +93082,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -95417,6 +96275,19 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"readingProgress": {
+									"properties": {
+										"pageIndex": {
+											"maximum": 9007199254740991,
+											"minimum": -9007199254740991,
+											"type": "integer"
+										},
+										"progression": { "type": "number" },
+										"stale": { "type": "boolean" }
+									},
+									"required": ["progression"],
+									"type": "object"
+								},
 								"releaseDate": { "type": "string" },
 								"removed": { "type": "boolean" },
 								"resolution": { "type": "string" },
@@ -95627,6 +96498,19 @@ var PorticoCastContracts = (function(exports) {
 								"read",
 								"revision"
 							],
+							"type": "object"
+						},
+						"readingProgress": {
+							"properties": {
+								"pageIndex": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
+								},
+								"progression": { "type": "number" },
+								"stale": { "type": "boolean" }
+							},
+							"required": ["progression"],
 							"type": "object"
 						},
 						"releaseDate": { "type": "string" },
@@ -96770,6 +97654,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -96980,6 +97877,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -98194,6 +99104,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -98404,6 +99327,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -99862,6 +100798,19 @@ var PorticoCastContracts = (function(exports) {
 											],
 											"type": "object"
 										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
+											"type": "object"
+										},
 										"releaseDate": { "type": "string" },
 										"removed": { "type": "boolean" },
 										"resolution": { "type": "string" },
@@ -100072,6 +101021,19 @@ var PorticoCastContracts = (function(exports) {
 										"read",
 										"revision"
 									],
+									"type": "object"
+								},
+								"readingProgress": {
+									"properties": {
+										"pageIndex": {
+											"maximum": 9007199254740991,
+											"minimum": -9007199254740991,
+											"type": "integer"
+										},
+										"progression": { "type": "number" },
+										"stale": { "type": "boolean" }
+									},
+									"required": ["progression"],
 									"type": "object"
 								},
 								"releaseDate": { "type": "string" },
@@ -101215,6 +102177,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -101425,6 +102400,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -102570,6 +103558,19 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"readingProgress": {
+									"properties": {
+										"pageIndex": {
+											"maximum": 9007199254740991,
+											"minimum": -9007199254740991,
+											"type": "integer"
+										},
+										"progression": { "type": "number" },
+										"stale": { "type": "boolean" }
+									},
+									"required": ["progression"],
+									"type": "object"
+								},
 								"releaseDate": { "type": "string" },
 								"removed": { "type": "boolean" },
 								"resolution": { "type": "string" },
@@ -102780,6 +103781,19 @@ var PorticoCastContracts = (function(exports) {
 								"read",
 								"revision"
 							],
+							"type": "object"
+						},
+						"readingProgress": {
+							"properties": {
+								"pageIndex": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
+								},
+								"progression": { "type": "number" },
+								"stale": { "type": "boolean" }
+							},
+							"required": ["progression"],
 							"type": "object"
 						},
 						"releaseDate": { "type": "string" },
@@ -105105,6 +106119,19 @@ var PorticoCastContracts = (function(exports) {
 											],
 											"type": "object"
 										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
+											"type": "object"
+										},
 										"releaseDate": { "type": "string" },
 										"removed": { "type": "boolean" },
 										"resolution": { "type": "string" },
@@ -105315,6 +106342,19 @@ var PorticoCastContracts = (function(exports) {
 										"read",
 										"revision"
 									],
+									"type": "object"
+								},
+								"readingProgress": {
+									"properties": {
+										"pageIndex": {
+											"maximum": 9007199254740991,
+											"minimum": -9007199254740991,
+											"type": "integer"
+										},
+										"progression": { "type": "number" },
+										"stale": { "type": "boolean" }
+									},
+									"required": ["progression"],
 									"type": "object"
 								},
 								"releaseDate": { "type": "string" },
@@ -110197,6 +111237,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -110407,6 +111460,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -111443,6 +112509,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -111653,6 +112732,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -112766,6 +113858,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -112976,6 +114081,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -115778,6 +116896,19 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"readingProgress": {
+									"properties": {
+										"pageIndex": {
+											"maximum": 9007199254740991,
+											"minimum": -9007199254740991,
+											"type": "integer"
+										},
+										"progression": { "type": "number" },
+										"stale": { "type": "boolean" }
+									},
+									"required": ["progression"],
+									"type": "object"
+								},
 								"releaseDate": { "type": "string" },
 								"removed": { "type": "boolean" },
 								"resolution": { "type": "string" },
@@ -115988,6 +117119,19 @@ var PorticoCastContracts = (function(exports) {
 								"read",
 								"revision"
 							],
+							"type": "object"
+						},
+						"readingProgress": {
+							"properties": {
+								"pageIndex": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
+								},
+								"progression": { "type": "number" },
+								"stale": { "type": "boolean" }
+							},
+							"required": ["progression"],
 							"type": "object"
 						},
 						"releaseDate": { "type": "string" },
@@ -117131,6 +118275,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -117341,6 +118498,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -121827,6 +122997,19 @@ var PorticoCastContracts = (function(exports) {
 									],
 									"type": "object"
 								},
+								"readingProgress": {
+									"properties": {
+										"pageIndex": {
+											"maximum": 9007199254740991,
+											"minimum": -9007199254740991,
+											"type": "integer"
+										},
+										"progression": { "type": "number" },
+										"stale": { "type": "boolean" }
+									},
+									"required": ["progression"],
+									"type": "object"
+								},
 								"releaseDate": { "type": "string" },
 								"removed": { "type": "boolean" },
 								"resolution": { "type": "string" },
@@ -122037,6 +123220,19 @@ var PorticoCastContracts = (function(exports) {
 								"read",
 								"revision"
 							],
+							"type": "object"
+						},
+						"readingProgress": {
+							"properties": {
+								"pageIndex": {
+									"maximum": 9007199254740991,
+									"minimum": -9007199254740991,
+									"type": "integer"
+								},
+								"progression": { "type": "number" },
+								"stale": { "type": "boolean" }
+							},
+							"required": ["progression"],
 							"type": "object"
 						},
 						"releaseDate": { "type": "string" },
@@ -123208,6 +124404,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -123418,6 +124627,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -124897,6 +126119,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -125107,6 +126342,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -126375,6 +127623,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -126585,6 +127846,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -128364,6 +129638,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -128574,6 +129861,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -131693,6 +132993,19 @@ var PorticoCastContracts = (function(exports) {
 																		],
 																		"type": "object"
 																	},
+																	"readingProgress": {
+																		"properties": {
+																			"pageIndex": {
+																				"maximum": 9007199254740991,
+																				"minimum": -9007199254740991,
+																				"type": "integer"
+																			},
+																			"progression": { "type": "number" },
+																			"stale": { "type": "boolean" }
+																		},
+																		"required": ["progression"],
+																		"type": "object"
+																	},
 																	"releaseDate": { "type": "string" },
 																	"removed": { "type": "boolean" },
 																	"resolution": { "type": "string" },
@@ -131903,6 +133216,19 @@ var PorticoCastContracts = (function(exports) {
 																	"read",
 																	"revision"
 																],
+																"type": "object"
+															},
+															"readingProgress": {
+																"properties": {
+																	"pageIndex": {
+																		"maximum": 9007199254740991,
+																		"minimum": -9007199254740991,
+																		"type": "integer"
+																	},
+																	"progression": { "type": "number" },
+																	"stale": { "type": "boolean" }
+																},
+																"required": ["progression"],
 																"type": "object"
 															},
 															"releaseDate": { "type": "string" },
@@ -132907,6 +134233,19 @@ var PorticoCastContracts = (function(exports) {
 																],
 																"type": "object"
 															},
+															"readingProgress": {
+																"properties": {
+																	"pageIndex": {
+																		"maximum": 9007199254740991,
+																		"minimum": -9007199254740991,
+																		"type": "integer"
+																	},
+																	"progression": { "type": "number" },
+																	"stale": { "type": "boolean" }
+																},
+																"required": ["progression"],
+																"type": "object"
+															},
 															"releaseDate": { "type": "string" },
 															"removed": { "type": "boolean" },
 															"resolution": { "type": "string" },
@@ -133117,6 +134456,19 @@ var PorticoCastContracts = (function(exports) {
 															"read",
 															"revision"
 														],
+														"type": "object"
+													},
+													"readingProgress": {
+														"properties": {
+															"pageIndex": {
+																"maximum": 9007199254740991,
+																"minimum": -9007199254740991,
+																"type": "integer"
+															},
+															"progression": { "type": "number" },
+															"stale": { "type": "boolean" }
+														},
+														"required": ["progression"],
 														"type": "object"
 													},
 													"releaseDate": { "type": "string" },
@@ -134407,6 +135759,19 @@ var PorticoCastContracts = (function(exports) {
 																		],
 																		"type": "object"
 																	},
+																	"readingProgress": {
+																		"properties": {
+																			"pageIndex": {
+																				"maximum": 9007199254740991,
+																				"minimum": -9007199254740991,
+																				"type": "integer"
+																			},
+																			"progression": { "type": "number" },
+																			"stale": { "type": "boolean" }
+																		},
+																		"required": ["progression"],
+																		"type": "object"
+																	},
 																	"releaseDate": { "type": "string" },
 																	"removed": { "type": "boolean" },
 																	"resolution": { "type": "string" },
@@ -134617,6 +135982,19 @@ var PorticoCastContracts = (function(exports) {
 																	"read",
 																	"revision"
 																],
+																"type": "object"
+															},
+															"readingProgress": {
+																"properties": {
+																	"pageIndex": {
+																		"maximum": 9007199254740991,
+																		"minimum": -9007199254740991,
+																		"type": "integer"
+																	},
+																	"progression": { "type": "number" },
+																	"stale": { "type": "boolean" }
+																},
+																"required": ["progression"],
 																"type": "object"
 															},
 															"releaseDate": { "type": "string" },
@@ -136042,6 +137420,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -136252,6 +137643,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -137253,6 +138657,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -137463,6 +138880,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -138753,6 +140183,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -138963,6 +140406,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -140420,6 +141876,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -140630,6 +142099,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -141634,6 +143116,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -141844,6 +143339,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -143134,6 +144642,19 @@ var PorticoCastContracts = (function(exports) {
 															],
 															"type": "object"
 														},
+														"readingProgress": {
+															"properties": {
+																"pageIndex": {
+																	"maximum": 9007199254740991,
+																	"minimum": -9007199254740991,
+																	"type": "integer"
+																},
+																"progression": { "type": "number" },
+																"stale": { "type": "boolean" }
+															},
+															"required": ["progression"],
+															"type": "object"
+														},
 														"releaseDate": { "type": "string" },
 														"removed": { "type": "boolean" },
 														"resolution": { "type": "string" },
@@ -143344,6 +144865,19 @@ var PorticoCastContracts = (function(exports) {
 														"read",
 														"revision"
 													],
+													"type": "object"
+												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
 													"type": "object"
 												},
 												"releaseDate": { "type": "string" },
@@ -144769,6 +146303,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -144979,6 +146526,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -145980,6 +147540,19 @@ var PorticoCastContracts = (function(exports) {
 										],
 										"type": "object"
 									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
+										"type": "object"
+									},
 									"releaseDate": { "type": "string" },
 									"removed": { "type": "boolean" },
 									"resolution": { "type": "string" },
@@ -146190,6 +147763,19 @@ var PorticoCastContracts = (function(exports) {
 									"read",
 									"revision"
 								],
+								"type": "object"
+							},
+							"readingProgress": {
+								"properties": {
+									"pageIndex": {
+										"maximum": 9007199254740991,
+										"minimum": -9007199254740991,
+										"type": "integer"
+									},
+									"progression": { "type": "number" },
+									"stale": { "type": "boolean" }
+								},
+								"required": ["progression"],
 								"type": "object"
 							},
 							"releaseDate": { "type": "string" },
@@ -147480,6 +149066,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -147690,6 +149289,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -152198,6 +153810,19 @@ var PorticoCastContracts = (function(exports) {
 												],
 												"type": "object"
 											},
+											"readingProgress": {
+												"properties": {
+													"pageIndex": {
+														"maximum": 9007199254740991,
+														"minimum": -9007199254740991,
+														"type": "integer"
+													},
+													"progression": { "type": "number" },
+													"stale": { "type": "boolean" }
+												},
+												"required": ["progression"],
+												"type": "object"
+											},
 											"releaseDate": { "type": "string" },
 											"removed": { "type": "boolean" },
 											"resolution": { "type": "string" },
@@ -152408,6 +154033,19 @@ var PorticoCastContracts = (function(exports) {
 											"read",
 											"revision"
 										],
+										"type": "object"
+									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
 										"type": "object"
 									},
 									"releaseDate": { "type": "string" },
@@ -170758,6 +172396,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -170968,6 +172619,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
@@ -172021,6 +173685,19 @@ var PorticoCastContracts = (function(exports) {
 										],
 										"type": "object"
 									},
+									"readingProgress": {
+										"properties": {
+											"pageIndex": {
+												"maximum": 9007199254740991,
+												"minimum": -9007199254740991,
+												"type": "integer"
+											},
+											"progression": { "type": "number" },
+											"stale": { "type": "boolean" }
+										},
+										"required": ["progression"],
+										"type": "object"
+									},
 									"releaseDate": { "type": "string" },
 									"removed": { "type": "boolean" },
 									"resolution": { "type": "string" },
@@ -172231,6 +173908,19 @@ var PorticoCastContracts = (function(exports) {
 									"read",
 									"revision"
 								],
+								"type": "object"
+							},
+							"readingProgress": {
+								"properties": {
+									"pageIndex": {
+										"maximum": 9007199254740991,
+										"minimum": -9007199254740991,
+										"type": "integer"
+									},
+									"progression": { "type": "number" },
+									"stale": { "type": "boolean" }
+								},
+								"required": ["progression"],
 								"type": "object"
 							},
 							"releaseDate": { "type": "string" },
@@ -199195,6 +200885,19 @@ var PorticoCastContracts = (function(exports) {
 													],
 													"type": "object"
 												},
+												"readingProgress": {
+													"properties": {
+														"pageIndex": {
+															"maximum": 9007199254740991,
+															"minimum": -9007199254740991,
+															"type": "integer"
+														},
+														"progression": { "type": "number" },
+														"stale": { "type": "boolean" }
+													},
+													"required": ["progression"],
+													"type": "object"
+												},
 												"releaseDate": { "type": "string" },
 												"removed": { "type": "boolean" },
 												"resolution": { "type": "string" },
@@ -199405,6 +201108,19 @@ var PorticoCastContracts = (function(exports) {
 												"read",
 												"revision"
 											],
+											"type": "object"
+										},
+										"readingProgress": {
+											"properties": {
+												"pageIndex": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"progression": { "type": "number" },
+												"stale": { "type": "boolean" }
+											},
+											"required": ["progression"],
 											"type": "object"
 										},
 										"releaseDate": { "type": "string" },
