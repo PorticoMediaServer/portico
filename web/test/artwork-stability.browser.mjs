@@ -84,14 +84,16 @@ export async function checkArtworkStability(page, origin) {
   assert.equal(await page.evaluate(() => window.artworkStability.sameImage()), true);
   assert.equal((await snapshot()).decodes, restored.decodes);
 
-  // A request lifetime change (order) is a different original request.
-  await page.evaluate(() => window.artworkStability.order(1));
-  await waitDecodes(restored.decodes + 1);
-  assert.equal((await snapshot()).status, 'ready');
+  // A paint-order hint is not identity (J-21): a card whose row gains or loses a neighbour is
+  // handed a new order, and it must keep the picture it already shows rather than mount a blank
+  // node until the replacement decodes.
   await page.evaluate(() => window.artworkStability.capture());
-  await page.evaluate(() => window.artworkStability.rerender());
-  await page.waitForTimeout(60);
-  assert.equal(await page.evaluate(() => window.artworkStability.sameImage()), true);
+  await page.evaluate(() => window.artworkStability.order(1));
+  await page.waitForTimeout(80);
+  const ordered = await snapshot();
+  assert.equal(await page.evaluate(() => window.artworkStability.sameImage()), true, 'a request-order change keeps the mounted picture');
+  assert.equal(ordered.decodes, restored.decodes, 'a hint never costs another decode');
+  assert.equal(ordered.status, 'ready'); assert.equal(ordered.admitted, true);
 
   // Visibility retirement and return are real; the cached fast path stays 0 ms.
   const beforeHide = await snapshot();
