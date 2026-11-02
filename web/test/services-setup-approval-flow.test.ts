@@ -6,11 +6,16 @@ import type {HostedSetupClaimReview} from '../src/services/setup-claim.ts';
 import {ApiError} from '@core/index.ts';
 import {createManualScheduler} from '@core/timer.ts';
 
+// One fixed time for the flow's injected clock and every instant a test builds. The flow never reads the real clock
+// (it is handed `now`); reading T0 here let the milliseconds between building a fixture and starting the flow
+// move Hosted's 122 s slow threshold, so a lookup expected at 22 000 ms arrived at 22 001 (CI run 41527440673).
+const T0 = Date.parse('2026-11-02T12:00:00.000Z');
+
 function fixture() {
   let session = {account: {id: 'original-account', username: 'owner', displayName: 'Owner'}, familyId: 'original-family', accessToken: 'fixture-access'};
   const accountListeners = new Set<() => void>();
   const scheduler = createManualScheduler();
-  let lookups = 0, now = Date.now(), rejectDecision = false, completeCalls = 0, disposed = false, accountReadsClosed = false;
+  let lookups = 0, now = T0, rejectDecision = false, completeCalls = 0, disposed = false, accountReadsClosed = false;
   const navigations: string[] = [], decisions: string[] = [];
   let completion = async () => 'https://original.example/auth/portico-return#transaction=original-transaction';
   let reviewing = async () => {};
@@ -139,7 +144,7 @@ test('each press of Try again is exactly one lookup, and Return goes ahead once 
 });
 
 test('each phase variant reads as its own state, and slow is Hosted\'s own reading', async () => {
-  const at = (ms: number) => new Date(Date.now() + ms).toISOString();
+  const at = (ms: number) => new Date(T0 + ms).toISOString();
   const cases: [string, 'pending' | 'approved', object | undefined, boolean, Record<string, unknown>][] = [
     ['review', 'pending', {variant: 'review'}, false, {phase: 'review'}],
     ['approved', 'approved', {variant: 'approved', approvedAt: at(-1000)}, false, {phase: 'approved', approved: true}],
@@ -159,11 +164,11 @@ test('each phase variant reads as its own state, and slow is Hosted\'s own readi
 });
 
 test('Try again carries the slow reading from the same lookup, and keeps it while the server tries and fails', async () => {
-  const f = fixture(); phaseOf(f, 'approved', {variant: 'approved', approvedAt: new Date(Date.now() - 1000).toISOString()});
+  const f = fixture(); phaseOf(f, 'approved', {variant: 'approved', approvedAt: new Date(T0 - 1000).toISOString()});
   await f.flow.start(); f.completion(async () => undefined as never);
   await f.flow.complete(); assert.equal(f.flow.getSnapshot().phase, 'finishing'); assert.equal(f.flow.getSnapshot().slow, undefined);
   // Two minutes on, the server asking again and again (d2-exhausted): still the honest "taking longer".
-  phaseOf(f, 'approved', {variant: 'finishing', slow: true, approvedAt: new Date(Date.now() - 200000).toISOString(), serverSeenAt: new Date().toISOString()});
+  phaseOf(f, 'approved', {variant: 'finishing', slow: true, approvedAt: new Date(T0 - 200000).toISOString(), serverSeenAt: new Date(T0).toISOString()});
   await f.flow.complete(); assert.equal(f.flow.getSnapshot().slow, true); assert.equal(f.lookups(), 3);
   f.flow.dispose();
 });
@@ -237,8 +242,8 @@ test('the page ends at the claim expiry on the scheduler, and dispose, expiry an
   }
 });
 
-const lasting = (f: ReturnType<typeof fixture>) => Object.assign(f.review, {expiresAt: new Date(Date.now() + 600_000).toISOString()});
-const slowNow = () => ({variant: 'finishing', slow: true, approvedAt: new Date(Date.now() - 130_000).toISOString(), serverSeenAt: new Date().toISOString()});
+const lasting = (f: ReturnType<typeof fixture>) => Object.assign(f.review, {expiresAt: new Date(T0 + 600_000).toISOString()});
+const slowNow = () => ({variant: 'finishing', slow: true, approvedAt: new Date(T0 - 130_000).toISOString(), serverSeenAt: new Date(T0).toISOString()});
 
 test('a server that never finishes is looked up once at Hosted\'s slow threshold, never earlier, and the page then says so', async () => {
   const f = fixture(); lasting(f); await f.flow.start(); await f.flow.decide('approve');
@@ -253,7 +258,7 @@ test('a server that never finishes is looked up once at Hosted\'s slow threshold
 
 test('the slow lookup counts from Hosted\'s approval time, asks at most twice, and an installed answer only offers Return', async () => {
   const f = fixture(); lasting(f); f.completion(async () => undefined as never);
-  phaseOf(f, 'approved', {variant: 'approved', approvedAt: new Date(Date.now() - 100_000).toISOString()});
+  phaseOf(f, 'approved', {variant: 'approved', approvedAt: new Date(T0 - 100_000).toISOString()});
   await f.flow.start(); await f.flow.complete(); assert.equal(f.lookups(), 2); assert.equal(f.flow.getSnapshot().phase, 'finishing');
   await f.scheduler.advance(21_999); assert.equal(f.lookups(), 2);
   // Hosted's clock disagrees and it is not slow yet: one more look 30 s later, then none.
