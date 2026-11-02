@@ -95,7 +95,8 @@ export interface NativeShellRuntime {
   renderSelection: () => ReactNode;
   /** `listening`: the TV listening screen is up (W-9). It covers the route pages like the expanded
    * player does, even before or without the dock's own expanded flag. */
-  renderRoutes: (options?: Readonly<{listening?: boolean; hostRef?: React.Ref<import('react-native').View>}>) => ReactNode;
+  /** TV: `covered` comes from the shell's layer stack (true unless a route is the top layer); `hostRef` is the route layer's host. */
+  renderRoutes: (options?: Readonly<{covered?: boolean; hostRef?: React.Ref<import('react-native').View>}>) => ReactNode;
   stacks?: NativeTouchStacksPort;
   /** Persistent watch chrome above the one native picture surface. */
   renderWatch?: () => ReactNode;
@@ -154,7 +155,9 @@ export interface NativeShellRuntime {
   /** The real pushed route and its revision, bound to the same navigation the routes use.
    * A guarded control captures this when its surface opens and retires when the page leaves. */
   navigation?: Readonly<{subscribe: (listener: () => void) => () => void;
-    getSnapshot: () => Readonly<{route: NativeShellRoute; revision: number; authority: ShellAuthority}>}>;
+    getSnapshot: () => Readonly<{route: NativeShellRoute; revision: number; authority: ShellAuthority}>;
+    /** The Back stack, bottom first; the TV layer stack keys a layer per route occurrence. */
+    presentationStack?: () => readonly import('./routes').NativeRoutePresentation[]}>;
   /** Present in the real bootstrap. Missing measurement withholds expanded
    * bounds; it does not retire the persistent player owner. */
   watch?: NativeWatchOutletPort;

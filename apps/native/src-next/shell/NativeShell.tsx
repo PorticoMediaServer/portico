@@ -12,7 +12,7 @@ import {useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
 import {registerTVMenuFallback} from '../platform/menu-key';
 import {useTVMenuCapture} from '../platform/tv-menu';
-import {CoveredLayer, requestNativeFocus, useFocusRegistry, type FocusSnapshot} from '../kit/focus';
+import {CoveredLayer, createTVLayerStack, tvLayerSpecs, tvRouteLayerKeys, useFocusRegistry, type FocusSnapshot} from '../kit/focus';
 import {tvFocusIds, sameDestination} from './tv-focus';
 import {HomeScreen} from '../screens/home/HomeScreen';
 import {canYieldTVHomeMenu, homeStartModel, resolveTVHomeStart} from '../screens/home/home-start';
@@ -26,7 +26,6 @@ import {MediumRail} from './MediumRail';
 import {TVRail} from './TVRail';
 import {TVProfileMenu} from './TVProfileMenu';
 import {NativePlaybackLayer} from './NativePlaybackLayer';
-import {canReturnToPage, holdsPageFocus} from './page-focus-return';
 import {NativeStackSlots, NativeStackSlotsProvider} from '../kit/navigation/stack-slot';
 import {TouchStacks, nativeStackMotionTier, type NativeStackPage} from './TouchStacks';
 
@@ -37,11 +36,6 @@ const topRoute = (stacks: NativeShellRuntime['stacks']): NativeShellRoute | unde
 };
 /** Pages that take the whole screen, without the tab bar. */
 const immersiveRoute = (route: NativeShellRoute | undefined) => route?.kind === 'read' || route?.kind === 'channel';
-
-/** How many frames (about one second) a returning page has to make its opener focusable again.
- * W-12: a large library grid (Movies) re-enables its cards later than 200 ms after the route
- * goes, and the earlier limit then fell back to the page's toolbar. */
-export const PAGE_RETURN_FRAMES = 60;
 
 export function NativeShell({runtime}: {runtime: NativeShellRuntime}) {
   const snapshot = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
@@ -95,23 +89,25 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     return () => {original?.removeEventListener('abort', off);off();};
   }, [ids, registry, runtime, tvListeningPresent]);
   const currentPageFocus = pageFocusDestination.current === JSON.stringify(destination) ? pageFocus.current : undefined;
-  const pageHold = holdsPageFocus(snapshot, theme.isTV && tvListeningPresent);
-  const heldPage = useRef<{opener: FocusSnapshot; destination: string; release: () => void} | undefined>(undefined);
-  /** W-12: the base page's own layer, which never holds focus itself (autoFocus) and is the last return fallback. */
-  const baseLayer = useRef<View>(null);
-  /** W-9: the route pages' own layer. When the TV listening screen closes over an open route (the
-   * music player over an album), focus goes back into that page: its autoFocus layer lands on the
-   * element last focused there (album Play), not wherever Android's recovery puts it. */
-  const routeLayer = useRef<View>(null), wasListening = useRef(tvListeningPresent);
-  useEffect(() => {
-    const closed = wasListening.current && !tvListeningPresent;
-    wasListening.current = tvListeningPresent;
-    if (!theme.isTV || !closed || runtime.getSnapshot().contentVisible !== false) return;
-    const frame = requestAnimationFrame(() => {if (!runtime.retirementSignal?.aborted) requestNativeFocus(routeLayer.current as never);});
-    return () => cancelAnimationFrame(frame);
-  }, [runtime, theme.isTV, tvListeningPresent]);
-  const listeningPresent = useRef(tvListeningPresent); listeningPresent.current = tvListeningPresent;
-  useEffect(() => () => {railRelease.current?.(); heldPage.current?.release();}, []);
+  /** The page's and the routes' own layers (CoveredLayer hosts): a layer that takes focus asks its host, which
+   * lands on the element last focused there or its first focusable. */
+  const baseLayer = useRef<View>(null), routeLayer = useRef<View>(null);
+  /** TV-FOCUS-REVIEW §5: one layer stack owns which full-screen layer is on top, what is covered, and where focus
+   * goes when a layer opens over another or closes (W-9, W-12). */
+  const layers = useMemo(() => theme.isTV ? createTVLayerStack(registry) : undefined, [registry, theme.isTV]);
+  useEffect(() => () => layers?.dispose(), [layers]);
+  const navigationPort = runtime.navigation;
+  const routeLayerKeys = useSyncExternalStore(navigationPort?.subscribe ?? noStacks, () => tvRouteLayerKeys(navigationPort), () => '[]');
+  const layerSpecs = useMemo(() => {
+    if (!theme.isTV) return [];
+    const routes = JSON.parse(routeLayerKeys) as string[];
+    // A runtime without the Back stack still says whether a route covers the page.
+    if (!routes.length && snapshot.contentVisible === false) routes.push('route:current');
+    return tvLayerSpecs(routes, snapshot.mediaExpanded === true, tvListeningPresent, () => baseLayer.current, () => routeLayer.current);
+  }, [routeLayerKeys, snapshot.contentVisible, snapshot.mediaExpanded, theme.isTV, tvListeningPresent]);
+  const topLayer = layerSpecs.at(-1)?.key;
+  useLayoutEffect(() => {if (!runtime.retirementSignal?.aborted) layers?.sync(layerSpecs);}, [layers, layerSpecs, runtime]);
+  useEffect(() => () => {railRelease.current?.();}, []);
   const [remembered, setRemembered] = useState<string>(), [memoryReady, setMemoryReady] = useState(false);
   const lastOpenedLibrary = useRef<string | undefined>(undefined);
   const [accountOpen, setAccountOpen] = useState(false), [railExpanded, setRailExpanded] = useState(false);
@@ -163,32 +159,6 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const avatarRef = useRef<View>(null), opening = useRef(0), alive = useRef<{runtime: NativeShellRuntime} | undefined>(undefined);
   const shift = useSharedValue(0), dim = useSharedValue(0);
   const current = useCallback(() => alive.current?.runtime === runtime && !runtime.retirementSignal?.aborted && sameAuthority(snapshot.authority, runtime.getSnapshot().authority), [runtime, snapshot.authority]);
-  useLayoutEffect(() => {
-    if (!theme.isTV || runtime.retirementSignal?.aborted) return;
-    const opener = pageFocusDestination.current === JSON.stringify(runtime.getSnapshot().destination) ? pageFocus.current : undefined;
-    if (pageHold && !heldPage.current && opener && pageFocusDestination.current) heldPage.current = {
-      opener, destination: pageFocusDestination.current, release: registry.retain(opener),
-    };
-    if (pageHold || !heldPage.current) return;
-    const held = heldPage.current; heldPage.current = undefined; held.release();
-    // W-12: the page re-enables its cards as it becomes visible again (a library grid's cards are
-    // disabled while covered), which can land a frame or two after the route has gone. Wait for
-    // the exact card it was opened from; only then fall back to its row, region or neighbours,
-    // which would otherwise drop focus on the page's toolbar.
-    let frame = 0;
-    const attempt = (tries: number) => {
-      if (!current()) return;
-      const now = runtime.getSnapshot();
-      if (!canReturnToPage(held.destination, now, listeningPresent.current, registry.hasRetainedFocus())) return;
-      if (registry.focus(held.opener)) return;
-      if (tries < PAGE_RETURN_FRAMES) {frame = requestAnimationFrame(() => attempt(tries + 1)); return;}
-      // W-12: when neither the opener nor its row, region or neighbours come back, the page itself takes
-      // focus (its autoFocus layer lands on the last or first focusable item), never the shell's own container.
-      if (!registry.restore(held.opener)) requestNativeFocus(baseLayer.current as never);
-    };
-    frame = requestAnimationFrame(() => attempt(1));
-    return () => cancelAnimationFrame(frame);
-  }, [current, pageHold, registry, runtime, theme.isTV]);
   useEffect(() => {
     const lifetime = alive, pending = opening, session = {runtime};
     lifetime.current = session;
@@ -208,67 +178,6 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     }, error => {if (valid()) runtime.reportError(error);});
     return () => {if (sidebarLifetime.current === lifetime) sidebarLifetime.current = undefined;};
   }, [current, runtime, snapshot.authority, theme.isTV, wideSidebar]);
-  /** W-9 (2eec0520: artist Play drew its ring while OK opened the covered library's switcher): a route opening
-   * over the page takes focus into itself. The page's own preferred element can ask before its layer is
-   * uncovered, which leaves real focus on the covered page; so the shell claims into the route layer each frame
-   * until focus has left where it was on the page underneath, for up to about half a second. */
-  const routeOpen = snapshot.contentVisible === false, wasRouteOpen = useRef(routeOpen);
-  useEffect(() => {
-    const opened = !wasRouteOpen.current && routeOpen;
-    wasRouteOpen.current = routeOpen;
-    if (!theme.isTV || !opened || typeof requestAnimationFrame !== 'function') return;
-    const before = registry.capture();
-    let frame = 0, tries = 0;
-    const moved = () => {const now = registry.capture(); return !!now && (!before || now.regionId !== before.regionId || now.childId !== before.childId);};
-    const claim = () => {
-      if (runtime.retirementSignal?.aborted || moved()) return;
-      requestNativeFocus(routeLayer.current as never);
-      if (++tries < 30) frame = requestAnimationFrame(claim);
-    };
-    frame = requestAnimationFrame(claim);
-    return () => cancelAnimationFrame(frame);
-  }, [registry, routeOpen, runtime, theme.isTV]);
-  /** W-12 (2eec0520: Back from Watch live left the Live guide with no focus at all): a route returned to, by Back
-   * from a route opened over it, gets back the focus it had. Page return (above) covers only the base page, and a
-   * route's own page is often itself a route (the guide, an artist under an album). While a route is on top and
-   * live, its last focus is kept by route; returning to it waits up to a second for that element (by title where it
-   * has one), then falls back to its row or region, and last to the route layer itself, never to nothing. */
-  const routeFocus = useRef(new Map<string, FocusSnapshot>());
-  const navigationPort = runtime.navigation;
-  const routeKey = useSyncExternalStore(navigationPort?.subscribe ?? noStacks,
-    () => {const route = navigationPort?.getSnapshot().route; return route && route.kind !== 'shell' ? JSON.stringify(route) : undefined;},
-    () => undefined);
-  useEffect(() => {
-    if (!theme.isTV || !routeKey) return;
-    const remember = () => {
-      const now = runtime.getSnapshot();
-      if (now.mediaExpanded || tvListeningPresent || now.contentVisible !== false) return;
-      // Focus inside an overlay opened from the route (a programme's panel, a menu) is kept as the overlay's opener,
-      // so Back returns to the programme, not to a control that has gone with its panel.
-      const captured = registry.capture(), saved = captured?.returnTo ?? captured;
-      if (!saved) return;
-      const memory = routeFocus.current;
-      memory.delete(routeKey); memory.set(routeKey, saved);
-      if (memory.size > 16) memory.delete(memory.keys().next().value!);
-    };
-    return registry.subscribe(remember);
-  }, [registry, routeKey, runtime, theme.isTV, tvListeningPresent]);
-  const previousRoute = useRef(routeKey);
-  useEffect(() => {
-    const from = previousRoute.current; previousRoute.current = routeKey;
-    const saved = routeKey ? routeFocus.current.get(routeKey) : undefined;
-    // Only a return: another route was on top a moment ago, and this one had focus before it.
-    if (!theme.isTV || !routeKey || !from || from === routeKey || !saved || typeof requestAnimationFrame !== 'function') return;
-    let frame = 0;
-    const attempt = (tries: number) => {
-      if (runtime.retirementSignal?.aborted || runtime.getSnapshot().mediaExpanded) return;
-      if (registry.focus(saved)) return;
-      if (tries < PAGE_RETURN_FRAMES) {frame = requestAnimationFrame(() => attempt(tries + 1)); return;}
-      if (!registry.restore(saved)) requestNativeFocus(routeLayer.current as never);
-    };
-    frame = requestAnimationFrame(() => attempt(1));
-    return () => cancelAnimationFrame(frame);
-  }, [registry, routeKey, runtime, theme.isTV]);
   const toggleSidebar = () => {
     const lifetime = sidebarLifetime.current, authority = {...snapshot.authority};
     const valid = () => !!lifetime && sidebarLifetime.current === lifetime && current() && sameAuthority(authority, runtime.getSnapshot().authority);
@@ -369,7 +278,8 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const notifications = snapshot.account.actions.find(action => action.id === 'notifications');
   // Only the covered destination leaves the accessibility tree. The watch
   // host's visible title/episode panes remain siblings in their own outlet.
-  const baseHidden = snapshot.contentVisible === false || snapshot.mediaExpanded || theme.isTV && tvListeningPresent;
+  // On TV the page is covered whenever another layer is on top (the stack's one answer).
+  const baseHidden = theme.isTV ? topLayer !== 'page' : snapshot.contentVisible === false || !!snapshot.mediaExpanded;
   const homePage = (active: boolean, obscured: boolean) => <HomeScreen runtime={runtime} authority={snapshot.authority} active={active} heroObscured={obscured} railExpanded={railExpanded} bottomInset={homeBottom} onScrolledChange={setHomeScrolled} holdRailDim={holdRailDim} releaseRailDim={releaseRailDim}/>;
   const phoneHomeHeader = <PhoneHomeHeader profile={snapshot.profile} unread={snapshot.unreadNotifications} avatarRef={avatarRef} onProfile={() => navigate({kind: 'settings'})} viewerRole={snapshot.account.viewerRole} serverAction={snapshot.account.serverAction} castControl={runtime.castControl} scrolled={homeScrolled}/>;
   /** One shell destination inside its stack screen: a tab's first screen, a library opened
@@ -402,12 +312,12 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     </Animated.View> : <>
     <Animated.View pointerEvents={settingsPage ? 'none' : 'auto'} accessibilityElementsHidden={baseHidden || settingsPage} importantForAccessibility={baseHidden || settingsPage ? 'no-hide-descendants' : 'auto'} style={[{flex: 1}, settingsPage && !settingsSheet ? {display: 'none'} : null, sideNavigation ? {paddingLeft: sideWidth} : null, settingsPage ? undefined : pageStyle]}>
       {/* A pushed TV route covers this page: nothing under it may take D-pad focus (CoveredLayer). */}
-      {theme.isTV ? <CoveredLayer covered={baseHidden || settingsPage} autoFocus hostRef={baseLayer} style={{flex: 1}} testID="native-shell-base">{basePage}</CoveredLayer> : basePage}
+      {theme.isTV ? <CoveredLayer covered={baseHidden} autoFocus hostRef={baseLayer} style={{flex: 1}} testID="native-shell-base">{basePage}</CoveredLayer> : basePage}
     </Animated.View>
     {settingsPage && <Animated.View style={[{position: 'absolute', inset: 0, paddingLeft: sideNavigation ? sideWidth : 0, paddingBottom: settingsSheet ? 0 : pageBottom}, pageStyle]}>{runtime.renderDestination(destination, openLibrary)}</Animated.View>}
     </>}
     {theme.isTV && <Animated.View pointerEvents="none" style={[{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink, zIndex: theme.layers.navigation - 1}, dimStyle]}/>}
-    {!snapshot.selectionActive && (stacks ? !immersiveRoute(stackTop) : snapshot.contentVisible !== false) && !chromeHidden && (theme.isTV ? <TVRail authority={snapshot.authority} returnTo={currentPageFocus} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={snapshot.railDestination ?? destination} profile={snapshot.profile} unread={snapshot.unreadNotifications} dimmed={destination.kind === 'home' && snapshot.homeVisible && !snapshot.mediaExpanded && !!railDim && !railDim.retired} onNavigate={next => {if (snapshot.contentVisible !== false && sameDestination(next, destination)) {expanded(false); runtime.scrollToTop(destination);} else if (next.kind === 'library') openLibrary(next.libraryId); else navigate(next);}}
+    {!snapshot.selectionActive && (stacks ? !immersiveRoute(stackTop) : snapshot.contentVisible !== false) && !chromeHidden && (!theme.isTV || topLayer === 'page') && (theme.isTV ? <TVRail authority={snapshot.authority} returnTo={currentPageFocus} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={snapshot.railDestination ?? destination} profile={snapshot.profile} unread={snapshot.unreadNotifications} dimmed={destination.kind === 'home' && snapshot.homeVisible && !snapshot.mediaExpanded && !!railDim && !railDim.retired} onNavigate={next => {if (snapshot.contentVisible !== false && sameDestination(next, destination)) {expanded(false); runtime.scrollToTop(destination);} else if (next.kind === 'library') openLibrary(next.libraryId); else navigate(next);}}
       onProfile={() => setAccountOpen(true)} profileRef={avatarRef} onExpandedChange={expanded}/>
       : <>
         {sideNavigation && snapshot.contentVisible !== false && <MediumRail expanded={layout.kind === 'desktop' && sidebarExpanded} onToggle={layout.kind === 'desktop' ? toggleSidebar : undefined} serverName={snapshot.serverName} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={railDestination} profile={snapshot.profile} unread={snapshot.unreadNotifications}
@@ -434,7 +344,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     {theme.isTV ? <View style={{position: 'absolute', left: layout.left, top: layout.top, width: layout.width, height: layout.height, transformOrigin: 'top left', transform: [{scale: layout.scale}]}}>{content}</View> : content}
     {runtime.playback && <NativePlaybackLayer adapter={runtime.playback} runtime={runtime} authority={snapshot.authority} contentInset={sideWidth} onTVListeningPresenceChange={theme.isTV ? setTVListeningPresent : undefined}/>}
     {runtime.renderWatch && <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player + 1}}>{runtime.renderWatch()}</View>}
-    {theme.isTV ? runtime.renderRoutes({listening: tvListeningPresent, hostRef: routeLayer}) : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
+    {theme.isTV ? runtime.renderRoutes({covered: !topLayer?.startsWith('route:'), hostRef: routeLayer}) : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
       importantForAccessibility={initialPlayer ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, initialTitleStyle]}>{runtime.renderRoutes()}</Animated.View>}
     {runtime.renderSelection()}
     {runtime.renderDownloads?.()}

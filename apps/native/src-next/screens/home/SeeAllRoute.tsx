@@ -1,8 +1,7 @@
 import {useNativeStackHosted, useNativeStackPlacement} from '../../kit/navigation/stack-slot';
 import {CoveredLayer} from '../../kit/focus/CoveredLayer';
-import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
+import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Platform, View, useWindowDimensions} from 'react-native';
-import {useFocusRegistry, type FocusSnapshot} from '../../kit/focus';
 import {isRecommendationRow, notInterestedTarget, setNotInterested} from '../../../../../packages/client-core/src/recommendation-feedback';
 import {ToastHost} from '../../kit/overlays';
 import {useDockClearance} from '../../kit/dock/DockClearance';
@@ -167,7 +166,7 @@ function RetainedHomeRow({source, runtime, active, onBack, onPlay, onOpen, onPla
   onOpen: React.ComponentProps<typeof HomeSeeAll>['onOpen']; onPlayEntry: React.ComponentProps<typeof HomeSeeAll>['onPlayEntry'];
   onNotInterested: (entry: ContentEntry, value: boolean) => Promise<boolean>; kindLabel: (id: string) => string;
 }) {
-  const registry = useFocusRegistry(), opener = useRef<FocusSnapshot | undefined>(undefined), release = useRef<(() => void) | undefined>(undefined), shown = useRef(active);
+  const shown = useRef(active); shown.current = active;
   const place = useNativeStackPlacement(source.route), stacked = useNativeStackHosted();
   const row = useSyncExternalStore(source.controller.subscribe, source.controller.getSnapshot).row;
   const recommendation = !!row && isRecommendationRow({id: row.id, kind: row.kind});
@@ -177,18 +176,6 @@ function RetainedHomeRow({source, runtime, active, onBack, onPlay, onOpen, onPla
   useEffect(() => {if (!active) {toastOpening.current++; setUndo(undefined);}}, [active]);
   useEffect(() => () => {toastOpening.current++;}, []);
   const [filters, setFilters] = useState(false);
-  useEffect(() => {if (!active) return; const remember = () => {const value = registry.capture(); if (value?.regionId.startsWith('home-see-all:')) opener.current = value;};
-    remember(); return registry.subscribe(remember);
-  }, [active, registry]);
-  useLayoutEffect(() => {
-    if (shown.current && !active && opener.current && !release.current) release.current = registry.retain(opener.current);
-    const restored = !shown.current && active; shown.current = active;
-    if (!restored) return;
-    release.current?.(); release.current = undefined;
-    const frame = requestAnimationFrame(() => registry.restore(opener.current));
-    return () => cancelAnimationFrame(frame);
-  }, [active, registry]);
-  useEffect(() => () => release.current?.(), []);
   return place(<CoveredLayer covered={!active}
     style={{position: 'absolute', inset: 0, opacity: active || stacked ? 1 : 0}}>
     <HomeSeeAll controller={source.controller} runtime={runtime} active={active && !filters} onBack={onBack} onPlay={onPlay} onOpen={onOpen} onPlayEntry={onPlayEntry}

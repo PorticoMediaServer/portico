@@ -1,7 +1,6 @@
 import {useNativeStackHosted, useNativeStackPlacement} from '../../kit/navigation/stack-slot';
 import {CoveredLayer} from '../../kit/focus/CoveredLayer';
-import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {useFocusRegistry, type FocusSnapshot} from '../../kit/focus';
+import React, {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
 import {type NativeShellRoute} from '../../shell/routes';
@@ -50,23 +49,10 @@ function RetainedCollections({pages, subscribe, context, runtime}: {pages: Reado
   return <>{[...pages].map(([page, {key}]) => <RetainedCollection key={key} route={page} active={route === page} context={context} runtime={runtime}/>)}</>;
 }
 
-/** Hidden pages keep their state but take no focus, touches or screen-reader attention;
- * the opener's focus is held while covered and restored on return. */
+/** Hidden pages keep their state but take no focus, touches or screen-reader attention. On TV the shell's
+ * layer stack keeps the opener's focus while the page is covered and gives it back on return. */
 function RetainedCollection({route, active, context, runtime}: {route: CollectionRoute; active: boolean; context: NativeShellBootstrapContext; runtime: NativeShellRuntime}) {
-  const registry = useFocusRegistry(), opener = useRef<FocusSnapshot | undefined>(undefined), release = useRef<(() => void) | undefined>(undefined), shown = useRef(active);
   const place = useNativeStackPlacement(route), stacked = useNativeStackHosted();
-  useEffect(() => {if (!active) return; const remember = () => {const value = registry.capture(); if (value) opener.current = value;};
-    remember(); return registry.subscribe(remember);
-  }, [active, registry]);
-  useLayoutEffect(() => {
-    if (shown.current && !active && opener.current && !release.current) release.current = registry.retain(opener.current);
-    const restored = !shown.current && active; shown.current = active;
-    if (!restored) return;
-    release.current?.(); release.current = undefined;
-    const frame = requestAnimationFrame(() => registry.restore(opener.current));
-    return () => cancelAnimationFrame(frame);
-  }, [active, registry]);
-  useEffect(() => () => release.current?.(), []);
   return place(<CoveredLayer covered={!active}
     style={{position: 'absolute', inset: 0, opacity: active || stacked ? 1 : 0}}>
     <CollectionHost route={route} active={active} context={context} runtime={runtime}/>

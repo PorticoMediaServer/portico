@@ -1,5 +1,5 @@
-import {canReturnToPage, holdsPageFocus} from '../../src-next/shell/page-focus-return.ts';
 import * as homeStart from '../../src-next/screens/home/home-start.ts';
+import * as layerStack from '../../src-next/kit/focus/layer-stack.ts';
 import {DockVideoExitImages} from '../../src-next/kit/dock/video-exit-paint.ts';
 import {captureListeningOpening, expandedListeningOccupant, localListeningOccupant} from '../../src-next/shell/listening-presentation.ts';
 import {listeningCoverFixture, stackSlotFixture} from './screen-harness.mjs';
@@ -158,8 +158,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
       memory: {read: async () => undefined}, renderRoutes: () => null, renderSelection: () => null, renderDestination: () => null,
       renderWatch: () => React.createElement(WatchProbe)});
     const registry = createFocusRegistry(), Empty = () => null;
-    ({NativeShell} = await screenModule(new URL('../../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture, 
-    './page-focus-return': {canReturnToPage, holdsPageFocus},
+    ({NativeShell} = await screenModule(new URL('../../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture,
     '../screens/home/home-start': homeStart,
     '../kit/overlays/SurfacePaintHost': surfacePaintFixture,
     '../kit/dock/DockClearance': {DockClearanceProvider: 'DockClearanceProvider'},
@@ -170,7 +169,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
       '../kit/overlays': {OverlaysProvider: Container}, '../kit/shell': {AccountMenu: Empty}, '../kit/browse': {},
       '../platform/menu-key': {registerTVMenuFallback}, '../platform/tv-menu': {useTVMenuCapture: () => {}},
       '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => motion},
-      '../kit/focus': {CoveredLayer: Container, useFocusRegistry: () => registry}, './tv-focus': tvFocus, './model': shellModel,
+      '../kit/focus': {...layerStack, CoveredLayer: Container, useFocusRegistry: () => registry}, './tv-focus': tvFocus, './model': shellModel,
       '../screens/home/HomeScreen': {HomeScreen: Empty}, './NativePlaybackLayer': {NativePlaybackLayer},
       './PhoneTabBar': {PhoneTabBar: Empty}, './MediumRail': {MediumRail: Empty}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {PhoneHomeHeader: Empty}, './DesktopHeader': {DesktopHeader: Empty},
       './TVRail': {TVRail: Empty}, './TVProfileMenu': {TVProfileMenu: Empty}}));

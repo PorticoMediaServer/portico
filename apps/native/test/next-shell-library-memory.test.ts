@@ -1,6 +1,6 @@
 // @fabric-react
-import {canReturnToPage, holdsPageFocus} from '../src-next/shell/page-focus-return.ts';
 import * as homeStart from '../src-next/screens/home/home-start';
+import * as layerStack from '../src-next/kit/focus/layer-stack.ts';
 import {listeningCoverFixture, stackSlotFixture} from './helpers/screen-harness.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,8 +24,7 @@ test('a real screen-owned Library destination is remembered and a late initial r
     memory: {read: () => new Promise<string>(resolve => {finish = resolve;}), remember: async (_scope: unknown, id: string) => {writes.push(id);}},
     onDestination: (destination: unknown) => {navigations.push(destination); snapshot = {...snapshot, destination};},
     renderRoutes() {}, renderSelection() {}, renderDestination() {}, scrollToTop() {}};
-  const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture, 
-    './page-focus-return': {canReturnToPage, holdsPageFocus},
+  const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture,
     '../screens/home/home-start': homeStart,
     '../kit/overlays/SurfacePaintHost': surfacePaintFixture,
     '../kit/dock/DockClearance': {DockClearanceProvider: 'DockClearanceProvider'},
@@ -36,7 +35,7 @@ test('a real screen-owned Library destination is remembered and a late initial r
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: number) => React.useRef({value}).current, withTiming: (value: unknown) => value},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 44, bottom: 34})}, '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'},
     '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})},
-    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': focusModel, './model': shellModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'},
+    '../kit/focus': {...layerStack, CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': focusModel, './model': shellModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'},
     './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './TVRail': {}, './TVProfileMenu': {}, './NativePlaybackLayer': {}, './DesktopHeader': {},
   });
   let root: any, tree: any;
