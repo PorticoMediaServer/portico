@@ -208759,6 +208759,17 @@ var PorticoCastContracts = (function(exports) {
 		"validate_integration_subtitles": "/v1/integrations/items/{id}/subtitles/refresh"
 	}));
 	//#endregion
+	//#region packages/client-core/src/server-clock.ts
+	const clocks = /* @__PURE__ */ new Map();
+	/** This device's clock minus the origin's, in milliseconds (0 when nothing is known). */
+	function serverClockOffset(origin) {
+		return (origin ? clocks.get(origin) : void 0)?.offset ?? void 0 ?? 0;
+	}
+	/** The origin's current time as best this device knows it. Use this, never `Date.now()`, against a server-issued instant. */
+	function serverNow(origin) {
+		return Date.now() + serverClockOffset(origin);
+	}
+	//#endregion
 	//#region packages/client-core/src/timer.ts
 	let lastWall = 0;
 	const monotonicNow = () => {
@@ -208778,7 +208789,7 @@ var PorticoCastContracts = (function(exports) {
 	});
 	/** RFC 9110 Retry-After (delay-seconds or an HTTP-date) as milliseconds from now; undefined when
 	* absent, malformed or already past. Wall time is read only here; waiting uses the monotonic clock. */
-	function parseRetryAfter(value, wallNowMs = Date.now()) {
+	function parseRetryAfter(value, wallNowMs = serverNow()) {
 		if (typeof value !== "string") return void 0;
 		const trimmed = value.trim();
 		if (!trimmed) return void 0;
@@ -208989,7 +209000,7 @@ var PorticoCastContracts = (function(exports) {
 			throw error;
 		}
 	}
-	function userMutationRetryAfterMs(value, now = Date.now()) {
+	function userMutationRetryAfterMs(value, now = serverNow()) {
 		const cap = Number.MAX_SAFE_INTEGER - now, ms = parseRetryAfter(value, now);
 		return ms !== void 0 ? Math.min(ms, cap) : value && /^\s*\d*[1-9]\d*\s*$/.test(value) ? cap : 0;
 	}

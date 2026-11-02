@@ -36,13 +36,17 @@ export function parseServerTime(value: string | number | null | undefined): numb
 
 /**
  * Record what an origin said its time was. `sentAt` and `receivedAt` are this device's clock at
- * the start and end of the exchange; the server's time is taken to be at the midpoint. An HTTP
- * `Date` has one-second resolution, which is far finer than any expiry it is used against.
+ * the start and end of the exchange, and `resolutionMs` how finely the time was reported (an HTTP
+ * `Date` is whole seconds). The server's true time lies somewhere in that window, so the offset
+ * lies in a known range: when zero is inside it the clocks agree and the offset is 0 (no
+ * sub-second jitter from a truncated header); otherwise it is the nearest end of the range.
  */
-export function observeServerTime(origin: string, serverTime: string | number | null | undefined, sentAt: number, receivedAt: number = Date.now()): void {
+export function observeServerTime(origin: string, serverTime: string | number | null | undefined, sentAt: number, receivedAt: number = Date.now(), resolutionMs = 0): void {
   const server = parseServerTime(serverTime);
   if (server === undefined || !Number.isFinite(sentAt) || !Number.isFinite(receivedAt) || receivedAt < sentAt) return;
-  const observation = Object.freeze({offset: Math.round(server - (sentAt + receivedAt) / 2), at: receivedAt});
+  const low = server - receivedAt, high = server + Math.max(0, resolutionMs) - sentAt;
+  const offset = low <= 0 && high >= 0 ? 0 : low > 0 ? low : high;
+  const observation = Object.freeze({offset: Math.round(offset), at: receivedAt});
   if (origin) clocks.set(origin, observation);
   latest = observation;
   persisted?.(observation.offset);
@@ -52,7 +56,7 @@ export function observeServerTime(origin: string, serverTime: string | number | 
 export function observeResponseClock(origin: string, response: Readonly<{headers?: {get(name: string): string | null}}> | undefined, sentAt: number, receivedAt: number = Date.now()): void {
   let date: string | null | undefined;
   try { date = response?.headers?.get('Date'); } catch { date = undefined; }
-  observeServerTime(origin, date, sentAt, receivedAt);
+  observeServerTime(origin, date, sentAt, receivedAt, 1000);
 }
 
 /** This device's clock minus the origin's, in milliseconds (0 when nothing is known). */
