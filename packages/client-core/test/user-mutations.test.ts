@@ -292,3 +292,22 @@ for(const race of ['entry','scope'])test('targeted receipt lookup cannot overwri
   assert.equal(store.state.entries[0].state,'review');assert.ok(store.state.entries[0].body);assert.equal(store.state.entries[0].receipt,undefined);
  }finally{gate.resolve(ok);core.dispose();}
 });
+
+test('a refused Stop retries its original final position and generation under the same durable key', async () => {
+ const store=new Store(),timers=new Timers();const sent:UserMutationEntry[]=[];let applied=false;
+ const core=coordinator(store,timers,{send:async entry=>{
+  sent.push(copy(entry));
+  if(sent.length===1)return {status:503,headers:{'Retry-After':'1'},body:{error:{code:'server_busy',retryable:true}}};
+  applied=true;return {status:204,headers:{},body:undefined};
+ },lookup:async entry=>applied?receipt(entry):{status:404,headers:{},body:{error:{code:'receipt_unknown'}}},recover:async()=>ok});
+ try {
+  const draft={operation:'stop_playback_session',method:'DELETE',path:'/v1/playback/sessions/original',target:'stop:original:3',intentId:'stop:original:3',body:{generation:3,positionMs:42000}};
+  const pending=core.run(draft);await timers.tick();
+  assert.equal(sent.length,1);assert.equal(store.state.entries[0].state,'pending');
+  draft.body.positionMs=99000;draft.body.generation=4;
+  await timers.tick(2000);await pending;
+  assert.equal(sent.length,2);assert.equal(sent[1].key,sent[0].key);
+  assert.deepEqual(sent[1].body,sent[0].body);assert.equal((sent[1].body as any).positionMs,42000);assert.equal((sent[1].body as any).generation,3);
+  assert.equal(store.state.entries[0].state,'confirmed');
+ } finally {core.dispose();}
+});
