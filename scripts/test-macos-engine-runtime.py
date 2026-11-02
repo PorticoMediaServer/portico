@@ -15,6 +15,16 @@ M = runpy.run_path(str(Path(__file__).with_name('macos-engine-runtime.py')))
 
 
 class RuntimeControls(unittest.TestCase):
+    def test_fontconfig_cannot_link_gettext_or_search_the_host(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); prefix = root / 'private prefix'; (prefix / 'lib').mkdir(parents=True)
+            good = '-L"' + str(prefix / 'lib') + '" -lfontconfig -lm -lxml2'
+            self.assertIn('-lfontconfig', M['check_fontconfig_flags'](good, prefix))
+            for flags in (good + ' -lintl', good + ' /usr/local/opt/gettext/lib/libintl.8.dylib',
+                          good + ' -L"' + str(root) + '"', good + ' -L'):
+                with self.subTest(flags=flags), self.assertRaises(ValueError):
+                    M['check_fontconfig_flags'](flags, prefix)
+
     def test_disc_identity_seal_follows_all_binary_mutations_and_precedes_manifest(self):
         tree = ast.parse(Path(__file__).with_name('macos-engine-runtime.py').read_text())
         pack = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'pack')

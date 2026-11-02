@@ -7,6 +7,7 @@ import os
 from pathlib import Path, PurePosixPath
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 
@@ -52,6 +53,34 @@ def machine(target):
     if platform.system() != 'Darwin' or platform.machine() != architecture:
         raise ValueError('Matching native Mac runner required')
     return architecture
+
+
+def check_fontconfig_flags(flags, prefix):
+    """No gettext runtime or external library search paths in the static link."""
+    prefix = prefix.resolve(strict=True)
+    words = shlex.split(flags)
+    for index, word in enumerate(words):
+        if word == '-L' and index + 1 == len(words):
+            raise ValueError('Fontconfig library search path is missing')
+        if word == '-lintl' or 'libintl' in word:
+            raise ValueError('Fontconfig must disable NLS; unselected gettext runtime')
+        path = words[index + 1] if word == '-L' and index + 1 < len(words) else word[2:] if word.startswith('-L') else None
+        if path is not None and not Path(path).resolve(strict=True).is_relative_to(prefix):
+            raise ValueError('Fontconfig link searches outside the owned prefix: ' + path)
+    return words
+
+
+def check_prefix(prefix, target):
+    machine(target)
+    prefix = prefix.resolve(strict=True)
+    pc = contained(prefix / 'lib/pkgconfig/fontconfig.pc', prefix)
+    env = dict(os.environ, PKG_CONFIG_PATH='', PKG_CONFIG_LIBDIR=os.pathsep.join(
+        str(prefix / name) for name in ('lib/pkgconfig', 'share/pkgconfig')))
+    flags = subprocess.check_output(['pkg-config', '--static', '--libs', 'fontconfig'],
+                                    env=env, text=True, timeout=30)
+    return dict(target=target, fontconfigPC_SHA256=digest(pc),
+                staticLinkFlags=check_fontconfig_flags(flags, prefix),
+                gettextRuntime=False, qualified=False, release=False)
 
 
 def metadata(path, architecture):
@@ -249,15 +278,20 @@ def pack(prefix, bundle, target):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=('pack', 'verify'))
-    parser.add_argument('--bundle', type=Path, required=True)
+    parser.add_argument('mode', choices=('pack', 'verify', 'check-prefix'))
+    parser.add_argument('--bundle', type=Path)
     parser.add_argument('--target', choices=('macos-arm64', 'macos-x64'), required=True)
     parser.add_argument('--prefix', type=Path)
     parser.add_argument('--report', type=Path)
     args = parser.parse_args()
     if args.mode == 'pack' and not args.prefix:
         parser.error('pack requires the exact owned source-built prefix')
-    result = pack(args.prefix, args.bundle, args.target) if args.mode == 'pack' else verify(args.bundle, args.target)
+    if args.mode == 'check-prefix':
+        if not args.prefix: parser.error('check-prefix requires the exact owned prefix')
+        result = check_prefix(args.prefix, args.target)
+    else:
+        if not args.bundle: parser.error('pack/verify requires a bundle')
+        result = pack(args.prefix, args.bundle, args.target) if args.mode == 'pack' else verify(args.bundle, args.target)
     if args.report:
         args.report.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))

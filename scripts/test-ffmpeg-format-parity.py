@@ -88,6 +88,9 @@ class Contract(unittest.TestCase):
             self.assertIn('--enable-' + library, terminal)
         extras = ROOT / lock['macosRecipe']['extrasLock']['path']
         self.assertEqual(hashlib.sha256(extras.read_bytes()).hexdigest(), lock['macosRecipe']['extrasLock']['sha256'])
+        recipe = (ROOT / 'scripts/build-macos-ffmpeg-extras.sh').read_text()
+        fontconfig = recipe.split('portico_clone fontconfig\n', 1)[1].split('portico_clone dvdread', 1)[0]
+        self.assertIn('-Dnls=disabled', fontconfig)
 
     @unittest.skipUnless(os.environ.get('PORTICO_NETWORK_BUILD_TOOL_CONTROL') == '1', 'explicit hosted pinned source/configure graph control')
     def test_all_six_real_recipe_configurations_and_four_existing_source_pins(self):
@@ -98,6 +101,15 @@ class Contract(unittest.TestCase):
         for name, category in [('EXTERNAL_AUTODETECT_LIBRARY_LIST', 'external'), ('HWACCEL_AUTODETECT_LIBRARY_LIST', 'hardware')]:
             self.assertEqual(re.search(name + r'="(.*?)"', configure, re.S)[1].split(), policy['lists'][category])
         names = set(policy['lists']['external'] + policy['lists']['hardware'])
+        fontconfig = extras['fontconfig']
+        base = fontconfig['repository'].removesuffix('.git') + '/-/raw/' + fontconfig['commit'] + '/'
+        with urllib.request.urlopen(base + 'meson.options', timeout=45) as response:
+            options = response.read(1024**2).decode()
+        with urllib.request.urlopen(base + 'meson.build', timeout=45) as response:
+            build = response.read(1024**2).decode()
+        self.assertRegex(options, r"option\('nls',\s*type\s*:\s*'feature'")
+        self.assertIn("opt_nls = get_option('nls')", build)
+        self.assertIn("dependency('intl', required: opt_nls", build)
         for name in ('xz', 'openmpt', 'chromaprint', 'srt'):
             pin = extras[name]; authority = pin['sourceAuthority']
             self.assertEqual(authority['commit'], lock['btbn']['commit'])
@@ -173,6 +185,8 @@ class Contract(unittest.TestCase):
                     flags = (recipe / 'build-ffmpeg').read_text().split('build "ffmpeg" "${FFMPEG_VERSION}"')[0].rstrip().splitlines()[-1]
                     subprocess.run(['bash', '-n', recipe / 'portico-macos-extras.sh'], check=True)
                     self.assertTrue((recipe / 'portico-macos-system-libs.py').is_file())
+                    self.assertTrue((recipe / 'portico-macos-runtime.py').is_file())
+                    self.assertIn('check-prefix --prefix', (recipe / 'build-ffmpeg').read_text())
                 for library in LIBRARIES + ['bzlib', 'libopus', 'libtheora', 'libfreetype', 'libfribidi', 'libharfbuzz'] + ([] if target.startswith('windows') else ['libsrt']):
                     if library == 'libopenmpt' and target == 'windows-arm64': continue
                     self.assertIn('--enable-' + library, flags, target)

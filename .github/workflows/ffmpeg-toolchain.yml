@@ -23,6 +23,10 @@ on:
         description: Read official upstream effective inventories only
         type: boolean
         default: false
+      reuseWindowsArtifact:
+        description: Native-only development retest of the explicitly pinned Windows artifact
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -31,7 +35,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   controls:
-    if: github.repository == 'PorticoMediaServer/portico' && !inputs.upstreamComparison
+    if: github.repository == 'PorticoMediaServer/portico' && (!inputs.upstreamComparison || inputs.reuseWindowsArtifact)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -39,7 +43,9 @@ jobs:
     steps:
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
@@ -66,6 +72,7 @@ jobs:
           python scripts/test-windows-libdovi-recipe.py
           python scripts/test-libdovi-runtime-inventory.py
           python scripts/test-ci-ffmpeg-toolchain.py
+          python scripts/test-engine-checkout.py
           python scripts/test-ffmpeg-build-tools.py
           python scripts/test-native-rust-tools.py
           python scripts/test-macos-source-checkout.py
@@ -81,7 +88,14 @@ jobs:
       - id: plan
         env:
           COLD_TARGET: ${{ inputs.target || 'all' }}
-        run: echo "matrix=$(python scripts/ci-ffmpeg-toolchain.py plan --target "$COLD_TARGET")" >> "$GITHUB_OUTPUT"
+          REUSE_WINDOWS_ARTIFACT: ${{ inputs.reuseWindowsArtifact }}
+          OTHER_MODES: ${{ inputs.controlsOnly || inputs.cacheControls || inputs.upstreamComparison }}
+        run: |
+          if [[ "$REUSE_WINDOWS_ARTIFACT" == true && ( "$COLD_TARGET" != windows-x64 || "$OTHER_MODES" == true ) ]]; then
+            echo 'Development artifact reuse requires only the explicit Windows x64 native mode' >&2
+            exit 2
+          fi
+          echo "matrix=$(python scripts/ci-ffmpeg-toolchain.py plan --target "$COLD_TARGET")" >> "$GITHUB_OUTPUT"
   catalogue:
     if: github.repository == 'PorticoMediaServer/portico' && inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison
     runs-on: ubuntu-24.04
@@ -89,7 +103,9 @@ jobs:
     steps:
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -110,7 +126,7 @@ jobs:
     name: Cold build (${{ matrix.target }})
     env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
     needs: controls
-    if: '!inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison'
+    if: '!inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !inputs.reuseWindowsArtifact'
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
@@ -124,7 +140,9 @@ jobs:
     steps:
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
@@ -209,26 +227,53 @@ jobs:
           compression-level: 0
           retention-days: 14
           if-no-files-found: error
+  native-plan:
+    needs: [controls, build]
+    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !inputs.reuseWindowsArtifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      available: ${{ steps.plan.outputs.available }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENGINE_TARGET: ${{ inputs.target || 'all' }}
+          ENGINE_BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '[.[] | .artifacts[]]' > "$RUNNER_TEMP/engine-artifact-metadata.json"
+          python scripts/ci-ffmpeg-toolchain.py native-plan --target "$ENGINE_TARGET" --build-result "$ENGINE_BUILD_RESULT" --artifacts "$RUNNER_TEMP/engine-artifact-metadata.json" --work "$RUNNER_TEMP/engine-native-plan" --github-output "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: engine-native-plan-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/engine-native-plan/*.json
+          retention-days: 14
+          if-no-files-found: warn
   native:
     name: Native cold gates (${{ matrix.target }})
-    needs: [controls, build]
-    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison
+    needs: [controls, native-plan]
+    if: always() && needs.controls.result == 'success' && needs.native-plan.result == 'success' && needs.native-plan.outputs.available == 'true'
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.controls.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.native-plan.outputs.matrix) }}
     runs-on: ${{ matrix.nativeRunner }}
     timeout-minutes: 90
     defaults:
       run:
         shell: bash
     steps:
-      - name: Enable long checkout paths on the disposable Windows runner
-        if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
@@ -237,9 +282,12 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.13.17'
+      - name: Verify checkout contract bytes before native qualification
+        run: python scripts/test-engine-checkout.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: engine-cold-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          artifact-ids: ${{ matrix.artifactId }}
+          merge-multiple: true
           path: ${{ runner.temp }}/engine-transfer
       - name: Verify exact-run bytes and run matching native gates
         env:
@@ -258,7 +306,7 @@ jobs:
 
   registry-cache-control:
     env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
-    if: inputs.cacheControls && github.repository == 'PorticoMediaServer/portico'
+    if: inputs.cacheControls && !inputs.reuseWindowsArtifact && github.repository == 'PorticoMediaServer/portico'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions: {contents: read, packages: write}
@@ -289,7 +337,7 @@ jobs:
         run: docker logout ghcr.io
   prefix-cache-seed:
     env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
-    if: inputs.cacheControls && github.repository == 'PorticoMediaServer/portico'
+    if: inputs.cacheControls && !inputs.reuseWindowsArtifact && github.repository == 'PorticoMediaServer/portico'
     strategy:
       fail-fast: false
       matrix: {runner: [ubuntu-24.04, macos-15, macos-15-intel]}
@@ -321,7 +369,7 @@ jobs:
   prefix-cache-reuse:
     env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
     needs: prefix-cache-seed
-    if: inputs.cacheControls && github.repository == 'PorticoMediaServer/portico'
+    if: inputs.cacheControls && !inputs.reuseWindowsArtifact && github.repository == 'PorticoMediaServer/portico'
     strategy:
       fail-fast: false
       matrix: {runner: [ubuntu-24.04, macos-15, macos-15-intel]}
@@ -345,6 +393,65 @@ jobs:
           path: ${{ runner.temp }}/prefix-cache-reuse.json
           retention-days: 7
 
+  windows-native-retry:
+    needs: controls
+    if: inputs.reuseWindowsArtifact && !inputs.controlsOnly && !inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
+    defaults:
+      run: {shell: bash}
+    steps:
+      - name: Preserve exact checked bytes on Windows
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - run: python scripts/test-engine-checkout.py
+      - name: Verify the pinned original producer and run native gates without a compiler
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/ci-ffmpeg-toolchain.py native-retry --target windows-x64 --work "$RUNNER_TEMP/development-native-retry"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: engine-development-native-retry-windows-x64-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/development-native-retry/evidence/*.json
+            ${{ runner.temp }}/development-native-retry/evidence/gates/*.json
+            ${{ runner.temp }}/development-native-retry/evidence/gates/*.log
+          retention-days: 14
+          if-no-files-found: warn
+  windows-checkout-control:
+    if: inputs.controlsOnly && !inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
+    runs-on: windows-2025
+    timeout-minutes: 10
+    defaults:
+      run: {shell: bash}
+    steps:
+      - run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', path: original-checkout, persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - name: Record the runner's original checkout filter
+        run: python original-checkout/scripts/test-engine-checkout.py --inspect --report "$RUNNER_TEMP/original-checkout.json"
+      - name: Select exact bytes before a fresh checkout, as in native qualification
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', path: fixed-checkout, persist-credentials: false}
+      - name: Exercise both filter cases and verify the fresh checkout
+        run: |
+          python fixed-checkout/scripts/test-engine-checkout.py
+          python fixed-checkout/scripts/test-engine-checkout.py --inspect --report "$RUNNER_TEMP/fixed-checkout.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: engine-checkout-control-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/*-checkout.json
+          retention-days: 7
   system-library-control:
     if: inputs.controlsOnly && !inputs.staticControlsOnly && !inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
     strategy:
@@ -355,7 +462,9 @@ jobs:
     steps:
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -376,7 +485,7 @@ jobs:
           retention-days: 7
 
   upstream-comparison:
-    if: inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
+    if: inputs.upstreamComparison && !inputs.reuseWindowsArtifact && github.repository == 'PorticoMediaServer/portico'
     strategy:
       fail-fast: false
       matrix:
@@ -391,7 +500,9 @@ jobs:
     steps:
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
