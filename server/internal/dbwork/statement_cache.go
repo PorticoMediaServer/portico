@@ -20,7 +20,7 @@ import (
 // (about 225 distinct statements, 2.7 MB): below it, LRU over that cycle
 // misses almost every time and the writer re-prepares trigger-heavy
 // statements for every title.
-const statementCacheEntries = 512
+const statementCacheEntries = 2048
 const statementCacheBudget = 512 << 10
 const statementCacheMaxBudget = 4 << 20
 const statementCacheOverhead = 8 << 10
@@ -66,7 +66,7 @@ func statementBudgetForMemory(memory int64) int {
 	if memory <= 0 {
 		return statementCacheBudget
 	}
-	return int(min(max(memory/512, int64(statementCacheBudget)), int64(statementCacheMaxBudget)))
+	return int(min(max(memory/128, int64(statementCacheMaxBudget)), int64(statementCacheWriterMaxBudget)))
 }
 
 func defaultStatementBudget() int {

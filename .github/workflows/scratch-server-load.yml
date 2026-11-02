@@ -4,7 +4,7 @@ on:
     inputs:
       args: {description: harness arguments, default: '--films 400 --new 1500 --books 150 --secs 40 --users 10,50,100'}
   push:
-    branches: [scratch/server-load-main]
+    branches: [scratch/server-load-cache]
 permissions:
   contents: read
 jobs:
