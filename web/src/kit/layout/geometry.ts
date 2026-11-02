@@ -34,6 +34,13 @@ export function railIndexAt(y: number, cells: readonly (Readonly<{top: number; b
   return last;
 }
 
+/** J-4: desktop-browse draws the rail's rows at 21px for # and A–Z. A library that files titles under
+ * other letters appends those keys, and a short window cannot hold 27 rows; the pitch tightens (never
+ * below 15px) so every letter stays inside the window instead of running off the bottom edge. */
+export function railPitch(room: number, count: number): number {
+  return Math.max(15, Math.min(21, room / Math.max(1, count)));
+}
+
 export function railBand(keys: readonly string[], anchors: readonly PositionAnchor[], visible: VisibleRange): VisibleRange | undefined {
   if (visible.first < 0 || visible.last < visible.first || !anchors.length) return undefined;
   let first = anchors[0], last = anchors[0];
