@@ -55,8 +55,7 @@ export class CapturedAccountIdentityFailure {
       await work();
     } finally {this.pending = false;}
   }
-  /** `afterForget` runs once the saved entry is gone; it defaults to the chooser. */
-  binding(chooseServer: () => void, afterForget: () => void = chooseServer): AccountIdentityFailureBinding {
+  binding(chooseServer: () => void): AccountIdentityFailureBinding {
     const choose = () => {if (this.isCurrent()) {this.options.retire(); chooseServer();}};
     return Object.freeze({serverName: this.options.serverName, failure: this.failure, isCurrent: this.isCurrent,
       onRetry: () => this.command(this.options.retry), onChooseServer: choose,
@@ -66,7 +65,7 @@ export class CapturedAccountIdentityFailure {
           {isCurrent: this.isCurrent, expectedRevision: this.options.revision});
         // This write emits its own change hint after committing. Its success
         // may leave the failure capture inactive, but may not revive a retired entry.
-        if (removed && this.options.current()) {this.options.retire(); afterForget();}
+        if (removed && this.options.current()) {this.options.retire(); chooseServer();}
       })});
   }
   dispose() {if (this.disposed) return;this.disposed = true;this.active = false;++this.checks;this.off?.();this.off = undefined;}
