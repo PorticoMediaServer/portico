@@ -19,6 +19,13 @@ type admissionResult struct {
 // test controls when the next one runs.
 func queueTicket(t *testing.T, g *Gate, class Class, owner, label string, hold <-chan struct{}, results chan<- admissionResult) context.CancelFunc {
 	t.Helper()
+	return queueTicketObserved(t, g, class, owner, label, hold, results, nil)
+}
+
+// Acquisition is observed while the writer still owns the gate. Completion
+// after release can arrive later than the following writer's completion.
+func queueTicketObserved(t *testing.T, g *Gate, class Class, owner, label string, hold <-chan struct{}, results chan<- admissionResult, acquired chan<- admissionResult) context.CancelFunc {
+	t.Helper()
 	before := 0
 	for _, count := range g.Waiting() {
 		before += count
@@ -27,6 +34,9 @@ func queueTicket(t *testing.T, g *Gate, class Class, owner, label string, hold <
 	ctx, cancel := context.WithCancel(WithOwner(context.Background(), owner))
 	go func() {
 		release, err := g.Acquire(ctx, class)
+		if acquired != nil {
+			acquired <- admissionResult{label: label, err: err}
+		}
 		if err == nil {
 			<-hold
 			release()
@@ -73,7 +83,11 @@ func TestPoolHoldsNinetyNineQueuedPlusTheHolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	results := make(chan admissionResult, 2*WriterQueueCapacity)
-	fillPool(t, g, results)
+	acquired := make(chan admissionResult, WriterQueueCapacity+1)
+	for i := 0; i < WriterQueueCapacity; i++ {
+		cancel := queueTicketObserved(t, g, ClassInteractive, fmt.Sprintf("o%d", i), fmt.Sprintf("fill-%d", i), closedChannel(), results, acquired)
+		defer cancel()
+	}
 	if stats := g.Admission(); stats.UserQueued != WriterQueueCapacity || stats.Refused != 0 {
 		t.Fatalf("pool not full as expected: %+v", stats)
 	}
@@ -86,7 +100,8 @@ func TestPoolHoldsNinetyNineQueuedPlusTheHolder(t *testing.T) {
 		t.Fatal("a capacity refusal is not classified as overload")
 	}
 	// Background work is never refused: it waits outside the users' share.
-	queueTicket(t, g, ClassBackgroundMedia, "", "background", closedChannel(), results)
+	cancelBackground := queueTicketObserved(t, g, ClassBackgroundMedia, "", "background", closedChannel(), results, acquired)
+	defer cancelBackground()
 	stats := g.Admission()
 	if stats.Refused != 1 || stats.RefusedByClass[ClassInteractive.String()] != 1 || stats.BackgroundQueued != 0 || stats.Deferred != 1 {
 		t.Fatalf("admission accounting after refusal: %+v", stats)
@@ -94,7 +109,7 @@ func TestPoolHoldsNinetyNineQueuedPlusTheHolder(t *testing.T) {
 	hold()
 	served := 0
 	for i := 0; i < WriterQueueCapacity+1; i++ {
-		result := <-results
+		result := <-acquired
 		if result.err != nil {
 			t.Fatalf("%s failed: %v", result.label, result.err)
 		}
@@ -102,6 +117,12 @@ func TestPoolHoldsNinetyNineQueuedPlusTheHolder(t *testing.T) {
 			t.Fatalf("background ran at position %d, ahead of queued users", served)
 		}
 		served++
+	}
+	// Join every completion too; no goroutine or gate owner survives the test.
+	for i := 0; i < WriterQueueCapacity+1; i++ {
+		if result := <-results; result.err != nil {
+			t.Fatalf("%s completion failed:%v", result.label, result.err)
+		}
 	}
 	if g.ActiveOrWaiting() {
 		t.Fatal("pool did not drain")
