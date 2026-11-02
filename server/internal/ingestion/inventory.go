@@ -4,14 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
-	"os"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/naming"
 	"github.com/PorticoMediaServer/portico/server/internal/notify"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"log"
+	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 )
@@ -43,9 +43,13 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 		observed, err = storage.LocalInventoryDirectory(storage.InventoryRequest{Root: source.ResolvedPath, RelativePath: "."})
 	}
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return errors.Join(storage.ErrBusy, err)
+		}
 		if errors.Is(err, storage.ErrBusy) || ctx.Err() != nil {
 			return err
 		}
+		log.Printf("library scan %s: root inspection failed: %v", job, err)
 		return errors.New(sourceUnavailable)
 	}
 	actual := storage.RootIdentity(observed)
@@ -53,10 +57,8 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 		return catalog.ErrSourceChanged
 	}
 	if source.RootIdentity != "" && actual != source.RootIdentity {
-		if !storage.SameRoot(source.RootIdentity, actual) {
-			return catalog.ErrSourceChanged
-		}
-		// The same folder under a device number this boot handed out afresh.
+		// The configured path is the source; physical device/inode changes are
+		// informational and never require owner confirmation or a new scan.
 		if err = s.catalog.AdoptRootIdentity(ctx, job, *source, actual); err != nil {
 			return err
 		}
@@ -129,6 +131,9 @@ func (s *Service) inventoryPage(ctx context.Context, job string, source catalog.
 		return err
 	}
 	err = s.readDirectoryPage(ctx, job, source, relative, inventoryPublicationNames)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return errors.Join(storage.ErrBusy, err)
+	}
 	if err == nil || ctx.Err() != nil || errors.Is(err, storage.ErrBusy) {
 		return err
 	}
@@ -137,6 +142,7 @@ func (s *Service) inventoryPage(ctx context.Context, job string, source catalog.
 		return stoppedAt(relative, err)
 	}
 	if relative == "." && !errors.Is(err, storage.ErrInventoryChanged) {
+		log.Printf("library scan %s: root listing failed: %v", job, err)
 		return stoppedAt(relative, errors.New(sourceUnavailable))
 	}
 	if errors.Is(err, storage.ErrRemoteOffline) || errors.Is(err, storage.ErrRemoteCredentials) || errors.Is(err, storage.ErrRemoteChanged) || errors.Is(err, storage.ErrRemoteBinary) {

@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 	"github.com/PorticoMediaServer/portico/server/internal/usermutation"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -449,7 +449,7 @@ func (s *Service) SaveSourceThen(ctx context.Context, library, id string, input 
 		if busy != 0 {
 			return result, ErrSourceBusy
 		}
-		replacement := old.RootIdentity != "" && !storage.SameRoot(old.RootIdentity, rootID)
+		replacement := old.Path != input.Path || old.Health == "root_changed" && !old.IdentityConfirmed
 		if replacement && !input.AcceptReplacement {
 			return result, ErrSourceChanged
 		}
@@ -598,14 +598,10 @@ func (s *Service) UpdateScanPolicy(ctx context.Context, library string, p ScanPo
 	return s.ScanPolicy(ctx, library)
 }
 
-// AdoptRootIdentity records the identity a source's root has on this boot when
-// it is the same folder under a renumbered device (storage.SameRoot). Nothing
-// about the source changes: it keeps its incarnation, its files and their
-// analysis. The running scan is moved to the new identity with it.
+// AdoptRootIdentity records current physical custody at the configured path.
+// Device and inode changes do not change the source's identity, incarnation or
+// analysis. The running scan is moved to the new physical observation with it.
 func (s *Service) AdoptRootIdentity(ctx context.Context, job string, source LibrarySource, observed string) error {
-	if !storage.SameRoot(source.RootIdentity, observed) {
-		return ErrSourceChanged
-	}
 	return dbwork.WithWriteTx(ctx, s.db, dbwork.ClassFrom(ctx, dbwork.ClassBackgroundMedia), func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE library_sources SET root_identity=? WHERE id=? AND generation=? AND root_identity=?`, observed, source.ID, source.Generation, source.RootIdentity)
 		if err != nil {

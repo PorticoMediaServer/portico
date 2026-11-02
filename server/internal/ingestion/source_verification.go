@@ -295,7 +295,9 @@ func (s *Service) verifyOneSource(ctx context.Context) (bool, error) {
 			// Inconclusive: retained for the next walk, never marked missing.
 			continue
 		}
-		proven[i] = absent
+		// Local reconnects verify presence without turning an empty/unmounted
+		// folder into per-item absence. The path-presence worker owns recovery.
+		proven[i] = absent && s.storage != nil && s.storage.IsRemote(walk.root)
 	}
 
 	// One proven-absent file per bounded maintenance transaction, so a window
