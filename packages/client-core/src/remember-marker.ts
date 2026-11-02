@@ -4,8 +4,7 @@
  * a sign-in may do; this only says which launch the person chose.
  *
  * Native keeps one marker per server inside the protected session record. Web keeps it in
- * sessionStorage, so it lasts for this browser tab, as drawn ("Remember this profile in this
- * browser tab").
+ * localStorage, so it lasts for this browser ("Remember this profile on this device").
  */
 export type RememberMarker = Readonly<{serverId: string; familyId: string; profileId: string; expiresAt: string}>;
 

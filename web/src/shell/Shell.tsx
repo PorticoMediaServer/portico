@@ -25,6 +25,7 @@ import {usePageWindowChrome} from './window-chrome';
 import {SwitchProfileServerHost, HostedServerOpening, type SwitchProfileServerOpening, type HostedSwitchSelection} from './SwitchProfileServerHost';
 import {PendingChanges, type PendingChangesBinding} from './PendingChanges';
 import {ConnectionAway} from './ConnectionAway';
+import {deviceRemembers, forgetRememberedProfile} from '../platform/tab-session-gate';
 import {webScreens} from '../route-registry-view';
 
 export type ShellIdentity = Readonly<{
@@ -163,6 +164,8 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut
       ...(!desktop ? {notifications: () => { void navigate({to: '/notifications'}); }} : {}),
       watchTogether: () => { void navigate({to: '/watch-together'}); }, feedback: onFeedback,
       help: () => { void navigate({to: '/help'}); }, signOut: onSignOut,signOutPorticoAccount:onSignOutPorticoAccount,
+      // Read when the menu draws: it opens only while this browser remembers the profile open now.
+      ...(accountOpen && deviceRemembers(viewer.serverId, viewer.profileId) ? {forgetRememberedProfile: () => forgetRememberedProfile(viewer.serverId)} : {}),
     }} trigger={navigation === 'sidebar' ? <button type="button" className={styles.profileRow} aria-label={[t('web.account.switchProfileOrServer'), identity.username || t('next.shell.usernameUnavailable'), identity.serverName].join(', ')}>
       <ProfileAvatarFace initial={current.initial} art={identity.profileArt} size={38} />
       <span className={styles.profileText}><b>{identity.username || t('next.shell.usernameUnavailable')}</b><small>{identity.serverName}</small></span><Icon name="i-updown" size={18} />
