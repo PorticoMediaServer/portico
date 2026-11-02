@@ -48,3 +48,11 @@ There is no third, "optional" contract: the dormant remote-command and Hosted
 profile protocols it once recorded had no handler anywhere and no first-party
 client, so they were removed with their client code. The development module
 does not enter the production OpenAPI document.
+
+An initial library browse page may carry `wholeSelectionUnavailable` with
+`reason: "source_changed"` when its optional exact whole-view selection loses
+its content basis during composition. The ordinary snapshot page remains
+usable; this state carries no selector, count or preparation handle. Reloading
+can prepare a new selection. Current grants and visibility policy are still
+checked before delivery; selection polls, held proofs and actions retain their
+strict stale-basis refusals.

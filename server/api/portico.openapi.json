@@ -8145,7 +8145,8 @@
             "properties": {
               "reason": {
                 "enum": [
-                  "search_not_bounded"
+                  "search_not_bounded",
+                  "source_changed"
                 ],
                 "type": "string"
               }
@@ -10723,7 +10724,8 @@
                 "properties": {
                   "reason": {
                     "enum": [
-                      "search_not_bounded"
+                      "search_not_bounded",
+                      "source_changed"
                     ],
                     "type": "string"
                   }
@@ -150233,7 +150235,8 @@
                 "properties": {
                   "reason": {
                     "enum": [
-                      "search_not_bounded"
+                      "search_not_bounded",
+                      "source_changed"
                     ],
                     "type": "string"
                   }
@@ -177481,7 +177484,8 @@
                 "properties": {
                   "reason": {
                     "enum": [
-                      "search_not_bounded"
+                      "search_not_bounded",
+                      "source_changed"
                     ],
                     "type": "string"
                   }
@@ -465372,7 +465376,8 @@
                       "properties": {
                         "reason": {
                           "enum": [
-                            "search_not_bounded"
+                            "search_not_bounded",
+                            "source_changed"
                           ],
                           "type": "string"
                         }
@@ -627807,7 +627812,8 @@
                       "properties": {
                         "reason": {
                           "enum": [
-                            "search_not_bounded"
+                            "search_not_bounded",
+                            "source_changed"
                           ],
                           "type": "string"
                         }
@@ -641111,7 +641117,8 @@
                       "properties": {
                         "reason": {
                           "enum": [
-                            "search_not_bounded"
+                            "search_not_bounded",
+                            "source_changed"
                           ],
                           "type": "string"
                         }
@@ -722663,7 +722670,8 @@
                           "properties": {
                             "reason": {
                               "enum": [
-                                "search_not_bounded"
+                                "search_not_bounded",
+                                "source_changed"
                               ],
                               "type": "string"
                             }
