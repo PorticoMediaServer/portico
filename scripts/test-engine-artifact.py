@@ -386,6 +386,24 @@ class EngineIntake(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'archived inputs differ'):
             M['verify_bundle_source'](bundle, 'linux-x64')
 
+    def test_native_linux_requires_prepared_source_and_complete_dependency_digests(self):
+        bundle = self.root / 'input/bundle'
+        entries = native_linux_fixture(bundle)
+        changed = dict(entries); changed.pop('provenance/ffmpeg-source.tar.xz')
+        write_source_entries(bundle, changed, 'linux-x64')
+        with self.assertRaisesRegex(ValueError, 'source/graph identity mismatch'):
+            M['verify_bundle_source'](bundle, 'linux-x64')
+        changed = dict(entries)
+        ledger = json.loads((bundle / 'dependency-inputs.json').read_bytes())
+        ledger[0].pop('sourceArchiveSHA256')
+        data = json.dumps(ledger).encode()
+        (bundle / 'dependency-inputs.json').write_bytes(data)
+        changed['provenance/linux-dependencies/dependency-inputs.json'] = data
+        changed.pop('provenance/linux-dependencies/sources/' + ledger[0]['sourceArchive'])
+        write_source_entries(bundle, changed, 'linux-x64')
+        with self.assertRaisesRegex(ValueError, 'dependency source identity mismatch'):
+            M['verify_bundle_source'](bundle, 'linux-x64')
+
     def test_linux_arm_uses_btbn_snapshots_and_windows_still_requires_its_receipt(self):
         bundle = self.root / 'input/bundle'
         M['verify_bundle_source'](bundle, 'windows-x64', '1' * 40)
