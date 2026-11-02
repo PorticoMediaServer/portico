@@ -30,9 +30,22 @@ def wrapper(name, body):
             '\nportico_dependency_cache finish "' + name + '" "" >/dev/null || exit "$?"\nfi\n')
 
 
+def disc_patch_inputs(recipe, root=ROOT):
+    lock = json.loads((root / 'third_party/ffmpeg/sources.lock.json').read_text())
+    result = {}
+    for pin in lock['linuxSourceBuild']['sourcePatches']:
+        name = Path(pin['path']).name
+        path = recipe / 'portico-no-decryption' / name
+        if path.is_symlink() or not path.is_file() or digest(path) != pin['sha256']:
+            raise ValueError('checked Mac dependency patch changed: ' + name)
+        result[name] = pin['sha256']
+    return result
+
+
 def configure(recipe, root=ROOT):
     if not os.environ.get('PORTICO_ENGINE_STAGE_CACHE'):
         return
+    dependency_patches = disc_patch_inputs(recipe, root)
     homebridge = recipe / 'build-ffmpeg'; text = homebridge.read_text()
     if 'portico_dependency_cache()' in text:
         raise ValueError('fresh Mac dependency cache instrumentation required')
@@ -105,7 +118,7 @@ def configure(recipe, root=ROOT):
     # FFmpeg source, configure flags and packaging code are deliberately not
     # dependency inputs. Each stage's actual body and dependency state are.
     context = dict(target=os.environ['PORTICO_FFMPEG_TARGET'],
-                   homebridge=lock['macosRecipe']['commit'],
+                   homebridge=lock['macosRecipe']['commit'], dependencyPatches=dependency_patches,
                    patches={p.name: digest(p) for p in (root / 'third_party/ffmpeg/patches').glob('homebridge-*.patch')},
                    extras=json.loads((recipe / 'portico-macos-extras.lock.json').read_text()),
                    nativeRust=lock.get('nativeRustTools'), libdovi=lock.get('libdovi'),
