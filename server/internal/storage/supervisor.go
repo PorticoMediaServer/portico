@@ -127,10 +127,11 @@ type Supervisor struct {
 	// measured defaults.
 	Limit int
 
-	admitted atomic.Uint64
-	queued   atomic.Uint64
-	refused  atomic.Uint64
-	waitNs   atomic.Uint64
+	admitted  atomic.Uint64
+	inProcess atomic.Uint64
+	queued    atomic.Uint64
+	refused   atomic.Uint64
+	waitNs    atomic.Uint64
 }
 
 // SupervisorStats is the observable state of one supervisor.
@@ -144,9 +145,12 @@ type SupervisorStats struct {
 	ScanProbeActive    int    `json:"scanProbeActive"`
 	ScanProbeCapacity  int    `json:"scanProbeCapacity"`
 	Admitted           uint64 `json:"admitted"`
-	Queued             uint64 `json:"queued"`
-	Refused            uint64 `json:"refused"`
-	QueueWaitMillis    uint64 `json:"queueWaitMillis"`
+	// InProcess counts admitted operations served without a helper process
+	// (scanner M1); Admitted minus InProcess is the processes started.
+	InProcess       uint64 `json:"inProcess"`
+	Queued          uint64 `json:"queued"`
+	Refused         uint64 `json:"refused"`
+	QueueWaitMillis uint64 `json:"queueWaitMillis"`
 }
 
 // Stats snapshots the supervisor for diagnostics.
@@ -163,7 +167,7 @@ func (s *Supervisor) Stats() SupervisorStats {
 		HelperActive: helper, HelperCapacity: helperLimit,
 		BackgroundActive: background, BackgroundCapacity: backgroundLimit,
 		ScanProbeActive: scan, ScanProbeCapacity: scanLimit,
-		Admitted: s.admitted.Load(), Queued: s.queued.Load(), Refused: s.refused.Load(),
+		Admitted: s.admitted.Load(), InProcess: s.inProcess.Load(), Queued: s.queued.Load(), Refused: s.refused.Load(),
 		QueueWaitMillis: s.waitNs.Load() / uint64(time.Millisecond),
 	}
 }
@@ -369,6 +373,12 @@ func (s *Supervisor) runAdmission(ctx context.Context, key string, cmd *exec.Cmd
 		complete()
 		s.release(key, p)
 		retire()
+	}
+	// Only a plain Run is served in process; owned runs tie cleanup to an
+	// actual process exit.
+	if data, ok := inProcessRequest(cmd); ok && afterExit == nil && afterRetired == nil {
+		s.inProcess.Add(1)
+		return runInProcess(ctx, data, consume, release, (p == poolBackground || p == poolScanProbe) && !s.backgroundNormal.Load())
 	}
 	env := []string{"PATH=" + os.Getenv("PATH"), "TMPDIR=" + os.Getenv("TMPDIR")}
 	for _, v := range cmd.Env {

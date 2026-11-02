@@ -2,7 +2,11 @@
 
 package storage
 
-import "os/exec"
+import (
+	"os/exec"
+
+	"golang.org/x/sys/unix"
+)
 
 // nice 19 is the lowest CPU scheduling priority available to an unprivileged
 // process. taskpolicy -b gives the child background (throttled) disk IO. Both
@@ -14,3 +18,12 @@ func lowerBackgroundPriority(cmd *exec.Cmd) {
 }
 
 func applyBackgroundPriority(*exec.Cmd) {}
+
+// lowerCurrentThread puts the calling thread in the Darwin background band:
+// lowest CPU priority and throttled disk IO (setpriority PRIO_DARWIN_THREAD,
+// PRIO_DARWIN_BG from <sys/resource.h>). The caller holds the thread and exits
+// without unlocking, so the runtime discards it instead of reusing it.
+func lowerCurrentThread() {
+	const prioDarwinThread, prioDarwinBG = 3, 0x1000
+	_ = unix.Setpriority(prioDarwinThread, 0, prioDarwinBG)
+}
