@@ -7,7 +7,7 @@ import {router} from '../../router';
 import {CoverCard} from '../../kit/cards';
 import {Icon} from '../../kit/Icon';
 import {Select, TextField} from '../../kit/controls';
-import {WindowedGrid} from '../../kit/layout';
+import {WindowedGrid, fillHeightBelow, observeShellClearance} from '../../kit/layout';
 import {Skeleton, StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
 import {createReadBindings} from './bindings';
@@ -74,9 +74,10 @@ function GridFrame({children}: {children: (height: number, width: number) => Rea
   const width = useShellWidth(), grid = useRef<HTMLDivElement>(null), [height, setHeight] = useState(600);
   useEffect(() => {
     const element = grid.current; if (!element) return;
-    const measure = () => setHeight(Math.max(280, window.innerHeight - element.getBoundingClientRect().top));
+    const measure = () => setHeight(fillHeightBelow(element));
     const observer = new ResizeObserver(measure); observer.observe(element); window.addEventListener('resize', measure); measure();
-    return () => {observer.disconnect(); window.removeEventListener('resize', measure);};
+    const stopClearance = observeShellClearance(element, measure);
+    return () => {observer.disconnect(); stopClearance(); window.removeEventListener('resize', measure);};
   }, []);
   return <div ref={grid} className={styles.books}>{children(height, width < 600 ? 108 : 190)}</div>;
 }

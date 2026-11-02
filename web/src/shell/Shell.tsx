@@ -175,7 +175,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut
   const pending = pendingChanges && pendingCount > 0 ? <PendingChanges key={pendingChanges.scopeKey} {...pendingChanges} /> : undefined;
   if (hostedSelection) return <HostedServerOpening selection={hostedSelection} cancel={() => setHostedSelection(undefined)} />;
   const captionRenderer = windowChrome ?? chrome.renderer;
-  return <div className={styles.shell} data-desktop={desktop} data-size-class={sizeClass} data-pointer={coarsePointer ? 'coarse' : 'fine'} data-navigation={navigation} data-has-dock={dockVisible} data-window-os={chrome.os} data-window-fullscreen={chrome.fullscreen}>
+  return <div className={styles.shell} data-shell-root data-desktop={desktop} data-size-class={sizeClass} data-pointer={coarsePointer ? 'coarse' : 'fine'} data-navigation={navigation} data-has-dock={dockVisible} data-window-os={chrome.os} data-window-fullscreen={chrome.fullscreen}>
     <a className={styles.skip} href="#portico-content">{t('next.home.shell.skip')}</a>
     {/* desktop-app#5: over a scrolled rail page the Windows caption symbols need the
         authored shade at the page top. It is pointer-inert and sits under them. */}

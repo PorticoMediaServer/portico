@@ -36,6 +36,8 @@
 .picker { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; font-size: var(--type-activity-detail-size); color: var(--color-text-tertiary); }
 .editor { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 16px; background: color-mix(in srgb, var(--color-ink) 72%, transparent); box-shadow: inset 0 0 0 1px var(--color-line); max-width: 720px; }
 .editorBody { display: flex; flex-direction: column; gap: 14px; }
+/* Every tab renders inside the tab panel, so the panel owns the scroll and the inset. */
+.editor > .editorBody { flex: 1; min-height: 0; overflow: auto; padding: 22px 32px 18px; }
 .editorHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .editorHead h2 { margin: 0; font-size: var(--type-heading-size); font-weight: var(--type-row-heading-weight); }
 .editorTabs { display: flex; gap: 18px; box-shadow: inset 0 -1px 0 var(--color-line); }
@@ -112,11 +114,17 @@
 .editorTabs { flex: none; margin: 0; padding: 0 32px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
 .editorTabs::-webkit-scrollbar { display: none; }
 .editorTabs button { padding: 12px 0 11px; }
-.editor > .fields, .editor > .generalFields, .editor > .artwork { flex: 1; min-height: 0; overflow: auto; padding: 22px 32px 18px; }
 .generalFields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-content: start; gap: 18px 20px; }
 .generalFields .field { min-width: 0; }
 .generalFields .field[data-wide], .lockHelp { grid-column: 1 / -1; }
-.lockHelp { margin: 0; font-size: calc(var(--type-body-size) * 13 / 15); line-height: calc(var(--type-body-size) * 13 / 10); color: var(--color-text-tertiary); }
+.lockHelp { display: flex; align-items: center; gap: 10px; margin: 0; font-size: calc(var(--type-body-size) * 13 / 15); line-height: calc(var(--type-body-size) * 13 / 10); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); }
+.lockHelp svg { flex: none; color: var(--color-accent-strong); }
+.field .fieldControl select[data-empty], .field .fieldControl input::placeholder, .field .fieldControl textarea::placeholder { color: var(--color-text-tertiary); }
+/* Frame 6: the automatic value offers Use it as a quiet link. */
+.field small.automatic button { padding: 0; background: none; border: 0; min-height: 0; font: inherit; font-weight: var(--type-fixed-weight-700); color: var(--color-accent-strong); cursor: pointer; }
+.field small.automatic button:hover { text-decoration: underline; }
+.field small.automatic button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; border-radius: 4px; }
+.lockHelp b { color: var(--color-text-secondary); font-weight: var(--type-fixed-weight-700); }
 .field { padding: 0; gap: 8px; }
 .field[data-changed] { padding: 0; box-shadow: none; }
 .fieldLabel { font-size: calc(var(--type-body-size) * 9 / 10); font-weight: var(--type-row-heading-weight); }
@@ -142,7 +150,7 @@
 @media (max-width: 599px) {
   .generalFields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
   .generalFields .field:not([data-short]) { grid-column: 1 / -1; }
-  .editor > .fields, .editor > .generalFields, .editor > .artwork { padding: 16px 18px 14px; }
+  .editor > .editorBody { padding: 16px 18px 14px; }
   .editorTabs { padding: 0 18px; gap: 20px; }
   .editorTabs button { font-size: var(--type-fixed-size-14px); padding: 10px 0 9px; }
   .field { gap: 6px; }
