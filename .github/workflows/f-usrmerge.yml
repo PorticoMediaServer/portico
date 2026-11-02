@@ -1,7 +1,11 @@
 name: F Debian usr-merged sandbox reproduction
 on:
-  push:
-    branches: [rebuild/F-usrmerge-sandbox-r1]
+  pull_request:
+    paths:
+      - server/internal/mediaexec/**
+      - server/internal/decoder/**
+      - .github/workflows/f-usrmerge.yml
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -27,7 +31,7 @@ jobs:
             -v "$RUNNER_TEMP/usrmerge.test:/usrmerge.test:ro" \
             debian:13-slim sh -ec '
               apt-get update -qq
-              DEBIAN_FRONTEND=noninteractive apt-get install -y -qq bubblewrap ffmpeg >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends bubblewrap ffmpeg >/dev/null
               cat /etc/os-release
               readlink /lib64
               readlink -f /lib64/ld-linux-x86-64.so.2
