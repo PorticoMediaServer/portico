@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import runpy
+import re
 import shutil
 import tarfile
 import tempfile
@@ -35,7 +36,7 @@ def source_pin(target):
 
 def snapshots(source, destination):
     directory = destination / '.cache/downloads'; directory.mkdir(parents=True)
-    total, seen, count = 0, set(), 0
+    total, seen, count, aliases = 0, set(), 0, []
     with tarfile.open(source, 'r|xz') as archive:
         for item in archive:
             count += 1
@@ -43,14 +44,24 @@ def snapshots(source, destination):
             parts = PurePosixPath(item.name).parts
             if parts[:3] != ('recipe', '.cache', 'downloads'): continue
             if len(parts) == 3 and item.isdir(): continue
+            if len(parts) == 4 and item.issym():
+                # BtbN keeps a plain stage-name alias beside its exact command
+                # snapshot. Validate it, but let the pinned downloader recreate it.
+                alias = re.fullmatch(r'([A-Za-z0-9][A-Za-z0-9_-]{0,160})\.tar\.xz', parts[-1])
+                if (not alias or not re.fullmatch(re.escape(alias[1]) + r'_[a-f0-9]{64}\.tar\.xz', item.linkname)):
+                    raise ValueError('unsafe source snapshot alias: ' + item.name)
+                aliases.append(item.linkname)
+                continue
             if (len(parts) != 4 or not CACHE['NAME'].fullmatch(parts[-1]) or
                     not item.isfile() or item.name in seen or not 0 < item.size <= CACHE['LIMIT']):
-                raise ValueError('unsafe or duplicate source snapshot seed member')
+                raise ValueError('unsafe or duplicate source snapshot seed member: ' + item.name)
             seen.add(item.name); total += item.size
             if len(seen) > 1000 or total > CACHE['LIMIT']: raise ValueError('source snapshot seed exceeds bound')
             path = directory / parts[-1]
             with archive.extractfile(item) as inp, path.open('xb') as out: shutil.copyfileobj(inp, out, 1024**2)
             if path.stat().st_size != item.size: raise ValueError('truncated source snapshot seed')
+    if any('recipe/.cache/downloads/' + name not in seen for name in aliases):
+        raise ValueError('source snapshot alias has no checked command snapshot')
     if not seen: raise ValueError('retained source contains no dependency snapshots')
     return len(seen)
 
