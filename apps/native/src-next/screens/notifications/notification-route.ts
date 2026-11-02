@@ -6,8 +6,8 @@ import type {NativeShellRoute} from '../../shell/routes';
 export function notificationRoute(action: NotificationAction, hasLiveTV: boolean): NativeShellRoute | undefined {
   if (action.kind === 'command') {
     if (action.command === 'open-download') return {kind: 'downloads'};
-    // "New device signed in": Review device opens Settings, where this account's devices are.
-    if (action.command === 'review-device' && action.arguments?.deviceId) return {kind: 'shell', destination: {kind: 'settings'}};
+    // "New device signed in": Review device opens Profile & account, where this account's devices are.
+    if (action.command === 'review-device' && action.arguments?.deviceId) return {kind: 'shell', destination: {kind: 'settings', page: 'profile'}};
     return undefined;
   }
   const targetView = action.target?.view, libraryId = action.target?.libraryId, entityId = action.target?.entityId;
@@ -23,8 +23,8 @@ export function notificationRoute(action: NotificationAction, hasLiveTV: boolean
     case 'recording': return {kind: 'recordings'};
     case 'admin-feedback': return {kind: 'server-feedback'};
     case 'settings': return {kind: 'shell', destination: {kind: 'settings'}};
-    // Review security: this account's password and two-step sign-in, in Settings.
-    case 'settings-security': return {kind: 'shell', destination: {kind: 'settings'}};
+    // Review security: this account's password and two-step sign-in, on Profile & account.
+    case 'settings-security': return {kind: 'shell', destination: {kind: 'settings', page: 'profile'}};
     // The administrators' copy (Review devices): the server's people and their devices.
     case 'admin-devices': return {kind: 'server-settings', page: 'people'};
     case 'person': return entityId ? {kind: 'person', personId: entityId} : undefined;

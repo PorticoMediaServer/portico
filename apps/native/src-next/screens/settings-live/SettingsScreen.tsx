@@ -84,7 +84,7 @@ export function nativeSettingsIcon(name: string): IconName {
   return Object.hasOwn(nextIcons, key) ? key as IconName : 'i-sliders';
 }
 
-export function NativeSettingsScreen({ports, controller, runtime, devicePreferences, dashboard, initialPage, initialChannelId}: {ports: NativeSettingsLivePorts; controller: NativeSettingsController; runtime: NativeShellRuntime; devicePreferences: NativeDevicePreferences; dashboard?: NativeDashboardController; initialPage?: 'live'; initialChannelId?: string}) {
+export function NativeSettingsScreen({ports, controller, runtime, devicePreferences, dashboard, initialPage, initialChannelId}: {ports: NativeSettingsLivePorts; controller: NativeSettingsController; runtime: NativeShellRuntime; devicePreferences: NativeDevicePreferences; dashboard?: NativeDashboardController; initialPage?: 'live' | 'profile'; initialChannelId?: string}) {
   const theme = useTheme(), t = runtime.text.t, registry = useFocusRegistry(), insets = useSafeAreaInsets();
   const shell = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -175,7 +175,8 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const tabletAccountClusters: readonly (readonly string[])[] = [['profile', 'privacy'], ['playback', 'reading', 'languages', 'quality', 'music'], ['appearance', 'region', 'device']];
   const tabletServerClusters: readonly (readonly string[])[] = [['general', 'dashboard', 'history'], ['libraries', 'remote-sources', 'metadata', 'segments'], ['live', 'people', 'signin', 'remote', 'integrations'], ['streaming', 'storage', 'troubleshooting']];
   const tabletDefaultPage = accountPages.some(value => value.id === 'playback') ? 'playback' : accountPages[0]?.id;
-  const [selected, setSelected] = useState(() => !theme.isTV && managesServer && initialPage ? initialPage : !theme.isTV && !compact ? tabletDefaultPage : accountPages[0]?.id), [query, setQuery] = useState(''), [pushed, setPushed] = useState(!theme.isTV && (!!initialPage || !compact));
+  // J-32: an account page (Profile & account) opens for every profile; a server page only for one that manages it.
+  const [selected, setSelected] = useState(() => !theme.isTV && initialPage && (managesServer || accountPages.some(value => value.id === initialPage)) ? initialPage : !theme.isTV && !compact ? tabletDefaultPage : accountPages[0]?.id), [query, setQuery] = useState(''), [pushed, setPushed] = useState(!theme.isTV && (!!initialPage || !compact));
   // Once the wide pane is visible, shrinking keeps that same editor on screen.
   // Explicit phone Back still returns to the hub and releases its page normally.
   useLayoutEffect(() => {if (!theme.isTV && !compact) setPushed(true);}, [compact, theme.isTV]);
