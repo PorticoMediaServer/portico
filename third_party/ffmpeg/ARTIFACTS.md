@@ -447,7 +447,9 @@ checks all source inventories or stage OCI blobs, pushes with hash-pinned ORAS,
 and re-downloads by resolved manifest digest. Only a successful full inventory/
 bytes/modes round-trip permits deleting that target's obsolete engine Actions
 entries. Unrelated CI caches are never selected. The final budget check requires
-engine Actions usage below 1 GiB; the repository's fixed 10 GB budget is shared.
+engine Actions usage below 1 GiB even if one migration target is missing; the
+repository's fixed 10 GB budget is shared. A missing native checkpoint remains
+an explicit failed migration target and never enables a cold compiler job.
 If a source Actions entry was evicted, migration first checks GHCR, then uses
 the existing exact-id/hash source-only artifact seeder. It never re-resolves or
 rewrites the original snapshots. An evicted native prefix with no registry copy
