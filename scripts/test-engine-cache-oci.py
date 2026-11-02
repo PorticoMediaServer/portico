@@ -54,6 +54,7 @@ class OCIControls(unittest.TestCase):
                 with self.assertRaises(ValueError): OCI.unpack(transport, root / 'refused', scope)
                 self.assertFalse((root / 'refused').exists())
             (transport / 'receipt.json').write_text(json.dumps(original))
+            (transport / 'payload.tar').chmod(0o644)  # Deliberate fault injection into the sealed fixture.
             with (transport / 'payload.tar').open('r+b') as stream: stream.write(b'changed')
             with self.assertRaises(ValueError): OCI.unpack(transport, root / 'refused', scope)
             self.assertFalse((root / 'refused').exists())
