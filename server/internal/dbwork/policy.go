@@ -6,24 +6,28 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
 
-// Policy is the validated SQLite runtime preset. It is intentionally
-// conservative: SQLite serialises writers, so a large pool only multiplies lock
-// competition and each connection's private page cache. The preset keeps the
-// configured page-cache allowance at 36 MiB (6 foreground + 2 background + 1
-// writer connections x 4 MiB). Every allowed foreground connection stays idle
-// between bursts: closing one discards both its page cache and prepared
-// bytecode, forcing schema/statement parsing on the next request burst.
-// Retaining six instead of four idle handles raises resting usage to the
-// already-permitted burst peak, not the concurrent capacity or memory ceiling.
-// Database mmap is disabled; SQLite's allocator, retained statements and
-// temporary sorts still use memory outside the Go runtime's soft limit.
+// Policy is the validated SQLite runtime preset. Readers scale with the host:
+// in WAL a reader never blocks the writer or another reader, so the useful
+// number of read connections is set by cores, not by SQLite. A fixed six left a
+// 16-core host idle behind its pool and gave every background loop one shared
+// connection (J-18). Each connection costs its page cache (4 MiB) plus the
+// parsed schema (about 10 MiB today), so the ceiling stays modest: 16
+// foreground and 8 background connections. Every allowed connection stays idle
+// between bursts: closing one discards its page cache, prepared bytecode and
+// parsed schema, which the next request pays for. Database mmap is disabled;
+// SQLite's allocator, retained statements and temporary sorts still use memory
+// outside the Go runtime's soft limit.
 type Policy struct {
-	MaxOpenConns      int
-	MaxIdleConns      int
+	MaxOpenConns int
+	MaxIdleConns int
+	// BackgroundConns is the separate read pool every classified background
+	// loop shares, so bulk work can never take a foreground connection.
+	BackgroundConns   int
 	CacheSizeKiB      int64
 	MmapSizeBytes     int64
 	ConnMaxLifetime   time.Duration
@@ -38,7 +42,8 @@ type Policy struct {
 }
 
 const (
-	safeMaxOpenConns = 6
+	safeMaxOpenConns       = 16
+	safeMaxBackgroundConns = 8
 	// Retain the already-allowed reader peak and its per-connection bytecode.
 	safeMaxIdleConns      = safeMaxOpenConns
 	safeCacheSizeKiB      = 4 * 1024 // 4 MiB per connection
@@ -51,6 +56,14 @@ const (
 	safeWriterBusyTimeoutMilli = 25
 )
 
+// hostReaders sizes the read pools for cpus usable cores: two foreground
+// connections a core (a request spends part of its life composing, not
+// reading) between 4 and 16, and half a core's worth of background ones
+// between 2 and 8, so two background loops never wait on each other.
+func hostReaders(cpus int) (foreground, background int) {
+	return min(max(2*cpus, 4), safeMaxOpenConns), min(max(cpus/2, 2), safeMaxBackgroundConns)
+}
+
 // ErrPolicy reports a resource policy that would exceed the validated envelope.
 var ErrPolicy = errors.New("sqlite resource policy out of range")
 
@@ -60,9 +73,11 @@ var ErrPolicy = errors.New("sqlite resource policy out of range")
 // one. Raising these numbers is an evidence-backed change, made here, with the
 // load test re-run.
 func DefaultPolicy() Policy {
+	foreground, background := hostReaders(runtime.GOMAXPROCS(0))
 	return Policy{
-		MaxOpenConns:      safeMaxOpenConns,
-		MaxIdleConns:      safeMaxIdleConns,
+		MaxOpenConns:      foreground,
+		MaxIdleConns:      foreground,
+		BackgroundConns:   background,
 		CacheSizeKiB:      safeCacheSizeKiB,
 		MmapSizeBytes:     safeMmapSizeBytes,
 		ConnMaxLifetime:   safeConnMaxLifetime,
@@ -79,6 +94,9 @@ func DefaultPolicy() Policy {
 func (p Policy) Validate() error {
 	if p.MaxOpenConns < 1 || p.MaxOpenConns > safeMaxOpenConns {
 		return fmt.Errorf("%w: max open connections %d", ErrPolicy, p.MaxOpenConns)
+	}
+	if p.BackgroundConns < 1 || p.BackgroundConns > safeMaxBackgroundConns {
+		return fmt.Errorf("%w: background connections %d", ErrPolicy, p.BackgroundConns)
 	}
 	if p.MaxIdleConns < 0 || p.MaxIdleConns > safeMaxIdleConns || p.MaxIdleConns > p.MaxOpenConns {
 		return fmt.Errorf("%w: max idle connections %d", ErrPolicy, p.MaxIdleConns)

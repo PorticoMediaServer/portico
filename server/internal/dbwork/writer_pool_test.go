@@ -60,7 +60,7 @@ func TestClosingPublicHandleClosesWriterPool(t *testing.T) {
 	if writer == db {
 		t.Fatal("writer not separate")
 	}
-	if background == db || background == writer || background.Stats().MaxOpenConnections != 1 || db.Stats().MaxOpenConnections != 6 {
+	if background == db || background == writer || background.Stats().MaxOpenConnections != DefaultPolicy().BackgroundConns || db.Stats().MaxOpenConnections != DefaultPolicy().MaxOpenConns {
 		t.Fatal("foreground/background pools are not isolated")
 	}
 	if err := db.Close(); err != nil {
@@ -150,25 +150,34 @@ func TestBackgroundAndForegroundReadPoolsCannotStarveEachOther(t *testing.T) {
 	}
 }
 
-func TestBackgroundReadersSerializeWithoutHoldingForegroundCapacity(t *testing.T) {
+func TestBackgroundReadersAreBoundedWithoutHoldingForegroundCapacity(t *testing.T) {
 	db := testDB(t)
 	ctx := WithClass(context.Background(), ClassBackgroundMedia)
 	bg := ReadHandle(ctx, db)
-	first, err := bg.Conn(ctx)
-	if err != nil {
-		t.Fatal(err)
+	held := []*sql.Conn{}
+	defer func() {
+		for _, conn := range held {
+			conn.Close()
+		}
+	}()
+	for range DefaultPolicy().BackgroundConns {
+		conn, err := bg.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		held = append(held, conn)
 	}
-	defer first.Close()
 	wait, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
 	defer cancel()
-	if second, err := bg.Conn(wait); err == nil {
-		second.Close()
-		t.Fatal("second background reader was concurrent")
+	if extra, err := bg.Conn(wait); err == nil {
+		extra.Close()
+		t.Fatal("background readers exceeded their pool")
 	}
 	if err := QueryRow(context.Background(), db, `SELECT 1`).Scan(new(int)); err != nil {
 		t.Fatal(err)
 	}
-	first.Close()
+	held[0].Close()
+	held = held[1:]
 	if err := QueryRow(ctx, db, `SELECT 1`).Scan(new(int)); err != nil {
 		t.Fatal("background reader did not resume", err)
 	}
@@ -179,8 +188,8 @@ func TestCheckpointControlBypassesOnlyTheBackgroundConnection(t *testing.T) {
 	for _, class := range []Class{ClassMaintenance, ClassBackgroundMedia} {
 		ctx := WithClass(context.Background(), class)
 		background := ReadHandle(ctx, db)
-		if background == db || background.Stats().MaxOpenConnections != 1 {
-			t.Fatalf("ordinary %v work escaped the single background connection", class)
+		if background == db || background.Stats().MaxOpenConnections != DefaultPolicy().BackgroundConns {
+			t.Fatalf("ordinary %v work escaped the background pool", class)
 		}
 		control := context.WithValue(ctx, checkpointReaderBypassKey{}, true)
 		if ReadHandle(control, db) != db {
@@ -190,7 +199,7 @@ func TestCheckpointControlBypassesOnlyTheBackgroundConnection(t *testing.T) {
 			t.Fatal("checkpoint control changed ordinary background routing")
 		}
 	}
-	if db.Stats().MaxOpenConnections != 6 {
+	if db.Stats().MaxOpenConnections != DefaultPolicy().MaxOpenConns {
 		t.Fatal("foreground capacity changed")
 	}
 }

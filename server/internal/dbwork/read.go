@@ -164,8 +164,11 @@ func RawConn(raw any) any {
 // waits at a place its request deadline reaches, rather than inside the pool.
 const snapshotReserve = 2
 
-var foregroundSnapshotPermits = make(chan struct{}, max(1, safeMaxOpenConns-snapshotReserve))
-var backgroundSnapshotPermits = make(chan struct{}, 1)
+var foregroundSnapshotPermits = make(chan struct{}, max(1, DefaultPolicy().MaxOpenConns-snapshotReserve))
+
+// Background snapshots leave one background connection for single-statement
+// reads, as foreground ones leave snapshotReserve.
+var backgroundSnapshotPermits = make(chan struct{}, max(1, DefaultPolicy().BackgroundConns-1))
 
 var snapshotWaiting atomic.Int64
 var snapshotHeld atomic.Int64

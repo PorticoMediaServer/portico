@@ -25,7 +25,11 @@ import (
 // IntegrityCheckDeadline.
 const (
 	ForegroundSnapshotLifetime = 2 * time.Second
-	BackgroundSnapshotLifetime = 500 * time.Millisecond
+	// A background snapshot's lifetime includes waiting for its connection, so
+	// half a second turned every busy moment into "context deadline exceeded"
+	// for the loop that asked (J-18). Five seconds still bounds how long bulk
+	// work can pin the WAL, and a WAL reset can still end it.
+	BackgroundSnapshotLifetime = 5 * time.Second
 	LongReadLifetime           = IntegrityCheckDeadline
 )
 

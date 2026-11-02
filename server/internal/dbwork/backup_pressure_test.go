@@ -49,8 +49,8 @@ func TestHardPressureCancelsTheLongReadButABackupOnlyWaits(t *testing.T) {
 	}()
 	<-started
 	background := ReadHandle(long, db)
-	if background == db || background.Stats().MaxOpenConnections != 1 || background.Stats().InUse != 1 {
-		t.Fatalf("long snapshot did not pin the sole background connection: %+v", background.Stats())
+	if background == db || background.Stats().MaxOpenConnections != DefaultPolicy().BackgroundConns || background.Stats().InUse != 1 {
+		t.Fatalf("long snapshot did not pin a background connection: %+v", background.Stats())
 	}
 
 	// The backup: one page per writer ticket, with a pause between steps so

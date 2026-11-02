@@ -90,8 +90,8 @@ func OpenHandle(path string, policy Policy) (*sql.DB, error) {
 		writer.Close()
 		return nil, err
 	}
-	background.SetMaxOpenConns(1)
-	background.SetMaxIdleConns(1)
+	background.SetMaxOpenConns(policy.BackgroundConns)
+	background.SetMaxIdleConns(policy.BackgroundConns)
 	background.SetConnMaxLifetime(policy.ConnMaxLifetime)
 	// The gate owns admission; readers never borrow this connection.
 	db := sql.OpenDB(&splitConnector{dsn: dsn, driver: &splitDriver{Driver: writer.Driver(), dsn: dsn, writer: writer, background: background}})
