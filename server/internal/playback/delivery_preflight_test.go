@@ -11,26 +11,26 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/decoder"
 )
 
-func TestDirectStartObservesHardwareOutsideWriter(t *testing.T) {
+func TestDirectStartChecksHardwareGenerationOutsideWriter(t *testing.T) {
 	db, service, principal, _, item, _ := activityFixture(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	calls := 0
-	detector := &decoder.HardwareDetector{RuntimeIdentity: func(check context.Context, _ string) (string, error) {
+	detector := &decoder.HardwareDetector{CachedRuntimeIdentity: func(check context.Context, _ string) (string, bool) {
 		calls++
 		if dbwork.Snapshot(check) != nil {
 			t.Error("identity work received a SQL carrier")
 		}
-		// A genuine writer can be taken while hashing, even on the warm start.
+		// A genuine writer can be taken during a generation check, even warm.
 		bounded, stop := context.WithTimeout(check, 250*time.Millisecond)
 		defer stop()
 		writer, err := dbwork.Begin(bounded, db, dbwork.ClassEstablishedPlayback)
 		if err != nil {
 			t.Error("identity observation held the playback writer", err)
-			return "", err
+			return "", false
 		}
 		_ = writer.Rollback()
-		return "", errors.New("test host has no qualified hardware identity")
+		return "", false
 	}}
 	cfg := DefaultDeliveryConfiguration()
 	cfg.HardwareBackend = "auto"
