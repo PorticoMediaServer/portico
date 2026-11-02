@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {assertTVFocusGuideRule, tvosNativeProps} from './helpers/tvos-focus-guide.mjs';
 
 // CoveredLayer provides whether its subtree is covered (W-9); the shallow hook host has no createContext.
 const withContext = (react: any) => {const out = {...react, createContext: (value: unknown) => ({value, Provider: 'CoveredProvider'})}; return {...out, default: out};};
@@ -22,19 +23,28 @@ test('a covered TV layer blocks D-pad focus into everything under it, and an unc
   assert.equal(open.props.focusable, true);
   assert.equal(open.props.importantForAccessibility, 'auto');
   assert.equal(open.props.destinations, undefined, 'no guide destinations: the container never takes focus itself');
-  assert.equal(open.props.autoFocus, undefined);
+  assert.equal(open.props.autoFocus, true, 'every TV layer remembers its last focused element');
 });
 
-test('W-9/W-12: an autoFocus layer remembers its last focused element, so an empty layer never takes focus itself', async () => {
+test('W-9/W-12: every TV layer remembers its last focused element, so an empty layer never takes focus itself', async () => {
   const h = hooks();
   const {CoveredLayer} = await screenModule(new URL('../src-next/kit/focus/CoveredLayer.tsx', import.meta.url), {
     react: withContext(h.react), 'react-native': {TVFocusGuideView: 'TVFocusGuideView', View: 'View'}, '../theme': {useTheme: () => ({isTV: true})}});
-  const routes = h.render(() => CoveredLayer({covered: false, autoFocus: true, children: null, testID: 'routes'})) as any;
+  const routes = h.render(() => CoveredLayer({covered: false, children: null, testID: 'routes'})) as any;
   assert.equal(routes.props.autoFocus, true);
   assert.equal(routes.props.focusable, true);
   const host = {current: null};
-  const base = h.render(() => CoveredLayer({covered: false, autoFocus: true, hostRef: host, children: 'page', testID: 'native-shell-base'})) as any;
+  const base = h.render(() => CoveredLayer({covered: false, hostRef: host, children: 'page', testID: 'native-shell-base'})) as any;
   assert.equal(base.props.ref ?? base.ref, host, 'the shell can claim focus into its base page (W-12 fallback)');
+});
+
+test('TV focus review §4.4.1: on tvOS an uncovered layer is selectable again, so a route page still works after Back', async () => {
+  assertTVFocusGuideRule(assert);
+  const render = await layer(true);
+  // Collections, See all and the reader pass no option: every CoveredLayer now behaves this way.
+  const covered = render(true), open = render(false);
+  assert.deepEqual(tvosNativeProps(covered.props), {isTVSelectable: false, autoFocus: true}, 'covered: its subtree is hidden from the focus engine');
+  assert.deepEqual(tvosNativeProps(open.props), {isTVSelectable: true, autoFocus: true}, 'uncovered: its subtree takes focus again');
 });
 
 test('touch has no D-pad: the layer only hides from screen readers and touches', async () => {

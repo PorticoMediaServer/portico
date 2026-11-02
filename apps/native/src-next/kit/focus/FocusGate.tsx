@@ -14,6 +14,10 @@ type Guide = React.ElementRef<typeof TVFocusGuideView> & {setDestinations?: (des
  * W-14 reopened: the gate only exists for focus coming FROM the other side. While focus is in the
  * region itself, the gate takes no focus (a blocked guide is no D-pad candidate); otherwise Right
  * from the region met the gate first and was handed straight back, never reaching the rows.
+ *
+ * `autoFocus` (TV focus review §4.4.3): its destinations are sent imperatively, not as a prop, and
+ * react-native-tvos makes a guide with neither destinations nor `autoFocus` unselectable on tvOS,
+ * so without it the gate would never take part in Apple TV's focus search at all.
  */
 export function FocusGate({regionId, style, testID}: {regionId: string; style?: StyleProp<ViewStyle>; testID?: string}) {
   const {isTV} = useTheme(), registry = useFocusRegistry(), guide = useRef<Guide>(null);
@@ -29,5 +33,5 @@ export function FocusGate({regionId, style, testID}: {regionId: string; style?: 
     const handle = host ? findNodeHandle(host as never) : null;
     guide.current?.setDestinations?.(handle == null ? [] : [handle]);
   }, [inside, registry, regionId, revision]);
-  return isTV ? <TVFocusGuideView ref={guide as never} focusable={!inside} style={style} testID={testID ?? `portico.gate.${encodeURIComponent(regionId)}`}/> : null;
+  return isTV ? <TVFocusGuideView ref={guide as never} focusable={!inside} autoFocus style={style} testID={testID ?? `portico.gate.${encodeURIComponent(regionId)}`}/> : null;
 }

@@ -402,7 +402,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     </Animated.View> : <>
     <Animated.View pointerEvents={settingsPage ? 'none' : 'auto'} accessibilityElementsHidden={baseHidden || settingsPage} importantForAccessibility={baseHidden || settingsPage ? 'no-hide-descendants' : 'auto'} style={[{flex: 1}, settingsPage && !settingsSheet ? {display: 'none'} : null, sideNavigation ? {paddingLeft: sideWidth} : null, settingsPage ? undefined : pageStyle]}>
       {/* A pushed TV route covers this page: nothing under it may take D-pad focus (CoveredLayer). */}
-      {theme.isTV ? <CoveredLayer covered={baseHidden || settingsPage} autoFocus hostRef={baseLayer} style={{flex: 1}} testID="native-shell-base">{basePage}</CoveredLayer> : basePage}
+      {theme.isTV ? <CoveredLayer covered={baseHidden || settingsPage} hostRef={baseLayer} style={{flex: 1}} testID="native-shell-base">{basePage}</CoveredLayer> : basePage}
     </Animated.View>
     {settingsPage && <Animated.View style={[{position: 'absolute', inset: 0, paddingLeft: sideNavigation ? sideWidth : 0, paddingBottom: settingsSheet ? 0 : pageBottom}, pageStyle]}>{runtime.renderDestination(destination, openLibrary)}</Animated.View>}
     </>}

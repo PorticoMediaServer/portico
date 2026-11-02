@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {assertTVFocusGuideRule, tvosNativeProps} from './helpers/tvos-focus-guide.mjs';
 
 async function gate(tv: boolean, host: object | undefined, focusedRegion?: string) {
   const destinations: unknown[][] = [];
@@ -41,4 +42,13 @@ test('W-14 reopened: Right from the page column reaches the first row, because t
   const fromRows = await gate(true, {tag: 'column'}, 'settings.page.profile');
   assert.equal(fromRows.element.props.focusable, true, 'focus in the rows: Left meets the gate and returns to the column');
   assert.deepEqual(fromRows.destinations.at(-1), [42], 're-enabled with its destination sent again');
+});
+
+test('TV focus review §4.4.3: on tvOS the gate is a selectable guide while focus is outside its region', async () => {
+  assertTVFocusGuideRule(assert);
+  const fromRows = await gate(true, {tag: 'column'}, 'settings.page.profile');
+  assert.equal(fromRows.element.props.autoFocus, true);
+  assert.deepEqual(tvosNativeProps(fromRows.element.props), {isTVSelectable: true, autoFocus: true}, 'its destinations are sent imperatively, so autoFocus is what makes it selectable');
+  const fromColumn = await gate(true, {tag: 'column'}, 'settings.pages');
+  assert.equal(tvosNativeProps(fromColumn.element.props).isTVSelectable, false, 'focus in the column: still no candidate');
 });
