@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import lzma
 import os
 from pathlib import Path
 import re
@@ -26,6 +27,7 @@ def sync(action, recipe, store):
             raise ValueError('source snapshot cache root cannot be a link')
     store.mkdir(parents=True, exist_ok=True); directory.mkdir(parents=True, exist_ok=True)
     receipt = store / 'receipt.json'
+    if receipt.is_symlink(): raise ValueError('source snapshot inventory cannot be a link')
     entries = json.loads(receipt.read_text()) if receipt.exists() else {}
     if not isinstance(entries, dict) or len(entries) > 1000:
         raise ValueError('bounded source snapshot inventory required')
@@ -49,6 +51,13 @@ def sync(action, recipe, store):
             # Incomplete downloads and unrelated files never enter the cache.
             if not NAME.fullmatch(path.name): continue
             if path.is_symlink() or not path.is_file(): raise ValueError('linked source snapshot')
+            # A killed tar/xz writer can leave a command-named partial file.
+            # Never turn that into a persistent hit on the next attempt.
+            try:
+                with lzma.open(path, 'rb') as stream:
+                    while stream.read(1024**2): pass
+            except (lzma.LZMAError, EOFError):
+                continue
             sha = digest(path); destination = store / path.name
             if path.name in entries:
                 if entries[path.name] != sha: raise ValueError('source snapshot bytes changed for an existing command hash')

@@ -2,6 +2,7 @@
 """Regression controls for exact source reuse, replay and four-target planning."""
 import hashlib
 import io
+import lzma
 import tarfile
 import json
 import os
@@ -23,9 +24,12 @@ class RebuildControls(unittest.TestCase):
             root = Path(temporary); store = root / 'store'; first = root / 'first'; first.mkdir()
             downloads = first / '.cache/downloads'; downloads.mkdir(parents=True)
             name = '50-library_' + hashlib.sha256(b'locked source command').hexdigest() + '.tar.xz'
-            snapshot = downloads / name; snapshot.write_bytes(b'exact previously verified snapshot including original timestamps')
+            snapshot = downloads / name; snapshot.write_bytes(lzma.compress(b'exact previously verified snapshot including original timestamps'))
             sha = CACHE['digest'](snapshot)
+            partial = downloads / ('50-partial_' + 'b' * 64 + '.tar.xz')
+            partial.write_bytes(b'interrupted xz stream')
             CACHE['sync']('save', first, store)
+            self.assertFalse((store / partial.name).exists())
             fresh = root / 'fresh'; fresh.mkdir()
             report = CACHE['sync']('restore', fresh, store)
             self.assertEqual(report['restored'], 1)

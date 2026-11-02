@@ -24,7 +24,7 @@ if m['target']=='linux-x64':
  rounds=json.loads((root/'repeat-build.json').read_text()) if 'repeat-build.json' in files else []
  inputs=json.loads((root/'linux-build-inputs.json').read_text())
  expected={tool:files['bin/'+tool] for tool in ['ffmpeg','ffprobe','portico-disc']}
- if rounds and (len(rounds)!=2 or [r.get('round') for r in rounds]!=[1,2] or
+ if 'repeat-build.json' in files and (len(rounds)!=2 or [r.get('round') for r in rounds]!=[1,2] or
      not all(r.get('binaries')==expected and r.get('sourceArchiveSHA256')==inputs.get('sourceArchiveSHA256') for r in rounds)):
   raise SystemExit('Repeated executable builds do not match this bundle')
  if not all(isinstance(inputs.get(key),str) and re.fullmatch(r'[0-9a-f]{64}',inputs[key]) for key in ['sourceArchiveSHA256','dependencyPrefixFilesSHA256']):
