@@ -23,7 +23,7 @@ import {nativeScreenServices, NativeScreenFeedbackHost} from '../screens/native-
 import {OwnerTag} from '../kit/shell';
 import {HomeSelectionBars} from './HomeSelectionBars';
 import {HomeSelectionOverlays} from './HomeSelectionOverlays';
-import {nativeAccountMenu, nativeMenuRouteAvailable} from './account';
+import {nativeAccountMenu, nativeAccountOpenTransition, nativeMenuRouteAvailable} from './account';
 import {libraryScanReadiness} from './library-scan';
 import {NativeDownloadSheet} from '../screens/downloads/DownloadSheet';
 import {createNativeHomeSelectionAction, nativeSelectionActionInput, type NativeHomeQueryActions, type NativeSelectionActionPresentation} from '../screens/library/selection-actions';
@@ -78,6 +78,14 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     feedback.reportError(error, 'home');
   };
   const open = (route: NativeShellRoute) => {if (alive && context.current()) context.navigation.open(route, context.authority());};
+  /** W-9: an account destination (Switch profile, Switch server, notifications…) opened while the TV music or
+   * audiobook player is expanded folds the player away first, so the page opens on top and holds focus rather
+   * than sitting under the player. TV video has no collapsed state and is left to its own Back. */
+  const openFromAccount = (route: NativeShellRoute) => {
+    const adapter = runtime?.playback, fold = adapter && nativeAccountOpenTransition(adapter.dock, adapter.getSnapshot(), Platform.isTV);
+    if (adapter && fold) void adapter.onTransition(fold).catch(error => reportError(error));
+    open(route);
+  };
   const mutationCoordinator = context.api.getUserMutationCoordinator();
   const mutationScope = () => alive && context.current() ? context.api.getUserMutationScope() : undefined;
   const pendingChanges = mutationCoordinator ? new NativePendingChanges(new UserMutationRecoveryModel({
@@ -397,7 +405,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
           .finally(() => {operation.dispose(); operations.delete(signal);});
   };
   return {get account() {
-    const account = nativeAccountMenu(context.account, open, Platform.isTV, nativeMenuRouteAvailable);
+    const account = nativeAccountMenu(context.account, openFromAccount, Platform.isTV, nativeMenuRouteAvailable);
     return pendingChanges ? {...account, actions: [...account.actions, {id: 'pending-changes', label: defaultI18n.t('recovery.title'), icon: 'i-clock' as const, onPress: pendingChanges.open}]} : account;
   }, attach: value => {runtime = value;},
     renderPendingChanges: () => pendingChanges && runtime ? <PendingChanges owner={pendingChanges} runtime={runtime} openDestination={reviewDestination}/> : null,
