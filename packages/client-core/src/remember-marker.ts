@@ -7,6 +7,7 @@
  * sessionStorage, so it lasts for this browser tab, as drawn ("Remember this profile in this
  * browser tab").
  */
+import {serverNow} from './server-clock.ts';
 export type RememberMarker = Readonly<{serverId: string; familyId: string; profileId: string; expiresAt: string}>;
 
 export interface RememberStore {
@@ -31,7 +32,7 @@ export function parseRememberMarker(raw: unknown): RememberMarker | undefined {
 /** The marker counts only for the exact sign-in that remembered it, and only until it expires.
  *  A pick by another tab or a successor family makes it stale, never wrong. */
 export function rememberedFor(marker: RememberMarker | undefined, held: Readonly<{serverId: string; familyId: string; profileId: string}>,
-  wallNowMs: number = Date.now()): boolean {
+  wallNowMs: number = serverNow()): boolean {
   return !!marker && marker.serverId === held.serverId && marker.familyId === held.familyId && marker.profileId === held.profileId
     && Date.parse(marker.expiresAt) > wallNowMs;
 }

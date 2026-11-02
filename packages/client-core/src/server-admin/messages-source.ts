@@ -5,6 +5,7 @@ import {readEventStream} from '../sse.ts';
 import {randomId} from '../random-id.ts';
 import {backoffDelay, parseRetryAfter, type Backoff} from '../timer.ts';
 import {routePath} from '../../../contracts/src/route-paths.ts';
+import {serverNow} from '../server-clock.ts';
 
 export type MessageConnection = Readonly<{open: (headers: Record<string, string>, signal: AbortSignal) => Promise<Response>}>;
 export type MessagesSnapshot = Readonly<{phase: 'idle'|'loading'|'ready'|'error'; lines: readonly LogRecord[]; level: LogLevel|''; category: LogCategory|''; live: boolean; reconnecting: boolean; readAt?: number; settings?: LogSettings; changing: boolean}>;
@@ -13,7 +14,7 @@ export function appendMessage(lines: readonly LogRecord[], record: LogRecord): r
   return lines.some(line => line.sequence === record.sequence) ? lines : [...lines.slice(-499), record];
 }
 const messageBackoff: Backoff = {baseMs: 2000, maxMs: 64000, jitter: 'none'};
-export function messageRetryMs(attempt: number, retryAfter: string|null, now = Date.now()): number {
+export function messageRetryMs(attempt: number, retryAfter: string|null, now = serverNow()): number {
   if (retryAfter !== null) {
     const ms = parseRetryAfter(retryAfter, now);
     if (ms !== undefined) return Math.min(ms, 2147483647);
@@ -64,7 +65,7 @@ export class SettingsMessagesSource {
         this.transport.request<unknown>(routePath('get_admin_logs_settings'), 'GET', undefined, read.signal).then(parseLogSettings),
       ]);
       if (this.read !== read || read.signal.aborted || !this.current()) return;
-      this.publish({phase: 'ready', lines: [...page.items].reverse(), settings, readAt: Date.now()});
+      this.publish({phase: 'ready', lines: [...page.items].reverse(), settings, readAt: serverNow()});
     } catch (error) {if (this.read === read && !read.signal.aborted && this.current()) {this.publish({phase: 'error'});this.failure(error);}}
   };
   select = async (level: LogLevel|'', category: LogCategory|'') => {
@@ -127,7 +128,7 @@ export class SettingsMessagesSource {
         const settings = parseLogSettings(await this.transport.request(routePath('get_admin_logs_settings'), 'GET', undefined, this.lifetime.signal));
         if (!this.current()) return;
         this.publish({settings});
-        const active = !!settings.debugWindowUntil && Date.parse(settings.debugWindowUntil) > Date.now();
+        const active = !!settings.debugWindowUntil && Date.parse(settings.debugWindowUntil) > serverNow();
         if (active === (intent.minutes > 0)) {this.detailIntent = undefined;return;}
         // Reconcile the old command only. An opposite click cannot replay it; the
         // owner can choose a fresh action once this read has settled the display.

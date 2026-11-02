@@ -1,3 +1,4 @@
+import {serverNow} from './server-clock.ts';
 import {
   cancelSelectionAction, createSelectionAction, getSelectionAction, getSelectionActionPreparation,
   isSelectionActionTerminal, prepareSelectionAction, releaseSelectionActionPreparation, selectionActionInput,
@@ -42,7 +43,9 @@ export class SelectionActionController {
   private ticket?: Ticket;
   private disposed = false;
   private now: () => number;
-  constructor(private readonly options: SelectionActionControllerOptions) {this.now = options.now ?? Date.now;}
+  /** The server's clock, for an expiry the server issued (no client-clock requirements); `now` times this device's own waits. */
+  private serverTime: () => number;
+  constructor(private readonly options: SelectionActionControllerOptions) {this.now = options.now ?? Date.now; this.serverTime = options.now ?? serverNow;}
   getSnapshot = (): SelectionActionSnapshot => this.state;
   subscribe = (listener: () => void): (() => void) => {if (this.disposed) return () => {}; this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
   private publish(patch: Partial<SelectionActionSnapshot>) {
@@ -109,7 +112,7 @@ export class SelectionActionController {
         if (preparation.kind === 'selection-action-preview') {
           if (preparation.action !== ticket.input.action || preparation.basis !== ticket.input.selector.query.selectionBasis
             || ticket.expectedTotal !== undefined && preparation.total !== ticket.expectedTotal
-            || Date.parse(preparation.expiresAt) <= this.now()) throw Object.assign(new Error('Selection expired'), {code: 'stale_continuation'});
+            || Date.parse(preparation.expiresAt) <= this.serverTime()) throw Object.assign(new Error('Selection expired'), {code: 'stale_continuation'});
           this.publish({phase: 'ready', preparation, errorCode: null}); return;
         }
         this.publish({preparation});
@@ -129,7 +132,7 @@ export class SelectionActionController {
     const ticket = this.ticket, preview = ticket?.preparation;
     if (!ticket || !this.live(ticket) || this.state.phase !== 'ready' || preview?.kind !== 'selection-action-preview') return;
     if (this.state.confirmation !== preview.confirmation) {this.publish({errorCode: 'confirmation_required'}); return;}
-    if (Date.parse(preview.expiresAt) <= this.now()) {this.publish({phase: 'error', errorCode: 'stale_continuation'}); return;}
+    if (Date.parse(preview.expiresAt) <= this.serverTime()) {this.publish({phase: 'error', errorCode: 'stale_continuation'}); return;}
     this.publish({phase: 'confirming', errorCode: null});
     const io = ticket.io;
     try {

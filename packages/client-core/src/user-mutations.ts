@@ -1,5 +1,6 @@
 import {apiRoot} from '../../contracts/src/route-paths.ts';
 import {parseRetryAfter} from './timer.ts';
+import {serverNow} from './server-clock.ts';
 /** Durable custody for the reviewed user-mutation cohort. Authentication always
  * comes from the live original family; credentials never enter this store. */
 export type UserMutationScope = Readonly<{serverId:string;origin:string;authority:string;accountId:string;profileId:string;familyId:string;deviceId?:string}>;
@@ -121,7 +122,7 @@ export function parseUserMutationReceipt(raw:unknown,entry:Pick<UserMutationEntr
 function receivedUserMutationReceipt(raw:unknown,entry:Pick<UserMutationEntry,'key'|'operation'>):UserMutationReceipt {
  try{return parseUserMutationReceipt(raw,entry);}catch(error){if(error instanceof UserMutationError&&error.code==='mutation_receipt_invalid')throw new Error('mutation_receipt_pending');throw error;}
 }
-export function userMutationRetryAfterMs(value:string|undefined,now=Date.now()):number{
+export function userMutationRetryAfterMs(value:string|undefined,now=serverNow()):number{
  const cap=Number.MAX_SAFE_INTEGER-now,ms=parseRetryAfter(value,now);
  // A positive digit string too large for the helper to hold is still a (very long) floor.
  return ms!==undefined?Math.min(ms,cap):value&&/^\s*\d*[1-9]\d*\s*$/.test(value)?cap:0;

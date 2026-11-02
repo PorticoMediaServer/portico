@@ -3,6 +3,7 @@ import {validInstallationId} from './installation.ts';
 import {ACCOUNT_STEP_WINDOW_MS} from '../../contracts/src/account-step.ts';
 import {routeBase64, routeBytes, routeOrigin, sameServerPin, serverPin, webRouteCrypto, type RouteCrypto, type ServerPin} from './route-identity.ts';
 import {CodedError} from './server-messages.ts';
+import {clockOrigin, serverNow} from './server-clock.ts';
 
 export type OwnerSignedProof = Readonly<{payload: string; signature: string}>;
 const claimFields = ['kind', 'audience', 'operationId', 'serverId', 'accountId', 'publicKey', 'localGeneration', 'name', 'address', 'purpose', 'currentOwnerAccountId', 'previousOwnerRole', 'returnRegistrationId', 'issuedAt', 'expiresAt'] as const;
@@ -30,7 +31,7 @@ const STEP_NS = BigInt(ACCOUNT_STEP_WINDOW_MS) * 1000000n;
  * proves immutable binding only; it grants no claim, account or admission.
  * The browser separately enforces its secure context/protected store and the
  * Server owns current family, reservation, install and one-spend authority. */
-export async function verifyOwnerClaimStart(original: unknown, signedStart: unknown, expected: OwnerStartExpectation, now = Date.now(), crypto: RouteCrypto = webRouteCrypto): Promise<Readonly<{claim: ClaimFacts; start: OwnerStartFacts}>> {
+export async function verifyOwnerClaimStart(original: unknown, signedStart: unknown, expected: OwnerStartExpectation, now = serverNow(clockOrigin(expected.origin)), crypto: RouteCrypto = webRouteCrypto): Promise<Readonly<{claim: ClaimFacts; start: OwnerStartFacts}>> {
   // Capture scalar expectations before the first cryptographic await. A caller
   // reusing its selection object cannot retarget this verification in flight.
   expected = Object.freeze({...expected, pin: Object.freeze({...expected.pin})});
@@ -61,7 +62,8 @@ export async function verifyOwnerClaimStart(original: unknown, signedStart: unkn
     !claim.name || new TextEncoder().encode(claim.name).length > 120 || start.state !== expected.state || start.codeChallenge !== expected.codeChallenge || start.installationId !== expected.installationId ||
     !/^[A-Za-z0-9_-]{32,128}$/.test(start.serverChallenge)) invalid();
   const issued = timestamp(claim.issuedAt), expires = timestamp(claim.expiresAt), startIssued = timestamp(start.issuedAt), startExpires = timestamp(start.expiresAt), nowNS = BigInt(now) * 1000000n;
-  if (issued > nowNS + 60000000000n || expires <= nowNS || expires <= issued || expires - issued > STEP_NS || startIssued < issued || startIssued > nowNS + 60000000000n ||
+  // No client-clock requirements: an issuance is never bounded above by this device's clock; only the server's own instants constrain each other.
+  if (expires <= nowNS || expires <= issued || expires - issued > STEP_NS || startIssued < issued ||
     startExpires <= nowNS || startExpires <= startIssued || startExpires - startIssued > STEP_NS || startExpires > expires) invalid();
   if (routeBase64(await crypto.sha256(c.raw)) !== start.claimHash) invalid();
   routeBytes(start.claimHash, 32);

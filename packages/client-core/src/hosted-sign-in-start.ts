@@ -1,3 +1,4 @@
+import {serverNow} from './server-clock.ts';
 import {validInstallationId} from './installation.ts';
 import {currentUTCTimestamp} from './local-session.ts';
 import {routeBase64, routeBytes, routeOrigin} from './route-identity.ts';
@@ -37,10 +38,8 @@ function checked(value: unknown, now: number): RegisteredSignInWithContext {
   if (registration.id !== registrationId) invalid();
   if (!currentUTCTimestamp(root.expiresAt) || !root.expiresAt.endsWith('Z') || root.expiresAt[10] !== 'T') invalid();
   const expires = Date.parse(root.expiresAt);
-  // This envelope carries only the producer's signed expiry. Its ceiling is the
-  // one an authentic issuance can reach: verifyHostedSignInStart proves the
-  // signed facts hold this same expiry at most one lifetime after issuance and
-  // issued no more than one bounded skew ahead of this browser's clock.
+  // This envelope carries only the producer's signed expiry; verifyHostedSignInStart proves the
+  // signed facts hold this same expiry at most one lifetime after issuance.
   if (!registeredSignInExpiryWithinLifetime(expires, now, now)) invalid();
   const context = object(root.context, ['payload', 'signature']);
   routeBytes(context.payload, undefined, 6144); routeBytes(context.signature, 64);
@@ -54,7 +53,7 @@ function checked(value: unknown, now: number): RegisteredSignInWithContext {
 
 /** Only the installed server's checked prepare result may enter this ordinary handoff.
  * Verifier, move proofs, owner state and local continuation intent never enter its URL. */
-export function buildHostedSignInStartURL(value: RegisteredSignIn, now = Date.now()): string {
+export function buildHostedSignInStartURL(value: RegisteredSignIn, now = serverNow()): string {
   const start = checked(value, now);
   const href = start.hostedOrigin + '/' + prefix + routeBase64(new TextEncoder().encode(JSON.stringify(start)));
   if (href.length > maximumURL) invalid();
@@ -62,7 +61,7 @@ export function buildHostedSignInStartURL(value: RegisteredSignIn, now = Date.no
 }
 
 /** Pure strict parser. The caller must scrub history synchronously before calling it. */
-export function parseHostedSignInStartURL(href: string, expectedHostedOrigin: string, now = Date.now()): RegisteredSignInWithContext | undefined {
+export function parseHostedSignInStartURL(href: string, expectedHostedOrigin: string, now = serverNow()): RegisteredSignInWithContext | undefined {
   try {
     if (typeof href !== 'string' || href.length > maximumURL) return;
     const origin = httpsOrigin(expectedHostedOrigin), url = new URL(href);
@@ -76,7 +75,7 @@ export function parseHostedSignInStartURL(href: string, expectedHostedOrigin: st
 
 /** Hosted checks the original signed prepare context before displaying either
  * credential or cached-account state. Verification never issues an answer. */
-export async function verifyHostedSignInStart(value: RegisteredSignInWithContext, now = Date.now(), crypto?: RouteCrypto) {
+export async function verifyHostedSignInStart(value: RegisteredSignInWithContext, now = serverNow(), crypto?: RouteCrypto) {
   const handoff = checked(value, now), facts = await verifyRegisteredSignInContext(handoff.context, now, crypto);
   if (facts.serverId !== handoff.start.serverId || facts.registrationId !== handoff.registration.id ||
       facts.registrationOrigin !== handoff.registration.origin || facts.hostedOrigin !== handoff.hostedOrigin ||

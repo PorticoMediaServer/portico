@@ -7,6 +7,7 @@ import type {SetupStartExpectation} from './setup-claim-start.ts';
 import {routeBytes, routeOrigin, sameServerPin, webRouteCrypto, type RouteCrypto} from './route-identity.ts';
 import {setupAddressAllowed} from './setup-address.ts';
 import {CodedError} from './server-messages.ts';
+import {clockOrigin, serverClockFor} from './server-clock.ts';
 
 /** This caller's half of a setup approval: everything the signed start must name except the claim operation,
  * which the server chooses (B-DESIGN S6). */
@@ -31,7 +32,7 @@ export async function requestSetupApproval(api: Api, start: SetupApprovalStart, 
   options: Readonly<{signal?: AbortSignal; now?: () => number; crypto?: RouteCrypto; renewal?: true}> = {}): Promise<Readonly<{handoff: SetupClaimHandoff; approvalUrl: string}>> {
   start = Object.freeze({pin: Object.freeze({...start.pin}), origin: start.origin, hostedOrigin: start.hostedOrigin, setupRequestId: start.setupRequestId,
     setupRevision: start.setupRevision, state: start.state, codeChallenge: start.codeChallenge, installationId: start.installationId});
-  const now = options.now ?? Date.now;
+  const now = options.now ?? serverClockFor(clockOrigin(start.origin));
   if (!validInstallationId(start.installationId) || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(start.setupRequestId) ||
       !counter(start.setupRevision) || start.setupRevision === '0' || routeOrigin(start.origin) !== start.origin || api.baseUrl !== start.origin ||
       routeOrigin(start.hostedOrigin) !== start.hostedOrigin || !start.hostedOrigin.startsWith('https://') || !setupAddressAllowed(start.origin)) throw invalid();

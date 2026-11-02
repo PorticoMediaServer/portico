@@ -1,5 +1,6 @@
 import {routePrefix} from "../../contracts/src/routes.ts";
 import {unreadableServerResponse} from './server-messages.ts';
+import {serverNow} from './server-clock.ts';
 /** Device records, remembered browser accounts and the tvOS Top Shelf feed.
  *
  * An installation id is generated once per install and kept. It is not a
@@ -125,4 +126,4 @@ export function parseTopShelfFeed(raw:unknown):TopShelfFeed{
  return Object.freeze({serverId:raw.serverId as string,profileId:raw.profileId as string,expiresAt:raw.expiresAt as string,sections:Object.freeze(sections)});
 }
 
-export const topShelfExpired=(feed:TopShelfFeed,now=Date.now()):boolean=>Date.parse(feed.expiresAt)<=now;
+export const topShelfExpired=(feed:TopShelfFeed,now=serverNow()):boolean=>Date.parse(feed.expiresAt)<=now;

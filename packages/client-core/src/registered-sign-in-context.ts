@@ -1,6 +1,7 @@
 import {routeBytes, routeOrigin, serverPin, webRouteCrypto, type RouteCrypto} from './route-identity.ts';
 import {validInstallationId} from './installation.ts';
 import {currentUTCTimestamp} from './local-session.ts';
+import {serverNow} from './server-clock.ts';
 
 export type RegisteredSignInContext = Readonly<{payload: string; signature: string}>;
 /** The signing Server bounds every prepare by the Server challenge it answers,
@@ -10,20 +11,19 @@ export const REGISTERED_SIGN_IN_LIFETIME_MS = 5 * 60_000;
  * it, and only within the same bounded difference every checkpoint applies. */
 export const REGISTERED_SIGN_IN_CLOCK_SKEW_MS = 60_000;
 export type RegisteredSignInIssuance = Readonly<{issuedAt: number; expiresAt: number; now: number}>;
-/** The only lifetime rule that can grant anything: authenticated facts, an
- * expiry this clock has not reached, one producer lifetime and one bounded skew. */
+/** The only lifetime rule that can grant anything: authenticated facts, an expiry the issuer's clock
+ * (`serverNow()`) has not reached and one producer lifetime. Nothing is bounded above by this device's
+ * clock (no client-clock requirements): issuance is held to the signed expiry, not to a skew allowance. */
 export function signedRegisteredSignInWithinLifetime({issuedAt, expiresAt, now}: RegisteredSignInIssuance): boolean {
-  return [issuedAt, expiresAt, now].every(Number.isSafeInteger) && issuedAt <= now + REGISTERED_SIGN_IN_CLOCK_SKEW_MS &&
+  return [issuedAt, expiresAt, now].every(Number.isSafeInteger) &&
     expiresAt > now && expiresAt > issuedAt && expiresAt - issuedAt <= REGISTERED_SIGN_IN_LIFETIME_MS;
 }
-/** Checkpoints that hold only the producer's expiry plus a browser base time are
- * not grants. They accept exactly the ceiling an authentic issuance can reach —
- * one lifetime after issuance, issued at most one bounded skew ahead of this
- * clock — and still refuse an expiry this browser has reached. The signed facts
- * above remain the authority on the expiry itself. */
-export function registeredSignInExpiryWithinLifetime(expiresAt: number, basis: number, now: number): boolean {
-  return Number.isSafeInteger(expiresAt) && Number.isSafeInteger(basis) && Number.isSafeInteger(now) &&
-    expiresAt > now && expiresAt - basis <= REGISTERED_SIGN_IN_LIFETIME_MS + REGISTERED_SIGN_IN_CLOCK_SKEW_MS;
+/** Checkpoints that hold only the producer's expiry are not grants. They refuse only an expiry the
+ * issuer's clock (`now`, from `serverNow()`) has reached. `basis` is accepted for existing callers and
+ * ignored: it was this device's own clock, and a server instant is never bounded against that. The
+ * signed facts above remain the authority on the expiry and its lifetime. */
+export function registeredSignInExpiryWithinLifetime(expiresAt: number, _basis: number, now: number): boolean {
+  return Number.isSafeInteger(expiresAt) && Number.isSafeInteger(now) && expiresAt > now;
 }
 const fields = ['kind', 'version', 'serverId', 'publicKey', 'fingerprint', 'serverName', 'registrationId', 'registrationOrigin', 'hostedOrigin', 'claimOperationId', 'challenge', 'nonce', 'installationId', 'issuedAt', 'expiresAt'] as const;
 export type RegisteredSignInContextFacts = Readonly<Record<typeof fields[number], string>>;
@@ -37,7 +37,7 @@ function goJSON(value: unknown): string {return JSON.stringify(value).replace(/[
  * bytes. A signed display name is never a sign-in grant or a consent gesture.
  * Browser initiation must additionally compare the fresh nonce and pinned key;
  * Hosted must compare every corresponding wrapper/start/registration field. */
-export async function verifyRegisteredSignInContext(value: unknown, now = Date.now(), crypto: RouteCrypto = webRouteCrypto): Promise<RegisteredSignInContextFacts> {
+export async function verifyRegisteredSignInContext(value: unknown, now = serverNow(), crypto: RouteCrypto = webRouteCrypto): Promise<RegisteredSignInContextFacts> {
   if (!Number.isSafeInteger(now) || !object(value) || Object.keys(value).sort().join(',') !== 'payload,signature') invalid();
   const raw = routeBytes(value.payload, undefined, 6144), signature = routeBytes(value.signature, 64);
   let decoded: unknown;
