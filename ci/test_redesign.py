@@ -71,3 +71,69 @@ class BatchExecution(unittest.TestCase):
                     self.assertEqual(run.call_args.args[0][-2:],['a','b'])
                 result.returncode=1
                 with self.assertRaises(SystemExit): go(plan,0)
+
+class SplitPackagePool(unittest.TestCase):
+    """CI-2: split packages share the worker budget instead of running one at a time."""
+    def run_plan(self, workers):
+        import tempfile, threading, time
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        from run import go
+        names=['a','b','c','d','e']
+        inventory=[{'module':'server','package':p,'name':n} for p in names for n in ['TestFast','TestSlow']]
+        selected=[t for t in inventory if t['package']=='a' or t['name']=='TestSlow']
+        plan={'tags':'tags','tier':'merge','shards':[selected],'all_inventory':inventory}
+        state={'live':0,'peak':0,'calls':[]}; lock=threading.Lock()
+        def fake(args,**kw):
+            packages=[a for a in args if a in names]
+            with lock:
+                state['live']+=1; state['peak']=max(state['peak'],state['live']); state['calls'].append(args)
+            time.sleep(0.05)
+            with lock: state['live']-=1
+            events=[]
+            for p in packages:
+                tests=['TestFast','TestSlow'] if '-run' not in args else ['TestSlow']
+                events+=[{'Package':p,'Test':t,'Action':'pass'} for t in tests]+[{'Package':p,'Action':'pass'}]
+            return SimpleNamespace(stdout='\n'.join(map(json.dumps,events)),stderr='',returncode=0)
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);(root/'ci').mkdir();(root/'ci-tools').mkdir()
+            (root/'ci/quarantine.json').write_text('{"entries":[]}')
+            (root/'ci-tools/portico-server').touch()
+            with patch('run.ROOT',root),patch('run.validate_tags'),patch.dict('os.environ',{'PORTICO_CI_GO_PACKAGE_JOBS':workers}),patch('run.subprocess.run',side_effect=fake):
+                go(plan,0)
+            reports={p:(root/'ci-results'/(p+'.jsonl')).read_text() for p in names}
+        return state, reports
+    def test_partials_run_concurrently_within_the_budget(self):
+        state, reports = self.run_plan('4')
+        # One complete batch (a) plus one -run command per split package (b..e).
+        self.assertEqual(len(state['calls']),5)
+        self.assertEqual(sum('-run' in c for c in state['calls']),4)
+        self.assertGreater(state['peak'],1)
+        self.assertLessEqual(state['peak'],4)
+        for p in ['b','c','d','e']: self.assertIn('TestSlow',reports[p])
+    def test_one_worker_budget_stays_serial(self):
+        state, _ = self.run_plan('1')
+        self.assertEqual(state['peak'],1)
+
+class FFmpegInstall(unittest.TestCase):
+    """CI-1: no recommended extras, cached .debs, refresh lists only on failure."""
+    def test_cached_install_and_fallback(self):
+        import tempfile, subprocess
+        from unittest.mock import patch
+        import run
+        with tempfile.TemporaryDirectory() as cache:
+            calls=[]
+            def fake(args,cwd=None):
+                calls.append(args)
+                if args[:3]==['sudo','apt-get','install'] and ['sudo','apt-get','update'] not in calls:
+                    raise subprocess.CalledProcessError(100,args)
+            with patch.dict('os.environ',{'PORTICO_CI_APT_CACHE':cache}),patch('run.execute',side_effect=fake):
+                run.install_ffmpeg()
+            installs=[c for c in calls if c[:3]==['sudo','apt-get','install']]
+            self.assertEqual(len(installs),2)
+            for c in installs:
+                self.assertIn('--no-install-recommends',c)
+                self.assertIn('Dir::Cache::archives='+cache,c)
+            self.assertIn(['sudo','apt-get','update'],calls)
+            self.assertEqual(calls[-1][:3],['sudo','chown','-R'])
+            self.assertTrue((Path(cache)/'partial').is_dir())

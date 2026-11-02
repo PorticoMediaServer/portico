@@ -20,7 +20,7 @@ jobs:
           path: ${{ runner.temp }}/portico-e2e-media
           key: e2e-media-${{ runner.os }}-${{ hashFiles('scripts/e2e-server.py', 'tests/e2e/augment_media.py', 'third_party/apple-subtitles/test/make-pgs.py', 'fixtures/library-layout/Audiobooks/Test Listener/cover.png') }}
       - name: Install media tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
       - name: Build disposable devtrust server
         working-directory: server
         run: go build -tags devtrust -o "$RUNNER_TEMP/portico-e2e-server" ./cmd/server

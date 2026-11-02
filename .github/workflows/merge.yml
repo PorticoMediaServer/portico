@@ -160,7 +160,17 @@ jobs:
         with:
           name: selection
       - run: python3 ci/run.py download
-      - run: python3 ci/run.py ffmpeg --index '${{ matrix.index }}'
+      - name: FFmpeg package cache key
+        id: aptkey
+        run: echo "key=apt-ffmpeg-${ImageOS:-ubuntu}-${ImageVersion:-0}-$(date -u +%G-%V)-v1" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/portico-apt-ffmpeg
+          key: ${{ steps.aptkey.outputs.key }}
+          restore-keys: apt-ffmpeg-
+      - env:
+          PORTICO_CI_APT_CACHE: ${{ runner.temp }}/portico-apt-ffmpeg
+        run: python3 ci/run.py ffmpeg --index '${{ matrix.index }}'
       - run: python3 ci/run.py go --index '${{ matrix.index }}'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: ${{ !cancelled() }}
@@ -198,8 +208,17 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: selection
+      - name: FFmpeg package cache key
+        id: aptkey
+        run: echo "key=apt-ffmpeg-${ImageOS:-ubuntu}-${ImageVersion:-0}-$(date -u +%G-%V)-v1" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/portico-apt-ffmpeg
+          key: ${{ steps.aptkey.outputs.key }}
+          restore-keys: apt-ffmpeg-
       - env:
           COMPONENT: ${{ matrix.component }}
+          PORTICO_CI_APT_CACHE: ${{ runner.temp }}/portico-apt-ffmpeg
         run: python3 ci/run.py ffmpeg --component "$COMPONENT" --index '${{ matrix.index }}'
       - name: Install owning lockfiles
         env:
