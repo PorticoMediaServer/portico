@@ -11,10 +11,11 @@
 .hero h1 { margin:0 0 4px; font-size:var(--type-audiobook-detail-title-size); line-height:var(--type-audiobook-detail-title-line); font-weight:var(--type-audiobook-detail-title-weight); letter-spacing:var(--type-audiobook-detail-title-tracking); }
 .author { padding:0; border:0; background:none; font:var(--type-audiobook-detail-author-weight) var(--type-audiobook-detail-author-size)/var(--type-audiobook-detail-author-line) var(--font); color:var(--color-accent-strong); }
 .meta { display:flex; flex-wrap:wrap; justify-content:center; margin-top:8px; font-size:var(--type-audiobook-detail-meta-size); gap:6px 12px; color:var(--color-text-secondary); }
-.actions { display:flex; gap:10px; margin:20px 20px 0; }
+/* Inside the hero, which already carries the 20px phone gutter. */
+.actions { display:flex; gap:10px; margin:20px 0 0; text-align:left; }
 .primary { flex:1; }
 .round { border-radius:50%; }
-.progress { margin:14px 20px 0; display:flex; align-items:center; gap:12px; font-size:var(--type-audiobook-detail-progress-size); font-weight:var(--type-audiobook-detail-progress-weight); color:var(--color-text-tertiary); }
+.progress { margin:14px 0 0; display:flex; align-items:center; gap:12px; font-size:var(--type-audiobook-detail-progress-size); font-weight:var(--type-audiobook-detail-progress-weight); color:var(--color-text-tertiary); }
 .progress > span { flex:1; height:4px; border-radius:4px; overflow:hidden; background:color-mix(in srgb,var(--color-text) 18%,transparent); }
 .progress i, .chapterProgress i { display:block; height:100%; background:var(--color-accent-strong); }
 .about { margin:16px 20px 0; font-size:var(--type-audiobook-detail-synopsis-size); line-height:var(--type-audiobook-detail-synopsis-line); color:var(--color-text-secondary); display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
@@ -42,24 +43,50 @@
 .details dt { margin-top:8px; }
 .details dd { margin:4px 0 12px; color:var(--color-text-tertiary); font-size:var(--type-audiobook-detail-meta-size); }
 
-/* desktop-listen's book page: the album-style hero, chapters beside About this book. */
-.page[data-layout='desktop'] { display: grid; grid-template-columns: minmax(0,1fr) 360px; column-gap: 48px; align-items: start; padding: 0 56px 90px; }
-.page[data-layout='desktop'] .nav { grid-column: 1 / -1; padding: 12px 0 0; }
-.page[data-layout='desktop'] .hero { grid-column: 1 / -1; display: grid; grid-template-columns: 300px minmax(0,1fr); gap: 32px; text-align: left; padding: 20px 0 0; align-items: end; }
-.page[data-layout='desktop'] .cover { width: 300px; height: 300px; margin: 0; }
-.page[data-layout='desktop'] .actions { grid-column: 1 / -1; margin: 20px 0 0; }
-.page[data-layout='desktop'] .progress { grid-column: 1 / -1; margin: 12px 0 0; }
-.page[data-layout='desktop'] .aside { grid-column: 2; grid-row: 2; display: grid; gap: 8px; align-content: start; }
-.page[data-layout='desktop'][data-audiobook-view='book'] > section { grid-column: 1; grid-row: 2; }
-.page[data-layout='desktop'] .about { -webkit-line-clamp: unset; }
-.page[data-layout='desktop'][data-audiobook-view='author'] > section,
-.page[data-layout='desktop'][data-audiobook-view='book_series'] > section { grid-column: 1 / -1; }
+/* desktop-listen #book: the album hero (cover 340, the copy beside it, bottom-aligned), the
+   chapters beside About this book, then More audiobooks. Under the desktop top bar the hero
+   starts clear of the bar, as on the album page; the phone layout above is unchanged. */
+.page[data-layout='desktop'] { padding: 24px var(--shell-gutter, 40px) 90px; }
+:global([data-navigation='topbar']) .page[data-layout='desktop'] { padding-top: calc(var(--shell-top, 76px) + 64px); }
+:global([data-navigation='topbar']) .page[data-layout='desktop'] .nav { display: none; }
+.page[data-layout='desktop'] .nav { position: static; height: auto; padding: 0 0 12px; }
+.page[data-layout='desktop'] .ambient { height: 900px; }
+.page[data-layout='desktop'] .hero { display: flex; align-items: flex-end; gap: 56px; padding: 0; text-align: left; }
+.page[data-layout='desktop'] .cover { flex: none; width: 340px; height: 340px; margin: 0; }
+.page[data-layout='desktop'] .disc { flex: none; width: 240px; height: 240px; margin: 0; }
+.page[data-layout='desktop'] .copy { min-width: 0; padding-bottom: 4px; }
+.page[data-layout='desktop'] .eyebrowLine { margin: 0 0 12px; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-secondary); }
+.page[data-layout='desktop'] .eyebrowLine .eyebrow, .page[data-layout='desktop'] p.eyebrow { display: inline; margin: 0; font-size: inherit; font-weight: inherit; line-height: inherit; }
+.page[data-layout='desktop'] p.eyebrow { display: block; margin: 0 0 12px; font-size: var(--type-fixed-size-15px); }
+.page[data-layout='desktop'] .hero h1 { max-width: 900px; margin: 0 0 22px; font-size: calc(var(--type-fixed-size-16px) * 6.5); line-height: var(--type-fixed-line-point-98); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-fixed-tracking-minus-point-045em); text-wrap: balance; }
+.page[data-layout='desktop'] .hero h1[data-long] { font-size: calc(var(--type-fixed-size-17px) * 4); }
+.page[data-layout='desktop'] .meta { justify-content: flex-start; align-items: center; gap: 8px 18px; margin: 0 0 26px; font-size: var(--type-fixed-size-15px); }
+.page[data-layout='desktop'] .meta strong { color: var(--color-text); font-weight: var(--type-fixed-weight-700); }
+.page[data-layout='desktop'] .meta .narratorLink { text-decoration: none; font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
+.bylineLink { padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.page[data-layout='desktop'] .actions { flex-wrap: wrap; margin: 0; }
+.page[data-layout='desktop'] .primary { flex: none; }
+/* desktop-listen's round actions are glass squares with the button's own radius. */
+.page[data-layout='desktop'] .round { border-radius: var(--control-radius); }
+.page[data-layout='desktop'] .progress { width: 420px; margin: 18px 0 0; }
+.page[data-layout='desktop'] .split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 72px; padding-top: 52px; align-items: start; }
+.page[data-layout='desktop'] .split > .rows { grid-column: 1; grid-row: 1; min-width: 0; }
+.page[data-layout='desktop'] .aside { grid-column: 2; grid-row: 1; min-width: 0; }
+.page[data-layout='desktop'][data-audiobook-view='author'] .split,
+.page[data-layout='desktop'][data-audiobook-view='book_series'] .split { grid-template-columns: minmax(0, 1fr); }
+.page[data-layout='desktop'] .sectionHead { margin: 0 0 12px; }
+.page[data-layout='desktop'] .sectionHead h2, .asideTitle { margin: 0 0 12px; font-size: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-700); letter-spacing: var(--type-fixed-tracking-minus-point-015em); }
+.page[data-layout='desktop'] .about { margin: 0 0 26px; -webkit-line-clamp: unset; display: block; }
+.page[data-layout='desktop'] .chapter { padding-left: 12px; border-radius: 10px; }
+/* A row carries its own gutter; inside this padded page it bleeds back to the edge (as on the album page). */
+.page[data-layout='desktop'] > [data-layout-row] { margin: 56px calc(-1 * var(--shell-gutter, 40px)) 0; }
 /* desktop-listen's book page: the real total names the next chapters page. */
 .showAll { margin-top: 14px; }
 /* desktop-listen's book page: the narrator opens Books filtered by that narrator. */
 .narratorLink { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
-/* desktop-listen's About this book facts: labels above their values, links underlined. */
-.bookFacts { display: grid; gap: 10px; margin: 16px 0 0; }
-.bookFacts dt { font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-tertiary); }
-.bookFacts dd { margin: 2px 0 0; font-size: var(--type-body-size); line-height: var(--type-body-line); color: var(--color-text); }
+/* desktop-listen's About this book facts: the label beside its value, links bold and plain. */
+.bookFacts { display: grid; grid-template-columns: 104px 1fr; gap: 12px 16px; margin: 0; font-size: var(--type-fixed-size-15px); }
+.bookFacts dt { color: var(--color-text-tertiary); }
+.bookFacts dd { margin: 0; color: var(--color-text); }
+.bookFacts .link, .bookFacts .narratorLink { text-decoration: none; font-weight: var(--type-fixed-weight-600); color: var(--color-text); }
 .link { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
