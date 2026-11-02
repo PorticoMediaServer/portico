@@ -1,0 +1,75 @@
+name: Native Linux libdovi source controls
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/ffmpeg-linux-libdovi.yml'
+      - 'scripts/build-linux-libdovi.py'
+      - 'scripts/ffmpeg-rust-tools.py'
+      - 'scripts/check-rust-linkers.py'
+      - 'scripts/test-native-rust-tools.py'
+      - 'third_party/ffmpeg/native-rust-tools.lock.json'
+permissions:
+  contents: read
+concurrency:
+  group: native-linux-libdovi-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  controls:
+    if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - run: |
+          python scripts/test-native-rust-tools.py
+          python scripts/test-macos-libdovi.py
+          python scripts/test-libdovi-runtime-inventory.py
+          bash -n scripts/build-ffmpeg.sh
+  native:
+    if: github.event_name == 'workflow_dispatch'
+    needs: controls
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - name: Build only libdovi and its test oracle with pinned native Rust
+        env:
+          PORTICO_LANE_SCRATCH: ${{ runner.temp }}/linux-libdovi
+        run: |
+          mkdir -p "$PORTICO_LANE_SCRATCH/work/linux-deps/prefix"
+          python3 - <<'PY' > "$PORTICO_LANE_SCRATCH/native-build.log" 2>&1
+          import json, os, pathlib, subprocess, time
+          work = pathlib.Path(os.environ['PORTICO_LANE_SCRATCH'])
+          started = time.monotonic()
+          receipt = {'sourceSHA': os.environ['GITHUB_SHA'], 'release': False,
+                     'engineQualified': False, 'scope': 'native Linux libdovi dependency and real stable Cargo linker control'}
+          try:
+              subprocess.run(['python3', 'scripts/build-linux-libdovi.py', '--work', str(work / 'work')], check=True)
+              receipt['buildPassed'] = True
+          except BaseException as error:
+              receipt['failure'] = str(error)
+              raise
+          finally:
+              receipt['wallSeconds'] = round(time.monotonic() - started, 3)
+              (work / 'native-dependency.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: native-libdovi-linux-x64-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/linux-libdovi/native-build.log
+            ${{ runner.temp }}/linux-libdovi/native-dependency.json
+            ${{ runner.temp }}/linux-libdovi/work/linux-deps/prefix/libdovi-build.json
+            ${{ runner.temp }}/linux-libdovi/work/libdovi/tool-sources/native-tools.json
+            ${{ runner.temp }}/linux-libdovi/work/libdovi/native-tool-source-files.json
+            ${{ runner.temp }}/linux-libdovi/work/libdovi/compiler-and-licenses.json
+            ${{ runner.temp }}/linux-libdovi/work/libdovi/rust-linker-control.json
+          retention-days: 14

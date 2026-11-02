@@ -17,11 +17,12 @@ on:
       - '.github/workflows/ffmpeg-macos-libdovi.yml'
       - 'scripts/build-macos-libdovi.py'
       - 'scripts/test-macos-libdovi.py'
+      - 'scripts/ffmpeg-rust-tools.py'
       - 'scripts/build-macos-zvbi.sh'
       - 'scripts/test-macos-zvbi.py'
       - 'third_party/ffmpeg/macos-extras.lock.json'
       - 'scripts/test-libdovi-runtime-inventory.py'
-      - 'third_party/ffmpeg/macos-rust-tools.lock.json'
+      - 'third_party/ffmpeg/native-rust-tools.lock.json'
 permissions:
   contents: read
 concurrency:
@@ -39,6 +40,7 @@ jobs:
         with: {python-version: '3.13.17'}
       - env: {PORTICO_NETWORK_BUILD_TOOL_CONTROL: '1'}
         run: |
+          python scripts/test-native-rust-tools.py
           python scripts/test-macos-libdovi.py
           python scripts/test-macos-zvbi.py
           python scripts/test-ffmpeg-build-tools.py
