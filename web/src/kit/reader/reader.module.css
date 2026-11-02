@@ -8,6 +8,11 @@
 .surface { position: absolute; inset: 0; }
 .reader[data-panel] .surface { inset-inline-end: 452px; }
 .surface > * { height: 100%; }
+/* A PDF page fits the room between the top bar and the lowest bottom layer (page strip, then footer), not the window:
+   desktop-read 10 leaves 28px above and below it, phone-read 9 sets it 8px in. ReaderChrome publishes the measured
+   clearances. Comics keep their full bleed under translucent chrome. */
+.reader[data-fixed]:not([data-comic]) .surface { inset-block: calc(var(--reader-fit-top, 72px) + 28px) calc(var(--reader-fit-bottom, 88px) + 28px); }
+@media (max-width: 599px) { .reader[data-fixed]:not([data-comic]) .surface { inset-block: calc(var(--reader-fit-top, 68px) + 8px) calc(var(--reader-fit-bottom, 100px) + 8px); padding-inline: 8px; } }
 .runningTitle { position: absolute; inset: 40px 0 auto; text-align: center; font-size: 13px; font-weight: 600; color: rgba(212,221,228,.4); pointer-events: none; }
 .runningFooter { position: absolute; inset: auto 150px 40px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: rgba(212,221,228,.4); pointer-events: none; }
 .runningTitle, .runningFooter { opacity: 1; transition: opacity var(--motion-quick) var(--ease-out); }

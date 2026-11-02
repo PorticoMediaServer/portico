@@ -4,6 +4,7 @@ import type {ReaderSurfaceInput} from '@portico/reader-core';
 import {Icon, type IconName} from '../Icon';
 import {useReducedMotion, useRetained} from '../overlays/shared';
 import {ReaderPanel, ReaderPanelOpenContext} from './ReaderPanel';
+import {fixedPageClearance} from './page-clearance';
 import {observedProgress, readerInteractiveTarget, readKeyTurn, readTapTurn, type ReadDirection, type ReadTurn} from './interaction';
 import styles from './reader.module.css';
 
@@ -90,6 +91,7 @@ export function ReaderChrome({title, subtitle, copy, chapter, pages, remainingIn
   const root = useRef<HTMLDivElement>(null), chrome = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(initiallyVisible), [focusWithin, setFocusWithin] = useState(false);
   const [focusRequest, requestFocus] = useState(0), focusedRequest = useRef(0);
+  const hasStrip = Boolean(fixedPageStrip);
   const retainedPanel = useRetained(panel);
   // Contents/Search keep rendering after close so ReaderPanel can play its exit; other panels own their own presence.
   const leavingPanel = isValidElement(retainedPanel) && retainedPanel.type === ReaderPanel ? retainedPanel : undefined;
@@ -101,13 +103,24 @@ export function ReaderChrome({title, subtitle, copy, chapter, pages, remainingIn
   useLayoutEffect(() => {
     const element = root.current, bar = element?.querySelector<HTMLElement>('[data-reader-chrome-layer="top"]');
     if (!element || !bar) return;
-    const publish = () => element.style.setProperty('--reader-bar-bottom', `${bar.offsetTop + bar.offsetHeight}px`);
+    // A fixed page (PDF) fits the room between the chrome, so the surface is inset by the measured bars,
+    // not the window: the page strip and footer below, the top bar above. Comics keep their full bleed.
+    const layers = (name: string) => [...element.querySelectorAll<HTMLElement>(`[data-reader-chrome-layer="${name}"]`)];
+    const fitted = fixedPage && !comic;
+    const publish = () => {
+      element.style.setProperty('--reader-bar-bottom', `${bar.offsetTop + bar.offsetHeight}px`);
+      if (!fitted) return;
+      const clearance = fixedPageClearance(element.clientHeight, layers('top'), [...layers('strip'), ...layers('bottom')]);
+      element.style.setProperty('--reader-fit-top', `${clearance.top}px`);
+      element.style.setProperty('--reader-fit-bottom', `${clearance.bottom}px`);
+    };
     publish();
     if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(publish);
-    observer.observe(bar);
-    return () => observer.disconnect();
-  }, []);
+    observer.observe(element);
+    for (const layer of [...layers('top'), ...layers('strip'), ...layers('bottom')]) observer.observe(layer);
+    return () => { observer.disconnect(); element.style.removeProperty('--reader-fit-top'); element.style.removeProperty('--reader-fit-bottom'); };
+  }, [fixedPage, comic, hasStrip]);
   const showControls = useCallback(() => {setVisible(true); requestFocus(value => value + 1);}, []);
   useLayoutEffect(() => {
     if (!shown || focusedRequest.current === focusRequest) return;
