@@ -61,6 +61,8 @@ class ColdToolchain(unittest.TestCase):
         rows = cold.replay_matrix('all', 41395711567, now=now)['include']
         self.assertEqual({r['target'] for r in rows}, {'windows-x64', 'linux-arm64'})
         self.assertEqual(cold.cohort_replay_pin('windows-x64', 41395711567, now=now)['origin']['artifactId'], 13125824278)
+        self.assertEqual(cold.cohort_replay_pin('linux-x64', 41413306687, now=now)['origin']['artifactId'], 13131861750)
+        self.assertEqual([r['target'] for r in cold.replay_matrix('all', 41413306687, now=now)['include']], ['linux-x64'])
         for target, run_id in (('macos-arm64', 41395711567), ('windows-x64', 1)):
             with self.assertRaises(ValueError): cold.cohort_replay_pin(target, run_id, now=now)
         with self.assertRaises(ValueError): cold.cohort_replay_pin('windows-x64', 41395711567, now=datetime(2026, 12, 1, tzinfo=timezone.utc))

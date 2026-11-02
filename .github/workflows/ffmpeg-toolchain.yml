@@ -667,6 +667,35 @@ jobs:
             ${{ runner.temp }}/engine-cache-tools/receipt.json
           retention-days: 7
 
+  payload-cache-read-control:
+    needs: [controls, payload-cache-control]
+    if: inputs.cacheControls && !inputs.cacheMigrationOnly && github.repository == 'PorticoMediaServer/portico'
+    runs-on: ubuntu-24.04
+    permissions: {contents: read, actions: read, packages: read}
+    timeout-minutes: 10
+    env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - run: python scripts/engine-cache-tools.py install --directory "$RUNNER_TEMP/engine-cache-tools"
+      - env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/engine-cache-tools.py login --directory "$RUNNER_TEMP/engine-cache-tools"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: payload-cache-control-*-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/payload-proofs
+      - run: python scripts/control-engine-cache-oci.py read --reports "$RUNNER_TEMP/payload-proofs" --work "$RUNNER_TEMP/payload-reader"
+      - if: always()
+        run: python scripts/engine-cache-tools.py logout --directory "$RUNNER_TEMP/engine-cache-tools"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: payload-cache-read-only-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/payload-reader/*.json
+          retention-days: 7
+
   cache-migration:
     needs: controls
     if: inputs.cacheMigrationOnly && github.ref == 'refs/heads/main' && github.repository == 'PorticoMediaServer/portico'
@@ -698,20 +727,32 @@ jobs:
           path: ${{ runner.temp }}/${{ steps.selection.outputs.kind == 'sources' && 'engine-download-cache' || 'engine-stage-cache' }}
           key: ${{ steps.selection.outputs.key }}
           fail-on-cache-miss: true
-      - if: steps.selection.outputs.available == 'true'
-        run: python scripts/engine-cache-tools.py install --directory "$RUNNER_TEMP/engine-cache-tools"
-      - if: steps.selection.outputs.available == 'true'
-        env: {GH_TOKEN: '${{ github.token }}'}
+      - run: python scripts/engine-cache-tools.py install --directory "$RUNNER_TEMP/engine-cache-tools"
+      - env: {GH_TOKEN: '${{ github.token }}'}
         run: python scripts/engine-cache-tools.py login --directory "$RUNNER_TEMP/engine-cache-tools"
+      - name: Recover missing payloads without a compiler
+        if: steps.selection.outputs.available != 'true'
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          if [[ "${{ steps.selection.outputs.kind }}" == sources ]]; then
+            python scripts/engine-cache-oci.py restore --target "${{ matrix.target }}" --kind sources --directory "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/cache-migration"
+            python scripts/seed-engine-download-cache.py --target "${{ matrix.target }}" --store "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/cache-migration"
+          else
+            python scripts/engine-dependency-cache.py plan --target "${{ matrix.target }}" --directory "$RUNNER_TEMP/engine-stage-cache" --output "$GITHUB_OUTPUT"
+            python scripts/engine-cache-oci.py restore --target "${{ matrix.target }}" --kind stages --directory "$RUNNER_TEMP/engine-stage-cache" --work "$RUNNER_TEMP/cache-migration" --output "$GITHUB_OUTPUT"
+            python - "$RUNNER_TEMP/cache-migration/stages-restore.json" <<'PYRESTORE'
+          import json,sys
+          if not json.load(open(sys.argv[1]))['hit']:
+              raise SystemExit('No retained native checkpoint; migration cannot rebuild it')
+          PYRESTORE
+          fi
       - name: Copy and re-read the full checkpoint before removing any Actions cache
-        if: steps.selection.outputs.available == 'true'
         run: |
           kind="${{ steps.selection.outputs.kind }}"
           directory="$RUNNER_TEMP/engine-stage-cache"
           [[ "$kind" != sources ]] || directory="$RUNNER_TEMP/engine-download-cache"
           python scripts/engine-cache-oci.py save --target "${{ matrix.target }}" --kind "$kind" --directory "$directory" --work "$RUNNER_TEMP/cache-migration"
       - name: Delete only engine cache entries with a verified OCI replacement
-        if: steps.selection.outputs.available == 'true'
         env: {GH_TOKEN: '${{ github.token }}'}
         run: python scripts/engine-cache-migration.py cleanup --target "${{ matrix.target }}" --work "$RUNNER_TEMP/cache-migration" --transport "$RUNNER_TEMP/cache-migration/${{ steps.selection.outputs.kind }}-save.json"
       - if: always()

@@ -448,7 +448,10 @@ and re-downloads by resolved manifest digest. Only a successful full inventory/
 bytes/modes round-trip permits deleting that target's obsolete engine Actions
 entries. Unrelated CI caches are never selected. The final budget check requires
 engine Actions usage below 1 GiB; the repository's fixed 10 GB budget is shared.
-A migration cannot recreate an evicted checkpoint and never launches a compiler.
+If a source Actions entry was evicted, migration first checks GHCR, then uses
+the existing exact-id/hash source-only artifact seeder. It never re-resolves or
+rewrites the original snapshots. An evicted native prefix with no registry copy
+refuses; migration cannot recreate it and never launches a compiler.
 
 The cache-tools.lock.json pins ORAS 1.3.6 official Linux x64/ARM64 and macOS ARM64
 archives by SHA-256, verified before extraction; its Apache-2.0 licence stays

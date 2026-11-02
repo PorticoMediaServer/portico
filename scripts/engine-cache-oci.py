@@ -200,6 +200,8 @@ class Transport:
         return result.stdout
 
     def manifest(self, ref, missing=False):
+        if not ref.startswith((self.repository + ':', self.repository + '@')):
+            raise ValueError('cache reference escaped the target repository')
         raw = self.oras(['manifest', 'fetch', '--descriptor', ref], missing=missing)
         if raw is None: return None
         descriptor = json.loads(raw); digest_value = descriptor.get('digest', '')
