@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {ApiError} from '@core/index.ts';
 import {accountIdentity, currentAccountWork, sameAccount, type AccountIdentity, type ServicesAccount} from './session';
 import type {HostedOwnerClaimReview} from './owner-claim';
@@ -28,7 +29,7 @@ export class OwnerApprovalFlow {
   private review?: HostedOwnerClaimReview;
   private identity?: AccountIdentity;
   constructor(private readonly account: ServicesAccount, private readonly controller: Controller,
-    private readonly navigate: (location: string) => void, private readonly now = Date.now) {}
+    private readonly navigate: (location: string) => void, private readonly now = serverNow) {}
   readonly getSnapshot = () => this.state;
   readonly subscribe = (listener: () => void) => {this.listeners.add(listener); return () => this.listeners.delete(listener);};
   private publish(state: OwnerApprovalSnapshot) {

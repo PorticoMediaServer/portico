@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useScreenIdentity} from '../detail/context';
 import {generatedCoverTint} from '@design';
 import {useCardInteractionAdmission} from '../../kit/cards/use-interaction-admission';
@@ -72,7 +73,7 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
   // retained one cannot write into a successor.
   const activeLease = useRef<HistoryLease | undefined>(undefined), historyPage = useRef<SearchHistoryPage | undefined>(undefined);
   const recent = historyView?.page ? historyView.page.entries.slice(0, 8).map(item => item.q) : [];
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => serverNow());
   const genres = useSyncExternalStore(binding.genres.subscribe, binding.genres.getSnapshot, binding.genres.getSnapshot);
   const onNow = useSyncExternalStore(binding.onNow.subscribe, binding.onNow.getSnapshot, binding.onNow.getSnapshot);
   const input = useRef<HTMLInputElement>(null), results = useRef<HTMLDivElement>(null), committed = useRef('');
@@ -127,7 +128,7 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
   }, [binding, context.identity?.liveAvailable, text]);
   useEffect(() => {
     if (text.trim()) return;
-    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    const timer = setInterval(() => setNow(serverNow()), 30_000);
     return () => clearInterval(timer);
   }, [text]);
   const commit = () => { if (remember && text.trim() && !problem && committed.current !== text.trim()) { committed.current = text.trim(); submit(true); } };

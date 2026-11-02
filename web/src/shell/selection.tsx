@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import type {ReactNode} from 'react';
 import {subscribeFacts} from './fact-source';
 import {createBrowserQueryActions} from '../screens/browse/selection-action-host';
@@ -96,7 +97,7 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
     const shown = context.home.getSnapshot().document;
     return isCurrent(controller.getSnapshot().context) && !!shown && row.viewerFence === shown.viewerFence && shown.rows.some(value => value === row || value.children?.includes(row));
   };
-  const liveCurrent = (row: HomeRow) => !row.live || !!currentHomeLive(row.live, Date.now());
+  const liveCurrent = (row: HomeRow) => !row.live || !!currentHomeLive(row.live, serverNow());
   const clearExpiredLive = (row: HomeRow) => {
     if (!retired && row.live && !liveCurrent(row) && row.live.channels.some(item => selected(controller.key(homeChannelSelection(item, platform))))) controller.clear();
   };

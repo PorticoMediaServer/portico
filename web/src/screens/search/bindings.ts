@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {forwardIdentity} from '../detail/context';
 import {entryStartDisplay} from '../../platform/playback/subject';
 import {SearchService, readSearchHistory, clearSearchHistory, deleteSearchHistoryEntry, type SearchEntry, type SearchGroup, type SearchQuery} from '@core/search.ts';
@@ -126,7 +127,7 @@ export function createSearchBindings(context: ScreenContext) {
           const raw = await life.api.request<unknown>(routePath('get_guide') + '?' + query, 'GET', undefined, signal);
           if (!still()) return;
           const guide = parseChannelGuide(raw, context.scope.serverId, route);
-          const now = Date.now();
+          const now = serverNow();
           for (const channel of guide.channels) next.set(channel.id, liveCard(channel, now, timezone));
         }
       }

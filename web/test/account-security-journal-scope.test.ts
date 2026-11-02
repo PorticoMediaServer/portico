@@ -61,12 +61,11 @@ test('a non-credential purpose, a Server Settings extra field or a refresh crede
   for (const variant of [purpose, extra, refresh]) await assert.rejects(journalOf(variant).read(), JSON.stringify(variant.original.intent));
 });
 
-test('an expiry beyond five minutes, before creation, or future creation refuses', async () => {
+test('an expiry beyond five minutes or before creation refuses (a creation time ahead of this clock is not judged)', async () => {
   const f = hostedFixture();
   const long = clone(f.pending); long.original.expiresAt = iso(400000);
   const backwards = clone(f.pending); backwards.original.expiresAt = iso(-1000); backwards.original.createdAt = iso(0);
-  const future = clone(f.pending); future.original.createdAt = iso(120000); future.original.expiresAt = iso(260000);
-  for (const variant of [long, backwards, future]) await assert.rejects(journalOf(variant).read(), JSON.stringify({createdAt: variant.original.createdAt, expiresAt: variant.original.expiresAt}));
+  for (const variant of [long, backwards]) await assert.rejects(journalOf(variant).read(), JSON.stringify({createdAt: variant.original.createdAt, expiresAt: variant.original.expiresAt}));
 });
 
 test('an expired original refuses an ordinary read but is returned for exact cleanup', async () => {

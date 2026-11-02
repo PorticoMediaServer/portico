@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {PeopleInvitationsClient, type PeopleInvitationQuery, type ServerInvitation, type ServerShortInvitation} from '@core/direct-account.ts';
 import {parseJoinLink} from '@core/join-link.ts';
 import {CodedError} from '@core/server-messages.ts';
@@ -63,7 +64,7 @@ export class SettingsInvitations {
       this.checkInvitation(invitation);
       const link = await this.client.link(invitation, signal);
       if (link.serverId !== undefined && link.serverId !== this.serverId) throw new Error('invitation_server_changed');
-      if (Date.parse(link.expiresAt) <= Date.now()) throw new CodedError('invitation_expired', 'This invitation is no longer usable.');
+      if (Date.parse(link.expiresAt) <= serverNow()) throw new CodedError('invitation_expired', 'This invitation is no longer usable.');
       return shareLink(this.origin, this.serverId, link.code);
     });
   }
@@ -79,7 +80,7 @@ export class SettingsInvitations {
       this.checkInvitation(invitation);
       const result = await this.client.shortCode(invitation, operationId, signal);
       if (result.serverId !== this.serverId) throw new Error('invitation_server_changed');
-      if (Date.parse(result.expiresAt) <= Date.now()) throw new CodedError('invitation_expired', 'This invitation is no longer usable.');
+      if (Date.parse(result.expiresAt) <= serverNow()) throw new CodedError('invitation_expired', 'This invitation is no longer usable.');
       return result;
     });
   }

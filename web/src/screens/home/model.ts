@@ -46,7 +46,7 @@ export function heroArtworkTreatment(artwork: Readonly<{backdropUrl?: string; po
 export function currentHomeLive(live: HomeLive | undefined, nowMs: number): HomeLive | undefined {
   if (!live || !Number.isFinite(nowMs)) return undefined;
   const observed = Date.parse(live.observedAt), expires = Date.parse(live.expiresAt);
-  return Number.isFinite(observed) && Number.isFinite(expires) && observed <= nowMs && nowMs < expires ? live : undefined;
+  return Number.isFinite(observed) && Number.isFinite(expires) && observed < expires && nowMs < expires ? live : undefined;
 }
 /** Only the published bounded row is inspected. No guide or library scan is involved. */
 export function homeLiveDeadline(rows: readonly HomeRow[], nowMs: number): number | undefined {

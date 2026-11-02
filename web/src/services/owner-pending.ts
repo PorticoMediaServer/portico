@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {ApiError} from '@core/index.ts';
 import {decodeServerClaimLookupResponse} from '../../../packages/contracts/src/hosted/decoders.ts';
 import {routePath} from '../../../packages/contracts/src/hosted/routes.ts';
@@ -29,7 +30,7 @@ function same(a: HostedOwnerPending | undefined, b: HostedOwnerPending) {
 }
 function checked(value: HostedOwnerPending, origin: string, now: number): HostedOwnerPending {
   if (!Number.isSafeInteger(now) || value?.version !== 1 || value.kind !== 'owner-approval' || !Number.isSafeInteger(value.capturedAt) ||
-      value.capturedAt > now || !Number.isSafeInteger(value.deadline) || value.deadline > value.capturedAt + lifetime) throw invalid();
+      !Number.isSafeInteger(value.deadline) || value.deadline > value.capturedAt + lifetime) throw invalid();
   if (value.deadline <= now) throw expired();
   routeBytes(value.attemptId, 32);
   return Object.freeze({version: 1, kind: 'owner-approval', attemptId: value.attemptId, capturedAt: value.capturedAt, deadline: value.deadline,
@@ -44,7 +45,7 @@ export function hostedOwnerPendingStore(): HostedOwnerPendingStore {
 
 /** Persist only a scrubbed capture. Reload/provider navigation retains its
  * original local budget; the authenticated producer may only shorten it. */
-export async function restoreHostedOwnerPending(store: HostedOwnerPendingStore, origin: string, capture?: HostedOwnerClaimCapture, now = Date.now()) {
+export async function restoreHostedOwnerPending(store: HostedOwnerPendingStore, origin: string, capture?: HostedOwnerClaimCapture, now = serverNow()) {
   store.assertAvailable();
   if (capture) {
     if (!capture.request) {await store.change(() => undefined); throw invalid();}
@@ -64,7 +65,7 @@ export async function restoreHostedOwnerPending(store: HostedOwnerPendingStore, 
  * setup or an owner move) stays in this tab's store across the provider round trip, so Services
  * goes back to /claim, which restores it; anything unusable is cleared and Start opens as before.
  * A fixed path: nothing in the URL or from the provider chooses it. */
-export async function providerReturnPath(store: () => HostedOwnerPendingStore, origin: string, now = Date.now()): Promise<'/claim' | '/'> {
+export async function providerReturnPath(store: () => HostedOwnerPendingStore, origin: string, now = serverNow()): Promise<'/claim' | '/'> {
   try {return await restoreHostedOwnerPending(store(), origin, undefined, now) ? '/claim' : '/';}
   catch {return '/';}
 }
@@ -72,7 +73,7 @@ async function current(store: HostedOwnerPendingStore, pending: HostedOwnerPendi
   store.assertAvailable();
   const saved = await store.read();
   if (!same(saved, pending) || !saved) throw changed();
-  return checked(saved, pending.request.hostedOrigin, Date.now());
+  return checked(saved, pending.request.hostedOrigin, serverNow());
 }
 export async function forgetHostedOwnerPending(store: HostedOwnerPendingStore, pending: HostedOwnerPending) {
   store.assertAvailable();
@@ -95,7 +96,7 @@ export function scopedHostedOwnerClaim(account: ServicesAccount, store: HostedOw
 /** Code/currentness mechanics only. Purpose-closed validators are fixed by the
  * caller module, never by the URL or an untrusted pending scalar. */
 export function scopedHostedApproval<Review extends ApprovalReview>(account: ServicesAccount, store: HostedOwnerPendingStore, value: HostedOwnerPending, operations: ApprovalOperations<Review>) {
-  const pending = checked(value, account.api.origin, Date.now());
+  const pending = checked(value, account.api.origin, serverNow());
   let epoch = 0, active: AbortController | undefined, reviewed: Review | undefined, disposed = false;
   const operation = () => {
     if (disposed) throw changed();
@@ -112,9 +113,9 @@ export function scopedHostedApproval<Review extends ApprovalReview>(account: Ser
       await store.change(saved => {
         op.check();
         if (!same(saved, pending) || !saved) throw changed();
-        const valid = checked(saved, pending.request.hostedOrigin, Date.now());
+        const valid = checked(saved, pending.request.hostedOrigin, serverNow());
         const deadline = Math.min(valid.deadline, Date.parse(result.expiresAt));
-        if (!Number.isSafeInteger(deadline) || deadline <= Date.now()) throw invalid();
+        if (!Number.isSafeInteger(deadline) || deadline <= serverNow()) throw invalid();
         return {...valid, deadline};
       });
       await op.assert();
@@ -143,7 +144,7 @@ export function scopedHostedApproval<Review extends ApprovalReview>(account: Ser
       op.check();
       const session = account.service.getSnapshot().session;
       if (!session || !sameAccount(accountIdentity(session), result.identity)) throw new ApiError(409, 'account_changed', 'account_changed', false);
-      if (Date.now() >= Math.min(finalPending.deadline, Date.parse(result.expiresAt))) throw changed();
+      if (serverNow() >= Math.min(finalPending.deadline, Date.parse(result.expiresAt))) throw changed();
       reviewed = undefined;
       return location;
     },
@@ -163,7 +164,7 @@ export async function hostedApprovalPurpose(account: ServicesAccount, store: Hos
   signal.throwIfAborted();await current(store,pending);signal.throwIfAborted();
   const claim=decodeServerClaimLookupResponse(raw);
   if(claim.code!==pending.request.code)throw invalid();
-  if(claim.purpose==='setup'&&(claim.status==='expired'||Date.parse(claim.expiresAt)<=Date.now()))throw expired();
+  if(claim.purpose==='setup'&&(claim.status==='expired'||Date.parse(claim.expiresAt)<=serverNow()))throw expired();
   if(claim.purpose==='setup'&&claim.transitionMode===undefined&&claim.setupTransactionId&&claim.ownerTransactionId===undefined)return 'setup';
   if(claim.purpose==='switch'&&claim.ownerTransactionId&&claim.setupTransactionId===undefined)return 'switch';
   throw invalid();

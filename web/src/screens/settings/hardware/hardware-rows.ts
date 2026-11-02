@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {defaultI18n, type MessageId} from '@i18n';
 import type {SettingsTableRow} from '../../../kit/settings/SettingsTable';
 import type {SettingPresentation} from '../../../kit/settings';
@@ -108,7 +109,7 @@ export function hardwareRowState(rowId: string, snapshot: HardwareSnapshot, stor
     }
     case 'streaming.hwTest': {
       const at = hardware.lastTest * 1000;
-      const when = at > 0 ? defaultI18n.relativeTime(at, Date.now()) : undefined;
+      const when = at > 0 ? defaultI18n.relativeTime(at, serverNow()) : undefined;
       return {present: true, help: when ? t('next.settings.hardware.lastTest', {when}) : t('next.settings.hardware.neverTested'), disabled: snapshot.testing};
     }
     default:
