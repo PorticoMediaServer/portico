@@ -1,0 +1,69 @@
+name: F native Home retained-callback reproduction
+'on':
+  push:
+    branches:
+    - rebuild/F-home-evidence-r1
+permissions:
+  contents: read
+jobs:
+  replay:
+    if: contains(github.event.head_commit.message, 'F native Home replay')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - variant: main
+          ref: 78c7a9a050aa4310e0cf0fa30e95eb8ec0481406
+        - variant: pr259
+          ref: ec38affb26025246822497eaf8e2f891648c7e3e
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        persist-credentials: false
+        ref: ${{ matrix.ref }}
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: 24.22.1
+        cache: npm
+        cache-dependency-path: 'package-lock.json
+
+          apps/native/package-lock.json'
+    - name: Install locked test dependencies
+      run: 'npm ci
+
+        npm --prefix apps/native ci
+
+        '
+    - name: Record only method/path of unexpected requests
+      run: 'python3 - <<''PYCODE''
+
+        from pathlib import Path
+
+        p=Path(''apps/native/test/next-standard-home-app.test.ts'')
+
+        s=p.read_text();needle=''        previous();\n        await app.settle();\n        assert.equal(''
+
+        assert needle in s
+
+        s=s.replace(needle,"        previous();\n        await app.settle();\n        if(app.requests.length!==count)console.log(''STALE_HOME_EXTRA'',JSON.stringify(app.requests.slice(count).map(request=>({method:request.method,path:request.path}))));\n        assert.equal(",1)
+
+        p.write_text(s)
+
+        PYCODE
+
+        '
+    - name: Replay the exact assertion on baseline and PR
+      working-directory: apps/native
+      run: "mkdir -p \"$RUNNER_TEMP/reports\"\nfailed=0\nfor sample in $(seq 1 12); do\n if node --experimental-transform-types\
+        \ --import ./test/register.mjs --test test/next-standard-home-app.test.ts > \"$RUNNER_TEMP/reports/replay-$sample.log\"\
+        \ 2>&1; then\n  echo \"$sample pass\" >> \"$RUNNER_TEMP/reports/results.txt\"\n else\n  echo \"$sample fail\" >> \"\
+        $RUNNER_TEMP/reports/results.txt\"\n  failed=$((failed+1))\n fi\ndone\ncat \"$RUNNER_TEMP/reports/results.txt\"\n\
+        test \"$failed\" = 0\n"
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      if: always()
+      with:
+        name: native-home-replay-${{ matrix.variant }}
+        path: ${{ runner.temp }}/reports
+        retention-days: 7
