@@ -30,11 +30,11 @@ export function useShowRoute(context: ScreenContext | undefined, captured: Prote
     if (!context) return;
     const viewer = assembly.session().viewer;
     if (viewer.authority !== 'local' && viewer.authority !== 'hosted') return;
-    const request = new AbortController();
+    const request = new AbortController(), route: ShowWorkspaceRoute = JSON.parse(targetKey);
     let live = true;
     const current = () => live && !request.signal.aborted && context.isCurrent();
     const original: ScreenContext = forwardIdentity(context, {isCurrent: current});
-    const key = showPageKey(context, target);
+    const key = showPageKey(context, route);
     // Back and Forward re-open the page this viewer left: it is drawn at once from the
     // page it had, and the route's own read (and the hub's) refresh it in place.
     const binding = createShowBindings(original, {initial: pages.recall<ShowWorkspaceSnapshot>(key)});
@@ -46,12 +46,11 @@ export function useShowRoute(context: ScreenContext | undefined, captured: Prote
     const remember = (snapshot: ShowWorkspaceSnapshot) => {if (snapshot.phase === 'ready' && snapshot.data && snapshot.route) pages.remember(key, snapshot);};
     remember(binding.service.getSnapshot());
     const off = binding.service.subscribe(() => remember(binding.service.getSnapshot()));
-    const route: ShowWorkspaceRoute = JSON.parse(targetKey);
     void binding.select(route, request.signal).catch(error => {if (current()) context.effects.reportError(error);});
     return () => {
       live = false;request.abort();off();selection.dispose();binding.dispose();
     };
-  }, [context, assembly, runtime, targetKey]);
+  }, [context, assembly, runtime, targetKey, pages]);
   return context && published && published.context === context && published.assembly === assembly && published.targetKey === targetKey
     && published.runtime === runtime && published.current() ? published : undefined;
 }

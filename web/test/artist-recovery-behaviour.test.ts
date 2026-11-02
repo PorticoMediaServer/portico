@@ -57,11 +57,14 @@ test('Artist Back and retry keep their committed entry and never adopt successor
     react: h.react, './context': identity, '@core/presentation/errors.ts': {presentError: (error: any) => ({category: error?.code === 'not-found' ? 'not-found' : 'failed', action: 'retry'})},
     '@core/presentation/service-text.ts': {serviceI18n: () => ({})}, '../../kit/states': {StateLayout: 'StateLayout'}, './text': {t},
   });
+  // Stable per viewer, as the real freshness runtime's page memory is: a new object each
+  // render would re-run the artist opening's effect with new dependencies.
+  const pageMemory = {remember() {}, recall: () => undefined, forget() {}};
   const app = await componentModule(new URL('../src/screens/detail/Artist.tsx', import.meta.url), {
     react, '@tanstack/react-router': {useLocation: () => location}, '../../router': {router},
     '@i18n': {defaultI18n: {region: {formatLocale: 'en'}}}, './text': {t},
     '@core/library-content.ts': {LibraryContentService: Service, readListeningSimilar: () => Promise.resolve({entries: []})},
-    '@core/freshness-hub.ts': {dependsOn: {libraries: 'libraries'}}, '../../platform/freshness': {useFreshDocument() {}, usePageMemory: () => ({remember() {}, recall: () => undefined, forget() {}})},
+    '@core/freshness-hub.ts': {dependsOn: {libraries: 'libraries'}}, '../../platform/freshness': {useFreshDocument() {}, usePageMemory: () => pageMemory},
     '../../kit/controls': {Button: 'Button', Chip: 'Chip'}, '../../kit/cards': {SquareCard: 'SquareCard'}, '../../kit/artwork': {AmbientArt: 'AmbientArt', CircleArt: 'CircleArt'},
     '@core/presentation/server-text.ts': {serverTextLabel: (_i18n: unknown, heading: any) => heading?.fallback ?? ''}, '@core/presentation/service-text.ts': {serviceI18n: () => ({})},
     '../../kit/layout': {Lockup: 'Lockup'}, '../../kit/title/TitleParts': {TitleFactsLine: 'TitleFactsLine', TitleProse: 'TitleProse'},

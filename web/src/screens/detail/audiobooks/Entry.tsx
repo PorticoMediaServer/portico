@@ -48,7 +48,7 @@ export function AudiobookEntry({context, target, onMore}: Props) {
     live.current = next;
     setLease(next);
     return () => { off(); binding.dispose(); if (live.current === next) live.current = undefined; setLease(current => current === next ? undefined : current); };
-  }, [context, libraryId, view, entityId, key]);
+  }, [context, libraryId, view, entityId, key, pageKey, pages]);
   const current = lease && live.current?.token === lease.token && lease.context === context && lease.key === key ? lease : undefined;
   return current ? <AudiobookBound key={current.token} binding={current.binding} onMore={onMore}/> : <DetailLoading/>;
 }
