@@ -371,7 +371,7 @@ export function NativeWatchPanels({context, options, playback, names, copy, repo
   else if (state.panel === 'audio') body = <>{list(rows.audio, track => playback.change(fence, {audioTrackId: track.id}))}{footer(names.audioFooter(source))}</>;
   else if (state.panel === 'subtitles') body = <>
     {list([{id: 'subtitle-off', primary: t('player.opt.off'), selected: selected.subtitlesOff, value: null}, ...rows.subtitles], track => playback.change(fence, {subtitleTrackId: track?.id ?? null}))}
-    {localTracks?.subtitleError && <View style={{marginHorizontal: theme.isTV ? 14 : 18, marginVertical: 10}}>
+    {(localTracks?.subtitleError || source.subtitleUnavailable) && <View style={{marginHorizontal: theme.isTV ? 14 : 18, marginVertical: 10}}>
       <Text testID="watch-subtitle-local-error" accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('player.opt.unavailable')}</Text>
     </View>}
     {source.forcedOnly && playback.setForcedOnly && <Focusable focusId="watch-subtitle-forced" testID="watch-subtitle-forced" focusKind="row" accessibilityRole="switch"

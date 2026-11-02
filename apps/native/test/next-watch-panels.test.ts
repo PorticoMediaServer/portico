@@ -80,6 +80,10 @@ test('downloaded audio, saved subtitles and timing reuse the real panel without 
       assert.equal(descendants(tree).find(node => node.props.testID === 'watch-choice-subtitle-off').props.disabled, false);
       await act(async () => {source.localTracks = {...source.localTracks, subtitleError: false};await host.rerender();});
       assert.equal(descendants(tree).some(node => node.props.testID === 'watch-subtitle-local-error'), false);
+      // N1-4: a streamed session's engine refusal says the same, through the runtime's own fact.
+      await act(async () => {source.subtitleUnavailable = true;await host.rerender();});
+      assert.equal(descendants(tree).find(node => node.props.testID === 'watch-subtitle-local-error').props.children, defaultI18n.t('player.opt.unavailable'));
+      await act(async () => {delete source.subtitleUnavailable;await host.rerender();});
       await act(async () => {context.openPanel('options');await host.rerender();});
       assert.equal(descendants(tree).some(node => node.props.testID === 'watch-option-quality'), false);
     } finally {await host.unmount();}
