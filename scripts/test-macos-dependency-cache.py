@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -40,7 +41,7 @@ class MacCache(unittest.TestCase):
         plans = []
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
-            for index in (1, 2):
+            for index in (1, 2, 3):
                 recipe = base / str(index); recipe.mkdir()
                 (recipe / 'build-ffmpeg').write_bytes(raw)
                 for name in ('homebridge-sourceforge-download.patch', 'homebridge-gpl-only.patch', 'homebridge-arm64-vpx.patch',
@@ -52,6 +53,11 @@ class MacCache(unittest.TestCase):
                     text = (recipe / 'build-ffmpeg').read_text().replace('"--enable-libdav1d"', '"--enable-libdav1d" "--enable-fixture-final-only"')
                     (recipe / 'build-ffmpeg').write_text(text)
                     (recipe / 'packaging-only').write_text('irrelevant installer change')
+                if index == 3:
+                    path = recipe / 'portico-macos-extras.sh'
+                    text, count = re.subn(r'(?ms)^# Retry only this stage.*?^fi\n',
+                                         'git submodule update --init --recursive\n', path.read_text())
+                    self.assertEqual(count, 1); path.write_text(text)
                 env = dict(PORTICO_ENGINE_STAGE_CACHE=str(base / 'cache'), PORTICO_FFMPEG_TARGET='macos-arm64',
                            PORTICO_ENGINE_MAC_COMPILER=json.dumps({'fixture': 'inert compiler identity'}))
                 with patch.dict(os.environ, env): M.configure(recipe)
@@ -65,11 +71,28 @@ class MacCache(unittest.TestCase):
                 self.assertIn('finish "$1" "$2"', (recipe / 'build-ffmpeg').read_text())
                 plans.append(plan)
             self.assertEqual(plans[0], plans[1])
+            self.assertEqual(plans[0]['context'], plans[2]['context'])
+            changed = [name for name in plans[0]['stages'] if plans[0]['stages'][name] != plans[2]['stages'][name]]
+            self.assertEqual(changed, ['portico-placebo'])
+            print('Pinned Mac stage-input proof: only placebo changes; all preceding stage inputs remain identical', flush=True)
         body = 'false\necho incorrectly-continued\n'
         script = 'set -e\nportico_dependency_cache(){ echo MISS; }\n' + M.wrapper('fixture', body)
         result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn('incorrectly-continued', result.stdout)
+
+    def test_actual_placebo_retry_is_bounded_and_propagates_final_failure(self):
+        text = (ROOT / 'scripts/build-macos-ffmpeg-extras.sh').read_text()
+        body = text.split('portico_clone placebo\n', 1)[1].split('portico_meson ', 1)[0]
+        for failures, expected, sleeps in ((0, 0, []), (2, 0, ['10', '20']), (99, 128, ['10', '20', '40', '50'])):
+            setup = ('set -eu\ncalls=0\ngit(){ [[ "$*" == "submodule update --init --recursive" ]] || exit 91; '
+                     'calls=$((calls+1)); echo "call $calls"; [[ "$calls" -gt ' + str(failures) + ' ]] || return 128; }\n'
+                     'sleep(){ echo "delay $1"; }\n')
+            result = subprocess.run(['/bin/bash', '-c', setup + body + '\necho continued\n'], text=True, capture_output=True)
+            self.assertEqual(result.returncode, expected, result.stderr)
+            self.assertEqual([line[6:] for line in result.stdout.splitlines() if line.startswith('delay ')], sleeps)
+            self.assertEqual(sum(line.startswith('call ') for line in result.stdout.splitlines()), min(failures + 1, 5))
+            self.assertEqual('continued' in result.stdout, expected == 0)
 
 
 if __name__ == '__main__': unittest.main()
