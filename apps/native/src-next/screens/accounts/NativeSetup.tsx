@@ -102,12 +102,12 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
         beforeActions={<View style={{alignSelf: 'stretch', gap: 14, marginBottom: 20}}>{field(t('web.setup.codeLabel'), setupCode, setSetupCode)}</View>}/>;
     case 'lockout': {
       // The address in use won't work once setup is complete (auth.html 1e panel 5): only the fixes that would let it in,
-      // and Back where there's none (Remote access leaves this network out).
+      // and always a quiet Back, to choose again (on its own where no fix applies: Remote access leaves this network out).
       const keep = {id: 'keep-allowing', label: t('web.setup.keepAllowing'), disabled: busy, onPress: () => controller.lockoutFix('address')};
       const standard = {id: 'switch-standard', label: t('web.setup.switchStandard'), disabled: busy, onPress: () => controller.lockoutFix('standard')};
       const fixes = [...(view.fixes.includes('address') ? [keep] : []), ...(view.fixes.includes('standard') ? [standard] : [])];
       return <Layout testID="accounts-setup" title={t('web.setup.lockoutTitle')} body={setupLockoutReason(view.reason)}
-        primaryAction={fixes[0] ?? back} secondaryAction={fixes[0] ? fixes[1] : undefined}/>;
+        primaryAction={fixes[0]} secondaryAction={fixes[1]} detailsAction={back} detailsPresentation="link"/>;
     }
     case 'unknown':
       return message(t('accounts.setup.title'), setupNewerMessage(), tryAgain());

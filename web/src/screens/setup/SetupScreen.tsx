@@ -93,7 +93,7 @@ function Stage({view, controller, form, setForm, name, mode, library, setLibrary
         actions={<>{view.retryable && <Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>}{startOver(!view.retryable)}{back}</>}/>;
     }
     case 'lockout':
-      return <Lockout view={view} onFix={controller.lockoutFix} back={back}/>;
+      return <Lockout view={view} onFix={controller.lockoutFix} onBack={controller.back}/>;
     case 'code':
       return <SetupCode key={view.invalid ? 'invalid' : 'asked'} invalid={view.invalid} onSubmit={controller.submitCode} back={back}/>;
     case 'unknown':
@@ -121,16 +121,16 @@ function SetupCode({invalid, onSubmit, back}: {invalid: boolean; onSubmit: (code
   </AuthStage>;
 }
 
-/** The address in use won't work once setup is complete (auth.html 1e panel 5): only the fixes that would let it in. With none
- * (Remote access leaves this network out), Back to choose again. */
-function Lockout({view, onFix, back}: {view: Extract<SetupView, {kind: 'lockout'}>; onFix: (fix: SetupLockoutFix) => void; back: ReactNode}) {
+/** The address in use won't work once setup is complete (auth.html 1e panel 5): only the fixes that would let it in, and always
+ * a quiet Back to choose again, on its own where no fix applies (Remote access leaves this network out). */
+function Lockout({view, onFix, onBack}: {view: Extract<SetupView, {kind: 'lockout'}>; onFix: (fix: SetupLockoutFix) => void; onBack: () => void}) {
   const address = view.fixes.includes('address'), standard = view.fixes.includes('standard');
   return <AuthStage legal={false} contentClassName={styles.content}>
     <p className={styles.wait} role="alert"><Icon name="i-warn" size={20}/><span><b>{t('web.setup.lockoutTitle')}</b> {setupLockoutReason(view.reason)}</span></p>
     <div className={styles.stack}>
       {address && <Button variant="primary" size="hero" onClick={() => onFix('address')}>{t('web.setup.keepAllowing')}</Button>}
       {standard && <Button variant={address ? 'glass' : 'primary'} size="hero" onClick={() => onFix('standard')}>{t('web.setup.switchStandard')}</Button>}
-      {!address && !standard && back}
+      <Button variant="text" size="hero" onClick={onBack}>{t('action.back')}</Button>
     </div>
   </AuthStage>;
 }
