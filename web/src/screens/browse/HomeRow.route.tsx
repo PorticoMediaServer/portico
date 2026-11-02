@@ -1,9 +1,9 @@
-import {useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {entryStartDisplay} from '../../platform/playback/subject';
 import {useLocation, useParams, useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {fetchHomeRow, type HomeRow} from '@core/home.ts';
-import type {BrowseNode, BrowseSortSelection} from '@core/browse.ts';
+import type {BrowseSortSelection} from '@core/browse.ts';
 import {acrossCondition, acrossPivot, groupOrderSort} from '@core/presentation/browse-groups.ts';
 import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
@@ -19,22 +19,12 @@ import type {LibraryBrowseBindings} from './Library';
 import {HomeRowScreen} from './HomeRow';
 import {useScreenAppearance} from './screen-preferences';
 import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from './screen-context';
-import {browseConjunction, parseHomeRowScreenSearch, type HomeRowScreenSearch} from './route-search';
+import {parseHomeRowScreenSearch, type HomeRowScreenSearch} from './route-search';
+import {addressedQuery, addressedQueryKey, addressedSearch, appliedSorts, type AddressedQuery} from './address-query';
+import {useAddressBuild, useAddressReconcile, type AddressSync} from './use-address-query';
 
-type RowQuery = Readonly<{predicates: readonly BrowseNode[]; sorts: readonly BrowseSortSelection[]}>;
 /** Best match is the row's own server order; the frame draws no other default. */
 const bestMatch: readonly BrowseSortSelection[] = [{field: groupOrderSort, direction: 'asc'}];
-const appliedSorts = (sorts: readonly BrowseSortSelection[]) => sorts.map(({field, direction, seed}) =>
-  ({field, direction, ...(seed === undefined ? {} : {seed: seed})}));
-/** The address and the controller are compared in one vocabulary: the page's own
- * scoped predicates and every applied sort, in the order the server receives them. */
-function rowQuery(search: HomeRowScreenSearch): RowQuery {
-  return {predicates: search.query ? browseConjunction(search.query) : [], sorts: appliedSorts(search.sort?.length ? search.sort : bestMatch)};
-}
-function queryKey(query: RowQuery): string {return JSON.stringify({predicates: query.predicates, sorts: query.sorts});}
-function isBestMatch(sorts: readonly BrowseSortSelection[]): boolean {
-  return sorts.length === 1 && sorts[0]?.field === groupOrderSort && sorts[0].direction === 'asc';
-}
 
 function LoadedHomeRow({captured, context, row}: {captured: ProtectedLibraryScreen; context: ScreenContext; row: HomeRow}) {
   const width = useShellWidth();
@@ -45,44 +35,38 @@ function LoadedHomeRow({captured, context, row}: {captured: ProtectedLibraryScre
   // changes this address (browser Back/Forward or a link) is consumed into the
   // controller, never overwritten by the state the page held before it.
   const rawSearch = useSearch({from: '/home/rows/$rowId'});
-  const routed = useMemo(() => rowQuery(parseHomeRowScreenSearch(rawSearch)), [rawSearch]);
-  const routeKey = useMemo(() => queryKey(routed), [routed]);
+  const routed = useMemo(() => parseHomeRowScreenSearch(rawSearch), [rawSearch]);
   const [choice, setChoice] = useState<Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>>();
   const [size, setSize] = useState<'small' | 'medium' | 'large'>('medium');
-  const [build, setBuild] = useState(routed);
-  const settled = useRef(routeKey), written = useRef(new Set<string>()), lastRoute = useRef(routeKey);
-  // The history action that produced the current address, so a genuine navigation is
-  // never mistaken for this page's own replace echo.
-  const arrival = useRef<Readonly<{href: string; type: string}> | undefined>(undefined);
-  useLayoutEffect(() => router.history.subscribe(({location, action}) => {arrival.current = {href: location.href, type: action.type};}), []);
   const pathname = useLocation({select: location => location.pathname}), runtime = captured.binding.playback?.runtime;
+  const address = useAddressBuild(pathname, routed), build = addressedQuery(address.build.search, bestMatch);
   const sourceKey = JSON.stringify({libraryId: '*', pivot: acrossPivot('homeRow'), homeRowId: row.id,
     base: [acrossCondition('homeRow', row.id)], ...(build.predicates.length ? {predicates: build.predicates} : {}), sorts: build.sorts});
-  const owner = useBrowseLease(context, sourceKey, pathname, () => router.state.location.pathname === pathname, runtime);
-  const continuity = {routed, routeKey, settled, written, lastRoute, arrival, setBuild};
+  const owner = useBrowseLease(context, sourceKey, `${pathname}#${address.build.generation}`, () => router.state.location.pathname === pathname, runtime);
+  const continuity = {routed, address};
   const presentation = {choice, setChoice, size, setSize};
   return owner ? <CommittedHomeRow key={owner.id} captured={captured} context={context} row={row} owner={owner} continuity={continuity} presentation={presentation}/>
     : <GridSkeleton elapsedMs={0} window={{width, height: window.innerHeight, scrollTop: 0}} itemCount={1}/>;
 }
 function CommittedHomeRow({captured, context, row, owner, continuity, presentation}: {captured: ProtectedLibraryScreen; context: ScreenContext; row: HomeRow;
-  owner: BrowseLease; presentation: {choice?: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>; setChoice: (choice: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>) => void; size: 'small' | 'medium' | 'large'; setSize: (size: 'small' | 'medium' | 'large') => void}; continuity: {routed: RowQuery; routeKey: string; settled: {current: string}; written: {current: Set<string>}; lastRoute: {current: string};
-    arrival: {current: Readonly<{href: string; type: string}> | undefined}; setBuild: (query: RowQuery) => void}}) {
+  owner: BrowseLease; presentation: {choice?: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>; setChoice: (choice: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>) => void; size: 'small' | 'medium' | 'large'; setSize: (size: 'small' | 'medium' | 'large') => void}; continuity: {routed: HomeRowScreenSearch; address: AddressSync}}) {
   const appearance = useScreenAppearance(captured.context)!, width = useShellWidth();
-  const {routed, routeKey, settled, written, lastRoute, arrival, setBuild} = continuity;
+  const {routed, address} = continuity;
+  const routeKey = useMemo(() => addressedQueryKey(addressedQuery(routed, bestMatch)), [routed]);
   const {choice, setChoice, size, setSize} = presentation;
   const href = useLocation({select: location => location.href});
   const openingCurrent = () => owner.life.current() && router.state.location.href === href;
   const state = useSyncExternalStore(owner.controller.subscribe, owner.controller.getSnapshot, owner.controller.getSnapshot);
   const page = useSyncExternalStore(owner.controller.collection.subscribe, owner.controller.collection.getSnapshot, owner.controller.collection.getSnapshot);
   // The controller's real applied state, in the same vocabulary as the address.
-  const controllerQuery = useMemo<RowQuery | undefined>(() => { /* Preserve the original ownership/invalidation keys. */ void state.queryRevision;
+  const controllerQuery = useMemo<AddressedQuery | undefined>(() => { /* Preserve the original ownership/invalidation keys. */ void state.queryRevision;
     if (state.phase !== 'ready') return undefined;
     try {
       const sorts = owner.controller.query().sort ?? [];
       return {predicates: state.predicates, sorts: appliedSorts(sorts.length ? sorts : bestMatch)};
     } catch {return undefined;}
   }, [state.phase, state.predicates, state.queryRevision, owner]);
-  const controllerKey = controllerQuery && queryKey(controllerQuery);
+  const controllerKey = controllerQuery && addressedQueryKey(controllerQuery);
   // Frame #seeall draws the page's own art as a three-image wash behind the header; the
   // sources are the titles actually on this page, so nothing is drawn before they arrive.
   const ambient = useMemo(() => {
@@ -99,40 +83,13 @@ function CommittedHomeRow({captured, context, row, owner, continuity, presentati
     }
     return sources;
   }, [owner, context.artwork, appearance.showBackdrops, page]);
-  // The toolbar writes the page's own address, so Back from a title and a reload restore
-  // the same scoped filters and order. One comparison settles both authorities: an
-  // address that moved while the controller still held the previous one is a real
-  // navigation, consumed into the controller; a controller that moved while the address
-  // still held the previous one is the toolbar, published on the address. Our own
-  // replace echo lands with both equal and does nothing, so it never rebuilds the page.
-  // Publish only at commit, then sample once for this setup's original lifetime.
-  const setupPorts = useRef({lastRoute, written, settled, arrival, setBuild});
-  useLayoutEffect(() => {setupPorts.current = {lastRoute, written, settled, arrival, setBuild};});
-  useLayoutEffect(() => {
-    const {lastRoute, written, settled, arrival, setBuild} = setupPorts.current;
-    if (!controllerQuery || !controllerKey || !owner.life.current() || !context.isCurrent()) return;
-    const moved = routeKey !== lastRoute.current;
-    if (moved) lastRoute.current = routeKey;
-    if (routeKey === controllerKey) {settled.current = routeKey; return;}
-    if (controllerKey !== settled.current) {
-      // The controller moved after the last agreement: publish its real scoped state.
-      // A stale own echo (an older replace arriving after a newer one) is republished
-      // here rather than treated as a navigation.
-      const navigated = moved && arrival.current?.href === router.state.location.href && arrival.current.type !== 'REPLACE';
-      if (routeKey !== settled.current && (!written.current.has(routeKey) || navigated)) {setBuild(routed); return;}
-      const next = {...(controllerQuery.predicates.length ? {query: controllerQuery.predicates.length === 1 ? controllerQuery.predicates[0] : {all: [...controllerQuery.predicates]}} : {}),
-        ...(isBestMatch(controllerQuery.sorts) ? {} : {sort: controllerQuery.sorts})};
-      if (written.current.size > 7) for (const key of written.current) {written.current.delete(key); break;}
-      written.current.add(controllerKey);
-      void router.navigate({to: '/home/rows/$rowId', params: {rowId: row.id}, search: next, replace: true, resetScroll: false})
-        .catch(error => {if (owner.life.current() && context.isCurrent()) context.effects.reportError(error);});
-      return;
-    }
-    // The address moved while the controller still held it: a genuine navigation
-    // (browser Back/Forward or a link). Rebuild from the validated address instead of
-    // writing the previous state over it.
-    setBuild(routed);
-  }, [routeKey, controllerKey, controllerQuery, owner, row.id, routed, context]);
+  // The toolbar writes the page's own address, so Back from a title and a reload restore the
+  // same scoped filters and order; a genuine navigation is read back into a rebuilt grid.
+  useAddressReconcile(address, routeKey, controllerKey, routed, () => owner.life.current() && context.isCurrent(), () => {
+    if (!controllerQuery) return;
+    void router.navigate({to: '/home/rows/$rowId', params: {rowId: row.id}, search: addressedSearch(controllerQuery, bestMatch), replace: true, resetScroll: false})
+      .catch(error => {if (owner.life.current() && context.isCurrent()) context.effects.reportError(error);});
+  });
   const library = context.identity?.libraries.find(library => library.id === row.libraryId);
   const browse: LibraryBrowseBindings = {menuContext: context, controller: owner.controller, library: {id: '*', name: row.title, kind: library?.kind ?? ''},
     pivot: owner.controller.source.pivot, artwork: context.artwork,

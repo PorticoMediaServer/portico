@@ -37,6 +37,23 @@ test('Save view retains a changed secondary sort even when the first sort is the
  }}, {libraryId: 'lib', pivot: 'movies', sorts: [{field: 'title', direction: 'asc'}, {field: 'year', direction: 'desc'}]}, () => true);
  try {await controller.load();assert.equal(controller.canSaveView(), true);} finally {controller.dispose();}
 });
+test('Save view on Recently aired compares against the tab own opening order, not the pivot default (LB-3)', async () => {
+ const scoped = {...caps, sorts: [...caps.sorts, {id: 'latestAired', labelKey: 'sort.latestAired', directions: ['asc', 'desc'], defaultDirection: 'desc', applicableKinds: ['movie']}]};
+ const aired = [{field: 'latestAired', direction: 'desc' as const}];
+ const open = (source: {sorts?: typeof aired; defaultSorts?: typeof aired}) => new BrowseController({async request<T>(path: string, _method?: string, body?: unknown) {
+  return (path.includes('capabilities') ? scoped : payload((body as {range: {start: number}}).range.start, 1)) as T;
+ }}, {libraryId: 'lib', pivot: 'movies', ...source}, () => true);
+ const tab = open({sorts: aired, defaultSorts: aired});
+ try {
+  await tab.load();
+  assert.equal(tab.canSaveView(), false, 'the untouched tab is its own default');
+  tab.setQuery([], {field: 'title', direction: 'asc'});assert.equal(tab.canSaveView(), true, 'the pivot order is a change on this tab');
+  tab.setQuery([], {field: 'latestAired', direction: 'desc'});assert.equal(tab.canSaveView(), false);
+ } finally {tab.dispose();}
+ // The Shows tab opened on the same order (a link, or Back to a sorted grid) is a changed view.
+ const shows = open({sorts: aired});
+ try {await shows.load();assert.equal(shows.canSaveView(), true);} finally {shows.dispose();}
+});
 test('linked predicates and all server sorts survive paging and filter edits', async () => {
  const predicate = {variant:'predicate',field: 'watched', operator: 'equals' as const, value: false};
  const sort = [{field: 'title', direction: 'asc' as const}, {field: 'year', direction: 'desc' as const}];

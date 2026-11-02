@@ -9,7 +9,9 @@ import {isStaleAnswer} from '@core/freshness-actions.ts';
 export {withLibraryScope} from '@core/browse-session.ts';
 export type BrowseMember = Readonly<{membershipId: string; entry: ContentEntry}>;
 
-export type BrowseSource = Readonly<{libraryId: string; pivot: string; base?: readonly BrowseNode[]; predicates?: readonly BrowseNode[]; homeRowId?: string; sort?: BrowseSortSelection; sorts?: readonly BrowseSortSelection[]}>;
+export type BrowseSource = Readonly<{libraryId: string; pivot: string; base?: readonly BrowseNode[]; predicates?: readonly BrowseNode[]; homeRowId?: string; sort?: BrowseSortSelection; sorts?: readonly BrowseSortSelection[];
+  /** The order this tab opens in when it is not the pivot's (Recently aired). Save view compares against it. */
+  defaultSorts?: readonly BrowseSortSelection[]}>;
 export type BrowseState = Readonly<{phase: 'loading' | 'ready' | 'error'; capabilities?: BrowseCapabilities; predicates: readonly BrowseNode[]; sort?: BrowseSortSelection; error?: unknown;
   /** Actual opaque page token, absent until this applied query has replied. */
   revision?: string; queryRevision: number}>;
@@ -40,7 +42,8 @@ export class BrowseController {
       ...(source.base ? {base: Object.freeze(source.base.map(captureNode))} : {}),
       ...(source.predicates ? {predicates: Object.freeze(source.predicates.map(captureNode))} : {}),
       ...(source.sort ? {sort: Object.freeze({...source.sort})} : {}),
-      ...(source.sorts ? {sorts: Object.freeze(source.sorts.map(sort => Object.freeze({...sort})))} : {})});
+      ...(source.sorts ? {sorts: Object.freeze(source.sorts.map(sort => Object.freeze({...sort})))} : {}),
+      ...(source.defaultSorts ? {defaultSorts: Object.freeze(source.defaultSorts.map(sort => Object.freeze({...sort})))} : {})});
     this.state = Object.freeze({phase: 'loading', predicates: this.source.predicates ?? Object.freeze([]), queryRevision: 0});
     this.collection = createWindowedCollection({pageSize: 60, maxResidentPages: 6, maxConcurrent: 1, prefetchPages: 1,
       keyOf: (item: BrowseMember) => item.membershipId, fetchPage: async () => { throw browseSessionClosed(); }});
@@ -191,14 +194,16 @@ export class BrowseController {
     if (!this.current() || !capabilities || !sort) throw browseSessionClosed();
     return this.builder(capabilities, predicates, sort).build();
   }
-  /** Fixed source membership is the default, not a user-applied filter. */
+  /** Fixed source membership is the default, not a user-applied filter, and the tab's own opening
+   * order is its default, not a change (LB-3: Recently aired opens newest first). */
   canSaveView() {
     const {capabilities, predicates, sort, phase} = this.state;
     if (!this.current() || phase !== 'ready' || !capabilities || !sort) return false;
     const pivot = capabilities.resolvedPivot ?? capabilities.pivots.find(value => value.id === this.source.pivot);
     if (!pivot) return false;
-    return predicates.length > 0 || this.sorts.length !== pivot.defaultSort.length || this.sorts.some((value, index) => {
-      const base = pivot.defaultSort[index];
+    const defaults = this.source.defaultSorts ?? pivot.defaultSort;
+    return predicates.length > 0 || this.sorts.length !== defaults.length || this.sorts.some((value, index) => {
+      const base = defaults[index];
       return !base || value.field !== base.field || value.direction !== base.direction || value.seed !== base.seed;
     });
   }

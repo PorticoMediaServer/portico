@@ -52,7 +52,9 @@ import {LibraryDiscoveryScreen} from './Discovery';
 import {discoverySections} from './discovery-selection';
 import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from './screen-context';
 import {useScreenAppearance} from './screen-preferences';
-import {browseConjunction, parseLibraryScreenSearch, type LibraryScreenSearch} from './route-search';
+import {browseConjunction, libraryTabAddress, parseLibraryScreenSearch, selectedLibraryTab, type LibraryScreenSearch} from './route-search';
+import {addressedQuery, addressedQueryKey, addressedSearch, appliedSorts, libraryAddressKey} from './address-query';
+import {useAddressBuild, useAddressReconcile, type AddressSync} from './use-address-query';
 import {SaveView} from './SaveView';
 import {FacetPage, ReadLibraryEntry, useReadLibrarySummary, authorPredicate, type FacetRequest} from '../read';
 import {isReadingLibrary} from './reading-library';
@@ -111,12 +113,12 @@ function useReadingLifetime(context: ScreenContext, routeKey: string, routeCurre
   return published?.context === context && published.routeKey === routeKey && published.life.current() ? published : undefined;
 }
 function ReadingLibrary({captured, library, search, onMarked}: {captured: ProtectedLibraryScreen; library: Library; search: LibraryScreenSearch; onMarked: () => void}) {
-  const href = useLocation({select: location => location.href});
-  const context = useCommittedLibraryScreenContext(captured, href, () => router.state.location.href === href);
+  const href = useLocation({select: libraryAddressKey});
+  const context = useCommittedLibraryScreenContext(captured, href, () => libraryAddressKey(router.state.location) === href);
   return context ? <CommittedReadingLibrary captured={captured} library={library} search={search} onMarked={onMarked} context={context} href={href}/> : <Skeleton height={320}/>;
 }
 function CommittedReadingLibrary({captured, library, search, onMarked, context, href}: {captured: ProtectedLibraryScreen; library: Library; search: LibraryScreenSearch; onMarked: () => void; context: ScreenContext; href: string}) {
-  const published = useReadingLifetime(context, href, () => router.state.location.href === href);
+  const published = useReadingLifetime(context, href, () => libraryAddressKey(router.state.location) === href);
   return published ? <LiveReadingLibrary key={published.id} captured={captured} library={library} search={search} onMarked={onMarked} context={context} life={published.life}/>
     : <Skeleton height={320}/>;
 }
@@ -124,7 +126,7 @@ function CommittedReadingLibrary({captured, library, search, onMarked, context, 
  *  so no hook order changes when one is published or replaced. */
 function LiveReadingLibrary({captured, library, search, onMarked, context, life}: {captured: ProtectedLibraryScreen; library: Library; search: LibraryScreenSearch; onMarked: () => void; context: ScreenContext; life: ReturnType<typeof screenLifetime>}) {
   const appearance = useScreenAppearance(captured.context)!, width = useShellWidth();
-  const markAll = useReadingMarkAll(context, library.id, JSON.stringify(search), onMarked);
+  const markAll = useReadingMarkAll(context, library.id, useLocation({select: libraryAddressKey}), onMarked);
   type Attempt = {context: ProtectedLibraryScreen['context']; screen: ScreenContext; life: typeof life; libraryId: string; kind: string; controller: AbortController; active: boolean; phase: 'loading' | 'error' | 'ready'};
   const [retry, setRetry] = useState(0), attempt = useRef<Attempt | null>(null);
   const [capabilitySnapshot, setCapabilities] = useState<Readonly<{attempt: Attempt; phase: 'loading' | 'error' | 'ready'; data?: BrowseCapabilities; error?: unknown}>>();
@@ -220,7 +222,7 @@ function readingLibraryMenu(resources: {life: {current: () => boolean}; controll
     {...(settings ? {onLibrarySettings: settings} : {})} {...(scan ? {onScan: scan} : {})}/>;
 }
 type BoundLibraryProps = {captured: ProtectedLibraryScreen; library: Library; search: LibraryScreenSearch; tabs?: readonly ReadingTab[]; musicLookup?: ReturnType<typeof useMusicLibrarySummary>; readingMarkAll?: () => void};
-function useBoundLibraryFrame({captured, library, search, tabs: offered, musicLookup}: BoundLibraryProps, context: ScreenContext, presentation: BoundPresentation) {
+function useBoundLibraryFrame({captured, library, search, tabs: offered, musicLookup}: BoundLibraryProps, context: ScreenContext, presentation: BoundPresentation, address: AddressSync) {
   const appearance = useScreenAppearance(captured.context)!, width = useShellWidth();
   // The offer needs this exact library's own online metadata agent. The fact is keyed to the
   // library and screen scope that produced it, so a stale read can never enable another library
@@ -231,7 +233,7 @@ function useBoundLibraryFrame({captured, library, search, tabs: offered, musicLo
   // must not reuse a previous true before its own read, including on early lifetime refusal.
   const onlineAttention = agentFact?.key === agentKey && agentFact.context === context && context.isCurrent() && agentFact.online === true;
   const tabs = offered ?? libraryTabs(library.kind, {owner: context.identity?.capabilities?.manageServer === true, onlineAttention});
-  const selectedTab = search.unmatched ? tabs.find(tab => tab.shows === 'unmatched') : tabs.find(tab => search.pivot ? tab.pivot === search.pivot : tab.id === (search.view ?? library.defaultView ?? 'discover')) ?? tabs[0];
+  const selectedTab = selectedLibraryTab(tabs, search, library.defaultView ?? 'discover');
   // ReadingLibrary owns periodical screens; only real browse tabs supply sorts.
   const requested = selectedTab?.shows === 'periodicals' ? undefined : selectedTab;
   const view: ContentView = search.view ?? (search.pivot ? 'browse' : library.defaultView ?? 'discover');
@@ -240,23 +242,27 @@ function useBoundLibraryFrame({captured, library, search, tabs: offered, musicLo
   const musicSummary = musicLookup?.library ?? musicRead.library, musicLibraries = musicLookup?.libraries ?? musicRead.libraries;
   const pivot = search.pivot ?? requested?.pivot;
   const browse = !!pivot && !search.entityId && !search.category && !search.q && view !== 'discover';
-  const sourceKey = JSON.stringify({libraryId: library.id, pivot: pivot ?? '', predicates: search.query ? browseConjunction(search.query) : undefined,
-    sorts: search.sort ?? (requested?.defaultSort ? [requested.defaultSort] : undefined)});
-  return {context, appearance, width, ...presentation, onlineAttention, agentKey, setAgentFact, tabs, requested, view, musicMixes, musicSummary, musicLibraries, browse, sourceKey};
+  // The grid is built from the address it was opened or navigated to, never from the toolbar's own
+  // replace echo: that keeps the same controller, its Filters panel and its scroll (LB-1).
+  const built = address.build.search;
+  const sourceKey = JSON.stringify({libraryId: library.id, pivot: pivot ?? '', predicates: built.query ? browseConjunction(built.query) : undefined,
+    sorts: built.sort ?? (requested?.defaultSort ? [requested.defaultSort] : undefined), defaultSorts: requested?.defaultSort ? [requested.defaultSort] : undefined});
+  return {context, appearance, width, ...presentation, onlineAttention, agentKey, setAgentFact, tabs, requested, view, musicMixes, musicSummary, musicLibraries, browse, sourceKey, address};
 }
 type BoundPresentation = Readonly<{choice?: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>; setChoice: (choice: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>) => void; size: 'small' | 'medium' | 'large'; setSize: (size: 'small' | 'medium' | 'large') => void}>;
 function BoundLibrary(props: BoundLibraryProps) {
   const [choice, setChoice] = useState<Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>>();
   const [size, setSize] = useState<'small' | 'medium' | 'large'>('medium');
 
-  const href = useLocation({select: location => location.href});
-  const context = useCommittedLibraryScreenContext(props.captured, href, () => router.state.location.href === href);
-  return context ? <ContextLibrary {...props} context={context} presentation={{choice, setChoice, size, setSize}}/> : <Skeleton height={320}/>;
+  const href = useLocation({select: libraryAddressKey});
+  const address = useAddressBuild(href, {...(props.search.query ? {query: props.search.query} : {}), ...(props.search.sort ? {sort: props.search.sort} : {})});
+  const context = useCommittedLibraryScreenContext(props.captured, href, () => libraryAddressKey(router.state.location) === href);
+  return context ? <ContextLibrary {...props} context={context} presentation={{choice, setChoice, size, setSize}} address={address}/> : <Skeleton height={320}/>;
 }
-function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; presentation: BoundPresentation}) {
-  const frame = useBoundLibraryFrame(props, props.context, props.presentation), {context, agentKey, setAgentFact} = frame, {library} = props;
-  const href = useLocation({select: location => location.href}), runtime = props.captured.binding.playback?.runtime;
-  const resources = useBrowseLease(context, frame.sourceKey, href, () => router.state.location.href === href, runtime);
+function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; presentation: BoundPresentation; address: AddressSync}) {
+  const frame = useBoundLibraryFrame(props, props.context, props.presentation, props.address), {context, agentKey, setAgentFact} = frame, {library} = props;
+  const href = useLocation({select: libraryAddressKey}), runtime = props.captured.binding.playback?.runtime;
+  const resources = useBrowseLease(context, frame.sourceKey, `${href}#${frame.address.build.generation}`, () => libraryAddressKey(router.state.location) === href, runtime);
   // Publish only at commit, then sample once for this setup's original lifetime.
   const setupPorts1 = useRef({setAgentFact});
   useEffect(() => {setupPorts1.current = {setAgentFact};});
@@ -280,6 +286,28 @@ function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; pres
 function CommittedLibrary({captured, library, search, readingMarkAll, frame, resources, href}: BoundLibraryProps & {frame: ReturnType<typeof useBoundLibraryFrame>; resources: BrowseLease; href: string}) {
   const {context, appearance, width, choice, setChoice, size, setSize, onlineAttention, agentKey, tabs, requested, view, musicMixes, musicSummary, musicLibraries, browse} = frame;
   const state = useSyncExternalStore(resources.controller.subscribe, resources.controller.getSnapshot, resources.controller.getSnapshot);
+  // LB-1: the grid's filters and order are written to its own address (a replace that keeps the
+  // scroll), and a navigated address is read back into a rebuilt grid. Both sides are compared in
+  // one vocabulary once the grid knows its default order: the tab's own, else the pivot's.
+  const addressed = useMemo(() => { /* Preserve the original ownership/invalidation keys. */ void state.queryRevision;
+    if (!browse || state.phase !== 'ready' || !state.capabilities) return undefined;
+    const pivot = state.capabilities.resolvedPivot ?? state.capabilities.pivots.find(value => value.id === resources.controller.source.pivot);
+    const defaults = appliedSorts(requested?.defaultSort ? [requested.defaultSort] : pivot?.defaultSort ?? []);
+    try {
+      const grid = {predicates: state.predicates, sorts: appliedSorts(resources.controller.query().sort ?? [])};
+      const route = addressedQuery({...(search.query ? {query: search.query} : {}), ...(search.sort ? {sort: search.sort} : {})}, defaults);
+      return {defaults, grid, routeKey: addressedQueryKey(route), controllerKey: addressedQueryKey(grid)};
+    } catch {return undefined;}
+  }, [browse, state.phase, state.capabilities, state.predicates, state.queryRevision, resources, requested?.defaultSort, search.query, search.sort]);
+  useAddressReconcile(frame.address, addressed?.routeKey, addressed?.controllerKey,
+    {...(search.query ? {query: search.query} : {}), ...(search.sort ? {sort: search.sort} : {})},
+    () => resources.life.current() && context.isCurrent(),
+    () => {
+      if (!addressed) return;
+      const {query: _query, sort: _sort, ...rest} = search;
+      void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {...rest, ...addressedSearch(addressed.grid, addressed.defaults)}, replace: true, resetScroll: false})
+        .catch(error => {if (resources.life.current() && context.isCurrent()) context.effects.reportError(error);});
+    });
   // O-161: the library's ⋯ copies its shareable address (this server's, on Hosted).
   const [linkToast, setLinkToast] = useState<ToastData | null>(null);
   const copyLibraryLink = () => {void copyLink('library', {libraryId: library.id}).then(
@@ -321,7 +349,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     };
     const actions = createBrowserQueryActions(queryBridge, {api: {...resources.life.api, mediaUrl: context.api.mediaUrl.bind(context.api)},
       requestId: async () => randomId(), deviceId: session.deviceId ?? '', owner: actor.role === 'owner' && actor.authority === 'local',
-      signal, scopeKey, isCurrent: () => resources.life.current() && context.isCurrent() && router.state.location.href === href,
+      signal, scopeKey, isCurrent: () => resources.life.current() && context.isCurrent() && libraryAddressKey(router.state.location) === href,
       subscribe: listener => {const a = resources.controller.subscribe(listener), b = subscribeFacts(captured.context, listener), c = router.subscribe('onResolved', listener); return () => {a();b();c();};}});
     publishQueryOwner({resources, actions});
     return () => {life.abort();actions.dispose();queryBridge.dispose();};
@@ -408,7 +436,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
   };
   const discoveryActions = (section: ContentSection, entry: ContentEntry) => {
     const projection = resources.service.getSnapshot().projection, seed = entry.radioSeed, playRadio = context.effects.playRadio;
-    const current = () => resources.life.current() && context.isCurrent() && router.state.location.href === href && resources.playbackOwner === runtime
+    const current = () => resources.life.current() && context.isCurrent() && libraryAddressKey(router.state.location) === href && resources.playbackOwner === runtime
       && resources.service.getSnapshot().phase === 'ready' && resources.service.getSnapshot().projection === projection
       && discoverySections(resources.service.getSnapshot()).some(row => row === section && row.entries.includes(entry));
     if (entry.kind !== 'radio') return actions(entry, current);
@@ -484,7 +512,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       if (tab.shows === 'periodicals') {navigate({view: 'series', pivot: tab.id});return;}
       if (tab.shows === 'unmatched') {navigate({unmatched: true});return;}
       if (tab.shows === 'playlists') {void router.navigate({to: '/saved', search: {view: 'playlists'}}).catch(context.effects.reportError);return;}
-      navigate({view: tab.id === 'discover' ? 'discover' : 'browse', ...(tab.pivot ? {pivot: tab.pivot} : {}), ...(tab.defaultSort ? {sort: [tab.defaultSort]} : {})});}};
+      navigate(libraryTabAddress(tabs, tab));}};
   const empty = <LibraryEmpty api={resources.life.api} scope={context.scope} libraryId={library.id} libraryName={library.name}
     owner={context.identity?.viewer.role === 'owner'} onActivity={() => {if (context.isCurrent()) void router.navigate({to: '/dashboard'}).catch(context.effects.reportError);}}/>;
   const bindings: LibraryBindings = {...header, controller: resources.controller, menuContext: context,
@@ -538,8 +566,10 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
 function LibraryRouteScreen() {
   const [readingGeneration, setReadingGeneration] = useState(0);
   const protectedContext = useProtectedWebScreenContext(), {libraryId} = useParams({from: '/library/$libraryId'});
-  const opening = useLocation({select: value => value});
-  const guard = useLibraryRouteGuard(protectedContext?.context, opening, () => router.state.location === opening, {libraryId}, error => protectedContext?.binding.home.effects.reportError(error));
+  // The toolbar's filters and order live in the address too (LB-1); changing them is the same opening.
+  const addressKey = useLocation({select: libraryAddressKey});
+  const opening = useMemo(() => ({addressKey}), [addressKey]);
+  const guard = useLibraryRouteGuard(protectedContext?.context, opening, () => libraryAddressKey(router.state.location) === addressKey, {libraryId}, error => protectedContext?.binding.home.effects.reportError(error));
   const context = useGuardedLibraryContext(protectedContext?.context, guard);
   const captured = protectedContext && context ? {...protectedContext, context} : undefined;
   const facts = useShellFacts(captured?.context);
