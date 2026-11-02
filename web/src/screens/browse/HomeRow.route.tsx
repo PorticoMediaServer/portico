@@ -134,7 +134,7 @@ function CommittedHomeRow({captured, context, row, owner, continuity, presentati
     setBuild(routed);
   }, [routeKey, controllerKey, controllerQuery, owner, row.id, routed, context]);
   const library = context.identity?.libraries.find(library => library.id === row.libraryId);
-  const browse: LibraryBrowseBindings = {controller: owner.controller, library: {id: '*', name: row.title, kind: library?.kind ?? ''},
+  const browse: LibraryBrowseBindings = {menuContext: context, controller: owner.controller, library: {id: '*', name: row.title, kind: library?.kind ?? ''},
     pivot: owner.controller.source.pivot, artwork: context.artwork,
     appearance: {view: appearance.libraryView, cardWidth: (width < 600 ? 103 : 170) * (size === 'small' ? .8 : size === 'large' ? 1.2 : 1), backdrops: appearance.showBackdrops, cardSize: size},
     preferences: appearance, libraryViewOverride: choice?.defaultView === appearance.libraryView ? choice.view : undefined,

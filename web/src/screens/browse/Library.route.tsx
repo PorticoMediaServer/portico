@@ -487,7 +487,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       navigate({view: tab.id === 'discover' ? 'discover' : 'browse', ...(tab.pivot ? {pivot: tab.pivot} : {}), ...(tab.defaultSort ? {sort: [tab.defaultSort]} : {})});}};
   const empty = <LibraryEmpty api={resources.life.api} scope={context.scope} libraryId={library.id} libraryName={library.name}
     owner={context.identity?.viewer.role === 'owner'} onActivity={() => {if (context.isCurrent()) void router.navigate({to: '/dashboard'}).catch(context.effects.reportError);}}/>;
-  const bindings: LibraryBindings = {...header, controller: resources.controller,
+  const bindings: LibraryBindings = {...header, controller: resources.controller, menuContext: context,
     unmatchedHelp: context.effects.editMetadata ? t('metadata.attention.browseHelp') : undefined,
     env: {t, locale: defaultI18n.region.formatLocale}, reducedMotion: appearance.reducedMotion, owner: context.identity?.viewer.role === 'owner',
     reportError: context.effects.reportError, empty, canSaveView: resources.controller.canSaveView(), onSaveView: save,
@@ -528,7 +528,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />
     : view === 'album' && search.entityId ? <AlbumScreen context={context} libraryId={library.id} albumId={search.entityId} actions={actions}
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />
-    : browse ? <LibraryScreen {...bindings}/> : <LibraryDiscoveryScreen service={resources.service} route={contentRoute} musicMixes={musicMixes} mixesTarget={search.section === 'mixes'} reportError={context.effects.reportError} header={<LibraryIdentity {...header}/>} empty={empty}
+    : browse ? <LibraryScreen {...bindings}/> : <LibraryDiscoveryScreen menuContext={context} service={resources.service} route={contentRoute} musicMixes={musicMixes} mixesTarget={search.section === 'mixes'} reportError={context.effects.reportError} header={<LibraryIdentity {...header}/>} empty={empty}
       appearance={appearanceBase} preferences={appearance} reducedMotion={appearance.reducedMotion} artwork={context.artwork} env={bindings.env}
       actions={discoveryActions} nowPlayingAlbumId={nowPlayingAlbumId} onSeeAll={section => {if (!resources.life.current() || resources.service.getSnapshot().phase !== 'ready' || !discoverySections(resources.service.getSnapshot()).includes(section)) return;const target = section.seeAll;if (target) navigate({pivot: target.pivot, query: target.query, sort: target.sort});}}
       selectionInput={context.identity && (context.identity.viewer.authority === 'local' || context.identity.viewer.authority === 'hosted') ? {context: resources.screen, playback: runtime,

@@ -17,6 +17,7 @@ import {BrowseFilters} from './Filters';
 import {BrowseFilteredEmpty} from './FilteredEmpty';
 import {BrowseScopeChips} from './ScopeChips';
 import {useLibraryCardMenu} from './use-card-menu';
+import type {ScreenContext} from '../detail/context';
 import type {BrowseController, BrowseMember} from './controller';
 import type {BrowseItemActions} from './EntryCard';
 import styles from './browse.module.css';
@@ -26,6 +27,8 @@ import type {LibraryPlaySelection} from './play-selection';
 export type {BrowsePresentation} from './appearance';
 export type LibraryBindings = Readonly<{
   controller: BrowseController;
+  /** The screen's captured context: the title menu's effects, authority and currentness. */
+  menuContext: ScreenContext;
   libraries: readonly LibraryChoice[];
   library: Readonly<{id: string; name: string; kind: string; latestArtwork?: string}>;
   pivot: string;
@@ -110,7 +113,7 @@ export function LibraryBrowse(bindings: LibraryBrowseBindings) {
   const selectionActive = selection.playSelection ? selected?.phase === 'ready' && selected.selection?.active === true : undefined;
   const [filtersOpen, setFiltersOpen] = useState(false), width = useShellWidth(), compact = width < 600, coarse = useCoarsePointer();
   const docked = width >= 1024 && coarse;
-  const {wrap: wrapCard, menu: cardMenu} = useLibraryCardMenu({admission: controller, queryRevision: state.queryRevision});
+  const {wrap: wrapCard, menu: cardMenu} = useLibraryCardMenu({admission: controller, queryRevision: state.queryRevision, context: bindings.menuContext});
   const cardActions = useCallback((member: BrowseMember, index: number) => wrapCard(bindings.selection.actions(member, index), member.entry), [wrapCard, bindings.selection]);
   const model = useMemo(() => state.capabilities && state.sort ? browseToolbarModel(state.capabilities, library.kind, state.predicates, state.sort, {...env, owner: bindings.owner, scope: controller.source.base?.length ? 'group' : 'library'}) : undefined,
     [state.capabilities, state.sort, state.predicates, library.kind, env, bindings.owner, controller]);

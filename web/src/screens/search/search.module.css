@@ -158,7 +158,10 @@
 .channel small { color: var(--color-text-tertiary); }
 
 .songSelection { display: flex; align-items: center; gap: 12px; }
-.songSelection > button:last-child { flex: 1; min-width: 0; }
+.songSelection > .song { flex: 1; min-width: 0; }
+.songMore { flex: none; }
+.songTableRow > .songMore { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); }
+.songTableRow:has(> .songMore) { padding-right: 48px; }
 
 .songSelection[data-selected="true"] .song b { color: var(--color-accent-strong); }
 .songSelection[data-preview="true"] .song { background: color-mix(in srgb,var(--color-accent-strong) 12%,transparent); }

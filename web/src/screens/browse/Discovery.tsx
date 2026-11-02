@@ -11,6 +11,7 @@ import {useShellWidth} from '../../shell/viewport';
 import {BrowseEntryCard, type BrowseItemActions} from './EntryCard';
 import {CatalogueSelectionEntry, type CatalogueDocumentSelection} from './document-selection';
 import {useLibraryCardMenu} from './use-card-menu';
+import type {ScreenContext} from '../detail/context';
 import {SelectionCircle, SelectionHoldFeedback} from '../../kit/selection';
 import {useCardHold} from '../../kit/cards/useCardHold';
 import {Icon} from '../../kit/Icon';
@@ -24,6 +25,8 @@ import {MusicMixesRow} from './MusicMixesRow';
 import styles from './recent-tiles.module.css';
 
 export type DiscoveryBindings = Readonly<{
+  /** The screen's captured context: the title menu's effects, authority and currentness. */
+  menuContext: ScreenContext;
   service: LibraryContentService; route: ContentRoute; artwork: ShellArtwork; env: TextEnvironment; appearance: BrowsePresentation; reducedMotion: boolean;
   preferences?: ScreenAppearance;
   musicMixes?: MusicMixesBinding;
@@ -39,7 +42,7 @@ export type DiscoveryBindings = Readonly<{
   nowPlayingAlbumId?: string;
 }>;
 /** Sections and cursors are the authorized library projection, never a client-composed library scan. */
-export function LibraryDiscoveryScreen({service, route, header, empty, artwork, env, appearance: base, preferences, reducedMotion, actions, registerWindow, selectionToolbar, selectionInput, onSeeAll, nowPlayingAlbumId, musicMixes, mixesTarget, reportError}: DiscoveryBindings) {
+export function LibraryDiscoveryScreen({menuContext, service, route, header, empty, artwork, env, appearance: base, preferences, reducedMotion, actions, registerWindow, selectionToolbar, selectionInput, onSeeAll, nowPlayingAlbumId, musicMixes, mixesTarget, reportError}: DiscoveryBindings) {
   const appearance = browsePresentation(base, preferences);
   // The frame's library waits a quiet 300ms before its grid shapes, then keeps the real
   // elapsed clock so only a genuinely slow answer moves on at eight seconds.
@@ -69,7 +72,7 @@ export function LibraryDiscoveryScreen({service, route, header, empty, artwork, 
       return discoveryEntries(current).some(candidate => candidate === entry);
     },
   }), [service, routeLibraryId, routeView, routeEntityId]);
-  const {wrap: wrapCard, menu: cardMenu} = useLibraryCardMenu({admission, queryRevision: snapshot.generation});
+  const {wrap: wrapCard, menu: cardMenu} = useLibraryCardMenu({admission, queryRevision: snapshot.generation, context: menuContext});
   // The library frame is already known while its sections fail to load; keep it and put the
   // failure and its retry in place of the sections.
   if (!snapshot.projection && snapshot.phase === 'error') return <>{header}<StateView variant="page" title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t('next.states.pageFailedBody')}

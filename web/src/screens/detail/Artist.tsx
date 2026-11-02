@@ -21,6 +21,7 @@ import {Menu} from '../../kit/overlays';
 import {useShellWidth} from '../../shell/viewport';
 import {runScreenCommand, screenLifetime, type ScreenContext} from './context';
 import {SimilarTitleRow} from './Detail';
+import {useTitleMenu} from '../../shell/title-menu';
 import {SquareCard} from '../../kit/cards';
 import {entryCard} from './model';
 import {environment as env} from './text';
@@ -77,6 +78,7 @@ export function ArtistScreen({context, libraryId, artistId, onBack}: ArtistScree
 function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context: ScreenContext; libraryId: string; artistId: string; lease: Lease; retry: (failureCurrent: () => boolean) => void; back: () => void}) {
   const phone = useShellWidth() < 1024, {service} = lease;
   const [menu, setMenu] = useState<{page: ContentProjection; anchor: HTMLButtonElement}>(), more = useRef<HTMLButtonElement>(null);
+  const titleMenu = useTitleMenu(context);
   const content = useSyncExternalStore(service.subscribe, service.getSnapshot, service.getSnapshot);
   const [failed, setFailed] = useState<{lease: Lease; snapshot: ReturnType<LibraryContentService['getSnapshot']>; error: unknown}>();
   const failureRef = useRef<typeof failed>(undefined);
@@ -198,6 +200,7 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
         guard={() => {if (!witness()) throw new DOMException('Artist page changed', 'AbortError');}}
         target={{entityKind: 'artist', entityId: artist.id, libraryId, title: artist.title}}/>
     </Menu>}
+    {titleMenu.menu}
     {/* desktop-listen #artist: Top songs on the left; Albums then Details in the 360px aside. */}
     <section className={styles.split}>
       <div className={styles.songs}>
@@ -208,6 +211,7 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
         {albums.length > 0 && <section className={styles.albumsBlock} aria-label={t('music.albums')}>
           <h2 className={styles.detailsTitle}>{t('music.albums')}</h2>
           <div className={styles.albumGrid}>{albums.map(album => <SquareCard key={album.id} model={entryCard(album, env)} artwork={context.artwork.foreground(album.posterUrl, 400, 1)}
+            onMore={anchor => { const onPlay = titleMenu.play(album, witness); titleMenu.open(anchor, {entry: album, title: album.displayTitle ?? album.title, current: witness, ...(onPlay ? {onPlay} : {})}); }}
             onNavigate={() => runScreenCommand(context, () => {if (!witness()) throw new DOMException('Artist page changed', 'AbortError'); context.effects.openEntry(album);})} watched={album.watched}/>)}</div>
           {albumsSection?.nextCursor && <Button size="small" disabled={content.phase === 'loading'} onClick={() => runScreenCommand(context, () => {
             const now = service.getSnapshot();
