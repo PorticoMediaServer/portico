@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Refusal boundaries for the first hosted cold toolchain run."""
 import importlib.util
+from datetime import datetime, timezone
 import json
 import re
 from pathlib import Path
@@ -32,11 +33,48 @@ def environment():
 
 
 class ColdToolchain(unittest.TestCase):
-    def test_first_set_has_four_required_targets_and_optional_intel(self):
+    def test_development_native_retry_keeps_original_identity_and_expires(self):
+        pin = cold.native_retry_pin('windows-x64', datetime(2026, 11, 2, tzinfo=timezone.utc))
+        producer = dict(engineSourceSHA=pin['engineSourceSHA'], runId=41346289584,
+                        runAttempt=1, context='github-actions')
+        sender = dict(producer, target='windows-x64', constructionPassed=True,
+                      qualified=False, release=False, bundleArchiveSHA256='b' * 64)
+        self.assertEqual(cold.check_retry_transfer(sender, pin, 'b' * 64), producer)
+        for changed in (dict(sender, runId=12), dict(sender, engineSourceSHA=SHA),
+                        dict(sender, qualified=True), dict(sender, release=True)):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                cold.check_retry_transfer(changed, pin, 'b' * 64)
+        with self.assertRaises(ValueError): cold.check_retry_transfer(sender, pin, 'c' * 64)
+        with self.assertRaises(ValueError): cold.native_retry_pin('linux-x64')
+        with self.assertRaises(ValueError):
+            cold.native_retry_pin('windows-x64', datetime(2026, 11, 16, tzinfo=timezone.utc))
+        with patch.dict('os.environ', {'PORTICO_ENGINE_BUILD_CONTEXT': 'release'}), self.assertRaises(ValueError):
+            cold.native_retry('windows-x64', Path('/must-not-be-created'))
+
+    def test_native_plan_skips_failed_construction_but_keeps_successful_targets(self):
+        def artifact(target):
+            return dict(id=123, name='engine-cold-' + target + '-' + SHA + '-NOT-FOR-USE',
+                expired=False, size_in_bytes=100, digest='sha256:' + 'b' * 64,
+                workflow_run=dict(id=12, head_sha=SHA))
+        result = cold.native_matrix('all', [artifact('windows-x64')], SHA, 'failure', 12)
+        self.assertEqual([r['target'] for r in result['matrix']['include']], ['windows-x64'])
+        self.assertIn('macos-arm64', result['missingConstruction'])
+        self.assertFalse(result['nativeEngineChecks'])
+        with self.assertRaisesRegex(ValueError, 'missing its exact artifacts'):
+            cold.native_matrix('all', [artifact('windows-x64')], SHA, 'success', 12)
+        original = artifact('windows-x64')
+        for bad in (dict(original, expired=True), dict(original, workflow_run=dict(id=11, head_sha=SHA)),
+                    dict(original, digest='sha256:bad')):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                cold.native_matrix('windows-x64', [bad], SHA, 'success', 12)
+        with self.assertRaises(ValueError):
+            cold.native_matrix('windows-x64', [original, original], SHA, 'success', 12)
+
+    def test_first_set_has_four_required_targets(self):
         rows = cold.matrix('all')['include']
         self.assertEqual({r['target'] for r in rows if not r['optional']},
                          {'windows-x64', 'linux-x64', 'linux-arm64', 'macos-arm64'})
-        self.assertEqual([r['target'] for r in rows if r['optional']], ['macos-x64'])
+        self.assertEqual([r['target'] for r in rows if r['optional']], [])
         self.assertEqual(cold.matrix('linux-arm64')['include'][0]['nativeRunner'], 'ubuntu-24.04-arm')
         with self.assertRaises(ValueError):
             cold.matrix('windows-arm64')

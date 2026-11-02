@@ -13,7 +13,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = {'macos-arm64': ('arm64', 'aarch64-apple-darwin'),
-           'macos-x64': ('x86_64', 'x86_64-apple-darwin')}
+           }
 
 
 # The exact same tool implementation serves native Mac and Linux engines.

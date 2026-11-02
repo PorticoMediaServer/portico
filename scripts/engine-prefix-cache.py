@@ -39,8 +39,14 @@ def excluded(name):
     # FFmpeg itself always compiles fresh. Its prepared source stays checked by
     # the ordinary producer, outside dependency cache identity and transport.
     parts = PurePosixPath(name).parts
-    return (parts[0] == 'packages' and len(parts) > 1 and
-            (parts[1].startswith('portico-ffmpeg-source-') or parts[1] == 'ffmpeg.done'))
+    if len(parts) < 2: return False
+    if parts[0] == 'packages':
+        return parts[1].startswith(('portico-ffmpeg-source-', 'FFmpeg-release-', 'ffmpeg'))
+    if parts[0] == 'prefix':
+        return (parts[1] in ('bin', 'ffmpeg', 'include', 'lib', 'share') and
+                (parts[1] == 'ffmpeg' or any(p in ('ffmpeg', 'ffprobe', 'portico-disc', 'ffmpeg.exe', 'ffprobe.exe', 'portico-disc.exe') or
+                    p.startswith(('libavcodec', 'libavdevice', 'libavfilter', 'libavformat', 'libavutil', 'libpostproc', 'libswresample', 'libswscale')) for p in parts[2:])))
+    return False
 
 
 def inventory(roots):

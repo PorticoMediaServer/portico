@@ -96,13 +96,12 @@ class GeneratedTargets(unittest.TestCase):
                 configure(changed, 'linux-x64', explain=False)
             self.assertIn('pinned rav1e removal boundary changed', refused.exception.stderr)
             homebridge = work / 'homebridge'; clone(lock['macosRecipe'], homebridge)
-            for target in ('macos-arm64', 'macos-x64'):
+            for target in ('macos-arm64',):
                 recipe = work / target; shutil.copytree(homebridge, recipe)
                 patches = ['homebridge-sourceforge-download.patch', 'homebridge-gpl-only.patch',
                            'homebridge-arm64-vpx.patch', 'homebridge-private-python.patch',
                            'homebridge-zix-build.patch', 'homebridge-private-pkgconfig.patch']
-                if target == 'macos-x64':
-                    patches.append('homebridge-intel-gmp-pic.patch')
+
                 for name in patches:
                     subprocess.run(['git', 'apply', ROOT / 'third_party/ffmpeg/patches' / name],
                                    cwd=recipe, check=True, timeout=10, capture_output=True)

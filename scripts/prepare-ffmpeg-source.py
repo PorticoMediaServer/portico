@@ -19,6 +19,13 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def check_objective_c_sources(tree):
+    collisions = sorted(str(p.relative_to(tree)) for p in (tree / 'libavfilter').glob('*.m')
+                        if p.with_suffix('.c').exists())
+    if collisions:
+        raise ValueError('C source shadows Objective-C filter: ' + ', '.join(collisions))
+
+
 def tree_files(tree):
     return {str(path.relative_to(tree)): ('symlink:' + os.readlink(path) if path.is_symlink() else digest(path))
             for path in sorted(tree.rglob('*'))
@@ -30,6 +37,7 @@ def prepare(archive, output, lock):
     if digest(archive) != source['sha256']:
         raise ValueError('Jellyfin FFmpeg source checksum mismatch')
     if output.exists():
+        check_objective_c_sources(output)
         receipt = json.loads((output / 'portico-source-receipt.json').read_text())
         if (receipt['sourceCommit'] != source['commit'] or receipt['sourceSha256'] != source['sha256'] or
                 receipt['patches'] != source['patches'] or
@@ -56,7 +64,7 @@ def prepare(archive, output, lock):
             path = tree / patch['path']
             if digest(path) != patch['sha256']:
                 raise ValueError('patch checksum mismatch: ' + patch['path'])
-            subprocess.run(['patch', '--batch', '--fuzz=0', '-p1', '-i', str(path.resolve())],
+            subprocess.run(['patch', '--batch', '--fuzz=0', '-E', '-p1', '-i', str(path.resolve())],
                            cwd=tree, check=True, stdout=subprocess.DEVNULL)
         # Portico patches follow the untouched, exactly ordered 100 upstream
         # patches. Their source and receipt are separate from that series.
@@ -65,8 +73,9 @@ def prepare(archive, output, lock):
             if (not path.resolve().is_relative_to(ROOT) or path.is_symlink() or
                     digest(path) != patch['sha256']):
                 raise ValueError('post-series patch checksum/path mismatch: ' + patch['path'])
-            subprocess.run(['patch', '--batch', '--fuzz=0', '-p1', '-i', str(path.resolve())],
+            subprocess.run(['patch', '--batch', '--fuzz=0', '-E', '-p1', '-i', str(path.resolve())],
                            cwd=tree, check=True, stdout=subprocess.DEVNULL)
+        check_objective_c_sources(tree)
         # These boundaries predate this release and must survive all patches.
         assertions = {
             'RELEASE': ['8.1.3'],

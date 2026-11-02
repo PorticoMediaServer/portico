@@ -142,6 +142,16 @@ def configure_makeimage(recipe, helper, target):
                        '--build-arg SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:?Explicit source epoch required}" \\\n' +
                        (' ' * (12 if phase != 'deps' else 4)) + '"${PORTICO_CACHE_ARGS[@]}"')
         text = text.replace(boundary, setup + replacement)
+    download = './download.sh\n'
+    if text.count(download) != 1:
+        raise ValueError('pinned source snapshot transport boundary changed')
+    helper = Path(__file__).with_name('engine-download-cache.py')
+    # Always save complete downloads, including when a later source fails.
+    replacement = ('python3 "' + str(helper) + '" restore --recipe "$PWD"\n'
+        'portico_download_status=0\n./download.sh || portico_download_status=$?\n'
+        'python3 "' + str(helper) + '" save --recipe "$PWD"\n'
+        '[[ "$portico_download_status" == 0 ]] || exit "$portico_download_status"\n')
+    text = text.replace(download, replacement, 1)
     # A task-local prefix must not salt either BuildKit's graph or stage key.
     # The normal upstream namespace is stable; Windows uses its own adapter.
     path.write_text(text)
