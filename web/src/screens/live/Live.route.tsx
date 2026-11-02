@@ -1,4 +1,5 @@
 import {serverNow} from '@core/server-clock.ts';
+import {liveGuideStale, liveServerWideNotice} from '@core/presentation/live-availability.ts';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {useLocation, useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
@@ -11,7 +12,7 @@ import {useQuietRefresh} from '../../platform/freshness';
 import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
-import {ToastHost, type ToastData} from '../../kit/overlays';
+import {Banner, ToastHost, type ToastData} from '../../kit/overlays';
 import {StateView} from '../../kit/states';
 import {useWindowHeight} from '../../kit/theme';
 import {useShellWidth} from '../../shell/viewport';
@@ -261,6 +262,13 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
   const days = through === undefined ? [] : dayStarts(now, through, timezone);
   const throughDay = through === undefined ? undefined : new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', timeZone: timezone}).format(through - 1);
   const hasSources = !!sources?.length;
+  // Spec §10: a stale guide and a server-wide reason are said once, from the server's own state (LT-3, LT-4).
+  const serverWide = liveServerWideNotice(selectedSources, owner), stale = liveGuideStale(selectedSources);
+  const openLiveSettings = () => {if (context.isCurrent()) void router.navigate({to: '/settings', search: {scope: 'server', section: 'live'}}).catch(context.effects.reportError);};
+  const guideNotice = serverWide || stale ? <>
+    {serverWide && <Banner icon="i-warn"><b>{t(serverWide.title)}</b> {t(serverWide.body)}</Banner>}
+    {stale && <Banner icon="i-clock" {...(owner ? {action: {label: t('guide.openSource'), onAction: openLiveSettings}} : {})}>{t('guide.stale')}</Banner>}
+  </> : undefined;
   const total = snapshot.total ?? Math.max(1, last + 1);
   const rows: GuideRowData[] = [];
   for (let index = first; index <= last; index++) {
@@ -298,6 +306,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
             onChange: value => {const day = days.find(day => String(day) === value);if (day !== undefined) setStart(dayPrimeTime(day, timezone));}}}
           sort={{value: search.sort ?? 'number', options: [{value: 'number', label: t('channels.sortNumber')}, {value: 'name', label: t('channels.sortName')}, {value: 'favorites', label: t('channels.favorites')}],
             onChange: sort => {if (sort === 'number' || sort === 'name' || sort === 'favorites') navigate({sort});}}}
+          notice={guideNotice}
           problem={snapshot.channelsError ? <StateView variant="page" title={t('guide.tileFailed')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => {if (lease.life.current()) lease.bindings.store.retry();}}}/> : undefined}
           empty={sources && !sources.length ? <StateView variant="page" title={t('channels.noSourcesTitle')} body={t('web.live.noSourcesOwner')}
             primary={{id: 'settings', label: t('web.live.setUpChannels'), onPress: () => {if (context.isCurrent()) void router.navigate({to: '/settings', search: {scope: 'server', section: 'live'}});}}}/> : snapshot.total === 0 ? <StateView variant="page" title={t('channels.filterEmptyTitle', {filter: search.group ?? (search.favorites ? t('channels.favorites') : search.q ?? t('channels.all'))})}

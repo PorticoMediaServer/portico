@@ -68,7 +68,7 @@
 .guideChannelMore { margin-left: auto; flex: none; opacity: 0; transition: opacity var(--motion-quick) var(--ease-out); }
 .guideRow:hover .guideChannelMore, .guideRow:focus-within .guideChannelMore, .guideChannelMore[aria-expanded='true'] { opacity: 1; }
 @media (hover: none) { .guideChannelMore:not(:focus-visible):not([aria-expanded='true']) { pointer-events: none; } }
-.guideRow[data-hidden], .guideListRow[data-hidden] { opacity: .55; }
+.guideRow[data-hidden], .guideListRow[data-hidden], .guideRow[data-unavailable], .guideListRow[data-unavailable] { opacity: .55; }
 .guideChannel .guideChannelMark { border-radius: 9px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-white) 7%, transparent); }
 .guideChannelMarkEmpty { width: 40px; height: 40px; flex: none; border-radius: 9px; background: var(--color-raised); }
 .guideChannelText { min-width: 0; }
