@@ -49,6 +49,8 @@ func (d Dependencies) ownerResetFileRoutes(mux *http.ServeMux) {
 			failure(w, e)
 			return
 		}
+		// Set up: the remote gate applies from now on.
+		d.reloadConnectionPolicy(r.Context())
 		// The admitted owner is journalled; push them to Portico Services now.
 		d.Hosted.MembershipChanged()
 		writeAuth(w, r, 200, out)

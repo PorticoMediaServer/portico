@@ -3,12 +3,14 @@ package hosted
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"os"
 	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/networking"
+	"github.com/PorticoMediaServer/portico/server/internal/remotegate"
 )
 
 const pendingSetupID = "33333333-3333-4333-8333-333333333333"
@@ -106,5 +108,34 @@ func TestAccountSetupCompletionRechecksRevokedSignerAndTerminalClaim(t *testing.
 				t.Fatal("failed setup created owner", e)
 			}
 		})
+	}
+}
+
+// G3: a server set up through the Portico Account setup exchange closes its remote gate on
+// that commit, with no policy reload: the gate asks identity's live answer on each decision.
+func TestAccountSetupClosesTheRemoteGateWithoutAReload(t *testing.T) {
+	f, secret := pendingClaimFixture(t)
+	ctx := context.Background()
+	// The fixture emptied accounts behind the fixture's own service, so the gate's view comes
+	// from a service opened on that state now, as a restart would; the owner is then made by
+	// the other one, which shows the answer follows the commit, not the caller.
+	gateView, e := identity.New(f.db, f.state)
+	if e != nil {
+		t.Fatal(e)
+	}
+	policy := remotegate.NewPolicy(remotegate.Settings{Security: remotegate.SecurityEnhanced, Access: remotegate.AccessOn, Unconfigured: gateView.Unconfigured})
+	outside := netip.MustParseAddr("203.0.113.9")
+	if policy.Socket(outside, false) != remotegate.Admit {
+		t.Fatal("outside plain HTTP refused before setup")
+	}
+	who, e := verify(f, freshClaims(f, "account"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = f.id.CompleteAccountSetup(ctx, pendingSetupID, secret, who); e != nil {
+		t.Fatal("setup exchange", e)
+	}
+	if policy.Socket(outside, false) == remotegate.Admit {
+		t.Fatal("after the setup exchange, plain HTTP from outside must be refused in Enhanced, with nothing reloaded")
 	}
 }
