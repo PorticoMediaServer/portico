@@ -7,7 +7,7 @@ import {timelineFacts, type TextEnvironment} from '@portico/client-core/kit-mode
 import {durationText} from '@core/presentation/kit-model/text.ts';
 import type {BrowseSortSelection} from '@core/browse.ts';
 import type {ContentEntry} from '@core/library-content.ts';
-import {AlphabetRail, WindowedGrid, type WindowedGridHandle} from '../../kit/layout';
+import {AlphabetRail, WindowedGrid, fillHeightBelow, observeShellClearance, type WindowedGridHandle} from '../../kit/layout';
 import {gridColumns} from '../../kit/layout/geometry';
 import {Skeleton, StateView} from '../../kit/states';
 import {Artwork, GeneratedArt} from '../../kit/artwork';
@@ -72,16 +72,18 @@ export function BrowseResults(props: BrowseResultsProps) {
   useLayoutEffect(() => {
     const element = root.current; if (!element) return;
     // The grid owns its scrollbar, so its content width — not the outer box — decides the fill.
+    // Its height runs from the grid's own top (below the padding and list header) to the shell's bottom chrome.
     const grids = new Set<Element>();
     let observer: ResizeObserver;
     const read = () => {
-      const bounds = element.getBoundingClientRect(), node = element.querySelector<HTMLElement>('[role="list"]');
+      const node = element.querySelector<HTMLElement>('[role="list"]');
       if (node && !grids.has(node)) {grids.add(node);observer.observe(node);}
-      setSize({width: element.clientWidth, grid: node?.clientWidth ?? 0, height: Math.max(280, window.innerHeight - bounds.top)});
+      setSize({width: element.clientWidth, grid: node?.clientWidth ?? 0, height: fillHeightBelow(node ?? element)});
     };
     observer = new ResizeObserver(read);
     observer.observe(element); window.addEventListener('resize', read);read();
-    return () => {observer.disconnect();window.removeEventListener('resize', read);};
+    const stopClearance = observeShellClearance(element, read);
+    return () => {observer.disconnect();stopClearance();window.removeEventListener('resize', read);};
   }, [failed]);
   const range = useCallback((first: number, last: number) => {setVisible(before => before.first === first && before.last === last ? before : {first, last});onVisibleRange?.(first, last);}, [onVisibleRange]);
   const anchors = Object.entries(snapshot.positionIndex ?? {}).map(([key, index]) => ({key, index}));
@@ -111,7 +113,7 @@ export function BrowseResults(props: BrowseResultsProps) {
         {offered ? <button type="button" onClick={() => props.onSort({field: offered.id, direction: state.sort?.field === offered.id && offered.directions.length > 1 ? state.sort.direction === 'asc' ? 'desc' : 'asc' : offered.defaultDirection})}>{t(column.label)}{state.sort?.field === field && <Icon name={state.sort.direction === 'asc' ? 'i-up' : 'i-down'} size={14}/>}</button> : t(column.label)}
       </div>;
     })}{!reading && !music && <span aria-label={t('next.cards.watched')} role="columnheader"/>}<span/></div>}
-    <WindowedGrid collection={controller.collection} ref={grid} label={props.label} height={size.height - (list ? 44 : 0)} retainRemovals paintScope={controller} empty={props.empty}
+    <WindowedGrid collection={controller.collection} ref={grid} label={props.label} height={size.height} retainRemovals paintScope={controller} empty={props.empty}
       cardWidth={width} rowHeight={list ? music ? 56 : 70 : height} gap={list ? 0 : gap} rowGap={list ? 0 : tiles ? 24 : gridRowGap} reducedMotion={props.reducedMotion}
       onVisibleRange={range} renderPlaceholder={() => <Skeleton height={list ? 54 : musicGenres ? 152 : width / ratio} width={list ? '100%' : width}/>}
       renderItem={(member, context) => list ? <BrowseListRow {...props} member={member} index={context.index} reading={reading} music={music}/> : <BrowseEntryCard entry={member.entry} actions={props.actions(member, context.index)} artwork={props.artwork} env={props.env}

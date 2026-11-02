@@ -13,3 +13,4 @@ export type {WindowedGridHandle, WindowedGridProps, GridItemContext} from './Win
 export {AlphabetRail} from './AlphabetRail';
 export type {AlphabetRailProps} from './AlphabetRail';
 export type {PositionAnchor, VisibleRange} from './geometry';
+export {fillHeightBelow, observeShellClearance, shellBottomClearance} from './fill-height';
