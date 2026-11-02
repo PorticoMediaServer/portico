@@ -224,6 +224,7 @@ jobs:
         env: {GH_TOKEN: '${{ github.token }}'}
         run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
       - name: Build once from pinned source, retaining custody and cold timing
+        id: engine-build
         env:
           ENGINE_TARGET: ${{ matrix.target }}
           PORTICO_ENGINE_DOWNLOAD_CACHE: ${{ runner.temp }}/engine-download-cache
@@ -279,6 +280,7 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ !cancelled() && steps.engine-build.outcome == 'success' }}
         with:
           name: engine-cold-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
           path: ${{ runner.temp }}/engine-cold/product/*
