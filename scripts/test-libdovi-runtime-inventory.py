@@ -13,8 +13,8 @@ M = runpy.run_path(str(ROOT / 'scripts/build-linux-libdovi.py'))
 
 
 class RuntimeInventory(unittest.TestCase):
-    def test_linux_default_and_windows_keep_their_triples_after_notice_copying(self):
-        for triple in ('x86_64-unknown-linux-gnu', 'x86_64-pc-windows-gnu', 'aarch64-unknown-linux-gnu'):
+    def test_linux_default_windows_and_macos_keep_triples_after_notice_copying(self):
+        for triple in ('x86_64-unknown-linux-gnu', 'x86_64-pc-windows-gnu', 'aarch64-unknown-linux-gnu', 'aarch64-apple-darwin', 'x86_64-apple-darwin'):
             with self.subTest(triple=triple), tempfile.TemporaryDirectory(dir=ROOT) as tmp:
                 root = Path(tmp)
                 stage, prefix, sysroot = root / 'stage', root / 'prefix', root / 'sysroot'

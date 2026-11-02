@@ -1426,21 +1426,21 @@
    ]
   },
   {
-   "id": "npm:seroval@1.6.7",
+   "id": "npm:seroval@1.7.6",
    "name": "seroval",
-   "version": "1.6.7",
+   "version": "1.7.6",
    "licence": "MIT",
    "group": "packages",
-   "url": "https://github.com/lxsmnsyc/seroval/tree/main/packages/seroval",
+   "url": "https://seroval.vercel.app",
    "text": 20
   },
   {
-   "id": "npm:seroval-plugins@1.6.7",
+   "id": "npm:seroval-plugins@1.7.6",
    "name": "seroval-plugins",
-   "version": "1.6.7",
+   "version": "1.7.6",
    "licence": "MIT",
    "group": "packages",
-   "url": "https://github.com/lxsmnsyc/seroval/tree/main/packages/plugins",
+   "url": "https://seroval.vercel.app/docs/using-plugins",
    "text": 20
   },
   {
@@ -2142,7 +2142,7 @@
  ],
  "inputs": {
   "LICENSE": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
-  "package-lock.json": "f07809e93aabdf7c6418746180d5820fe083ce9db6c1411a113a0b17bf958ea4",
+  "package-lock.json": "ff20fed413bd7f44852d1252905d4f328194e9226ac3eb52a30f48f06adc41c3",
   "packages/design/LICENSE-LUCIDE": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
   "scripts/release-build-tags.py": "1e0070421a44a8a3d9ecda535d2186ae5679786576da74f38dd40af07c8765c9",
   "server/go.mod": "bd3b4913cdbaf693d3d3b90079273b08d60e7fdf00ff9b43e7e380e687be62c3",
@@ -2153,7 +2153,7 @@
   "server/internal/mediaexec/fonts/NotoSansDevanagari-LICENSE": "a216f6f8d85c7228093e0ee5e258d9d377e6671f68acb4db1930b29583d0f331",
   "server/internal/mediaexec/fonts/NotoSansThai-LICENSE": "2e98fd23a52d253db8612cd5942c8f2ff4111b21d2367050fdca91d8ccc374a0",
   "server/internal/thirdparty/sqlite/LICENSE": "c6fe05491a60ae13bcd223088d2705e36dede24e5587226231d2459ada5c4822",
-  "third_party/ffmpeg/sources.lock.json": "3a4698e93fa9d59254539ba0bb39e95e14ce78536b5da9d99cc6d47dda97bebf",
+  "third_party/ffmpeg/sources.lock.json": "f7028e417ea003251a9990509c37595416925ce25d0a84899d9c803ccc2398e8",
   "third_party/hls.js/LICENSE": "ca8773cf798c7ed997d4dd7c8e23c348699f8d5b7462636694cc14de6cda12db",
   "third_party/libass-wasm/COPYRIGHT": "ab5c01d34e1f19e2bb99c893d2bd6693dc35da8c8a029f8e4aafd78af93b527a",
   "third_party/libass-wasm/LICENSE": "352fbab9abdf49eff4cb1bb010fe307022dc3f05a4d821afe1d2ebdc0e3db10e",
