@@ -173,16 +173,52 @@ func WithClass(ctx context.Context, class Class) context.Context {
 // ClassFrom returns the class ctx carries, or fallback when it carries none. A
 // package used by both a request handler and a bulk loop must classify with this
 // rather than guessing, because the same function is correct at two priorities.
+// Work a person is waiting for is never background work, whatever it names: see
+// Effective.
 func ClassFrom(ctx context.Context, fallback Class) Class {
+	class := fallback
 	if ctx != nil {
-		if class, ok := ctx.Value(classKey{}).(Class); ok && class.Valid() {
-			return class
+		if carried, ok := ctx.Value(classKey{}).(Class); ok && carried.Valid() {
+			class = carried
 		}
 	}
-	if !fallback.Valid() {
-		return ClassInteractive
+	if !class.Valid() {
+		class = ClassInteractive
 	}
-	return fallback
+	return Effective(ctx, class)
+}
+
+type requestKey struct{}
+
+// WithRequest marks ctx as an HTTP request a person is waiting on, admitted in a
+// lane of the given class. HTTP admission sets it once, beside WithClass.
+func WithRequest(ctx context.Context, class Class) context.Context {
+	if ctx == nil || !class.Valid() {
+		return ctx
+	}
+	return context.WithValue(ctx, requestKey{}, class)
+}
+
+// Effective is the class work really runs at. The class a call site names
+// describes the work, not who is waiting for it: a helper written for a worker
+// (a cache fact, a count, a cover) names background, and when a request calls it
+// the request would otherwise wait behind every scan batch with no deadline of
+// its own (RD-4, J-18). So background work done under a request, outside any
+// supervised operation, runs at the request's own lane class. A worker keeps
+// its class: it runs inside a supervised operation even when a request started
+// it. Owner lanes that are themselves maintenance-class stay where they are.
+func Effective(ctx context.Context, class Class) Class {
+	if !class.Valid() {
+		class = ClassInteractive
+	}
+	if !class.Background() || ctx == nil {
+		return class
+	}
+	request, ok := ctx.Value(requestKey{}).(Class)
+	if !ok || !request.Valid() || request.Background() || supervise.Operation(ctx) != "" {
+		return class
+	}
+	return request
 }
 
 type ownerKey struct{}

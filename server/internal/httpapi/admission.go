@@ -550,6 +550,9 @@ func (a *admission) wrap(mux *http.ServeMux, next http.Handler) http.Handler {
 			return
 		}
 		ctx = dbwork.WithClass(ctx, l.spec.class)
+		// A person is waiting on this request: background-class work it calls
+		// runs at this lane's class instead (dbwork.Effective).
+		ctx = dbwork.WithRequest(ctx, l.spec.class)
 		// The writer gate rotates between the same owners the lanes share load
 		// by, and a full gate refuses an over-share owner's write first.
 		ctx = dbwork.WithOwner(ctx, key)
