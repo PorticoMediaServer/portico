@@ -8,7 +8,7 @@ import {t, locale} from '../detail/text';
 import {createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
 import {searchQueryProblem, type SearchEntry, type SearchGroup, type SearchGroupResult, type SearchHistoryPage} from '@core/search.ts';
-import {SEARCH_CHIPS, searchGroupLabel, topSearchResult} from '@core/presentation/search-model.ts';
+import {SEARCH_CHIPS, searchChipOffered, searchGroupLabel, topSearchResult} from '@core/presentation/search-model.ts';
 import {Button, Chip, TextField} from '../../kit/controls';
 import {useSelectionRangePreview, type CardSelection, PosterCard, SquareCard, CircleCard, EpisodeTile, GenreTile, LiveCard, CoverCard} from '../../kit/cards';
 import {Artwork} from '../../kit/artwork';
@@ -248,9 +248,8 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
     </div>
     <SearchResultStatus identity={`${snapshot.generation}:${text.trim()}:${group ?? ''}`} count={snapshot.phase === 'ready' && showing ? searchResultCount(groups) : undefined}/>
     {selection?.isActive() ? selection.toolbar : text.trim() && !(empty && !group) && <div className={styles.chips} role="group" aria-label={t('web.search.title')}>{SEARCH_CHIPS.map(value => {
-      const capability = showing?.capabilities.groups.find(item => item.id === value.id), result = groups.find(item => item.id === value.id) ?? binding.summary().find(item => item.id === value.id);
-      if (value.id !== 'all' && capability?.available === false) return null;
-      if (value.id === 'reading' && capability?.available !== true) return null;
+      const result = groups.find(item => item.id === value.id) ?? binding.summary().find(item => item.id === value.id);
+      if (!searchChipOffered(value.id, showing?.capabilities)) return null;
       const off = value.id !== 'all' && result?.status === 'success' && result.totalCountExact && result.totalCount === 0 && !('nextCursor' in result && result.nextCursor);
       return <Chip key={value.id} variant="search" selected={chip === value.id} dim={off} disabled={off} retry={result?.status === 'error'}
         count={!off && result?.totalCountExact ? result.totalCount : undefined} onClick={() => { setChip(value.id); }}>{t(value.label)}</Chip>;
