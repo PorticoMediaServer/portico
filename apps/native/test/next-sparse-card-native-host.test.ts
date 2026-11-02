@@ -39,7 +39,7 @@ test('the real sparse CardFrame keeps one native host from waiting through two l
     '../../platform/menu-key': {registerFocusedMenu: (_owner: unknown, callback: () => void) => {menus.push(callback); return () => {}; }},
     '../Icon': {Icon: 'RCTIcon'}, '../selection/index': {SelectionHoldFeedback: 'RCTSelection'},
     '../theme': {nativeType, useTheme: () => theme}, '../useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})},
-    '../focus': focus, './model': cardModel,
+    '../focus': {...focus, useCovered: () => false}, './model': cardModel,
   });
   const sparse = await screenModule(new URL('../src-next/kit/cards/TVSparseCardFrame.tsx', import.meta.url), {react, './primitives': primitives});
   const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {

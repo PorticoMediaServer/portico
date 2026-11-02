@@ -60,7 +60,7 @@ async function mount(component: any, initial: Record<string, any>) {
     native() {const found = elements(tree).filter(node => node.type === 'Pressable'); assert.equal(found.length, 1); return found[0]!;}};
 }
 
-async function controls(isTV = false, reduce = false, interactive = true) {
+async function controls(isTV = false, reduce = false, interactive = true, covered = false) {
   const PropsFilter = await installedFilter();
   const theme = createTheme({isTV, width: isTV ? 1920 : 390, reduceMotion: reduce});
   const motion = {transforms: !reduce, timing: () => ({duration: reduce ? 160 : 120})};
@@ -98,7 +98,7 @@ async function controls(isTV = false, reduce = false, interactive = true) {
     '../overlays/OverlayPaintContext': {...liveOverlayPaint, useOverlayPaintMode: () => ({...liveOverlayPaint.useOverlayPaintMode(), interactive})},
     react, 'react-native': native, 'react-native-reanimated': animated, '@portico/design': {focusSpec},
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': {useTheme: () => theme}, '../useMotion': {useMotion: () => motion},
-    './control-model': controlModel, './useFocusedMenu': {useFocusedMenu}, '../focus': focusModule,
+    './control-model': controlModel, './useFocusedMenu': {useFocusedMenu}, '../focus': {...focusModule, useCovered: () => covered},
   });
   const {Button} = await screenModule(new URL('../src-next/kit/controls/Button.tsx', import.meta.url), {
     react, 'react-native': native, '@portico/design': {buttonSpec}, './Focusable': {Focusable},
@@ -319,6 +319,18 @@ test('TV opt-in disabled choices retain their native stop and ring while every c
       assert.equal(menu(), false, 'an inert focused choice never owns a context action');
     } finally {await control.host.unmount();}
   }
+});
+
+test('W-9 (2eec0520): a control under a covered layer answers no OK and draws no ring, even with native focus left on it', async () => {
+  const {Focusable, handles} = await controls(true, false, true, true);
+  const command = () => {throw new Error('A covered control answered OK');};
+  const control = await mount(Focusable, {onPress: command, onLongPress: command, onLongPressAction: command, onAccessibilityAction: command});
+  try {
+    const node = control.native();
+    for (const key of ['onPress', 'onLongPress', 'onAccessibilityAction', 'onPressIn', 'onPressOut']) assert.equal(node.props[key], undefined, key);
+    await act(() => control.native().props.onFocus({}));
+    assert.equal(handles[1]!.read().opacity, 0, 'no ring is drawn on a control the user cannot see');
+  } finally {await control.host.unmount();}
 });
 
 test('inert outgoing paint dominates TV focusableWhenDisabled and ignores retained native events', async () => {

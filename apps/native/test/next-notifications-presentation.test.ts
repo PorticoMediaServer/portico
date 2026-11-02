@@ -90,7 +90,7 @@ test('Tabs draws the count as a distinct pill while retaining tab semantics and 
   const {Tabs, Segmented} = await screenModule(new URL('../src-next/kit/controls/Tabs.tsx', import.meta.url), {
     react, 'react-native': native,
     '@portico/design': {tabsSpec: {gap: {phone: 34}, paddingTop: {phone: 16}, paddingBottom: {phone: 14}, underline: {phone: 3}}},
-    '../focus': {focusTestID: (...parts: string[]) => parts.join(':')}, '../theme': {useTheme: () => ({...theme, fontScale})},
+    '../focus': {useCovered: () => false, focusTestID: (...parts: string[]) => parts.join(':')}, '../theme': {useTheme: () => ({...theme, fontScale})},
     './Focusable': {Focusable: 'Focusable'}, './control-model': {colorAlpha: () => 'transparent', enabledChoice: (items: any[]) => items[0]?.value, minimumHitSlop: () => 0},
     './useControlValue': {useControlValue: (value: unknown, initial: unknown, change: unknown) => [value ?? initial, change]},
   });
