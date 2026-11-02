@@ -53,6 +53,7 @@ def dependency_inputs(target, root=ROOT):
     scripts = ['build-linux-libdovi.py', 'ffmpeg-rust-tools.py', 'requirements-ffmpeg-meson.txt']
     if target.startswith('macos-'):
         values['recipe'] = lock['macosRecipe']
+        values['dependencyPatches'] = lock['linuxSourceBuild']['sourcePatches']
         scripts += ['build-macos-ffmpeg-extras.sh', 'build-macos-libdovi.py', 'build-macos-zvbi.sh',
                     'configure-macos-shaderc.py', 'macos-dependency-cache.py']
     else:
