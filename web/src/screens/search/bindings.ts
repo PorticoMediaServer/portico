@@ -175,6 +175,8 @@ export function createSearchBindings(context: ScreenContext) {
     recent: (signal?: AbortSignal) => readSearchHistory(life.api, context.scope, life.signal(signal)),
     clearRecent: () => { life.assert(); return clearSearchHistory(life.api, life.signal()); },
     removeRecent: (query: string) => { life.assert(); return deleteSearchHistoryEntry(life.api, context.scope, query, life.signal()); },
+    /** This exact result is still on the answer the screen draws: a menu opened for it outlives nothing else. */
+    showing(entry: SearchEntry) { return life.current() && results.getSnapshot().phase === 'ready' && visible.has(entry); },
     open(entry: SearchEntry) {
       life.assert();
       if (results.getSnapshot().phase !== 'ready' || !visible.has(entry)) throw new DOMException('Search result changed', 'AbortError');

@@ -5,18 +5,17 @@ import type {SelectionContext} from '@core/selection-model/types.ts';
 import type {HomeSelectionController, HomeSelectionSnapshot} from '@core/home-selection/index.ts';
 import {summarizeSelection} from '@core/selection-model/index.ts';
 import {presentError} from '@core/presentation/errors.ts';
-import type {EntryActionId} from '@core/presentation/entry-actions.ts';
 import {homeEntryCapabilities} from '@core/home-selection.ts';
 import {Artwork} from '../kit/artwork';
 import {Button, Select} from '../kit/controls';
-import {Banner, Dialog, Menu, type MenuEntry} from '../kit/overlays';
+import {Banner, Dialog, Menu} from '../kit/overlays';
 import {BulkEditor, DeleteMediaDialog, MixedEditExplainer, PhoneActionBar, SelectionBar} from '../kit/selection';
 import {OwnerTag, ServerAudienceTag, ServerMark, type EditorAudience} from '../kit/shell';
-import type {IconName} from '../kit/Icon';
 import type {ShellArtwork} from './artwork';
 import {retryEditorRead, runSelectionCommand, selectionCallbacks} from './selection-actions';
 import {editorCoreDraft, editorResultView, editorUiDraft, editorValues, selectionMemberDisplay} from './selection-presentation';
 import {SelectionPickerSurface} from './SelectionPickerSurface';
+import {RatingDialog, titleMenuEntries} from './title-menu';
 import {useShellWidth} from './viewport';
 import {MetadataEditor} from '../screens/metadata/MetadataEditor';
 import metadataStyles from '../screens/metadata/metadata.module.css';
@@ -34,13 +33,6 @@ export type SelectionRendererSource = Readonly<{
   reportError: (error: unknown) => void;
 }>;
 const t = defaultI18n.t;
-const menuIcons: Record<EntryActionId, IconName> = {
-  play: 'i-play', resume: 'i-play', playFromStart: 'i-restart', playNext: 'i-queue', addToQueue: 'i-queue',
-  watchWithGroup: 'i-together', addToGroupQueue: 'i-queue', watchlist: 'i-bookmark', favorite: 'i-heart',
-  watched: 'i-check', removeFromContinueWatching: 'i-x', notInterested: 'i-eyeoff', rate: 'i-star',
-  addToPlaylist: 'i-listadd', addToCollection: 'i-layers', download: 'i-download', details: 'i-info',
-  editMetadata: 'i-edit', refreshMetadata: 'i-refresh', separateArtist: 'i-link', delete: 'i-trash',
-};
 const errorText = (error: unknown) => error ? presentError(error, 'home', {operation: 'action'}).body : undefined;
 /** The selection editor's words: a selection that moved on under it (stale preview, whole selection no longer
  * available) is said as such, with its own Try again, never as a page to refresh. */
@@ -90,11 +82,7 @@ export function SelectionSurfaces({source}: {source: SelectionRendererSource}) {
   }, [controller, source]);
   const menu = snapshot.menu;
   const rating = menu?.member.entry && homeEntryCapabilities(menu.member.entry, {platform: 'web', playbackAvailable: true, queueAvailable: true}).rating;
-  const entries: MenuEntry[] = menu?.groups.flatMap(group => [
-    ...(group.title ? [{id: 'group:' + group.id, section: true as const, label: t(group.title), ownerOnly: group.id === 'manage'}] : group.id === 'play' ? [] : [{id: 'group:' + group.id, separator: true as const}]),
-    ...group.actions.map(action => ({id: action.id, label: action.id === 'rate' && rating != null ? t(action.label, {stars: defaultI18n.number(rating / 2)}) : t(action.label), icon: menuIcons[action.id],
-      selected: action.selected, destructive: action.destructive, onSelect: () => run(source, () => controller.executeMenu(action.id))})),
-  ]) ?? [];
+  const entries = menu ? titleMenuEntries(menu.groups, {rating, onSelect: id => run(source, () => controller.executeMenu(id))}) : [];
   const dialogSummary = summarizeSelection(snapshot.displayMembers.map(member => member.item));
   const editor = snapshot.editor, deletion = snapshot.deletion;
   const editorResult = editor && editorResultView(editor.receipts);
@@ -144,22 +132,11 @@ export function SelectionSurfaces({source}: {source: SelectionRendererSource}) {
 }
 
 function RatingSurface({source, snapshot}: {source: SelectionRendererSource; snapshot: HomeSelectionSnapshot}) {
-  const rating = snapshot.rating!;
-  const busy = rating.phase === 'loading' || rating.phase === 'saving', ready = rating.phase === 'ready';
+  const rating = snapshot.rating!, controller = source.controller;
   const title = snapshot.displayMembers[0] && selectionMemberDisplay(snapshot.displayMembers[0]).title;
-  return <Dialog open onOpenChange={open => { if (!open && !busy) source.controller.closeRating(); }} title={t('title.rate', {title: title ?? ''})}
-    returnFocusRef={source.anchor} dismissOnOutsidePress={!busy} dismissOnBack={!busy} footer={<>
-      <Button onClick={() => source.controller.closeRating()} disabled={busy}>{t('action.close')}</Button>
-      {ready && <Button variant="primary" onClick={() => run(source, () => source.controller.submitRating())}>{t('action.save')}</Button>}
-      {(rating.phase === 'uncertain' || rating.phase === 'error') && <Button variant="primary" onClick={() => run(source, () => source.controller.retryRating())}>{t('next.states.tryAgain')}</Button>}
-    </>}>
-    {rating.value !== undefined && <Select label={t('next.home.yourRating')} aria-label={t('next.home.yourRating')} value={rating.value === null ? 'none' : String(rating.value)}
-      options={[{value: 'none', label: t('next.home.noRating')}, ...Array.from({length: 11}, (_, value) => ({value: String(value), label: t('next.home.ratingValue', {value})}))]}
-      disabled={!ready} onValueChange={value => source.controller.setRatingValue(value === 'none' ? null : Number(value))} />}
-    {busy && <p role="status">{t('next.selection.checking')}</p>}
-    {rating.phase === 'result' && <p role="status">{t('next.selection.saved')}</p>}
-    {rating.error && <p role="alert">{errorText(rating.error)}</p>}
-  </Dialog>;
+  return <RatingDialog title={title ?? ''} phase={rating.phase} value={rating.value} error={errorText(rating.error)} returnFocusRef={source.anchor}
+    onClose={() => controller.closeRating()} onValue={value => controller.setRatingValue(value)}
+    onSave={() => run(source, () => controller.submitRating())} onRetry={() => run(source, () => controller.retryRating())} />;
 }
 
 /** Open only after the controller has validated the concrete target and owner preview. */

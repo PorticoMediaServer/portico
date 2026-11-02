@@ -67,7 +67,7 @@ test('Artist Back and retry keep their committed entry and never adopt successor
     '../../kit/layout': {Lockup: 'Lockup'}, '../../kit/title/TitleParts': {TitleFactsLine: 'TitleFactsLine', TitleProse: 'TitleProse'},
     '../../kit/browse': {TrackTable: 'TrackTable'}, '../../kit/overlays': {Menu: 'Menu'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../shell/viewport': {useShellWidth: () => 1440}, './context': {...identity, screenLifetime, runScreenCommand},
-    '../detail/context': identity,
+    '../detail/context': identity, '../../shell/title-menu': {useTitleMenu: () => ({open() {}, menu: null, play: () => undefined})},
     './ScreenProblem': {ScreenProblem: problem.ScreenProblem}, './Detail': {TitleRow: 'TitleRow', SimilarTitleRow: 'SimilarTitleRow'}, './model': {entrySubject: () => ({}), entryCard: (entry: any) => ({title: entry.title})},
     './MusicEntryMenu': {MusicEntryMenu: 'MusicEntryMenu'}, './MusicLoading': {MusicDetailLoading: 'MusicDetailLoading'}, './artist.module.css': {default: {}},
   });

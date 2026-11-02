@@ -17,6 +17,7 @@ import styles from './person.module.css';
 import {TitleProse} from '../../kit/title/TitleParts';
 import {ScreenProblem} from './ScreenProblem';
 import {runScreenCommand} from './context';
+import {useTitleMenu} from '../../shell/title-menu';
 
 const date = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(locale(), {year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC'}).format(new Date(`${value}T12:00:00Z`)) : undefined;
 const groupHeading = (kind: string | undefined) => t(kind === 'movie' ? 'search.chip.movies' : kind === 'show' ? 'search.chip.shows' : 'web.person.credits');
@@ -82,9 +83,12 @@ export function PersonScreen({binding, personId}: PersonScreenProps) {
 
 function PhoneKnownFor({binding, page}: {binding: PersonBindings; page: PersonPage}) {
   const open = (entry: ContentEntry) => runScreenCommand(binding.context, () => binding.openKnownFor(page, entry));
+  const titleMenu = useTitleMenu(binding.context);
+  const current = () => { try { binding.current(page); } catch { return false; } return binding.context.isCurrent(); };
   return <div data-person-knownfor><Shelf focusScope={binding} heading={t('web.person.knownFor')} items={page.person.knownFor} getKey={entry => entry.id} platform="phone-web" style={{marginTop: 18}}
-    renderItem={entry => <PosterCard className={styles.knownCard} model={entryCard(entry, {t, locale: locale()})} context="detail"
-      artwork={binding.context.artwork.foreground(entry.posterUrl, 380, 2 / 3)} watched={entry.watched} onNavigate={() => open(entry)} />} /></div>;
+    renderItem={entry => { const onPlay = titleMenu.play(entry, current); return <PosterCard className={styles.knownCard} model={entryCard(entry, {t, locale: locale()})} context="detail"
+      artwork={binding.context.artwork.foreground(entry.posterUrl, 380, 2 / 3)} watched={entry.watched} onNavigate={() => open(entry)}
+      onMore={anchor => titleMenu.open(anchor, {entry, title: entry.displayTitle ?? entry.title, current, ...(onPlay ? {onPlay} : {})})} />; }} />{titleMenu.menu}</div>;
 }
 
 type PersonCreditsProps = {binding: PersonBindings; page: PersonPage; kind?: string; total: number; heading: string; phone: boolean; showHeading?: boolean};
@@ -103,6 +107,8 @@ function PersonCredits(props: PersonCreditsProps) {
 function PersonCreditGrid({binding, page, kind, total, heading, phone, showHeading = true, lease}: PersonCreditsProps & {lease: CreditLease}) {
   const collection = lease.collection;
   const state = useSyncExternalStore(collection.subscribe, collection.getSnapshot, collection.getSnapshot);
+  const titleMenu = useTitleMenu(binding.context);
+  const current = () => lease.current() && binding.context.isCurrent();
   const columns = Math.max(1, Math.min(total, 4));
   const grouped = kind !== undefined && !phone;
   const cardWidth = phone ? 112.66 : 190, gap = phone ? 10 : 16, rowHeight = phone ? 211 : 354, rowGap = phone ? 16 : 30;
@@ -118,11 +124,13 @@ function PersonCreditGrid({binding, page, kind, total, heading, phone, showHeadi
       const textPresentation: CardTextPresentation | undefined = !phone && extraPresentation.some(Boolean) ? {extraCaption: extraPresentation} : undefined;
       return <PosterCard className={phone ? styles.phoneCreditCard : undefined} model={{title: model.title, caption: [], progress: model.progress}} context="detail" textPresentation={textPresentation}
         artwork={binding.context.artwork.foreground(credit.media.posterUrl, 380, 2 / 3)} watched={credit.media.watched} extraCaption={extraCaption}
+        onMore={anchor => { const onPlay = titleMenu.play(credit.media, current); titleMenu.open(anchor, {entry: credit.media, title: credit.media.displayTitle ?? credit.media.title, current, ...(onPlay ? {onPlay} : {})}); }}
         onNavigate={() => runScreenCommand(binding.context, () => {if (!lease.current()) throw new DOMException('Person credit opening retired', 'AbortError');binding.open(page, credit);})} />;
     }} />;
   return <section className={phone ? styles.phoneGroup : styles.group} data-person-group={kind ?? 'all'}>
     {showHeading && <h2>{heading}{total !== undefined && <span className={styles.groupCount}>{total}</span>}</h2>}
     {state.status === 'error' && <ScreenFailure retry={() => {if (lease.current()) collection.retry();}} />}
     {grouped ? <div className={styles.track}>{grid}</div> : grid}
+    {titleMenu.menu}
   </section>;
 }
