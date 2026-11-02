@@ -24,14 +24,15 @@ films('Films', A.films); films('New', A.new, 100000); [epub(M/'Books'/f'Author {
 X = e2e.Exercise(D, A.binary.resolve()); X.start()
 try: X.setup()
 except KeyError: pass  # e2e-server.py's final 'ready' assert is stale against /v1/setup/state
+except BaseException: X.stop(); raise
 a = X.api; out = {'phases': [], 'helpers': {}}
 diag = lambda: a.get('/v1/admin/diagnostics/concurrency')
 def lib(name, kind):
     l = a.post('/v1/libraries', {'name': name, 'kind': kind, 'path': str(M/name), 'metadataAgent': 'local'}, (201,)); a.post('/v1/libraries/'+l['id']+'/scans', expected=(202,)); return l['id']
-def quiet(cap=1200):  # analysis settled: no background or scan-probe helper for 15 s
-    t0, calm = time.monotonic(), 0
-    while time.monotonic()-t0 < cap and calm < 15:
-        h = diag()['storageHelpers']; calm = calm+1 if h['backgroundActive']+h['scanProbeActive'] == 0 else 0; time.sleep(1)
+def quiet(cap=1500):  # analysis settled: no new helper process for 20 s (a watcher helper stays resident)
+    t0, calm, last = time.monotonic(), 0, -1
+    while time.monotonic()-t0 < cap and calm < 20:
+        n = diag()['storageHelpers']['admitted']; calm = calm+1 if n == last else 0; last = n; time.sleep(1)
     return round(time.monotonic()-t0)
 def ids(lid, pivot):
     got = []
