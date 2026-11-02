@@ -65,7 +65,7 @@ test('actual assembly sends Back to topmost Home menu before player, then TV pag
   const bindings = createNativeShellBindings({home, session: () => ({viewer: {...authority, authority: 'local', role: 'member'}}), current: () => true,
     authority: () => authority, navigation, subscribeAuthority: navigation.subscribe, libraries: () => [{id: 'movies'}], api: {getUserMutationCoordinator: () => undefined, getUserMutationScope: () => undefined, request() {throw new Error('unexpected request');}}, events: {on: () => () => {}},
     account: {account: {role: 'member'}}, playback: {selectionPlayback: () => ({play() {throw new Error('unused playback');}, enqueue() {throw new Error('unused enqueue');}, playChannel() {throw new Error('unused channel');}}), getSnapshot: () => ({dock: {local: {expanded}}})}});
-  bindings.attach({getSnapshot: () => ({authority})});
+  bindings.attach({getSnapshot: () => ({authority, mediaExpanded: expanded})});
   const cleanup = bindings.registerTVPageBack(() => {pageCalls++; return pageConsumes;});
   bindings.setHomeWindow(home.getSnapshot().document!.rows[0], 0, 0, 0, true, ['third', 'movie', 'second']);
   const anchor = {current: {native: 'third-card'}};
@@ -159,6 +159,15 @@ test('actual assembly sends Back to topmost Home menu before player, then TV pag
   assert.deepEqual(renderOrder, ['active', 'retained'], 'current module exists before its retained native views are requested');
   const flattened = (node: any): string[] => typeof node === 'string' ? [node] : Array.isArray(node) ? node.flatMap(flattened) : node?.props?.children ? flattened(node.props.children) : [];
   assert.deepEqual(routes.props.children.flatMap(flattened), ['retained', 'active', 'overlay'], 'retained views stay below the active route and module overlays above it');
+  // Focus containment: the expanded player covers the route pages, never the overlays it opens.
+  const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+  const pages = (tree: any) => nodes(tree).find(node => node.props?.testID === 'native-shell-routes');
+  assert.equal(pages(routes)?.props.covered, false, 'route pages take focus while the player is not expanded');
+  expanded = true;
+  const covered = pages(bindings.renderRoutes());
+  assert.equal(covered?.props.covered, true, 'the expanded player blocks D-pad focus into the route pages under it');
+  assert.deepEqual(nodes(covered.props.children).flatMap(flattened).filter((value: string) => value === 'overlay'), [], 'module overlays stay outside the covered pages');
+  expanded = false;
   bindings.openServers?.('consent-kind');
   assert.deepEqual(navigation.getSnapshot().route, {kind: 'servers', initialPanel: 'consent-kind'}, 'Play on enters Link a TV directly');
   bindings.openServers?.();
