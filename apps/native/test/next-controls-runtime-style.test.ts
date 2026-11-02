@@ -61,6 +61,7 @@ async function mount(component: any, initial: Record<string, any>) {
 }
 
 async function controls(isTV = false, reduce = false, interactive = true, covered = false) {
+  const paintState = {interactive};
   const PropsFilter = await installedFilter();
   const theme = createTheme({isTV, width: isTV ? 1920 : 390, reduceMotion: reduce});
   const motion = {transforms: !reduce, timing: () => ({duration: reduce ? 160 : 120})};
@@ -95,7 +96,7 @@ async function controls(isTV = false, reduce = false, interactive = true, covere
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': {useTheme: () => theme}, './registry': await import('../src-next/kit/focus/registry.ts'),
   });
   const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {
-    '../overlays/OverlayPaintContext': {...liveOverlayPaint, useOverlayPaintMode: () => ({...liveOverlayPaint.useOverlayPaintMode(), interactive})},
+    '../overlays/OverlayPaintContext': {...liveOverlayPaint, useOverlayPaintMode: () => ({...liveOverlayPaint.useOverlayPaintMode(), interactive: paintState.interactive})},
     react, 'react-native': native, 'react-native-reanimated': animated, '@portico/design': {focusSpec},
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': {useTheme: () => theme}, '../useMotion': {useMotion: () => motion},
     './control-model': controlModel, './useFocusedMenu': {useFocusedMenu}, '../focus': {...focusModule, useCovered: () => covered},
@@ -111,7 +112,7 @@ async function controls(isTV = false, reduce = false, interactive = true, covere
     '../platform/native-blur': {BlurView: 'BlurView', phoneTabBarRecipe: () => ({paddingX: 12, paddingTop: 9, gap: 3})},
     '../kit/controls': {Focusable}, '../kit/Icon': {Icon: 'Icon'}, '../kit/theme': {useTheme: () => theme}, './model': shellModel,
   });
-  return {Focusable, Button, PhoneTabBar, handles, timings, animatedInputs, theme};
+  return {Focusable, Button, PhoneTabBar, handles, timings, animatedInputs, theme, paintState};
 }
 
 test('installed Reanimated filtering preserves the original failure boundary for a direct style callback', async () => {
@@ -330,6 +331,19 @@ test('W-9 (2eec0520): a control under a covered layer answers no OK and draws no
     for (const key of ['onPress', 'onLongPress', 'onAccessibilityAction', 'onPressIn', 'onPressOut']) assert.equal(node.props[key], undefined, key);
     await act(() => control.native().props.onFocus({}));
     assert.equal(handles[1]!.read().opacity, 0, 'no ring is drawn on a control the user cannot see');
+  } finally {await control.host.unmount();}
+});
+
+test('W-9 (2eec0520, anime Play): a blur while the page is not interactive still clears the ring, so it never outlives native focus', async () => {
+  const {Focusable, handles, paintState} = await controls(true);
+  const control = await mount(Focusable, {onPress() {}});
+  try {
+    await act(() => control.native().props.onFocus({}));
+    assert.equal(handles[1]!.read().opacity, 1, 'focused: ring drawn');
+    paintState.interactive = false; await control.update?.({onPress() {}});
+    await act(() => control.native().props.onBlur({}));
+    paintState.interactive = true; await control.update?.({onPress() {}});
+    assert.equal(handles[1]!.read().opacity, 0, 'native focus left during a page transition: the ring is gone too');
   } finally {await control.host.unmount();}
 });
 
