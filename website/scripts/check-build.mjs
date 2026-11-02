@@ -7,7 +7,6 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const root = new URL('../dist/', import.meta.url);
 const required = [
   'index.html',
-  'features/index.html',
   'download/index.html',
   'docs/index.html',
   'developers/index.html',
