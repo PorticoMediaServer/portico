@@ -17,7 +17,7 @@ import {MenuRow, Popover} from '../../kit/overlays';
 import {PlaylistMosaic, PosterCard, SquareCard, NewPlaylistCard, type CardSelection} from '../../kit/cards';
 import {AmbientArt, CoverMosaic, type AmbientArtSource, type ArtworkSource} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
-import {WindowedGrid} from '../../kit/layout';
+import {WindowedGrid, shellBottomClearance} from '../../kit/layout';
 import {Skeleton, StateView} from '../../kit/states';
 import type {ShellArtwork} from '../../shell/artwork';
 import {useQuietRefresh} from '../../platform/freshness';
@@ -365,7 +365,7 @@ export function SavedSection(bindings: SavedViewBindings & {service: SavedServic
   const ratio = square ? 1 : 2 / 3, rowHeight = phoneRows ? 80 : presentation.view === 'list' ? resourceRows ? 88 : 90 : presentation.cardWidth / ratio + 48;
   const columns = oneColumn ? 1 : Math.max(1, Math.floor((width + 16) / (presentation.cardWidth + 16)));
   const rows = Math.ceil(section.entries.length / columns);
-  const height = Math.max(rowHeight, Math.min(window.innerHeight, rows * rowHeight + Math.max(0, rows - 1) * 16));
+  const height = Math.max(rowHeight, Math.min(window.innerHeight - (root.current ? shellBottomClearance(root.current) : 0), rows * rowHeight + Math.max(0, rows - 1) * 16));
   return <section className={styles.savedSection} ref={root}>
     {bindings.heading && <div className={styles.sectionHeading}><h2>{bindings.heading.label}</h2>{bindings.heading.count !== undefined && <span>{defaultI18n.number(bindings.heading.count)}</span>}</div>}
     <WindowedGrid collection={collection} pinnedIndex={bindings.heldEntryId ? section.entries.findIndex(entry => entry.id === bindings.heldEntryId) : undefined} label={bindings.heading?.label ?? serverTextLabel(defaultI18n, section.heading)} height={height} cardWidth={oneColumn ? Math.max(1, width) : presentation.cardWidth} rowHeight={rowHeight} rowGap={oneColumn ? 0 : 16} gap={phoneRows ? 0 : 16} reducedMotion={presentation.reducedMotion} onVisibleRange={onVisibleRange}

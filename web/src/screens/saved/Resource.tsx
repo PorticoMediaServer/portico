@@ -12,7 +12,7 @@ import {Button, Chip, Select, Switch} from '../../kit/controls';
 import {FiltersButton, SortMenu, ViewToggle} from '../../kit/browse';
 import {Dialog, Menu, MenuRow, Popover} from '../../kit/overlays';
 import {Skeleton, StateView} from '../../kit/states';
-import {WindowedGrid} from '../../kit/layout';
+import {WindowedGrid, shellBottomClearance} from '../../kit/layout';
 import {useLayoutPresence} from '../../kit/layout/presence';
 import {applyRemovalFocus} from '../../kit/layout/focus-context';
 import {useReducedMotion} from '../../kit/overlays/shared';
@@ -214,7 +214,7 @@ function PersonalRows({bindings, entries, onMore, orderHandle, heldEntryId}: {bi
   }, []);
   const grid = bindings.presentation.view === 'grid', cardWidth = bindings.presentation.cardWidth, rowHeight = grid ? cardWidth * 1.5 + 48 : 88;
   const columns = grid ? Math.max(1, Math.floor((width + 16) / (cardWidth + 16))) : 1;
-  const height = Math.max(rowHeight, Math.min(window.innerHeight, Math.ceil(entries.length / columns) * (rowHeight + (grid ? 30 : 0))));
+  const height = Math.max(rowHeight, Math.min(window.innerHeight - (root.current ? shellBottomClearance(root.current) : 0), Math.ceil(entries.length / columns) * (rowHeight + (grid ? 30 : 0))));
   return <div className={styles.personalRows}><div ref={root}><WindowedGrid collection={collection} pinnedIndex={heldEntryId ? entries.findIndex(entry => entry.id === heldEntryId) : undefined} label={bindings.runtime.personal.getSnapshot().resource?.name ?? t('saved.title')}
     height={height} cardWidth={grid ? cardWidth : Math.max(1, width)} rowHeight={rowHeight} gap={16} rowGap={grid ? 30 : 0} reducedMotion={bindings.presentation.reducedMotion}
     renderPlaceholder={() => <Skeleton width={grid ? cardWidth : width} height={grid ? cardWidth * 1.5 : 72} />} renderItem={(entry, context) => {
