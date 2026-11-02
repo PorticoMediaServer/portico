@@ -61,19 +61,6 @@ jobs:
 
         PYCODE
 
-
-        python3 - <<''PYCODE''
-
-        import os,base64,pathlib,hashlib,subprocess
-
-        b=base64.b64decode(os.environ[''F_WHY_0'']);p=pathlib.Path(''/tmp/home-why.patch'');p.write_bytes(b)
-
-        subprocess.run([''git'',''apply'',''--check'',str(p)],check=True);subprocess.run([''git'',''apply'',str(p)],check=True)
-
-        pathlib.Path(os.environ[''RUNNER_TEMP'']+''/reports/home-why-sha256.txt'').write_text(hashlib.sha256(b).hexdigest()+''\n'')
-
-        PYCODE
-
         '
     - name: Cross-vet restored tests and fixture phase split
       working-directory: server
