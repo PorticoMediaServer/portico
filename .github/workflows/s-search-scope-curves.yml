@@ -1,0 +1,101 @@
+name: Search scope curves
+on:
+  push:
+    branches: [rebuild/S-search-scope-evidence-r1]
+permissions:
+  contents: read
+jobs:
+  curves:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        items: [10000, 30000, 100000, 300000]
+    env:
+      PORTICO_HOME_SOURCE_ITEMS: '${{ matrix.items }}'
+      PORTICO_HOME_SOURCE_FILMS: '1'
+      PORTICO_SEARCH_PROFILE_ITEMS: '${{ matrix.items }}'
+      PORTICO_SEARCH_REALISTIC: '1'
+      PORTICO_SEARCH_WORD_SOURCE: '${{ runner.temp }}/word-frequency.txt'
+      PORTICO_SEARCH_POS_SOURCE: '${{ runner.temp }}/wordnet.zip'
+      PORTICO_SCALE_SEEDS: '${{ runner.temp }}/seeds'
+      PORTICO_SCALE_REPORT: '${{ runner.temp }}/reports'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false, fetch-depth: 0}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - name: Record provenance and pinned natural sources
+        run: |
+          mkdir -p "$PORTICO_SCALE_REPORT" "$PORTICO_SCALE_SEEDS"
+          git rev-parse HEAD > "$PORTICO_SCALE_REPORT/evidence-sha.txt"
+          git archive HEAD | sha256sum > "$PORTICO_SCALE_REPORT/evidence-archive-sha256.txt"
+          python3 - <<'PY'
+          import pathlib,urllib.request,os,zipfile,io,hashlib
+          raw=urllib.request.urlopen('https://raw.githubusercontent.com/hermitdave/FrequencyWords/525f9b560de45753a5ea01069454e72e9aa541c6/content/2018/en/en_50k.txt',timeout=60).read()
+          pathlib.Path(os.environ['PORTICO_SEARCH_WORD_SOURCE']).write_bytes(raw)
+          raw=urllib.request.urlopen('https://raw.githubusercontent.com/nltk/nltk_data/550b6625bcef1f2abff2ff770a5a0d272c9c6b2a/packages/corpora/wordnet.zip',timeout=60).read()
+          assert hashlib.sha256(raw).hexdigest()=='cbda5ea6eef7f36a97a43d4a75f85e07fccbb4f23657d27b4ccbc93e2646ab59'
+          pathlib.Path(os.environ['PORTICO_SEARCH_POS_SOURCE']).write_bytes(raw)
+          pathlib.Path(os.environ['PORTICO_SCALE_REPORT'],'WordNet-LICENSE.txt').write_bytes(zipfile.ZipFile(io.BytesIO(raw)).read('wordnet/LICENSE'))
+          PY
+          lscpu > "$PORTICO_SCALE_REPORT/machine.txt"
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        id: facts
+        with:
+          path: '${{ runner.temp }}/seeds/new-server-films-*.sqlite'
+          key: F-new-server-films-${{ matrix.items }}-${{ hashFiles('server/internal/catalog/scalebench/home_source_seed_test.go', 'server/internal/catalog/scalebench/bulk_reference.go', 'server/internal/persistence/migrations/**') }}
+      - name: Seed missing facts on hosted runner
+        if: steps.facts.outputs.cache-hit != 'true'
+        working-directory: server
+        run: go test ./internal/catalog/scalebench -run '^TestHomeSourceSeedMeasurement$' -count=1 -v -timeout=70m > "$PORTICO_SCALE_REPORT/facts.log" 2>&1
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: steps.facts.outputs.cache-hit != 'true'
+        with:
+          path: '${{ runner.temp }}/seeds/new-server-films-*.sqlite'
+          key: '${{ steps.facts.outputs.cache-primary-key }}'
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        id: search
+        with:
+          path: '${{ runner.temp }}/seeds/search-realistic-films-*'
+          key: F-search-realistic-v1-${{ matrix.items }}-${{ hashFiles('server/internal/compactcatalog/search_profile_seed_test.go', 'server/internal/compactcatalog/search_realistic_corpus_test.go', 'server/internal/compactcatalog/derive_search.go', 'server/internal/catalog/scalebench/home_source_seed_test.go', 'server/internal/catalog/scalebench/bulk_reference.go', 'server/internal/persistence/migrations/**') }}
+      - name: Produce missing search documents
+        if: steps.search.outputs.cache-hit != 'true'
+        working-directory: server
+        run: go test ./internal/compactcatalog -run '^TestSearchProfileSeed$' -count=1 -v -timeout=80m > "$PORTICO_SCALE_REPORT/search-seed.log" 2>&1
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: steps.search.outputs.cache-hit != 'true'
+        with:
+          path: '${{ runner.temp }}/seeds/search-realistic-films-*'
+          key: '${{ steps.search.outputs.cache-primary-key }}'
+      - name: Before and after on identical database and harness
+        working-directory: server
+        run: |
+          git show 789ce640^:server/internal/catalog/search.go > internal/catalog/search.go
+          mkdir -p "$PORTICO_SCALE_REPORT/before" "$PORTICO_SCALE_REPORT/after"
+          PORTICO_SCALE_REPORT="$PORTICO_SCALE_REPORT/before" go test ./internal/catalog -run '^TestSearch(NativeProfile|Retention)Measurement$' -count=1 -v -timeout=10m > "$PORTICO_SCALE_REPORT/before.log" 2>&1
+          git show 789ce640:server/internal/catalog/search.go > internal/catalog/search.go
+          PORTICO_SCALE_REPORT="$PORTICO_SCALE_REPORT/after" go test ./internal/catalog -run '^TestSearch(NativeProfile|Retention)Measurement$' -count=1 -v -timeout=10m > "$PORTICO_SCALE_REPORT/after.log" 2>&1
+      - name: Report curves and every top-ten difference
+        run: |
+          python3 - <<'PYREPORT'
+          import json,os,pathlib
+          root=pathlib.Path(os.environ['PORTICO_SCALE_REPORT'])
+          old=json.loads((root/'before/retention.json').read_text())
+          new=json.loads((root/'after/retention.json').read_text())
+          lines=[]
+          for name in sorted(old):
+              a=[(x['id'],x['title']) for x in old[name]['items']]
+              b=[(x['id'],x['title']) for x in new[name]['items']]
+              lines.append({'query':name,'q':old[name]['q'],'retained':len(set(x[0] for x in a)&set(x[0] for x in b)),'before_top10':a,'after_top10':b,'rank_changed':a!=b})
+          result={'retention':lines,'curves':{}}
+          for side in ['before','after']:
+              data=json.loads((root/side/'search-profile.json').read_text())
+              result['curves'][side]=[{k:x[k] for k in ['query_class','mode','p50_ms','p95_ms','p99_ms','median_vm','errors']} for x in data['results']]
+          (root/'comparison.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          PYREPORT
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: 'search-scope-${{ matrix.items }}', path: '${{ runner.temp }}/reports', retention-days: 14}
