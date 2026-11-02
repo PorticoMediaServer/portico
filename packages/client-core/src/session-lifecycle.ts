@@ -44,8 +44,9 @@ export type LifecycleState =
 export type LifecyclePending = 'pick' | 'pin' | 'unlock' | 'switchServer' | 'signOut' | 'signOutAccount' | 'forget' | 'reset' | 'forgetRemembered';
 export type LifecycleSnapshot = Readonly<{generation: number; state: LifecycleState; pending?: LifecyclePending}>;
 
-/** A connection to the held server succeeded and its account was read. */
-export type ConnectedFacts = Readonly<{profiles: readonly PickerProfile[]; rememberProfiles: boolean}>;
+/** A connection to the held server succeeded and its account was read. `manageLocked`: the server's `managePinRequired`
+ *  (a remembered main profile that must enter its PIN before it manages the account); never assumed from the profile. */
+export type ConnectedFacts = Readonly<{profiles: readonly PickerProfile[]; rememberProfiles: boolean; manageLocked?: boolean}>;
 /** A profile choice the server accepted: the new sign-in, and whether it remembers. */
 export type SelectedFacts = Readonly<{viewer: ViewerRef; remembered: boolean}>;
 export type ConnectFailure =
@@ -73,6 +74,8 @@ export type LifecycleEvent =
   | Readonly<{type: 'switchProfile'}>
   | Readonly<{type: 'cancelSwitch'}>
   | Readonly<{type: 'unlockSubmitted'; pin: string}>
+  /** A request of the open sign-in was refused with profile_pin_manage: its management window ended while it was open. */
+  | Readonly<{type: 'manageRefused'}>
   /** Forget remembered profile (avatar menu): this device stops opening the profile directly. The profile open now stays open. */
   | Readonly<{type: 'forgetRemembered'}>
   | Readonly<{type: 'markerForgotten'}>
@@ -125,7 +128,7 @@ function afterConnect(server: ServerRef, held: HeldSignIn, facts: ConnectedFacts
       manageLocked: false, canRemember}), effects: [freeze({kind: 'drainRevocations', serverId: server.serverId})]};
   if (held.remembered && profile)
     return {row: 7, state: freeze({kind: 'ready', server, viewer: held.viewer, profiles: facts.profiles, remembered: true,
-      manageLocked: profile.primary && profile.pinRequired, canRemember}), effects: [freeze({kind: 'drainRevocations', serverId: server.serverId})]};
+      manageLocked: facts.manageLocked === true, canRemember}), effects: [freeze({kind: 'drainRevocations', serverId: server.serverId})]};
   if (facts.profiles.length === 1 && profile && !profile.pinRequired)
     return {row: 8, state: freeze({kind: 'ready', server, viewer: held.viewer, profiles: facts.profiles, remembered: false,
       manageLocked: false, canRemember}), effects: [freeze({kind: 'drainRevocations', serverId: server.serverId})]};
@@ -238,6 +241,9 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
   case 'unlockSubmitted':
     if (s.kind !== 'ready' || !s.manageLocked) return undefined;
     return busy('unlock', [{kind: 'select', serverId: s.server.serverId, profileId: s.viewer.profileId, pin: event.pin, remember: true}], 35);
+  case 'manageRefused':
+    if (s.kind !== 'ready' || s.manageLocked) return undefined;
+    return to({...s, manageLocked: true}, 35);
   case 'managementUnlocked':
     if (s.kind !== 'ready' || current.pending !== 'unlock') return undefined;
     return to({...s, viewer: event.facts.viewer, remembered: event.facts.remembered, manageLocked: false}, 35, [],

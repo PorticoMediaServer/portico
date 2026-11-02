@@ -215,7 +215,8 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
         {authority: 'local', serverId, accountId: restored.session.viewer.accountId}, true); check();
       const profiles: readonly PickerProfile[] = Object.freeze(snapshot.profiles.map(value => Object.freeze({
         id: value.id, name: value.name, primary: value.primary, pinRequired: value.pinRequired})));
-      const facts: ConnectedFacts = Object.freeze({profiles, rememberProfiles: snapshot.rememberProfiles === true});
+      // PR-1: whether management needs the main profile's PIN is the server's answer, never assumed from the profile.
+      const facts: ConnectedFacts = Object.freeze({profiles, rememberProfiles: snapshot.rememberProfiles === true, manageLocked: snapshot.managePinRequired === true});
       // A refusal after this point (profile_pin_reentry) names its PIN screen from this account.
       context = Object.freeze({...context!, facts});
       const held = profiles.find(value => value.id === restored.session.viewer.profileId);

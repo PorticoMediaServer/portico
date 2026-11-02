@@ -3,7 +3,7 @@ import {routePath} from '../../../../../packages/contracts/src/routes.ts';
 import {CodedError} from '@core/server-messages.ts';
 import {IdentityClient, type IdentityUpload} from '@core/identity-client.ts';
 import type {ProfileAvatar} from '@core/identity-restrictions.ts';
-import {ManagedProfilesClient, parseDirectSnapshot, type DirectSnapshot, type ManagedProfile, type ProfileAPI, type ProfileArt, type ProfileDeletion, type ProfileRetirement} from '@core/profile-management.ts';
+import {ManagedProfilesClient, managementPinRefused, parseDirectSnapshot, type DirectSnapshot, type ManagedProfile, type ProfileAPI, type ProfileArt, type ProfileDeletion, type ProfileRetirement} from '@core/profile-management.ts';
 
 export type ProfileSettingsScope = Readonly<{serverId: string; accountId: string; profileId: string}>;
 export type ProfileSettingsSnapshot = Readonly<{
@@ -121,6 +121,8 @@ export class ProfileSettingsSource {
       const selectedId = refreshed.profiles.some(profile => profile.id === this.snapshot.selectedId) ? this.snapshot.selectedId : this.scope.profileId;
       this.publish({loading: false, busy: false, inUseId: this.scope.profileId, document: refreshed, selectedId});
     } catch (error) {
+      // PR-1: refused before anything changed, so the list stays and the page doesn't fail; the shell asks for the PIN.
+      if (managementPinRefused(error)) {if (this.current()) this.publish({...this.snapshot, busy: false, error: undefined}); throw error;}
       // A failed write/readback must not leave old revisions available for retry.
       this.publish({loading: false, busy: false, inUseId: this.scope.profileId, error});
       throw error;
