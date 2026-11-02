@@ -271897,6 +271897,49 @@
         ],
         "type": "object"
       },
+      "PostSetupRemoteCheckRequest": {
+        "properties": {
+          "remoteAccess": {
+            "type": "string"
+          },
+          "remoteSecurity": {
+            "type": "string"
+          },
+          "setupToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "setupToken",
+          "remoteAccess",
+          "remoteSecurity"
+        ],
+        "type": "object"
+      },
+      "PostSetupRemoteCheckResponse": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "fixes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "refused": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "refused",
+          "fixes"
+        ],
+        "type": "object"
+      },
       "PostSetupResumeRequest": {
         "properties": {
           "requestId": {
@@ -299146,6 +299189,9 @@
       },
       "SetupServerRequest": {
         "properties": {
+          "allowAddress": {
+            "type": "string"
+          },
           "authMode": {
             "type": "string"
           },
@@ -730726,6 +730772,9 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "allowAddress": {
+                    "type": "string"
+                  },
                   "authMode": {
                     "type": "string"
                   },
@@ -732649,6 +732698,121 @@
           "internal",
           "setup_code_required",
           "setup_code_invalid",
+          "database_busy",
+          "writer_capacity"
+        ],
+        "x-lane": "security",
+        "x-max-body-bytes": 4096,
+        "x-scope": "session"
+      }
+    },
+    "/v1/setup/remote-check": {
+      "post": {
+        "operationId": "post_setup_remote_check",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "remoteAccess": {
+                    "type": "string"
+                  },
+                  "remoteSecurity": {
+                    "type": "string"
+                  },
+                  "setupToken": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "setupToken",
+                  "remoteAccess",
+                  "remoteSecurity"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "fixes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "refused": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "refused",
+                    "fixes"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request refused or unavailable"
+          }
+        },
+        "summary": "Say whether this address will be refused once setup is complete",
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "public",
+        "x-admission": "default",
+        "x-audience": "Clients",
+        "x-cost": "constant",
+        "x-error-codes": [
+          "unauthorized",
+          "invalid_request",
+          "rate_limited",
+          "setup_already_complete",
+          "setup_source_not_local",
+          "internal",
           "database_busy",
           "writer_capacity"
         ],

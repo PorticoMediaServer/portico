@@ -46,7 +46,7 @@ export function localPasswordValid(password: string, confirm: string): boolean {
   return passwordStrength(password).acceptable && password === confirm;
 }
 
-export {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupFailureKind, setupNewerMessage, setupStartOverOffer, type SetupFailureKind} from '@core/presentation/setup-messages.ts';
+export {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupFailureKind, setupLockoutReason, setupNewerMessage, setupStartOverOffer, type SetupFailureKind} from '@core/presentation/setup-messages.ts';
 export type SetupStep = Readonly<{id: 'server' | 'account' | 'library'; state: 'done' | 'current' | 'next'; title: string; body: string}>;
 
 /** Steps follow the drawn two-step local setup and three-step Portico setup. */

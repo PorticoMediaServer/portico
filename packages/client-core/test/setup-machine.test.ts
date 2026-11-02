@@ -158,11 +158,11 @@ const ALLOWED: Record<string, Record<string, string>> = {
   'busy.timed': {...RECONCILE, readFailed: '=|schedule-read', alreadyComplete: `refused|${RETIRES}`, back: 'form|cancel-pending'},
   'busy.untimed': {...RECONCILE, readFailed: '=|schedule-read', alreadyComplete: `refused|${RETIRES}`, back: 'form|cancel-pending'},
   form: {chooseKind: '=|', submitHosted: 'starting|start', submitLocal: 'starting|start', abandonRefused: 'connecting|read-state', 'failed.abandon': 'failed|'},
-  'starting.hosted.start': {back: 'form|cancel-pending', startDone: '=|initialize-hosted', notLocalSource: 'refused|', addressNotAllowed: 'refused|', alreadyComplete: `refused|${RETIRES}`, setupInProgress: 'busy_elsewhere|schedule-read', 'failed.start': 'failed|'},
+  'starting.hosted.start': {back: 'form|cancel-pending', startDone: '=|remote-check', notLocalSource: 'refused|', addressNotAllowed: 'refused|', alreadyComplete: `refused|${RETIRES}`, setupInProgress: 'busy_elsewhere|schedule-read', 'failed.start': 'failed|'},
   'starting.hosted.initialize': {back: 'form|cancel-pending abandon', initializeDone: '=|request-approval', 'failed.initialize': 'failed|', tokenRefused: `ended|${RETIRES}`, alreadyComplete: `refused|${RETIRES}`},
   'starting.hosted.approval': {back: 'form|cancel-pending abandon', approvalReady: 'awaiting_approval|navigate schedule-read', 'failed.request-approval': 'failed|', tokenRefused: `ended|${RETIRES}`, alreadyComplete: `refused|${RETIRES}`},
   'starting.hosted.approval-native': {back: 'form|cancel-pending abandon', approvalReady: 'awaiting_approval|schedule-read', 'failed.request-approval': 'failed|', tokenRefused: `ended|${RETIRES}`, alreadyComplete: `refused|${RETIRES}`},
-  'starting.local.start': {back: 'form|cancel-pending', startDone: '=|initialize-local', notLocalSource: 'refused|', alreadyComplete: `refused|${RETIRES}`, setupInProgress: 'busy_elsewhere|schedule-read', 'failed.start': 'failed|'},
+  'starting.local.start': {back: 'form|cancel-pending', startDone: '=|remote-check', notLocalSource: 'refused|', alreadyComplete: `refused|${RETIRES}`, setupInProgress: 'busy_elsewhere|schedule-read', 'failed.start': 'failed|'},
   'starting.local.initialize': {initializeDone: '=|adopt-owner', 'failed.initialize': 'failed|', alreadyComplete: `refused|${RETIRES}`},
   'starting.local.adopt': {ownerAdopted: `library|${RETIRES}`, 'failed.adopt-owner': 'failed|', alreadyComplete: `refused|${RETIRES}`},
   'awaiting.started': AWAITING,
@@ -339,7 +339,7 @@ test('no path offers the other kind: nothing switches a setup from one kind to t
       // a hosted setup never turns into a local one, and the reverse
       if (view.kind === 'starting' && out.view.kind === 'starting') assert.equal(mode(out.view), mode(view), label);
       // local owner creation is only ever asked for by a local form's own start
-      if (out.effects.some(e => e.kind === 'initialize-local')) assert.deepEqual([viewName, inputName], ['starting.local.start', 'startDone'], label);
+      if (out.effects.some(e => e.kind === 'initialize-local')) assert.ok(viewName.startsWith('starting.local') || (view.kind === 'failed' && view.retry.to.kind === 'starting' && view.retry.to.mode === 'local'), label);
       if (out.effects.some(e => e.kind === 'initialize-hosted')) assert.ok(viewName.startsWith('starting.hosted') || (view.kind === 'failed' && view.retry.to.kind === 'starting' && view.retry.to.mode === 'hosted'), label);
       // every way back into the form offers both kinds, never one of them
       if (out.view.kind === 'form' && view.kind !== 'form') assert.equal(out.view.mode, 'choose', label);
@@ -406,6 +406,7 @@ test('hosted web happy path: submit, bootstrap, request approval, leave, return,
   feed(INPUTS['state.open']);
   feed({kind: 'submitHosted', name: 'Den', navigate: true});
   feed({kind: 'startDone'});
+  feed({kind: 'remoteOk'});
   feed({kind: 'initializeDone'});
   feed(INPUTS.approvalReady);
   assert.equal(kindNow(), 'awaiting_approval');
@@ -418,7 +419,7 @@ test('hosted web happy path: submit, bootstrap, request approval, leave, return,
   assert.equal(kindNow(), 'library');
   feed({kind: 'skip'});
   assert.equal(kindNow(), 'done');
-  assert.deepEqual(effects, ['read-state', 'retire-record', 'retire-attempt', 'start', 'initialize-hosted', 'request-approval', 'navigate', 'schedule-read',
+  assert.deepEqual(effects, ['read-state', 'retire-record', 'retire-attempt', 'start', 'remote-check', 'initialize-hosted', 'request-approval', 'navigate', 'schedule-read',
     'schedule-read', 'exchange', 'adopt-owner', 'retire-record', 'retire-attempt']);
 });
 
@@ -427,9 +428,9 @@ test('local happy path: one start, one owner, no approval leg', () => {
   let view = {kind: 'form', mode: 'local', name: 'Den'} as SetupView;
   const kindNow = () => view.kind;
   const feed = (input: SetupInput) => { const out = step(view, input); view = out.view; effects.push(...kinds(out.effects)); };
-  for (const input of [INPUTS.submitLocal, INPUTS.startDone, INPUTS.initializeDone, INPUTS.ownerAdopted]) feed(input);
+  for (const input of [INPUTS.submitLocal, INPUTS.startDone, {kind: 'remoteOk'} as SetupInput, INPUTS.initializeDone, INPUTS.ownerAdopted]) feed(input);
   assert.equal(kindNow(), 'library');
-  assert.deepEqual(effects, ['start', 'initialize-local', 'adopt-owner', 'retire-record', 'retire-attempt']);
+  assert.deepEqual(effects, ['start', 'remote-check', 'initialize-local', 'adopt-owner', 'retire-record', 'retire-attempt']);
 });
 
 test('a failure keeps what to repeat: Try again repeats the same step, and an unconfirmed result keeps its place', () => {
@@ -533,4 +534,24 @@ test('from outside the server asks for the setup code; the interrupted start run
   // A code result outside the start step changes nothing.
   const later: SetupView = {...starting, step: 'initialize'};
   assert.equal(stepSetup(later, {kind: 'setupCodeRequired'}, NOW).view, later);
+});
+
+test('the lockout warning: shown only when the check refuses, offering only its fixes; a fix is applied before initialize', () => {
+  const check: SetupView = {kind: 'starting', mode: 'hosted', name: 'Den', navigate: true, step: 'check'};
+  assert.deepEqual(stepSetup(check, {kind: 'remoteOk'}, NOW), {view: {...check, step: 'initialize'}, effects: [{kind: 'initialize-hosted', name: 'Den'}]});
+  // A check that can't run never holds setup up.
+  assert.deepEqual(stepSetup(check, {kind: 'effectFailed', effect: 'remote-check', error: err()}, NOW).effects, [{kind: 'initialize-hosted', name: 'Den'}]);
+  const warned = stepSetup(check, {kind: 'remoteRefused', reason: 'name', fixes: ['address', 'standard'], address: 'https://media.example.com'}, NOW).view;
+  assert.deepEqual(warned, {kind: 'lockout', reason: 'name', fixes: ['address', 'standard'], address: 'https://media.example.com', resume: {...check, step: 'initialize'}});
+  assert.deepEqual(stepSetup(warned, {kind: 'lockoutFix', fix: 'address'}, NOW), {view: {...check, step: 'initialize'},
+    effects: [{kind: 'remote-fix', fix: 'address', address: 'https://media.example.com'}, {kind: 'initialize-hosted', name: 'Den'}]});
+  assert.deepEqual(stepSetup(warned, {kind: 'lockoutFix', fix: 'standard'}, NOW).effects[0], {kind: 'remote-fix', fix: 'standard'});
+  // A fix the server didn't offer does nothing.
+  const httpOnly = stepSetup(check, {kind: 'remoteRefused', reason: 'http', fixes: ['standard']}, NOW).view;
+  assert.equal(stepSetup(httpOnly, {kind: 'lockoutFix', fix: 'address'}, NOW).view, httpOnly);
+  assert.equal(stepSetup(warned, {kind: 'back'}, NOW).view.kind, 'form');
+  // Remote access that leaves this network out has no fix here: only Back, to choose again.
+  const access = stepSetup(check, {kind: 'remoteRefused', reason: 'access', fixes: []}, NOW).view;
+  assert.equal(stepSetup(access, {kind: 'lockoutFix', fix: 'standard'}, NOW).view, access);
+  assert.equal(stepSetup(access, {kind: 'back'}, NOW).view.kind, 'form');
 });

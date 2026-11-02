@@ -34969,6 +34969,30 @@ export const routes = [
   },
   {
     "audience": "Clients",
+    "id": "post_setup_remote_check",
+    "method": "POST",
+    "path": "/v1/setup/remote-check",
+    "summary": "Say whether this address will be refused once setup is complete",
+    "access": "public",
+    "requires": "session",
+    "lane": "security",
+    "cost": "constant",
+    "bodyLimit": 4096,
+    "errors": [
+      "unauthorized",
+      "invalid_request",
+      "rate_limited",
+      "setup_already_complete",
+      "setup_source_not_local",
+      "internal",
+      "database_busy",
+      "writer_capacity"
+    ],
+    "status": 200,
+    "admission": "default"
+  },
+  {
+    "audience": "Clients",
     "id": "post_setup_resume",
     "method": "POST",
     "path": "/v1/setup/resume",

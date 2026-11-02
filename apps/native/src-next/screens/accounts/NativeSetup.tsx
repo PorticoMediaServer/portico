@@ -2,7 +2,7 @@ import React, {useEffect, useState, useSyncExternalStore} from 'react';
 import {AppState, Linking, Text, View} from 'react-native';
 import {Icon} from '../../kit/Icon';
 import {createSetupController, type SetupController} from '../../../../../packages/client-core/src/setup-controller';
-import {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupNewerMessage, setupStartOverOffer} from '../../../../../packages/client-core/src/presentation/setup-messages';
+import {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupLockoutReason, setupNewerMessage, setupStartOverOffer} from '../../../../../packages/client-core/src/presentation/setup-messages';
 import {passwordStrength} from '../../../../../packages/client-core/src/password-strength';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, Focusable, TextField} from '../../kit/controls';
@@ -100,6 +100,15 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
         primaryAction={{id: 'continue', label: t('accounts.signIn.continue'), disabled: busy || !setupCode.trim(), loading: busy, onPress: () => controller.submitCode(setupCode)}}
         secondaryAction={back}
         beforeActions={<View style={{alignSelf: 'stretch', gap: 14, marginBottom: 20}}>{field(t('web.setup.codeLabel'), setupCode, setSetupCode)}</View>}/>;
+    case 'lockout': {
+      // The address in use won't work once setup is complete (auth.html 1e panel 5): only the fixes that would let it in,
+      // and Back where there's none (Remote access leaves this network out).
+      const keep = {id: 'keep-allowing', label: t('web.setup.keepAllowing'), disabled: busy, onPress: () => controller.lockoutFix('address')};
+      const standard = {id: 'switch-standard', label: t('web.setup.switchStandard'), disabled: busy, onPress: () => controller.lockoutFix('standard')};
+      const fixes = [...(view.fixes.includes('address') ? [keep] : []), ...(view.fixes.includes('standard') ? [standard] : [])];
+      return <Layout testID="accounts-setup" title={t('web.setup.lockoutTitle')} body={setupLockoutReason(view.reason)}
+        primaryAction={fixes[0] ?? back} secondaryAction={fixes[0] ? fixes[1] : undefined}/>;
+    }
     case 'unknown':
       return message(t('accounts.setup.title'), setupNewerMessage(), tryAgain());
     case 'awaiting_approval': {

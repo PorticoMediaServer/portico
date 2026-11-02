@@ -3,7 +3,7 @@ import {RadioGroup} from 'radix-ui';
 import {defaultI18n} from '@i18n';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import type {SetupController} from '@core/setup-controller.ts';
-import type {SetupView} from '@core/setup-machine.ts';
+import type {SetupLockoutFix, SetupView} from '@core/setup-machine.ts';
 import {FolderPicker} from '../settings/libraries/FolderPicker';
 import {Button, Segmented, TextField} from '../../kit/controls';
 import {AuthLoading, AuthStage} from '../../kit/accounts/AuthStage';
@@ -11,7 +11,7 @@ import {ServicesStrength} from '../../kit/accounts/ServicesAuth';
 import {Icon} from '../../kit/Icon';
 import {Dialog} from '../../kit/overlays/Dialog';
 import {defaultLibraryName, defaultSetupServerName, libraryKindDescription, localPasswordValid, setupBusyMessage, setupEndedMessage, setupErrorMessage,
-  setupFailureKind, setupLibraryKinds, setupNameValid, setupNewerMessage, setupStartOverOffer, setupSteps, validLocalUsername, type SetupLibraryKind} from './setup-model';
+  setupFailureKind, setupLibraryKinds, setupLockoutReason, setupNameValid, setupNewerMessage, setupStartOverOffer, setupSteps, validLocalUsername, type SetupLibraryKind} from './setup-model';
 import styles from './setup.module.css';
 
 const t = defaultI18n.t;
@@ -92,6 +92,8 @@ function Stage({view, controller, form, setForm, name, mode, library, setLibrary
       return <Message icon={kind === 'services' ? 'i-clock' : 'i-warn'} heading={kind !== 'services'} text={setupErrorMessage(view.error)}
         actions={<>{view.retryable && <Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>}{startOver(!view.retryable)}{back}</>}/>;
     }
+    case 'lockout':
+      return <Lockout view={view} onFix={controller.lockoutFix} back={back}/>;
     case 'code':
       return <SetupCode key={view.invalid ? 'invalid' : 'asked'} invalid={view.invalid} onSubmit={controller.submitCode} back={back}/>;
     case 'unknown':
@@ -116,6 +118,20 @@ function SetupCode({invalid, onSubmit, back}: {invalid: boolean; onSubmit: (code
         error={invalid ? t('web.setup.codeInvalid') : undefined} onChange={event => setCode(event.target.value)}/>
       <div className={styles.btnRow}><Button type="submit" variant="primary" size="hero" disabled={!code.trim()}>{t('accounts.signIn.continue')}</Button>{back}</div>
     </form>
+  </AuthStage>;
+}
+
+/** The address in use won't work once setup is complete (auth.html 1e panel 5): only the fixes that would let it in. With none
+ * (Remote access leaves this network out), Back to choose again. */
+function Lockout({view, onFix, back}: {view: Extract<SetupView, {kind: 'lockout'}>; onFix: (fix: SetupLockoutFix) => void; back: ReactNode}) {
+  const address = view.fixes.includes('address'), standard = view.fixes.includes('standard');
+  return <AuthStage legal={false} contentClassName={styles.content}>
+    <p className={styles.wait} role="alert"><Icon name="i-warn" size={20}/><span><b>{t('web.setup.lockoutTitle')}</b> {setupLockoutReason(view.reason)}</span></p>
+    <div className={styles.stack}>
+      {address && <Button variant="primary" size="hero" onClick={() => onFix('address')}>{t('web.setup.keepAllowing')}</Button>}
+      {standard && <Button variant={address ? 'glass' : 'primary'} size="hero" onClick={() => onFix('standard')}>{t('web.setup.switchStandard')}</Button>}
+      {!address && !standard && back}
+    </div>
   </AuthStage>;
 }
 

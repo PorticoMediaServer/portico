@@ -249656,6 +249656,49 @@ export const schemas = {
     ],
     "type": "object"
   },
+  "PostSetupRemoteCheckRequest": {
+    "properties": {
+      "remoteAccess": {
+        "type": "string"
+      },
+      "remoteSecurity": {
+        "type": "string"
+      },
+      "setupToken": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "setupToken",
+      "remoteAccess",
+      "remoteSecurity"
+    ],
+    "type": "object"
+  },
+  "PostSetupRemoteCheckResponse": {
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "fixes": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "refused": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "refused",
+      "fixes"
+    ],
+    "type": "object"
+  },
   "PostSetupResumeRequest": {
     "properties": {
       "requestId": {
@@ -276416,6 +276459,9 @@ export const schemas = {
   },
   "SetupServerRequest": {
     "properties": {
+      "allowAddress": {
+        "type": "string"
+      },
       "authMode": {
         "type": "string"
       },

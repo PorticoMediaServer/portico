@@ -779,6 +779,7 @@ export function decodePostSavedResourcesResponse(input: unknown): types.PostSave
 export function decodePostSetupAbandonResponse(input: unknown): types.PostSetupAbandonResponse { return decode("PostSetupAbandonResponse", input) as types.PostSetupAbandonResponse; }
 export function decodePostSetupAccountCompleteResponse(input: unknown): types.PostSetupAccountCompleteResponse { return decode("PostSetupAccountCompleteResponse", input) as types.PostSetupAccountCompleteResponse; }
 export function decodePostSetupApprovalResponse(input: unknown): types.PostSetupApprovalResponse { return decode("PostSetupApprovalResponse", input) as types.PostSetupApprovalResponse; }
+export function decodePostSetupRemoteCheckResponse(input: unknown): types.PostSetupRemoteCheckResponse { return decode("PostSetupRemoteCheckResponse", input) as types.PostSetupRemoteCheckResponse; }
 export function decodePostSetupResumeResponse(input: unknown): types.PostSetupResumeResponse { return decode("PostSetupResumeResponse", input) as types.PostSetupResumeResponse; }
 export function decodePostSetupRetryResponse(input: unknown): types.PostSetupRetryResponse { return decode("PostSetupRetryResponse", input) as types.PostSetupRetryResponse; }
 export function decodePostSetupStartOverResponse(input: unknown): types.PostSetupStartOverResponse { return decode("PostSetupStartOverResponse", input) as types.PostSetupStartOverResponse; }
