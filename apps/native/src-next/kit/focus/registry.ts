@@ -10,6 +10,9 @@ export type FocusRegionConfig = Readonly<{
   edges?: FocusEdges; stops?: Readonly<Partial<Record<'up' | 'down' | 'left' | 'right', boolean>>>; orientation?: 'horizontal' | 'vertical' | 'free'; hold?: boolean; enabled?: boolean;
 }>;
 export type FocusSnapshot = FocusAddress & Readonly<{
+  /** W-12: the title the child showed when captured. In a natively windowed grid a child id names a
+   * recycled slot, so a restore follows the title to whichever slot holds it now, never the old slot. */
+  entityId?: string;
   order: readonly string[]; cell?: FocusCell; neighbors?: FocusRegionConfig['neighbors']; screenStart?: FocusAddress; returnTo?: FocusSnapshot;
 }>;
 const idPart = (value: string) => encodeURIComponent(value).replaceAll('.', '%2E');
@@ -152,7 +155,8 @@ export function createFocusRegistry() {
   };
   const snapshot = (address: FocusAddress): FocusSnapshot => {
     const r = region(address.regionId);
-    return {...address, order: [...order(r)], ...(cellOf(r, address.childId) ? {cell: cellOf(r, address.childId)} : {}), neighbors: r.config.neighbors, screenStart: r.config.screenStart, returnTo: [...r.returns.values()].at(-1)};
+    const entityId = (address as FocusSnapshot).entityId ?? r.children.get(address.childId)?.entityId;
+    return {...address, ...(entityId !== undefined ? {entityId} : {}), order: [...order(r)], ...(cellOf(r, address.childId) ? {cell: cellOf(r, address.childId)} : {}), neighbors: r.config.neighbors, screenStart: r.config.screenStart, returnTo: [...r.returns.values()].at(-1)};
   };
   const currentSnapshot = (saved: FocusSnapshot) => {
     const r = regions.get(saved.regionId);
@@ -160,10 +164,15 @@ export function createFocusRegistry() {
     return r && order(r).includes(saved.childId) ? snapshot(saved) : saved;
   };
   const focus = (address: FocusAddress, options?: Readonly<{resetCellMemory?: boolean}>): boolean => {
-    const r = regions.get(address.regionId), child = r?.children.get(address.childId);
-    if (r?.config.enabled === false || !child || !child.host.requestTVFocus && !child.host.focus) return false;
+    const r = regions.get(address.regionId), entityId = (address as FocusSnapshot).entityId;
+    // A captured title is focused wherever it is mounted now; while it is not mounted (a windowed grid
+    // still re-projecting its slots), nothing is focused, so a caller waits rather than landing on
+    // whichever title the old slot shows.
+    const childId = entityId !== undefined ? r?.entities.get(entityId) : address.childId;
+    const child = childId === undefined ? undefined : r?.children.get(childId);
+    if (r?.config.enabled === false || childId === undefined || !child || !child.host.requestTVFocus && !child.host.focus) return false;
     if (options?.resetCellMemory && r) {
-      r.cellMemory = cellFocusMemory(cellOf(r, address.childId), undefined, r.config, {}); r.resetCellFocus = address.childId; r.navigate = undefined;
+      r.cellMemory = cellFocusMemory(cellOf(r, childId), undefined, r.config, {}); r.resetCellFocus = childId; r.navigate = undefined;
     }
     return requestNativeFocus(child.host);
   };
