@@ -6,7 +6,7 @@ import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core
 import {cardText} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {orderedSearchGroups, SEARCH_CHIPS, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Artwork, StandardBackdrop} from '../../kit/artwork';
+import {Artwork, StandardBackdrop, missingArt} from '../../kit/artwork';
 import {Chip, Focusable} from '../../kit/controls';
 import {ArtFrame, CardFrame, Parts, Progress} from '../../kit/cards/primitives';
 import {FocusRegion, useFocusRegistry} from '../../kit/focus';
@@ -211,13 +211,13 @@ export function TVSearchTopResult({entry, group, runtime, actions, selection, di
   // tv.html#f5 calls a show a "TV show"; the shared kind label keeps "Show".
   const theme = useTheme(), anchor = useRef<View>(null), content = media(entry) ? entry : undefined,
     kind = group === 'shows' ? 'next.search.tvShow' : topResultKindLabel(group);
-  const text = content && cardText(homeSubject(content), 'search', runtime.text), title = content?.displayTitle || entry.title;
+  const text = content && cardText(homeSubject(content), 'search', runtime.text), title = content?.displayTitle || entry.title, topArt = runtime.artwork(content?.backdropUrl ?? entry.posterUrl);
   const progress = text?.progress, resume = text?.resume, caption = text?.caption.filter(part => part.id !== 'year') ?? [];
   return <CardFrame focusId={tvTopResultFocusId(group, entry)} testID="tv-search-top-result" title={title} disabled={disabled} selection={selection}
     menuAnchorRef={anchor} moreExpanded={actions.isMenuOpen?.(entry, group)} onNavigate={() => actions.open(entry, group)} onMore={() => actions.menu(entry, group, anchor)}
     style={tvSearchR46.topResult} pressableStyle={tvSearchR46.topRow}>
     {state => <><ArtFrame width={480} height={270} radius={14} focused={state.focused} hovered={state.hovered} holding={state.holding} selected={selection?.selected}>
-      <Artwork source={runtime.artwork(content?.backdropUrl ?? entry.posterUrl)} width={480} height={270}/></ArtFrame>
+      <Artwork source={topArt} width={480} height={270} fallback={topArt ? undefined : missingArt({title, shape: 'wide', width: 480, height: 270})}/></ArtFrame>
       <View style={{flex: 1}}><Text style={[browseType(theme, 20, 700), {color: theme.colors.accentStrong, marginBottom: 10}]}>{t('search.topResult')}</Text>
         <Text numberOfLines={3} style={[browseType(theme, 52, 800, -.04, 52), {color: theme.colors.text, marginBottom: 14}]}>{title}</Text>
         <View style={tvSearchR46.meta}>{content?.year !== undefined && <Text style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{content.year}</Text>}

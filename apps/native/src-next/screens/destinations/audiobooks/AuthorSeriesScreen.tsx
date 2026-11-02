@@ -3,7 +3,7 @@ import {Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import {AmbientArt, Artwork, PersonCircle, StandardBackdrop} from '../../../kit/artwork';
+import {AmbientArt, Artwork, PersonCircle, StandardBackdrop, missingArt} from '../../../kit/artwork';
 import {Button, Focusable} from '../../../kit/controls';
 import {FocusRegion} from '../../../kit/focus';
 import {MusicScrollView, MusicWindow} from '../music/MusicWindow';
@@ -44,7 +44,7 @@ function BookRow({entry, runtime, tv, position, separated, focusId, onOpen, onPl
       : {height: '100%', flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10, marginRight: -6}}>
     {!tv && separated ? <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 80, right: 0, height: 1, backgroundColor: alpha(theme.colors.line, .35)}}/> : null}
     <View style={{width: tv ? 128 : 66, height: tv ? 128 : 66, borderRadius: tv ? 10 : 7, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-      {art ? <Artwork source={art} width={tv ? 128 : 66} height={tv ? 128 : 66}/> : null}
+      <Artwork source={art} width={tv ? 128 : 66} height={tv ? 128 : 66} fallback={art ? undefined : missingArt({title: entry.title, shape: 'square', width: tv ? 128 : 66, height: tv ? 128 : 66})}/>
       {ratio === undefined ? null : <View style={{position: 'absolute', left: tv ? 8 : 5, right: tv ? 8 : 5, bottom: tv ? 8 : 5, height: tv ? 6 : 3, borderRadius: 3, overflow: 'hidden', backgroundColor: alpha(theme.colors.ink, .55)}}>
         <View style={{width: `${Math.max(0, Math.min(1, ratio)) * 100}%`, height: tv ? 6 : 3, backgroundColor: theme.colors.accentStrong}}/>
       </View>}
@@ -115,7 +115,7 @@ export function AuthorSeriesScreen({controller, entry, runtime, actions, openEnt
         <AmbientArt source={runtime.ambient(coverPath)} treatment="cover"/>
       </View> : null}
       <View style={{width: 380, height: 380, borderRadius: 16, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-        {runtime.artwork(coverPath) ? <Artwork source={runtime.artwork(coverPath)} width={380} height={380} priority/> : null}
+        <Artwork source={runtime.artwork(coverPath)} width={380} height={380} priority fallback={runtime.artwork(coverPath) ? undefined : missingArt({title, shape: 'square', width: 380, height: 380})}/>
       </View>
     </View> : null}
     {tv && !series ? <View style={{position: 'absolute', left: 200, top: 120}}><PersonCircle covers={covers} initials={[...title.trim()][0] ?? ''} alt={title} size={380} visible/></View> : null}
@@ -124,7 +124,7 @@ export function AuthorSeriesScreen({controller, entry, runtime, actions, openEnt
         {runtime.ambient(coverPath) ? <View pointerEvents="none" style={{position: 'absolute', left: -16, top: -16, width: 264, height: 264, borderRadius: 16, overflow: 'hidden'}}>
           <AmbientArt source={runtime.ambient(coverPath)} treatment="cover"/>
         </View> : null}
-        <View style={{width: 232, height: 232, borderRadius: 12, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{runtime.artwork(coverPath) ? <Artwork source={runtime.artwork(coverPath)} width={232} height={232} priority/> : null}</View>
+        <View style={{width: 232, height: 232, borderRadius: 12, overflow: 'hidden', backgroundColor: theme.colors.raised}}><Artwork source={runtime.artwork(coverPath)} width={232} height={232} priority fallback={runtime.artwork(coverPath) ? undefined : missingArt({title, shape: 'square', width: 232, height: 232})}/></View>
       </View>
       : <View style={{width: 150, height: 150}}>
         <PersonCircle covers={covers} initials="" alt={title} size={150} visible/>

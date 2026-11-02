@@ -3,6 +3,8 @@ export type {MediaArtProps, MediaArtKind} from './Artwork';
 export {AmbientArt, ColourBackdrop, StandardBackdrop} from './Surfaces';
 export {GeneratedArt, GeneratedCover, GeneratedCoverClearance} from './Generated';
 export type {GeneratedArtProps} from './Generated';
+export {missingArt} from './MissingArt';
+export type {MissingArtShape} from './MissingArt';
 export {CircleArt, ArtistCircle, PersonCircle} from './Circles';
 export type {ArtistCircleProps} from './Circles';
 export {CoverFan, CoverMosaic} from './Covers';

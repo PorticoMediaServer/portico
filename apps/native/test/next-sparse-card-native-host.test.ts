@@ -45,7 +45,7 @@ test('the real sparse CardFrame keeps one native host from waiting through two l
   const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
     react, 'react-native': nativeModule, 'react-native-svg': {default: 'RCTSvg', Text: 'RCTSvgText'},
     '../../../../../packages/i18n/src/index': {defaultI18n}, '../theme': {useTheme: () => theme},
-    '../artwork/index': {MediaArt: 'RCTMediaArt', CircleArt: 'RCTCircleArt', PersonCircle: 'RCTPersonArt', GeneratedCoverClearance: {Provider: 'Provider'}},
+    '../artwork/index': {MediaArt: 'RCTMediaArt', CircleArt: 'RCTCircleArt', PersonCircle: 'RCTPersonArt', GeneratedCoverClearance: {Provider: 'Provider'}, missingArt: () => undefined},
     '../controls/Focusable': {Focusable: 'RCTUnusedTouchControl'}, '../selection/index': {SelectionCircle: 'RCTSelection'}, './primitives': primitives,
   });
   const address = {regionId: 'actual-grid', childId: 'original-pending-host'};

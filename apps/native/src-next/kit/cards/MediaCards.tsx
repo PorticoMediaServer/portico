@@ -3,7 +3,7 @@ import {StyleSheet, Text, View} from 'react-native';
 import Svg, {Text as SvgText} from 'react-native-svg';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model/index';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
-import {MediaArt, CircleArt, PersonCircle, GeneratedCoverClearance, type ArtworkProps, type ArtworkSource, type CircleArtProps, type PersonCircleProps} from '../artwork/index';
+import {MediaArt, CircleArt, PersonCircle, GeneratedCoverClearance, missingArt, type MissingArtShape, type ArtworkProps, type ArtworkSource, type CircleArtProps, type PersonCircleProps} from '../artwork/index';
 import {Focusable} from '../controls/Focusable';
 import {SelectionCircle} from '../selection/index';
 import {useTheme} from '../theme';
@@ -57,6 +57,12 @@ function useBadgeClearance(isNew: boolean | undefined) {
   return [isNew && bottom > 0 ? bottom + t.spec.card.badge.inset[t.platform] / 2 : 0, setBottom] as const;
 }
 
+/** A card with no picture served draws its generated cover (mock.html "No artwork"), unless the surface chose its own
+ * fallback (null keeps the frame plain). A card that has a picture draws nothing under it. */
+function fallbackFor(props: Media & {title: string}, shape: MissingArtShape, width: number, height: number): ReactNode {
+  return props.artworkFallback !== undefined || props.artwork ? props.artworkFallback : missingArt({title: props.title, shape, width, height});
+}
+
 function Portrait({kind = 'poster', next, titleLines = 1, ...props}: PosterCardProps & {kind?: 'poster' | 'book' | 'periodical' | 'newspaper'; next?: boolean}) {
   const t = useTheme(), width = props.width ?? t.spec.card.width.poster[t.platform], height = width / (kind === 'periodical' || kind === 'newspaper' ? 3 / 4 : 2 / 3);
   const [clearance, setBadgeBottom] = useBadgeClearance(props.isNew);
@@ -65,7 +71,7 @@ function Portrait({kind = 'poster', next, titleLines = 1, ...props}: PosterCardP
     {state => <>
       <ArtFrame height={height} focused={state.focused} hovered={state.hovered} holding={state.holding} selected={props.selection?.selected || next}>
         <GeneratedCoverClearance.Provider value={clearance}>
-          <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} source={props.artwork} fallback={props.artworkFallback} kind={kind} width={width} height={height} />
+          <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} source={props.artwork} fallback={fallbackFor(props, kind, width, height)} kind={kind} width={width} height={height} />
         </GeneratedCoverClearance.Provider>
         <Marks {...props} onNewBadge={setBadgeBottom} />
       </ArtFrame>
@@ -86,7 +92,7 @@ export function SquareCard(props: SquareCardProps) {
   const Frame = props.frame ?? CardFrame;
   return <Frame {...props} width={width} overlay={s => <Overlays props={props} hovered={s.hovered} holding={s.holding} height={width} />}>
     {s => <><ArtFrame height={width} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected}>
-      <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="square" source={props.artwork} fallback={props.artworkFallback} width={width} height={width} />
+      <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="square" source={props.artwork} fallback={fallbackFor(props, 'square', width, width)} width={width} height={width} />
       <Scrim start={0.55} opacity={0.75} /><Marks watched={props.watched} isNew={props.isNew} />
       <Progress value={props.progress} height={t.isTV ? 6 : 3} style={{position: 'absolute', left: 8, right: 8, bottom: 8}} />
       {props.playing && <View pointerEvents="none" style={{position: 'absolute', left: 12, bottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -108,7 +114,7 @@ export function WideCard(props: WideCardProps) {
   const compactFacts = handheld ? [...(props.caption ?? []), ...(props.detail ?? [])].filter(part => part.id === 'episode-label' || part.id === 'remaining' || part.id === 'picture-in-picture') : undefined;
   return <CardFrame {...props} width={width} overlay={s => <Overlays props={props} hovered={s.hovered} holding={s.holding} height={height} playSize={52} centered />}>
     {s => <ArtFrame height={height} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected}>
-      <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="wide" source={props.artwork} fallback={props.artworkFallback} width={width} height={height} />
+      <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="wide" source={props.artwork} fallback={fallbackFor(props, 'wide', width, height)} width={width} height={height} />
       <Scrim />
       <View style={{position: 'absolute', left: t.spec.card.wide.insetX[t.platform], right: t.spec.card.wide.insetX[t.platform], bottom: t.spec.card.wide.insetBottom[t.platform]}}>
         <Text numberOfLines={1} style={[t.type.wideTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
@@ -150,7 +156,7 @@ export function EpisodeTile(props: EpisodeTileProps) {
   const t = useTheme(), row = props.layout === 'row' || (!t.isTV && props.layout !== 'tile');
   const width = props.width ?? (row ? 350 : t.spec.episode.width[t.platform]), artWidth = row ? props.artWidth ?? 136 : width, height = artWidth * 9 / 16;
   const art = (focused: boolean, hovered: boolean, holding: boolean) => <ArtFrame width={artWidth} height={height} radius={row ? 8 : undefined} focused={focused} hovered={hovered} holding={holding} hoverScale={t.spec.card.hover.episodeScale} selected={props.selection?.selected || props.open}>
-    <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="still" backdropFallback={props.backdropFallback} source={props.artwork} fallback={props.artworkFallback} width={artWidth} height={height} />
+    <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="still" backdropFallback={props.backdropFallback} source={props.artwork} fallback={fallbackFor(props, 'still', artWidth, height)} width={artWidth} height={height} />
     {props.length && !row && <View style={{position: 'absolute', right: t.spec.episode.duration.inset[t.platform], top: t.spec.episode.duration.inset[t.platform]}}><Badge>{props.length}</Badge></View>}
     {props.status && !row && <View style={{position: 'absolute', left: t.isTV ? 16 : 8, top: t.isTV ? 14 : 8}}><Badge kind="new">{props.status}</Badge></View>}
     <Marks watched={props.watched} progress={props.progress} />
