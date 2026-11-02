@@ -103,22 +103,29 @@ func (p *pathPresence) advance(ctx context.Context) error {
 		check, cancel := context.WithTimeout(ctx, 2*time.Second)
 		var root storage.Snapshot
 		if p.s.storage != nil {
-			root, err = p.s.storage.InspectRoot(check, source.ResolvedPath)
+			root, err = p.s.storage.ProbeRoot(check, "presence-root:"+source.ID, source.ResolvedPath)
 		} else {
 			root, err = storage.LocalInventoryDirectory(storage.InventoryRequest{Root: source.ResolvedPath, RelativePath: "."})
+			if errors.Is(err, os.ErrNotExist) {
+				root, err = storage.Snapshot{ErrorCode: storage.RootNotFound}, nil
+			}
 		}
 		cancel()
 		if err != nil {
-			// A transport failure says nothing about individual files.
-			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || errors.Is(err, storage.ErrBusy) {
-				return err
-			}
+			// Storage is assumed present: a probe that was busy, timed out or
+			// failed says nothing about the root or its files, so nothing is
+			// written and the next pass looks again. Only a root proven gone
+			// (below) takes the source offline.
+			return err
+		}
+		if root.ErrorCode == storage.RootNotFound || root.ErrorCode == storage.RootNotDirectory {
 			return p.health(ctx, source, "offline", source.IdentityConfirmed, source.RootIdentity)
 		}
 		observed := storage.RootIdentity(root)
 		if observed == "" || !root.Directory {
+			// A directory with no identity proves nothing either way.
 			log.Printf("Source %s: root inspection did not prove a readable directory (code %s)", source.ID, root.ErrorCode)
-			return p.health(ctx, source, "offline", source.IdentityConfirmed, source.RootIdentity)
+			return nil
 		}
 		if observed == source.RootIdentity && (source.Health == "ready" || source.Health == "healthy") {
 			var incarnation string
