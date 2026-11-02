@@ -10,6 +10,7 @@ export const tvMoreMessages = {
   'music.albums': 'Albums',
   'music.similarArtists': 'Similar artists',
   'music.allSongs': 'All songs',
+  'music.showAllSongs': 'Show all {count, plural, one {# song} other {# songs}}',
   'music.moreLikeThis': 'More like this',
   'music.moreLikeThisHint': 'Same genres first, then what people here play alongside it',
   // music-plus f7 (MC-9): the same row's line once the album is analyzed and ranked by sound.
