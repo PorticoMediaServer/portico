@@ -55,10 +55,6 @@ func TestTriggerJoinsSearchInsteadOfScan(t *testing.T) {
 // scan read every folder before it: building a library grew with the square
 // of its folders.
 func TestStorageLimitChecksReadTheCounterFirstAndSeekTheirKeys(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
-	}
-
 	db, err := OpenFresh(filepath.Join(t.TempDir(), "state.sqlite"))
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +78,7 @@ func TestStorageLimitChecksReadTheCounterFirstAndSeekTheirKeys(t *testing.T) {
 		t.Fatalf("found %d storage-limit checks", len(checks))
 	}
 	newValue := regexp.MustCompile(`NEW\.\w+`)
-	exists := regexp.MustCompile(`NOT EXISTS\((SELECT 1 FROM \w+ WHERE .*?\))\)`)
+	exists := storageLimitKeyCheck
 	for _, c := range checks {
 		when := c.sql[strings.Index(c.sql, " WHEN ")+6 : strings.Index(c.sql, " BEGIN ")]
 		if !strings.HasPrefix(when, "(SELECT rows>=maximum FROM maintenance_table_bounds WHERE table_name='"+c.table+"') AND ") {
@@ -111,6 +107,34 @@ func TestStorageLimitChecksReadTheCounterFirstAndSeekTheirKeys(t *testing.T) {
 			plan.Close()
 			if joined := strings.Join(steps, "\n"); !strings.Contains(joined, "SEARCH "+c.table) {
 				t.Errorf("%s reads the whole table for an existing key:\n%s\n%s", c.name, query, joined)
+			}
+		}
+	}
+}
+
+// A key predicate may be bare or parenthesized; parentheses are not evidence
+// of an index seek. The guard above EXPLAINs every extracted query instead.
+var storageLimitKeyCheck = regexp.MustCompile(`NOT EXISTS\((SELECT 1 FROM \w+ WHERE (?:[^()]|\([^()]*\))+)\)`)
+
+func TestStorageLimitKeyCheckExtraction(t *testing.T) {
+	for _, tc := range []struct {
+		when    string
+		queries []string
+	}{
+		{`NOT EXISTS(SELECT 1 FROM epochs WHERE profile_id=NEW.profile_id)`, []string{`SELECT 1 FROM epochs WHERE profile_id=NEW.profile_id`}},
+		{`NOT EXISTS(SELECT 1 FROM epochs WHERE (profile_id=NEW.profile_id))`, []string{`SELECT 1 FROM epochs WHERE (profile_id=NEW.profile_id)`}},
+		{`NOT EXISTS(SELECT 1 FROM rows WHERE (profile_id=NEW.profile_id AND item_id=NEW.item_id)) AND NOT EXISTS(SELECT 1 FROM rows WHERE (profile_id COLLATE BINARY=NEW.profile_id AND item_id=NEW.item_id))`, []string{`SELECT 1 FROM rows WHERE (profile_id=NEW.profile_id AND item_id=NEW.item_id)`, `SELECT 1 FROM rows WHERE (profile_id COLLATE BINARY=NEW.profile_id AND item_id=NEW.item_id)`}},
+		// An unindexed predicate must still reach EXPLAIN and fail its seek check.
+		{`NOT EXISTS(SELECT 1 FROM epochs WHERE 1=1)`, []string{`SELECT 1 FROM epochs WHERE 1=1`}},
+		{`(SELECT rows>=maximum FROM maintenance_table_bounds)`, nil},
+	} {
+		matches := storageLimitKeyCheck.FindAllStringSubmatch(tc.when, -1)
+		if len(matches) != len(tc.queries) {
+			t.Fatalf("%s: extracted%v want%v", tc.when, matches, tc.queries)
+		}
+		for i, m := range matches {
+			if m[1] != tc.queries[i] {
+				t.Fatalf("%s: extracted%q want%q", tc.when, m[1], tc.queries[i])
 			}
 		}
 	}
