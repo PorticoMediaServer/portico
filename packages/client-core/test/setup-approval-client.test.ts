@@ -6,6 +6,7 @@ import {transportJSON} from '../src/index.ts';
 import {HttpLocalApi} from '../src/index.ts';
 import {setInstallationIdentity} from '../src/installation.ts';
 import {requestSetupApproval} from '../src/setup-approval-client.ts';
+import {clockOrigin, observeServerTime, resetServerClocks} from '../src/server-clock.ts';
 import type {SetupClaimHandoff} from '../src/setup-claim-client.ts';
 import {routeBase64, routeBytes, webRouteCrypto} from '../src/route-identity.ts';
 
@@ -180,3 +181,17 @@ test('a renewal accepts only the installed operation of a bound account', async 
     await assert.rejects(renew(g)); assert.equal(g.bound.length, 0);
   }
 });
+
+// No client-clock requirements: the signed setup start is the server's instant, read against the server's clock.
+for (const [label, skew] of [['a year ahead', 365 * 86_400_000], ['a year behind', -365 * 86_400_000]] as const) {
+  test(`setup approval is not refused when this device's clock is ${label}`, async t => {
+    const real = Date.now, serverTime = Date.parse('2030-01-02T03:04:07Z');
+    t.after(() => {Date.now = real; resetServerClocks();});
+    resetServerClocks();
+    const f = await fixture(t);
+    Date.now = () => serverTime + skew;
+    observeServerTime(clockOrigin(f.start.origin), new Date(serverTime).toUTCString(), Date.now() - 20, Date.now() + 20);
+    const out = await requestSetupApproval(f.api, f.start, f.ports, {});
+    assert.equal(out.approvalUrl, f.approvalUrl); assert.equal(f.bound.length, 1);
+  });
+}

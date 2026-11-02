@@ -6,6 +6,7 @@ import {parseCapabilities, type ServerCapability} from './capabilities.ts';
 import {skippedParts, type SkippedPart} from '../tolerant.ts';
 import {randomId} from '../random-id.ts';
 import {routePath} from '../../../contracts/src/route-paths.ts';
+import {serverNow} from '../server-clock.ts';
 
 export type SupportSnapshot = Readonly<{
   phase: 'idle' | 'loading' | 'ready' | 'error';
@@ -61,7 +62,7 @@ export class SettingsSupportSource {
   }
   private current() {return !this.lifetime.signal.aborted && this.isCurrent();}
   private assertCurrent() {if (!this.current()) throw Object.assign(new Error('The support scope ended.'), {name: 'AbortError'});}
-  canDownload = (id: string) => this.current() && this.state.export?.id === id && this.state.export.expiresAt > Date.now();
+  canDownload = (id: string) => this.current() && this.state.export?.id === id && this.state.export.expiresAt > serverNow();
   getSnapshot = (): SupportSnapshot => this.current() ? this.state : empty;
   subscribe = (listener: () => void): (() => void) => {this.listeners.add(listener);return () => {this.listeners.delete(listener);};};
   private publish(state: SupportSnapshot) {if (this.current()) {this.state = Object.freeze(state);for (const listener of [...this.listeners]) listener();}}
@@ -89,7 +90,7 @@ export class SettingsSupportSource {
     let intent = this.exportIntent;
     if (!intent) {
       if (typeof includePaths !== 'boolean' || includePaths && !this.state.supportsPaths || !Number.isFinite(windowMs) || windowMs <= 0 || !components.length || components.some(part => !SUPPORT_COMPONENTS.includes(part))) {this.publish({...this.state,prepareError:true});return;}
-      const to = Date.now();intent = Object.freeze({from:to-windowMs,to,windowMs,components:Object.freeze([...new Set(components)]),...(this.state.supportsPaths?{includePaths}:{})});this.exportIntent = intent;
+      const to = serverNow();intent = Object.freeze({from:to-windowMs,to,windowMs,components:Object.freeze([...new Set(components)]),...(this.state.supportsPaths?{includePaths}:{})});this.exportIntent = intent;
     }
     const attempt = {};this.preparing = attempt;
     const owns = () => this.current() && this.preparing === attempt && this.exportIntent === intent;

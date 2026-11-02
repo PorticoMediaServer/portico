@@ -1,5 +1,6 @@
 import {randomId} from '../random-id.ts';
 import {resendableRefusal, retryWriterCapacity} from '../writer-capacity.ts';
+import {serverNow} from '../server-clock.ts';
 /**
  * The HTTP seam for playback v1. Modules speak in `V1Request`/`V1Response` so the same code runs
  * against the real server (an adapter over `HttpLocalApi`/`fetch`, phase 2 wiring) and
@@ -59,7 +60,8 @@ function retryAfter(r: V1Response, body: {retryAfterMs?: unknown} | undefined): 
   if (h && /^\d+$/.test(h)) return Number(h) * 1000;
   // The other legal form (RFC 9110) is an HTTP-date; a proxy in front of the server may answer with one.
   const at = h ? Date.parse(h) : NaN;
-  if (Number.isFinite(at) && at > Date.now()) return Math.ceil((at - Date.now()) / 1000) * 1000;
+  const clock = serverNow();
+  if (Number.isFinite(at) && at > clock) return Math.ceil((at - clock) / 1000) * 1000;
   return typeof body?.retryAfterMs === 'number' && Number.isSafeInteger(body.retryAfterMs) && body.retryAfterMs > 0 ? body.retryAfterMs : undefined;
 }
 

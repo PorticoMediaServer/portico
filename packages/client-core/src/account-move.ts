@@ -29,7 +29,8 @@ const count=(v:unknown):v is number=>typeof v==='number'&&Number.isSafeInteger(v
 const secret=(v:unknown):v is string=>typeof v==='string'&&/^[A-Za-z0-9_-]{43}$/.test(v);
 function invalid():never{throw new CodedError('invalid_account_move',unreadableServerResponse);}
 function ended():never{throw new CodedError('cancelled','This account move request ended.');}
-function expiry(raw:unknown,maximum:number,now:number){if(!currentUTCTimestamp(raw)||Date.parse(raw)<=now||Date.parse(raw)>now+maximum+60000)invalid();return raw;}
+// No client-clock requirements: an expiry is the server's to enforce; this device's clock never bounds it.
+function expiry(raw:unknown){if(!currentUTCTimestamp(raw))invalid();return raw;}
 export function parseMoveCollisionDetails(raw:unknown):MoveCollisionDetails{
  if(!obj(raw)||!text(raw.existingUsername,64)||!text(raw.serverName,120)||Object.keys(raw).some(key=>!['existingUsername','serverName'].includes(key)))invalid();
  return Object.freeze({existingUsername:raw.existingUsername,serverName:raw.serverName});
@@ -51,20 +52,20 @@ export function parseAccountMove(raw:unknown):AccountMove{
  if(raw.startOver?Object.hasOwn(raw,'devices'):!count(raw.devices))invalid();
  return Object.freeze({id:raw.id,from:raw.from as SignInKind,to:raw.to as SignInKind,startOver:raw.startOver,stage:raw.stage as AccountMove['stage'],revision:raw.revision,people:raw.people as number,profiles:raw.profiles as number,invitations:raw.invitations as number,waiting:raw.waiting as number,serverName:raw.serverName,ownAddressRequired:raw.ownAddressRequired,...(raw.startOver?{}:{devices:raw.devices as number}),...(hasRetained?{retainedProfiles:raw.retainedProfiles as number,removedProfiles:raw.removedProfiles as number}:{})});
 }
-export function parseMovePasswordTicket(raw:unknown,now=Date.now()):MovePasswordTicket{
+export function parseMovePasswordTicket(raw:unknown):MovePasswordTicket{
  if(!obj(raw)||!secret(raw.ticket)||Object.keys(raw).some(key=>!['ticket','expiresAt'].includes(key)))invalid();
- return Object.freeze({ticket:raw.ticket,expiresAt:expiry(raw.expiresAt,10*60000,now)});
+ return Object.freeze({ticket:raw.ticket,expiresAt:expiry(raw.expiresAt)});
 }
-export function parseMoveCodePreview(raw:unknown,now=Date.now()):MoveCodePreview{
+export function parseMoveCodePreview(raw:unknown):MoveCodePreview{
  if(!obj(raw)||!text(raw.username,64)||!['portico','local'].includes(String(raw.signIn))||Object.keys(raw).some(key=>!['username','signIn','expiresAt'].includes(key)))invalid();
- return Object.freeze({username:raw.username,signIn:raw.signIn as SignInKind,expiresAt:expiry(raw.expiresAt,7*86400000,now)});
+ return Object.freeze({username:raw.username,signIn:raw.signIn as SignInKind,expiresAt:expiry(raw.expiresAt)});
 }
-export function parseAccountMoveCodes(raw:unknown,now=Date.now()):readonly AccountMoveCode[]{
+export function parseAccountMoveCodes(raw:unknown):readonly AccountMoveCode[]{
  if(!obj(raw)||!Array.isArray(raw.items)||raw.items.length>10000)invalid();
  const seen=new Set<string>();return Object.freeze(raw.items.map(row=>{
   if(!obj(row)||!text(row.accountId,128)||seen.has(row.accountId)||!text(row.username,64)||!secret(row.code))invalid();seen.add(row.accountId);
   if(row.serverId!==undefined){if(typeof row.serverId!=='string')invalid();try{identityCode(row.serverId);}catch{invalid();}}
-  return Object.freeze({accountId:row.accountId,username:row.username,code:row.code,expiresAt:expiry(row.expiresAt,7*86400000,now),...(row.serverId===undefined?{}:{serverId:row.serverId as string})});
+  return Object.freeze({accountId:row.accountId,username:row.username,code:row.code,expiresAt:expiry(row.expiresAt),...(row.serverId===undefined?{}:{serverId:row.serverId as string})});
  }));
 }
 export type AccountMoveWaiting=Readonly<{accountId:string;username:string;expiresAt?:string}>;
@@ -74,13 +75,12 @@ export type AccountMoveWaiting=Readonly<{accountId:string;username:string;expire
 export function parseAccountMoveWaiting(raw:unknown):Readonly<{items:readonly AccountMoveWaiting[];truncated:boolean}>{
  if(!obj(raw)||!Array.isArray(raw.items)||raw.items.length>2000||typeof raw.truncated!=='boolean')invalid();
  const seen=new Set<string>();
- const now=Date.now();
  const items=Object.freeze(raw.items.map(row=>{
   if(!obj(row)||!text(row.accountId,128)||seen.has(row.accountId)||!text(row.username,64)||!row.username)invalid();
   seen.add(row.accountId);
-  // The existing code's own expiry, bounded to today's seven-day lifetime; an
+  // The existing code's own expiry; an
   // absent field means no working code, never a substituted date.
-  const expiresAt=row.expiresAt===undefined?undefined:expiry(row.expiresAt,7*86400000,now);
+  const expiresAt=row.expiresAt===undefined?undefined:expiry(row.expiresAt);
   return Object.freeze({accountId:row.accountId,username:row.username,...(expiresAt===undefined?{}:{expiresAt})});
  }));
  return Object.freeze({items,truncated:raw.truncated});

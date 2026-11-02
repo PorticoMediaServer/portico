@@ -10,6 +10,7 @@ import {verifySetupClaimStart} from './setup-claim-start.ts';
 import {readSetupState} from './setup-state.ts';
 import type {SetupAttempt, SetupStore} from './setup-store.ts';
 import {routePath} from '../../contracts/src/route-paths.ts';
+import {clockOrigin, serverClockFor} from './server-clock.ts';
 
 export type SetupExchangePorts = Readonly<{
   sessions: Pick<AppSessionStore, 'read' | 'connectionStorage'>; environment: (serverId: string) => ConnectionEnvironment;
@@ -29,7 +30,7 @@ export const setupExchangeCancelled = () => new CodedError('cancelled', 'The pen
 export async function finishSetupExchange(ports: SetupExchangePorts, input: Readonly<{
   attempt: SetupAttempt; store: SetupStore; signal: AbortSignal; current: () => void; admitted: () => boolean;
 }>): Promise<SetupExchanged> {
-  const {attempt, store, signal, current} = input, now = ports.now ?? Date.now;
+  const {attempt, store, signal, current} = input, now = ports.now ?? serverClockFor(clockOrigin(attempt.origin));
   let connected: Awaited<ReturnType<typeof connectPairedServer>> | undefined, bound: Awaited<ReturnType<typeof connectPairedPorticoServer>> | undefined;
   let grant: DirectSignIn | undefined, adopted = false, admissionServer: string | undefined;
   try {

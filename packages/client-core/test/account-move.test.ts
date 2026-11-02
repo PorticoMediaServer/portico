@@ -39,7 +39,7 @@ test('owner move counters are whole live counts and Start over has no invented d
 });
 test('old-password proof is only an opaque bounded ticket; code preview exposes no authority or secret',()=>{
  assert.deepEqual(parseMovePasswordTicket({ticket:code,expiresAt:until}),{ticket:code,expiresAt:until});
- for(const raw of [{ticket:code,expiresAt:until,session},{ticket:code,expiresAt:'2000-01-01T00:00:00Z'},{ticket:'short',expiresAt:until}])assert.throws(()=>parseMovePasswordTicket(raw));
+ for(const raw of [{ticket:code,expiresAt:until,session},{ticket:code,expiresAt:'not a time'},{ticket:'short',expiresAt:until}])assert.throws(()=>parseMovePasswordTicket(raw));
  assert.deepEqual(parseMoveCodePreview({username:'alice',signIn:'local',expiresAt:until}),{username:'alice',signIn:'local',expiresAt:until});
  assert.throws(()=>parseMoveCodePreview({username:'alice',signIn:'local',expiresAt:until,code}));
  assert.throws(()=>parseAccountMoveCodes({items:[{accountId:'a',username:'alice',code,expiresAt:until},{accountId:'a',username:'alice',code,expiresAt:until}]}));
@@ -123,4 +123,17 @@ test('move-link query refusal uses original live Location values after synchrono
  current=new URL('https://server.test/sign-in#code='+code+'&id='+id);
  assert.deepEqual(consumeAccountMoveFragment(location,history),{code,id});
  assert.equal(current.href,'https://server.test/sign-in');
+});
+
+test('a move ticket, preview and codes are never refused by this device\'s clock, a year ahead or a year behind',()=>{
+ const real=Date.now,truth=real();
+ try{
+  for(const skew of [365*86400000,-365*86400000]){
+   Date.now=()=>truth+skew;
+   const soon=new Date(truth+600000).toISOString().replace(/\.\d+Z$/,'Z');
+   assert.equal(parseMovePasswordTicket({ticket:code,expiresAt:soon}).expiresAt,soon);
+   assert.equal(parseMoveCodePreview({username:'alice',signIn:'local',expiresAt:soon}).expiresAt,soon);
+   assert.equal(parseAccountMoveCodes({items:[{accountId:'a',username:'alice',code,expiresAt:soon}]})[0].expiresAt,soon);
+  }
+ }finally{Date.now=real;}
 });
