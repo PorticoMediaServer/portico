@@ -404,3 +404,26 @@ escapes refuse. It never executes or reuses a binary, never changes intake locks
 and records original producer and current seed identities separately. Both BtbN
 targets may use matching source command names; absent or changed commands still
 run their pinned downloader. This does not manufacture a Mac/Linux prefix cache.
+
+New BtbN snapshots are packed deterministically at their original tar boundary:
+name order, locked SOURCE_DATE_EPOCH, numeric owner/group zero, GNU tar format
+and single-thread xz. This avoids an extra unpack/repack pass. Already seeded
+snapshots remain byte-identical to their original producer and registry keys;
+they are never silently rewritten for metadata normalization. A real archive
+control varies file order/timestamps and checks equal output hashes, original
+file bytes, executable modes and symlink targets.
+
+Windows jobs set and print core.autocrlf=false and core.eol=lf before the fresh
+checkout. replayRunId selects only the explicitly pinned producer run; it is a
+development native-only mode and reports replay=true. Exact artifact/source
+hashes, retention, source custody and checked-contract equality still apply.
+The original Windows replay passed all native gates in41382965887; changed
+contracts continue to refuse rather than bypassing a new requirement. Same-run
+attempt retries separately retain their original producer and qualifier attempts.
+
+Native gates require a successfully constructed artifact for their own target.
+A failed target with no product is excluded by the exact-artifact planner; another
+target's failure does not discard a successful target's native proof. The static
+source/configure graph gate runs before dependency compilation. Actual effective
+config.h checks run immediately after configure and before FFmpeg make; a cold
+dependency prefix must exist before configure can probe its libraries.

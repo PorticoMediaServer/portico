@@ -150,7 +150,7 @@ PYLICENSE
     # The source-built binaries use the exact immutable dependency prefix.
     compile_options=()
     [[ "$PHASE" != working ]] || compile_options+=(--first-build-only)
-    python3 "$ROOT/scripts/build-linux-ffmpeg.py" --work "$WORK" --source "$SOURCE" "${compile_options[@]}"
+    python3 "$ROOT/scripts/build-linux-ffmpeg.py" --work "$WORK" --source "$SOURCE" ${compile_options[@]+"${compile_options[@]}"}
     fi
     INPUT="$WORK/linux-output"
     if [[ "$PHASE" == compile ]]; then
@@ -272,7 +272,7 @@ if [[ "$PHASE" == working ]]; then
   normalize_options+=(--working)
   archive_name="portico-ffmpeg-$TARGET-working.tar.xz"
 fi
-python3 "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$INPUT" "$TARGET" "$WORK/bundle" "$WORK/corresponding-source.tar.xz" "${normalize_options[@]}"
+python3 "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$INPUT" "$TARGET" "$WORK/bundle" "$WORK/corresponding-source.tar.xz" ${normalize_options[@]+"${normalize_options[@]}"}
 if [[ "$PHASE" == working ]]; then
   "$WORK/bundle/bin/ffmpeg" -version
   "$WORK/bundle/bin/ffprobe" -version

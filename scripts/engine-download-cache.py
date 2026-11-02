@@ -18,6 +18,20 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def configure_download(recipe):
+    """Normalize new snapshots at creation; retained snapshots keep their bytes."""
+    path = recipe / 'download.sh'
+    original = 'tar -I "xz -T1" -cpf '
+    deterministic = ('tar --sort=name --mtime="@${SOURCE_DATE_EPOCH:?Explicit source epoch required}" '
+                     '--owner=0 --group=0 --numeric-owner --format=gnu -I "xz -T1" -cpf ')
+    text = path.read_text().replace('xz -T0', 'xz -T1')
+    if deterministic in text:
+        if text.count(deterministic) != 1: raise ValueError('duplicate deterministic snapshot boundary')
+        return
+    if text.count(original) != 1: raise ValueError('pinned BtbN snapshot packing boundary changed')
+    path.write_text(text.replace(original, deterministic, 1))
+
+
 def fingerprint(store):
     if os.environ.get('PORTICO_ENGINE_BUILD_CONTEXT') != 'development':
         raise ValueError('source snapshot cache requires explicit development context')

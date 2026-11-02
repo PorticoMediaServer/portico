@@ -3,12 +3,16 @@
 import hashlib
 import io
 import lzma
-import tarfile
 import json
 import os
 from pathlib import Path
 import runpy
 import tempfile
+import tarfile
+import subprocess
+import shutil
+import shlex
+import platform
 import unittest
 from unittest.mock import patch
 
@@ -70,7 +74,57 @@ class RebuildControls(unittest.TestCase):
                 else:
                     with self.assertRaises(ValueError): seed['snapshots'](source, root / mode)
 
+    def test_new_snapshot_packing_is_reproducible_without_rewriting_seeded_archives(self):
+        gnu = shutil.which('gtar') or shutil.which('tar')
+        if not gnu or b'GNU tar' not in subprocess.check_output([gnu, '--version']):
+            self.skipTest('GNU tar exercised by hosted Linux; native Mac separately proves Bash 3.2')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); recipe = root / 'recipe'; recipe.mkdir()
+            (recipe / 'download.sh').write_text('set -eu\ncd "$1"\nTGT="$2"\n'
+                + 'tar() { ' + shlex.quote(gnu) + ' "$@"; }\n'
+                + 'tar -I "xz -T1" -cpf "$TGT.tmp" .\nmv "$TGT.tmp" "$TGT"\n')
+            cached = recipe / '.cache/downloads'; cached.mkdir(parents=True)
+            legacy = cached / ('50-existing_' + 'a' * 64 + '.tar.xz')
+            legacy.write_bytes(lzma.compress(b'old exact source snapshot'))
+            before = CACHE['digest'](legacy)
+            CACHE['configure_download'](recipe); script = (recipe / 'download.sh').read_bytes()
+            CACHE['configure_download'](recipe)
+            self.assertEqual(script, (recipe / 'download.sh').read_bytes())
+            self.assertEqual(before, CACHE['digest'](legacy))
+            hashes = []
+            for index, order in enumerate((('z', 'a', 'tool'), ('tool', 'a', 'z'))):
+                tree = root / ('tree' + str(index)); tree.mkdir()
+                for name in order:
+                    path = tree / name; path.write_bytes(name.encode()); path.chmod(0o755 if name == 'tool' else 0o644)
+                    os.utime(path, (100 + index, 100 + index))
+                (tree / 'link').symlink_to('a')
+                output = root / (str(index) + '.tar.xz')
+                subprocess.run(['/bin/bash', recipe / 'download.sh', tree, output],
+                    env=dict(os.environ, SOURCE_DATE_EPOCH='1234567890'), check=True)
+                hashes.append(CACHE['digest'](output))
+                with tarfile.open(output) as archive:
+                    self.assertEqual(archive.extractfile('./a').read(), b'a')
+                    self.assertEqual(archive.getmember('./link').linkname, 'a')
+                    self.assertEqual(archive.getmember('./tool').mode & 0o111, 0o111)
+                    self.assertTrue(all(m.uid == m.gid == 0 and m.mtime == 1234567890 for m in archive.getmembers()))
+            self.assertEqual(hashes[0], hashes[1])
+
+    def test_actual_empty_array_expansions_work_on_native_system_bash(self):
+        text = (ROOT / 'scripts/build-ffmpeg.sh').read_text()
+        for name, boundary in (('compile_options', ' --source "$SOURCE" '),
+                               ('normalize_options', ' "$WORK/corresponding-source.tar.xz" ')):
+            line = next(line for line in text.splitlines() if boundary in line and 'python3 ' in line)
+            expression = line.split(boundary)[1]
+            script = ('set -eu\ncapture() { printf "%s\\n" "$#"; printf "<%s>\\n" "$@"; }\n'
+                + name + '=()\ncapture ' + expression + '\n' + name + '=("with space" --flag)\ncapture ' + expression)
+            result = subprocess.run(['/bin/bash', '-c', script], text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.splitlines(), ['0', '<>', '2', '<with space>', '<--flag>'])
+        print('Native system Bash empty-array proof: ' + platform.system(), flush=True)
+
     def test_native_rerun_keeps_original_attempt_and_rejects_future_cross_run_cross_source(self):
+        self.assertEqual(CI['native_retry_pin']('windows-x64', replay_run_id='41346289584')['origin']['runId'], 41346289584)
+        with self.assertRaises(ValueError): CI['native_retry_pin']('windows-x64', replay_run_id='1')
         qualifier = dict(engineSourceSHA='a' * 40, runId=17, runAttempt=2, context='github-actions')
         sender = dict(qualifier, runAttempt=1, target='windows-x64', constructionPassed=True, qualified=False, release=False)
         producer = CI['check_native_transfer'](sender, 'windows-x64', qualifier)
