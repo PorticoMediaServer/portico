@@ -10,7 +10,9 @@ import type {SetupReading} from './setup-store.ts';
  * - `schedule-read` waits `afterMs` (plus any jitter, added on top, never below) while foregrounded, then does a `read-state`.
  *   It replaces any read already scheduled. A step that emits none leaves the pending one alone; `cancel-pending` clears it.
  * - `abandon` is S8. When the server accepts it the runner retires the record and the attempt (compare-and-swap on the requestId).
- * - There is no input or effect that moves a setup from one kind to the other: only the ordinary Back, through `form`. */
+ * - There is no input or effect that moves a setup from one kind to the other: only the ordinary Back, through `form`.
+ * - `start-over` ends any unfinished setup on the server, whoever started it (finding #2). When the server accepts it the runner
+ *   retires the record and the attempt, and the form shows both kinds again with the fresh setup token the port kept. */
 
 export type SetupKind = 'hosted' | 'local';
 /** `choose` offers both kinds; `hosted` and `local` are the two forms. Arriving in `form` always shows `choose`. */
@@ -34,6 +36,7 @@ export type SetupView =
   | Readonly<{kind: 'exhausted'; polls: number}>
   | Readonly<{kind: 'admitting'}>
   | Readonly<{kind: 'renewing'}>
+  | Readonly<{kind: 'starting_over'; name: string}>
   | Readonly<{kind: 'library'}>
   | Readonly<{kind: 'done'}>
   | Readonly<{kind: 'ended'; outcome: SetupOutcome; name: string}>
@@ -50,6 +53,7 @@ export type SetupEffect =
   | Readonly<{kind: 'request-approval'; navigate: boolean}>
   | Readonly<{kind: 'approve-in-app'}>
   | Readonly<{kind: 'abandon'}>
+  | Readonly<{kind: 'start-over'}>
   | Readonly<{kind: 'retry-delivery'}>
   | Readonly<{kind: 'exchange'}>
   | Readonly<{kind: 'renew'}>
@@ -61,7 +65,7 @@ export type SetupEffect =
   | Readonly<{kind: 'cancel-pending'}>;
 export type SetupEffectKind = SetupEffect['kind'];
 /** Effects whose failure comes back as `effectFailed`. */
-export type SetupEffectName = 'start' | 'initialize' | 'request-approval' | 'approve-in-app' | 'abandon' | 'retry-delivery' | 'exchange' | 'renew' | 'adopt-owner' | 'add-library';
+export type SetupEffectName = 'start' | 'initialize' | 'request-approval' | 'approve-in-app' | 'abandon' | 'start-over' | 'retry-delivery' | 'exchange' | 'renew' | 'adopt-owner' | 'add-library';
 
 export type SetupInput =
   // intents
@@ -71,6 +75,8 @@ export type SetupInput =
   | Readonly<{kind: 'chooseKind'; mode: SetupFormMode}>
   | Readonly<{kind: 'back'}>
   | Readonly<{kind: 'startAgain'}>
+  /** Start over: end whatever setup is unfinished on the server and begin again here. */
+  | Readonly<{kind: 'startOver'}>
   | Readonly<{kind: 'retry'}>
   | Readonly<{kind: 'approveInApp'}>
   | Readonly<{kind: 'addLibrary'}>
@@ -92,6 +98,7 @@ export type SetupInput =
   | Readonly<{kind: 'approvalReady'; approvalUrl: string; expiresAt?: string}>
   | Readonly<{kind: 'approvedInApp'}>
   | Readonly<{kind: 'abandonRefused'}>
+  | Readonly<{kind: 'startedOver'}>
   | Readonly<{kind: 'deliveryRetried'}>
   | Readonly<{kind: 'exchangeDone'}>
   | Readonly<{kind: 'exchangeRefused'; lapsed: boolean; error: SetupError}>
@@ -159,6 +166,19 @@ const failedStep = (error: SetupError, name: string, hold: SetupHold, to: SetupV
 function leave(hold: SetupHold, name: string): SetupStep {
   if (hold === 'committed') return go({kind: 'connecting'}, [{kind: 'read-state'}]);
   return go(form(name), [{kind: 'cancel-pending'}, ...(hold === 'unapproved' ? [{kind: 'abandon'} as const] : [])]);
+}
+
+/** Start over, from any view where setup can't finish by itself: it asks the server to end the unfinished setup. */
+const startOver = (name: string): SetupStep => go({kind: 'starting_over', name}, [{kind: 'cancel-pending'}, {kind: 'start-over'}]);
+
+function startingOver(view: Extract<SetupView, {kind: 'starting_over'}>, i: SetupInput): SetupStep {
+  switch (i.kind) {
+    case 'startedOver': return go(form(view.name), RETIRE);
+    case 'notLocalSource': return go({kind: 'refused', reason: 'not_local_source'});
+    case 'alreadyComplete': return alreadySetUp();
+    case 'effectFailed': return i.effect === 'start-over' ? failedStep(i.error, view.name, 'none', view, [{kind: 'start-over'}]) : stay(view);
+    default: return stay(view);
+  }
 }
 
 function connecting(view: SetupView, i: SetupInput, now: number): SetupStep {
@@ -282,6 +302,7 @@ function delivering(view: Extract<SetupView, {kind: 'finishing' | 'exhausted'}>,
     case 'back': return go(view, [{kind: 'read-state'}]);
     case 'retry': return view.kind === 'exhausted' ? go(view, [{kind: 'retry-delivery'}]) : stay(view);
     case 'deliveryRetried': return view.kind === 'exhausted' ? go({kind: 'finishing', slow: true, polls: 0}, [readAfter(0)]) : stay(view);
+    case 'startOver': return startOver('');
     case 'effectFailed': return view.kind === 'exhausted' && i.effect === 'retry-delivery' ? failedStep(i.error, '', 'committed', view, [{kind: 'retry-delivery'}]) : stay(view);
     default: return stay(view);
   }
@@ -293,6 +314,7 @@ function busy(view: Extract<SetupView, {kind: 'busy_elsewhere'}>, i: SetupInput,
     case 'readFailed': return go({...view, polls: view.polls + 1}, [readAfter(view.polls + 1, i.error.retryAfterMs)]);
     case 'alreadyComplete': return alreadySetUp();
     case 'back': return leave('none', '');
+    case 'startOver': return startOver('');
     default: return stay(view);
   }
 }
@@ -324,6 +346,7 @@ function failed(view: Extract<SetupView, {kind: 'failed'}>, i: SetupInput): Setu
   switch (i.kind) {
     case 'retry': return view.retryable ? go(view.retry.to, view.retry.effects) : stay(view);
     case 'back': return leave(view.hold, view.name);
+    case 'startOver': return startOver(view.name);
     default: return stay(view);
   }
 }
@@ -342,7 +365,9 @@ export function stepSetup(view: SetupView, input: SetupInput, now: number): Setu
     case 'admitting': return admitting(view, input);
     case 'renewing': return renewing(view, input);
     case 'failed': return failed(view, input);
+    case 'starting_over': return startingOver(view, input);
     case 'ended':
+      if (input.kind === 'startOver') return startOver(view.name);
       return input.kind === 'back' || input.kind === 'startAgain' ? leave(view.outcome === 'superseded' ? 'none' : 'unapproved', view.name) : stay(view);
     case 'unknown': return input.kind === 'retry' ? go({kind: 'connecting'}, [{kind: 'read-state'}]) : stay(view);
     case 'library':

@@ -9,8 +9,9 @@ import {Button, Segmented, TextField} from '../../kit/controls';
 import {AuthLoading, AuthStage} from '../../kit/accounts/AuthStage';
 import {ServicesStrength} from '../../kit/accounts/ServicesAuth';
 import {Icon} from '../../kit/Icon';
+import {Dialog} from '../../kit/overlays/Dialog';
 import {defaultLibraryName, defaultSetupServerName, libraryKindDescription, localPasswordValid, setupBusyMessage, setupEndedMessage, setupErrorMessage,
-  setupFailureKind, setupLibraryKinds, setupNameValid, setupNewerMessage, setupSteps, validLocalUsername, type SetupLibraryKind} from './setup-model';
+  setupFailureKind, setupLibraryKinds, setupNameValid, setupNewerMessage, setupStartOverOffer, setupSteps, validLocalUsername, type SetupLibraryKind} from './setup-model';
 import styles from './setup.module.css';
 
 const t = defaultI18n.t;
@@ -55,8 +56,10 @@ function Stage({view, controller, form, setForm, name, mode, library, setLibrary
   setForm: (update: (old: Form) => Form) => void; name: string; mode: 'hosted' | 'local'; library: Library; setLibrary: (update: (old: Library) => Library) => void;
   serverName: string; folders?: LibraryContentApi}) {
   const back = <Button variant="glass" size="hero" onClick={controller.back}>{t('action.back')}</Button>;
+  const offer = setupStartOverOffer(view);
+  const startOver = (primary: boolean) => offer.offer ? <StartOver confirm={offer.confirm} primary={primary} onStart={controller.startOver}/> : null;
   switch (view.kind) {
-    case 'connecting': case 'admitting': case 'renewing':
+    case 'connecting': case 'admitting': case 'renewing': case 'starting_over':
       return <Loading/>;
     case 'awaiting_approval':
       // Back here from Portico Services without Return: offer Continue again, which asks the server for the same approval.
@@ -73,21 +76,21 @@ function Stage({view, controller, form, setForm, name, mode, library, setLibrary
         {view.slow && <p className={styles.quiet}>{t('web.claim.finishingSlow')}</p>}
       </AuthStage>;
     case 'exhausted':
-      return <Message icon="i-clock" text={t('web.claim.finishingSlow')} actions={<Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>}/>;
+      return <Message icon="i-clock" text={t('web.claim.finishingSlow')} actions={<><Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>{startOver(false)}</>}/>;
     case 'refused':
       if (view.reason === 'address_not_allowed') return <AddressRefused name={name}/>;
       return <Message icon="i-warn" text={view.reason === 'not_local_source' ? t('web.setup.notLocalSource') : setupErrorMessage({code: 'setup_complete', retryable: false})}/>;
     case 'busy_elsewhere':
-      return <Message icon="i-clock" heading text={setupBusyMessage(view.retryAt)} actions={back}/>;
+      return <Message icon="i-clock" heading text={setupBusyMessage(view.retryAt)} actions={<>{startOver(true)}{back}</>}/>;
     case 'ended':
-      return <Message icon="i-warn" heading text={setupEndedMessage(view.outcome, view.name || name)}
-        actions={<><Button variant="primary" size="hero" onClick={controller.startAgain}>{t('action.tryAgain')}</Button>{back}</>}/>;
+      return <Message icon={offer.offer ? 'i-clock' : 'i-warn'} heading text={setupEndedMessage(view.outcome, view.name || name)}
+        actions={offer.offer ? <>{startOver(true)}{back}</> : <><Button variant="primary" size="hero" onClick={controller.startAgain}>{t('action.tryAgain')}</Button>{back}</>}/>;
     case 'failed': {
       const kind = setupFailureKind(view);
       if (kind === 'address') return <AddressRefused name={name}/>;
       // 1d-3 and the ordinary error: Try again where the server says it is worth it, and the ordinary Back.
       return <Message icon={kind === 'services' ? 'i-clock' : 'i-warn'} heading={kind !== 'services'} text={setupErrorMessage(view.error)}
-        actions={<>{view.retryable && <Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>}{back}</>}/>;
+        actions={<>{view.retryable && <Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>}{startOver(!view.retryable)}{back}</>}/>;
     }
     case 'unknown':
       return <Message icon="i-warn" heading text={setupNewerMessage()} actions={<Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>}/>;
@@ -98,6 +101,19 @@ function Stage({view, controller, form, setForm, name, mode, library, setLibrary
     case 'library': case 'done':
       return <Loading/>;
   }
+}
+
+/** Start over (auth.html 1e panels 3–4). Where the setup was approved it asks first, since that approval is cancelled. */
+function StartOver({confirm, primary, onStart}: {confirm: boolean; primary: boolean; onStart: () => void}) {
+  const [open, setOpen] = useState(false);
+  return <>
+    <Button variant={primary ? 'primary' : 'glass'} size="hero" onClick={() => {if (confirm) setOpen(true); else onStart();}}>{t('web.setup.startOver')}</Button>
+    {confirm && <Dialog open={open} onOpenChange={setOpen} title={t('web.setup.startOverTitle')}
+      footer={<><Button size="small" onClick={() => setOpen(false)}>{t('action.cancel')}</Button>
+        <Button size="small" variant="glass" className={styles.danger} onClick={() => {setOpen(false);onStart();}}>{t('web.setup.startOver')}</Button></>}>
+      <p>{t('web.setup.startOverBody')}</p>
+    </Dialog>}
+  </>;
 }
 
 const Loading = () => <AuthStage legal={false} shape="round" layout="center" contentClassName={styles.loadingContent}><AuthLoading>{t('web.setup.preparing')}</AuthLoading></AuthStage>;
