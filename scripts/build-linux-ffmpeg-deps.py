@@ -89,6 +89,12 @@ portico_restore_owner() {
     portico_stage_status=$?
     trap - EXIT
     chown -hRP "$portico_output_owner" /portico
+    # PrefixCache creates private (0700) snapshots as root on this separate
+    # bind mount. Return them to the host before checkpointing/cache transport,
+    # including when a later dependency fails after earlier stages completed.
+    if [[ -n "${PORTICO_ENGINE_STAGE_CACHE:-}" && -d "$PORTICO_ENGINE_STAGE_CACHE/linux-native" ]]; then
+        chown -hRP "$portico_output_owner" "$PORTICO_ENGINE_STAGE_CACHE/linux-native"
+    fi
     exit "$portico_stage_status"
 }
 trap portico_restore_owner EXIT
