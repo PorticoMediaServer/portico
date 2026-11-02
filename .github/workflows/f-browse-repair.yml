@@ -113,8 +113,11 @@ jobs:
     - name: Install reviewed workspace dependencies
       run: npm ci > "$RUNNER_TEMP/reports/npm-ci.log" 2>&1
     - name: Client and native unavailable-state contracts
-      run: 'node --experimental-strip-types --test packages/client-core/test/browse-selection-unavailable.test.ts apps/native/test/next-library-selection-unavailable.test.ts
-        > "$RUNNER_TEMP/reports/client-tests.log" 2>&1
+      run: 'node --experimental-transform-types --test packages/client-core/test/browse-selection-unavailable.test.ts > "$RUNNER_TEMP/reports/client-tests.log"
+        2>&1
+
+        node --experimental-transform-types --import ./apps/native/test/register.mjs --test apps/native/test/next-library-selection-unavailable.test.ts
+        > "$RUNNER_TEMP/reports/native-tests.log" 2>&1
 
         '
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
