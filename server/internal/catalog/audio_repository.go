@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"golang.org/x/text/unicode/norm"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/naming"
+	"golang.org/x/text/unicode/norm"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -100,9 +100,11 @@ type BookFileInfo struct {
 	LocalMetadataIssue string             `json:"localMetadataIssue,omitempty"`
 }
 type BookChapter struct {
-	ID           string  `json:"id"`
-	ItemID       string  `json:"itemId"`
-	Index        int     `json:"index"`
+	ID     string `json:"id"`
+	ItemID string `json:"itemId"`
+	Index  int    `json:"index"`
+	// Number is the chapter's 1-based place in the whole book.
+	Number       int     `json:"number"`
 	Title        string  `json:"title"`
 	StartSeconds float64 `json:"startSeconds"`
 	EndSeconds   float64 `json:"endSeconds"`

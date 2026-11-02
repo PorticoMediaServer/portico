@@ -122,12 +122,17 @@ func TestLegacyAudioVisibilityBeforePaging(t *testing.T) {
 		}
 	}
 	chapters, next, err := s.BookChapters(viewer, book.Public, "", 1)
-	if err != nil || len(chapters) != 1 || chapters[0].ItemID != parts[1].Public || chapters[0].Title != "first" || next != chapters[0].ID {
+	if err != nil || len(chapters) != 1 || chapters[0].ItemID != parts[1].Public || chapters[0].Title != "first" || chapters[0].Number != 1 || next != chapters[0].ID {
 		t.Fatalf("chapters filter before paging: %+v %q %v", chapters, next, err)
 	}
 	chapters, next, err = s.BookChapters(viewer, book.Public, next, 1)
-	if err != nil || len(chapters) != 1 || chapters[0].ItemID != parts[4].Public || next != "" {
+	// W2-A6: a chapter's number counts the whole book's visible chapters, across parts and pages.
+	if err != nil || len(chapters) != 1 || chapters[0].ItemID != parts[4].Public || chapters[0].Number != 2 || next != "" {
 		t.Fatalf("chapters continuation: %+v %q %v", chapters, next, err)
+	}
+	progressed := ContentEntry{ID: book.Public, Kind: "book"}
+	if err = s.enrichBookProgress(viewer, &progressed, parts[4].Public, 30_000); err != nil || progressed.BookProgress == nil || progressed.BookProgress.Chapter == nil || progressed.BookProgress.Chapter.Index != 0 || progressed.BookProgress.Chapter.Number != 2 {
+		t.Fatalf("book-wide chapter number in progress: %+v %v", progressed.BookProgress, err)
 	}
 	if _, _, err := s.BookChapters(viewer, book.Public, parts[0].Public+":0", 1); err == nil {
 		t.Fatal("accepted hidden chapter cursor")

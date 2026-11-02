@@ -165,7 +165,7 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
   // never no Play at all; Start over is disabled with it.
   const unplayable = !!book && !canPlay && (entity.available === false || !!entity.missing || !!page.listening?.resumeUnavailable
     || !!files && !files.nextCursor && files.entries.length > 0 && !files.entries.some(entry => entry.playback && entry.available !== false && !entry.missing));
-  const label = book ? resume ? progress?.chapter ? t('title.resumeChapter', {chapter: t('next.kit.chapter', {number: progress.chapter.index})}) : t('entry.resume') : t('entry.play') : t('next.browse.resume', {title: primaryBook?.title ?? ''});
+  const label = book ? resume ? progress?.chapter ? t('title.resumeChapter', {chapter: t('next.kit.chapter', {number: progress.chapter.number})}) : t('entry.resume') : t('entry.play') : t('next.browse.resume', {title: primaryBook?.title ?? ''});
   const cover = entity.posterUrl ?? rows?.entries[0]?.posterUrl;
   const leafMore = (entry: ContentEntry, anchor: HTMLElement) => {
     binding.current(page);
