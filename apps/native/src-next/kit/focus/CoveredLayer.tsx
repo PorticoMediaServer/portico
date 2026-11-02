@@ -11,10 +11,12 @@ import {useTheme} from '../theme';
  * The element stays the same covered or not, so the page underneath keeps its state, scroll
  * and the focus it returns to. It has no guide destinations of its own.
  *
- * `autoFocus` (W-9, W-12): a layer that can be empty (the shell's route layer between routes)
- * remembers the element last focused inside it and returns D-pad entry there. With it, a layer
- * with nothing focusable inside never takes focus itself: without it, Android focuses the empty
- * container, leaving no visible focus on screen.
+ * Every TV layer is an `autoFocus` guide (W-9, W-12; TV focus review step 0): it remembers the
+ * element last focused inside it and returns D-pad entry there, and a layer with nothing focusable
+ * inside never takes focus itself (without it, Android focuses the empty container). On tvOS it is
+ * also what keeps an uncovered layer alive: react-native-tvos makes a guide without `autoFocus` or
+ * destinations unselectable (`isTVSelectable=false`), and uncovering changes no layout, so its
+ * native guide is never removed and the whole page stays hidden from the focus engine (§4.4.1).
  */
 /** W-9 (2eec0520): whether this subtree is under a covered layer. A control in it never acts and never draws
  * its focus ring, even if native focus was left on it when its layer was covered (covering blocks new focus but
@@ -23,7 +25,7 @@ import {useTheme} from '../theme';
 const Covered = createContext(false);
 export function useCovered(): boolean {return useContext(Covered);}
 
-export function CoveredLayer({covered, children, style, testID, autoFocus = false, hostRef}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string; autoFocus?: boolean;
+export function CoveredLayer({covered, children, style, testID, hostRef}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string;
   /** The layer's own native host, for a caller that claims focus into it (W-12: the shell's last fallback). */
   hostRef?: React.Ref<View>}) {
   const {isTV} = useTheme();
@@ -31,5 +33,5 @@ export function CoveredLayer({covered, children, style, testID, autoFocus = fals
   const hidden = {accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' as const : 'auto' as const};
   const content = <Covered.Provider value={inside}>{children}</Covered.Provider>;
   if (!isTV) return <View ref={hostRef} style={style} testID={testID} pointerEvents={covered ? 'none' : 'auto'} {...hidden}>{content}</View>;
-  return <TVFocusGuideView ref={hostRef as never} style={style} testID={testID} focusable={!covered} {...(autoFocus ? {autoFocus: true} : {})} {...hidden}>{content}</TVFocusGuideView>;
+  return <TVFocusGuideView ref={hostRef as never} style={style} testID={testID} focusable={!covered} autoFocus {...hidden}>{content}</TVFocusGuideView>;
 }

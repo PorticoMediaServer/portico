@@ -518,7 +518,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
             Overlays and music navigation stay above, reachable from the player. Touch has no D-pad.
             W-9/W-12: with no route open the layer is covered too, so the empty container can never
             hold focus over the page (Back then left focus on it, with nothing visible focused). */}
-        {Platform.isTV ? <CoveredLayer covered={runtime.getSnapshot().mediaExpanded === true || options?.listening === true || route.kind === 'shell'} autoFocus hostRef={options?.hostRef} style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}} testID="native-shell-routes">{pages}</CoveredLayer> : pages}
+        {Platform.isTV ? <CoveredLayer covered={runtime.getSnapshot().mediaExpanded === true || options?.listening === true || route.kind === 'shell'} hostRef={options?.hostRef} style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}} testID="native-shell-routes">{pages}</CoveredLayer> : pages}
         {musicNavigation.render()}
         {(routes.renderOverlays(runtime) ?? []).map((node, index) => <React.Fragment key={index}>{node}</React.Fragment>)}
       </View> : null;

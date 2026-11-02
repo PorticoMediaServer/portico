@@ -47,7 +47,8 @@ for (const tv of [false, true]) test(`${tv ? 'TV' : 'touch'} shell hides its cov
       assert.ok(layer, 'the TV base page sits in a focus-containment layer');
       assert.ok(nodes(layer.props.children).some(child => child.type === 'HomeScreen'), 'the layer holds the base page');
       assert.equal(layer.props.covered, hidden, routeCovered ? 'a pushed route blocks focus into the page under it' : 'an uncovered page takes focus normally');
-      assert.equal(layer.props.autoFocus, true, 'W-12: the base page never holds focus itself; entry returns to its last or first focusable item');
+      // W-12: the base page never holds focus itself; every CoveredLayer is an autoFocus guide on TV (next-covered-layer.test.ts).
+      assert.equal(layer.props.autoFocus, undefined, 'no per-caller option: the layer itself decides');
     } else assert.equal(layer, undefined);
     const watch = nodes(tree).find(node => node.type === 'View' && (Array.isArray(node.props.children) ? node.props.children : [node.props.children]).some((child: any) => child?.type === 'VisibleSplitWatchPanes'));
     assert.ok(watch, 'the separate watch outlet remains mounted');
