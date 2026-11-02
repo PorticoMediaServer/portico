@@ -1,4 +1,5 @@
 import {useScreenIdentity} from '../detail/context';
+import {serverNow} from '@core/server-clock.ts';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode} from 'react';
 import {useLocation} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
@@ -282,7 +283,7 @@ function CommittedRecordedGroupPanel({lease, title, onClose}: {lease: RecordedGr
     {state.error && <Banner>{state.error}</Banner>}
     {state.recordings.map(recording => <div className={styles.groupRow} key={recording.id}>
       <RecordingArt recording={recording}/>
-      <div className={styles.groupCopy}><b>{recording.programme.subtitle || recording.programme.title}</b><small>{dayOf(recording.start, Date.now())}<RuleGap/>{rangeOf(recording)}</small>
+      <div className={styles.groupCopy}><b>{recording.programme.subtitle || recording.programme.title}</b><small>{dayOf(recording.start, serverNow())}<RuleGap/>{rangeOf(recording)}</small>
         <small>{recording.keep ? t('recordings.kept') : recording.watched ? t('next.live.watched') : t('next.live.unwatched')}</small></div>
       <div className={styles.groupActions}>
         <Button variant="glass" size="small" icon="i-play" disabled={!playableRecording(recording)} onClick={() => play(recording)}>{t('next.live.play')}</Button>

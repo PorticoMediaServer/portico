@@ -6,6 +6,7 @@ import {GUIDE_RATE_LIMIT_ATTEMPTS, isRateLimited, rateLimitDelay} from './guide/
 import {HOUR_MS, MINUTE_MS, localDayStart, zoneOffset} from './guide/time.ts';
 import {keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
 import {UserMutationError} from './user-mutations.ts';
+import {serverNow} from './server-clock.ts';
 /** Server-authored linear guide. Clients choose a viewport, never a schedule. */
 export const GUIDE_PROTOCOL = '1.0' as const;
 export type ChannelKind = 'live-source' | 'library-channel';
@@ -276,7 +277,10 @@ export class ChannelGuideService{
    }
   }
 }
-export function guideWindow(date:Date=new Date()):Pick<GuideRoute,'start'|'end'>{const start=new Date(Math.floor(date.getTime()/3600000)*3600000);return{start:start.toISOString().replace('.000Z','Z'),end:new Date(start.getTime()+3*3600000).toISOString().replace('.000Z','Z')};}
+/** The three hours around an instant, for "what is on now" reads. The instant is the server's
+ * now (server-clock.ts): a window from the device clock can miss the programme on air when the
+ * clock is wrong, and the caller picks the on-air programme with serverNow() (LT-9). */
+export function guideWindow(atMs:number=serverNow()):Pick<GuideRoute,'start'|'end'>{const start=new Date(Math.floor(atMs/3600000)*3600000);return{start:start.toISOString().replace('.000Z','Z'),end:new Date(start.getTime()+3*3600000).toISOString().replace('.000Z','Z')};}
 /**
  * FEAT-04: group chips — the top `limit` channel groups by channel count (ties keep server
  * order), plus All. The chips bind to the route's `group` parameter; a filtered guide stays windowed.
