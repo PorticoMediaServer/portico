@@ -18,17 +18,23 @@ func seedBulkFacts(db *sql.DB, n int) (first, last float64, err error) {
 }
 
 func seedBulkFactsDensity(db *sql.DB, n int, narrow bool) (first, last float64, err error) {
+	return seedBulkFactsShape(db, n, narrow, shapeOf(n), false)
+}
+
+func seedBulkFactsShape(db *sql.DB, n int, narrow bool, s referenceShape, filmOnly bool) (first, last float64, err error) {
 	ctx := context.Background()
 	schedule, e := dbwork.NewCheckpointSchedule(ctx, db)
 	if e != nil {
 		return 0, 0, e
 	}
-	s := shapeOf(n)
 	creditPredicate, genrePredicate := "", ""
 	if narrow {
 		s.people = max(24, n/100)
 		creditPredicate = " WHERE kind=1 OR kind=4 AND i%250=0"
 		genrePredicate = " WHERE g=0"
+	}
+	if filmOnly {
+		creditPredicate = " WHERE i%250=0"
 	}
 	exec := func(q string, args ...any) error { _, e := db.Exec(q, args...); return e }
 	if err = exec(`INSERT INTO libraries(id,name,kind,root) VALUES('movies','Movies','movie','/fixture/movies'),('tv','TV','tv','/fixture/tv'),('music','Music','music','/fixture/music')`); err != nil {
