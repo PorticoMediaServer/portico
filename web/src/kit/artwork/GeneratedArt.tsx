@@ -1,5 +1,5 @@
 import {useLayoutEffect, useRef, type CSSProperties} from 'react';
-import {measureCoverTitleLines} from './cover-fit';
+import {measureCoverTitleLines, observeCoverSize} from './cover-fit';
 import {artClass, artSize} from './Artwork';
 import type {ArtworkPalette, ArtStyleProps, GeneratedCoverTint} from './types';
 import styles from './artwork.module.css';
@@ -28,12 +28,10 @@ export function GeneratedCover({title, author, tint, glyph, fontScale = 12.6, ti
   useLayoutEffect(() => {
     const box = copy.current, cover = box?.parentElement, view = box?.ownerDocument.defaultView;
     if (!box || !cover || !view) return;
-    const fit = () => {cover.style.setProperty('--cover-lines', String(measureCoverTitleLines(box)));};
+    const scale = `${fontScale}|${titleClassName ?? ''}|${selectionClearance}`;
+    const fit = () => {cover.style.setProperty('--cover-lines', String(measureCoverTitleLines(box, scale)));};
     fit();
-    if (!view.ResizeObserver) return;
-    const observer = new view.ResizeObserver(fit);
-    observer.observe(cover);
-    return () => observer.disconnect();
+    return observeCoverSize(cover, fit);
   }, [title, author, fontScale, titleClassName, selectionClearance]);
   return <span role="img" aria-label={title} data-generated-cover="" className={artClass(styles.generatedCover, selectionClearance && styles.selectionClearance, className)} style={artSize({width, height, style: {'--art-first': tint.first, '--art-second': tint.second, '--cover-font': `${fontScale}cqw`, ...style} as CSSProperties})}>
     <span className={styles.coverGlyph} aria-hidden="true">{glyph}</span>
