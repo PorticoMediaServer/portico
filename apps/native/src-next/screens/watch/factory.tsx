@@ -104,7 +104,7 @@ export type NativeWatchFactoryPorts = Readonly<{
   openMenu: (capture: NativeWatchCapture, actions: NativeWatchMenuActions, anchorRef?: React.RefObject<View | null>) => void;
   /** One quiet confirmation (O-162: "Link copied"). */
   notice?: (message: string) => void;
-  title: Pick<NativeTitleScreenProps, 'aboutLabel' | 'renderError' | 'reportError' | 'navigate' | 'person' | 'owner' | 'openCollection' | 'serverName' | 'search'> & Readonly<{
+  title: Pick<NativeTitleScreenProps, 'aboutLabel' | 'renderError' | 'renderPageError' | 'reportError' | 'navigate' | 'person' | 'owner' | 'openCollection' | 'serverName' | 'search'> & Readonly<{
     myList?: (entry: ContentEntry) => NativeTitleScreenProps['myList'];
     download?: NativeTitleScreenProps['download'];
     menu?: NativeTitleScreenProps['menu'];

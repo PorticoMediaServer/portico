@@ -46,6 +46,8 @@ export type NativeTitleScreenProps = Readonly<{
   more: (entry: ContentEntry, anchorRef?: React.RefObject<View | null>) => void;
   reportError: (error: unknown) => void;
   renderError: (error: unknown, retry: () => void) => ReactNode;
+  /** The title's whole-page load failure (W-2): backdrop, clear of the status bar and Back. Falls back to renderError. */
+  renderPageError?: (error: unknown, retry: () => void) => ReactNode;
   /** Exact approved About label from the canonical catalogue owner. */
   aboutLabel: string;
   /** The saved server display for a named gone-title state; never a synthesized name. */
@@ -284,7 +286,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
         {header}
       </View>;
     }
-    return <View style={{flex: 1}}>{props.renderError(error, () => {void (show ? controller.workspace.retry() : controller.detail.refresh()).catch(props.reportError);})}{header}</View>;
+    return <View style={{flex: 1}}>{(props.renderPageError ?? props.renderError)(error, () => {void (show ? controller.workspace.retry() : controller.detail.refresh()).catch(props.reportError);})}{header}</View>;
   }
   const primary = detail?.actions.find(action => action.enabled && action.playback && action.id !== 'start_over');
   const playback = primary?.playback ?? workspace?.nextUp?.playback ?? snapshot.entry.playback;
