@@ -136,6 +136,8 @@ export type NativePlaybackRuntimeSnapshot = Readonly<{
   /** Direct-file audio is selected only after the current engine acknowledges it. */
   audioTrackSelection?: import('./audio-track-selection').NativeAudioTrackStatus;
   localTracks?: import('./offline-tracks').NativeLocalTracksSnapshot;
+  /** N1-4: the streamed subtitle chosen now can't be shown by this player (its own `subtitleStatus`). */
+  subtitleUnavailable?: true;
   channelGuide?: NativeChannelGuideOrigin;
   seekWindow?: Readonly<{startSeconds: number; endSeconds: number}>;
   capabilities: NativePlaybackCapabilities; engine: EngineKind; lease: string;

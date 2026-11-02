@@ -204,6 +204,10 @@ export class NativePlaybackRuntime {
   private initialPresentation?: NativeStartPresentationOwner;
   private initialPresentationTarget?: {owner: NativeStartPresentationOwner; epoch: number; itemId: string; session?: Session};
   private firstVideoFrame?: NativeFirstVideoFrame;
+  /** N1-4: the engine could not take up a streamed subtitle (ENGINE-CONTRACT §7 `subtitleStatus`).
+   * Kept with the exact subtitle plan object it was about: a new session, version or track is a new
+   * plan, so a stale refusal can never mark a later track (no fence is compared). */
+  private streamSubtitleFailure?: object;
   /** N1-5: a first frame drawn while the opening seek is still pending is the media's 0:00, not
    * where it opens. It waits here, and lifts the poster only once that seek has settled. */
   private heldFirstVideoFrame?: NativeFirstVideoFrame;
@@ -1497,6 +1501,7 @@ export class NativePlaybackRuntime {
         && legacyChannel(this.channelGuide.row)?.sourceId === fence.sourceId && legacyChannel(this.channelGuide.row)?.provenance === fence.channelKind
         && legacyChannel(this.channelGuide.row)?.generation === fence.channelGeneration ? {channelGuide: this.channelGuide} : {}),
       ...(this.failure && playback.phase === 'error' && this.failure.intentId === playback.intentId && this.failure.run === playback.playbackRun ? {failureReason: this.failure.reason} : {}),
+      ...(this.streamSubtitleFailure && this.streamSubtitleFailure === this.subtitleService?.getSnapshot().plan ? {subtitleUnavailable: true as const} : {}),
       startFailure: this.startFailure, capacityWait: this.capacityWait, firstVideoFrame, ...this.startingFields(fence),
       initialPresentation: this.initialPresentation?.read(fence),
       ...(fence && this.forcedImageAvailable(fence) ? {forcedOnly: Object.freeze({on: this.choices.get('forcedOnly', fence.playback, false)})} : {}),
@@ -1554,6 +1559,11 @@ export class NativePlaybackRuntime {
     if (this.audioTrackSelection.accept(fact)) {
       if (fact.type === 'audioTrackFailed') this.playback.fail(before.intentId, serviceText('player.opt.unavailable'));
       else this.applyOptions();
+    }
+    // A downloaded copy's tracks answer through localTracks below; a streamed session's here.
+    if (fact.type === 'subtitleStatus' && before.session && before.session.mode !== 'local' && typeof fact.error === 'string') {
+      const plan = this.subtitleService?.getSnapshot().plan;
+      this.streamSubtitleFailure = fact.error && plan ? plan : undefined;
     }
     if (before.session?.mode === 'local') {
       const result = this.localTracks?.accept(fact);

@@ -3525,3 +3525,21 @@ test('PB-1, MU-2: a native start queues the server-named container anchored on t
     assert.deepEqual(single.body.segments, [{source: {items: {ids: ['movie-alone']}}}]);
   } finally { d.runtime.dispose(); }
 });
+
+test('N1-4: a streamed subtitle the engine cannot take up is marked unavailable, for that plan only', async () => {
+  const d = fixture(false, undefined, {...nativeEngineFeatures, subtitleRendering: ['text', 'vobsub']}); richSubtitleResponses(d);
+  try {
+    await d.start('movie-1', 0); d.engine.emit('progress'); await settle();
+    const plan = (d.runtime as any).subtitleService?.getSnapshot().plan;
+    assert.ok(plan, 'a subtitle plan is in force');
+    assert.equal(d.runtime.getSnapshot().subtitleUnavailable, undefined);
+    d.engine.emit('subtitleStatus', {error: 'This subtitle track is unavailable in the current player.'}); await settle();
+    assert.equal(d.runtime.getSnapshot().subtitleUnavailable, true, 'the panel can say so');
+    d.engine.emit('subtitleStatus', {error: ''}); await settle();
+    assert.equal(d.runtime.getSnapshot().subtitleUnavailable, undefined, 'the engine took it up after all');
+    d.engine.emit('subtitleStatus', {error: 'refused'}); await settle();
+    (d.runtime as any).streamSubtitleFailure = {};
+    d.engine.emit('progress'); await settle();
+    assert.equal(d.runtime.getSnapshot().subtitleUnavailable, undefined, 'a failure about another plan never marks this one');
+  } finally {d.runtime.dispose();}
+});
