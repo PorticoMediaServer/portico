@@ -79,12 +79,14 @@ var dateOperators = []string{"within-last-days", "equals", "not-equals", "less-t
 var enumOperators = []string{"equals", "not-equals", "in", "not-in"}
 
 const (
-	videoKinds   = "movie,episode,show,season,collection"
-	audioKinds   = "song,album,artist"
-	bookKinds    = "audiobook_file,book,author"
-	commonKinds  = "movie,episode,show,season,collection,song,album,artist,audiobook_file,book,author"
-	playedKinds  = "movie,episode,show,season,collection,song,album,artist,audiobook_file,book"
-	assetedKinds = "movie,episode,show,season,collection,song,album,artist,audiobook_file,book"
+	videoKinds  = "movie,episode,show,season,collection"
+	audioKinds  = "song,album,artist"
+	bookKinds   = "audiobook_file,book,author"
+	commonKinds = "movie,episode,show,season,collection,song,album,artist,audiobook_file,book,author"
+	// Every kind a collection can hold, which is every common kind but a collection.
+	collectedKinds = "movie,episode,show,season,song,album,artist,audiobook_file,book,author"
+	playedKinds    = "movie,episode,show,season,collection,song,album,artist,audiobook_file,book"
+	assetedKinds   = "movie,episode,show,season,collection,song,album,artist,audiobook_file,book"
 )
 
 func kinds(list string) []string { return strings.Split(list, ",") }
@@ -126,7 +128,9 @@ var browseFields = []browseField{
 		Join: attributeJoin("tag"), Value: "ca.source_value"},
 	{ID: "label", LabelKey: "browse.field.label", Type: valueSet, Operators: stringOperators(true), ControlHint: "facet-multi-select", Complexity: "standard", Cost: "indexed-join", ApplicableKinds: kinds(commonKinds), Facet: "label",
 		Join: attributeJoin("label"), Value: "ca.source_value"},
-	{ID: "collection", LabelKey: "browse.field.collection", Type: valueSet, Operators: stringOperators(true), ControlHint: "facet-multi-select", Complexity: "quick", Cost: "indexed-join", ApplicableKinds: kinds(commonKinds), Facet: "collection",
+	// A title's collections. A collection is not a member of another collection, so the
+	// Collections tab, whose cards are the collections themselves, does not offer it (LB-5).
+	{ID: "collection", LabelKey: "browse.field.collection", Type: valueSet, Operators: stringOperators(true), ControlHint: "facet-multi-select", Complexity: "quick", Cost: "indexed-join", ApplicableKinds: kinds(collectedKinds), Facet: "collection",
 		Join: `JOIN catalog_collection_members cim ON cim.item_id=bei.item_id JOIN catalog_entities col ON col.id=cim.collection_id`, Value: "pid(col.public_id)"},
 	{ID: "contentRating", LabelKey: "browse.field.contentRating", Type: valueString, Operators: stringOperators(false), ControlHint: "facet-multi-select", Complexity: "quick", Cost: "indexed-join", ApplicableKinds: kinds(videoKinds), Facet: "contentRating",
 		Join: attributeJoin("contentRating"), Value: "ca.source_value"},
