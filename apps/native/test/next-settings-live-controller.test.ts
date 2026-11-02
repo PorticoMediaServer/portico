@@ -67,7 +67,8 @@ test('Guide panning uses published absolute coverage including a 25-hour device 
   assert.equal(nativeGuidePanTarget(first - span, span, range), first);
   assert.equal(nativeGuidePanTarget(until, span, range), until - span);
   assert.equal(nativeGuidePanTarget(first + 123456, span, range), first + 123456);
-  assert.equal(nativeGuidePanRange([source, {...source, id: 'unreported', availableStart: ''}], span), undefined);
+  assert.deepEqual(nativeGuidePanRange([source, {...source, id: 'unreported', availableStart: '', availableEnd: ''}], span), range, 'a source with no guide yet never erases the others (LT-6)');
+  assert.equal(nativeGuidePanRange([{...source, availableStart: '', availableEnd: ''}], span), undefined);
   assert.equal(nativeGuidePanRange([], span), undefined);
   assert.equal(nativeGuidePanRange([source], until - first), undefined);
   assert.equal(nativeGuidePanTarget(NaN, span, range), undefined);

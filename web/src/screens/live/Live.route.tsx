@@ -2,9 +2,9 @@ import {serverNow} from '@core/server-clock.ts';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {useLocation, useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
-import {dayStarts, localDayStart, legacyChannel, legacyChannelRow, legacyProgram, pxPerMsFor, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
+import {clampGuideStart, guideDayMenu, guideNowStart, guideRange, localDayStart, legacyChannel, legacyChannelRow, legacyProgram, pxPerMsFor, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
 import {dayPrimeTime} from '@core/channel-guide.ts';
-import type {GuideSourceSummaries} from '@core/guide/directory.ts';
+import type {GuideSourceSummaries, GuideSourceSummary} from '@core/guide/directory.ts';
 import type {LegacyGuideOptions} from '@core/guide/legacy-source.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
 import {useQuietRefresh} from '../../platform/freshness';
@@ -32,9 +32,8 @@ import {useLiveLease, type LiveLease} from './useLiveLease';
 import type {RowWitness, SelectionAdmission} from './row-witness';
 import styles from './live.module.css';
 
-const t = defaultI18n.t, halfHour = 30 * 60_000;
+const t = defaultI18n.t;
 const liveDependencies = [dependsOn.list('guide'), dependsOn.list('liveSources'), dependsOn.list('libraryChannels'), dependsOn.list('myRecordings'), dependsOn.personal(), dependsOn.event('stream.resync')];
-const nowStart = () => Math.floor(serverNow() / halfHour) * halfHour;
 type Selected = Readonly<{lease: LiveLease; channel: GuideChannelRow; programme?: GuideProgram; admission: SelectionAdmission}>;
 type ReadAttempt = Readonly<{current: () => boolean; retire: () => void}>;
 type CommittedSelection = {selection: Selected; live: boolean; admission: SelectionAdmission};
@@ -45,6 +44,10 @@ const noFailure = () => undefined;
 
 /** The guide page a row was admitted through: its own source and provenance,
  * never a newer row with the same id. */
+/** The sources the guide shows: the switcher's one source, or every source of the chosen kind. */
+function selectGuideSources(sources: readonly GuideSourceSummary[] | undefined, search: LiveScreenSearch): readonly GuideSourceSummary[] {
+  return sources?.filter(source => (!search.sourceId || source.id === search.sourceId) && (!search.kind || search.kind === 'all' || source.provenance === search.kind)) ?? [];
+}
 function admittedChannel(options: LegacyGuideOptions, row: GuideChannelRow) {
   const channel = legacyChannel(row);
   if (!channel) return undefined;
@@ -104,7 +107,8 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
     const filtersChanged = ['sourceId', 'kind', 'group', 'favorites', 'q', 'hidden'].some(key => Object.hasOwn(change, key));
     if (context.isCurrent()) void router.navigate({to: '/live', search: {...JSON.parse(searchKey), ...(filtersChanged ? {channelId: undefined} : {}), ...change}, replace: true, resetScroll: false}).catch(context.effects.reportError);
   }, [context, searchKey]);
-  const [start, setStart] = useState(nowStart), [now, setNow] = useState(serverNow), [selected, setSelected] = useState<Selected>();
+  // The viewer's own position in time; until they move, the guide opens with now at 25% (LT-5).
+  const [anchor, setStart] = useState<number>(), [now, setNow] = useState(serverNow), [selected, setSelected] = useState<Selected>();
   const [committedSelection, setCommittedSelection] = useState<CommittedSelection>();
   const committedSelectionRef = useRef<CommittedSelection | undefined>(undefined);
   const reads = useRef<ReadAttempt | undefined>(undefined);
@@ -157,7 +161,14 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
     return () => {attempt.retire();request.abort();if (reads.current === attempt) reads.current = undefined;};
   }, [lease, search.sourceId, search.channelId, search.kind]);
   const phone = width < 600, landscape = width >= 600 && height < 600 && width > height, column = phone ? 60 : width < 1024 || landscape ? 180 : 284, rowHeight = phone ? 72 : width < 1024 || landscape ? 62 : 76;
-  const scale = pxPerMsFor(width < 1024 || landscape ? 90 : 240), end = start + Math.max(1, width - column) / scale;
+  const scale = pxPerMsFor(width < 1024 || landscape ? 90 : 240), spanMs = Math.max(1, width - column) / scale;
+  // Spec §3.4: Now puts now at 25% of the span, and every move stays inside the published range (LT-5, LT-6).
+  const range = guideRange(selectGuideSources(summary && summary.lease === lease ? summary.value.sources : undefined, search));
+  const start = anchor ?? guideNowStart(now, spanMs, range), end = start + spanMs;
+  const moveTo = (next: number) => setStart(clampGuideStart(next, spanMs, serverNow(), range));
+  // The opening position is fixed once the guide has a width, so the view never creeps with the clock.
+  const opening = width > column ? start : undefined;
+  useEffect(() => {if (opening !== undefined) setStart(value => value ?? opening);}, [opening]);
   const {view, remember} = useGuideViewPreference({...context.scope, kind: search.kind ?? 'all', sourceId: search.sourceId ?? ''}, search.view, context.isCurrent);
   const {start: readStart, end: readEnd} = liveProgramWindow(view, start, end, now);
   // The guide body scrolls with the page; the loaded window is the visible rows.
@@ -250,15 +261,13 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
   };
   const onPlay = lease.playbackOwner ? play : undefined;
   const sources = summary?.lease === lease ? summary.value.sources : undefined;
-  const selectedSources = sources?.filter(source => (!search.sourceId || source.id === search.sourceId) && (!search.kind || search.kind === 'all' || source.provenance === search.kind)) ?? [];
+  const selectedSources = selectGuideSources(sources, search);
   const groupCounts = new Map<string, number>();
   // Source summaries partition channels. Their published counts are combined,
   // never calculated from the loaded guide page or a lineup scan.
   for (const source of selectedSources) for (const group of source.groupCounts) groupCounts.set(group.name, (groupCounts.get(group.name) ?? 0) + group.count);
   const groups = [...groupCounts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const ends = selectedSources.map(source => Date.parse(source.availableEnd));
-  const through = ends.length && ends.every(value => Number.isFinite(value)) ? Math.min(...ends) : undefined;
-  const days = through === undefined ? [] : dayStarts(now, through, timezone);
+  const through = range.end, days = guideDayMenu(now, start, timezone, range), today = localDayStart(now, timezone);
   const throughDay = through === undefined ? undefined : new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', timeZone: timezone}).format(through - 1);
   const hasSources = !!sources?.length;
   const total = snapshot.total ?? Math.max(1, last + 1);
@@ -294,8 +303,9 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
             onOpen={(channel, programme, witness) => {if (!witness || witness.row !== channel || !witness.current() || !admittedChannel(lease.options, channel)) return;selectRow({lease, channel, programme, admission: witness});}}
             onPlay={onPlay}/> : undefined}
           day={{label: t('guide.day'), value: String(localDayStart(start, timezone)),
-            options: days.map(day => ({value: String(day), label: day === localDayStart(now, timezone) ? t('guide.today') : new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', timeZone: timezone}).format(day)})),
-            onChange: value => {const day = days.find(day => String(day) === value);if (day !== undefined) setStart(dayPrimeTime(day, timezone));}}}
+            options: days.map(day => ({value: String(day), label: day === today ? t('guide.today') : new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', timeZone: timezone}).format(day)})),
+            onChange: value => {const day = days.find(day => String(day) === value);if (day === undefined) return;
+              if (day === today) setStart(guideNowStart(serverNow(), spanMs, range)); else moveTo(dayPrimeTime(day, timezone));}}}
           sort={{value: search.sort ?? 'number', options: [{value: 'number', label: t('channels.sortNumber')}, {value: 'name', label: t('channels.sortName')}, {value: 'favorites', label: t('channels.favorites')}],
             onChange: sort => {if (sort === 'number' || sort === 'name' || sort === 'favorites') navigate({sort});}}}
           problem={snapshot.channelsError ? <StateView variant="page" title={t('guide.tileFailed')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => {if (lease.life.current()) lease.bindings.store.retry();}}}/> : undefined}
@@ -303,7 +313,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
             primary={{id: 'settings', label: t('web.live.setUpChannels'), onPress: () => {if (context.isCurrent()) void router.navigate({to: '/settings', search: {scope: 'server', section: 'live'}});}}}/> : snapshot.total === 0 ? <StateView variant="page" title={t('channels.filterEmptyTitle', {filter: search.group ?? (search.favorites ? t('channels.favorites') : search.q ?? t('channels.all'))})}
             primary={{id: 'all', label: t('channels.showAll'), onPress: () => navigate({group: undefined, favorites: undefined, q: undefined})}}/> : undefined}
           view={view} onViewChange={view => {if (context.isCurrent()) {remember(view);navigate({view});}}}
-          time={{earlier: t('guide.earlier'), now: t('guide.now'), later: t('guide.later'), onEarlier: () => setStart(value => value - 2 * 60 * 60_000), onNow: () => setStart(nowStart()), onLater: () => setStart(value => value + 2 * 60 * 60_000)}}
+          time={{earlier: t('guide.earlier'), now: t('guide.now'), later: t('guide.later'), onEarlier: () => moveTo(start - 2 * 60 * 60_000), onNow: () => setStart(guideNowStart(serverNow(), spanMs, range)), onLater: () => moveTo(start + 2 * 60 * 60_000)}}
           span={{start, end, now, scale, column, rowHeight, timezone}}
           rows={rows} total={total}
           selected={currentSelection ? {channelId: currentSelection.selection.channel.id, ...(currentSelection.selection.programme ? {programmeId: currentSelection.selection.programme.id} : {})} : undefined}
