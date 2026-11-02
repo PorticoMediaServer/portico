@@ -95,7 +95,10 @@ func TestUsrMergedSandboxExecution(t *testing.T) {
 						t.Fatal(err)
 					}
 					for _, library := range libraries {
-						if real, e := filepath.EvalSymlinks(library); e == nil && real != library {
+						// The /lib parent alias becomes a directory mount inside
+						// the sandbox. The loader below /lib64 is itself a symlink
+						// in Debian's mounted tree, which is the refused target.
+						if real, e := filepath.EvalSymlinks(library); e == nil && real != library && filepath.Dir(library) == "/lib64" {
 							for i := 0; i+2 < len(old); i++ {
 								if old[i] == "--ro-bind" && old[i+1] == real && old[i+2] == real {
 									old[i+1], old[i+2] = library, library
