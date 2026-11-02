@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Scratch load harness (server load review). N users browse, open details, search,
-ask for playback options and open books, idle and then during a scan plus analysis.
-Usage: scratch-load.py --scratch DIR --binary BIN [--films 400 --new 1500 --books 150 --secs 40 --users 10,50,100]"""
-import argparse, importlib.util, json, random, shutil, subprocess, threading, time, uuid, zipfile, urllib.parse
+"""Scratch load harness (server load review): N users browse, open details, search, ask for playback options and open books,
+idle and then during a scan plus analysis. Usage: scratch-load.py --scratch DIR --binary BIN [--films --new --books --secs --users 10,50,100]"""
+import argparse, http.client, importlib.util, urllib.request, json, random, shutil, subprocess, threading, time, uuid, zipfile, urllib.parse
 from pathlib import Path
 spec = importlib.util.spec_from_file_location('e2e', Path(__file__).with_name('e2e-server.py')); e2e = importlib.util.module_from_spec(spec); spec.loader.exec_module(e2e)
 p = argparse.ArgumentParser(); p.add_argument('--scratch', type=Path, required=True); p.add_argument('--binary', type=Path, required=True)
@@ -21,7 +20,10 @@ def epub(path, i):
         z.writestr('OEBPS/n.xhtml', '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>n</title></head><body><nav epub:type="toc"><ol><li><a href="c.xhtml">One</a></li></ol></nav></body></html>')
         z.writestr('OEBPS/c.xhtml', '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>c</title></head><body>' + '<p>Words of the story go on here. </p>'*400 + '</body></html>')
 films('Films', A.films); films('New', A.new, 100000); [epub(M/'Books'/f'Author {i%20}'/f'Book {i}.epub', i) for i in range(A.books)]
-_call = e2e.API.call
+TL = threading.local()  # each user connects from its own loopback address: sign-in is limited to 20 per address
+class Src(urllib.request.HTTPHandler):
+    def http_open(self, req): ip = getattr(TL, 'ip', None); return self.do_open((lambda h, **kw: http.client.HTTPConnection(h, source_address=(ip, 0), **kw)) if ip else http.client.HTTPConnection, req)
+_bo = urllib.request.build_opener; urllib.request.build_opener = lambda *h: _bo(*h, Src); _call = e2e.API.call
 def call401(self, method, path, body=None, expected=(200,), headers=None, raw=False):  # access tokens expire: sign in again once
     r = _call(self, method, path, body, (*expected, 401), headers, raw)
     if self.timings[-1]['status'] != 401 or path == '/v1/direct/sign-in': return _call(self, method, path, body, expected, headers, raw) if self.timings[-1]['status'] == 401 else r
@@ -68,10 +70,12 @@ for op in [k for k in ['browse', 'detail', 'search', 'options', 'read'] if ops(a
     h0 = diag()['storageHelpers']['admitted']; [call(a, op) for _ in range(5)]; out['helpers'][op] = (diag()['storageHelpers']['admitted']-h0)/5
 users = []
 for i in range(max(map(int, A.users.split(',')))):
-    u = e2e.API(X.base, installation=str(uuid.uuid4())); u.token = u.post('/v1/direct/sign-in', {'username': 'owner', 'password': X.password})['session']['accessToken']; users.append(u)
+    u = e2e.API(X.base, installation=str(uuid.uuid4())); u.ip = TL.ip = f'127.0.{1+i//200}.{10+i%200}'; u.token = u.post('/v1/direct/sign-in', {'username': 'owner', 'password': X.password})['session']['accessToken']; users.append(u)
+TL.ip = None
 def phase(n, label):
     stop, rows, d0 = threading.Event(), [], diag()
     def run(u):
+        TL.ip = u.ip
         while not stop.is_set(): rows.append(call(u, random.choice(WEIGHTS)) + (time.monotonic(),)); stop.wait(random.uniform(.5, 1.5))
     ts = [threading.Thread(target=run, args=(u,), daemon=True) for u in users[:n]]; [t.start() for t in ts]
     if label == 'busy' and n == max(map(int, A.users.split(','))):
