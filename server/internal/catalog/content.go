@@ -96,6 +96,11 @@ func (s *Service) contentOnce(request ContentRequest) (ContentEnvelope, error) {
 	if lib.Kind == "music" || lib.Kind == "audiobook" {
 		return s.listeningContent(request, lib)
 	}
+	// Book and comic libraries are read through /v1/reading; every view here
+	// is a request error for them, never a server failure.
+	if lib.Kind == "book" || lib.Kind == "comic" {
+		return out, requestinput.New("reading libraries use the reading API")
+	}
 	if request.View == "" {
 		request.View = DefaultLibraryView(lib.Kind)
 	}

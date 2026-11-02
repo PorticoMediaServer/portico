@@ -145,6 +145,23 @@ func (s *Service) listeningContent(r ContentRequest, lib Library) (ContentEnvelo
 				}
 				out.Sections = append(out.Sections, contentSection(section.ID, "rail", section.Title, section.Items, section.Total, ""))
 			}
+			if lib.Kind == "audiobook" {
+				// The mock-ups draw Authors after Recently added: the first
+				// page of the Authors view, as a rail.
+				authors := r
+				authors.View, authors.Sort, authors.Direction, authors.Limit = "authors", "", "", min(max(r.Limit, 1), 12)
+				page, err := s.listeningContent(authors, lib)
+				if err != nil {
+					return out, err
+				}
+				for _, section := range page.Sections {
+					if len(section.Entries) == 0 {
+						continue
+					}
+					rail := contentSection("authors", "rail", "Authors", section.Entries, section.TotalCount, "")
+					out.Sections = append(out.Sections, rail)
+				}
+			}
 		}
 		if lib.Kind == "music" {
 			rows, err := s.musicDiscover(r, before)

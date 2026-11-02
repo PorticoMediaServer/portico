@@ -57,6 +57,7 @@ export const enUS = {
   'section.playlists': 'Playlists',
   'section.artists': 'Artists',
   'section.genres': 'Genres',
+  'section.authors': 'Authors',
   'browse.field.search': 'Search',
   'browse.field.library': 'Library',
   'browse.field.match': 'Match',
