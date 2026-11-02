@@ -66,7 +66,7 @@ func (p *pathPresence) step(ctx context.Context) time.Duration {
 func (p *pathPresence) advance(ctx context.Context) error {
 	if p.current == nil {
 		var id string
-		err := p.s.db.QueryRowContext(ctx, `SELECT id FROM library_sources s WHERE id>? AND enabled=1 AND kind='local' AND health!='removing'
+		err := p.s.db.QueryRowContext(ctx, `SELECT id FROM library_sources s WHERE id>? AND enabled=1 AND kind='local' AND remote_source_id IS NULL AND health!='removing'
  AND NOT(health='root_changed' AND identity_confirmed=0)
  AND NOT EXISTS(SELECT 1 FROM inventory_source_active a WHERE a.source_id=s.id)
  AND NOT EXISTS(SELECT 1 FROM dvr_private_libraries d WHERE d.library_id=s.library_id)
@@ -82,6 +82,9 @@ func (p *pathPresence) advance(ctx context.Context) error {
 		source, err := p.s.catalog.LibrarySource(ctx, id)
 		if err != nil {
 			return err
+		}
+		if p.s.storage != nil && p.s.storage.IsRemote(source.ResolvedPath) {
+			return nil
 		}
 		check, cancel := context.WithTimeout(ctx, 2*time.Second)
 		var root storage.Snapshot
@@ -99,7 +102,7 @@ func (p *pathPresence) advance(ctx context.Context) error {
 			return p.health(ctx, source, "offline", source.IdentityConfirmed, source.RootIdentity)
 		}
 		observed := storage.RootIdentity(root)
-		if observed == source.RootIdentity && source.Health == "ready" {
+		if observed == source.RootIdentity && (source.Health == "ready" || source.Health == "healthy") {
 			var incarnation string
 			if source.Generation <= 1 || source.LastCompleteAt != "" {
 				return nil
