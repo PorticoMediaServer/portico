@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {Linking} from 'react-native';
 import {assertFirstContactIdentity} from '../../../../packages/client-core/src';
 import {knownServerRoutes} from '../../../../packages/client-core/src/app-sessions';
@@ -61,7 +62,7 @@ async function pairAtFirstContact(target: NativeSetupTarget, signal: AbortSignal
 async function approveWithAppAccount(input: Readonly<{attempt: SetupAttempt; approvalUrl: string; signal: AbortSignal; current: () => Promise<void>}>) {
   const {attempt, approvalUrl, signal, current} = input, handoff = attempt.handoff;
   if (!handoff) throw invalid();
-  const proof = await verifySetupClaimStart(handoff.claim, handoff.start, handoff.binding, Date.now(), nativeRouteCrypto);
+  const proof = await verifySetupClaimStart(handoff.claim, handoff.start, handoff.binding, serverNow(), nativeRouteCrypto);
   const code = setupApprovalCode(approvalUrl, {hostedOrigin: attempt.hostedOrigin, operationId: handoff.expected.operationId, serverName: proof.claim.name});
   if (!code) throw invalid();
   await current();

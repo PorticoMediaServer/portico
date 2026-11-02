@@ -3,6 +3,7 @@ import type {RefObject} from 'react';
 import {startFailureHttp, type NativePlaybackStartFailure} from './start-failure';
 import {capacityRetryHttp, type NativePlaybackCapacityWait} from './capacity-retry';
 import {createNativeListeningReadPort} from './listening-controls';
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {PlaybackService, type LocalSession, type PlaybackSession} from '../../../../../packages/client-core/src/index';
 import {signInHolds} from './paint-authority';
 import {DetailService, type DetailProjection} from '../../../../../packages/client-core/src/detail';
@@ -717,7 +718,7 @@ export class NativePlaybackRuntime {
     const connection = api.getRouteConnection(), pin = connection?.pin.publicKey, certificate = api.getCertificateSessionEpoch();
     const paintUntil = principal ? Math.min(Date.parse(principal.expiresAt), Date.parse(principal.authorizationHorizon)) : NaN;
     const paintCurrent = () => this.currentAuthority() && this.startOperationCurrent(epoch) && callerCurrent()
-      && !!principal && Number.isFinite(paintUntil) && Date.now() < paintUntil && signInHolds(principal, this.o.session())
+      && !!principal && Number.isFinite(paintUntil) && serverNow() < paintUntil && signInHolds(principal, this.o.session())
       && api.getRouteConnection() === connection && !!pin && connection?.pin.publicKey === pin && api.getCertificateSessionEpoch() === certificate
       && this.startContext === originalContext && originalContext?.() !== false
       && this.o.api === api && (route ? api.getRouteSnapshot()?.phase === 'ready'
@@ -2141,7 +2142,7 @@ export class NativePlaybackRuntime {
     const session = this.o.session();
     const until = session ? Math.min(Date.parse(session.expiresAt), Date.parse(session.authorizationHorizon)) : NaN;
     const paintCurrent = () => this.currentAuthority() && !!context && context() === true
-      && !!session && Number.isFinite(until) && Date.now() < until && signInHolds(session, this.o.session())
+      && !!session && Number.isFinite(until) && serverNow() < until && signInHolds(session, this.o.session())
       && this.o.api === api && api.getRouteConnection() === connection && !!pin && connection?.pin.publicKey === pin
       && api.getCertificateSessionEpoch() === certificate && (route ? api.getRouteSnapshot()?.phase === 'ready'
         && api.getRouteSnapshot()?.revision === route.revision && api.getRouteSnapshot()?.origin === route.origin : api.getRouteSnapshot() === null);

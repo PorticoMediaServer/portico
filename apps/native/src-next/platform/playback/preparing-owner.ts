@@ -1,3 +1,4 @@
+import {clockOrigin, serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {requestDeadlineMs, type HttpLocalApi, type LocalSession} from '../../../../../packages/client-core/src/index';
 import {encodedRoutePath} from '../../../../../packages/contracts/src/routes';
 import {SessionsClient} from '../../../../../packages/client-core/src/playback-v1/sessions';
@@ -27,7 +28,7 @@ export function captureNativePreparingOwner(api: HttpLocalApi, read: () => Local
     const current = () => {
       try {
         const live = read();
-        return Date.now() < until && api.baseUrl === origin && api.getCertificateSessionEpoch() === epoch
+        return serverNow(clockOrigin(origin)) < until && api.baseUrl === origin && api.getCertificateSessionEpoch() === epoch
           && api.getRouteConnection() === route && route.pin.publicKey === pin && route.pin.serverId === principal.viewer.serverId
           // Exact token on purpose: the stop runs with the original token, which the server refuses after a rotation anyway.
           && route.getSnapshot().phase === 'ready' && !!live && live.accessToken === principal.accessToken

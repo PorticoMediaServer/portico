@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../../../packages/client-core/src/server-clock';
 import React, {useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {Platform,Share, Text, View} from 'react-native';
 import {SettingsApiKeysSource} from '../../../../../../../packages/client-core/src/server-admin/api-keys-source';
@@ -59,7 +60,7 @@ export function NativeApiKeys({group, runtime, createRequest = 0, consumeCreateR
   const closeCard = () => {if (!heldCard || view.card !== heldCard) return;view.card = undefined;view.io = undefined;setCard(undefined);setCopied(false);setCardError(false);};
   const issue = async () => {
     const attempt = heldForm;if (!attempt || !current() || view.form !== attempt || source.getSnapshot().busy) return;
-    const out = await (source.getSnapshot().pendingCreate ? source.retryCreate() : source.create({name, scopes: chosenScopes(ticked), ...(days ? {expiresAt: expiryInstant(days, Date.now())} : {})}));
+    const out = await (source.getSnapshot().pendingCreate ? source.retryCreate() : source.create({name, scopes: chosenScopes(ticked), ...(days ? {expiresAt: expiryInstant(days, serverNow())} : {})}));
     if (!out || !current() || view.form !== attempt) return;
     view.form = undefined;setForm(undefined);const next = {source, issued: out};view.card = next;setCard(next);setCopied(false);setCardError(false);setCursors(['']);
   };

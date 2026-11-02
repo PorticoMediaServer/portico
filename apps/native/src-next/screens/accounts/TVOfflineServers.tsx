@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -58,7 +59,7 @@ function TVOfflineList({rows, busy, activeId, retryIn, retryProgress, current, o
   rows: readonly DirectoryRow[]; busy: boolean; activeId?: string; retryIn?: number; retryProgress?: number; current: () => boolean;
   onRetry: (id: string) => void; onRefresh: () => void;
 }) {
-  const t = defaultI18n.t, theme = useTheme(), first = rows[0], now = Date.now();
+  const t = defaultI18n.t, theme = useTheme(), first = rows[0], now = serverNow();
   const entryRevision = useTVBusyEntryRevision(busy);
   useDestinationEntryFocus({visible: !busy, intent: 'enter', revision: entryRevision},
     first ? {regionId: 'accounts.offline.rows', childId: `retry:${first.id}`} : undefined);

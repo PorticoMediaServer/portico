@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {NativeModules} from 'react-native';
 import {ApiError, HttpLocalApi} from '../../../../packages/client-core/src';
 import {AccountNotificationsClient, type AccountExportJob} from '../../../../packages/client-core/src/account-notifications';
@@ -106,7 +107,7 @@ export class NativeAccountSecurity {
           this.assert(opening); opening.preview = preview; this.publish({kind, step: 'deletion', busy: true, preview}); return;
         }
         const expected = this.security.contactAddress || this.credentials.getSnapshot().session?.account.username;
-        if (!opening.preview.canDelete || Date.parse(opening.preview.expiresAt) <= Date.now() || !expected || input.confirmation?.trim() !== expected) throw new Error('native_account_deletion_confirmation_required');
+        if (!opening.preview.canDelete || Date.parse(opening.preview.expiresAt) <= serverNow() || !expected || input.confirmation?.trim() !== expected) throw new Error('native_account_deletion_confirmation_required');
         const receipt = await this.work(opening, (token, client) => client.acceptDeletion(opening.preview!, input.confirmation!, token, signal));
         this.assert(opening); if (!receipt.accountDeleted) throw new Error('native_account_deletion_unconfirmed');
         await this.owner.signOutPorticoAccount(this.scope); return;

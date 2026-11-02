@@ -1,3 +1,4 @@
+import {clockOrigin, observeResponseClock} from '../../../../packages/client-core/src/server-clock';
 import {ApiError} from '../../../../packages/client-core/src';
 import {HostedAccountClient, type AccountTransport} from '../../../../packages/client-core/src/hosted-security';
 import {nativeNetworkFetch} from './server-connections';
@@ -16,6 +17,7 @@ export function createNativeAccountClient(origin: string, binding: string, isCur
     const timeout = setTimeout(abort, 15000);
     try {
       if (controller.signal.aborted || !isCurrent()) throw cancelled();
+      const sentAt = Date.now();
       const response = await nativeNetworkFetch(origin + path, {
         method, signal: controller.signal,
         headers: {'Content-Type': 'application/json', 'X-Portico-Continuation': binding,
@@ -23,6 +25,7 @@ export function createNativeAccountClient(origin: string, binding: string, isCur
           ...(completion ? {'X-Portico-Completion': completion} : {})},
         ...(body === undefined ? {} : {body: JSON.stringify(body)}),
       });
+      observeResponseClock(clockOrigin(origin), response, sentAt);
       if (controller.signal.aborted || !isCurrent() && !ownsResult()) throw cancelled();
       const raw = await response.text();
       if (controller.signal.aborted || !isCurrent() && !ownsResult()) throw cancelled();
