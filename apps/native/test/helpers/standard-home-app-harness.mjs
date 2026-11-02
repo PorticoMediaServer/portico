@@ -566,8 +566,6 @@ export async function standardHomeApp({
         baseUrl: origin,
         nonce: request.body.nonce,
         ...pin,
-        issuedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 15000).toISOString(),
       };
       const payload = b64(Buffer.from(JSON.stringify(value)));
       return {
