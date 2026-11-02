@@ -130,8 +130,10 @@ export function ProfilePicker({profiles, onSelect, onAdd, onManage, selectedId, 
   const offered = profiles.filter(profile => !profile.unavailableReason && (!profile.disabled || focusBusy));
   const entry = [preferredProfileId, selectedId].find(id => id && offered.some(profile => profile.id === id)) ?? offered[0]?.id;
   const faceSize = layout === 'tv' ? 216 : phone ? 90 : 160;
+  // J-30 (auth.html 13b/13c): faces are centred at any count; on phone a short last row (or just two profiles)
+  // sits in the middle like the rows above it, never against the left edge.
   // Tiles keep their own height: stretched in the iPad row they grew to the window's height and pushed the heading off the top (P2-74 E-mobile-15).
-  const tiles = <View style={{flexDirection: 'row', alignItems: layout === 'row' ? 'flex-start' : 'stretch', flexWrap: phone ? 'wrap' : 'nowrap', justifyContent: phone ? 'flex-start' : 'center', columnGap: phone ? 0 : layout === 'tv' ? 60 : 32, rowGap: phone ? 26 : 0}}>
+  const tiles = <View style={{flexDirection: 'row', alignItems: layout === 'row' ? 'flex-start' : 'stretch', flexWrap: phone ? 'wrap' : 'nowrap', justifyContent: 'center', columnGap: phone ? 0 : layout === 'tv' ? 60 : 32, rowGap: phone ? 26 : 0}}>
     {profiles.map(profile => {
       const forwarded = profileProps?.(profile);
       const retainDisabledFocus = nativeScope ? !profile.unavailableReason && (focusBusy || forwarded?.focusableWhenDisabled === true) : forwarded?.focusableWhenDisabled === true;
