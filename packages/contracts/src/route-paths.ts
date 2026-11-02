@@ -778,6 +778,7 @@ export const routePaths = {
   "post_setup_abandon": "/v1/setup/abandon",
   "post_setup_account_complete": "/v1/setup/account/complete",
   "post_setup_approval": "/v1/setup/approval",
+  "post_setup_remote_check": "/v1/setup/remote-check",
   "post_setup_resume": "/v1/setup/resume",
   "post_setup_retry": "/v1/setup/retry",
   "post_setup_start_over": "/v1/setup/start-over",

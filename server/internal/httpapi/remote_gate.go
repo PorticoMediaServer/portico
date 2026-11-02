@@ -56,9 +56,38 @@ func (d Dependencies) remoteAdmits(r *http.Request) bool {
 	if policy == nil {
 		return true
 	}
-	peer, ok := networkpolicy.Peer(r)
+	j, ok := d.judgeRequest(r, policy)
 	if !ok {
 		return false
+	}
+	if !j.admit && j.reason == remotegate.ReasonName && j.proxied && !remotegate.Plausible(remotegate.HostName(j.host)) {
+		// The proxy passed its upstream address, not the name people used:
+		// show the owner the proxy, since there's no name to allow.
+		d.RemoteGate.Count(remotegate.ReasonProxy)
+		d.RemoteGate.RecordProxy(j.peer)
+	} else if !j.admit && j.reason != "" {
+		d.RemoteGate.Count(remotegate.NameReason(j.host, j.reason))
+		d.RemoteGate.Record(j.host, j.reason)
+	} else if !j.admit {
+		d.RemoteGate.Count(remotegate.ReasonAccess)
+	}
+	return j.admit
+}
+
+// requestJudgement is how a policy judges one request, as remoteAdmits and the setup
+// lockout check both need it.
+type requestJudgement struct {
+	admit   bool
+	reason  string
+	host    string
+	proxied bool
+	peer    netip.Addr
+}
+
+func (d Dependencies) judgeRequest(r *http.Request, policy *remotegate.Policy) (requestJudgement, bool) {
+	peer, ok := networkpolicy.Peer(r)
+	if !ok {
+		return requestJudgement{}, false
 	}
 	proxied := policy.Proxy(peer)
 	client := peer
@@ -83,18 +112,7 @@ func (d Dependencies) remoteAdmits(r *http.Request) bool {
 		serverName = r.TLS.ServerName
 	}
 	admit, reason := policy.Request(client, proxied, serverName, forwardedProto, host)
-	if !admit && reason == remotegate.ReasonName && proxied && !remotegate.Plausible(remotegate.HostName(host)) {
-		// The proxy passed its upstream address, not the name people used:
-		// show the owner the proxy, since there's no name to allow.
-		d.RemoteGate.Count(remotegate.ReasonProxy)
-		d.RemoteGate.RecordProxy(peer)
-	} else if !admit && reason != "" {
-		d.RemoteGate.Count(remotegate.NameReason(host, reason))
-		d.RemoteGate.Record(host, reason)
-	} else if !admit {
-		d.RemoteGate.Count(remotegate.ReasonAccess)
-	}
-	return admit
+	return requestJudgement{admit: admit, reason: reason, host: host, proxied: proxied, peer: peer}, true
 }
 
 func firstForwarded(value string) string {

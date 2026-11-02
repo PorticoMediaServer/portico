@@ -195,6 +195,19 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
+    async remoteCheck(remote, context) {
+      const p = await pair(context.signal);
+      if (!remote || !issued || issued.serverId !== p.pin.serverId) return {kind: 'remoteOk'};
+      // The setup token as bearer too: from outside, it is what a setup code admitted.
+      const out = await tokenApi(p, issued.setupToken).request<{refused?: unknown; reason?: unknown; fixes?: unknown; address?: unknown}>(routePath('post_setup_remote_check'), 'POST',
+        {setupToken: issued.setupToken, remoteAccess: remote.remoteAccess, remoteSecurity: remote.remoteSecurity}, context.signal);
+      await assertPaired(p);
+      if (out?.refused !== true) return {kind: 'remoteOk'};
+      const fixes = Array.isArray(out.fixes) ? out.fixes.filter((fix): fix is 'address' | 'standard' => fix === 'address' || fix === 'standard') : [];
+      const address = typeof out.address === 'string' && out.address.length <= 2048 ? out.address : undefined;
+      const reason = out.reason === 'http' || out.reason === 'name' ? out.reason : 'access';
+      return {kind: 'remoteRefused', reason, fixes: fixes.filter(fix => fix !== 'address' || !!address), ...(address ? {address} : {})};
+    },
     async initializeHosted(name, remote, context) {
       const p = await pair(context.signal);
       if (!issued || issued.serverId !== p.pin.serverId) throw changed();
@@ -203,7 +216,8 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
       let record = (await store.read()).record;
       await assertPaired(p);
       if (!record || record.setupToken !== token || record.authMode !== 'hosted') {
-        const fresh: SetupRecord = Object.freeze({version: 2, serverId: p.pin.serverId, requestId: newRequestId(), setupToken: token, tokenAt: now(), name, authMode: 'hosted', ...remote});
+        const fresh: SetupRecord = Object.freeze({version: 2, serverId: p.pin.serverId, requestId: newRequestId(), setupToken: token, tokenAt: now(), name, authMode: 'hosted',
+          ...(remote ? {remoteAccess: remote.remoteAccess, remoteSecurity: remote.remoteSecurity} : {})});
         if (!await store.change({requestId: record?.requestId}, {record: fresh})) throw changed();
         record = fresh;
       }
@@ -211,7 +225,8 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
       try {
         const session = parseSetupSession(await tokenApi(p, token).request(routePath('setup_server'), 'POST',
           routeBody('setup_server', {requestId: record.requestId, setupToken: token, name: record.name, authMode: 'hosted', interactive: true,
-            ...(record.remoteAccess ? {remoteAccess: record.remoteAccess} : {}), ...(record.remoteSecurity ? {remoteSecurity: record.remoteSecurity} : {})}), context.signal), p.pin.serverId);
+            ...(record.remoteAccess ? {remoteAccess: record.remoteAccess} : {}), ...(record.remoteSecurity ? {remoteSecurity: record.remoteSecurity} : {}),
+            ...(remote?.allowAddress ? {allowAddress: remote.allowAddress} : {})}), context.signal), p.pin.serverId);
         await assertPaired(p);
         if (!('claimRequired' in session) || session.requestId !== record.requestId) throw changed();
         own = {requestId: session.requestId, revision: session.revision};
