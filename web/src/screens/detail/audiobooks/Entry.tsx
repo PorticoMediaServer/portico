@@ -18,6 +18,7 @@ import {t} from '../text';
 import styles from './audiobooks.module.css';
 import {AudiobookMore} from './More';
 import {TitleRow} from '../Detail';
+import {TitleProse} from '../../../kit/title/TitleParts';
 import {useRelationRow} from '../relation-row';
 import {useShellWidth} from '../../../shell/viewport';
 
@@ -58,8 +59,9 @@ function languageName(code: string): string {
 }
 /** The drawn "Read by …" line, with the current locale's own list punctuation; each name is a real
  * destination when this library's checked Books capabilities offer the narrator filter. */
-function Narrators({names, linked, onOpen, locale}: {names: readonly string[]; linked: boolean; onOpen(name: string): void; locale: string | undefined}) {
-  const [before, after] = t('next.kit.readBy', {name: '\uFFF0'}).split('\uFFF0');
+/** `bare`: the names alone, under a Narrator label; otherwise "Read by …". */
+function Narrators({names, linked, onOpen, locale, bare = false}: {names: readonly string[]; linked: boolean; onOpen(name: string): void; locale: string | undefined; bare?: boolean}) {
+  const [before, after] = bare ? ['', ''] : t('next.kit.readBy', {name: '\uFFF0'}).split('\uFFF0');
   const parts = new Intl.ListFormat(locale, {type: 'conjunction', style: 'long'}).formatToParts(names.map((_, index) => `\u0000${index}`));
   let next = 0;
   return <>{before}{parts.map((part, position) => part.type === 'literal'
@@ -167,7 +169,7 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
   });
   const open = (entry: ContentEntry) => run(() => binding.open(page, entry));
   return <article className={styles.page} data-audiobook-view={page.scope.view} data-layout={phone ? 'phone' : 'desktop'}>
-    <AmbientArt className={styles.ambient} treatment="phone" source={binding.context.artwork.ambient(cover)}/>
+    <AmbientArt className={styles.ambient} treatment={phone ? 'phone' : 'wash'} source={binding.context.artwork.ambient(cover)}/>
     <nav className={styles.nav}>
       {binding.context.effects.back && <Button variant="ghost" icon="i-left" iconOnly aria-label={t('action.back')} onClick={() => run(() => {binding.current(page);binding.context.effects.back?.();})}/>}
       {onMore && <Button variant="ghost" icon="i-more" iconOnly aria-label={t('card.more', {title: entity.title})} onClick={event => run(() => {binding.current(page);onMore(entity, event.currentTarget);})}/>}
@@ -176,39 +178,46 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
     </nav>
     <header className={styles.hero}>
       <div className={author ? styles.disc : styles.cover}><Artwork source={binding.context.artwork.foreground(cover, 464, 1)} alt=""/>{author && <b>{entity.title.split(/\s+/u).filter(Boolean).slice(0, 2).map(word => word[0]).join('')}</b>}</div>
-      {book && series ? <button className={styles.eyebrow} onClick={() => run(() => filters.series && seriesTarget ? binding.openSeries(page, series, seriesTarget.name) : open(series))}>{series.title}</button> : !book && <p className={styles.eyebrow}>{t(author ? 'filter.field.author' : 'library.tab.series')}</p>}
-      <h1>{entity.displayTitle ?? entity.title}</h1>
-      {entity.author && (authorEntry ? <button className={styles.author} onClick={() => open(authorEntry)}>{entity.author}</button> : <div className={styles.author}>{entity.author}</div>)}
+      <div className={styles.copy}>
+      {book && series ? <p className={styles.eyebrowLine}><button className={styles.eyebrow} onClick={() => run(() => filters.series && seriesTarget ? binding.openSeries(page, series, seriesTarget.name) : open(series))}>{series.title}</button>{seriesTarget?.position && t('title.bookInSeries', {number: seriesTarget.position})}</p> : !book && <p className={styles.eyebrow}>{t(author ? 'filter.field.author' : 'library.tab.series')}</p>}
+      <h1 data-long={(entity.displayTitle ?? entity.title).length > 24 || undefined}>{entity.displayTitle ?? entity.title}</h1>
+      {phone && entity.author && (authorEntry ? <button className={styles.author} onClick={() => open(authorEntry)}>{entity.author}</button> : <div className={styles.author}>{entity.author}</div>)}
       <div className={styles.meta}>
+        {/* Desktop draws the author first in the byline, white and bold; phones keep it on its own line. */}
+        {!phone && entity.author && <strong>{authorEntry ? <button className={styles.bylineLink} onClick={() => open(authorEntry)}>{entity.author}</button> : entity.author}</strong>}
         {book && !!entity.narrators?.length && <span><Narrators names={entity.narrators} linked={filters.narrator} locale={serviceI18n().locale}
           onOpen={name => run(() => binding.openNarrator(page, name))}/></span>}
         {!book && entity.count !== undefined && <strong>{t('next.kit.books', {count: entity.count})}</strong>}
         {entity.duration !== undefined && <span>{duration(entity.duration)}</span>}
         {book && chapterCount !== undefined && <span>{t('title.chapterCount', {count: chapterCount})}</span>}
       </div>
-    </header>
     <div className={styles.actions}>
       {canPlay && <Button className={styles.primary} variant="primary" icon="i-play" onClick={() => run(() => binding.primary(page))}>{label}</Button>}
       {book && page.listening?.actions.includes('play') && <Button variant="glass" onClick={() => run(() => binding.primary(page, true))}>{t('action.startOver')}</Button>}
+      {book && finished !== undefined && <Button className={styles.round} icon="i-check" iconOnly disabled={busy !== undefined} aria-pressed={finished} aria-label={t(finished ? 'title.markNotFinished' : 'title.markFinished')} onClick={() => {
+        const op = claim(page, 'finished'); if (!op) return;
+        void binding.markFinished(page).then(value => {if (owns(op)) setFinished(value.watched);}, refuse(op)).finally(() => settle(op));
+      }}/>}
       {book && !phone && watchlisted !== undefined && <Button className={styles.round} icon={watchlisted ? 'i-check' : 'i-plus'} iconOnly aria-pressed={watchlisted} disabled={busy !== undefined}
         aria-label={t('next.controls.myList')} onClick={() => {
           const op = claim(page, 'watchlist'); if (!op) return;
           void binding.setWatchlisted(page, !watchlisted).then(value => {if (owns(op)) setWatchlisted(value);}, refuse(op)).finally(() => settle(op));
         }}/>}
-      {book && finished !== undefined && <Button className={styles.round} icon="i-check" iconOnly disabled={busy !== undefined} aria-pressed={finished} aria-label={t(finished ? 'title.markNotFinished' : 'title.markFinished')} onClick={() => {
-        const op = claim(page, 'finished'); if (!op) return;
-        void binding.markFinished(page).then(value => {if (owns(op)) setFinished(value.watched);}, refuse(op)).finally(() => settle(op));
-      }}/>}
       {!book && !author && primaryBook && <Button className={styles.round} icon="i-retry" iconOnly aria-label={t('action.startOver')} onClick={() => open(primaryBook)}/>}
-      {!onMore && !phone && <AudiobookMore binding={binding} page={page} entry={entity}/>}
+      {!onMore && !phone && <AudiobookMore binding={binding} page={page} entry={entity} variant="glass"/>}
     </div>
     {book && remaining && <div className={styles.progress}>{ratio !== undefined && <span><i style={{width: `${Math.min(1, Math.max(0, ratio)) * 100}%`}}/></span>}{t('title.resumeRemaining', {remaining})}</div>}
+      </div>
+    </header>
+    <div className={styles.split}>
     {book && <aside className={styles.aside}>
-      {entity.overview && <><p className={styles.about} data-expanded={expanded || undefined}>{entity.overview}</p>{!expanded && <button className={styles.readMore} onClick={() => setExpanded(true)}>{t('web.person.readMore')}</button>}</>}
+      {!phone && <h2 className={styles.asideTitle}>{t('title.aboutThisBook')}</h2>}
+      {/* Book descriptions often carry the source's HTML (bold, italics, line breaks); TitleProse draws those and nothing else. */}
+      {entity.overview && <><TitleProse className={styles.about} data-expanded={expanded || phone === false || undefined} markup={entity.overview}/>{phone && !expanded && <button className={styles.readMore} onClick={() => setExpanded(true)}>{t('web.person.readMore')}</button>}</>}
       {/* desktop-listen's About this book: only the facts this book publishes, and only at desktop. */}
       {!phone && <dl className={styles.bookFacts}>
         {entity.author && <><dt>{t('filter.field.author')}</dt><dd>{authorEntry ? <button type="button" className={styles.link} onClick={() => open(authorEntry)}>{entity.author}</button> : entity.author}</dd></>}
-        {!!entity.narrators?.length && <><dt>{t('filter.field.narrator')}</dt><dd><Narrators names={entity.narrators} linked={filters.narrator} locale={serviceI18n().locale}
+        {!!entity.narrators?.length && <><dt>{t('filter.field.narrator')}</dt><dd><Narrators names={entity.narrators} linked={filters.narrator} locale={serviceI18n().locale} bare
           onOpen={name => run(() => binding.openNarrator(page, name))}/></dd></>}
         {series && <><dt>{t('library.tab.series')}</dt><dd><button type="button" className={styles.link}
           onClick={() => run(() => filters.series && seriesTarget ? binding.openSeries(page, series, seriesTarget.name) : open(series))}>{series.title}</button>{seriesTarget?.position && t('title.bookInSeries', {number: seriesTarget.position})}</dd></>}
@@ -219,7 +228,7 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
       </dl>}
     </aside>}
     {state.error && <ScreenProblem context={binding.context} error={state.error} retry={() => {void binding.load().catch(binding.context.effects.reportError);}}/>}
-    {rows && <section><div className={styles.sectionHead}><h2>{t(book ? 'next.browse.chapters' : 'library.tab.books')}</h2><span>{rows.totalCount}</span></div>
+    {rows && <section className={styles.rows}><div className={styles.sectionHead}><h2>{t(book ? 'next.browse.chapters' : 'library.tab.books')}</h2>{(phone || !book) && <span>{rows.totalCount}</span>}</div>
       {(book && !chaptersExpanded ? rows.entries.slice(0, CHAPTER_PREVIEW) : rows.entries).map((entry, index) => book ? <div key={entry.id}><Chapter entry={entry} index={index} page={page} binding={binding}/>{entry.kind === 'audiobook_file' && hasLeafActions && <Button variant="ghost" icon="i-more" iconOnly aria-label={t('card.more', {title: entry.title})} onClick={event => run(() => leafMore(entry, event.currentTarget))}/>}</div>
         : <div className={styles.bookRow} key={entry.id}><button onClick={() => open(entry)}><span className={styles.thumb}><Artwork source={binding.context.artwork.foreground(entry.posterUrl, 132, 1)} alt=""/></span><span><b>{entry.displayTitle ?? entry.title}</b>{entry.narrators?.length ? <small>{t('next.kit.readBy', {name: serviceI18n().list(entry.narrators)})}</small> : null}{entry.bookProgress?.remainingMs !== undefined && <small>{t('title.resumeRemaining', {remaining: duration(entry.bookProgress.remainingMs / 1000)!})}</small>}</span></button>{onMore && <Button variant="ghost" icon="i-more" iconOnly aria-label={t('card.more', {title: entry.title})} onClick={event => run(() => {binding.current(page);onMore(entry, event.currentTarget);})}/>}</div>)}
       {book && !chaptersExpanded && (rows.entries.length > CHAPTER_PREVIEW || !!rows.nextCursor) && <Chip variant="toolbar" trailingIcon="i-down" trailingSize={16} className={styles.showAll}
@@ -232,6 +241,7 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
         })}>{rows.entries.length > CHAPTER_PREVIEW && rows.entries.length >= rows.totalCount ? t('title.showAllChapters', {count: rows.totalCount}) : t('title.showMoreChapters')}</Chip>}
       {rows.nextCursor && (book ? chaptersExpanded : true) && <Button size="small" onClick={() => run(() => {binding.current(page);return binding.service.next(rows.id);})}>{t('title.nextPage')}</Button>}
     </section>}
+    </div>
     {book && moreBooks && moreBooks.page === page && moreBooks.token === reads.current?.token && <MoreAudiobooksRow binding={binding} page={page} first={moreBooks.value} guard={() => {
       // A retained card belongs to this exact page and read receipt; it may not open after either was replaced.
       if (reads.current?.token !== moreBooks.token) throw new DOMException('Book page changed', 'AbortError');
