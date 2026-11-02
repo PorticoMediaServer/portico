@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -146,14 +147,31 @@ func TestMonitorExcludesRemoteOwnedSourcesAndUsesPresenceAtStartup(t *testing.T)
 		t.Fatalf("remote-owned sources queued %d startup jobs", n)
 	}
 
-	// The healthy watch interval is 15 minutes. Jump past it, then past the
-	// debounce, so a local fallback report is the only possible new work.
-	clock.advance(16 * time.Minute)
+	// A watched source is never rescanned on a timer (watcher first, as in
+	// Plex). Two hours of ticks queue nothing.
+	for i := 0; i < 4; i++ {
+		clock.advance(31 * time.Minute)
+		time.Sleep(1100 * time.Millisecond)
+	}
+	if n := f.count(`SELECT count(*) FROM inventory_path_notices WHERE source_id=?`, f.source) + f.count(`SELECT count(*) FROM jobs WHERE library_id=?`, f.library); n != 0 {
+		t.Fatalf("a watched source was rescanned on a timer (%d notices and jobs)", n)
+	}
+
+	// The watcher reports it cannot cover the source in full (a watch limit,
+	// say): from then on the source is rescanned hourly, never sooner.
+	emit(storage.InventoryChange{Ready: true, Unwatched: []string{f.source}})
+	time.Sleep(1100 * time.Millisecond)
+	clock.advance(59 * time.Minute)
+	time.Sleep(1100 * time.Millisecond)
+	if n := f.count(`SELECT count(*) FROM inventory_path_notices WHERE source_id=?`, f.source) + f.count(`SELECT count(*) FROM jobs WHERE library_id=?`, f.library); n != 0 {
+		t.Fatalf("an unwatched source was rescanned before its hour (%d notices and jobs)", n)
+	}
+	clock.advance(2 * time.Minute)
 	deadline := time.Now().Add(8 * time.Second)
 	for f.count(`SELECT count(*) FROM inventory_path_notices WHERE source_id=?`, f.source) == 0 &&
 		f.count(`SELECT count(*) FROM jobs WHERE library_id=?`, f.library) == 0 {
 		if time.Now().After(deadline) {
-			t.Fatal("local 15-minute fallback report did not run")
+			t.Fatal("the hourly rescan of an unwatched source did not run")
 		}
 		clock.advance(3 * time.Second)
 		time.Sleep(1200 * time.Millisecond)
@@ -163,6 +181,94 @@ func TestMonitorExcludesRemoteOwnedSourcesAndUsesPresenceAtStartup(t *testing.T)
 	}
 	if n := f.count(`SELECT count(*) FROM inventory_path_notices WHERE source_id IN(SELECT id FROM library_sources WHERE library_id IN('lib-bound','lib-remote','lib-empty-bound'))`); n != 0 {
 		t.Fatalf("remote-owned sources emitted %d notices", n)
+	}
+}
+
+// A watcher that is down for longer than the grace leaves a gap nobody saw:
+// the source gets one catch-up rescan when it is watched again. A restart
+// inside the grace costs nothing.
+func TestMonitorCatchesUpAfterAWatcherOutage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
+	}
+	f := newLoopFixture(t, "movie", "One (2000)/One (2000).mkv")
+	clock := &monitorTestClock{at: time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)}
+	useMonitorTestClock(t, clock)
+	f.s.SetStorage(&storage.Client{})
+	type watch struct {
+		emit func(storage.InventoryChange)
+		stop chan error
+	}
+	watches := make(chan watch, 4)
+	previousWatch := monitorWatch
+	monitorWatch = func(_ *Service, ctx context.Context, _ storage.WatchRequest, emit func(storage.InventoryChange)) error {
+		w := watch{emit, make(chan error, 1)}
+		watches <- w
+		select {
+		case err := <-w.stop:
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	t.Cleanup(func() { monitorWatch = previousWatch })
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); f.s.runMonitor(ctx) }()
+	defer func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Error("monitor did not stop")
+		}
+	}()
+	next := func() watch {
+		t.Helper()
+		select {
+		case w := <-watches:
+			return w
+		case <-time.After(5 * time.Second):
+			t.Fatal("monitor did not start a watch")
+		}
+		return watch{}
+	}
+	rescans := func() int {
+		return f.count(`SELECT count(*) FROM inventory_path_notices WHERE source_id=?`, f.source) + f.count(`SELECT count(*) FROM jobs WHERE library_id=?`, f.library)
+	}
+	w := next()
+	w.emit(storage.InventoryChange{Ready: true})
+	time.Sleep(1100 * time.Millisecond)
+
+	// A short restart: the watcher ends and is back within the grace.
+	w.stop <- errors.New("helper lifetime ended")
+	time.Sleep(1100 * time.Millisecond)
+	clock.advance(31 * time.Second)
+	w = next()
+	w.emit(storage.InventoryChange{Ready: true})
+	for i := 0; i < 3; i++ {
+		clock.advance(5 * time.Second)
+		time.Sleep(1100 * time.Millisecond)
+	}
+	if n := rescans(); n != 0 {
+		t.Fatalf("a watcher restart inside the grace queued %d rescans", n)
+	}
+
+	// A long outage: the watcher is back only after the grace.
+	w.stop <- errors.New("watch failed")
+	time.Sleep(1100 * time.Millisecond)
+	clock.advance(31 * time.Second)
+	w = next()
+	clock.advance(3 * time.Minute)
+	time.Sleep(1100 * time.Millisecond)
+	w.emit(storage.InventoryChange{Ready: true})
+	deadline := time.Now().Add(8 * time.Second)
+	for rescans() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("no catch-up rescan after a watcher outage longer than the grace")
+		}
+		clock.advance(3 * time.Second)
+		time.Sleep(1200 * time.Millisecond)
 	}
 }
 

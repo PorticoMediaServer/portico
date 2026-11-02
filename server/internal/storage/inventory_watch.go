@@ -24,6 +24,10 @@ type WatchRoot struct {
 	RootIdentity   string   `json:"rootIdentity"`
 	Directories    []string `json:"directories"`
 	FollowSymlinks bool     `json:"followSymlinks"`
+	// Truncated says Directories is not every folder of the root: the server
+	// left some out to stay inside the watch budget. A watcher that watches
+	// folder by folder then covers the root only in part.
+	Truncated bool `json:"truncated,omitempty"`
 }
 type WatchRequest struct {
 	Roots []WatchRoot `json:"roots"`
@@ -33,6 +37,19 @@ type InventoryChange struct {
 	RelativePath string `json:"relativePath,omitempty"`
 	Overflow     bool   `json:"overflow,omitempty"`
 	Ready        bool   `json:"ready,omitempty"`
+	// Unwatched lists sources the watcher does not fully cover: a root it
+	// could not admit, a folder it could not watch (the kernel's watch limit,
+	// say) or a folder list the server truncated. It comes with Ready, and on
+	// its own when a folder created later could not be watched. Those sources
+	// need the periodic rescan; every other source is watched.
+	Unwatched []string `json:"unwatched,omitempty"`
+}
+
+// watchCoverage is implemented by a watcher that watches folder by folder and
+// so can cover a root only in part. A recursive watcher covers every admitted
+// root.
+type watchCoverage interface {
+	unwatched() []string
 }
 
 type inventoryWatcher interface {
@@ -95,9 +112,11 @@ func inventoryWatchHelper(r WatchRequest, out io.Writer) error {
 		return err
 	}
 	admitted := WatchRequest{}
+	unwatched := []string{}
 	for _, root := range r.Roots {
 		observed, err := LocalInventoryDirectory(InventoryRequest{Root: root.Root, RelativePath: "."})
 		if err != nil || !SameRoot(root.RootIdentity, RootIdentity(observed)) {
+			unwatched = append(unwatched, root.SourceID)
 			continue
 		}
 		admitted.Roots = append(admitted.Roots, root)
@@ -110,8 +129,11 @@ func inventoryWatchHelper(r WatchRequest, out io.Writer) error {
 		return err
 	}
 	defer w.Close()
+	if partial, ok := w.(watchCoverage); ok {
+		unwatched = append(unwatched, partial.unwatched()...)
+	}
 	enc := json.NewEncoder(out)
-	if err = enc.Encode(InventoryChange{Ready: true}); err != nil {
+	if err = enc.Encode(InventoryChange{Ready: true, Unwatched: unwatched}); err != nil {
 		return err
 	}
 	// Parent cancellation kills the supervised helper. The independent lifetime

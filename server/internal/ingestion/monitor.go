@@ -17,6 +17,18 @@ import (
 const monitorDebounce = 2 * time.Second
 const monitorMaxDelay = 10 * time.Second
 
+// A watched source is never rescanned on a timer: its watcher reports every
+// change (Plex's model, where a periodic scan is opt-in). A source with no
+// healthy watcher (a network source, a failed watcher, or one past a watch
+// limit) is rescanned every unwatchedRescan instead. A watched source whose
+// watcher was down for longer than watchGrace gets one catch-up rescan when it
+// is watched again, for whatever changed meanwhile; the watcher's own restarts
+// are shorter than that and cost nothing.
+var (
+	unwatchedRescan = time.Hour
+	watchGrace      = 2 * time.Minute
+)
+
 type monitorSource struct {
 	storage.WatchRoot
 	library, classification string
@@ -25,6 +37,10 @@ type monitorSource struct {
 	// root the storage adapter handles. Either one is enough, so an
 	// inconsistent pair fails closed instead of becoming a local fallback walk.
 	remoteOwned bool
+	// requested is true when the source is in the watch request: local, with a
+	// known root, inside the root and wire budgets. Whether it is watched also
+	// depends on the helper being ready and covering it in full.
+	requested bool
 }
 type pendingFolder struct{ first, last time.Time }
 
@@ -50,6 +66,11 @@ func (s *Service) runMonitor(ctx context.Context) {
 	pending := map[string]map[string]pendingFolder{}
 	sources := map[string]monitorSource{}
 	fallback := map[string]time.Time{}
+	// unwatchedSince is when each source stopped being watched (or was first
+	// seen unwatched); partial holds the sources the running helper reported
+	// it cannot fully cover.
+	unwatchedSince := map[string]time.Time{}
+	partial := map[string]bool{}
 	var cancel context.CancelFunc
 	var watchDone chan struct{}
 	defer func() {
@@ -85,8 +106,14 @@ func (s *Service) runMonitor(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case change := <-events:
+			for _, id := range change.Unwatched {
+				partial[id] = true
+			}
 			if change.Ready {
 				ready = true
+				continue
+			}
+			if change.SourceID == "" || change.RelativePath == "" {
 				continue
 			}
 			add(change.SourceID, change.RelativePath, monitorClock())
@@ -135,6 +162,7 @@ func (s *Service) runMonitor(ctx context.Context) {
 						}
 						digest = next
 						ready = false
+						partial = map[string]bool{}
 						if s.storage != nil && len(request.Roots) > 0 {
 							work, stop := context.WithCancel(ctx)
 							cancel = stop
@@ -161,20 +189,39 @@ func (s *Service) runMonitor(ctx context.Context) {
 			}
 			for id, source := range sources {
 				if source.remoteOwned {
+					delete(fallback, id)
+					delete(unwatchedSince, id)
 					continue
 				}
-				interval := 15 * time.Minute
-				if source.classification == "network" || !ready {
-					interval = 5 * time.Minute
+				watched := ready && source.requested && !partial[id] && source.classification != "network"
+				since, wasUnwatched := unwatchedSince[id]
+				if watched {
+					if wasUnwatched && now.Sub(since) > watchGrace {
+						add(id, ".", now)
+					}
+					delete(unwatchedSince, id)
+					delete(fallback, id)
+					continue
+				}
+				// Startup owes only a bounded presence check. A new process or
+				// moved disk must not silently enqueue content re-analysis, so
+				// the first rescan of an unwatched source is a full interval
+				// away.
+				if !wasUnwatched {
+					unwatchedSince[id] = now
 				}
 				due, known := fallback[id]
 				if !known {
-					fallback[id] = now.Add(interval)
-					// Startup owes only a bounded presence check. A new process or
-					// moved disk must not silently enqueue content re-analysis.
+					fallback[id] = now.Add(unwatchedRescan)
 				} else if !now.Before(due) {
 					add(id, ".", now)
-					fallback[id] = now.Add(interval)
+					fallback[id] = now.Add(unwatchedRescan)
+				}
+			}
+			for id := range unwatchedSince {
+				if _, ok := sources[id]; !ok {
+					delete(unwatchedSince, id)
+					delete(fallback, id)
 				}
 			}
 			paths := []string{}
@@ -265,10 +312,13 @@ func (s *Service) monitorConfiguration(ctx context.Context) (map[string]monitorS
 		}
 		wireBytes += len(raw) + 8
 		watches++
-		dirs, err := s.db.QueryContext(ctx, `SELECT relative_path FROM inventory_directory_cache WHERE source_id=? AND incarnation=? AND relative_path<>'.' ORDER BY relative_path LIMIT ?`, source.SourceID, source.incarnation, storage.MaxInventoryWatches-watches)
+		// One row past the budget tells a full folder list from a truncated one.
+		budget := storage.MaxInventoryWatches - watches
+		dirs, err := s.db.QueryContext(ctx, `SELECT relative_path FROM inventory_directory_cache WHERE source_id=? AND incarnation=? AND relative_path<>'.' ORDER BY relative_path LIMIT ?`, source.SourceID, source.incarnation, budget+1)
 		if err != nil {
 			return sources, request, err
 		}
+		listed := 0
 		for dirs.Next() {
 			var relative string
 			if err = dirs.Scan(&relative); err != nil {
@@ -276,9 +326,11 @@ func (s *Service) monitorConfiguration(ctx context.Context) (map[string]monitorS
 				return sources, request, err
 			}
 			encoded, _ := json.Marshal(relative)
-			if wireBytes+len(encoded)+1 > 60<<10 {
+			if listed == budget || wireBytes+len(encoded)+1 > 60<<10 {
+				root.Truncated = true
 				break
 			}
+			listed++
 			wireBytes += len(encoded) + 1
 			watches++
 			root.Directories = append(root.Directories, relative)
@@ -289,7 +341,9 @@ func (s *Service) monitorConfiguration(ctx context.Context) (map[string]monitorS
 			return sources, request, err
 		}
 		request.Roots = append(request.Roots, root)
-
+		requested := source.monitorSource
+		requested.requested = true
+		sources[source.SourceID] = requested
 	}
 	return sources, request, nil
 }
