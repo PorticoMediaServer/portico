@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
@@ -16,6 +15,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/subtitles"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	workerloop "github.com/PorticoMediaServer/portico/server/internal/worker"
+	"log"
 	"sync"
 	"time"
 )
@@ -375,6 +375,8 @@ func (s *Service) Run(ctx context.Context) {
 	supervise.Go("ingestion.monitor", func() { defer close(monitorDone); monitorRun(s, life) })
 	verificationDone := make(chan struct{})
 	supervise.Go("ingestion.verify", func() { defer close(verificationDone); s.runSourceVerification(life) })
+	presenceDone := make(chan struct{})
+	supervise.Go("ingestion.path-presence", func() { defer close(presenceDone); s.runPathPresence(life) })
 	var workers sync.WaitGroup
 	defer func() {
 		// One cleanup, in order: cancel this generation (which also releases the
@@ -390,6 +392,7 @@ func (s *Service) Run(ctx context.Context) {
 		workers.Wait()
 		<-monitorDone
 		<-verificationDone
+		<-presenceDone
 	}()
 	// A scan is enqueued by a write, so the loop is woken by one. With nothing
 	// queued it asked the database three times a second for the life of the
@@ -602,6 +605,9 @@ func (s *Service) processQuantum(ctx context.Context, id, library string) bool {
 		return false
 	}
 	if err = s.readySource(ctx, id, &source); err != nil {
+		if errors.Is(err, errScanPresenceAdvanced) {
+			return true
+		}
 		if !quantumRetryable(ctx, err) {
 			s.fail(ctx, id, sourceID, err)
 		}

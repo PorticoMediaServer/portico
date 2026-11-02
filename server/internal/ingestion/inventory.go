@@ -4,19 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
-	"os"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/naming"
 	"github.com/PorticoMediaServer/portico/server/internal/notify"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"log"
+	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 )
 
+var errSourceMediaAmbiguous = errors.New("returning root contains different media without a catalogued path")
+
 func (s *Service) readySource(ctx context.Context, job string, source *catalog.LibrarySource) error {
+	if source.Health == "root_changed" && !source.IdentityConfirmed {
+		return catalog.ErrSourceChanged
+	}
 	var observed storage.Snapshot
 	var err error
 	remote := s.storage.IsRemote(source.ResolvedPath)
@@ -43,27 +48,33 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 		observed, err = storage.LocalInventoryDirectory(storage.InventoryRequest{Root: source.ResolvedPath, RelativePath: "."})
 	}
 	if err != nil {
-		if errors.Is(err, storage.ErrBusy) || ctx.Err() != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return errors.Join(storage.ErrBusy, err)
+		}
+		if errors.Is(err, storage.ErrBusy) || errors.Is(err, context.Canceled) || ctx.Err() != nil {
 			return err
 		}
+		log.Printf("library scan %s: root inspection failed: %v", job, err)
 		return errors.New(sourceUnavailable)
 	}
 	actual := storage.RootIdentity(observed)
 	if actual == "" {
 		return catalog.ErrSourceChanged
 	}
-	if source.RootIdentity != "" && actual != source.RootIdentity {
-		if !storage.SameRoot(source.RootIdentity, actual) {
-			return catalog.ErrSourceChanged
+	presence := 0
+	if !remote {
+		presence, err = s.prepareScanPresence(ctx, job, *source, actual)
+		if err != nil {
+			return err
 		}
-		// The same folder under a device number this boot handed out afresh.
+	}
+	if source.RootIdentity != "" && actual != source.RootIdentity {
+		// The configured path is the source; physical device/inode changes are
+		// informational and never require owner confirmation or a new scan.
 		if err = s.catalog.AdoptRootIdentity(ctx, job, *source, actual); err != nil {
 			return err
 		}
 		source.RootIdentity = actual
-		if _, err = dbwork.ExecWrite(ctx, s.db, dbwork.ClassBackgroundMedia, `UPDATE inventory_runs SET root_rebound=1 WHERE job_id=?`, job); err != nil {
-			return err
-		}
 	}
 	if source.RootIdentity == "" {
 		gated, e := dbwork.Begin(ctx, s.db, dbwork.ClassBackgroundMedia)
@@ -99,7 +110,11 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 	if _, e = catalog.InventoryFenceTx(ctx, tx, job); e != nil {
 		return e
 	}
-	if _, e = tx.ExecContext(ctx, `UPDATE library_sources SET health='inventory_running' WHERE id=? AND health!='inventory_running'`, source.ID); e != nil {
+	health := "inventory_running"
+	if presence == scanPresenceAbsent {
+		health = "degraded"
+	}
+	if _, e = tx.ExecContext(ctx, `UPDATE library_sources SET health=? WHERE id=? AND health!=?`, health, source.ID, health); e != nil {
 		return e
 	}
 	return gated2.Commit()
@@ -129,7 +144,10 @@ func (s *Service) inventoryPage(ctx context.Context, job string, source catalog.
 		return err
 	}
 	err = s.readDirectoryPage(ctx, job, source, relative, inventoryPublicationNames)
-	if err == nil || ctx.Err() != nil || errors.Is(err, storage.ErrBusy) {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return errors.Join(storage.ErrBusy, err)
+	}
+	if err == nil || ctx.Err() != nil || errors.Is(err, storage.ErrBusy) || errors.Is(err, context.Canceled) {
 		return err
 	}
 	var read *directoryReadError
@@ -137,6 +155,7 @@ func (s *Service) inventoryPage(ctx context.Context, job string, source catalog.
 		return stoppedAt(relative, err)
 	}
 	if relative == "." && !errors.Is(err, storage.ErrInventoryChanged) {
+		log.Printf("library scan %s: root listing failed: %v", job, err)
 		return stoppedAt(relative, errors.New(sourceUnavailable))
 	}
 	if errors.Is(err, storage.ErrRemoteOffline) || errors.Is(err, storage.ErrRemoteCredentials) || errors.Is(err, storage.ErrRemoteChanged) || errors.Is(err, storage.ErrRemoteBinary) {
@@ -471,6 +490,13 @@ func (s *Service) verifyPage(ctx context.Context, job string, source catalog.Lib
 	if len(dirs) > 0 {
 		_, err = tx.ExecContext(ctx, `UPDATE inventory_runs SET verify_cursor=? WHERE job_id=?`, dirs[len(dirs)-1].path, job)
 	} else {
+		var ambiguous bool
+		if err := tx.QueryRowContext(ctx, `SELECT root_rebound=? AND discovered>0 FROM inventory_runs WHERE job_id=?`, scanPresenceAbsent, job).Scan(&ambiguous); err != nil {
+			return err
+		}
+		if ambiguous {
+			return errors.Join(catalog.ErrSourceChanged, errSourceMediaAmbiguous)
+		}
 		now := time.Now().UTC().Format(time.RFC3339Nano)
 		// Baseline path-only sources have no trustworthy pre-upgrade root identity.
 		// Publish their observations, but require owner confirmation before absence.
@@ -627,7 +653,12 @@ func (s *Service) fail(ctx context.Context, job, source string, cause error) {
 	if _, err = tx.ExecContext(ctx, `DELETE FROM inventory_source_active WHERE job_id=?`, job); err != nil {
 		return
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE library_sources SET health=? WHERE id=?`, health, source); err != nil {
+	if errors.Is(cause, errSourceMediaAmbiguous) {
+		_, err = tx.ExecContext(ctx, `UPDATE library_sources SET health=?,identity_confirmed=0 WHERE id=?`, health, source)
+	} else {
+		_, err = tx.ExecContext(ctx, `UPDATE library_sources SET health=? WHERE id=?`, health, source)
+	}
+	if err != nil {
 		return
 	}
 	// A stopped scan is the one ingestion outcome an administrator has to act on.

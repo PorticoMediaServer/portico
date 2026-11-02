@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
@@ -17,6 +16,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/naming"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 	"github.com/PorticoMediaServer/portico/server/internal/subtitles"
+	"path/filepath"
 	"strings"
 	"time"
 )

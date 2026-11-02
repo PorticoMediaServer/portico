@@ -132,7 +132,8 @@
 .input:is(:-webkit-autofill, :autofill) {-webkit-background-clip: text; background-clip: text; -webkit-box-shadow: inset 0 0 0 1000px var(--field-input-background); box-shadow: inset 0 0 0 1000px var(--field-input-background); -webkit-text-fill-color: var(--color-text); caret-color: var(--field-caret-color);}
 .input::placeholder {color: var(--color-text-tertiary); font-weight: 500; opacity: 1;}
 .input:focus-visible {outline: none;}
-.input[type="search"]::-webkit-search-cancel-button {appearance: none;}
+/* WebKit honours only the prefixed property here; without it Safari draws its own clear next to ours. */
+.input[type="search"]::-webkit-search-cancel-button {-webkit-appearance: none; appearance: none; display: none;}
 .inputShell:focus-within {box-shadow: inset 0 0 0 1px var(--color-line-strong), 0 0 0 3px var(--color-focus);}
 .field[data-variant="compact"] .inputShell {height: 44px; border-radius: 10px; padding: 0 14px; background: var(--color-ink);}
 .field[data-variant="compact"] .input {font-size: 15px;}

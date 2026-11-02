@@ -2,13 +2,13 @@ package ingestion
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -104,8 +104,8 @@ func TestScanMissingSourceAfterInterruptionPreservesCatalogAndRetryHistory(t *te
 	if err = db.QueryRow(`SELECT count(*) FROM catalog_missing_titles`).Scan(&missing); err != nil || missing != 0 {
 		t.Fatal("an empty folder marked titles missing", missing, err)
 	}
-	// With another file present the folder is plainly there, and the one
-	// complete listing that does not contain the old file marks it missing.
+	// Different media without any known path is ambiguous after an outage.
+	// It needs an owner decision and cannot publish absence for old media.
 	if err = os.WriteFile(filepath.Join(root, "Other.mp4"), []byte("other"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -116,14 +116,19 @@ func TestScanMissingSourceAfterInterruptionPreservesCatalogAndRetryHistory(t *te
 	s.process(context.Background(), confirmation.ID, library.ID)
 	fixtures.Drain()
 	j, err = s.Get(confirmation.ID)
-	if err != nil || j.Status != "complete" {
+	if err != nil || j.Status != "failed" {
 		t.Fatal(j, err)
 	}
-	if err = db.QueryRow(`SELECT available FROM catalog_assets WHERE token=?`, old.Token).Scan(&available); err != nil || available != 0 {
-		t.Fatal("a complete listing without the file did not mark it missing", available, err)
+	var health string
+	var confirmed bool
+	if err = db.QueryRow(`SELECT health,identity_confirmed FROM library_sources WHERE library_id=?`, library.ID).Scan(&health, &confirmed); err != nil || health != "root_changed" || confirmed {
+		t.Fatal("different media did not retain owner attention", health, confirmed, err)
 	}
-	if err = db.QueryRow(`SELECT count(*) FROM catalog_missing_titles m JOIN catalog_entities e ON e.id=m.entity_id WHERE e.title='Existing movie'`).Scan(&missing); err != nil || missing != 1 {
-		t.Fatal("the title that lost its only file is not marked missing", missing, err)
+	if err = db.QueryRow(`SELECT available FROM catalog_assets WHERE token=?`, old.Token).Scan(&available); err != nil || available != 1 {
+		t.Fatal("ambiguous replacement changed old media availability", available, err)
+	}
+	if err = db.QueryRow(`SELECT count(*) FROM catalog_missing_titles m JOIN catalog_entities e ON e.id=m.entity_id WHERE e.title='Existing movie'`).Scan(&missing); err != nil || missing != 0 {
+		t.Fatal("ambiguous replacement marked the old title missing", missing, err)
 	}
 }
 

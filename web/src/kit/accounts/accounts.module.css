@@ -83,6 +83,7 @@
 .pin .codeError { animation: pinError var(--motion-standard) var(--ease-out); }
 @keyframes pinError { from { opacity: 0; } to { opacity: 1; } }
 .remember { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; color: var(--color-text-secondary); margin: 26px 0; }
+.pickerRemember { position: relative; margin: 48px 0 0; }
 .remember input { appearance: none; margin: 0; width: 24px; height: 24px; border-radius: 7px; box-shadow: inset 0 0 0 2px var(--color-line-strong); }
 .remember input:checked { background: var(--color-accent-strong); box-shadow: none; }
 .remember input:checked::after { content: '✓'; display: grid; place-items: center; color: var(--color-ink); font-weight: 800; }
@@ -229,16 +230,18 @@
   .legal { left: 22px; bottom: 26px; }
   .topRight { right: 22px; top: 28px; }
   .stage[data-layout="center"] .content { padding-top: 106px; }
-  .pickerTitle { font-size: 32px !important; text-align: left; margin-bottom: 26px !important; }
+  .pickerTitle { font-size: 32px !important; text-align: center; margin-bottom: 26px !important; }
+  .pickerRemember { align-self: center; margin-top: 34px; font-size: 14.5px; }
   .pin .codeBoxes > span { width: 62px; height: 70px; }
   .serverContext { display: none; }
   .profilesStage .brand, .profilesStage .topRight, .pinStage .brand, .pinStage .topRight { display: none; }
-  .profilesStage[data-layout="center"] .content { align-items: stretch; text-align: left; padding: 106px 22px 0; }
+  .profilesStage[data-layout="center"] .content { align-items: stretch; text-align: center; padding: 106px 22px 0; }
   .profilesStage .pickerTitle { margin: 0 0 32px !important; text-wrap: wrap; }
   .profilesStage .content button > b { letter-spacing: normal; }
   .pinStage[data-layout="center"] .content { padding: 104px 22px 0; justify-content: flex-start; }
   .pinStage .phoneFace, .pinStage .phonePINHeading, .pinStage .phonePINLabel { display: block; }
-  .pinStage .desktopFace, .pinStage .desktopPINHeading, .pinStage .remember { display: none; }
+  .pinStage .desktopFace, .pinStage .desktopPINHeading { display: none; }
+  .pinStage .remember { margin: 22px 0 6px; font-size: 14.5px; }
   .pinStage .phoneFace > span { font-size: 34px; }
   .pinStage h1.phonePINHeading { margin: 18px 0 4px; font-size: 26px; line-height: normal; font-weight: 800; letter-spacing: -.03em; }
   .pinStage p.phonePINHeading { font-size: 15px; margin: 0 0 22px; }

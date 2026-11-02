@@ -59,7 +59,7 @@ func waitForMonitor(t *testing.T, what string, condition func() bool) {
 	}
 }
 
-func TestMonitorExcludesRemoteOwnedSourcesAndKeepsLocalStartupAndFallback(t *testing.T) {
+func TestMonitorExcludesRemoteOwnedSourcesAndUsesPresenceAtStartup(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
@@ -136,9 +136,12 @@ func TestMonitorExcludesRemoteOwnedSourcesAndKeepsLocalStartupAndFallback(t *tes
 	}
 	emit(storage.InventoryChange{Ready: true})
 
-	waitForMonitor(t, "local startup queue", func() bool {
-		return f.count(`SELECT count(*) FROM jobs WHERE library_id=?`, f.library) > 0
-	})
+	// Starting the native watch is not a content change. Presence owns startup,
+	// including a moved database; the ordinary periodic fallback remains below.
+	time.Sleep(1100 * time.Millisecond)
+	if n := f.count(`SELECT count(*) FROM jobs WHERE library_id=?`, f.library); n != 0 {
+		t.Fatalf("local startup queued %d content scans", n)
+	}
 	if n := f.count(`SELECT count(*) FROM jobs WHERE library_id IN('lib-bound','lib-remote','lib-empty-bound')`); n != 0 {
 		t.Fatalf("remote-owned sources queued %d startup jobs", n)
 	}
@@ -147,7 +150,8 @@ func TestMonitorExcludesRemoteOwnedSourcesAndKeepsLocalStartupAndFallback(t *tes
 	// debounce, so a local fallback report is the only possible new work.
 	clock.advance(16 * time.Minute)
 	deadline := time.Now().Add(8 * time.Second)
-	for f.count(`SELECT count(*) FROM inventory_path_notices WHERE source_id=?`, f.source) == 0 {
+	for f.count(`SELECT count(*) FROM inventory_path_notices WHERE source_id=?`, f.source) == 0 &&
+		f.count(`SELECT count(*) FROM jobs WHERE library_id=?`, f.library) == 0 {
 		if time.Now().After(deadline) {
 			t.Fatal("local 15-minute fallback report did not run")
 		}

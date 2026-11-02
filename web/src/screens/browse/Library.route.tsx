@@ -365,7 +365,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
         artwork: context.artwork, signal, isCurrent: current,
       }} : {}),
       actions: {api, events: context.events, requestId: async () => randomId(),
-        signal, isCurrent: current, reportError: context.effects.reportError},
+        signal, isCurrent: current, reportError: context.effects.reportError, ...(context.effects.notify ? {notify: context.effects.notify} : {})},
       reportError: context.effects.reportError,
     });
     queryBridge.attach(playSelection);

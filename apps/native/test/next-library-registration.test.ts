@@ -35,7 +35,7 @@ test('the handheld Library module self-registers real actions and a captured rec
     react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/errors': {presentError},
     '../../../../../packages/client-core/src/catalogue-query-selection': catalogueQuerySelection, '../../../../../packages/client-core/src/selection-model': selectionModel,
-    '../../../../../packages/client-core/src/media-selection': mediaSelection, '../../shell/selection-display': nativeSelectionDisplay,
+    '../../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../../packages/client-core/src/media-selection': mediaSelection, '../../shell/selection-display': nativeSelectionDisplay,
     '../../kit/selection': {BulkEditor: 'BulkEditor', DeleteMediaDialog: 'DeleteMediaDialog', SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'SelectionPhoneActionBar'},
     '../../kit/theme': {useTheme: () => theme}, '../../kit/overlays': {Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../../kit/controls': {Button: 'Button'},
     '../destinations/lifetime': {nativeDestinationLifetime}, '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},

@@ -124,13 +124,13 @@
 
 .genres { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
 
-.lives { display: flex; overflow-x: auto; }
+.lives { display: flex; overflow-x: auto; scrollbar-width: none; }
 
 .lives > * { flex: none; width: 316px; }
 
 .hint { display: none; }
 
-.cards { gap: 12px; overflow-x: auto; }
+.cards { gap: 12px; overflow-x: auto; scrollbar-width: none; }
 
 .cards > * { flex: none; width: 132px; }
 
@@ -140,7 +140,9 @@
 
 .section[data-group=episodes] .cards > * { width: 262px; }
 
-.chips { flex-wrap: nowrap; overflow-x: auto; }
+/* Swipe strips (phone-web.html #w2 frame 4): no native scrollbar or arrow buttons; they still scroll by touch, trackpad and keyboard. */
+.chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.lives::-webkit-scrollbar, .cards::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
 
 .chips > * { flex: none; }
 

@@ -56,7 +56,7 @@ test('actual native Library selection composes the refusal without an executor a
   '../../../../../packages/client-core/src/presentation/errors':{},
   '../../../../../packages/client-core/src/catalogue-query-selection':{},
   '../../../../../packages/client-core/src/selection-model':{selectionFourthAction:()=>undefined},
-  '../../../../../packages/client-core/src/media-selection':{},
+  '../../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../../packages/client-core/src/media-selection':{},
   '../../shell/selection-display':{selectedItemsLabel:()=> '1 movie'},
   '../../kit/selection':{SelectionBar:'SelectionBar',SelectionPhoneActionBar:'SelectionPhoneActionBar'},
   '../../kit/theme':{useTheme:()=>({isTV:true,layers:{navigation:1}})},'../../kit/overlays':{},'../../kit/controls':{},

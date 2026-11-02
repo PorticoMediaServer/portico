@@ -74,6 +74,8 @@ export type SavedBindings = Readonly<{
   effects: SavedEffects;
 }>;
 export type SavedViewBindings = SavedBindings & Readonly<{operations: SavedOperations}>;
+/** The icons the phone Saved list draws beside each tab (SavedPhoneDirectory), on each tab's empty state. */
+export const savedEmptyIcons = {watchlist: 'i-bookmark', favorites: 'i-heart', playlists: 'i-queue', collections: 'i-stack', views: 'i-filter', history: 'i-clock'} as const;
 const tabLabels = {watchlist: 'saved.tab.watchlist', favorites: 'saved.tab.favorites', playlists: 'saved.tab.playlists', collections: 'saved.tab.collections', views: 'saved.tab.savedViews', history: 'saved.tab.history', downloads: 'downloads.title'} as const;
 
 export function SavedScreen(bindings: SavedBindings) {
@@ -283,7 +285,7 @@ function SavedLists(bindings: SavedViewBindings & {onCreate: () => void}) {
           </div>
         </div>
       : <SavedListToolbar bindings={bindings} projection={projection} total={total} />}
-    {!hasContent && primary.phase === 'ready' && (!split || squares.phase === 'ready') ? <div className={styles.empty}><StateView title={t(`web.saved.empty.${list}`)} body={t(`web.saved.empty.${list}Body`)} /></div> : null}
+    {!hasContent && primary.phase === 'ready' && (!split || squares.phase === 'ready') ? <div className={styles.empty}><StateView variant="empty" icon={savedEmptyIcons[list]} title={t(`web.saved.empty.${list}`)} body={t(`web.saved.empty.${list}Body`)} /></div> : null}
     {primary.projection?.sections.map(section => <SavedSection key={`posters:${section.id}`} {...bindings} service={first} section={section} />)}
     {split && squares.projection?.sections.map(section => <SavedSection key={`squares:${section.id}`} {...bindings} service={runtime.squares} section={section} heading={{label: s('next.saved.musicAndAudiobooks'), count: section.totalCount}} />)}
     {list === 'playlists' && projection?.actions?.includes('create_playlist') && <div className={styles.newTile}><NewPlaylistCard model={{title: t('web.saved.newPlaylist'), caption: []}} onCreate={bindings.onCreate} /></div>}
@@ -440,7 +442,7 @@ function PersonalResources(bindings: SavedViewBindings & {onCreate: () => void})
     <div className={styles.toolbar}>{kind === 'collections' ? <><Button size="small" icon="i-plus" onClick={bindings.onCreate}>{t('web.saved.newCollection')}</Button><div className={styles.toolbarEnd}>{count !== undefined && t('lib.count', {count, pivot: 'collections'})}</div></>
       : <>{count !== undefined && <span className={styles.directoryCount}>{s('next.saved.savedViewsCount', {count})}</span>}<span className={styles.directoryHelp}>{s('next.saved.viewsHelp')}</span></>}</div>
     {snapshot.error && !snapshot.resources.length && <StateView title={t('saved.loadFailed')} primary={{id: 'retry', label: t('action.tryAgain'), onPress: () => { void service.retryRead(); }}} />}
-    {!snapshot.loading && !snapshot.error && !snapshot.resources.length && <StateView title={t(`web.saved.empty.${kind}`)} body={t(`web.saved.empty.${kind}Body`)} />}
+    {!snapshot.loading && !snapshot.error && !snapshot.resources.length && <StateView variant="empty" icon={savedEmptyIcons[kind]} title={t(`web.saved.empty.${kind}`)} body={t(`web.saved.empty.${kind}Body`)} />}
     <div className={phone ? styles.resourceList : styles.resources}>{snapshot.resources.map(resource => phone
       ? <PersonalResourceRow key={resource.id} resource={resource} bindings={bindings}/>
       : <PersonalResourceTile key={resource.id} resource={resource} bindings={bindings}/>)}</div>

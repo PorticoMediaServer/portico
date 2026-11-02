@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-// A browser tab's sessionStorage: one per tab, kept across reloads, never shared.
-class TabStorage {
+// The browser's localStorage: shared by its tabs, kept across reloads and restarts.
+class DeviceStorage {
   values = new Map<string, string>();
   getItem(key: string) {return this.values.get(key) ?? null;}
   setItem(key: string, value: string) {this.values.set(key, value);}
   removeItem(key: string) {this.values.delete(key);}
 }
-const tab = new TabStorage();
-(globalThis as {sessionStorage?: unknown}).sessionStorage = tab;
+const tab = new DeviceStorage();
+(globalThis as {localStorage?: unknown}).localStorage = tab;
 const gate = await import('../src/platform/tab-session-gate.ts');
 const held = {serverId: 's1', familyId: 'f1', profileId: 'alex'};
 const future = new Date(Date.now() + 86_400_000).toISOString();
@@ -19,9 +19,9 @@ test('a tab opens unasked only what it remembered or already opened in this page
   assert.equal(gate.tabAdmits(held), false, 'nothing remembered, nothing opened');
   gate.recordTabPick('s1', 'alex', {...held, expiresAt: future});
   assert.equal(gate.tabAdmits(held), true);
-  // A reload keeps sessionStorage and loses what the page load had opened.
+  // A reload keeps localStorage and loses what the page load had opened.
   gate.resetTabSessionGate();
-  assert.equal(gate.tabAdmits(held), true, 'remembered in this tab survives a reload');
+  assert.equal(gate.tabAdmits(held), true, 'remembered on this device survives a reload');
   assert.equal(gate.tabAdmits({...held, familyId: 'f2'}), false, 'another sign-in (another tab picked) is not remembered here');
   assert.equal(gate.tabAdmits({...held, profileId: 'kids'}), false);
   assert.equal(gate.tabAdmits(held, Date.parse(future) + 1), false, 'not after it expires');
@@ -37,7 +37,7 @@ test('a page load follows later sign-ins to the profile it opened, and never to 
   assert.equal(gate.tabAdmits({...held, familyId: 'another-tab-picked'}), false, 'the next reload asks');
 });
 
-test('a pick without remembering, a sign-out or a PIN asked again stop remembering in this tab', () => {
+test('a pick without remembering, a sign-out or a PIN asked again stop remembering on this device', () => {
   gate.resetTabSessionGate(); tab.values.clear();
   gate.recordTabPick('s1', 'alex', {...held, expiresAt: future});
   gate.recordTabPick('s1', 'alex', undefined);
@@ -58,12 +58,23 @@ test('an unreadable marker is not a marker, and is neither thrown nor erased (R-
   assert.equal(gate.tabAdmits(held), false);
 });
 
-test('a new tab starts with nothing remembered', () => {
+test('another tab, or the browser opened again, opens the remembered profile', () => {
   gate.resetTabSessionGate(); tab.values.clear();
   gate.recordTabPick('s1', 'alex', {...held, expiresAt: future});
-  const other = new TabStorage();
-  (globalThis as {sessionStorage?: unknown}).sessionStorage = other;
+  gate.resetTabSessionGate(); // a new page load: nothing opened yet, the shared storage still holds it
+  assert.equal(gate.tabAdmits(held), true);
+});
+
+test('Forget remembered profile clears the choice on this device and keeps the profile open now', () => {
+  gate.resetTabSessionGate(); tab.values.clear();
+  assert.equal(gate.deviceRemembers('s1', 'alex'), false);
+  gate.recordTabPick('s1', 'alex', {...held, expiresAt: future});
+  assert.equal(gate.deviceRemembers('s1', 'alex'), true);
+  assert.equal(gate.deviceRemembers('s1', 'kids'), false, 'only the remembered profile offers Forget');
+  assert.equal(gate.deviceRemembers('s1', 'alex', Date.parse(future) + 1), false, 'nor once it has expired');
+  gate.forgetRememberedProfile('s1');
+  assert.equal(gate.deviceRemembers('s1', 'alex'), false);
+  assert.equal(gate.tabAdmits(held), true, 'this page load keeps the profile it opened');
   gate.resetTabSessionGate();
-  assert.equal(gate.tabAdmits(held), false);
-  (globalThis as {sessionStorage?: unknown}).sessionStorage = tab;
+  assert.equal(gate.tabAdmits(held), false, 'the next visit shows the picker');
 });

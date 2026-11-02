@@ -366,7 +366,7 @@ export class ShellBootstrap {
     const {api} = restored;
     let session = selectedViewerRecord(api.baseUrl, restored.session).session;
     if (session.viewer.role === 'account') { this.publish({phase: 'signed-out'}); api.getRouteConnection()?.dispose(); return; }
-    // Launch gate (C-DESIGN §2): a profile remembered in this tab, or already opened in this page
+    // Launch gate (C-DESIGN §2): a profile remembered on this device, or already opened in this page
     // load, opens; so does an account's only profile with no PIN. Otherwise Who's watching first.
     const held = {serverId: session.viewer.serverId, familyId: session.sessionFamilyId, profileId: session.viewer.profileId};
     if (!tabAdmits(held)) {

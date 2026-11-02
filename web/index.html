@@ -12,7 +12,9 @@
     <link rel="manifest" href="/manifest.json" />
     <title>__PORTICO_APP_NAME__</title>
     <style nonce="__PORTICO_STYLE_NONCE__">
-      html, body { margin: 0; background: #071018; color: #edf5fa; }
+      html { background: #071018; color: #edf5fa; }
+      /* The body stays transparent: the standard backdrop (kit/backdrop.css) is body::before at z-index -1, under any body background. */
+      body { margin: 0; }
       #boot, [data-provider-loading] { position: fixed; z-index: 2147483647; inset: 0; background: #071018; pointer-events: none; }
       #boot::before, [data-provider-loading]::before { content: ''; position: absolute; inset: 0; background:
         radial-gradient(44% 66% at 86% 4%, rgba(47,134,187,.46) 0%, rgba(47,134,187,.15) 46%, transparent 74%),

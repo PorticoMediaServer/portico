@@ -42,8 +42,10 @@ type libraryMetadataReader struct {
 	sum    hash.Hash
 }
 
+var openLibraryMetadataInput = os.OpenFile
+
 func openLibraryMetadataFile(path string) (*os.File, error) {
-	return os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	return openLibraryMetadataInput(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 }
 
 func metadataReadPrefix(sum hash.Hash, read libraryMetadataRead) {

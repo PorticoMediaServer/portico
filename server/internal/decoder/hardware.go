@@ -6,12 +6,12 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
+	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
-	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"runtime"
 	"sort"
 	"strconv"
@@ -239,11 +239,10 @@ type HardwareDetector struct {
 	// Run is the process seam. Tests substitute it; production runs the confined
 	// child directly, because a synthetic clip borrows no source custody.
 	Run func(ctx context.Context, cmd *exec.Cmd) error
-	// RuntimeIdentity is a trusted composition/test seam. Nil uses the full executable and
-	// resolved-library identity; it is never supplied by a playback request.
-	RuntimeIdentity func(context.Context, string) (string, error)
-	identityMu      sync.Mutex
-	identityFlight  *hardwareIdentityFlight
+	// CachedRuntimeIdentity is a trusted composition/test seam for a completed
+	// generation only. Nil uses the platform metadata witness. It must not hash
+	// or parse executable bytes and is never supplied by a playback request.
+	CachedRuntimeIdentity func(context.Context, string) (string, bool)
 
 	mu               sync.Mutex
 	cache            map[string]HardwareProbe
@@ -597,8 +596,9 @@ func (d *HardwareDetector) SelectCached(executable, configured, device string) H
 	return probe
 }
 
-// SelectCachedContext performs the exact runtime observation under the original caller's
-// cancellation/deadline. Playback calls this BEFORE acquiring any SQL transaction.
+// SelectCachedContext consumes a completed runtime generation without reading
+// executable or library bytes. A missing or changed generation uses software
+// immediately while the existing coalesced background probe refreshes it.
 func (d *HardwareDetector) SelectCachedContext(ctx context.Context, executable, configured, device string) (HardwareProbe, error) {
 	if ctx == nil {
 		return HardwareProbe{}, ErrInvalidConfiguration
@@ -612,12 +612,17 @@ func (d *HardwareDetector) SelectCachedContext(ctx context.Context, executable, 
 	if configured == string(BackendSoftware) {
 		return HardwareProbe{Backend: BackendSoftware, Available: true, Reason: ProbeDisabled}, nil
 	}
-	identity, err := d.runtimeIdentity(ctx, executable)
-	if err != nil {
-		if ctx.Err() != nil {
-			return HardwareProbe{}, ctx.Err()
-		}
-		return HardwareProbe{Backend: BackendSoftware, Available: true, Reason: ProbeEncodeFailed}, nil
+	lookup := d.CachedRuntimeIdentity
+	if lookup == nil {
+		lookup = cachedHardwareIdentity
+	}
+	identity, ready := lookup(ctx, executable)
+	if ctx.Err() != nil {
+		return HardwareProbe{}, ctx.Err()
+	}
+	if !ready {
+		d.warm(executable, configured, device)
+		return HardwareProbe{Backend: BackendSoftware, Available: true, Reason: ProbeWarming}, nil
 	}
 	candidates := HardwareBackends
 	if configured != "auto" {
