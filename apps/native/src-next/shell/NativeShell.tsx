@@ -12,7 +12,7 @@ import {useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
 import {registerTVMenuFallback} from '../platform/menu-key';
 import {useTVMenuCapture} from '../platform/tv-menu';
-import {useFocusRegistry, type FocusSnapshot} from '../kit/focus';
+import {CoveredLayer, useFocusRegistry, type FocusSnapshot} from '../kit/focus';
 import {tvFocusIds, sameDestination} from './tv-focus';
 import {HomeScreen} from '../screens/home/HomeScreen';
 import {canYieldTVHomeMenu, homeStartModel, resolveTVHomeStart} from '../screens/home/home-start';
@@ -300,15 +300,19 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   // The reader and live TV are full-screen.
   const pushedPage = (route: NativeShellRoute, node: React.ReactNode) => <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
     importantForAccessibility={initialPlayer ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', top: 0, left: 0, right: 0, bottom: immersiveRoute(route) ? 0 : barHeight}, initialTitleStyle]}>{node}</Animated.View>;
+  const basePage = <>
+      {paintedDestination.kind === 'home' ? <HomeScreen runtime={runtime} authority={snapshot.authority} active={!settingsPage && !snapshot.mediaExpanded && snapshot.homeVisible} heroObscured={settingsPage || snapshot.homeObscured} railExpanded={railExpanded} bottomInset={homeBottom} onScrolledChange={setHomeScrolled} holdRailDim={holdRailDim} releaseRailDim={releaseRailDim}/>
+        : <View style={{flex: 1, paddingBottom: pageBottom}}>
+          {runtime.renderDestination(paintedDestination, openLibrary)}
+        </View>}
+  </>;
   const content = <>
     {stacks ? <Animated.View pointerEvents="box-none" accessibilityElementsHidden={!!snapshot.mediaExpanded} importantForAccessibility={snapshot.mediaExpanded ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, pageStyle]}>
       <TouchStacks port={stacks} slots={slots} tier={nativeStackMotionTier(motion)} background={theme.colors.ink} renderShell={renderShellPage} routeStyle={pushedPage}/>
     </Animated.View> : <>
     <Animated.View pointerEvents={settingsPage ? 'none' : 'auto'} accessibilityElementsHidden={baseHidden || settingsPage} importantForAccessibility={baseHidden || settingsPage ? 'no-hide-descendants' : 'auto'} style={[{flex: 1}, settingsPage && !settingsSheet ? {display: 'none'} : null, sideNavigation ? {paddingLeft: sideWidth} : null, settingsPage ? undefined : pageStyle]}>
-      {paintedDestination.kind === 'home' ? <HomeScreen runtime={runtime} authority={snapshot.authority} active={!settingsPage && !snapshot.mediaExpanded && snapshot.homeVisible} heroObscured={settingsPage || snapshot.homeObscured} railExpanded={railExpanded} bottomInset={homeBottom} onScrolledChange={setHomeScrolled} holdRailDim={holdRailDim} releaseRailDim={releaseRailDim}/>
-        : <View style={{flex: 1, paddingBottom: pageBottom}}>
-          {runtime.renderDestination(paintedDestination, openLibrary)}
-        </View>}
+      {/* A pushed TV route covers this page: nothing under it may take D-pad focus (CoveredLayer). */}
+      {theme.isTV ? <CoveredLayer covered={baseHidden || settingsPage} style={{flex: 1}} testID="native-shell-base">{basePage}</CoveredLayer> : basePage}
     </Animated.View>
     {settingsPage && <Animated.View style={[{position: 'absolute', inset: 0, paddingLeft: sideNavigation ? sideWidth : 0, paddingBottom: settingsSheet ? 0 : pageBottom}, pageStyle]}>{runtime.renderDestination(destination, openLibrary)}</Animated.View>}
     </>}

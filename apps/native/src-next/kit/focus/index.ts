@@ -1,4 +1,5 @@
 export {FocusProvider, FocusRegion, FocusItem, useFocusRegistry, useOptionalFocusRegistry, useFocusTarget, useFocusWaiting} from './FocusRegion';
+export {CoveredLayer} from './CoveredLayer';
 export type {FocusRegionProps, FocusTargetOptions} from './FocusRegion';
 export {createFocusRegistry, focusTestID, requestNativeFocus} from './registry';
 export type {FocusAddress, FocusSnapshot, FocusRegistry, FocusRegionConfig, FocusEdges, FocusHost} from './registry';

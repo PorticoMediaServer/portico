@@ -1,6 +1,6 @@
 import {useNativeStackHosted, useNativeStackPlacement} from '../../kit/navigation/stack-slot';
+import {CoveredLayer} from '../../kit/focus/CoveredLayer';
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {View} from 'react-native';
 import {useFocusRegistry, type FocusSnapshot} from '../../kit/focus';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
@@ -67,10 +67,10 @@ function RetainedCollection({route, active, context, runtime}: {route: Collectio
     return () => cancelAnimationFrame(frame);
   }, [active, registry]);
   useEffect(() => () => release.current?.(), []);
-  return place(<View pointerEvents={active ? 'auto' : 'none'} accessibilityElementsHidden={!active} importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
+  return place(<CoveredLayer covered={!active}
     style={{position: 'absolute', inset: 0, opacity: active || stacked ? 1 : 0}}>
     <CollectionHost route={route} active={active} context={context} runtime={runtime}/>
-  </View>);
+  </CoveredLayer>);
 }
 
 function CollectionHost({route, active, context, runtime}: {route: CollectionRoute; active: boolean; context: NativeShellBootstrapContext; runtime: NativeShellRuntime}) {

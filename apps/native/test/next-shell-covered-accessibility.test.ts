@@ -24,7 +24,7 @@ for (const tv of [false, true]) test(`${tv ? 'TV' : 'touch'} shell hides its cov
     '../kit/overlays/SurfacePaintHost': {SurfacePaintHost: 'SurfacePaintHost'}, '../kit/shell': {AccountMenu: 'AccountMenu'},
     '../kit/theme': {useTheme: () => ({isTV: tv, colors: {ink: '#071018'}, layers: {navigation: 3, sticky: 4, player: 8}})},
     '../kit/useMotion': {useMotion: () => ({transforms: false})}, '../platform/menu-key': {}, '../platform/tv-menu': {useTVMenuCapture() {}},
-    '../kit/focus': {useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds: () => ({rail: 'rail'}), sameDestination: (a: unknown, b: unknown) => a === b},
+    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds: () => ({rail: 'rail'}), sameDestination: (a: unknown, b: unknown) => a === b},
     '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'},
     '../screens/home/home-start': {homeStartModel: () => ({}), resolveTVHomeStart: () => undefined, canYieldTVHomeMenu: () => false},
     './model': model, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
@@ -40,6 +40,14 @@ for (const tv of [false, true]) test(`${tv ? 'TV' : 'touch'} shell hides its cov
     const tree = render(), hidden = routeCovered || expanded;
     assert.equal(base(tree).props.accessibilityElementsHidden, hidden);
     assert.equal(base(tree).props.importantForAccessibility, hidden ? 'no-hide-descendants' : 'auto');
+    // Focus containment: on TV the covered page blocks D-pad focus, so focus can never escape from
+    // a pushed screen into Home underneath (the Android TV show-page trap). Touch has no D-pad.
+    const layer = nodes(tree).find(node => node.type === 'CoveredLayer');
+    if (tv) {
+      assert.ok(layer, 'the TV base page sits in a focus-containment layer');
+      assert.ok(nodes(layer.props.children).some(child => child.type === 'HomeScreen'), 'the layer holds the base page');
+      assert.equal(layer.props.covered, hidden, routeCovered ? 'a pushed route blocks focus into the page under it' : 'an uncovered page takes focus normally');
+    } else assert.equal(layer, undefined);
     const watch = nodes(tree).find(node => node.type === 'View' && (Array.isArray(node.props.children) ? node.props.children : [node.props.children]).some((child: any) => child?.type === 'VisibleSplitWatchPanes'));
     assert.ok(watch, 'the separate watch outlet remains mounted');
     assert.notEqual(watch.props.accessibilityElementsHidden, true);
