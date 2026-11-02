@@ -1,7 +1,10 @@
 import {createRoot} from 'react-dom/client';
 import {useState} from 'react';
 import {IconSprite} from '../../kit/Icon';
-import {LocalServerSignIn, PorticoServerSignIn, ServerProfiles, ServerProfilePIN} from '../../kit/accounts';
+import {AuthStage, LocalServerSignIn, PorticoServerSignIn, ServerIdentityFailure, ServerProfiles, ServerProfilePIN} from '../../kit/accounts';
+import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLead, ServicesSignedInAccount} from '../../kit/accounts/ServicesAuth';
+import {Button} from '../../kit/controls/Button';
+import {defaultI18n} from '@i18n';
 import '../../kit/tokens.css';
 import '../../kit/fonts.css';
 import '../../bootstrap.css';
@@ -25,6 +28,11 @@ function Specimen() {
   if (frame === '13') return <ServerProfiles serverName="Portico demo" profiles={profiles} onSelect={value => record('profile', value.id)} onSwitchServer={() => record('servers')} autoFocusId="alex" />;
   if (frame === '14') return <ServerProfilePIN serverName="Portico demo" profile={profiles[1]} remember={remember} onRememberChange={setRemember} error
     onComplete={value => record('pin', value)} onOtherProfiles={() => record('profiles')} onForgotPIN={() => record('forgot-pin')} onSwitchServer={() => record('servers')} />;
+  if (frame === 'identity') return <AuthStage layout="state" legal={false}><ServerIdentityFailure serverName="Portico demo" failure="local-changed"
+    onRetry={() => record('retry')} onChooseServer={() => record('servers')} onForget={async () => record('forget')} /></AuthStage>;
+  if (frame === 'welcome') return <ServicesAuthStage><ServicesHeading singleLine>{defaultI18n.t('auth.welcomeHome')}</ServicesHeading><ServicesLead>{defaultI18n.t('web.signin.accountLede')}</ServicesLead>
+    <ServicesSignedInAccount username="nana_r" onDifferent={() => record('different')} />
+    <ServicesActions><Button variant="primary" onClick={() => record('continue')}>{defaultI18n.t('action.continue')}</Button></ServicesActions></ServicesAuthStage>;
   if (frame === '4b') return <PorticoServerSignIn serverName="Portico demo" onContinue={() => record('portico')} onRecovery={() => record('recovery')} onOldPassword={() => record('old-password')} />;
   return <LocalServerSignIn serverName="Portico demo" initialUsername="nana_r" remembered={remembered}
     onSignIn={(username, password) => record('sign-in', {username, password})} onForgotPassword={() => record('forgot-password')} onJoin={() => record('join')} />;
