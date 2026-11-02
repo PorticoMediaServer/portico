@@ -555,6 +555,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     : view === 'artist' && search.entityId ? <ArtistScreen context={context} libraryId={library.id} artistId={search.entityId}
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />
     : view === 'album' && search.entityId ? <AlbumScreen context={context} libraryId={library.id} albumId={search.entityId} actions={actions}
+      onArtist={artistId => navigate({view: 'artist', entityId: artistId})}
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />
     : browse ? <LibraryScreen {...bindings}/> : <LibraryDiscoveryScreen menuContext={context} service={resources.service} route={contentRoute} musicMixes={musicMixes} mixesTarget={search.section === 'mixes'} reportError={context.effects.reportError} header={<LibraryIdentity {...header}/>} empty={empty}
       appearance={appearanceBase} preferences={appearance} reducedMotion={appearance.reducedMotion} artwork={context.artwork} env={bindings.env}

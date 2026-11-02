@@ -8,7 +8,7 @@ import {browseNameId} from '@core/presentation/browse-toolbar.ts';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {serviceI18n} from '@core/presentation/service-text.ts';
 import {defaultI18n} from '@i18n';
-import {AmbientArt} from '../../kit/artwork';
+import {AmbientArt, Artwork} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
 import {Lockup} from '../../kit/layout';
 import {SortMenu, TrackTable} from '../../kit/browse';
@@ -29,7 +29,9 @@ import {MusicDetailLoading} from './MusicLoading';
 import styles from './album.module.css';
 
 export type AlbumActions = (entry: ContentEntry) => Readonly<{onOpen: () => void; onPlay?: () => void}>;
-export type AlbumScreenProps = Readonly<{context: ScreenContext; libraryId: string; albumId: string; actions: AlbumActions; onBack?: () => void}>;
+export type AlbumScreenProps = Readonly<{context: ScreenContext; libraryId: string; albumId: string; actions: AlbumActions; onBack?: () => void;
+  /** Opens the album artist's page (the hero's artist name is a link, desktop-listen#album). */
+  onArtist?: (artistId: string) => void}>;
 type Page = Readonly<{context: ScreenContext; libraryId: string; albumId: string; life: ReturnType<typeof screenLifetime>; service: LibraryContentService; snapshot: LibraryContentSnapshot}>;
 type Similar = Readonly<{life: Page['life']; projection: ContentProjection; value: ListeningSimilarRead; scope: ListeningViewerScope}>;
 type OpenMenu = Readonly<{page: Page; projection: ContentProjection; seed: ContentEntry; anchor: HTMLButtonElement}>;
@@ -37,7 +39,7 @@ type OpenMenu = Readonly<{page: Page; projection: ContentProjection; seed: Conte
 /** The canonical album route owns a fresh service/lease on each effect setup,
  * including Strict Mode replay. The server's entity supplies complete header
  * facts; track pages are read only when the person asks for the next page. */
-export function AlbumScreen({context, libraryId, albumId, onBack}: AlbumScreenProps) {
+export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: AlbumScreenProps) {
   const width = useShellWidth(), phone = width < 1024, more = useRef<HTMLButtonElement>(null);
   const pages = usePageMemory();
   const key = JSON.stringify(['album-page', context.scope.serverId, context.scope.viewerId, libraryId, albumId]);
@@ -107,8 +109,11 @@ export function AlbumScreen({context, libraryId, albumId, onBack}: AlbumScreenPr
     && (menu.seed === album || songs.includes(menu.seed));
   const menuAnchor = {current: menu?.anchor ?? null};
   const recommendations = similar?.life === life && similar.projection === projection ? similar : undefined;
-  const long = album.title.length > 24, locale = env.locale ?? 'en', genres = album.genres?.filter(Boolean) ?? [];
-  const metaParts: FactPart[] = [...parts, ...(genres.length ? [{id: 'genres', role: 'supplement' as const, text: genres.join(', ')}] : [])];
+  // desktop-listen#album sets After Hours (11 characters) at the xl size; music-plus#album sets
+  // Abbey Road (2019 Mix) (21) at the long one. Past 16 characters the xl line no longer fits.
+  const long = album.title.length > 16, locale = env.locale ?? 'en', genres = album.genres?.filter(Boolean) ?? [];
+  // desktop-listen#album: artist, year, genre, then the song count.
+  const metaParts: FactPart[] = [...parts.filter(part => part.id === 'year'), ...(genres.length ? [{id: 'genres', role: 'supplement' as const, text: genres.join(', ')}] : []), ...parts.filter(part => part.id !== 'year')];
   const details: [string, string][] = [];
   const fact = (label: string, value: string | number | null | undefined) => {if (value !== undefined && value !== null && value !== '') details.push([label, String(value)]);};
   fact(t('title.year'), album.year && album.year > 0 ? defaultI18n.number(album.year, {useGrouping: false}) : undefined);
@@ -129,9 +134,15 @@ export function AlbumScreen({context, libraryId, albumId, onBack}: AlbumScreenPr
       <div className={styles.copy}>
         <p className={styles.kind}>{t('next.browse.album')}</p>
         <Lockup title={album.title} long={long} platform={phone ? 'phone-web' : 'desktop'} className={styles.title}
-          style={{fontSize: undefined, fontWeight: undefined, lineHeight: undefined}}/>
+          style={{fontSize: undefined, fontWeight: undefined, lineHeight: undefined, letterSpacing: undefined}}/>
         <div className={styles.meta}>
-          {album.artist?.name && <span className={styles.by}>{album.artist.name}</span>}
+          {album.artist?.name && (() => {
+            const mini = album.posterUrl ? <span className={styles.mini} aria-hidden="true"><Artwork source={context.artwork.foreground(album.posterUrl, 56, 1)} alt="" width="100%" height="100%"/></span> : null;
+            const artistId = album.artist.id;
+            return onArtist && artistId
+              ? <a className={styles.by} href={`/library/${encodeURIComponent(libraryId)}?${new URLSearchParams({view: 'artist', entityId: artistId})}`} onClick={event => {if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); runScreenCommand(context, () => {if (life.current()) onArtist(artistId);});}}>{mini}{album.artist.name}</a>
+              : <span className={styles.by}>{mini}{album.artist.name}</span>;
+          })()}
           <TitleFactsLine parts={metaParts}/>
           {badges.length > 0 && <span className={styles.badges}>{badges.map(badge => {
             const label = typeof badge === 'string' ? badge : formatSignalText(badge, t);

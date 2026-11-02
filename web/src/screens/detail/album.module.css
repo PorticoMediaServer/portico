@@ -15,13 +15,19 @@
 .copy { min-width: 0; padding-bottom: 4px; }
 .kind { margin: 0 0 12px; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-secondary); }
 /* Clear Lockup's inline scale at the call site so these responsive tokens own it. */
-.title { --album-title-size: calc(var(--type-fixed-size-16px) * 6.5); max-width: 900px; margin-bottom: 22px; font-size: var(--album-title-size); font-weight: var(--type-lockup-weight); line-height: var(--type-fixed-line-point-98); }
-.title[data-long] { --album-title-size: calc(var(--type-fixed-size-17px) * 4); }
-.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 0; }
+.title { --album-title-size: calc(var(--type-fixed-size-16px) * 6.5); max-width: 900px; margin-bottom: 22px; font-size: var(--album-title-size); font-weight: var(--type-lockup-weight); line-height: var(--type-fixed-line-point-94); letter-spacing: var(--type-fixed-tracking-minus-point-045em); text-wrap: balance; overflow-wrap: anywhere; }
+.title[data-long] { --album-title-size: calc(var(--type-fixed-size-17px) * 4); line-height: var(--type-fixed-line-point-98); }
+/* A very long title keeps the hero's shape: three lines, then an ellipsis (about 75 characters fit; the full title stays in the heading text). */
+.title[data-long] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 0; }
 .unplayable { margin: 10px 0 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-secondary); }
-.by { font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
+.by { display: inline-flex; align-items: center; gap: 10px; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-700); color: var(--color-text); text-decoration: none; }
+a.by:hover { text-decoration: underline; }
+.mini { flex: none; width: 28px; height: 28px; overflow: hidden; border-radius: 50%; }
 .artist { margin: 6px 0 10px; font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-caption-strong-weight); color: var(--color-text-secondary); }
-.meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 26px; }
+.meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 26px; font-size: var(--type-fixed-size-15px); }
+/* The facts line's own items join this row, as desktop-listen draws one meta row, not a nested one. */
+.meta > div { display: contents; }
 .split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 72px; padding-top: 52px; margin-bottom: 56px; }
 .full { display: grid; grid-template-columns: minmax(0, 1fr); padding-top: 52px; margin-bottom: 56px; }
 .tracks { min-width: 0; }
@@ -37,6 +43,13 @@
 .source { display: block; margin: -8px 0 24px; color: var(--color-text-tertiary); font-size: var(--type-caption-size); }
 .badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
 .badge { display: inline-flex; align-items: center; height: 26px; padding: 0 9px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--color-text) 30%, transparent); font-size: var(--type-fixed-size-13px); font-weight: var(--type-caption-strong-weight); color: var(--color-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 1279px) {
+  .hero { gap: 40px; }
+  .art { width: 280px; height: 280px; }
+  .title { --album-title-size: calc(var(--type-fixed-size-21px) * 4); }
+  .title[data-long] { --album-title-size: var(--type-fixed-size-56px); }
+  .split { grid-template-columns: minmax(0, 1fr) 280px; gap: 40px; }
+}
 @media (max-width: 1023px) {
   .hero { gap: 32px; }
   .art { width: 260px; height: 260px; }
@@ -49,12 +62,15 @@
   .page { padding: 12px 16px 64px; }
   .hero { flex-direction: column; align-items: center; gap: 16px; text-align: center; }
   .copy { width: 100%; }
-  .title, .title[data-long] { --album-title-size: var(--type-fixed-size-30px); font-weight: var(--type-fixed-weight-800); }
+  .hero { gap: 20px; }
+  .title[data-long] { display: block; -webkit-line-clamp: unset; overflow: visible; }
+  .title, .title[data-long] { --album-title-size: var(--type-fixed-size-30px); margin-bottom: 4px; font-weight: var(--type-fixed-weight-800); line-height: var(--type-fixed-line-1point-1); letter-spacing: var(--type-fixed-tracking-minus-point-035em); }
   .kind { display: none; }
-  .by { font-size: var(--type-fixed-size-16px); font-weight: var(--type-fixed-weight-700); color: var(--color-accent-strong); }
+  /* phone-app #r5: the artist on its own line, then one centred meta row. */
+  .by { flex-basis: 100%; justify-content: center; font-size: var(--type-fixed-size-16px); color: var(--color-accent-strong); }
+  .mini { display: none; }
   .art { width: 232px; height: 232px; }
-  .meta { flex-direction: column; justify-content: center; }
-  .meta > div { font-size: var(--type-fixed-size-13px); }
+  .meta { justify-content: center; gap: 8px 12px; margin-bottom: 18px; font-size: var(--type-fixed-size-13px); }
   .actions, .badges { justify-content: center; }
   .badge { font-size: var(--type-fixed-size-11px); height: 20px; padding: 0 6px; border-radius: 4px; }
 }
