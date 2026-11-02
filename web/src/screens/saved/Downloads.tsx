@@ -116,7 +116,7 @@ export function LocalDownloads({port, operations, effects, server}: {port: Saved
   return <div className={styles.downloadColumns} data-mode="local">
     <div>
       {snapshot.phase === 'error' && !snapshot.items.length ? <StateView title={t('downloads.openFailed')} primary={{id: 'retry', label: t('action.tryAgain'), onPress: () => perform('refresh', signal => port.refresh(signal))}} /> : null}
-      {snapshot.phase === 'ready' && !snapshot.items.length && <StateView title={t('downloads.emptyTitle')} body={t('downloads.emptyBody')} />}
+      {snapshot.phase === 'ready' && !snapshot.items.length && <StateView variant="empty" icon="i-dl" title={t('downloads.emptyTitle')} body={t('downloads.emptyBody')} />}
       {groups.map(group => {
         const count = group.kind === 'show' ? snapshot.groups?.filter(total => total.kind === 'episodes' && total.parentId === group.id.slice(5)).reduce((sum, total) => sum + total.count, 0) : undefined;
         return <section key={group.id}>
@@ -254,7 +254,7 @@ export function ServerDownloads({service, operations, effects, artwork, online, 
   return <div className={styles.serverDownloads} data-embedded={embedded || undefined}>
     <div className={styles.downloadHeading}><h2>{embedded ? t('downloads.onServer') : s('next.saved.prepared')}</h2>{!embedded && snapshot.usage && <span>{t('web.downloads.usage', {size: defaultI18n.bytes(snapshot.usage.profileBytes)})}</span>}</div>
     {!embedded && <p className={styles.browserNote}><Icon name="i-info" size={18} />{s('next.saved.browserNote')}</p>}
-    {snapshot.phase === 'ready' && !snapshot.items.length && !snapshot.requests.length && !embedded && <StateView title={t('web.downloads.emptyTitle')} body={t('web.downloads.emptyBody')} />}
+    {snapshot.phase === 'ready' && !snapshot.items.length && !snapshot.requests.length && !embedded && <StateView variant="empty" icon="i-dl" title={t('web.downloads.emptyTitle')} body={t('web.downloads.emptyBody')} />}
     <SavedDialog width={380} open={!embedded && snapshot.phase === 'error' && snapshot !== dismissedFailure} onOpenChange={open => { if (!open) setDismissedFailure(snapshot); }} title={s('next.saved.loadFailed')} description={s('next.saved.loadFailedBody')}
       footer={<><Button size="small" onClick={() => setDismissedFailure(snapshot)}>{t('action.close')}</Button><Button size="small" variant="primary" disabled={!online} onClick={() => { setDismissedFailure(snapshot); void service.refresh(); }}>{t('action.tryAgain')}</Button></>}>
       <Fragment />

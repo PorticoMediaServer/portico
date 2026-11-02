@@ -109,7 +109,8 @@
 .editor { flex: 1; min-height: 0; max-width: none; gap: 0; padding: 0; border-radius: 0; box-shadow: none; background: var(--color-raised); overflow: hidden; }
 .editorHead { display: block; flex: none; }
 .editorHead h2 { margin: 16px 0 6px; font-size: calc(var(--type-body-size) * 32 / 15); line-height: calc(var(--type-body-size) * 176 / 75); font-weight: var(--type-lockup-weight); }
-.editorTabs { flex: none; margin: 0; padding: 0 32px; overflow-x: auto; white-space: nowrap; }
+.editorTabs { flex: none; margin: 0; padding: 0 32px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.editorTabs::-webkit-scrollbar { display: none; }
 .editorTabs button { padding: 12px 0 11px; }
 .editor > .fields, .editor > .generalFields, .editor > .artwork { flex: 1; min-height: 0; overflow: auto; padding: 22px 32px 18px; }
 .generalFields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-content: start; gap: 18px 20px; }
