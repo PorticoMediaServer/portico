@@ -56,14 +56,14 @@ jobs:
         '
     - name: Replay the exact assertion on baseline and PR
       working-directory: apps/native
-      run: "mkdir -p \"$RUNNER_TEMP/reports\"\nfailed=0\nfor sample in $(seq 1 12); do\n if node --experimental-transform-types\
-        \ --import ./test/register.mjs --test test/next-standard-home-app.test.ts > \"$RUNNER_TEMP/reports/replay-$sample.log\"\
-        \ 2>&1; then\n  echo \"$sample pass\" >> \"$RUNNER_TEMP/reports/results.txt\"\n else\n  echo \"$sample fail\" >> \"\
-        $RUNNER_TEMP/reports/results.txt\"\n  failed=$((failed+1))\n fi\ndone\ncat \"$RUNNER_TEMP/reports/results.txt\"\n\
-        test \"$failed\" = 0\n"
+      run: "mkdir -p \"$RUNNER_TEMP/reports\"\nfailed=0\nfor batch in 1 2 3 4; do\n pids=\"\"\n for worker in 1 2 3 4; do\n\
+        \  sample=\"$batch-$worker\"\n  node --experimental-transform-types --import ./test/register.mjs --test test/next-standard-home-app.test.ts\
+        \ > \"$RUNNER_TEMP/reports/replay-$sample.log\" 2>&1 &\n  pids=\"$pids $!\"\n done\n for pid in $pids; do\n  if wait\
+        \ \"$pid\"; then echo \"$pid pass\" >> \"$RUNNER_TEMP/reports/results.txt\"; else echo \"$pid fail\" >> \"$RUNNER_TEMP/reports/results.txt\"\
+        ; failed=$((failed+1)); fi\n done\ndone\ncat \"$RUNNER_TEMP/reports/results.txt\"\ntest \"$failed\" = 0\n"
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
-        name: native-home-replay-${{ matrix.variant }}
+        name: native-home-pressure-${{ matrix.variant }}
         path: ${{ runner.temp }}/reports
         retention-days: 7
