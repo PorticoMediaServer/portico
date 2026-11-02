@@ -657,3 +657,16 @@ test('J-1: a platform without a single-title editor for the entry falls back to 
   assert.ok(requests.some(path => path.includes('/metadata/bulk/preview')), 'the selection editor asked for its preview');
   h.controller.dispose();
 });
+
+test('J-28: a season card with no playable next episode still opens its menu, without playback actions', () => {
+  const season = {...entry('season-1', 'season'), playback: undefined} as unknown as HomeEntry;
+  const h = harness([entry('a'), season]);
+  assert.ok(h.controller.registerWindow({id: 'window', row: h.document.rows[0], sectionOrder: 0}).ok);
+  h.controller.openMenu('window', h.controller.key({kind: 'season', id: 'season-1', libraryId: 'library'}));
+  const menu = h.controller.getSnapshot().menu;
+  assert.ok(menu, 'the menu opens');
+  const ids = menu.groups.flatMap(group => group.actions.map(action => action.id));
+  for (const id of ['play', 'resume', 'playFromStart', 'playNext', 'addToQueue']) assert.equal(ids.includes(id as never), false, id);
+  assert.ok(ids.includes('watchlist' as never) || ids.length > 0, 'other actions stay');
+  h.controller.dispose();
+});

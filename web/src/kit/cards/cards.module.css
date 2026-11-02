@@ -447,7 +447,11 @@
   .card:has(.more) .watched { right:46px; }
 }
 @media (pointer:coarse) {
-  .play, .more, .notInterested { min-width:44px; min-height:44px; }
+  .play, .notInterested { min-width:44px; min-height:44px; }
+  /* J-28: on touch the ⋯ stays a small 28px glyph in the corner, so it doesn't crowd the poster; an invisible
+     ring keeps the 44px touch target. */
+  .more { width:28px; height:28px; top:4px; right:4px; }
+  .more::after { content:''; position:absolute; inset:-8px; border-radius:50%; }
   .notInterestedPosition { right:60px; }
   .card:has(.more) .watched { right:60px; }
 }

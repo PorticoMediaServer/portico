@@ -351,8 +351,12 @@ export class HomeSelectionController {
   }
   private menuGroups(member: HomeSelectionMember) {
     const platform = this.platform();
-    return entryActions(member.entry ? homeEntryCapabilities(member.entry, platform) : member.collection ? homeCollectionCapabilities(member.collection, platform)
+    const groups = entryActions(member.entry ? homeEntryCapabilities(member.entry, platform) : member.collection ? homeCollectionCapabilities(member.collection, platform)
       : member.channel ? {kind: 'channel', playable: member.item.capabilities.play, ...(member.item.capabilities.favorite ? {favorite: member.channel.channel.favorite} : {})} : {});
+    if (!member.entry || member.playbackTarget) return groups;
+    // No playable target: the menu keeps every other action and leaves out playback.
+    const playback = new Set<EntryActionId>(['play', 'resume', 'playFromStart', 'playNext', 'addToQueue']);
+    return groups.map(group => ({...group, actions: group.actions.filter(action => !playback.has(action.id))})).filter(group => group.actions.length > 0);
   }
   private retainsGrants(menu: HomeSelectionMenu, member: HomeSelectionMember) {
     const normalize = (action: EntryActionId) => action === 'resume' || action === 'playFromStart' ? 'play' : action;
@@ -366,8 +370,10 @@ export class HomeSelectionController {
     const entryMember = (entry: HomeEntry, target = entry): HomeSelectionMember | undefined => {
       const item = homeEntrySelection(entry, platform);
       if (!item || this.key(item) !== key || entry.available === false) return;
-      if ((item.capabilities.play || homeEntryCapabilities(entry, platform).playable) && (target.available === false || !target.playback?.itemId || target.libraryId !== entry.libraryId)) return;
-      return {item, entry, playbackTarget: target};
+      // A card with no playable target (a season or show without a ready next episode) still opens its menu;
+      // it simply offers no Play (J-28: the phone sheet refused it and showed only an error).
+      const playable = target.available !== false && !!target.playback?.itemId && target.libraryId === entry.libraryId;
+      return playable ? {item, entry, playbackTarget: target} : {item, entry};
     };
     if (source.kind === 'spotlight') {
       const found = this.options.home.getSnapshot().document?.spotlight.flatMap((spotlight, index) => {
