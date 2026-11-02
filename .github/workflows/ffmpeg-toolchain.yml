@@ -23,6 +23,10 @@ on:
         description: Read official upstream effective inventories only
         type: boolean
         default: false
+      sourceCacheOnly:
+        description: Seed and verify dependency source snapshots only; no compiler or engine
+        type: boolean
+        default: false
       reuseWindowsArtifact:
         description: Native-only development retest of the explicitly pinned Windows artifact
         type: boolean
@@ -92,7 +96,7 @@ jobs:
         env:
           COLD_TARGET: ${{ inputs.target || 'all' }}
           REUSE_WINDOWS_ARTIFACT: ${{ inputs.reuseWindowsArtifact }}
-          OTHER_MODES: ${{ inputs.controlsOnly || inputs.cacheControls || inputs.upstreamComparison }}
+          OTHER_MODES: ${{ inputs.controlsOnly || inputs.cacheControls || inputs.upstreamComparison || inputs.sourceCacheOnly }}
         run: |
           if [[ "$REUSE_WINDOWS_ARTIFACT" == true && ( "$COLD_TARGET" != windows-x64 || "$OTHER_MODES" == true ) ]]; then
             echo 'Development artifact reuse requires only the explicit Windows x64 native mode' >&2
@@ -129,7 +133,7 @@ jobs:
     name: Cold build (${{ matrix.target }})
     env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
     needs: controls
-    if: '!inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !inputs.reuseWindowsArtifact'
+    if: '!inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !inputs.reuseWindowsArtifact && !inputs.sourceCacheOnly'
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
@@ -258,7 +262,7 @@ jobs:
           if-no-files-found: error
   native-plan:
     needs: [controls, build]
-    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !inputs.reuseWindowsArtifact
+    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !inputs.reuseWindowsArtifact && !inputs.sourceCacheOnly
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -422,6 +426,42 @@ jobs:
           path: ${{ runner.temp }}/prefix-cache-reuse.json
           retention-days: 7
 
+  source-cache-seed-control:
+    needs: controls
+    if: inputs.sourceCacheOnly && !inputs.reuseWindowsArtifact && github.repository == 'PorticoMediaServer/portico'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
+    strategy:
+      fail-fast: false
+      matrix: {target: [windows-x64, linux-arm64]}
+    defaults:
+      run: {shell: bash}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/engine-download-cache
+          key: engine-downloads-v1-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: engine-downloads-v1-${{ matrix.target }}-
+      - name: Restore only pinned corresponding-source snapshots, never binaries
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/seed-engine-download-cache.py --store "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-source-seed"
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: always()
+        with:
+          path: ${{ runner.temp }}/engine-download-cache
+          key: engine-downloads-v1-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: source-cache-seed-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/engine-source-seed/*.json
+          retention-days: 14
+          if-no-files-found: warn
   windows-native-retry:
     needs: controls
     if: inputs.reuseWindowsArtifact && !inputs.controlsOnly && !inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
