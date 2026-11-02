@@ -64,7 +64,6 @@ export type DiscoverySelectionInput = Readonly<{
   service: LibraryContentService;
   route: Readonly<{view?: string; entityId?: string; libraryId: string}>;
   principal: Omit<BrowseSelectionScope, 'viewId'>;
-  metadataFence: () => string | undefined;
   playback?: WebShellPlaybackRuntime;
 }>;
 type Built = Readonly<{owners: readonly unknown[]; selection: CatalogueDocumentSelection}>;
@@ -74,10 +73,10 @@ type Built = Readonly<{owners: readonly unknown[]; selection: CatalogueDocumentS
  * windows, and the previous selection is never returned under new inputs. */
 export function useDiscoverySelection(input: DiscoverySelectionInput | undefined): CatalogueDocumentSelection | undefined {
   const [built, setBuilt] = useState<Built>();
-  const context = input?.context, service = input?.service, playback = input?.playback, metadataFence = input?.metadataFence;
+  const context = input?.context, service = input?.service, playback = input?.playback;
   const libraryId = input?.route.libraryId, view = input?.route.view ?? '', entityId = input?.route.entityId ?? '';
   const serverId = input?.principal.serverId, authority = input?.principal.authority, accountId = input?.principal.accountId, profileId = input?.principal.profileId;
-  const owners = [context, service, libraryId, view, entityId, serverId, authority, accountId, profileId, metadataFence, playback] as const;
+  const owners = [context, service, libraryId, view, entityId, serverId, authority, accountId, profileId, playback] as const;
   const current = built && owners.every((owner, index) => owner === built.owners[index]) && owners.length === built.owners.length ? built.selection : undefined;
   // The effect keeps the input it was admitted with; the explicit owner list below
   // is its exact dependency set, so a changed screen, viewer or playback owner
@@ -87,13 +86,13 @@ export function useDiscoverySelection(input: DiscoverySelectionInput | undefined
   useLayoutEffect(() => {
     const captured = admittedInput.current;
     if (!captured) {setBuilt(undefined); return;}
-    const capturedOwners = [context, service, libraryId, view, entityId, serverId, authority, accountId, profileId, metadataFence, playback];
+    const capturedOwners = [context, service, libraryId, view, entityId, serverId, authority, accountId, profileId, playback];
     const selection = createCatalogueDocumentSelection(captured.context,
       discoveryDocumentSource({service: captured.service, route: captured.route, isCurrent: () => captured.context.isCurrent()}),
-      captured.principal, captured.metadataFence, captured.playback);
+      captured.principal, captured.playback);
     selection.start();
     setBuilt({owners: capturedOwners, selection});
     return () => {selection.dispose(); setBuilt(held => held?.selection === selection ? undefined : held);};
-  }, [context, service, libraryId, view, entityId, serverId, authority, accountId, profileId, metadataFence, playback]);
+  }, [context, service, libraryId, view, entityId, serverId, authority, accountId, profileId, playback]);
   return current;
 }
