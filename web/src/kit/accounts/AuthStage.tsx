@@ -12,7 +12,7 @@ const t = defaultI18n.t;
 /** `shape` and `phoneShape` are kept for callers but no longer change anything: every stage draws
  * the one standard backdrop (kit/backdrop.css), which already carries the phone band. */
 export function AuthStage({children, layout = 'column', service = false, topRight, legal = true, bare = false, className, contentClassName}: {
-  children: ReactNode; shape?: 'side' | 'round' | 'top'; phoneShape?: 'side' | 'round' | 'top'; layout?: 'column' | 'center'; service?: boolean; topRight?: ReactNode; legal?: boolean; bare?: boolean;
+  children: ReactNode; shape?: 'side' | 'round' | 'top'; phoneShape?: 'side' | 'round' | 'top'; layout?: 'column' | 'center' | 'state'; service?: boolean; topRight?: ReactNode; legal?: boolean; bare?: boolean;
   className?: string; contentClassName?: string;
 }) {
   // A bare stage keeps the same content and controls inside a dialog, without the
