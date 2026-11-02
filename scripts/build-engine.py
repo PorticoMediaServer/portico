@@ -154,6 +154,9 @@ def cached_mounts(text):
 
 def download_sources(recipe, execute, update=lambda _: None):
     results, failed = {}, set()
+    store = os.environ.get('PORTICO_ENGINE_DOWNLOAD_CACHE')
+    download_cache = __import__('runpy').run_path(str(ROOT / 'scripts/engine-download-cache.py'))
+    if store: download_cache['sync']('restore', recipe, Path(store))
     for script, archive in inputs.source_pairs(recipe, require_files=False).items():
         try:
             execute(script)
@@ -162,6 +165,7 @@ def download_sources(recipe, execute, update=lambda _: None):
             failed.add(archive)
             results[script] = {'state': 'failed', 'error': str(error)}
         update(results)
+        if store: download_cache['sync']('save', recipe, Path(store))
     return results, failed
 
 
@@ -302,7 +306,7 @@ def main():
             '--build-context', base_context + '=oci-layout://' + str(base_oci), 'images/base-win64'], recipe, compiler_env)
         compiler_id = subprocess.check_output(['docker', 'image', 'inspect', '-f', '{{.Id}}', compiler], text=True).strip()
         d3d11_control = state / 'd3d11-c-interface.c'
-        d3d11_control.write_text('#include <d3d11.h>\nvoid portico_control(ID3D11DeviceContext *context, '
+        d3d11_control.write_text('#include <d3d11.h>\n#include <d3dcompiler.h>\nvoid portico_control(ID3D11DeviceContext *context, '
                                 'ID3D11Texture2D *texture) { ID3D11DeviceContext_Flush(context); '
                                 'ID3D11Texture2D_Release(texture); }\n')
         run('d3d11-c-interface', ['docker', 'run', '--rm', '--network', 'none', '--cpus', '1', '--memory', '512m',

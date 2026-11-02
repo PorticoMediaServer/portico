@@ -11,7 +11,7 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGETS = ('windows-x64', 'linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64')
+TARGETS = ('windows-x64', 'linux-x64', 'linux-arm64', 'macos-arm64')
 
 
 def digest(path):
@@ -24,8 +24,7 @@ def compiler(target):
     if target.startswith('macos-'):
         result.update(xcode=subprocess.check_output(['xcodebuild', '-version'], text=True).strip(),
             sdk=subprocess.check_output(['/usr/bin/xcrun', '--show-sdk-version'], text=True).strip(),
-            clang=subprocess.check_output(['/usr/bin/xcrun', 'clang', '--version'], text=True).strip(),
-            image=os.environ.get('ImageVersion'))
+            clang=subprocess.check_output(['/usr/bin/xcrun', 'clang', '--version'], text=True).strip())
         result['toolSHA256'] = {}
         for name in ('clang', 'clang++', 'ld', 'libtool', 'ar', 'install_name_tool'):
             path = Path(subprocess.check_output(['/usr/bin/xcrun', '--find', name], text=True).strip()).resolve(strict=True)
@@ -38,7 +37,7 @@ def compiler(target):
     else:
         # Compiler stage keys additionally bind actual resolved base/target
         # image digests. This is a transport namespace, never an image pin.
-        result.update(recipe=lock['btbn']['commit'], image=os.environ.get('ImageVersion'))
+        result.update(recipe=lock['btbn']['commit'])
     return result
 
 

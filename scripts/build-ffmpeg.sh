@@ -58,9 +58,9 @@ python3 "$ROOT/scripts/prepare-ffmpeg-source.py" "$PREPARED_SOURCE" --archive "$
 python3 "$ROOT/scripts/archive-ffmpeg-source.py" "$PREPARED_SOURCE" "$SOURCE" "$SOURCE_DATE_EPOCH"
 if [[ "${PORTICO_FFMPEG_SOURCE_ONLY:-0}" == 1 ]]; then echo "$SOURCE"; exit 0; fi
 case "$TARGET" in
- macos-arm64|macos-x64)
+ macos-arm64)
   [[ "$(uname -s)" == Darwin ]]
-  expected=arm64; [[ "$TARGET" == macos-x64 ]] && expected=x86_64
+  expected=arm64
   [[ "$(uname -m)" == "$expected" ]] || { echo 'Use a native runner for this architecture' >&2;exit 1; }
   if [[ ! -d "$WORK/recipe/.git" && -d "$WORK/recipe/.git.bak" ]]; then mv "$WORK/recipe/.git.bak" "$WORK/recipe/.git"; fi
   [[ -d "$WORK/recipe/.git" ]] || git clone "$(readlock macosRecipe repository)" "$WORK/recipe"
@@ -68,24 +68,6 @@ case "$TARGET" in
   for patch in homebridge-sourceforge-download.patch homebridge-gpl-only.patch homebridge-arm64-vpx.patch homebridge-private-python.patch homebridge-zix-build.patch homebridge-private-pkgconfig.patch; do
     if git -C "$WORK/recipe" apply --check "$ROOT/third_party/ffmpeg/patches/$patch"; then git -C "$WORK/recipe" apply "$ROOT/third_party/ffmpeg/patches/$patch"; else git -C "$WORK/recipe" apply --reverse --check "$ROOT/third_party/ffmpeg/patches/$patch"; fi
   done
-  # Reviewed PIC assembly for Intel's position-independent Nettle link. This
-  # patch is deliberately absent from the ARM recipe, including its flags.
-  if [[ "$TARGET" == macos-x64 ]]; then
-    python3 - "$ROOT/third_party/ffmpeg/sources.lock.json" "$ROOT" <<'PYGMPPATCH'
-import hashlib,json,pathlib,sys
-entry=json.load(open(sys.argv[1]))['macosRecipe']['intelGmpPicPatch']
-path=pathlib.Path(sys.argv[2])/entry['path']
-if (entry['target']!='macos-x64' or entry['path']!='third_party/ffmpeg/patches/homebridge-intel-gmp-pic.patch' or
-        path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest()!=entry['sha256']):
-    raise SystemExit('Checked Intel GMP PIC patch changed')
-PYGMPPATCH
-    gmp_patch="$ROOT/third_party/ffmpeg/patches/homebridge-intel-gmp-pic.patch"
-    if git -C "$WORK/recipe" apply --check "$gmp_patch"; then
-      git -C "$WORK/recipe" apply "$gmp_patch"
-    else
-      git -C "$WORK/recipe" apply --reverse --check "$gmp_patch"
-    fi
-  fi
   # Build tools and downloads are private to this job; never upgrade system Python.
   python3 -m venv "$WORK/python"
   "$WORK/python/bin/pip" install --disable-pip-version-check 'ninja==1.11.1.4' 'setuptools==75.8.0'
@@ -97,8 +79,9 @@ PYGMPPATCH
     PORTICO_FFMPEG_TARGET="$TARGET" python3 "$ROOT/scripts/macos-dependency-cache.py" configure --recipe "$WORK/recipe"
   fi
   # Seed the exact verified source consumed by the pinned recipe.
-  mkdir -p "$WORK/recipe/packages";python3 "$ROOT/scripts/archive-ffmpeg-source.py" "$PREPARED_SOURCE" "$WORK/recipe/packages/FFmpeg-release-$VERSION.tar.gz" "$SOURCE_DATE_EPOCH"
+  python3 "$ROOT/scripts/macos-ffmpeg-source.py" seed --recipe "$WORK/recipe" --source "$SOURCE"
   (cd "$WORK/recipe" && PORTICO_FFMPEG_TARGET="$TARGET" FFMPEG_VERSION="$VERSION" SKIPINSTALL=yes SKIPRAV1E=yes ./build-ffmpeg --build --enable-gpl)
+  python3 "$ROOT/scripts/macos-ffmpeg-source.py" verify --recipe "$WORK/recipe" >/dev/null
   INPUT="$WORK/recipe/workspace"
   python3 "$ROOT/scripts/build-portico-disc.py" --source "$WORK/checked-portico-disc.c" --source-commit "$PORTICO_DISC_SOURCE_COMMIT" --prefix "$INPUT" --output "$INPUT/bin/portico-disc" --metadata "$INPUT/portico-disc-build.json" --target "$TARGET"
   cp "$WORK/checked-portico-disc.LICENSE" "$INPUT/portico-disc-LICENSE"
@@ -226,11 +209,11 @@ cp "$ROOT/third_party/ffmpeg/"*.json "$ROOT/third_party/ffmpeg/NOTICE.md" "$WORK
 cp "$WORK/build-source-authority.json" "$WORK/provenance/contract/"
 if [[ -f "$WORK/meson-tool.json" ]]; then cp "$WORK/meson-tool.json" "$WORK/provenance/"; fi
 cp -R "$ROOT/third_party/ffmpeg/patches" "$WORK/provenance/contract/"
-cp "$ROOT/scripts/build-ffmpeg.sh" "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$ROOT/scripts/patch-btbn-winarm64-system-error.sh" "$ROOT/scripts/prepare-ffmpeg-source.py" "$ROOT/scripts/archive-ffmpeg-source.py" "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/provenance/scripts/"
-if [[ "$TARGET" == macos-* ]]; then cp "$ROOT/scripts/build-macos-libdovi.py" "$ROOT/scripts/build-linux-libdovi.py" "$ROOT/scripts/build-macos-zvbi.sh" "$ROOT/scripts/ffmpeg-rust-tools.py" "$WORK/provenance/scripts/"; fi
+cp "$ROOT/scripts/build-ffmpeg.sh" "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$ROOT/scripts/patch-btbn-winarm64-system-error.sh" "$ROOT/scripts/prepare-ffmpeg-source.py" "$ROOT/scripts/archive-ffmpeg-source.py" "$ROOT/scripts/configure-ffmpeg-recipe.py" "$ROOT/scripts/configure-ffmpeg-bzip2.py" "$ROOT/scripts/ffmpeg-configure-checks.py" "$WORK/provenance/scripts/"
+if [[ "$TARGET" == macos-* ]]; then cp "$ROOT/scripts/build-macos-libdovi.py" "$ROOT/scripts/build-linux-libdovi.py" "$ROOT/scripts/build-macos-zvbi.sh" "$ROOT/scripts/ffmpeg-rust-tools.py" "$ROOT/scripts/macos-engine-runtime.py" "$ROOT/scripts/configure-macos-shaderc.py" "$ROOT/scripts/macos-ffmpeg-source.py" "$ROOT/scripts/prepare-macos-system-libs.py" "$WORK/provenance/scripts/"; fi
 cp "$ROOT/scripts/build-portico-disc.py" "$ROOT/scripts/build-macos-ffmpeg-extras.sh" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/engine-prefix-cache.py" "$ROOT/scripts/engine-dependency-cache.py" "$ROOT/scripts/macos-dependency-cache.py" "$WORK/provenance/scripts/"
-if [[ "$TARGET" == linux-arm64 ]]; then cp "$ROOT/scripts/engine-registry-cache.py" "$ROOT/scripts/repeat-btbn-ffmpeg.py" "$ROOT/scripts/engine-final-cache.py" "$ROOT/scripts/fetch-engine.py" "$WORK/provenance/scripts/"; fi
+if [[ "$TARGET" == linux-arm64 ]]; then cp "$ROOT/scripts/engine-registry-cache.py" "$ROOT/scripts/engine-download-cache.py" "$ROOT/scripts/repeat-btbn-ffmpeg.py" "$ROOT/scripts/engine-final-cache.py" "$ROOT/scripts/fetch-engine.py" "$WORK/provenance/scripts/"; fi
 cp "$ROOT/scripts/verify-ffmpeg-bundle.sh" "$ROOT/scripts/verify-ffmpeg-manifest.py" "$ROOT/scripts/verify-ffmpeg-features.py" "$ROOT/scripts/verify-disc-bundle.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-bluray.py" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/verify-ffmpeg-recipes.py" "$ROOT/scripts/verify-hdr10plus-encode.py" "$WORK/provenance/scripts/"

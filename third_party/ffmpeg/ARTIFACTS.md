@@ -63,11 +63,6 @@ separate slot for the Windows VM's entire powered lifetime. No install is implie
 by construction; the receipt lists installation, sealed startup and OS signing as
 unexercised. A Windows x64 VM does not qualify ARM64 execution.
 
-The manual `compiler_probe: intel-mac-gmp` mode runs the reviewed Intel-only
-GMP PIC assembly, upstream `make check`, and the unchanged Nettle `pkcs1-conv`
-link on an Intel Mac. It skips installer jobs and retains only dependency
-evidence/source for seven days. Passing that probe does not qualify an engine
-or installer. Intel Mac remains an engine/compiler target only.
 
 Portico follows pinned Jellyfin8.1.3-1's SVT-AV1 choice instead of rav1e.
 Every BtbN target removes the exact pinned rav1e stage before graph generation
@@ -159,8 +154,7 @@ inventory. The complete corresponding source ships alongside the collected texts
 ## Hosted cold toolchain runs
 
 `ffmpeg-toolchain.yml` starts Windows x64, Linux x64/ARM64 and native macOS
-ARM64 builds in parallel, with an optional Intel Mac attempt. Mac uses macos-15
-(or macos-15-intel). Windows ARM64 is deferred. The initial workflow deliberately
+ARM64 builds in parallel. Mac uses macos-15. Windows ARM64 is deferred. The initial workflow deliberately
 measures cold builds before adding cross-job checkpoint caching. Its branch-only
 push trigger bootstrapped the first run and is now removed. New runs use manual dispatch.
 There is no publisher or release pin in this slice.
@@ -283,3 +277,118 @@ proc-macro and target executable, records both linker invocations and executes
 the binary. This control and the actual compiler hashes are receipts, not final
 engine, ABI, hardware or compiler-source qualification. The dependency-only
 workflow proves this boundary without rebuilding FFmpeg for custody alone.
+
+Mac normalization carries only the already-selected Vulkan loader, MoltenVK
+and their ICD. Loader aliases are copied as regular bytes; all non-system
+Mach-O loads resolve to the contained selected libraries and all architectures
+must exactly match the target. Owned install names/rpaths and the ICD library
+path become bundle-relative before hashes and the engine manifest are sealed.
+macos-runtime-build.json records original and rewritten hashes/load commands;
+the native verifier independently rechecks the resulting closure. A native
+fixture deletes its original prefix and executes from an unrelated directory
+with loader/Vulkan overrides unset. This proves relocation of real Mach-O
+libraries, not a physical Vulkan device or automatic driver discovery in every
+application layout. App signing/notarisation must follow these rewrites; a later
+signature changes sealed bytes and belongs in the app's reviewed seal flow.
+This engine stage uses no signing identity, account or credential.
+
+The pinned MoltenVK generic Mac target can produce a universal arm64/x86_64
+dylib. For that selected library only, the packer extracts exactly the engine
+target's native slice before rewriting load paths and sealing. It records the
+original universal hash/architecture set and the selected slice hash. A missing
+target, unknown architecture, wrong-only library or mixed Vulkan loader still
+refuses; the final verifier requires one exact native architecture everywhere.
+A real two-slice native fixture executes the selected chain after deleting its
+original prefix. This adds no source, feature, tool or signing identity.
+
+The Mac shaderc stage selects the existing shaderc_combined pkg-config module,
+as the pinned BtbN stage does, and includes its system libc++ link dependency.
+It retains the original combined module unchanged, records both metadata hashes
+and the actual pkg-config flags in corresponding source, and adds no shared
+shaderc runtime. The real Mac runtime audit must still show no external shaderc
+load; metadata controls alone are not a library compilation or engine proof.
+
+Mac source checkout retains the exact reviewed Git object SHA. When that object
+is an annotated tag, HEAD must equal the commit peeled from that exact object;
+no floating tag name or fallback is used. Corresponding source records the
+original object, object type, checked-out commit and repository. A different
+existing checkout is refused. This changes no source pin or selected bytes.
+
+Mac extras execute in an unconditional subshell: their strict options, build
+directory and tool environment do not leak into Homebridge's remaining code,
+and their nonzero status still stops the parent. The final FFmpeg download is
+replaced with the already checked, post-series patched source archive, copied
+read-only under its SHA-256 filename. Its receipt binds the archive to the exact
+source lock; absence or mutation refuses before any upstream download. The
+recipe, receipt, original prepared archive and checking script remain in full
+corresponding source. A hosted control runs the actual pinned download function
+against an inert prepared-source sentinel and proves there is no fallback.
+
+Failed Mac packing can retain `engine-prepack-<target>-<sourceSHA>-NOT-FOR-USE`
+for **one day**. This is an opaque tar of the compiled prefix and complete
+corresponding-source archive, plus the checked contract inputs. Its separate
+receipt records the exact run/source/target, original prefix, file inventory,
+source/input hashes and tar hash/size. Contained file symlinks and contained framework directory aliases (including
+Versions/Current and Resources) are stored relative without dereferencing. External
+links, cycles, other directory aliases and special files are refused. Capture is atomic and rechecks
+inputs after writing. It runs only after all three tools and corresponding source
+exist; a capture failure never hides the original build failure. This recovery
+input is unqualified, unreleased and not ready for publication. It is not an
+engine intake artifact. A future repacker must verify the exact artifact and
+receipt hashes and restore safely before running normal packing and native gates;
+this slice does not add a repacker or waive those gates.
+
+The working Mac recipe retries the **same URL** at most five times, with a
+15-second limit per attempt and 5/10/15/20-second backoff (125 seconds maximum
+network/backoff budget). It never substitutes a mirror or floating source.
+Archive pins in the sealed Mac extras lock are checked before extraction for
+both newly downloaded and cached files; zlib 1.3.1 is pinned for this retry.
+The remaining legacy Homebridge archives are not yet all pinned. **All Mac
+sources pinned** is a required publication condition: a qualified Mac engine
+cannot be published until the complete archive table has upstream hash checks
+where available, unpinned downloads refuse, and publication preflight enforces
+that condition. Working build success does not satisfy it. Complete pinning and
+source caching follow the first green engine set.
+Read-only release receipt preflight uses one explicit source SHA/run/attempt,
+the four required targets. It checks the actual
+construction/native target receipts, fixed qualifier hashes/report bytes,
+manifest contract/source digests and any retained repeat-build metadata. Compiler acceptance
+must be explicit; the current native receipt's false value remains a hold.
+Native evidence retains small sealed manifest/repeat metadata separately when
+available; its absence does not stop app/media testing. Receipt inspection
+always reports qualified=false, release=false and readyForPublication=false.
+Exact artifact intake and complete binary/source/licence verification still
+precede any separately reviewed main-only release writer.
+
+`stage-engine-release.py --locator FILE --output FRESH_DIRECTORY` performs only
+read-only byte intake. The locator names repository, sourceSHA, runId,
+runAttempt and targets; each of the four mandatory targets
+has product/native entries containing exact artifactId and sha256. It requires
+the completed successful main workflow-dispatch attempt of ffmpeg-toolchain.yml,
+matching artifact metadata, SHA-256, attempt creation window and at most14-day
+unexpired retention. It never discovers a latest run or falls back to another
+artifact. Original ZIP/API responses survive under actions/, extracted files
+under inputs/TARGET/product and inputs/TARGET/native, and an intake.json receipt
+always says qualified=false, release=false, readyForPublication=false. Run the
+separate receipt inspector with --inputs FRESH_DIRECTORY/inputs; full bundle,
+corresponding-source, licences and compiler validation still remain necessary.
+This script neither executes artifact contents nor grants write permissions.
+
+The supported engine set is Linux x64/ARM64, Windows x64 and macOS ARM64.
+Repeat compilation is a later goal, not a publication prerequisite. If present,
+repeat evidence remains hash-sealed and checked. Compiler acceptance and complete
+Mac archive pins remain publication holds.
+
+Development BtbN runs retain the exact `.cache/downloads` snapshots in a separate
+Actions cache, including after failure. Restore checks every snapshot against its
+retained SHA-256 inventory; the command-hash filename still selects the snapshot.
+This preserves the original archive bytes rather than rebuilding nondeterministic
+tars. Registry stages still hash those bytes and the actual compiler/recipe inputs.
+Source download cache hits, dependency stage receipts and BuildKit logs remain in
+evidence. Actions branch scope still applies; a new branch needs an explicit cache
+seed or a first population. Weekly runner image labels do not salt the cache;
+actual compiler/SDK/tool hashes still do. No qualified/release path reads these
+caches. The configure/graph controls precede any compiler job, and the actual
+configure macro checks precede FFmpeg make. Failed-job reruns retain the original
+producer attempt separately from the current native qualifier. Windows assembly
+has a ten-minute floor and compiler execution reserves that time within its job.

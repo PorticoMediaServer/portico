@@ -37,7 +37,7 @@ class MacUdfreadTests(unittest.TestCase):
         return 0, '0, 0, 0, 1, 1, ' + 'a' * 64, ''
 
     def test_both_mac_targets_require_the_same_frame_through_the_actual_iso_reader(self):
-        for target in ('macos-x64', 'macos-arm64'):
+        for target in ('macos-arm64',):
             with self.subTest(target=target), patch.object(features.bluray, 'run_tool', side_effect=self.response) as run:
                 result = features.macos_udfread(Path('transport-ffmpeg'), target, self.lock, self.root)
                 self.assertEqual({row['id'] for row in result['fixtures']}, set(features.bluray.IDS))
@@ -56,10 +56,10 @@ class MacUdfreadTests(unittest.TestCase):
         iso = self.root / 'bluray-udf250-iso'
         iso.write_text('changed fixture')
         with self.assertRaisesRegex(ValueError, 'inventory/hash changed'):
-            features.macos_udfread(Path('transport-ffmpeg'), 'macos-x64', self.lock, self.root)
+            features.macos_udfread(Path('transport-ffmpeg'), 'macos-arm64', self.lock, self.root)
         iso.unlink()
         with self.assertRaisesRegex(ValueError, 'fixture missing'):
-            features.macos_udfread(Path('transport-ffmpeg'), 'macos-x64', self.lock, self.root)
+            features.macos_udfread(Path('transport-ffmpeg'), 'macos-arm64', self.lock, self.root)
 
     def test_non_mac_targets_keep_their_existing_probes(self):
         with patch.object(features.bluray, 'run_tool', side_effect=AssertionError('unexpected Mac probe')):
