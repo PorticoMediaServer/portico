@@ -1,7 +1,7 @@
-name: Search scope curves
+name: Search fixed cap comparison
 on:
   push:
-    branches: [rebuild/S-search-scope-evidence-r1]
+    branches: [rebuild/S-search-cap-evidence-r1]
 permissions:
   contents: read
 jobs:
@@ -69,33 +69,9 @@ jobs:
         with:
           path: '${{ github.workspace }}/.search-evidence/seeds/search-realistic-films-*'
           key: '${{ steps.search.outputs.cache-primary-key }}'
-      - name: Before and after on identical database and harness
+      - name: Compare fixed candidate caps against current top results
         working-directory: server
-        run: |
-          git show 789ce640^:server/internal/catalog/search.go > internal/catalog/search.go
-          mkdir -p "$PORTICO_SCALE_REPORT/before" "$PORTICO_SCALE_REPORT/after"
-          PORTICO_SCALE_REPORT="$PORTICO_SCALE_REPORT/before" go test ./internal/catalog -run '^TestSearch(NativeProfile|Retention)Measurement$' -count=1 -v -timeout=10m > "$PORTICO_SCALE_REPORT/before.log" 2>&1
-          git show 789ce640:server/internal/catalog/search.go > internal/catalog/search.go
-          PORTICO_SCALE_REPORT="$PORTICO_SCALE_REPORT/after" go test ./internal/catalog -run '^TestSearch(NativeProfile|Retention)Measurement$' -count=1 -v -timeout=10m > "$PORTICO_SCALE_REPORT/after.log" 2>&1
-      - name: Report curves and every top-ten difference
-        run: |
-          python3 - <<'PYREPORT'
-          import json,os,pathlib
-          root=pathlib.Path(os.environ['PORTICO_SCALE_REPORT'])
-          old=json.loads((root/'before/retention.json').read_text())
-          new=json.loads((root/'after/retention.json').read_text())
-          lines=[]
-          for name in sorted(old):
-              a=[(x['id'],x['title']) for x in old[name]['items']]
-              b=[(x['id'],x['title']) for x in new[name]['items']]
-              lines.append({'query':name,'q':old[name]['q'],'retained':len(set(x[0] for x in a)&set(x[0] for x in b)),'before_top10':a,'after_top10':b,'rank_changed':a!=b})
-          result={'retention':lines,'curves':{}}
-          for side in ['before','after']:
-              data=json.loads((root/side/'search-profile.json').read_text())
-              result['curves'][side]=[{k:x[k] for k in ['query_class','mode','p50_ms','p95_ms','p99_ms','median_vm','errors']} for x in data['results']]
-          (root/'comparison.json').write_text(json.dumps(result,indent=2))
-          print(json.dumps(result,indent=2))
-          PYREPORT
+        run: go test ./internal/catalog -run '^TestSearchCapMeasurement$' -count=1 -v -timeout=12m > "$PORTICO_SCALE_REPORT/caps.log" 2>&1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
-        with: {name: 'search-scope-${{ matrix.items }}', path: '${{ github.workspace }}/.search-evidence/reports', retention-days: 14}
+        with: {name: 'search-caps-${{ matrix.items }}', path: '${{ github.workspace }}/.search-evidence/reports', retention-days: 14}
