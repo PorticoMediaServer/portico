@@ -417,10 +417,19 @@ internal class PorticoPlaybackController(private val context: Context) {
       if (address.isNotEmpty()) {
         val url = parse(address)
         if (url == null || !PorticoMpvSupport.allowedSource(context, url)) { emit("error", "Invalid media address."); return }
-        val pendingStart = (next["pendingSeek"] as? Map<*, *>)?.get("positionSeconds")?.let { number(it) }
         // A direct MP3 or ADTS file with a seek index from the server lands exactly (rendered or not).
         @Suppress("UNCHECKED_CAST") val indexed = PorticoSeekIndex.spec(plan ?: next["seekPlan"] as? Map<String, Any?>, url.toString())
-        load(url, if (plan != null && !routeResume) pendingStart else null, indexed, retainedAudio)
+        // N-A3: every source, not only a rendered audio plan, opens at its resume point, so
+        // `ready` never describes 0:00 (PorticoOpeningSeek). The opening load is that seek:
+        // finishSeek confirms it once ready (seekApplied, or the unseekable-file answer), and
+        // applyPendingSeek does not issue it again.
+        val opening = PorticoOpeningSeek.start(next["pendingSeek"] as? Map<*, *>, routeResume, timelineOriginMs != null)
+        load(url, opening?.positionSeconds, indexed, retainedAudio)
+        if (opening != null) {
+          seekRevision = opening.revision
+          seeking = true
+          seekWait = SeekWait(opening.revision, opening.positionSeconds, currentBinding, intentId, itemInstanceId)
+        }
         enginePlan = plan?.get("id") as? String
         if (routeResume) {
           val epoch = routeEpoch

@@ -67,6 +67,8 @@ static void PorticoConfigureItem(AVPlayerItem *item) {
  BOOL _routeSuspended; BOOL _routeResume; BOOL _routeSeeking; BOOL _routeFailed; NSInteger _routeEpoch; double _routePosition;
  NSInteger _acceptedSeekRevision; double _acceptedSeekTarget; BOOL _seekRetired; BOOL _invalidated;
  NSString *_itemInstanceId; NSString *_source; NSString *_instanceId; NSInteger _intentId; NSInteger _seekRevision; BOOL _paused; BOOL _observing; BOOL _seeking; NSNumber *_timelineOriginMS;
+ /** N-A3: `ready` for this item waits for its opening seek, so it never describes 0:00. */
+ BOOL _readyAfterSeek;
  // The item whose status is observed, held so the observer always comes off the item it went on.
  AVPlayerItem *_observedItem;
  AVPlayerItemVideoOutput *_videoOutput; CVPixelBufferRef _capturedVideoFrame; CMTime _capturedVideoTime;
@@ -424,7 +426,7 @@ static __weak PorticoPlaybackController *PorticoSharedPlaybackController;
 #if TARGET_OS_TV
   [self endDisplayObservation];
 #endif
-  [_subtitleSelection invalidate];[_subtitleOverlay invalidate];[_audioSelection invalidate];[self removeObservation];[_player.currentItem cancelPendingSeeks];_seeking=NO;_routeSeeking=NO;[_player pause];[_player replaceCurrentItemWithPlayerItem:nil];_intentId=nextId;_source=[source copy];_seekRevision=-1;
+  [_subtitleSelection invalidate];[_subtitleOverlay invalidate];[_audioSelection invalidate];[self removeObservation];[_player.currentItem cancelPendingSeeks];_seeking=NO;_routeSeeking=NO;[_player pause];[_player replaceCurrentItemWithPlayerItem:nil];_intentId=nextId;_source=[source copy];_seekRevision=-1;_readyAfterSeek=NO;
   if(source.length){NSURL *url=[NSURL URLWithString:source];if(!url||!PorticoAllowedSource(url)){[self emit:@"error" error:@"playback_source_invalid"];return;}
    [self configureVideoAudioSession];
    // The owner's own certificate is answered the way every Portico connection answers it.
@@ -493,6 +495,7 @@ static __weak PorticoPlaybackController *PorticoSharedPlaybackController;
    NSDictionary *current=[view->_command[@"pendingSeek"] isKindOfClass:NSDictionary.class]?view->_command[@"pendingSeek"]:nil;
    if(![view->_binding isEqual:capturedBinding]||view->_intentId!=intent||view->_player.currentItem!=item||view->_seekRevision!=revision||!current||[current[@"revision"] integerValue]!=revision)return;
    view->_seeking=NO;
+   [view announceReadyAfterSeek];
    double observed=[view sourcePosition];
    BOOL applied=finished&&isfinite(observed)&&fabs(observed-target)<=0.5;
    if(view.onFact){NSMutableDictionary *fact=[@{@"instanceId":view->_instanceId,@"type":applied?@"seekApplied":@"seekFailed",@"intentId":@(intent),@"seekRevision":@(revision),@"position":@(isfinite(observed)?observed:0),@"paused":@((BOOL)(view->_player.timeControlStatus==AVPlayerTimeControlStatusPaused&&!view->_seeking&&!view->_routeResume)),@"error":applied?@"":@"playback_seek_unavailable"} mutableCopy];
@@ -571,7 +574,18 @@ static __weak PorticoPlaybackController *PorticoSharedPlaybackController;
  }
  else if(_player.currentItem.status==AVPlayerItemStatusFailed)[self publishFailure:_player.currentItem.error];
 }
-- (void)itemReady {[self applyRouteResume];if(!_routeResume&&!_routeFailed)[self emit:@"ready" error:nil];[self applyPendingSeek];[self applyIntent];}
+// ENGINE-CONTRACT: "A seek present in the command that opens the media is where the media opens."
+// An item can't take a seek with a completion before it is ready to play, so the opening seek is
+// issued first and `ready` follows it, from its completion, just before seekApplied/seekFailed.
+- (void)itemReady {
+ [self applyRouteResume];
+ [self applyPendingSeek];
+ // A seek in flight now (issued here, or by the progress observer while the display was still
+ // being matched) is where this item opens: `ready` waits for it.
+ if(!_routeResume&&!_routeFailed){if(_seeking)_readyAfterSeek=YES;else [self emit:@"ready" error:nil];}
+ [self applyIntent];
+}
+- (void)announceReadyAfterSeek {if(_readyAfterSeek){_readyAfterSeek=NO;if(!_routeResume&&!_routeFailed)[self emit:@"ready" error:nil];}}
 #if TARGET_OS_TV
 - (AVDisplayManager *)displayManager {
  UIWindow *window=self.displayWindow;

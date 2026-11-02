@@ -46,6 +46,22 @@ static NSArray<NSNumber *> *pixel(NSDictionary *receipt){
  UIImage *image=[UIImage imageWithContentsOfFile:receiptPath(receipt)];if(!image.CGImage)return @[];
  uint8_t bytes[4]={0};CGColorSpaceRef colors=CGColorSpaceCreateDeviceRGB();CGContextRef context=CGBitmapContextCreate(bytes,1,1,8,4,colors,kCGImageAlphaPremultipliedLast|kCGBitmapByteOrder32Big);CGContextDrawImage(context,CGRectMake(0,0,1,1),image.CGImage);CGContextRelease(context);CGColorSpaceRelease(colors);return @[@(bytes[0]),@(bytes[1]),@(bytes[2])];
 }
+// N-A3, ENGINE-CONTRACT: "A seek present in the command that opens the media is where the media
+// opens." A resume's `ready` describes the resume point, never 0:00, and comes before seekApplied.
+static BOOL openingSeekOpensThere(UIWindow *window,NSURL *local){
+ BOOL ok=YES;PorticoPlaybackController *controller=[PorticoPlaybackController new];NSMutableArray *facts=[NSMutableArray new];
+ controller.onFact=^(NSDictionary *fact){[facts addObject:fact];};
+ NSDictionary *lease=[controller acquire:@"opening-seek"];
+ NSDictionary *binding=@{@"lease":lease[@"lease"],@"intentId":@1,@"sessionId":@"resume-session",@"generation":@1,@"itemId":@"authored-video"};
+ PorticoPlayerView *view=[[PorticoPlayerView alloc]initWithFrame:CGRectMake(0,0,320,180)];view.reactTag=@43;view.controller=controller;view.lease=lease[@"lease"];[window.rootViewController.view addSubview:view];[view layoutIfNeeded];
+ NSDictionary *command=@{@"binding":binding,@"commandRevision":@1,@"source":local.absoluteString,@"rate":@1,@"paused":@YES,@"pendingSeek":@{@"revision":@1,@"positionSeconds":@3}};
+ ok=expect(![controller acceptCommand:command],"a resume command is accepted")&&ok;
+ __block NSUInteger readyAt=NSNotFound,appliedAt=NSNotFound;
+ ok=expect(waitFor(^BOOL{for(NSUInteger i=0;i<facts.count;i++){NSString *type=facts[i][@"type"];if(readyAt==NSNotFound&&[type isEqual:@"ready"])readyAt=i;if(appliedAt==NSNotFound&&[type isEqual:@"seekApplied"])appliedAt=i;}return readyAt!=NSNotFound&&appliedAt!=NSNotFound;},12),"a resume reports ready and seekApplied")&&ok;
+ if(readyAt!=NSNotFound){double position=[facts[readyAt][@"position"] doubleValue];ok=expect(position>2.4&&position<3.6,"ready describes the resume point, never 0:00")&&ok;}
+ ok=expect(readyAt!=NSNotFound&&appliedAt!=NSNotFound&&readyAt<appliedAt,"ready comes before seekApplied, as the runtime expects")&&ok;
+ [view removeFromSuperview];[controller invalidate];return ok;
+}
 static int runTests(UIWindow *window){@autoreleasepool{
  BOOL ok=YES;NSFileManager *files=NSFileManager.defaultManager;
  NSURL *downloads=[[files URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject URLByAppendingPathComponent:@"Downloads" isDirectory:YES];[files createDirectoryAtURL:downloads withIntermediateDirectories:YES attributes:nil error:nil];NSURL *local=[downloads URLByAppendingPathComponent:@"snapshot-authored.mp4"];
@@ -198,7 +214,9 @@ static int runTests(UIWindow *window){@autoreleasepool{
  retainedPath=receiptPath(leaseImage);ok=expect(leaseImage!=nil,"reattached same source provides real frame")&&ok;
  [controller releaseLease:lease[@"lease"]];
  ok=expect(![files fileExistsAtPath:retainedPath]&&!release(module,@"lease-cleanup-final"),"lease loss deletes retained image exactly once")&&ok;
- [module invalidate];ok=expect(waitFor(^BOOL{return ![files fileExistsAtPath:privateDirectory];},1),"invalidation removes the owned private snapshot directory")&&ok;[view removeFromSuperview];[controller invalidate];[files removeItemAtURL:local error:nil];
+ [module invalidate];ok=expect(waitFor(^BOOL{return ![files fileExistsAtPath:privateDirectory];},1),"invalidation removes the owned private snapshot directory")&&ok;[view removeFromSuperview];[controller invalidate];
+ ok=openingSeekOpensThere(window,local)&&ok;
+ [files removeItemAtURL:local error:nil];
  fprintf(stderr,"assertions=%lu failures=%lu naturalOutputStarvation=%d recoverySeconds=%.4f\n",(unsigned long)assertions,(unsigned long)failures,naturallyStarved,recoveryDuration);
  printf("{\"decodedMissingBoundsPass\":%s,\"beforeSeconds\":%.3f,\"duringSeconds\":%.3f,\"redPixel\":%s,\"bluePixel\":%s,\"sameViewTagControllerPlayerItemLeaseBinding\":true,\"frame9VisualAcceptance\":false}\n",ok?"true":"false",before,during,[[NSString alloc]initWithData:[NSJSONSerialization dataWithJSONObject:redPixel options:0 error:nil]encoding:NSUTF8StringEncoding].UTF8String,[[NSString alloc]initWithData:[NSJSONSerialization dataWithJSONObject:bluePixel options:0 error:nil]encoding:NSUTF8StringEncoding].UTF8String);return ok?0:1;
 }}
