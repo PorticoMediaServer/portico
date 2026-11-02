@@ -102,10 +102,12 @@ export function LibraryDiscoveryScreen({menuContext, service, route, header, emp
     };
   const music = snapshot.projection?.scope.libraryKind === 'music';
   const recent = music ? merged.find(section => section.id === 'recently_played') : undefined;
+  // J-29: an empty Discover tab takes the page's standard gutter, as its toolbar and every row do.
+  const emptyBlock = <div className={styles.emptyState}>{empty}</div>;
   return <>{header}{selection?.toolbar ?? selectionToolbar}{!snapshot.projection ? <HomeSkeleton elapsedMs={elapsed} window={{width, height: window.innerHeight, scrollTop: window.scrollY}}/> : <div className={styles.rows}>
     {recent && renderSection(recent)}
-    {music && musicMixes && <MusicMixesRow binding={musicMixes} artwork={artwork} target={mixesTarget} empty={snapshot.appended.length === 0 ? empty : undefined} reducedMotion={preferences?.reducedMotion ?? reducedMotion} reportError={reportError}/>}
-    {snapshot.appended.length === 0 ? !musicMixes && empty : snapshot.appended.filter(section => section !== recent).map(renderSection)}
+    {music && musicMixes && <MusicMixesRow binding={musicMixes} artwork={artwork} target={mixesTarget} empty={snapshot.appended.length === 0 ? emptyBlock : undefined} reducedMotion={preferences?.reducedMotion ?? reducedMotion} reportError={reportError}/>}
+    {snapshot.appended.length === 0 ? !musicMixes && emptyBlock : snapshot.appended.filter(section => section !== recent).map(renderSection)}
   </div>}{cardMenu}</>;
 }
 function RecentTiles({section, actions, artwork, nowPlayingAlbumId, selection, wrapCard, base}: {section: ContentSection; actions: DiscoveryBindings['actions']; artwork: ShellArtwork; nowPlayingAlbumId?: string;
