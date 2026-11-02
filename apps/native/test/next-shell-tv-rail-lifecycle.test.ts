@@ -136,7 +136,24 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     assert.equal(requests.length, beforeExit + 1); assert.equal(requests.at(-1), 'card');
     // W-9 (the music player over an album page): when the TV listening screen closes over an open route,
     // focus is claimed back into the route layer, never left wherever Android's recovery puts it.
+    const beforeRouteOpen = requests.length;
     await act(async () => {snapshot = {...snapshot, contentVisible: false}; await sessionHost!.rerender();});
+    // W-9 (2eec0520): a route opening over the page claims focus into the route layer until focus leaves the page
+    // underneath; here nothing moves it, so it stops after its half-second budget.
+    await act(() => {for (let i = 0; i < 35; i++) for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}});
+    assert.equal(requests.slice(beforeRouteOpen).filter(value => value === 'layer-claim').length, 30, 'a route opening claims focus into itself, then gives up');
+    // …and stops as soon as focus is really inside the route.
+    await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
+    await act(() => {for (let i = 0; i < 35; i++) for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}});
+    const routePlay = {regionId: 'route-artist-actions', childId: 'play'};
+    registry.configure({id: routePlay.regionId, entry: routePlay.childId, order: [routePlay.childId]});
+    registry.attach(routePlay, {requestTVFocus() {}});
+    const beforeMoved = requests.length;
+    await act(async () => {snapshot = {...snapshot, contentVisible: false}; await sessionHost!.rerender();});
+    await act(() => {for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}});
+    await act(() => {registry.didFocus(routePlay);});
+    await act(() => {for (let i = 0; i < 35; i++) for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}});
+    assert.equal(requests.slice(beforeMoved).filter(value => value === 'layer-claim').length, 1, 'one claim, then focus is inside the route and it stops');
     await act(() => listening().props.onTVListeningPresenceChange(true));
     const beforeRouteClose = requests.length;
     await act(() => listening().props.onTVListeningPresenceChange(false));

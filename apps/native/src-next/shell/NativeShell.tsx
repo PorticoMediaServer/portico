@@ -208,6 +208,26 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     }, error => {if (valid()) runtime.reportError(error);});
     return () => {if (sidebarLifetime.current === lifetime) sidebarLifetime.current = undefined;};
   }, [current, runtime, snapshot.authority, theme.isTV, wideSidebar]);
+  /** W-9 (2eec0520: artist Play drew its ring while OK opened the covered library's switcher): a route opening
+   * over the page takes focus into itself. The page's own preferred element can ask before its layer is
+   * uncovered, which leaves real focus on the covered page; so the shell claims into the route layer each frame
+   * until focus has left where it was on the page underneath, for up to about half a second. */
+  const routeOpen = snapshot.contentVisible === false, wasRouteOpen = useRef(routeOpen);
+  useEffect(() => {
+    const opened = !wasRouteOpen.current && routeOpen;
+    wasRouteOpen.current = routeOpen;
+    if (!theme.isTV || !opened || typeof requestAnimationFrame !== 'function') return;
+    const before = registry.capture();
+    let frame = 0, tries = 0;
+    const moved = () => {const now = registry.capture(); return !!now && (!before || now.regionId !== before.regionId || now.childId !== before.childId);};
+    const claim = () => {
+      if (runtime.retirementSignal?.aborted || moved()) return;
+      requestNativeFocus(routeLayer.current as never);
+      if (++tries < 30) frame = requestAnimationFrame(claim);
+    };
+    frame = requestAnimationFrame(claim);
+    return () => cancelAnimationFrame(frame);
+  }, [registry, routeOpen, runtime, theme.isTV]);
   const toggleSidebar = () => {
     const lifetime = sidebarLifetime.current, authority = {...snapshot.authority};
     const valid = () => !!lifetime && sidebarLifetime.current === lifetime && current() && sameAuthority(authority, runtime.getSnapshot().authority);
