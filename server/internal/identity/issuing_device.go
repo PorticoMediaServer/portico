@@ -19,8 +19,20 @@ func withNewDeviceNotice(ctx context.Context) context.Context {
 }
 
 func wantsNewDeviceNotice(ctx context.Context) bool {
+	if quiet, _ := ctx.Value(testSignInKey{}).(bool); quiet {
+		return false
+	}
 	value, _ := ctx.Value(newDeviceNoticeKey{}).(bool)
 	return value
+}
+
+// testSignInKey marks the passwordless test sign-in of a devtrust build
+// (dev_e2e.go). It walks the real sign-in path but is no person's device, so it
+// never raises "New device signed in". Release builds never set it.
+type testSignInKey struct{}
+
+func withTestSignIn(ctx context.Context) context.Context {
+	return context.WithValue(ctx, testSignInKey{}, true)
 }
 
 // vouchedDeviceKey marks a paired Cast target. Its playback grant is narrow.

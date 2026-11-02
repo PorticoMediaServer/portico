@@ -85,7 +85,7 @@ function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured;
       // retains its original target and refuses a retired route/authority.
       if (!current()) return;
       if (target.view === 'home') go(() => router.navigate({to: '/'}));
-      else if (target.view === 'settings') go(() => router.navigate({to: '/settings'}));
+      else if (target.view === 'settings') go(() => router.navigate(target.scope && target.section ? {to: '/settings', search: () => ({scope: target.scope, section: target.section, ...(target.row ? {row: target.row} : {})})} : {to: '/settings'}));
       else if (target.view === 'dashboard') go(() => router.navigate({to: '/dashboard'}));
       else if (target.view === 'library') go(() => router.navigate({to: '/library/$libraryId', params: {libraryId: target.id}}));
       else if (target.view === 'downloads') go(() => router.navigate({to: '/saved', search: {view: 'downloads'}}));

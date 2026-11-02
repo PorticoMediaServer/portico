@@ -27,6 +27,8 @@ func devE2EService(t *testing.T, dir string) *Service {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Setup records its remote access choices in the same transaction (O-169).
+	stubSetupRemote(s)
 	return s
 }
 
@@ -45,9 +47,25 @@ func TestDevE2EOwnerSeedsAndSignsInOnlyOnE2EState(t *testing.T) {
 	if !ok || name != "e2e-owner" {
 		t.Fatalf("offered owner: %q %v", name, ok)
 	}
-	out, err := s.DevE2ESignIn(ctx, name)
+	// The test sign-in arrives the way an app's does, from a device it has never used.
+	installation := Token()
+	deviceCtx, err := WithIssuingDevice(ctx, registration(installation), "203.0.113.7:51314")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := s.DevE2ESignIn(deviceCtx, name)
 	if err != nil || out.Session == nil || out.Session.AccessToken == "" {
 		t.Fatalf("sign-in: %+v %v", out, err)
+	}
+	var devices int
+	if err = s.db.QueryRow(`SELECT count(*) FROM identity_devices WHERE installation_id=?`, installation).Scan(&devices); err != nil || devices != 1 {
+		t.Fatalf("the test sign-in registered %d devices: %v", devices, err)
+	}
+	// ...but it is no person's device: no "New device signed in" for anyone.
+	for _, audience := range []string{"profile", "account-admin"} {
+		if got := noticeCount(t, s.db, "security.new-device", audience); got != 0 {
+			t.Fatalf("a test sign-in raised %d %s new-device notices", got, audience)
+		}
 	}
 	if _, err = s.DevE2ESignIn(ctx, "someone-else"); err != ErrUnauthorized {
 		t.Fatalf("another username: %v", err)
