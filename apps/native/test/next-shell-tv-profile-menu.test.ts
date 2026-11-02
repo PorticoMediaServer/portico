@@ -121,6 +121,23 @@ test('the profile flyout names no initial focus, so the shared menu takes the re
   assert.deepEqual(routed, [{kind: 'together'}, {kind: 'profiles'}]);
 });
 
+test('the TV profile flyout draws Forget remembered profile when the device remembers the profile, and its press is the Forget itself', async () => {
+  const h = hooks();
+  const {TVProfileMenu} = await screenModule(new URL('../src-next/shell/TVProfileMenu.tsx', import.meta.url), {
+    react: h.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../packages/i18n/src': {defaultI18n},
+    '../kit/theme': {nativeType, useTheme: () => createTheme({isTV: true, width: 1920})}, '../kit/artwork': {ProfileFace: 'Face'},
+    '../kit/overlays': {Menu: 'Menu'}, './tv-focus': {tvFocusIds},
+  });
+  const ref = {current: null}, forget = () => {};
+  const render = (view: MenuView) => TVProfileMenu({snapshot: {authority, account: view, profile: {id: 'profile', name: 'Demo'}, serverName: 'Actual server', unreadNotificationCount: 0},
+    open: true, onOpenChange() {}, returnFocusRef: ref});
+  assert.ok(!render(nativeAccountMenu(account, () => {}, true)).props.items.some((item: any) => item.id === 'forget-remembered'));
+  const drawn = render(nativeAccountMenu(account, () => {}, true, () => true, forget)).props.items.find((item: any) => item.id === 'forget-remembered');
+  assert.ok(drawn, 'offered while the device remembers the profile');
+  assert.equal(drawn.label, 'Forget remembered profile');
+  assert.equal(drawn.onSelect, forget);
+});
+
 /**
  * SB11-03 handback, recorded in the test rather than faked: this harness stubs `Menu` as the
  * string 'Menu', so no case here can exercise the shared safe-first entry, disabled-entry policy

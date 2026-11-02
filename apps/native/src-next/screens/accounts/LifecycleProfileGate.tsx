@@ -1,9 +1,8 @@
 import React, {useEffect, useState, useSyncExternalStore} from 'react';
 import {BackHandler, Text, View} from 'react-native';
 import {StateLayout} from '../../kit/states';
-import {Button, Focusable} from '../../kit/controls';
+import {Button} from '../../kit/controls';
 import {ProfilePicker} from '../../kit/artwork';
-import {Icon} from '../../kit/Icon';
 import {useTheme} from '../../kit/theme';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
@@ -11,7 +10,7 @@ import {HttpHostedApi} from '../../../../../packages/client-core/src';
 import {routeOrigin} from '../../../../../packages/client-core/src/route-identity';
 import type {PickerProfile} from '../../../../../packages/client-core/src/session-lifecycle';
 import {BootWaitLine} from '../../shell/StartupBoot';
-import {TVForgotPINHandoff, TVProfilePINForm, TVWhosWatching} from '../../tv/auth';
+import {TVForgotPINHandoff, TVPickerRememberRow, TVProfilePINForm, TVWhosWatching} from '../../tv/auth';
 import {nativeSessionLifecycle} from '../../platform/native-session-lifecycle';
 import {NativeProfileRecovery, temporaryRecoveryApi} from '../../platform/profile-recovery';
 import {nativeAccounts} from '../../platform/accounts';
@@ -20,14 +19,17 @@ import {nativeNetworkFetch} from '../../platform/server-connections';
 import {PhonePINEntry} from './PhonePINEntry';
 import {profilePinFailureText} from './profile-pin-failure';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
+import {RememberProfileRow} from './RememberProfileRow';
 
 const t = defaultI18n.t;
 
 /**
  * Who's watching, and a profile's PIN, as the session lifecycle asks for them: at launch when no
  * profile is remembered, and when a PIN changed elsewhere (profile_pin_reentry). The drawn frames
- * are AccountEntry's profile stages (auth.html 13–17); "Remember this profile on this device" is
- * offered under the PIN when the server allows remembering (auth.html, 31 Oct).
+ * are AccountEntry's profile stages (auth.html 13–17). "Remember this profile on this device" is
+ * offered under the faces and under the PIN, only where the server allows remembering (auth.html
+ * section 8, 2 Nov). A tick on the picker remembers a profile without a PIN at once, and carries to a
+ * PIN profile's page, where the server applies it only after a correct PIN: nothing is sent before.
  */
 export function LifecycleProfileGate() {
   const theme = useTheme();
@@ -39,8 +41,10 @@ export function LifecycleProfileGate() {
   const [recovery, setRecovery] = useState<{controller: NativeProfileRecovery; id: string; name: string}>();
   const state = snapshot.state;
   const profileId = state.kind === 'enteringPin' ? state.profile.id : undefined;
-  // A new PIN screen starts empty and unticked, as drawn.
-  useEffect(() => {setCode(''); setRemember(false); setForgot(false);}, [profileId]);
+  // A new PIN screen starts empty; the tick is the person's and carries from the picker to the PIN page and back.
+  useEffect(() => {setCode(''); setForgot(false);}, [profileId]);
+  const choosing = state.kind === 'choosingProfile' || state.kind === 'enteringPin';
+  useEffect(() => {if (!choosing) setRemember(false);}, [choosing]);
   useEffect(() => () => recovery?.controller.dispose(), [recovery]);
   const back = () => {
     if (recovery) {recovery.controller.dispose(); setRecovery(undefined); return;}
@@ -66,12 +70,14 @@ export function LifecycleProfileGate() {
 
   if (state.kind === 'choosingProfile') {
     const picker = <ProfilePicker focusScope={`tv.auth.profiles.${state.server.serverId}`} focusBusy={busy} profiles={state.profiles.map(option)}
-      preferredProfileId={state.focus} onSelect={id => lifecycle.actions.pickProfile.start(id)}
+      preferredProfileId={state.focus} onSelect={id => lifecycle.actions.pickProfile.start(id, remember && state.canRemember)}
       {...(theme.isTV ? {title: t('accounts.profiles.onServer', {server: state.server.name})} : {showTitle: false})}/>;
-    if (theme.isTV) return <TVWhosWatching testID="lifecycle-profiles">{picker}{status}{wait}</TVWhosWatching>;
+    const tick = state.canRemember ? theme.isTV ? <TVPickerRememberRow checked={remember} onChange={setRemember} busy={busy}/>
+      : <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={setRemember} disabled={busy} marginTop={34}/> : null;
+    if (theme.isTV) return <TVWhosWatching testID="lifecycle-profiles">{picker}{tick}{status}{wait}</TVWhosWatching>;
     return <StateLayout testID="lifecycle-profiles" title={t('accounts.profiles.onServer', {server: state.server.name})}
       body={t('accounts.session.' + state.server.signIn as 'accounts.session.portico' | 'accounts.session.local')}
-      beforeActions={<>{picker}{status}{wait}</>}
+      beforeActions={<>{picker}{tick}{status}{wait}</>}
       secondaryAction={state.switching ? {id: 'back', label: t('action.back'), disabled: busy, onPress: back} : undefined}/>;
   }
 
@@ -110,14 +116,7 @@ export function LifecycleProfileGate() {
     beforeActions={<View style={{alignSelf: 'stretch'}}>
       <PhonePINEntry value={code} onChange={setCode} onComplete={send} busy={busy} error={!!state.rejected}/>
       {status}
-      {state.canRemember && <Focusable focusId="lifecycle-remember-profile" accessibilityRole="checkbox" accessibilityState={{checked: remember}} accessibilityLabel={t('pin.rememberOnDevice')}
-        onPress={() => setRemember(value => !value)} focusRadius={6} focusTreatment="none" style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 8, marginTop: 10}}>
-        <View style={{width: 24, height: 24, borderRadius: 7, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
-          borderColor: remember ? theme.colors.accentStrong : theme.colors.lineStrong, backgroundColor: remember ? theme.colors.accentStrong : 'transparent'}}>
-          {remember && <Icon name="i-check" size={16} color={theme.colors.ink}/>}
-        </View>
-        <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('pin.rememberOnDevice')}</Text>
-      </Focusable>}
+      {state.canRemember && <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/>}
       <View style={{alignItems: 'center', marginTop: 8}}><Button variant="text" disabled={busy || !connection} onPress={openRecovery}>{t('pin.forgot')}</Button></View>
       {wait}
     </View>}

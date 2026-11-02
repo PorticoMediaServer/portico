@@ -36,6 +36,8 @@ type Options = {
   assertCurrent?: () => Promise<void>; marker?: AppServerSession['remembered'];
   /** Ending the replaced family never settles (R-12: it must not hold up the pick). */
   revokeNever?: boolean;
+  /** A profile selection the server refuses (a wrong PIN), per call. */
+  selectError?: () => unknown;
 };
 
 async function fixture(options: Options = {}) {
@@ -113,7 +115,8 @@ async function fixture(options: Options = {}) {
     purgeStaleRoutes: ((value: unknown) => value) as any,
     selectProfile: (async (_api: unknown, _scope: unknown, profileId: string, input: unknown) => {
       selectArgs.push({profileId, input});
-      return {session: issuedSession(profileId), ...(options.remember ? {remembered: {expiresAt: FUTURE}} : {})};
+      const refused = options.selectError?.(); if (refused) throw refused;
+      return {session: issuedSession(profileId), ...(options.remember && (input as {remember?: boolean}).remember ? {remembered: {expiresAt: FUTURE}} : {})};
     }) as any,
     logoutIssued: async (_api, issued) => {issuedLogouts.push(issued.accessToken);},
     revokeInBackground: ((record: unknown, live: unknown) => {revokes.push({record, live}); return options.revokeNever ? new Promise(() => {}) : Promise.resolve();}) as any,
@@ -385,4 +388,123 @@ test('a SessionLifecycle over these ports: remembered launch reaches ready, unre
   assert.equal(picker.getSnapshot().state.kind, 'ready');
   assert.equal((picker.getSnapshot().state as any).viewer.familyId, 'family-new');
   picker.dispose(); plain.ports.releaseConnection();
+});
+
+// ---- J-31: Remember this profile on this device ------------------------------------------------
+
+const marker = {profileId: 'p1', familyId: 'family-a', expiresAt: FUTURE};
+const wrongPin = () => new core.ApiError(401, 'profile_pin_invalid', 'That PIN is not right.');
+
+test('Forget remembered profile: the remembered launch opens straight in, Forget clears the marker and keeps the profile open, and the next launch shows the picker', async () => {
+  const fx = await fixture({marker});
+  const lifecycle = new SessionLifecycle(fx.ports as LifecyclePorts);
+  lifecycle.start(); await flush();
+  const ready = lifecycle.getSnapshot().state as any;
+  assert.equal(ready.kind, 'ready'); assert.equal(ready.remembered, true, 'no picker and no PIN while the sign-in is held');
+  assert.equal(fx.selectArgs.length, 0);
+  const generation = lifecycle.getSnapshot().generation;
+  await lifecycle.actions.forgetRemembered.start(); await flush();
+  const after = lifecycle.getSnapshot();
+  assert.equal(after.state.kind, 'ready'); assert.equal((after.state as any).remembered, false);
+  assert.equal((after.state as any).viewer.profileId, 'p1', 'the profile open now stays open');
+  assert.equal(after.generation, generation, 'nothing is signed out or fenced');
+  assert.equal(fx.entry()!.remembered, undefined, 'this device\'s marker is gone');
+  assert.equal(fx.entry()!.connection.session.sessionFamilyId, 'family-a', 'the sign-in itself is untouched');
+  assert.deepEqual(fx.fences, []);
+  lifecycle.dispose(); fx.ports.releaseConnection();
+  // The next launch, over the same saved record: Who's watching.
+  const next = new SessionLifecycle(fx.ports as LifecyclePorts);
+  next.start(); await flush();
+  assert.equal(next.getSnapshot().state.kind, 'choosingProfile');
+  next.dispose(); fx.ports.releaseConnection();
+});
+
+test('Forget is offered only while the profile is remembered, and a marker that cannot be cleared is reported, not hidden', async () => {
+  const plain = await fixture();
+  const life = new SessionLifecycle(plain.ports as LifecyclePorts);
+  life.start(); await flush();
+  life.actions.forgetRemembered.start(); await flush();
+  assert.equal(life.actions.forgetRemembered.getSnapshot().phase, 'failed', 'a picker, or an unremembered profile, has nothing to forget');
+  life.dispose(); plain.ports.releaseConnection();
+
+  const fx = await fixture({marker});
+  const ports = {...fx.ports, clearMarker: async () => {throw new Error('disk full');}} as LifecyclePorts;
+  const lifecycle = new SessionLifecycle(ports);
+  lifecycle.start(); await flush();
+  lifecycle.actions.forgetRemembered.start(); await flush();
+  assert.equal(lifecycle.actions.forgetRemembered.getSnapshot().phase, 'failed');
+  assert.equal((lifecycle.getSnapshot().state as any).remembered, true, 'still remembered: the menu keeps offering Forget');
+  assert.equal(lifecycle.getSnapshot().pending, undefined);
+  lifecycle.dispose(); fx.ports.releaseConnection();
+});
+
+test('a marker whose sign-in is gone is ignored: another family, no sign-in at all, or signed out', async () => {
+  // The record now holds another sign-in than the one that remembered (a successor family from a pick elsewhere).
+  const stale = await fixture({marker: {...marker, familyId: 'family-old'}});
+  const staleLife = new SessionLifecycle(stale.ports as LifecyclePorts);
+  staleLife.start(); await flush();
+  assert.equal(staleLife.getSnapshot().state.kind, 'choosingProfile', 'the picker shows');
+  staleLife.dispose(); stale.ports.releaseConnection();
+  // Signed out: nothing is held, so nothing can be trusted.
+  const none = await fixture({entries: []});
+  const noneLife = new SessionLifecycle(none.ports as LifecyclePorts);
+  noneLife.start(); await flush();
+  assert.equal(noneLife.getSnapshot().state.kind, 'signedOut');
+  noneLife.dispose();
+  // Signing out of the server clears the marker with it; signing in again starts unremembered.
+  const fx = await fixture({marker});
+  const life = new SessionLifecycle(fx.ports as LifecyclePorts);
+  life.start(); await flush();
+  assert.equal(life.getSnapshot().state.kind, 'ready');
+  await life.actions.signOutServer.start(false); await flush();
+  assert.equal(fx.store().servers.length, 0);
+  life.dispose(); fx.ports.releaseConnection();
+});
+
+test('a ticked no-PIN profile is remembered when chosen; unticked it is not, and a server that does not remember writes nothing', async () => {
+  for (const [ticked, serverRemembers] of [[true, true], [false, true], [true, false]] as const) {
+    const fx = await fixture({remember: serverRemembers});
+    const life = new SessionLifecycle(fx.ports as LifecyclePorts);
+    life.start(); await flush();
+    assert.equal(life.getSnapshot().state.kind, 'choosingProfile');
+    await life.actions.pickProfile.start('p2', ticked); await flush();
+    const state = life.getSnapshot().state as any;
+    assert.equal(state.kind, 'ready');
+    assert.equal(fx.selectArgs.length, 1);
+    assert.equal((fx.selectArgs[0] as any).input.remember, ticked, 'the tick is what the server is asked');
+    const expected = ticked && serverRemembers;
+    assert.equal(state.remembered, expected);
+    assert.deepEqual(fx.entry()!.remembered, expected ? {profileId: 'p2', familyId: 'family-new', expiresAt: FUTURE} : undefined);
+    life.dispose(); fx.ports.releaseConnection();
+  }
+});
+
+test('a PIN profile is remembered only after a correct PIN: not on the pick, a wrong PIN or going back', async () => {
+  let refuse = true;
+  const fx = await fixture({remember: true, selectError: () => refuse ? wrongPin() : undefined});
+  const life = new SessionLifecycle(fx.ports as LifecyclePorts);
+  life.start(); await flush();
+  // Choosing the PIN profile with the box ticked asks for its PIN and sends nothing.
+  await life.actions.pickProfile.start('p1', true); await flush();
+  assert.equal(life.getSnapshot().state.kind, 'enteringPin');
+  assert.equal(fx.selectArgs.length, 0, 'nothing is sent before the PIN');
+  assert.equal(fx.entry()!.remembered, undefined);
+  // A wrong PIN is refused and nothing is remembered.
+  life.actions.submitPin.start('0000', true); await flush();
+  assert.equal(life.actions.submitPin.getSnapshot().phase, 'failed');
+  assert.equal(fx.selectArgs.length, 1, 'the wrong PIN reached the server, which refused it');
+  assert.equal(life.getSnapshot().state.kind, 'enteringPin');
+  assert.equal(fx.entry()!.remembered, undefined, 'a wrong PIN stores no marker');
+  // Going back (cancelling) sends nothing more and stores nothing.
+  const sent = fx.selectArgs.length;
+  life.otherProfiles(); await flush();
+  assert.equal(life.getSnapshot().state.kind, 'choosingProfile');
+  assert.equal(fx.selectArgs.length, sent); assert.equal(fx.entry()!.remembered, undefined);
+  // The correct PIN, ticked, remembers.
+  await life.actions.pickProfile.start('p1', true); await flush();
+  refuse = false;
+  await life.actions.submitPin.start('1234', true); await flush();
+  assert.equal(life.getSnapshot().state.kind, 'ready');
+  assert.deepEqual(fx.entry()!.remembered, {profileId: 'p1', familyId: 'family-new', expiresAt: FUTURE});
+  life.dispose(); fx.ports.releaseConnection();
 });

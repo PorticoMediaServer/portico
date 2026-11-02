@@ -63,3 +63,22 @@ test('W-9: an account destination folds an expanded TV music or audiobook player
   assert.equal(nativeAccountOpenTransition(dock, snapshot('audiobook'), false), undefined, 'phones keep their own dock');
   assert.equal(nativeAccountOpenTransition(dock, {fence: undefined, dock: {local: {kind: 'music', expanded: true}}} as never, true), undefined);
 });
+
+test('Forget remembered profile is the last avatar-menu action, offered only when this device remembers the open profile', () => {
+  const forgotten: string[] = [];
+  const forget = () => {forgotten.push('forget');};
+  for (const tv of [false, true]) {
+    const plain = nativeAccountMenu(account, () => {}, tv, () => true);
+    assert.ok(!plain.actions.some(action => action.id === 'forget-remembered'), `not offered when nothing is remembered (${tv ? 'TV' : 'phone and tablet'})`);
+    const remembered = nativeAccountMenu(account, () => {}, tv, () => true, forget);
+    assert.deepEqual(remembered.actions.slice(0, -1).map(action => action.id), plain.actions.map(action => action.id), 'the other actions are untouched');
+    const action = remembered.actions.at(-1)!;
+    assert.equal(action.id, 'forget-remembered');
+    assert.equal(action.label, 'Forget remembered profile');
+    assert.equal(action.icon, 'i-x', 'the mock-up draws the cross');
+    assert.equal(action.onPress, forget, 'it presses the device\'s own Forget');
+  }
+  assert.deepEqual(forgotten, []);
+  // It is not a route, so a screen that is not registered never hides it.
+  assert.deepEqual(nativeAccountMenu(account, () => {}, false, () => false, forget).actions.map(action => action.id), ['forget-remembered']);
+});

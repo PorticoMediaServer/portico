@@ -77,6 +77,11 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     if (homeRegistrationLimit(error)) return;
     feedback.reportError(error, 'home');
   };
+  // Forget remembered profile: the profile open now stays open; a failed clear says so, and the item stays.
+  const forgetRemembered = () => {
+    if (!alive || !context.current()) return;
+    void context.rememberedProfile?.forget().catch(error => {if (alive && context.current()) reportError(error);});
+  };
   const open = (route: NativeShellRoute) => {if (alive && context.current()) context.navigation.open(route, context.authority());};
   /** W-9: an account destination (Switch profile, Switch server, notifications…) opened while the TV music or
    * audiobook player is expanded folds the player away first, so the page opens on top and holds focus rather
@@ -344,6 +349,8 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     return true;
   });
   cleanups.push(() => back.remove());
+  // The menu offers Forget only while this device remembers the open profile, so it follows the lifecycle's marker.
+  if (context.rememberedProfile) cleanups.push(context.rememberedProfile.subscribe(publish));
   const run = (work: (signal: AbortSignal) => Promise<void>) => {
     const operation = new AbortController(); operations.add(operation);
     void work(operation.signal).catch(reportError).finally(() => operations.delete(operation));
@@ -405,7 +412,8 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
           .finally(() => {operation.dispose(); operations.delete(signal);});
   };
   return {get account() {
-    const account = nativeAccountMenu(context.account, openFromAccount, Platform.isTV, nativeMenuRouteAvailable);
+    const remembered = context.rememberedProfile;
+    const account = nativeAccountMenu(context.account, openFromAccount, Platform.isTV, nativeMenuRouteAvailable, remembered?.remembered() ? forgetRemembered : undefined);
     return pendingChanges ? {...account, actions: [...account.actions, {id: 'pending-changes', label: defaultI18n.t('recovery.title'), icon: 'i-clock' as const, onPress: pendingChanges.open}]} : account;
   }, attach: value => {runtime = value;},
     renderPendingChanges: () => pendingChanges && runtime ? <PendingChanges owner={pendingChanges} runtime={runtime} openDestination={reviewDestination}/> : null,
