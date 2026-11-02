@@ -72,7 +72,7 @@ export function ArtistScreen({context, libraryId, artistId, onBack}: ArtistScree
     committed.current = next;
     setLease(next);
     return () => {next.dispose(); setLease(current => current === next ? undefined : current);};
-  }, [context, libraryId, artistId, entry, retry]);
+  }, [context, libraryId, artistId, entry, retry, pageKey, pages]);
   const active = lease && lease.live && lease.context === context && lease.libraryId === libraryId && lease.artistId === artistId && lease.entry === entry && lease.retry === retry ? lease : undefined;
   const back = () => {if (active?.isCurrent()) active.onBack?.();};
   const retryOriginal = (failureCurrent: () => boolean) => {if (!active || active.claimed || !active.isCurrent() || !failureCurrent() || !active.isCurrent() || !failureCurrent()) return; active.claimed = true; active.live = false; setRetry(value => value === active.retry ? value + 1 : value);};

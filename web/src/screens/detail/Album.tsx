@@ -51,7 +51,7 @@ export function AlbumScreen({context, libraryId, albumId, onBack}: AlbumScreenPr
     publish();
     void service.select({libraryId, view: 'album', entityId: albumId}).catch(error => {if (life.current()) context.effects.reportError(error);});
     return () => {life.dispose(); off(); service.dispose();};
-  }, [context, libraryId, albumId, retry]);
+  }, [context, libraryId, albumId, retry, key, pages]);
   const active = page?.context === context && page.libraryId === libraryId && page.albumId === albumId && page.life.current() ? page : undefined;
   const projection = active?.snapshot.projection;
   // Publish only at commit, then sample once for this setup's original lifetime.

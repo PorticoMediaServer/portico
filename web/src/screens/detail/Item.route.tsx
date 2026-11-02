@@ -31,7 +31,7 @@ function OrdinaryItem({context, itemId, artworkClaim}: {context: ScreenContext; 
     const off = held.binding.service.subscribe(remember);
     publish(held);
     return () => {held.live = false;off();held.binding.dispose();};
-  }, [context, itemId]);
+  }, [context, itemId, pages]);
   return lease?.live && lease.context === context && lease.itemId === itemId && context.isCurrent()
     ? <DetailScreen key={lease.id} binding={lease.binding} itemId={itemId} artworkClaim={artworkClaim}/> : <DetailLoading/>;
 }
