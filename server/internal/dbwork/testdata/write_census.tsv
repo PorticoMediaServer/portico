@@ -288,6 +288,8 @@ internal/ingestion/inventory.go	(*Service).schedule	Begin	ClassBackgroundMedia	-
 internal/ingestion/inventory.go	(*Service).verifyPage	Begin	ClassBackgroundMedia	-
 internal/ingestion/legacy_inventory.go	(*Service).adoptLegacyPage	Begin	ClassBackgroundMedia	-
 internal/ingestion/operation_group.go	(*Service).CancelOperation	Begin	ClassBackgroundMedia	-
+internal/ingestion/path_presence.go	(*pathPresence).accept	WithWriteTx	ClassMaintenance	-
+internal/ingestion/path_presence.go	(*pathPresence).health	WithWriteTx	ClassMaintenance	-
 internal/ingestion/reading_closure.go	(*Service).blockReadingClosure	WithWriteTx	ClassBackgroundMedia	-
 internal/ingestion/reading_closure.go	(*Service).readingClosureQuantum	WithWriteTx	ClassBackgroundMedia	-	×2
 internal/ingestion/reading_closure.go	(*Service).renewReadingClosure	WithWriteTx	ClassBackgroundMedia	-

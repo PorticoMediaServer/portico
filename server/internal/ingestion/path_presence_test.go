@@ -145,6 +145,33 @@ func TestSamePathPresenceRecoversAcceptedReadySourceBeforeItsScan(t *testing.T) 
 	}
 }
 
+func TestSamePathPresenceSkipsUnchangedHealthySource(t *testing.T) {
+	f := presenceFixture(t)
+	f.exec(`UPDATE library_sources SET health='healthy' WHERE id=?`, f.source)
+	dbwork.ResetPlans()
+	runPresence(t, f)
+	if stats := dbwork.Plans(); stats.Measured != 0 {
+		t.Fatal("unchanged healthy source started a presence walk", stats)
+	}
+	if f.count(`SELECT count(*) FROM library_sources WHERE id=? AND health='healthy'`, f.source) != 1 {
+		t.Fatal("unchanged source lost its completed-scan health")
+	}
+}
+
+func TestSamePathPresenceLeavesRemoteOwnedSourcesAlone(t *testing.T) {
+	f := presenceFixture(t)
+	f.exec(`INSERT INTO remote_sources(id,kind,name,root) VALUES('remote-owner','webdav','Remote','/remote')`)
+	f.exec(`UPDATE library_sources SET remote_source_id='remote-owner',health='root_changed',root_identity='remote-custody' WHERE id=?`, f.source)
+	dbwork.ResetPlans()
+	runPresence(t, f)
+	if stats := dbwork.Plans(); stats.Measured != 0 {
+		t.Fatal("local presence worker wrote a remote-owned source", stats)
+	}
+	if f.count(`SELECT count(*) FROM library_sources WHERE id=? AND health='root_changed' AND root_identity='remote-custody'`, f.source) != 1 {
+		t.Fatal("local presence worker changed remote custody")
+	}
+}
+
 func runPresence(t *testing.T, f *loopFixture) {
 	t.Helper()
 	p := &pathPresence{s: f.s}
