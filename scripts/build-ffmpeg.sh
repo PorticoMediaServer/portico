@@ -227,7 +227,7 @@ cp "$WORK/build-source-authority.json" "$WORK/provenance/contract/"
 if [[ -f "$WORK/meson-tool.json" ]]; then cp "$WORK/meson-tool.json" "$WORK/provenance/"; fi
 cp -R "$ROOT/third_party/ffmpeg/patches" "$WORK/provenance/contract/"
 cp "$ROOT/scripts/build-ffmpeg.sh" "$ROOT/scripts/normalize-ffmpeg-bundle.py" "$ROOT/scripts/patch-btbn-winarm64-system-error.sh" "$ROOT/scripts/prepare-ffmpeg-source.py" "$ROOT/scripts/archive-ffmpeg-source.py" "$ROOT/scripts/configure-ffmpeg-recipe.py" "$WORK/provenance/scripts/"
-if [[ "$TARGET" == macos-* ]]; then cp "$ROOT/scripts/build-macos-libdovi.py" "$ROOT/scripts/build-linux-libdovi.py" "$ROOT/scripts/build-macos-zvbi.sh" "$WORK/provenance/scripts/"; fi
+if [[ "$TARGET" == macos-* ]]; then cp "$ROOT/scripts/build-macos-libdovi.py" "$ROOT/scripts/build-linux-libdovi.py" "$ROOT/scripts/build-macos-zvbi.sh" "$ROOT/scripts/ffmpeg-rust-tools.py" "$WORK/provenance/scripts/"; fi
 cp "$ROOT/scripts/build-portico-disc.py" "$ROOT/scripts/build-macos-ffmpeg-extras.sh" "$WORK/provenance/scripts/"
 cp "$ROOT/scripts/engine-prefix-cache.py" "$ROOT/scripts/engine-dependency-cache.py" "$ROOT/scripts/macos-dependency-cache.py" "$WORK/provenance/scripts/"
 if [[ "$TARGET" == linux-arm64 ]]; then cp "$ROOT/scripts/engine-registry-cache.py" "$ROOT/scripts/repeat-btbn-ffmpeg.py" "$ROOT/scripts/engine-final-cache.py" "$ROOT/scripts/fetch-engine.py" "$WORK/provenance/scripts/"; fi
@@ -257,10 +257,12 @@ if [[ "$TARGET" == linux-x64 ]]; then
   cp "$ROOT/scripts/capture-ffmpeg-compiler.py" "$WORK/provenance/scripts/"
   cp "$ROOT/scripts/collect-ffmpeg-licenses.py" "$WORK/provenance/scripts/"
   cp "$ROOT/scripts/preserve-ffmpeg-compilers.py" "$WORK/provenance/scripts/"
-  cp "$ROOT/scripts/build-linux-libdovi.py" "$WORK/provenance/scripts/"
+  cp "$ROOT/scripts/build-linux-libdovi.py" "$ROOT/scripts/ffmpeg-rust-tools.py" "$ROOT/scripts/check-rust-linkers.py" "$WORK/provenance/scripts/"
   mkdir -p "$WORK/provenance/libdovi"
   cp -a "$LANE_SCRATCH/libdovi/sources" "$WORK/provenance/libdovi/sources"
   cp "$WORK/libdovi/"{vendor-source.tar.xz,vendor-lock.json,fetch.sh,build.sh,contract.json,expected.json,compiler-and-licenses.json} "$WORK/provenance/libdovi/"
+  cp -a "$WORK/libdovi/tool-sources" "$WORK/provenance/libdovi/"
+  cp "$WORK/libdovi/"{native-tool-source-files.json,native-rust-tools.lock.json,media-engine-sources.lock.json,prepare-tools.sh,rust-linker-control.json} "$WORK/provenance/libdovi/"
   cp -a "$WORK/libdovi/license-supplements" "$WORK/provenance/libdovi/"
   cp "$INPUT/libdovi-build.json" "$WORK/provenance/libdovi/"
   if [[ "$PHASE" != working ]]; then

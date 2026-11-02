@@ -251,7 +251,7 @@ consume these caches. Cache-enabled development output remains NOT-FOR-USE.
 
 The native macOS libdovi stage uses the same checked source archive, both Cargo
 locks, C ABI header hash and shared crate/Rust notice collector as the other
-platforms. `macos-rust-tools.lock.json`, sealed through the source lock, selects
+platforms. `native-rust-tools.lock.json`, sealed through the source lock, selects
 Rust compiler/Cargo/standard-library components and matching library source
 from one exact official distribution manifest, plus the exact cargo-c crate and
 its Cargo.lock. Tools install in a private prefix outside the source recipe;
@@ -271,3 +271,15 @@ archive. The source lock's Meson version now matches the shared1.12.1 wheel and
 media-engine pin; a producer control refuses drift among those inputs.
 The real wheel installation control is explicitly enabled in hosted tool jobs;
 the general Python fixture suite stays offline.
+
+Linux x64 libdovi also uses this private pinned Rust/cargo-c implementation,
+not the preserved C compiler image's nightly Cargo setup. Its complete cargo-c
+vendor, original lock/archive and matching Rust library source are retained
+with a checked per-file inventory. The preserved C compiler digest stays the
+same. Cargo runs with a private home and explicit target; target-only RUSTFLAGS
+select the cross-linker while host build scripts/proc-macros use native cc.
+Before libdovi, a real locked/offline fixture builds a host build script, host
+proc-macro and target executable, records both linker invocations and executes
+the binary. This control and the actual compiler hashes are receipts, not final
+engine, ABI, hardware or compiler-source qualification. The dependency-only
+workflow proves this boundary without rebuilding FFmpeg for custody alone.
