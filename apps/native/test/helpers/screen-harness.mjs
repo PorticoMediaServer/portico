@@ -14,11 +14,17 @@ import * as tvPlayPause from '../../src-next/platform/tv-play-pause.ts';
 //   the real module, so a PIN pad's claim and the player's check meet in one place.
 // - The covered-screen layer (kit/focus/CoveredLayer) behaves as on touch: a View hidden from
 //   touches and screen readers while covered.
-const leaf = (source, react) => /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
+const leaf = (source, react, native) => /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
   : /(^|\/)failure-words$/.test(source) ? failureWords
   : /(^|\/)platform\/tv-play-pause$/.test(source) ? tvPlayPause
   : /(^|\/)kit\/focus\/CoveredLayer$/.test(source) ? {CoveredLayer: ({covered, children, style, testID}) => react.createElement('View',
-    {style, testID, pointerEvents: covered ? 'none' : 'auto', accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' : 'auto'}, children)} : undefined;
+    {style, testID, pointerEvents: covered ? 'none' : 'auto', accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' : 'auto'}, children)}
+  // The one Back dispatcher (kit/navigation/back) forwards to the fixture's own BackHandler, gated by `active`, so a
+  // fixture that drives `hardwareBackPress` keeps doing so; the scope order has its own tests.
+  : /(^|\/)navigation\/back$/.test(source) ? {registerBack: (handler, options) => {
+      const subscription = native?.BackHandler?.addEventListener('hardwareBackPress', () => (!options?.active || options.active()) && handler() === true);
+      return () => subscription?.remove();
+    }} : undefined;
 
 // Exercises a screen's exported pure helpers without a renderer or a server,
 // mirroring portico-server/web/test/helpers/component-harness.mjs. Only pure
@@ -40,7 +46,7 @@ export async function screenModule(file, modules) {
     const namespace = `__screenModuleImport${declaration.start}`;
     const missing = declaration.specifiers.length ? `${namespace} == null`
       : `!Object.hasOwn(modules, ${source}) || ${namespace} == null`;
-    const required = `const ${namespace} = modules[${source}] ?? __leaf(${source}, modules.react?.default ?? modules.react); if (${missing}) throw new Error(${JSON.stringify(`screenModule(${file.pathname}): no namespace for `)} + ${source});`;
+    const required = `const ${namespace} = Object.hasOwn(modules, ${source}) ? modules[${source}] : __leaf(${source}, modules.react?.default ?? modules.react, modules['react-native']) ?? modules[${source}]; if (${missing}) throw new Error(${JSON.stringify(`screenModule(${file.pathname}): no namespace for `)} + ${source});`;
     const bindings = declaration.specifiers.map(specifier => {
       const value = specifier.type === 'ImportNamespaceSpecifier' ? namespace
         : `${namespace}[${JSON.stringify(specifier.type === 'ImportDefaultSpecifier' ? 'default' : specifier.imported.name ?? specifier.imported.value)}]`;

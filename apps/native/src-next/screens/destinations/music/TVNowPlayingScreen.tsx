@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useId, useRef, useState, useSyncExternalStore} from 'react';
-import {BackHandler, ScrollView, Text, View} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {clockText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
 import {sameFence} from '../../../../../../packages/player-core/src';
@@ -21,6 +21,7 @@ import {MusicFocusRegion, TVMusicFocus, TVMusicSeek} from './TVMusicFocus';
 import type {NowPlayingScreenProps} from './NowPlayingScreen';
 import {useTVQueuePolicy} from './TVQueuePolicy';
 import {TVPageGroup, TVPageTransition, useTVPageMotion} from '../../../tv/layout/TVPageMotion';
+import {registerBack} from '../../../kit/navigation/back';
 
 /** tv7: one authored 1920×1080 canvas, including the queue. The window never
  * switches this television to the tablet composition at a lower render size. */
@@ -51,9 +52,9 @@ function TVNowPlayingContent({occupant, queue, artwork, width, height, onAction,
   useEffect(() => () => {if (restoreFrame.current !== undefined) cancelAnimationFrame(restoreFrame.current);}, []);
   useEffect(() => {
     if (panel !== 'eq') return;
-    const back = BackHandler.addEventListener('hardwareBackPress', closeEqualizer);
+    const releaseBack = registerBack(closeEqualizer, {scope: 'overlay'});
     const release = registerOverlayKeys(key => key === 'escape' || key === 'menu' ? closeEqualizer() : false);
-    return () => {back.remove(); release();};
+    return () => {releaseBack(); release();};
   }, [panel, closeEqualizer]);
   const {presentation: p, playback} = occupant;
   const type = (size: number, weight: 400 | 600 | 700 | 800 = 400, tracking = 0) => nativeType({size, weight, tracking, lineHeight: 'normal'}, theme.textScale);

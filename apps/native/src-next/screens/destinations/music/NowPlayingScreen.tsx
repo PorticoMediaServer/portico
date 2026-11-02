@@ -1,5 +1,5 @@
 import React, {createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {BackHandler, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {runOnJS, useSharedValue} from 'react-native-reanimated';
 import type {QueuePlaybackView} from '../../../../../../packages/client-core/src/queue-controller';
@@ -39,6 +39,7 @@ import {useOverlayPaintMode} from '../../../kit/overlays/OverlayPaintContext';
 import {NowPlayingLyrics, type NowPlayingLyricsProps} from './NowPlayingLyrics';
 import {ListeningQueuePaint, ListeningLyricsPaint} from './ListeningPanePaint';
 import {useTVPanelPresence} from '../../../kit/overlays/TVPanelMotion';
+import {registerBack} from '../../../kit/navigation/back';
 
 const t = defaultI18n.t;
 const equalizerCopy = (): NativeEqualizerCopy => ({title: t('next.media.eq.title'), back: t('action.back'), thisDevice: t('device.thisDevice'),
@@ -168,9 +169,9 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
   }, [theme.isTV, panel]);
   useEffect(() => {
     if (!panel || (theme.isTV && panel === 'signal')) return;
-    const back = BackHandler.addEventListener('hardwareBackPress', () => {closePanel(); return true;});
+    const releaseBack = registerBack(() => {closePanel(); return true;}, {scope: 'overlay'});
     const release = theme.isTV ? registerOverlayKeys(key => {if (key === 'escape' || key === 'menu') {closePanel(); return true;} return false;}) : () => {};
-    return () => {back.remove(); release();};
+    return () => {releaseBack(); release();};
   }, [panel, closePanel, theme.isTV]);
   const equalizer = useSyncExternalStore(nativeEqualizer.subscribe, nativeEqualizer.getSnapshot);
   const wide = width >= SIDE_BY_SIDE, side = wide && sheet !== null, position = playbackPosition(occupant);

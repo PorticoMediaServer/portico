@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {BackHandler, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import {parseSegmentClock, segmentClock, segmentKinds, type SegmentKind, type SegmentReviewEntry, type SegmentReviewMarker} from '../../../../../../packages/client-core/src/segment-review';
 import {repeat} from '../../../../../../packages/client-core/src/timer';
 import {parseMediaItem} from '../../../../../../packages/client-core/src/media-item';
@@ -14,6 +14,7 @@ import {useTheme} from '../../../kit/theme';
 import type {NativeSettingsPanelDeps} from '../settings-panels';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {NativeSegmentReviewController} from './segment-review-controller';
+import {registerBack} from '../../../kit/navigation/back';
 
 /** The phone review borrows the selected owner's existing settings lifetime and API. */
 export function IntroCreditsReview({context, lifetime, t, runtime}: NativeSettingsPanelDeps & {runtime: NativeShellRuntime}) {
@@ -37,12 +38,12 @@ export function IntroCreditsReview({context, lifetime, t, runtime}: NativeSettin
     }, {everyMs: 15_000, backoff: {baseMs: 30_000, maxMs: 120_000}, immediate: false});
     return () => poll.stop();
   }, [controller, state.libraryId, state.titleId]);
-  useEffect(() => {const listener = BackHandler.addEventListener('hardwareBackPress', () => {
+  useEffect(() => {const listener = registerBack(() => {
     if (state.busy) return true;
     if (state.titleId) {void controller.open(state.libraryId); return true;}
     if (state.libraryId) {void controller.open(); return true;}
     return false;
-  }); return () => listener.remove();}, [controller, state.busy, state.libraryId, state.titleId]);
+  }, {scope: 'surface'}); return () => listener();}, [controller, state.busy, state.libraryId, state.titleId]);
   const run = (work: () => Promise<unknown>) => {void work().catch(error => {if (alive.current && lifetime.current()) runtime.reportError(error);});};
   const watch = async (entry: SegmentReviewEntry, _marker: SegmentReviewMarker, fromUS: string) => {
     const item = await lifetime.request(signal => context.api.request(encodedRoutePath('get_items_id', {id: entry.itemId}), 'GET', undefined, signal).then(parseMediaItem));

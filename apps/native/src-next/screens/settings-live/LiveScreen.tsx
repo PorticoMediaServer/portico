@@ -1,6 +1,6 @@
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {BackHandler, FlatList, Platform, ScrollView, Text, View, VirtualizedList, useWindowDimensions} from 'react-native';
+import {FlatList, Platform, ScrollView, Text, View, VirtualizedList, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {GestureDetector} from 'react-native-gesture-handler';
 import Animated, {useAnimatedStyle, type SharedValue} from 'react-native-reanimated';
@@ -47,6 +47,7 @@ import {publicTVHandoffAddress} from '../../tv/auth/TVHandoff';
 import {seriesFormDefaults, type SeriesForm} from './recording-rule-presentation';
 import {nativeServerAdmission} from './server/tv-server-reader';
 import {tvGroupEdges, tvProgrammeGroups} from './tv-settings-focus';
+import {registerBack} from '../../kit/navigation/back';
 
 export function NativeLiveScreen({controller, recordings, owner, ports, runtime}: {controller: NativeLiveController; recordings: NativeRecordingsController; owner: NativeLiveOwnerController; ports: Pick<NativeSettingsLivePorts, 'context' | 'dvrRequestId' | 'requestId'>; runtime: NativeShellRuntime}) {
   const theme = useTheme(), t = runtime.text.t, dimensions = useWindowDimensions(), insets = useSafeAreaInsets(), shadeId = useId().replace(/:/g, '');
@@ -159,9 +160,9 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   useEffect(() => () => features.dispose(), [features]);
   useEffect(() => {
     if (!twoPane || Platform.OS !== 'android') return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {if (!selectedRef.current) return false; setSelected(undefined); return true;});
-    return () => subscription.remove();
-  }, [twoPane]);
+    const subscription = registerBack(() => {if (!selectedRef.current) return false; setSelected(undefined); return true;}, {scope: 'page', active: () => {const now = runtime.navigation?.getSnapshot().route; return now?.kind === 'shell' && now.destination.kind === 'live';}});
+    return () => subscription();
+  }, [runtime.navigation, twoPane]);
   // A selected programme carries the guide's own later airings and this profile's reminders; both are server reads.
   useEffect(() => {
     if (!selected) {setLater([]); return;}

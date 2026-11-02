@@ -1,11 +1,12 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {BackHandler, FlatList, Text, View} from 'react-native';
+import {FlatList, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {licenceCount, licenceDetail, licenceParagraphs, licenceRowDetail, licenceSections, licenceSourceRows, type LicenceData} from '../../../../../packages/client-core/src/presentation/licences';
 import {loadLicences, licenceVariant} from '../../platform/licences';
 import {Button, Focusable} from '../../kit/controls';
 import {StateView} from '../../kit/states';
 import {useTheme, nativeType} from '../../kit/theme';
+import {registerBack} from '../../kit/navigation/back';
 
 type Row = Readonly<{id: string; title: string; body?: string; componentId?: string; heading?: boolean}>;
 
@@ -23,8 +24,8 @@ export function NativeLicencesScreen({onBack, current}: {onBack: () => void; cur
   }, [current]);
   const back = useCallback(() => {if (!current()) return; if (selected) setSelected(undefined); else onBack();}, [current, selected, onBack]);
   useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {if (!current()) return false; back(); return true;});
-    return () => subscription.remove();
+    const subscription = registerBack(() => {if (!current()) return false; back(); return true;}, {scope: 'page', active: current});
+    return () => subscription();
   }, [current, back]);
   const detail = useMemo(() => data && selected ? licenceDetail(data, selected) : undefined, [data, selected]);
   const rows = useMemo((): Row[] => {

@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {BackHandler, Dimensions, Platform, Text, View} from 'react-native';
+import {Dimensions, Platform, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {profilePinFailureText} from './profile-pin-failure';
@@ -43,6 +43,7 @@ import {TVTrustedCertificates} from './TVTrustedCertificates';
 import {TVServerChooser} from './TVServerChooser';
 import {removeCapturedServerDownloads} from './sign-out-downloads';
 import {TVProfilePINForm, TVForgotPINHandoff, TVWhosWatching} from '../../tv/auth';
+import {registerBack} from '../../kit/navigation/back';
 
 const t = defaultI18n.t;
 type Panel = 'servers' | 'add' | 'sign-out-server' | 'sign-out-account' | 'consent-kind' | 'consent-code' | 'consent-review' | 'consent-done';
@@ -310,7 +311,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
 
   const backRef = useRef(back), busyRef = useRef(busy);
   backRef.current = back; busyRef.current = busy;
-  useEffect(() => {if (embedded) return; const subscription = BackHandler.addEventListener('hardwareBackPress', () => {if (!busyRef.current) backRef.current(); return true;}); return () => subscription.remove();}, [embedded]);
+  useEffect(() => {if (embedded) return; const subscription = registerBack(() => {if (!busyRef.current) backRef.current(); return true;}, {scope: 'surface'}); return () => subscription();}, [embedded]);
   if (recovery) return <PhoneProfileRecovery controller={recovery.controller} profileName={recovery.name} username={context.account.account.username}
     onOpen={value => {const id = recovery.id; recovery.controller.dispose(); setRecovery(undefined); setPin(value); void choose(id, value);}}
     onClose={() => {recovery.controller.dispose(); setRecovery(undefined); setPin('');}}/>;
@@ -574,11 +575,11 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
   };
   const close = () => {retireAdd(); approver.current?.dispose(); approver.current = undefined; setPreview(undefined); setCode(''); setError(undefined); setPanel('servers');};
   const cancel = () => {if (panel === 'servers') onBack?.(); else close();};
-  useEffect(() => {if (panel === 'add') return; const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+  useEffect(() => {if (panel === 'add') return; const subscription = registerBack(() => {
     if (busy) return true;
     if (panel === 'servers' && !onBack) return false;
     cancel(); return true;
-  }); return () => subscription.remove();});
+  }, {scope: 'surface'}); return () => subscription();});
   const action = (id: string, label: string, work: () => Promise<void>, disabled = false) => ({id, label, disabled: busy || disabled, loading: busy, onPress: () => {void run(work);}});
   const errorView = error ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 12}]}>{presentError(error, 'account').body}</Text> : null;
   const layout = (title: string, body?: string, before?: React.ReactNode, primary?: ReturnType<typeof action>, more?: React.ReactNode) => <StateLayout testID="accounts-servers" title={title} body={body}

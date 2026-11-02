@@ -6,7 +6,7 @@ import {MissingTitlesTab} from '../server/storage/MissingTitlesTab';
 import {loadInitialOwnerLibrary} from './initial-library';
 import {screenScopeEnded, type NativeScreenLifetime} from '../lifetime';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
-import {BackHandler, ScrollView, Text, View} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
 import type {ManagedLibrary} from '../../../../../../packages/client-core/src/library-management';
 import type {InventorySource} from '../../../../../../packages/client-core/src/library-inventory';
 import type {LibraryAdminDocument, LibrarySettings} from '../../../../../../packages/client-core/src/administration';
@@ -39,6 +39,7 @@ import {LibrarySettingsRows} from './LibrarySettingsRows';
 import {libraryListState} from './library-settings-model';
 import {NativeOwnerLibrariesController, sonicPageLease, type NativeOwnerLibrariesSnapshot, type SonicPageLease} from './controller';
 import {ownerFolderLocation, ownerFolderState, ownerIssueReason, ownerLibraryAudience, ownerLibraryCounts, ownerLibraryInterval, ownerLibraryKind, ownerLibraryScan, ownerLibrarySquare, ownerLibraryState, ownerSkippedFiles} from './presentation';
+import {registerBack} from '../../../kit/navigation/back';
 
 type Translate = typeof defaultI18n.t;
 type ViewerRole = 'owner' | 'administrator' | 'member';
@@ -103,8 +104,8 @@ export function NativeOwnerLibrariesPanel({ports, runtime, initialLibraryId, lif
   }, [skipped, leaving, removingFolder, rename, folderForm, adding, openId]);
 
   useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => back());
-    return () => subscription.remove();
+    const subscription = registerBack(() => back(), {scope: 'surface'});
+    return () => subscription();
   }, [back]);
 
   if (adding) return <AddLibraryPage api={api} serverName={context.serverName} ports={ports} runtime={runtime} busy={state.busy} error={state.error}

@@ -94,3 +94,11 @@ test('boundary keeps unresolved source modules, aliases and dynamic asset paths 
   assert.match(violations.join('\n'), /cannot resolve @next\/missing/);
   assert.match(violations.join('\n'), /statically resolvable/);
 }));
+
+test('TV focus step 3: Back has one listener; any other BackHandler subscription is a boundary violation', () => fixture((root, write) => {
+  write('src-next/App.ts', "import {BackHandler} from 'react-native';\nBackHandler.addEventListener('hardwareBackPress', () => true);");
+  assert.match(auditBoundary({appRoot: root}).violations.join('\n'), /src-next\/App\.ts:2: register Back through kit\/navigation\/back/);
+  write('src-next/App.ts', "import './kit/navigation/back';");
+  write('src-next/kit/navigation/back.ts', "import {BackHandler} from 'react-native';\nexport const subscription = BackHandler.addEventListener('hardwareBackPress', () => false);");
+  assert.deepEqual(auditBoundary({appRoot: root}).violations, [], 'the dispatcher itself owns the one subscription');
+}));
