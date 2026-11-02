@@ -39,11 +39,16 @@ export function Tabs({items, value, defaultValue, onValueChange, disabled, passi
   const active = items.find(item => item.value === current);
   const countStyle: TextStyle = {marginLeft: 6, paddingVertical: 1, paddingHorizontal: 7, borderRadius: 9, overflow: 'hidden',
     fontFamily: 'Manrope-Bold', fontSize: 12 * theme.textScale, fontWeight: '700', backgroundColor: theme.colors.raisedBright, color: theme.colors.textSecondary};
+  // W-17: on TV the strip is a plain row. A horizontal ScrollView is focusable on Android, so with
+  // passive (unfocusable) tabs it took D-pad focus itself: no visible focus, and Right went nowhere.
+  // A TV strip has a few tabs and never needs to scroll.
+  const stripStyle = [styles.tabs, {gap: tabsSpec.gap[theme.platform], paddingHorizontal: theme.gutter, borderBottomColor: theme.colors.line}, contentContainerStyle];
+  const strip = (children: React.ReactNode) => theme.isTV
+    ? <View focusable={false} style={[stripStyle, {alignSelf: 'flex-start'}]} accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>{children}</View>
+    : <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{overflow: 'visible'}} contentContainerStyle={stripStyle}
+      accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>{children}</ScrollView>;
   return <View style={style} testID={testID}>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{overflow: 'visible'}}
-      contentContainerStyle={[styles.tabs, {gap: tabsSpec.gap[theme.platform], paddingHorizontal: theme.gutter, borderBottomColor: theme.colors.line}, contentContainerStyle]}
-      accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>
-      {items.map(item => {
+    {strip(items.map(item => {
         const childProps = itemProps?.(item);
         const blocked = disabled || item.disabled;
         const selected = item.value === current;
@@ -61,8 +66,7 @@ export function Tabs({items, value, defaultValue, onValueChange, disabled, passi
           <ChoiceLabel wrap={theme.fontScale > 1} count={item.count} countStyle={countStyle} style={[theme.type.tab, {color: selected ? theme.colors.text : theme.colors.textTertiary}]}>{item.label}</ChoiceLabel>
           {selected ? <View pointerEvents="none" style={[styles.underline, {height: tabsSpec.underline[theme.platform], backgroundColor: theme.colors.accent}]} /> : null}
         </Focusable>;
-      })}
-    </ScrollView>
+    }))}
     {active?.panel !== undefined ? <View role="tabpanel" accessibilityLabelledBy={`${id}-${active.value}`}>{active.panel}</View> : null}
   </View>;
 }
