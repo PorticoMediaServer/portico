@@ -1,6 +1,7 @@
 name: E2E stale server sign-in
 on:
   workflow_dispatch:
+  workflow_call:
   schedule:
     - cron: '43 5 * * *'
 permissions:
