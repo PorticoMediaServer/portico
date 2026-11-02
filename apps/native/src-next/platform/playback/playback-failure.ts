@@ -24,3 +24,16 @@ export function atNaturalEnd(position: unknown, duration: unknown): boolean {
   return typeof position === 'number' && typeof duration === 'number' && Number.isFinite(position) && Number.isFinite(duration)
     && duration > 0 && position >= duration - 1;
 }
+
+/** N1-7 (states 10 and 11): what the viewer is told about a failure, classified once from the facts
+ * the player has. `undefined` keeps the neutral sentence: the cause is genuinely unknown. */
+export type NativePlaybackFailureReason = 'connection' | 'stream-ended' | 'unsupported';
+export function playbackFailureReason(fact: FailureFact): NativePlaybackFailureReason | undefined {
+  const failure = classifyPlaybackFailure(fact);
+  if (failure.engine) return 'unsupported';
+  if (failure.network) return 'connection';
+  // The server answered but would not go on (a 4xx, an ended lease, a stream it no longer has).
+  const status = fact.httpStatus;
+  if (fact.deliveryError === true || typeof status === 'number' && status >= 400 && status <= 499) return 'stream-ended';
+  return undefined;
+}

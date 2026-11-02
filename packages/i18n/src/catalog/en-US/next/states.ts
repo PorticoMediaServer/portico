@@ -73,6 +73,8 @@ export const statesMessages = {
   'next.states.streamLimit': 'Already playing on {count, plural, one {# screen} other {# screens}}',
   'next.states.streamLimitBody': 'Your account can play {count, plural, one {# thing} other {# things}} at once. Stop one to watch here.',
   'next.states.droppedBody': 'The connection to the server dropped. Your place is saved at {position}.',
+  'next.states.streamEndedBody': 'The server ended this stream. Your place is saved at {position}.',
+  'next.states.unsupportedBody': "This device can't play this title. Your place is saved at {position}.",
   'next.states.whatHappened': 'What happened',
   'next.states.sentAs': 'Sent as',
   'next.states.network': 'Network',
