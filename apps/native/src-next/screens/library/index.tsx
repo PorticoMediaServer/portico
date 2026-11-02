@@ -6,6 +6,7 @@ import {sameAuthority} from '../../shell/model';
 import type {NativeRouteRenderer} from '../../shell/route-registry';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
+import type {NativeSelection} from '../selection/native-selection';
 import {LibraryScreen, type NativeLibraryActions, type NativeLibrarySelectionPort} from './LibraryScreen';
 import {NativeLibraryDestination} from './model';
 import {NativeLibraryDirectory} from './directory';
@@ -13,6 +14,7 @@ import {hiddenReadingLibraryOnTV, isReadingLibraryKind} from '../read/platform';
 import {libraryTab, libraryTabs, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
 import {NativeReadingLibraryScreen} from '../read/ReadingLibrary';
 import {createNativeLibraryPlaySelection} from './play-selection';
+import {createNativeDiscoverSelection} from './discover-selection';
 import {createNativeTVLibraryNamingStore, nativeTVLibraryActions, nativeTVNamingPanelId, NativeTVLibrarySurface} from './tv-library';
 import type {NativeTVLibraryNamingStore} from './tv-library';
 import {nativeLibraryOpening, nativeLibraryOpeningRoute} from './opening';
@@ -30,12 +32,12 @@ export type NativeLibraryRendererPorts = Readonly<{
  * ID returns no screen here; the shell's authorized overview handles it. */
 export function createNativeLibraryRenderer(context: NativeShellBootstrapContext, ports: NativeLibraryRendererPorts): NativeRouteRenderer & {dispose: () => void} {
   const lifetime = nativeDestinationLifetime(context);
-  let disposed = false, selected: Readonly<{id: string; kind: string; name: string; tab?: LibraryTabId; opening: object; destination: NativeLibraryDestination; actions: NativeLibraryActions; selection?: NativeLibrarySelectionPort}> | undefined;
+  let disposed = false, selected: Readonly<{id: string; kind: string; name: string; tab?: LibraryTabId; opening: object; destination: NativeLibraryDestination; actions: NativeLibraryActions; selection?: NativeLibrarySelectionPort; shelfSelection?: NativeSelection}> | undefined;
   // TV owns exactly one extra surface for a Library route: the F-LIB-52 Save
   // view name keyboard. Other platforms keep their own sheet unchanged.
   let tvNaming: NativeTVLibraryNamingStore | undefined;
   const tvNamingStore = (): NativeTVLibraryNamingStore => tvNaming ??= createNativeTVLibraryNamingStore(context);
-  const retire = (value: typeof selected) => {value?.actions.dispose?.(); value?.destination.dispose(); if (selected === value) selected = undefined;};
+  const retire = (value: typeof selected) => {value?.shelfSelection?.dispose(); value?.actions.dispose?.(); value?.destination.dispose(); if (selected === value) selected = undefined;};
   const retireSelected = () => retire(selected);
   // Justin's Libraries rule (21 Oct, frame phone-app4): the Libraries tab returns to the
   // library last opened "on the pivot you left". The shell keeps one library destination
@@ -108,13 +110,15 @@ export function createNativeLibraryRenderer(context: NativeShellBootstrapContext
             && (!initial || sameAuthority(initial.authority, context.authority()) && context.session()?.sessionFamilyId === initial.sessionFamilyId
               && (context.navigation.getSnapshot().route === initial.route || context.navigation.retainedRoutes().includes(initial.route)))});
         const actions = typeof ports.actions === 'function' ? ports.actions(destination) : ports.actions;
+        const shelfSelection = createNativeDiscoverSelection(context, {subscribe: destination.subscribe, getSnapshot: destination.getSnapshot},
+          () => current() && context.navigation.getSnapshot().route === route);
         selected = {id, kind: library.kind, name: library.name, opening: route.destination, ...(routeTab ? {tab: routeTab.id} : {}), destination,
           actions: Platform.isTV ? nativeTVLibraryActions(actions, tvNamingStore(), destination) : actions,
-          selection: ports.selection?.(destination)};
+          selection: ports.selection?.(destination), shelfSelection};
       }
       const page = <LibraryScreen key={id} destination={selected.destination} runtime={runtime} directory={directory} libraries={context.libraries()}
-        activation={ports.activation(id)} labels={ports.labels} actions={selected.actions} selection={selected.selection} owner={context.session()?.viewer.role === 'owner'}
-        mixAnchor={route.destination.anchor === 'mixes'}/>;
+        activation={ports.activation(id)} labels={ports.labels} actions={selected.actions} selection={selected.selection} shelfSelection={selected.shelfSelection}
+        owner={context.session()?.viewer.role === 'owner'} mixAnchor={route.destination.anchor === 'mixes'}/>;
       return tvNaming ? <NativeTVLibrarySurface key={id} library={page} naming={tvNaming} panelId={nativeTVNamingPanelId(context.authority(), id)}/> : page;
     },
     dispose() {if (disposed) return; disposed = true; retireSelected(); pivots.clear(); tvNaming?.dispose(); tvNaming = undefined; directory.dispose();},
