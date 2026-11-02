@@ -6,9 +6,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/personalstate"
 	"hash/fnv"
 	"net/url"
-	"github.com/PorticoMediaServer/portico/server/internal/personalstate"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,11 +61,24 @@ type recCandidate struct {
 // recommendationPool, relatedPool, trendCandidates, communityCandidates and
 // recommendationRowMembers all cap it independently of library size.
 func recBase(r HomeRequest, candidates []string) (string, []any) {
+	return recBaseWithWeights(r, candidates, true)
+}
+
+// Related uses only per-work negative suppression, not personal taste weights.
+// Keep the full projection for every other scorer and the explanation oracle.
+func recBaseWithWeights(r HomeRequest, candidates []string, includeWeights bool) (string, []any) {
 	if candidates == nil {
 		candidates = []string{}
 	}
 	restriction, args := ItemRestrictionSQL("i.id", r.Restrictions)
 	source := `json_each(?) candidate CROSS JOIN catalog_entities i ON i.public_id=pid_blob(candidate.value) JOIN catalog_libraries cl ON cl.id=i.library_id JOIN catalog_kinds k ON k.id=i.kind LEFT JOIN catalog_item_details det ON det.entity_id=i.id`
+	personal := `max(CASE WHEN ` + personalstate.CompactSQL("wp.profile", "m.id") + `=1 OR p.watchlisted=1 OR p.favorite=1 OR p.rating IS NOT NULL OR pg.position>0 THEN 1 ELSE 0 END) AS touched,
+ max(CASE WHEN p.favorite=1 THEN 40 ELSE 0 END + CASE WHEN p.rating>=7 THEN 35 WHEN p.rating>=5 THEN 15 ELSE 0 END + CASE WHEN ` + personalstate.CompactSQL("wp.profile", "m.id") + `=1 THEN 25 ELSE 0 END + CASE WHEN p.watchlisted=1 THEN 12 ELSE 0 END
+ + CASE WHEN pg.position>=30000 AND pg.position >= COALESCE((SELECT max(a.duration)*50 FROM catalog_asset_links link JOIN catalog_assets a ON a.id=link.asset_id WHERE link.entity_id=m.id AND a.available=1),1e99) THEN 6 ELSE 0 END) AS weight,
+ max(COALESCE(p.last_played_at,'')) AS at`
+	if !includeWeights {
+		personal = `0 AS touched,0 AS weight,'' AS at`
+	}
 	base := `WITH permitted AS MATERIALIZED (
  SELECT i.*,cl.library_id AS library,COALESCE(det.added_text,'') AS added_at,det.studio AS studio,det.network AS network,` + workKeySQL("i") + ` AS work,
  CASE i.kind WHEN 1 THEN i.id
@@ -86,10 +99,7 @@ func recBase(r HomeRequest, candidates []string) (string, []any) {
  ), personal AS MATERIALIZED (
  SELECT m.work,
  max(CASE WHEN p.rating<=4 OR p.not_interested=1 THEN 1 ELSE 0 END) AS negative,
- max(CASE WHEN ` + personalstate.CompactSQL("wp.profile", "m.id") + `=1 OR p.watchlisted=1 OR p.favorite=1 OR p.rating IS NOT NULL OR pg.position>0 THEN 1 ELSE 0 END) AS touched,
- max(CASE WHEN p.favorite=1 THEN 40 ELSE 0 END + CASE WHEN p.rating>=7 THEN 35 WHEN p.rating>=5 THEN 15 ELSE 0 END + CASE WHEN ` + personalstate.CompactSQL("wp.profile", "m.id") + `=1 THEN 25 ELSE 0 END + CASE WHEN p.watchlisted=1 THEN 12 ELSE 0 END
- + CASE WHEN pg.position>=30000 AND pg.position >= COALESCE((SELECT max(a.duration)*50 FROM catalog_asset_links link JOIN catalog_assets a ON a.id=link.asset_id WHERE link.entity_id=m.id AND a.available=1),1e99) THEN 6 ELSE 0 END) AS weight,
- max(COALESCE(p.last_played_at,'')) AS at
+ ` + personal + `
  FROM members m CROSS JOIN (SELECT ? AS profile) wp LEFT JOIN personal_items p ON p.item_id=m.id AND p.profile_id=wp.profile LEFT JOIN progress pg ON pg.item_id=m.id AND pg.profile_id=? GROUP BY m.work
  ), seeds AS MATERIALIZED (SELECT work,weight * CASE WHEN at='' THEN 1.0 WHEN julianday(?) - julianday(at) <= 14 THEN 1.0 WHEN julianday(?) - julianday(at)<=60 THEN 0.8 ELSE 0.5 END AS weight FROM personal WHERE negative=0 AND weight>0 ORDER BY at DESC,weight DESC,work LIMIT 64),
  interest AS MATERIALIZED (SELECT f.f,min(sum(s.weight),120) AS weight FROM seeds s JOIN facets f ON f.work=s.work GROUP BY f.f),
@@ -150,7 +160,7 @@ func (s *Service) recommendationCandidates(r HomeRequest, row, seed string) ([]r
 			return nil, err
 		}
 	}
-	base, args := recBase(r, candidates)
+	base, args := recBaseWithWeights(r, candidates, row != "related")
 	score := `COALESCE(ps.value,0)-COALESCE(ns.value,0)`
 	where := `COALESCE(p.negative,0)=0`
 	order := `score DESC,w.added DESC,w.id`
@@ -216,10 +226,14 @@ func (s *Service) recommendationCandidates(r HomeRequest, row, seed string) ([]r
 	if row == "recommended" {
 		score += ` + COALESCE((SELECT max(rr.value/NULLIF(rr.scale,0))*3 FROM members m JOIN metadata_ratings rr ON rr.item_id=m.id WHERE m.work=w.work),0)`
 	}
+	scoreJoins := ` LEFT JOIN positive_scores ps ON ps.work=w.work LEFT JOIN negative_scores ns ON ns.work=w.work`
+	if row == "related" {
+		scoreJoins = ""
+	}
 	query := base + extra + `, facet_json AS MATERIALIZED (SELECT work,json_group_array(f) AS value FROM facets GROUP BY work),
  positive_scores AS MATERIALIZED (SELECT f.work,sum(CASE WHEN f.f LIKE 'e:%' THEN x.weight*0.1 WHEN f.f LIKE 'g:%' THEN x.weight ELSE x.weight*1.4 END) AS value,max(f.f NOT LIKE 'e:%') AS non_year_match FROM facets f JOIN interest x ON x.f=f.f GROUP BY f.work),
  negative_scores AS MATERIALIZED (SELECT f.work,count(*)*25 AS value FROM facets f JOIN negative_facets n ON n.f=f.f GROUP BY f.work)
- SELECT pid(ce.public_id),w.work,w.kind,w.added,COALESCE(fj.value,'[]'),` + score + ` AS score FROM works w JOIN catalog_entities ce ON ce.id=w.id LEFT JOIN personal p ON p.work=w.work LEFT JOIN facet_json fj ON fj.work=w.work LEFT JOIN positive_scores ps ON ps.work=w.work LEFT JOIN negative_scores ns ON ns.work=w.work WHERE ` + where + ` ORDER BY ` + order + ` LIMIT ?`
+ SELECT pid(ce.public_id),w.work,w.kind,w.added,COALESCE(fj.value,'[]'),` + score + ` AS score FROM works w JOIN catalog_entities ce ON ce.id=w.id LEFT JOIN personal p ON p.work=w.work LEFT JOIN facet_json fj ON fj.work=w.work` + scoreJoins + ` WHERE ` + where + ` ORDER BY ` + order + ` LIMIT ?`
 	args = append(args, recCandidateLimit)
 	rows, err := s.read().Query(query, args...)
 	if err != nil {

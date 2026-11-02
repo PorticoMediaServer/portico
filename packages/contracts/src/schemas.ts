@@ -8038,7 +8038,8 @@ export const schemas = {
         "properties": {
           "reason": {
             "enum": [
-              "search_not_bounded"
+              "search_not_bounded",
+              "source_changed"
             ],
             "type": "string"
           }
@@ -10556,7 +10557,8 @@ export const schemas = {
             "properties": {
               "reason": {
                 "enum": [
-                  "search_not_bounded"
+                  "search_not_bounded",
+                  "source_changed"
                 ],
                 "type": "string"
               }
@@ -145973,7 +145975,8 @@ export const schemas = {
             "properties": {
               "reason": {
                 "enum": [
-                  "search_not_bounded"
+                  "search_not_bounded",
+                  "source_changed"
                 ],
                 "type": "string"
               }
@@ -172888,7 +172891,8 @@ export const schemas = {
             "properties": {
               "reason": {
                 "enum": [
-                  "search_not_bounded"
+                  "search_not_bounded",
+                  "source_changed"
                 ],
                 "type": "string"
               }

@@ -20,6 +20,7 @@ export const selectionMessages = {
   'next.selection.rangeTitles': 'Select {first} to {last}: {count, number} {count, plural, one {title} other {titles}}',
   'next.selection.selectAllUnavailableLabel': 'Select all',
   'next.selection.selectAllSearchNotBounded': 'Unavailable for this search.',
+  'next.selection.selectAllSourceChanged': 'Unavailable right now.',
   'next.selection.selectAll': 'Select all {count, number}',
   'next.selection.selectRow': 'Select row',
   'next.selection.allInView': 'all in this view',

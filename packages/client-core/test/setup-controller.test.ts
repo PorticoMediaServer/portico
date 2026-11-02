@@ -39,7 +39,7 @@ function rig(options: {local?: SetupLocal; reads?: SetupServerRead[]; handlers?:
     readState: () => reads.length > 1 ? reads.shift() : reads[0],
     start: () => ({kind: 'startDone'}), initializeHosted: () => ({kind: 'initializeDone'}), initializeLocal: () => ({kind: 'initializeDone'}),
     requestApproval: () => ({kind: 'approvalReady', approvalUrl: 'https://hosted.example/claim#x', expiresAt: '2026-10-31T00:30:00Z'}),
-    approveInApp: () => ({kind: 'approvedInApp'}), abandon: () => ({kind: 'abandoned'}), retryDelivery: () => ({kind: 'deliveryRetried'}),
+    approveInApp: () => ({kind: 'approvedInApp'}), abandon: () => ({kind: 'abandoned'}), startOver: () => ({kind: 'startedOver'}), retryDelivery: () => ({kind: 'deliveryRetried'}),
     exchange: () => ({kind: 'exchangeDone'}), renew: () => ({kind: 'renewDone'}), adoptOwner: () => ({kind: 'ownerAdopted'}), addLibrary: () => ({kind: 'libraryAdded'}),
     navigate: () => undefined,
   };
@@ -49,7 +49,7 @@ function rig(options: {local?: SetupLocal; reads?: SetupServerRead[]; handlers?:
     return Promise.resolve().then(() => handlers[name]!(...args));
   };
   const ports = {store, readState: async (context: SetupPortContext) => ({server: await port('readState')(context), local: await store.read()}), start: port('start'), initializeHosted: port('initializeHosted'), initializeLocal: port('initializeLocal'),
-    requestApproval: port('requestApproval'), approveInApp: port('approveInApp'), abandon: port('abandon'), retryDelivery: port('retryDelivery'),
+    requestApproval: port('requestApproval'), approveInApp: port('approveInApp'), abandon: port('abandon'), startOver: port('startOver'), retryDelivery: port('retryDelivery'),
     exchange: port('exchange'), renew: port('renew'), adoptOwner: port('adoptOwner'), addLibrary: port('addLibrary'),
     navigate: (url: string) => {calls.push({name: 'navigate', args: [url]}); handlers.navigate!(url);}} as unknown as SetupPorts;
   let ids = 0;
@@ -595,4 +595,41 @@ test('O-169: Back after initialize, a changed remote choice and Continue send th
   await t.settle();
   assert.equal(inits().length, 2);
   assert.deepEqual(inits()[1]!.args.slice(0, 2), ['Den', {remoteAccess: 'private', remoteSecurity: 'standard'}]);
+});
+
+test('start over from an approved setup that can no longer finish: the port ends it, the record and attempt retire, and the form shows both kinds', async () => {
+  const t = rig({local: held(), reads: [own('exhausted')]});
+  t.controller.start();
+  await t.settle();
+  assert.equal(t.kind(), 'exhausted');
+  t.controller.startOver();
+  await t.settle();
+  assert.equal(t.count('startOver'), 1);
+  assert.deepEqual(t.controller.getSnapshot(), {kind: 'form', mode: 'choose', name: ''});
+  assert.deepEqual(t.store.peek(), {}, 'the old record and attempt are gone');
+});
+
+test('a failed start over offers Try again, which repeats it under the same intentId', async () => {
+  let calls = 0;
+  const t = rig({local: held(), reads: [own('exhausted')], handlers: {startOver: () => {if (++calls === 1) throw new TypeError('offline'); return {kind: 'startedOver'};}}});
+  t.controller.start();
+  await t.settle();
+  t.controller.startOver();
+  await t.settle();
+  const failed = t.controller.getSnapshot() as Extract<SetupView, {kind: 'failed'}>;
+  assert.deepEqual([failed.kind, failed.error.code], ['failed', 'network']);
+  t.controller.retry();
+  await t.settle();
+  const [a, b] = t.calls.filter(c => c.name === 'startOver');
+  assert.equal(a!.context!.intentId, b!.context!.intentId);
+  assert.equal(t.kind(), 'form');
+});
+
+test('start over on a server that was set up meanwhile says so', async () => {
+  const t = rig({local: held(), reads: [own('exhausted')], handlers: {startOver: () => ({kind: 'alreadyComplete'})}});
+  t.controller.start();
+  await t.settle();
+  t.controller.startOver();
+  await t.settle();
+  assert.deepEqual(t.controller.getSnapshot(), {kind: 'refused', reason: 'already_set_up'});
 });

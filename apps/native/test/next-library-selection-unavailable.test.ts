@@ -73,6 +73,8 @@ test('actual native Library selection composes the refusal without an executor a
   port.start!(); const first=bar();assert.equal(first.props.count,1);
   assert.deepEqual(first.props.selectAllUnavailable,{label:'next.selection.selectAllUnavailableLabel',reason:'next.selection.selectAllSearchNotBounded'});
   assert.equal(first.props.onSelectAll,undefined);assert.equal(first.props.selectAllLabel,undefined);assert.ok(first.props.actions.some((a:any)=>a.id==='play'));
+  sourceState={...sourceState,wholeSelectionUnavailable:{reason:'source_changed'}};listeners.forEach(fn=>fn());
+  assert.deepEqual(bar().props.selectAllUnavailable,{label:'next.selection.selectAllUnavailableLabel',reason:'next.selection.selectAllSourceChanged'});
   const before=notifications;
   sourceState={...sourceState,wholeSelectionUnavailable:undefined};listeners.forEach(fn=>fn());assert.ok(notifications>before);
   assert.equal(bar().props.selectAllUnavailable,undefined);assert.equal(disposed,0,'metadata-only publication preserves page selection');

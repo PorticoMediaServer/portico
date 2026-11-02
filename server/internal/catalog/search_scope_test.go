@@ -121,3 +121,46 @@ func TestSearchContainerYears(t *testing.T) {
 		t.Fatalf("container year order %+v %v", out, err)
 	}
 }
+
+// FTS needs no scope tokens: SQL enforces kind and library independently.
+func TestSearchFTSScopeUsesSQLOnly(t *testing.T) {
+	c := catalogtest.Open(t)
+	movies := c.Library("movies", "Movies", "movie", "/movies")
+	hidden := c.Library("hidden", "Private", "movie", "/hidden")
+	tv := c.Library("tv", "TV", "tv", "/tv")
+	title := "Extraordinarily searchable"
+	visible := c.Movie(movies, "/movies/visible.mkv", title, 2020)
+	c.Movie(hidden, "/hidden/private.mkv", title, 2020)
+	show := c.Show(tv, title, 2020)
+	c.Drain()
+	// Remove redundant FTS scope phrases only; retain real SQL scope columns.
+	c.Exec(`UPDATE catalog_search_documents SET kind=''`)
+	s := New(c.DB)
+	for _, tc := range []struct {
+		name, group string
+		libraries   []string
+		want        string
+	}{
+		{"library", "movies", []string{"movies"}, visible.Public},
+		{"kind", "movies", []string{"movies", "tv"}, visible.Public},
+		{"other-kind", "shows", []string{"movies", "tv"}, show.Public},
+		{"empty", "movies", []string{"tv"}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := s.Search(context.Background(), SearchRequest{Viewer: Viewer{Profile: "p", Fence: "f", Libraries: tc.libraries}, Q: "Extraordinarily", Group: tc.group, Limit: 10})
+			if err != nil || len(out.Groups) != 1 || out.Groups[0].Status != "success" {
+				t.Fatalf("search: %+v %v", out, err)
+			}
+			items := out.Groups[0].Items
+			if tc.want == "" {
+				if len(items) != 0 {
+					t.Fatalf("unauthorized results: %+v", items)
+				}
+				return
+			}
+			if len(items) != 1 || items[0].ID != tc.want {
+				t.Fatalf("scope: %+v", items)
+			}
+		})
+	}
+}

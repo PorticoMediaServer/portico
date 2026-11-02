@@ -34,7 +34,7 @@ type BrowseSelectionUnavailable struct {
 }
 
 func (BrowseSelectionUnavailable) JSONSchema() map[string]any {
-	return map[string]any{"type": "object", "additionalProperties": false, "required": []string{"reason"}, "properties": map[string]any{"reason": map[string]any{"type": "string", "enum": []string{"search_not_bounded"}}}}
+	return map[string]any{"type": "object", "additionalProperties": false, "required": []string{"reason"}, "properties": map[string]any{"reason": map[string]any{"type": "string", "enum": []string{"search_not_bounded", "source_changed"}}}}
 }
 
 // CapturedBasis is server-only provenance for the immediate page exposure check.

@@ -5,7 +5,7 @@ import {fabricHost, React} from './helpers/fabric-host.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {passwordStrength} from '../../../packages/client-core/src/password-strength';
-import {setupEndedMessage, setupErrorMessage, setupNewerMessage} from '../../../packages/client-core/src/presentation/setup-messages';
+import {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupNewerMessage, setupStartOverOffer} from '../../../packages/client-core/src/presentation/setup-messages';
 
 // NativeSetup draws whichever state the shared setup controller reports, through the phone layout stubs. The
 // controller here is a recording fake: the screen's own wiring (subscriptions, form gates, Back, admission and
@@ -37,6 +37,7 @@ function fakeController(initialView: any) {
     chooseKind: (mode: string) => record('chooseKind', mode),
     back: () => record('back'),
     startAgain: () => record('startAgain'),
+    startOver: () => record('startOver'),
     retry: () => record('retry'),
     approveInApp: () => record('approveInApp'),
     addLibrary: () => record('addLibrary'),
@@ -75,10 +76,10 @@ async function fixture(options: FixtureOptions) {
       made.push(fake);
       return fake.controller;
     }},
-    '../../../../../packages/client-core/src/presentation/setup-messages': {setupEndedMessage, setupErrorMessage, setupNewerMessage},
+    '../../../../../packages/client-core/src/presentation/setup-messages': {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupNewerMessage, setupStartOverOffer},
     '../../../../../packages/client-core/src/password-strength': {passwordStrength},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/Icon': {Icon: 'Icon'},
+    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/states': {StateLayout: 'StateLayout'},
     '../../kit/theme': {useTheme: () => theme},
     '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}},
@@ -351,4 +352,28 @@ test('unmounting the screen disposes the controller and its adapter once', async
   await f.host.unmount();
   assert.equal(f.fake().count('dispose'), 1);
   assert.equal(f.adapterDisposals(), 1);
+});
+
+test('start over: a setup busy elsewhere starts over at once; an exhausted (approved) one asks first', async () => {
+  const busy = await fixture({view: view('busy_elsewhere', {polls: 0})});
+  try {
+    const layout = busy.layout()!;
+    assert.equal(layout.props.primaryAction.label, t('web.setup.startOver'));
+    await busy.act(() => layout.props.primaryAction.onPress());
+    assert.equal(busy.fake().count('startOver'), 1);
+  } finally {await busy.host.unmount();}
+
+  const exhausted = await fixture({view: view('exhausted', {polls: 2})});
+  try {
+    const layout = exhausted.layout()!;
+    assert.equal(layout.props.secondaryAction.label, t('web.setup.startOver'));
+    await exhausted.act(() => layout.props.secondaryAction.onPress());
+    assert.equal(exhausted.fake().count('startOver'), 0, 'it asks first');
+    const sheet = exhausted.find('BottomSheet')!;
+    assert.equal(sheet.props.open, true);
+    assert.equal(sheet.props.title, t('web.setup.startOverTitle'));
+    const confirm = ([] as any[]).concat(sheet.props.footer.props.children).find((node: any) => node?.props?.testID === 'accounts-setup-start-over-confirm');
+    await exhausted.act(() => confirm.props.onPress());
+    assert.equal(exhausted.fake().count('startOver'), 1);
+  } finally {await exhausted.host.unmount();}
 });

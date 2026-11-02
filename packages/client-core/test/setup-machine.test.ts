@@ -486,3 +486,32 @@ test('the server saying the Portico Account declined shows the same page with on
   // Without the outcome the reading is a protocol error, not a guessed denial.
   assert.deepEqual(pick(step(VIEWS['awaiting.live'], INPUTS['state.started']).view), {kind: 'failed', code: 'invalid_response', retryable: true});
 });
+
+test('start over is taken only where setup can no longer finish by itself, and its result opens the form', async () => {
+  const {setupStartOverOffer} = await import('../src/presentation/setup-messages.ts');
+  const starts: SetupView[] = [
+    {kind: 'busy_elsewhere', polls: 0},
+    {kind: 'exhausted', polls: 1},
+    {kind: 'finishing', slow: true, polls: 3},
+    {kind: 'ended', outcome: 'approval_lapsed', name: 'Den'},
+    {kind: 'failed', error: err(false), retryable: false, name: 'Den', hold: 'committed', retry: {to: {kind: 'renewing'}, effects: [{kind: 'renew'}]}},
+  ];
+  for (const view of starts) {
+    const step = stepSetup(view, {kind: 'startOver'}, NOW);
+    assert.equal(step.view.kind, 'starting_over', view.kind);
+    assert.deepEqual(step.effects, [{kind: 'cancel-pending'}, {kind: 'start-over'}], view.kind);
+  }
+  for (const view of [{kind: 'form', mode: 'choose', name: ''}, {kind: 'awaiting_approval', name: 'Den', serverPhase: 'started', polls: 0}, {kind: 'library'}] as SetupView[]) {
+    assert.equal(stepSetup(view, {kind: 'startOver'}, NOW).view, view, view.kind);
+  }
+  const over: SetupView = {kind: 'starting_over', name: 'Den'};
+  assert.deepEqual(stepSetup(over, {kind: 'startedOver'}, NOW), {view: {kind: 'form', mode: 'choose', name: 'Den'}, effects: [{kind: 'retire-record'}, {kind: 'retire-attempt'}]});
+  assert.deepEqual(stepSetup(over, {kind: 'notLocalSource'}, NOW).view, {kind: 'refused', reason: 'not_local_source'});
+  assert.equal(stepSetup(over, {kind: 'effectFailed', effect: 'start-over', error: err()}, NOW).view.kind, 'failed');
+  // The buttons follow the same rule on web and native: ask first only where an approval is cancelled.
+  assert.deepEqual(setupStartOverOffer({kind: 'busy_elsewhere'}), {offer: true, confirm: false});
+  assert.deepEqual(setupStartOverOffer({kind: 'exhausted'}), {offer: true, confirm: true});
+  assert.deepEqual(setupStartOverOffer({kind: 'ended', outcome: 'approval_lapsed'}), {offer: true, confirm: true});
+  assert.deepEqual(setupStartOverOffer({kind: 'ended', outcome: 'expired'}), {offer: false, confirm: false});
+  assert.deepEqual(setupStartOverOffer({kind: 'failed', hold: 'unapproved'}), {offer: false, confirm: false});
+});
