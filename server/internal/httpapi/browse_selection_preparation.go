@@ -222,6 +222,58 @@ func (d Dependencies) browseSelectionExposure(r *http.Request, p identity.Princi
 	})
 }
 
+// An initial page is independently useful while its optional whole-view work
+// loses its content basis. Never downgrade a policy/authority failure or expose
+// a stale selector: this arm retains no count, proof or handle on content drift.
+func (d Dependencies) exposeBrowseSelectionPage(r *http.Request, p identity.Principal, viewer catalog.Viewer, out *catalog.BrowseResult, policy string, access catalog.SelectionPreparationAccess) error {
+	pending := out.WholeSelectionPreparing
+	if pending == nil {
+		return nil
+	}
+	cancel := func() {
+		if store := d.Catalog.ReadPreparations(); store != nil && access.Caller != "" {
+			_ = store.Cancel(context.WithoutCancel(r.Context()), access.Caller, readprep.Handle(pending.QueryID))
+		}
+	}
+	if err := d.browseAuthorityAfter(r, p, viewer); err != nil {
+		cancel()
+		return err
+	}
+	contentChanged := false
+	err := dbwork.WithReadSnapshot(r.Context(), d.DB, func(ctx context.Context) error {
+		cat := d.Catalog.WithContext(ctx)
+		if access.Check == nil {
+			return readprep.ErrInvalid
+		}
+		if err := access.Check(cat); err != nil {
+			return err
+		}
+		current, err := cat.BrowsePagePolicyFence(r.PathValue("id"), viewer.Profile)
+		if err != nil {
+			return err
+		}
+		if policy == "" || current != policy {
+			return readprep.ErrStale
+		}
+		err = cat.CheckBrowseSelectionPreparationBasis(r.PathValue("id"), viewer, pending.CapturedBasis(), access)
+		if errors.Is(err, readprep.ErrStale) {
+			contentChanged = true
+			return nil
+		}
+		return err
+	})
+	if err != nil {
+		cancel()
+		return err
+	}
+	if contentChanged {
+		cancel()
+		out.WholeSelectionPreparing = nil
+		out.WholeSelectionUnavailable = &catalog.BrowseSelectionUnavailable{Reason: "source_changed"}
+	}
+	return nil
+}
+
 func (d Dependencies) deleteBrowseSelectionQueryHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if r.URL.RawQuery != "" {

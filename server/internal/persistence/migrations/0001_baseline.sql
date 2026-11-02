@@ -1767,7 +1767,7 @@ CREATE TABLE policy(server_id TEXT PRIMARY KEY,revision INTEGER NOT NULL,payload
 CREATE TABLE restriction_outbox(operation_id TEXT PRIMARY KEY,local_revision INTEGER NOT NULL UNIQUE,body TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending') STRICT;
 CREATE TABLE restrictions(profile_id TEXT PRIMARY KEY,revision INTEGER NOT NULL,revoked INTEGER NOT NULL DEFAULT 0,allowed_libraries TEXT NOT NULL DEFAULT '[]') STRICT;
 CREATE TABLE library_revisions(library_id TEXT PRIMARY KEY REFERENCES libraries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,order_revision INTEGER NOT NULL DEFAULT 1,metadata_revision INTEGER NOT NULL DEFAULT 1) STRICT;
-CREATE TABLE viewer_revisions(profile_id TEXT NOT NULL,library_id TEXT NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,observation_revision INTEGER NOT NULL DEFAULT 0,title_path TEXT NOT NULL DEFAULT '',PRIMARY KEY(profile_id,library_id)) STRICT;
+CREATE TABLE viewer_revisions(profile_id TEXT NOT NULL,library_id TEXT NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,observation_revision INTEGER NOT NULL DEFAULT 0,title_path TEXT NOT NULL DEFAULT '',selection_revision INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(profile_id,library_id)) STRICT;
 CREATE TABLE personal_receipts(account_id TEXT NOT NULL,profile_id TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,operation_id TEXT NOT NULL,request_hash TEXT NOT NULL,response TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT '',PRIMARY KEY(account_id,profile_id,item_id,operation_id)) STRICT;
 CREATE TABLE metadata_details(item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,provider TEXT NOT NULL,provider_id TEXT NOT NULL,source_url TEXT NOT NULL,observed_at TEXT NOT NULL,PRIMARY KEY(item_id,provider)) STRICT;
 CREATE TABLE metadata_ratings(item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,provider TEXT NOT NULL,value REAL NOT NULL,scale REAL NOT NULL,votes INTEGER NOT NULL,source_url TEXT NOT NULL,observed_at TEXT NOT NULL,PRIMARY KEY(item_id,provider)) STRICT;
@@ -7662,9 +7662,9 @@ CREATE TRIGGER history_observation_hint_update AFTER UPDATE OF revision ON perso
  INSERT INTO api_change_pending(audience,type,resource_kind,resource_id,revision,data) VALUES('personal:'||NEW.profile_id,'progress.changed','personal','history',CAST(NEW.revision AS TEXT),json_object('observation',CAST(NEW.revision AS TEXT))) ON CONFLICT(audience,type,resource_kind,resource_id) DO UPDATE SET revision=excluded.revision,data=excluded.data; END;
 CREATE TRIGGER library_change_hint AFTER UPDATE OF revision,order_revision ON library_revisions BEGIN
  INSERT INTO api_change_pending(audience,type,resource_kind,resource_id,revision,data) VALUES('library:'||NEW.library_id,'library.changed','library',NEW.library_id,CAST(NEW.revision AS TEXT),json_object('content',CAST(NEW.revision AS TEXT),'contentOrder',CAST(NEW.order_revision AS TEXT))) ON CONFLICT(audience,type,resource_kind,resource_id) DO UPDATE SET revision=excluded.revision,data=excluded.data; END;
-CREATE TRIGGER personal_change_hint AFTER INSERT ON viewer_revisions BEGIN
+CREATE TRIGGER personal_change_hint AFTER INSERT ON viewer_revisions WHEN NEW.revision<>0 OR NEW.observation_revision<>0 OR NEW.title_path<>'' BEGIN
  INSERT INTO api_change_pending(audience,type,resource_kind,resource_id,revision,data) VALUES('personal:'||NEW.profile_id,'personal.changed','library',NEW.library_id,CAST(NEW.revision AS TEXT),CASE WHEN NEW.title_path<>'' THEN json_object('personal',CAST(NEW.revision AS TEXT),'observation',CAST(NEW.observation_revision AS TEXT),'titles',NEW.title_path) ELSE json_object('personal',CAST(NEW.revision AS TEXT),'observation',CAST(NEW.observation_revision AS TEXT)) END) ON CONFLICT(audience,type,resource_kind,resource_id) DO UPDATE SET revision=excluded.revision,data=CASE WHEN json_extract(api_change_pending.data,'$.titles') IS NULL OR json_extract(excluded.data,'$.titles') IS NULL THEN json_remove(excluded.data,'$.titles') WHEN json_extract(excluded.data,'$.titles')=json_extract(api_change_pending.data,'$.titles') OR json_extract(excluded.data,'$.titles') LIKE '%/'||json_extract(api_change_pending.data,'$.titles') THEN excluded.data WHEN json_extract(api_change_pending.data,'$.titles') LIKE '%/'||json_extract(excluded.data,'$.titles') THEN json_set(excluded.data,'$.titles',json_extract(api_change_pending.data,'$.titles')) ELSE json_remove(excluded.data,'$.titles') END; END;
-CREATE TRIGGER personal_change_hint_update AFTER UPDATE ON viewer_revisions BEGIN
+CREATE TRIGGER personal_change_hint_update AFTER UPDATE OF revision,observation_revision,title_path ON viewer_revisions BEGIN
  INSERT INTO api_change_pending(audience,type,resource_kind,resource_id,revision,data) VALUES('personal:'||NEW.profile_id,CASE WHEN OLD.revision IS NOT NEW.revision THEN 'personal.changed' ELSE 'progress.changed' END,'library',NEW.library_id,CAST(NEW.revision AS TEXT),CASE WHEN NEW.title_path<>'' THEN json_object('personal',CAST(NEW.revision AS TEXT),'observation',CAST(NEW.observation_revision AS TEXT),'titles',NEW.title_path) ELSE json_object('personal',CAST(NEW.revision AS TEXT),'observation',CAST(NEW.observation_revision AS TEXT)) END) ON CONFLICT(audience,type,resource_kind,resource_id) DO UPDATE SET revision=excluded.revision,data=CASE WHEN json_extract(api_change_pending.data,'$.titles') IS NULL OR json_extract(excluded.data,'$.titles') IS NULL THEN json_remove(excluded.data,'$.titles') WHEN json_extract(excluded.data,'$.titles')=json_extract(api_change_pending.data,'$.titles') OR json_extract(excluded.data,'$.titles') LIKE '%/'||json_extract(api_change_pending.data,'$.titles') THEN excluded.data WHEN json_extract(api_change_pending.data,'$.titles') LIKE '%/'||json_extract(excluded.data,'$.titles') THEN json_set(excluded.data,'$.titles',json_extract(api_change_pending.data,'$.titles')) ELSE json_remove(excluded.data,'$.titles') END; END;
 CREATE TRIGGER server_settings_hint AFTER UPDATE OF revision ON console_settings_revision WHEN NEW.singleton=1 AND OLD.revision IS NOT NEW.revision BEGIN
  INSERT INTO api_change_pending(audience,type,resource_kind,resource_id,revision) VALUES('server','settings.changed','settings','server',CAST(NEW.revision AS TEXT)) ON CONFLICT(audience,type,resource_kind,resource_id) DO UPDATE SET revision=excluded.revision; END;
@@ -11838,6 +11838,18 @@ END;
 -- Exact selection reads live input facts beyond Reading's predicate basis.
 -- This singleton is maintained base metadata, never a query result or dirty queue.
 -- Keep it separate so playback/subtitle changes do not invalidate Reading totals.
+-- Exact selection invalidation for profile-wide recommendation inputs. Direct
+-- personal predicates use viewer_revisions.selection_revision per library.
+CREATE TABLE catalog_selection_profile_epochs(profile_id TEXT PRIMARY KEY,revision INTEGER NOT NULL) WITHOUT ROWID, STRICT;
+INSERT INTO maintenance_table_bounds(table_name,rows,maximum) VALUES('catalog_selection_profile_epochs',0,1000000);
+CREATE TRIGGER catalog_selection_profile_epochs_bound_check BEFORE INSERT ON catalog_selection_profile_epochs
+ WHEN (SELECT rows>=maximum FROM maintenance_table_bounds WHERE table_name='catalog_selection_profile_epochs') AND NOT EXISTS(SELECT 1 FROM catalog_selection_profile_epochs WHERE profile_id=NEW.profile_id)
+ BEGIN SELECT RAISE(ABORT,'This server has reached its record storage limit.'); END;
+CREATE TRIGGER catalog_selection_profile_epochs_bound_insert AFTER INSERT ON catalog_selection_profile_epochs
+ BEGIN UPDATE maintenance_table_bounds SET rows=rows+1 WHERE table_name='catalog_selection_profile_epochs'; END;
+CREATE TRIGGER catalog_selection_profile_epochs_bound_delete AFTER DELETE ON catalog_selection_profile_epochs
+ BEGIN UPDATE maintenance_table_bounds SET rows=rows-1 WHERE table_name='catalog_selection_profile_epochs'; END;
+
 CREATE TABLE catalog_selection_predicate_epoch(
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
  revision INTEGER NOT NULL CHECK(revision>0)) STRICT;
@@ -12034,20 +12046,20 @@ CREATE TRIGGER selection_predicate_metadata_ratings_update AFTER UPDATE OF item_
  BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
 
 CREATE TRIGGER selection_predicate_personal_items_insert AFTER INSERT ON personal_items
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT NEW.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=NEW.item_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_personal_items_delete AFTER DELETE ON personal_items
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT OLD.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=OLD.item_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_personal_items_update AFTER UPDATE OF favorite,item_id,last_played_at,not_interested,profile_id,rating,revision,watched,watchlisted ON personal_items
  WHEN OLD.favorite IS NOT NEW.favorite OR OLD.item_id IS NOT NEW.item_id OR OLD.last_played_at IS NOT NEW.last_played_at OR OLD.not_interested IS NOT NEW.not_interested OR OLD.profile_id IS NOT NEW.profile_id OR OLD.rating IS NOT NEW.rating OR OLD.revision IS NOT NEW.revision OR OLD.watched IS NOT NEW.watched OR OLD.watchlisted IS NOT NEW.watchlisted
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT OLD.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=OLD.item_id UNION SELECT NEW.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=NEW.item_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_progress_insert AFTER INSERT ON progress
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT NEW.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=NEW.item_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_progress_delete AFTER DELETE ON progress
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT OLD.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=OLD.item_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_progress_update AFTER UPDATE OF completed,item_id,playback_id,position,profile_id,unit ON progress
  WHEN OLD.item_id IS NOT NEW.item_id OR OLD.profile_id IS NOT NEW.profile_id
@@ -12059,27 +12071,27 @@ CREATE TRIGGER selection_predicate_progress_update AFTER UPDATE OF completed,ite
  LEFT JOIN catalog_songs cso ON cso.entity_id=it.id
  LEFT JOIN catalog_book_files cbf ON cbf.entity_id=it.id
  CROSS JOIN (SELECT NEW.profile_id AS profile) wp WHERE it.id=NEW.item_id),0)<>1)
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT OLD.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=OLD.item_id UNION SELECT NEW.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=NEW.item_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_personal_watched_intents_insert AFTER INSERT ON personal_watched_intents
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT NEW.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=NEW.item_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_personal_watched_intents_delete AFTER DELETE ON personal_watched_intents
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT OLD.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=OLD.item_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_personal_watched_intents_update AFTER UPDATE OF authored_at,item_id,profile_id,watched ON personal_watched_intents
  WHEN OLD.authored_at IS NOT NEW.authored_at OR OLD.item_id IS NOT NEW.item_id OR OLD.profile_id IS NOT NEW.profile_id OR OLD.watched IS NOT NEW.watched
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT OLD.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=OLD.item_id UNION SELECT NEW.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=NEW.item_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_container_personal_state_insert AFTER INSERT ON container_personal_state
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT NEW.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=NEW.container_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_container_personal_state_delete AFTER DELETE ON container_personal_state
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT OLD.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=OLD.container_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_container_personal_state_update AFTER UPDATE OF cleared_through,container_id,kind,profile_id,revision,watched,watermark ON container_personal_state
  WHEN OLD.cleared_through IS NOT NEW.cleared_through OR OLD.container_id IS NOT NEW.container_id OR OLD.kind IS NOT NEW.kind OR OLD.profile_id IS NOT NEW.profile_id OR OLD.revision IS NOT NEW.revision OR OLD.watched IS NOT NEW.watched OR OLD.watermark IS NOT NEW.watermark
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO viewer_revisions(profile_id,library_id,revision,selection_revision) SELECT profile_id,library_id,0,1 FROM (SELECT OLD.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=OLD.container_id UNION SELECT NEW.profile_id AS profile_id,l.library_id AS library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=NEW.container_id) WHERE 1 ON CONFLICT(profile_id,library_id) DO UPDATE SET selection_revision=viewer_revisions.selection_revision+1; END;
 
 CREATE TRIGGER selection_predicate_catalog_playlists_insert AFTER INSERT ON catalog_playlists
  BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
@@ -12242,24 +12254,24 @@ CREATE TRIGGER selection_predicate_catalog_search_prefix_rows_update AFTER UPDAT
  BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
 
 CREATE TRIGGER selection_predicate_rec_profile_revisions_insert AFTER INSERT ON rec_profile_revisions
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO catalog_selection_profile_epochs(profile_id,revision) SELECT profile_id,1 FROM (SELECT NEW.profile_id AS profile_id) WHERE 1 ON CONFLICT(profile_id) DO UPDATE SET revision=catalog_selection_profile_epochs.revision+1; END;
 
 CREATE TRIGGER selection_predicate_rec_profile_revisions_delete AFTER DELETE ON rec_profile_revisions
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO catalog_selection_profile_epochs(profile_id,revision) SELECT profile_id,1 FROM (SELECT OLD.profile_id AS profile_id) WHERE 1 ON CONFLICT(profile_id) DO UPDATE SET revision=catalog_selection_profile_epochs.revision+1; END;
 
 CREATE TRIGGER selection_predicate_rec_profile_revisions_update AFTER UPDATE OF epoch,profile_id,revision ON rec_profile_revisions
  WHEN OLD.epoch IS NOT NEW.epoch OR OLD.profile_id IS NOT NEW.profile_id OR OLD.revision IS NOT NEW.revision
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO catalog_selection_profile_epochs(profile_id,revision) SELECT profile_id,1 FROM (SELECT OLD.profile_id AS profile_id UNION SELECT NEW.profile_id AS profile_id) WHERE 1 ON CONFLICT(profile_id) DO UPDATE SET revision=catalog_selection_profile_epochs.revision+1; END;
 
 CREATE TRIGGER selection_predicate_rec_profile_jobs_insert AFTER INSERT ON rec_profile_jobs
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO catalog_selection_profile_epochs(profile_id,revision) SELECT profile_id,1 FROM (SELECT NEW.profile_id AS profile_id) WHERE 1 ON CONFLICT(profile_id) DO UPDATE SET revision=catalog_selection_profile_epochs.revision+1; END;
 
 CREATE TRIGGER selection_predicate_rec_profile_jobs_delete AFTER DELETE ON rec_profile_jobs
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO catalog_selection_profile_epochs(profile_id,revision) SELECT profile_id,1 FROM (SELECT OLD.profile_id AS profile_id) WHERE 1 ON CONFLICT(profile_id) DO UPDATE SET revision=catalog_selection_profile_epochs.revision+1; END;
 
 CREATE TRIGGER selection_predicate_rec_profile_jobs_update AFTER UPDATE OF profile_id,revision,work_id ON rec_profile_jobs
  WHEN OLD.profile_id IS NOT NEW.profile_id OR OLD.revision IS NOT NEW.revision OR OLD.work_id IS NOT NEW.work_id
- BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;
+ BEGIN INSERT INTO catalog_selection_profile_epochs(profile_id,revision) SELECT profile_id,1 FROM (SELECT OLD.profile_id AS profile_id UNION SELECT NEW.profile_id AS profile_id) WHERE 1 ON CONFLICT(profile_id) DO UPDATE SET revision=catalog_selection_profile_epochs.revision+1; END;
 
 CREATE TRIGGER selection_predicate_rec_data_revision_insert AFTER INSERT ON rec_data_revision
  BEGIN UPDATE catalog_selection_predicate_epoch SET revision=revision+1 WHERE singleton=1; END;

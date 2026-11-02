@@ -21,9 +21,11 @@ func TestProgressSelectionEpochUsesActualBrowseStateBoundaries(t *testing.T) {
 	profile := "p"
 	v := Viewer{Profile: profile, Fence: "f", Libraries: []string{"a"}}
 	c.Exec(`INSERT INTO progress(profile_id,item_id,position,unit,completed,playback_id) VALUES('p',?,0,0,0,'play')`, item.ID)
+	// The same semantic boundaries now belong to this viewer/library and its
+	// profile-wide recommendation inputs, rather than a server-global epoch.
 	epoch := func() int64 {
 		var n int64
-		if err := c.DB.QueryRow(`SELECT revision FROM catalog_selection_predicate_epoch WHERE singleton=1`).Scan(&n); err != nil {
+		if err := c.DB.QueryRow(`SELECT COALESCE((SELECT selection_revision FROM viewer_revisions WHERE profile_id='p' AND library_id='a'),0)+COALESCE((SELECT revision FROM catalog_selection_profile_epochs WHERE profile_id='p'),0)`).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
 		return n
@@ -147,7 +149,7 @@ func TestPersonalCheckpointKeepsSemanticClockAndTerminalReorders(t *testing.T) {
 		t.Fatal(err)
 	}
 	var epoch int64
-	if err = db.QueryRow(`SELECT revision FROM catalog_selection_predicate_epoch WHERE singleton=1`).Scan(&epoch); err != nil {
+	if err = db.QueryRow(`SELECT COALESCE((SELECT selection_revision FROM viewer_revisions WHERE profile_id=? AND library_id=(SELECT l.library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=?)),0)+COALESCE((SELECT revision FROM catalog_selection_profile_epochs WHERE profile_id=?),0)`, profile, item.ID, profile).Scan(&epoch); err != nil {
 		t.Fatal(err)
 	}
 	accept(2, 41, stamp.Add(15*time.Second))
@@ -156,7 +158,7 @@ func TestPersonalCheckpointKeepsSemanticClockAndTerminalReorders(t *testing.T) {
 		t.Fatal(err)
 	}
 	var current int64
-	if err = db.QueryRow(`SELECT revision FROM catalog_selection_predicate_epoch WHERE singleton=1`).Scan(&current); err != nil {
+	if err = db.QueryRow(`SELECT COALESCE((SELECT selection_revision FROM viewer_revisions WHERE profile_id=? AND library_id=(SELECT l.library_id FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id WHERE e.id=?)),0)+COALESCE((SELECT revision FROM catalog_selection_profile_epochs WHERE profile_id=?),0)`, profile, item.ID, profile).Scan(&current); err != nil {
 		t.Fatal(err)
 	}
 	if current != epoch || after.Revision != before.Revision || after.LastPlayedAt != before.LastPlayedAt || after.ProgressSeconds != 41 {

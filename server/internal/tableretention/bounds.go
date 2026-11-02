@@ -39,6 +39,7 @@ var ResourceBounds = map[string]int{
 	"live_channel_preferences":         5_000_000,
 	"personal_activity_revisions":      1_000_000,
 	"rec_profile_revisions":            1_000_000,
+	"catalog_selection_profile_epochs": 1_000_000,
 	"library_navigation_revisions":     1_000_000,
 	"saved_pin_order_revisions":        1_000_000,
 	"dvr_owner_revisions":              1_000_000,

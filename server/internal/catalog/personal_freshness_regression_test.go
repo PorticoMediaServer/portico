@@ -172,6 +172,23 @@ func TestPersonalHintNamesTheTitle(t *testing.T) {
 	if !titles.Valid || titles.String == "" || titles.String[:len(hexID)] != hexID {
 		t.Fatalf("the hint does not name the title: %+v (want %s first)", titles, hexID)
 	}
+	// Exact-selection bookkeeping must neither overwrite the title hint nor
+	// manufacture a progress event for a semantic change that did not happen.
+	var beforeHint, afterHint string
+	if err := db.QueryRow(`SELECT data FROM api_change_pending WHERE audience=? AND type='personal.changed'`, "personal:"+profile).Scan(&beforeHint); err != nil {
+		t.Fatal(err)
+	}
+	homeExec(t, db, `UPDATE viewer_revisions SET selection_revision=selection_revision+1 WHERE profile_id=? AND library_id='library'`, profile)
+	if err := db.QueryRow(`SELECT data FROM api_change_pending WHERE audience=? AND type='personal.changed'`, "personal:"+profile).Scan(&afterHint); err != nil {
+		t.Fatal(err)
+	}
+	var progressHints int
+	if err := db.QueryRow(`SELECT count(*) FROM api_change_pending WHERE audience=? AND type='progress.changed'`, "personal:"+profile).Scan(&progressHints); err != nil {
+		t.Fatal(err)
+	}
+	if beforeHint != afterHint || progressHints != 0 {
+		t.Fatalf("selection metadata changed personal hint: %s -> %s, progress hints%d", beforeHint, afterHint, progressHints)
+	}
 	// Another title in the same library before the hint is published: unnamed.
 	c := catalogtest.New(t, db)
 	var library int64

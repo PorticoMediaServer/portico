@@ -5786,7 +5786,7 @@ var PorticoCastContracts = (function(exports) {
 				"wholeSelectionUnavailable": {
 					"additionalProperties": false,
 					"properties": { "reason": {
-						"enum": ["search_not_bounded"],
+						"enum": ["search_not_bounded", "source_changed"],
 						"type": "string"
 					} },
 					"required": ["reason"],
@@ -7632,7 +7632,7 @@ var PorticoCastContracts = (function(exports) {
 					"wholeSelectionUnavailable": {
 						"additionalProperties": false,
 						"properties": { "reason": {
-							"enum": ["search_not_bounded"],
+							"enum": ["search_not_bounded", "source_changed"],
 							"type": "string"
 						} },
 						"required": ["reason"],
@@ -105026,7 +105026,7 @@ var PorticoCastContracts = (function(exports) {
 					"wholeSelectionUnavailable": {
 						"additionalProperties": false,
 						"properties": { "reason": {
-							"enum": ["search_not_bounded"],
+							"enum": ["search_not_bounded", "source_changed"],
 							"type": "string"
 						} },
 						"required": ["reason"],
@@ -124675,7 +124675,7 @@ var PorticoCastContracts = (function(exports) {
 						"wholeSelectionUnavailable": {
 							"additionalProperties": false,
 							"properties": { "reason": {
-								"enum": ["search_not_bounded"],
+								"enum": ["search_not_bounded", "source_changed"],
 								"type": "string"
 							} },
 							"required": ["reason"],
