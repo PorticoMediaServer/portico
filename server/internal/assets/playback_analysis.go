@@ -100,6 +100,9 @@ func (p Probe) AnalyzePlayback(ctx context.Context, path string, f *Facts) {
 			}
 		}
 	}
+	if !p.PacketPeak {
+		return
+	}
 	bounded, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 	raw, e := p.analysisOutput(bounded, path, 32<<20, "-select_streams", "v:0", "-show_packets", "-show_entries", "packet=dts_time,size", "-of", "csv=p=0")
