@@ -84,3 +84,23 @@ test('a granted displayed parent plans its own container selector, never a child
   await actions.personal({target: explicit(['show'])} as never, {watched: true});
   assert.deepEqual((requests[0] as {selector: unknown}).selector, {container: {kind: 'show', id: 'id0'}});
 });
+
+test('J-14: a sent My List job is followed when its own write ends the selection, and its outcome is said', async () => {
+  let selectionLive = true, polls = 0;
+  const notices: string[] = [];
+  const actions = createSelectionActions({...ports, requestId: async () => 'op-1', notify: message => notices.push(message), api: {request: async (path: string, method?: string) => {
+    if (method === 'POST') {selectionLive = false; return {jobId: 'job-1', command: 'personal-state', state: 'queued', total: 0, done: 0, failed: 0, totalKnown: false};}
+    polls++; return {...completeJob, total: 2, done: 2};
+  }} as never});
+  const result = await actions.personal({target: explicit(['episode', 'episode'])} as never, {watchlist: true}, undefined, () => selectionLive);
+  assert.equal(result.updated, 2);
+  assert.ok(polls >= 1, 'the sent job is still read after the selection ended');
+  assert.deepEqual(notices.length, 1);
+  assert.match(notices[0]!, /My List/);
+});
+test('J-14: nothing is sent once the selection has ended', async () => {
+  const sent: unknown[] = [];
+  const actions = createSelectionActions({...ports, requestId: async () => 'op-1', api: {request: async (_path: string, _method?: string, body?: unknown) => {sent.push(body); return completeJob;}} as never});
+  await assert.rejects(actions.personal({target: explicit(['episode'])} as never, {watchlist: true}, undefined, () => false), (error: unknown) => error instanceof SelectionActionError && error.code === 'cancelled' || /cancel/.test(String(error)));
+  assert.equal(sent.length, 0);
+});

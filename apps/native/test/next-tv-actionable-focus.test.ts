@@ -909,7 +909,7 @@ for (const failed of [false, true]) test(`actual Library selection result footer
     react: b.react, 'react-native': b.native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/errors': await import('../../../packages/client-core/src/presentation/errors'),
     '../../../../../packages/client-core/src/catalogue-query-selection': await import('../../../packages/client-core/src/catalogue-query-selection'),
-    '../../../../../packages/client-core/src/selection-model': selection, '../../../../../packages/client-core/src/media-selection': await import('../../../packages/client-core/src/media-selection'),
+    '../../../../../packages/client-core/src/selection-model': selection, '../../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../../packages/client-core/src/media-selection': await import('../../../packages/client-core/src/media-selection'),
     '../../shell/selection-display': display, '../../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'PhoneBar', BulkEditor: 'Bulk', DeleteMediaDialog: 'Delete'},
     '../../kit/theme': {useTheme: () => b.theme}, '../../kit/overlays': o.surface, '../../kit/controls': {Button: o.Button},
     '../destinations/lifetime': scope, '../native-screen-services': {nativeScreenServices: () => ({})}, '../destinations/DestinationPicker': {NativeDestinationPicker: 'Picker'},

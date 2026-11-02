@@ -98,7 +98,7 @@ async function setup() {
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/selection-model': selectionCore,
     '../../../../../packages/client-core/src/presentation/errors': {presentError},
-    '../../../../../packages/client-core/src/media-selection': {mediaSelectionKey},
+    '../../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../../packages/client-core/src/media-selection': {mediaSelectionKey},
     '../../kit/overlays': {Dialog: 'Dialog'}, '../../kit/controls': {Button: 'Button'},
     '../../shell/selection-display': {selectedItemsLabel}, '../../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'SelectionPhoneActionBar',
       BulkEditor: 'BulkEditor', DeleteMediaDialog: 'DeleteMediaDialog'},

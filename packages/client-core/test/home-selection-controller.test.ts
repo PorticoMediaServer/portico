@@ -655,6 +655,30 @@ test('J-1: a platform without a single-title editor for the entry falls back to 
   h.controller.openMenu('window', h.controller.key({kind: 'movie', id: 'a', libraryId: 'library'}));
   await h.controller.executeMenu('editMetadata').catch(() => {});
   assert.ok(requests.some(path => path.includes('/metadata/bulk/preview')), 'the selection editor asked for its preview');
+});
+
+test('J-14: a My List job already sent is followed to its end when its own write refreshes Home, and its outcome is said', async () => {
+  const calls: {method?: string; path: string}[] = [], notices: string[] = [];
+  let polls = 0, h!: ReturnType<typeof harness>;
+  h = harness(undefined, async (path, method) => {
+    calls.push({method, path});
+    if (method === 'POST' && path === '/v1/jobs') {
+      // The write lands and Home re-reads: a new document ends the selection before the job reports.
+      queueMicrotask(() => h.replace({...h.document, revision: {catalog: 1, viewer: 2}}));
+      return {jobId: 'job-1', command: 'personal-state', state: 'queued', total: 0, done: 0, failed: 0, totalKnown: false} as never;
+    }
+    if (path.startsWith('/v1/jobs/job-1')) {polls++; return {jobId: 'job-1', command: 'personal-state', state: 'complete', total: 2, done: 2, failed: 0, totalKnown: true} as never;}
+    throw new Error(`unexpected ${method} ${path}`);
+  });
+  h.options.notify = message => notices.push(message);
+  pickAll(h);
+  await h.controller.execute('my-list');
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.ok(polls >= 1, 'the sent job is still read after the selection ended');
+  assert.equal(notices.length, 1, 'its outcome is said once');
+  assert.match(notices[0]!, /My List/);
+  assert.equal(h.errors.length, 0, 'nothing is reported as failed');
+  assert.equal(calls.filter(call => call.method === 'POST').length, 1, 'nothing is sent twice');
   h.controller.dispose();
 });
 

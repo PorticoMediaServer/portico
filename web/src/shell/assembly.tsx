@@ -96,7 +96,7 @@ export const assembleShellBindings: ShellAssembler = async context => {
   // so it alone follows Home; it plays through the session's player.
   const selectionResources = new HomeDocumentResources<Selection>(context.home, {isCurrent: current, changed, failed: feedback.reportError, create: () => {
     const playback = currentPlayer()?.playback;if (!playback) throw new DOMException('Shell retired', 'AbortError');
-    const selection = createShellSelection(context, playback, feedback.reportError, dockVisible), off = selection.subscribe(changed);
+    const selection = createShellSelection(context, playback, feedback.reportError, dockVisible, feedback.notify), off = selection.subscribe(changed);
     return {value: selection, dispose: () => {off();selection.dispose();}};
   }});
   resources.push(selectionResources.dispose);
@@ -141,7 +141,7 @@ export const assembleShellBindings: ShellAssembler = async context => {
           if (!item) throw new Error('stale-home-playback-target');
           await player().playback.play({context: currentHomeContext(), items: [item], signal: life.signal});
         }, openEntry: entry => {const destination = entryDestination(entry);void navigateArtworkEntry(entry, destination, artworkScope, current, current, manual => router.navigate({...destination, ...(manual ? {viewTransition: false} : {})})).catch(feedback.reportError);}, entryHref: entry => { try { return router.buildLocation(entryDestination(entry)).publicHref; } catch { return undefined; } }, openSeeAll: target => { void router.navigate(seeAllDestination(target)).catch(feedback.reportError); },
-          openMore: (row, entry, element) => homeSelectionOwner().openMore(row, entry, element), reportError: feedback.reportError,
+          openMore: (row, entry, element) => homeSelectionOwner().openMore(row, entry, element), reportError: feedback.reportError, notify: feedback.notify,
           openHome: () => {void router.navigate({to: '/'}).catch(feedback.reportError);},
           playChannel: async channel => {
             const document = context.home.getSnapshot().document;

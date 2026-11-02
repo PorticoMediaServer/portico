@@ -71,7 +71,7 @@ export function createCatalogueDocumentSelection(context: ScreenContext, sourceD
       ...(owner ? {editor: {api: life.api, events: context.events, requestId: async () => randomId(), serverId: context.scope.serverId, viewerId: context.scope.viewerId,
         artwork: context.artwork, signal: life.signal(), isCurrent: current},
         deletion: {api: life.api, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(), signal: life.signal(), isCurrent: current}} : {}),
-      actions: {api: life.api, events: context.events, requestId: async () => randomId(), signal: life.signal(), isCurrent: current, reportError: context.effects.reportError},
+      actions: {api: life.api, events: context.events, requestId: async () => randomId(), signal: life.signal(), isCurrent: current, reportError: context.effects.reportError, ...(context.effects.notify ? {notify: context.effects.notify} : {})},
       reportError: context.effects.reportError,
     });
     active = {key, play, selection, off: play.subscribe(emit)};

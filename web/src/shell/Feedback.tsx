@@ -20,6 +20,11 @@ export class ShellFeedback {
     const presented = presentError(error, 'home', {operation: 'action', i18n: this.i18n});
     if (!presented.silent) this.publish({id: String(++this.serial), message: presented.body, icon: 'i-warn', tone: 'error'});
   };
+  /** A short confirmation: work finished, such as a selection's My List after the selection ended (J-14). */
+  notify = (message: string) => {
+    if (this.retired || !this.isCurrent()) return;
+    this.publish({id: String(++this.serial), message, icon: 'i-check'});
+  };
   dismiss = (id: string) => { if (this.value?.id === id) this.publish(null); };
   dispose = () => { this.retired = true; this.publish(null); this.listeners.clear(); };
 }

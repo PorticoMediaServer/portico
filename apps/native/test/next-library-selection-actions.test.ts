@@ -193,7 +193,7 @@ test('actual native Library toolbar dispatches its whole query into the real Dow
     react: host.react, 'react-native': {View: 'View', Text: 'Text'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../../../../packages/client-core/src/presentation/errors': {}, '../../../../../packages/client-core/src/catalogue-query-selection': {},
-    '../../../../../packages/client-core/src/selection-model': {selectionFourthAction: () => 'my-list'}, '../../../../../packages/client-core/src/media-selection': {},
+    '../../../../../packages/client-core/src/selection-model': {selectionFourthAction: () => 'my-list'}, '../../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../../packages/client-core/src/media-selection': {},
     '../../shell/selection-display': {selectedItemsLabel: () => '257 selected'},
     '../../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'PhoneBar'},
     '../../kit/theme': {useTheme: () => ({isTV: false, layers: {navigation: 1}})}, '../../kit/overlays': {}, '../../kit/controls': {},
