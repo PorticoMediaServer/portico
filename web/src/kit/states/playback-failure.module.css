@@ -2,3 +2,7 @@
 .failure h2 {font-size: var(--type-display-size); line-height: var(--type-display-line); margin: 0 0 16px;}
 .failure p {max-width: 540px; font-size: var(--type-body-size); line-height: var(--type-body-line); margin: 0 0 24px;}
 .failure > div {pointer-events: auto; display: flex; flex-wrap: wrap; gap: 12px;}
+/* J-27: a start that failed before its first frame, inside a compact card; the full-player layout is for failures during playback. */
+.failure[data-layout='compact'] {position: static; inset: auto; padding: 0; background: none; pointer-events: auto;}
+.failure[data-layout='compact'] h2 {font-size: var(--type-title-size); line-height: var(--type-title-line); margin: 0 0 6px;}
+.failure[data-layout='compact'] p {font-size: var(--type-body-size); margin: 0 0 16px; color: var(--color-text-secondary);}

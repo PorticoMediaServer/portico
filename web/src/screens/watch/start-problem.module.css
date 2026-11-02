@@ -1,0 +1,5 @@
+/* J-27: a playback start that failed before its first frame. A compact card over the page the person was on,
+   never a full screen: above the phone tab bar, or the bottom-right corner on wider windows. It stays until
+   the person acts (Try again or Close); nothing dismisses it by itself. */
+.card { position: fixed; z-index: var(--layer-dialog); right: 24px; bottom: 24px; width: 420px; max-width: calc(100vw - 48px); max-height: calc(100dvh - 48px); overflow-y: auto; padding: 20px 22px; border-radius: 16px; background: var(--color-raised); box-shadow: 0 30px 60px -20px color-mix(in srgb, var(--color-shadow) 90%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text); }
+@media (max-width: 599px) { .card { left: 8px; right: 8px; width: auto; max-width: none; bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 8px); } }
