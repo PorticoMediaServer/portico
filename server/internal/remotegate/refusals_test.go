@@ -77,3 +77,27 @@ func TestHomeAlwaysIncludesEveryPrivateRange(t *testing.T) {
 		t.Fatal("socket decision ignores the always-local ranges")
 	}
 }
+
+// Before setup no remote-access rule applies: everything is answered and nothing is
+// recorded as refused, whatever Remote access and Remote security say.
+func TestUnconfiguredPolicyAnswersEverything(t *testing.T) {
+	outside := netip.MustParseAddr("203.0.113.9")
+	for _, access := range []string{AccessOn, AccessPrivate, AccessOff} {
+		p := NewPolicy(Settings{Security: SecurityEnhanced, Access: access, Unconfigured: true})
+		if !p.Unconfigured() || p.Socket(outside, false) != Admit || p.Socket(outside, true) != Admit {
+			t.Fatal(access, "socket refused before setup")
+		}
+		if admit, reason := p.Request(outside, false, "", "", "198.51.100.5"); !admit || reason != "" {
+			t.Fatal(access, "request refused before setup", reason)
+		}
+	}
+	g := New()
+	g.Set(NewPolicy(Settings{Security: SecurityEnhanced, Access: AccessOn, Unconfigured: true}))
+	g.Record("media.example.com", ReasonHTTP)
+	if names, _ := g.Refused.Snapshot(); len(names) != 0 {
+		t.Fatal("a refusal was recorded before setup", names)
+	}
+	if NewPolicy(Settings{Security: SecurityEnhanced, Access: AccessOn}).Socket(outside, false) == Admit {
+		t.Fatal("a set-up server answered plain HTTP from outside in Enhanced")
+	}
+}

@@ -73,6 +73,9 @@ type Policy struct {
 	home     []netip.Prefix
 	// configured is the detected and owner-configured home networks alone.
 	configured []netip.Prefix
+	// unconfigured: the server isn't set up yet, so no remote-access rule applies
+	// (Justin, 1 Nov); setup itself admits outside callers only with the setup code.
+	unconfigured bool
 	proxies  []netip.Prefix
 	hosts    map[string]struct{}
 	// own reports the server's own public addresses (a client at one of them is
@@ -90,10 +93,13 @@ type Settings struct {
 	// custom-certificate domain: host names or origins, any case, ports ignored.
 	Hosts []string
 	Own   func() []netip.Addr
+	// Unconfigured: the server has no owner yet. Every connection is answered;
+	// first-run setup applies its own rule (the setup code from outside).
+	Unconfigured bool
 }
 
 func NewPolicy(s Settings) *Policy {
-	p := &Policy{security: s.Security, access: s.Access, proxies: append([]netip.Prefix(nil), s.Proxies...), hosts: map[string]struct{}{}, own: s.Own}
+	p := &Policy{security: s.Security, access: s.Access, proxies: append([]netip.Prefix(nil), s.Proxies...), hosts: map[string]struct{}{}, own: s.Own, unconfigured: s.Unconfigured}
 	if p.security != SecurityStandard {
 		p.security = SecurityEnhanced
 	}
@@ -115,6 +121,9 @@ func NewPolicy(s Settings) *Policy {
 
 func (p *Policy) Security() string { return p.security }
 func (p *Policy) Access() string   { return p.access }
+
+// Unconfigured reports whether this policy answers everything because the server isn't set up.
+func (p *Policy) Unconfigured() bool { return p.unconfigured }
 
 // HostName reduces a Host header, SNI, host name or origin to a lower-case
 // name without port or trailing dot. Empty when it is none of those.
@@ -201,7 +210,7 @@ const (
 
 // Socket judges a new connection by its peer and transport alone.
 func (p *Policy) Socket(peer netip.Addr, tls bool) Connection {
-	if p.Home(peer) || p.Proxy(peer) {
+	if p.unconfigured || p.Home(peer) || p.Proxy(peer) {
 		return Admit
 	}
 	if p.access != AccessOn {
@@ -240,7 +249,7 @@ const (
 // none. It returns whether to answer and, for a refusal worth showing the
 // owner, its reason ("" records nothing).
 func (p *Policy) Request(client netip.Addr, proxied bool, serverName, forwardedProto, host string) (admit bool, reason string) {
-	if p.Home(client) {
+	if p.unconfigured || p.Home(client) {
 		return true, ""
 	}
 	if p.access != AccessOn {
@@ -321,7 +330,7 @@ func (g *Gate) Set(p *Policy) {
 // (with access Off or Private only, or before the settings are installed,
 // a name is never the reason for a refusal).
 func (g *Gate) Record(name, reason string) {
-	if p := g.Policy(); p == nil || g.Refused == nil || p.security != SecurityEnhanced || p.access != AccessOn {
+	if p := g.Policy(); p == nil || g.Refused == nil || p.unconfigured || p.security != SecurityEnhanced || p.access != AccessOn {
 		return
 	}
 	g.Refused.Record(name, reason)
@@ -338,7 +347,7 @@ func (g *Gate) Count(reason string) {
 // RecordProxy notes that a trusted proxy forwarded a request without a name,
 // under the proxy's address, in Enhanced with remote access On only.
 func (g *Gate) RecordProxy(proxy netip.Addr) {
-	if p := g.Policy(); p == nil || g.Refused == nil || p.security != SecurityEnhanced || p.access != AccessOn {
+	if p := g.Policy(); p == nil || g.Refused == nil || p.unconfigured || p.security != SecurityEnhanced || p.access != AccessOn {
 		return
 	}
 	g.Refused.RecordProxy(proxy)
