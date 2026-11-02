@@ -37,6 +37,9 @@ export type SetupView =
   | Readonly<{kind: 'admitting'}>
   | Readonly<{kind: 'renewing'}>
   | Readonly<{kind: 'starting_over'; name: string}>
+  /** From outside the server's network the server asks for the setup code from its log (auth.html 1e panels 1–2);
+   * `resume` is the start it interrupted, which runs again with the code. */
+  | Readonly<{kind: 'code'; name: string; invalid: boolean; resume: Extract<SetupView, {kind: 'starting'}> | Readonly<{kind: 'starting_over'; name: string}>}>
   | Readonly<{kind: 'library'}>
   | Readonly<{kind: 'done'}>
   | Readonly<{kind: 'ended'; outcome: SetupOutcome; name: string}>
@@ -47,13 +50,13 @@ export type SetupViewKind = SetupView['kind'];
 export type SetupEffect =
   | Readonly<{kind: 'read-state'}>
   | Readonly<{kind: 'schedule-read'; afterMs: number}>
-  | Readonly<{kind: 'start'}>
+  | Readonly<{kind: 'start'; code?: string}>
   | Readonly<{kind: 'initialize-hosted'; name: string}>
   | Readonly<{kind: 'initialize-local'; name: string}>
   | Readonly<{kind: 'request-approval'; navigate: boolean}>
   | Readonly<{kind: 'approve-in-app'}>
   | Readonly<{kind: 'abandon'}>
-  | Readonly<{kind: 'start-over'}>
+  | Readonly<{kind: 'start-over'; code?: string}>
   | Readonly<{kind: 'retry-delivery'}>
   | Readonly<{kind: 'exchange'}>
   | Readonly<{kind: 'renew'}>
@@ -77,6 +80,7 @@ export type SetupInput =
   | Readonly<{kind: 'startAgain'}>
   /** Start over: end whatever setup is unfinished on the server and begin again here. */
   | Readonly<{kind: 'startOver'}>
+  | Readonly<{kind: 'submitCode'; code: string}>
   | Readonly<{kind: 'retry'}>
   | Readonly<{kind: 'approveInApp'}>
   | Readonly<{kind: 'addLibrary'}>
@@ -99,6 +103,8 @@ export type SetupInput =
   | Readonly<{kind: 'approvedInApp'}>
   | Readonly<{kind: 'abandonRefused'}>
   | Readonly<{kind: 'startedOver'}>
+  | Readonly<{kind: 'setupCodeRequired'}>
+  | Readonly<{kind: 'setupCodeInvalid'}>
   | Readonly<{kind: 'deliveryRetried'}>
   | Readonly<{kind: 'exchangeDone'}>
   | Readonly<{kind: 'exchangeRefused'; lapsed: boolean; error: SetupError}>
@@ -174,9 +180,23 @@ const startOver = (name: string): SetupStep => go({kind: 'starting_over', name},
 function startingOver(view: Extract<SetupView, {kind: 'starting_over'}>, i: SetupInput): SetupStep {
   switch (i.kind) {
     case 'startedOver': return go(form(view.name), RETIRE);
+    case 'setupCodeRequired': return go({kind: 'code', name: view.name, invalid: false, resume: view});
+    case 'setupCodeInvalid': return go({kind: 'code', name: view.name, invalid: true, resume: view});
     case 'notLocalSource': return go({kind: 'refused', reason: 'not_local_source'});
     case 'alreadyComplete': return alreadySetUp();
     case 'effectFailed': return i.effect === 'start-over' ? failedStep(i.error, view.name, 'none', view, [{kind: 'start-over'}]) : stay(view);
+    default: return stay(view);
+  }
+}
+
+function code(view: Extract<SetupView, {kind: 'code'}>, i: SetupInput): SetupStep {
+  switch (i.kind) {
+    case 'submitCode': {
+      const typed = i.code.trim();
+      if (!typed) return stay(view);
+      return go(view.resume, [view.resume.kind === 'starting' ? {kind: 'start', code: typed} : {kind: 'start-over', code: typed}]);
+    }
+    case 'back': return leave('none', view.name);
     default: return stay(view);
   }
 }
@@ -217,6 +237,8 @@ function starting(view: Extract<SetupView, {kind: 'starting'}>, i: SetupInput, n
       const floor = typeof i.retryAfterSeconds === 'number' && i.retryAfterSeconds > 0 ? i.retryAfterSeconds * 1000 : undefined;
       return go({kind: 'busy_elsewhere', polls: 0, ...(floor ? {retryAt: now + floor} : {})}, [readAfter(0, floor)]);
     }
+    case 'setupCodeRequired': return step === 'start' ? go({kind: 'code', name, invalid: false, resume: view}) : stay(view);
+    case 'setupCodeInvalid': return step === 'start' ? go({kind: 'code', name, invalid: true, resume: view}) : stay(view);
     case 'startDone':
       if (step !== 'start') return stay(view);
       return go({...view, step: 'initialize'}, [hosted ? {kind: 'initialize-hosted', name} : {kind: 'initialize-local', name}]);
@@ -366,6 +388,7 @@ export function stepSetup(view: SetupView, input: SetupInput, now: number): Setu
     case 'renewing': return renewing(view, input);
     case 'failed': return failed(view, input);
     case 'starting_over': return startingOver(view, input);
+    case 'code': return code(view, input);
     case 'ended':
       if (input.kind === 'startOver') return startOver(view.name);
       return input.kind === 'back' || input.kind === 'startAgain' ? leave(view.outcome === 'superseded' ? 'none' : 'unapproved', view.name) : stay(view);
