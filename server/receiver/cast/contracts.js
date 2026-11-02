@@ -179245,6 +179245,32 @@ var PorticoCastContracts = (function(exports) {
 			],
 			"type": "object"
 		},
+		"PostSetupRemoteCheckRequest": {
+			"properties": {
+				"remoteAccess": { "type": "string" },
+				"remoteSecurity": { "type": "string" },
+				"setupToken": { "type": "string" }
+			},
+			"required": [
+				"setupToken",
+				"remoteAccess",
+				"remoteSecurity"
+			],
+			"type": "object"
+		},
+		"PostSetupRemoteCheckResponse": {
+			"properties": {
+				"address": { "type": "string" },
+				"fixes": {
+					"items": { "type": "string" },
+					"type": "array"
+				},
+				"reason": { "type": "string" },
+				"refused": { "type": "boolean" }
+			},
+			"required": ["refused", "fixes"],
+			"type": "object"
+		},
 		"PostSetupResumeRequest": {
 			"properties": {
 				"requestId": { "type": "string" },
@@ -199222,6 +199248,7 @@ var PorticoCastContracts = (function(exports) {
 		},
 		"SetupServerRequest": {
 			"properties": {
+				"allowAddress": { "type": "string" },
 				"authMode": { "type": "string" },
 				"interactive": { "type": "boolean" },
 				"name": { "type": "string" },
@@ -208569,6 +208596,7 @@ var PorticoCastContracts = (function(exports) {
 		"post_setup_abandon": "/v1/setup/abandon",
 		"post_setup_account_complete": "/v1/setup/account/complete",
 		"post_setup_approval": "/v1/setup/approval",
+		"post_setup_remote_check": "/v1/setup/remote-check",
 		"post_setup_resume": "/v1/setup/resume",
 		"post_setup_retry": "/v1/setup/retry",
 		"post_setup_start_over": "/v1/setup/start-over",

@@ -5,7 +5,7 @@ import {fabricHost, React} from './helpers/fabric-host.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {passwordStrength} from '../../../packages/client-core/src/password-strength';
-import {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupNewerMessage, setupStartOverOffer} from '../../../packages/client-core/src/presentation/setup-messages';
+import {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupLockoutReason, setupNewerMessage, setupStartOverOffer} from '../../../packages/client-core/src/presentation/setup-messages';
 
 // NativeSetup draws whichever state the shared setup controller reports, through the phone layout stubs. The
 // controller here is a recording fake: the screen's own wiring (subscriptions, form gates, Back, admission and
@@ -39,6 +39,7 @@ function fakeController(initialView: any) {
     startAgain: () => record('startAgain'),
     startOver: () => record('startOver'),
     submitCode: (code: string) => record('submitCode', code),
+    lockoutFix: (fix: string) => record('lockoutFix', fix),
     retry: () => record('retry'),
     approveInApp: () => record('approveInApp'),
     addLibrary: () => record('addLibrary'),
@@ -77,7 +78,7 @@ async function fixture(options: FixtureOptions) {
       made.push(fake);
       return fake.controller;
     }},
-    '../../../../../packages/client-core/src/presentation/setup-messages': {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupNewerMessage, setupStartOverOffer},
+    '../../../../../packages/client-core/src/presentation/setup-messages': {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupLockoutReason, setupNewerMessage, setupStartOverOffer},
     '../../../../../packages/client-core/src/password-strength': {passwordStrength},
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/Icon': {Icon: 'Icon'},
@@ -390,5 +391,28 @@ test('from outside: the setup code screen takes the code from the log and sends 
     await f.act(() => field(f, t('web.setup.codeLabel')).props.onChangeText('R9TD-3MWK'));
     await f.act(() => f.layout()!.props.primaryAction.onPress());
     assert.equal(f.fake().count('submitCode'), 1);
+  } finally {await f.host.unmount();}
+});
+
+test('the lockout warning offers only its fixes, and always a quiet Back', async () => {
+  const resume = view('starting', {mode: 'hosted', name: 'Studio', navigate: false, step: 'initialize'});
+  const f = await fixture({view: view('lockout', {reason: 'name', fixes: ['address', 'standard'], address: 'https://media.example.com', resume})});
+  try {
+    const layout = f.layout()!;
+    assert.equal(layout.props.title, t('web.setup.lockoutTitle'));
+    assert.equal(layout.props.body, setupLockoutReason('name'));
+    assert.deepEqual([layout.props.primaryAction.label, layout.props.secondaryAction.label, layout.props.detailsAction.label],
+      [t('web.setup.keepAllowing'), t('web.setup.switchStandard'), t('action.back')]);
+    await f.act(() => f.layout()!.props.primaryAction.onPress());
+    await f.act(() => f.layout()!.props.secondaryAction.onPress());
+    assert.deepEqual(f.fake().calls.filter(call => call.name === 'lockoutFix').map(call => call.args[0]), ['address', 'standard']);
+    // No fix applies (Remote access leaves this network out): Back on its own.
+    await f.act(() => f.fake().set(view('lockout', {reason: 'access', fixes: [], resume})));
+    const alone = f.layout()!;
+    assert.equal(alone.props.primaryAction, undefined);
+    assert.equal(alone.props.secondaryAction, undefined);
+    assert.equal(alone.props.body, setupLockoutReason('access'));
+    await f.act(() => alone.props.detailsAction.onPress());
+    assert.equal(f.fake().count('back'), 1);
   } finally {await f.host.unmount();}
 });
