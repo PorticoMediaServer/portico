@@ -33,6 +33,7 @@ test('the Library descriptor requires the actual authorized ID and never supplie
     './opening': libraryOpening, './saved-view-intent': librarySavedViewIntent,
     '../destinations/lifetime': {nativeDestinationLifetime},
     './play-selection': {createNativeLibraryPlaySelection},
+    './discover-selection': {createNativeDiscoverSelection: () => ({dispose() {}}) as never},
     // The TV Library module owns only the F-LIB-52 Save view surface; the page
     // and every action stay the real Library destination beneath it.
     './tv-library': {
