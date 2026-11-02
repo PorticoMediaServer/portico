@@ -148,6 +148,8 @@ export function CollectionLink({collection, onOpen}: {collection: NonNullable<De
   return <button className={styles.collection} type="button" onClick={onOpen}><Icon name="i-layers" size={18} />{collection.name}<span className={styles.collectionCount}>{t('lib.count', {count: collection.memberCount, pivot: 'other'})}</span></button>;
 }
 
+/** Kinds a detail page plays from its own Play button. */
+const PLAYABLE_KINDS: ReadonlySet<string> = new Set(['movie', 'episode', 'song', 'audiobook_file', 'video', 'extra']);
 export function TitleActions({binding, data, small = false, topResult = false}: {binding: DetailBindings; data: DetailProjection; small?: boolean; topResult?: boolean}) {
   const phone = useShellWidth() < 1024 && !topResult;
   const model = detailActions(data, {platform: 'web'}), primary = model.primary;
@@ -160,7 +162,11 @@ export function TitleActions({binding, data, small = false, topResult = false}: 
   const length = data.item.duration ?? 0, fraction = length > 0 ? data.personal.progressSeconds / length : 0;
   const left = length > 0 ? titleFactParts({durationSeconds: Math.max(0, length - data.personal.progressSeconds)}, env).find(part => part.id === 'duration')?.text : undefined;
   const remaining = primary?.id === 'resume' && left ? serviceText('duration.remaining', {duration: left}) : primary?.caption;
+  // A playable title whose file the server can't reach offers no play action; say so with a disabled
+  // Play and the reason instead of drawing no Play at all (J-23).
+  const unplayable = !primaryAction && PLAYABLE_KINDS.has(data.item.kind) && data.item.available === false;
   return <><div className={styles.actions} data-phone-title={phone && !small || undefined}>
+    {unplayable && <Button variant="primary" icon="i-play" size={size} disabled aria-describedby={`${data.item.id}-unplayable`}>{t('next.controls.play')}</Button>}
     {primary && primaryAction && (primary.id === 'resume' && !phone ? <ResumeButton size={size} progress={fraction} remaining={remaining} onClick={() => run(binding.play(data, primaryAction.id))}>{t('next.controls.resume')}</ResumeButton>
       : <Button variant="primary" icon="i-play" size={size} onClick={() => run(binding.play(data, primaryAction.id))}>{t(primary.id === 'resume' ? 'next.controls.resume' : 'next.controls.play')}</Button>)}
     {!small && <>
@@ -169,7 +175,8 @@ export function TitleActions({binding, data, small = false, topResult = false}: 
       {!phone && !topResult && data.actions.some(action => action.id === 'watched' && action.enabled) && <Button icon="i-check" iconOnly aria-label={t(data.personal.watched ? 'title.markUnwatched' : 'title.markWatched')} aria-pressed={data.personal.watched} size={size} onClick={() => run(binding.mutate(data, {action: 'watched', value: !data.personal.watched}))} />}
       <TitleMore binding={binding} data={data} />
     </>}
-  </div>{phone && !small && primary?.id === 'resume' && <div className={styles.phoneResume}>
+  </div>{unplayable && <p id={`${data.item.id}-unplayable`} className={styles.unplayable}>{t('title.fileUnavailable')}</p>}
+  {phone && !small && primary?.id === 'resume' && <div className={styles.phoneResume}>
     <div className={styles.phoneProgress} role="progressbar" aria-label={t('next.layout.progress')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(1, Math.max(0, fraction)) * 100)}><span style={{transform: `scaleX(${Math.min(1, Math.max(0, fraction))})`}} /></div>
     <div className={styles.phoneRemaining}>{remaining}{restart && <Button variant="text" icon="i-retry" size="small" onClick={() => run(binding.play(data, restart.id))}>{t('next.controls.startOver')}</Button>}</div>
   </div>}</>;

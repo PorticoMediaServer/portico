@@ -127,12 +127,16 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
   const offer = showPrimary(data, primary), code = offer ? episodeCode(offer.next, t) : undefined;
   const primaryLabel = offer ? code ? t(offer.resume ? 'title.resumeEpisode' : 'title.playEpisode', {code}) : t(offer.resume ? 'next.controls.resume' : 'next.controls.play') : undefined;
   const playPrimary = () => runScreenCommand(binding.context, () => { binding.current(data); if (offer) return binding.primary.play(offer.detail, offer.action.id); });
+  // J-23: the next-up episode exists but its file can't be reached: a disabled Play with the reason, never nothing.
+  const nextUnplayable = !!data.nextUp && (data.nextUp.available === false || !!data.nextUp.missing || !data.nextUp.playback);
   const actions = <div className={`${detail.actions} ${styles.heroActions}`}>
     {offer && (offer.resume ? <ResumeButton progress={offer.progress} onClick={playPrimary}>{primaryLabel}</ResumeButton> : <Button variant="primary" icon="i-play" onClick={playPrimary}>{primaryLabel}</Button>)}
+    {!offer && nextUnplayable && <Button variant="primary" icon="i-play" disabled aria-describedby={`${show.id}-unplayable`}>{t('next.controls.play')}</Button>}
     {personal && <Button disabled={busy} icon={personal.watchlisted ? 'i-check' : 'i-plus'} aria-pressed={personal.watchlisted} onClick={() => { void binding.setMyList(data, !personal.watchlisted).catch(binding.context.effects.reportError); }}>{t('next.controls.myList')}</Button>}
     {personal && <Button disabled={busy} icon="i-check" iconOnly aria-label={t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')} aria-pressed={personal.watched} onClick={() => { void binding.setWatched(data, !personal.watched).catch(binding.context.effects.reportError); }} />}
     <ShowMore binding={binding} data={data} personal={personal} busy={busy} />
   </div>;
+  const unplayableNote = !offer && nextUnplayable ? <p id={`${show.id}-unplayable`} className={detail.unplayable}>{t('title.fileUnavailable')}</p> : null;
   // The pinned bar carries the drawn Resume Sx Ey and My List controls once the hero is gone.
   const pin = offer && (offer.resume ? <ResumeButton size="small" progress={offer.progress} onClick={playPrimary}>{primaryLabel}</ResumeButton> : <Button variant="primary" size="small" icon="i-play" onClick={playPrimary}>{primaryLabel}</Button>);
   const owner = binding.canManage();
@@ -148,10 +152,10 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
         {preferenceValue<boolean>(preferences, 'appearance.showBackdrops') && <AmbientArt className={`${detail.phoneHeroArt} ${styles.phoneArt}`} treatment="phone" position={width < 600 ? '44% 20%' : '30% 30%'} source={art.ambient(show.backdropUrl ?? show.posterUrl)} foreground={art.foreground(show.backdropUrl ?? show.posterUrl, width < 600 ? 800 : 1600, 16 / 9)} />}
         <div className={styles.phoneCopy}><Lockup title={show.title} platform="phone-web" style={width < 600 ? undefined : layoutType(platformType('desktop').lockupLong)} />{titleFacts}</div>
       </div>
-      {actions}{show.overview && <TitleProse variant="hero" className={styles.phoneSynopsis}>{show.overview}</TitleProse>}{credits}
+      {actions}{unplayableNote}{show.overview && <TitleProse variant="hero" className={styles.phoneSynopsis}>{show.overview}</TitleProse>}{credits}
     </header> : <header className={detail.hero}>
       {preferenceValue<boolean>(preferences, 'appearance.showBackdrops') && <AmbientArt className={detail.heroArt} treatment="title" source={art.ambient(show.backdropUrl ?? show.posterUrl)} foreground={art.foreground(show.backdropUrl ?? show.posterUrl, 1920, 16 / 9)} />}
-      <div className={detail.copy}><Lockup title={show.title} platform="desktop" />{titleFacts}{show.overview && <TitleProse variant="hero" className={detail.blurb}>{show.overview}</TitleProse>}{credits}{actions}</div>
+      <div className={detail.copy}><Lockup title={show.title} platform="desktop" />{titleFacts}{show.overview && <TitleProse variant="hero" className={detail.blurb}>{show.overview}</TitleProse>}{credits}{actions}{unplayableNote}</div>
     </header> : <div className={detail.compactHeader}><h1>{show.title}</h1>{actions}</div>}
     <TitleTabs title={show.title} compact={compact} onBack={binding.context.effects.back ? () => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); }) : undefined} actions={!compact ? <div className={`${detail.actions} ${styles.pinActions}`}>{pin}{personal && <Button size="small" disabled={busy} icon={personal.watchlisted ? 'i-check' : 'i-plus'} iconOnly aria-label={t('next.controls.myList')} title={t('next.controls.myList')} aria-pressed={personal.watchlisted} onClick={() => { void binding.setMyList(data, !personal.watchlisted).catch(binding.context.effects.reportError); }} />}</div> : undefined}><Tabs externalPanelId={tabPanelId} value={tab} onValueChange={value => runScreenCommand(binding.context, () => { binding.current(data); if (value === 'episodes' || value === 'related' || value === 'details') binding.view.tab(value); })} items={[{value: 'episodes', label: t('next.controls.episodes')}, {value: 'related', label: t('next.controls.moreLikeThis')}, {value: 'details', label: t('next.controls.details')}]} /></TitleTabs>
     <div key={tab} id={tabPanelId} role="tabpanel" aria-labelledby={`${tabPanelId}-tab-${tab}`} tabIndex={0} className={detail.tabPanel}>
