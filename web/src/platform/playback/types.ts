@@ -5,7 +5,7 @@ import type {PlaybackSubject} from '@core/presentation/kit-model/index.ts';
 import type {PlayerOffersData} from '@core/player-offers.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import type {V1Viewer} from '@core/playback-v1/v1-queue-player.ts';
-import type {PlaybackOptions, Session} from '@core/playback-v1/types.ts';
+import type {PlaybackOptions, Selector, Session} from '@core/playback-v1/types.ts';
 import type {Timers} from '@core/playback-v1/sessions.ts';
 import type {SubtitlePreferences} from '@core/preference-effects.ts';
 import type {CapabilityDocument} from '@core/client-profile.ts';
@@ -32,7 +32,9 @@ export type WebPlaybackStart = Readonly<{entry: ContentEntry; target: NonNullabl
 export type WebPlaybackVersionStart = Readonly<{itemId: string; versionId: string; context: SelectionContext; signal: AbortSignal}>;
 /** O-159: the pressed card's own facts, so an accepted start is drawn at once (the starting dock). */
 export type WebPlaybackStartDisplay = Readonly<{subject: PlaybackSubject; posterUrl?: string; /** The title's backdrop, for the starting player's picture. */ backdropUrl?: string}>;
-export type WebPlaybackScreenTarget = Readonly<{libraryId: string; itemId: string; startSeconds: number; versionId?: string; storedResume?: boolean; display?: WebPlaybackStartDisplay}>;
+/** `from` is the list a row was pressed in (an artist's top songs) when that, not the item's own
+ * show, album or book, is what plays on; absent, the server's `PlaybackOptions.container` is. */
+export type WebPlaybackScreenTarget = Readonly<{libraryId: string; itemId: string; startSeconds: number; versionId?: string; storedResume?: boolean; display?: WebPlaybackStartDisplay; from?: Selector}>;
 /** A start with no drawable dock yet: drawn from its display facts with Stop only, never "playing". */
 export type WebPlaybackStarting = Readonly<{key: string; display: WebPlaybackStartDisplay; stop: () => void; /** The server reports why it isn't ready yet. */ waiting?: 'channel_source'}>;
 /** A start that ended before it could play: an accepted start that never became drawable by

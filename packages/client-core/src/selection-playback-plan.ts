@@ -59,6 +59,16 @@ export function planSelectionPlayback(items: readonly HomeSelectionPlaybackItem[
       else segments.push({source: {items: {ids: [identity.id]}}});
     }
   }
+  // One pressed episode or song plays on through its show or album, anchored on it (PB-1, MU-1),
+  // as a title page's Play does. A picked set of several titles stays exactly that set.
+  const only = items.length === 1 ? items[0] : undefined;
+  if (playing && only && 'entry' in only) {
+    const {entry} = only, parent = entry.kind === 'episode' ? entry.show && {kind: 'show', id: entry.show.id} : entry.kind === 'song' ? entry.album && {kind: 'album', id: entry.album.id} : undefined;
+    if (parent) {
+      id(parent.id, 'selection parent');
+      segments.splice(0, segments.length, {source: {container: parent}, anchor: {itemId: entry.id}});
+    }
+  }
   if (playing && segments.length > SELECTION_SEGMENTS_MAX) throw new Error('queue_too_large');
   return Object.freeze({segments: Object.freeze(segments), startSeconds: selectionStartSeconds(items)});
 }
