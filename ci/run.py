@@ -63,23 +63,19 @@ def go(plan,index,report=None):
     selected=plan['shards'][index]
     allowed=policy(json.loads((ROOT/'ci/quarantine.json').read_text())); blocked=False
     out=ROOT/'ci-results'; out.mkdir(exist_ok=True)
-    for module, groups, whole in batches(plan, selected):
-        workers=os.environ.get('PORTICO_CI_GO_PACKAGE_JOBS','4')
-        if workers not in ('1','2','4'): raise ValueError('invalid Go package worker budget')
+    workers=os.environ.get('PORTICO_CI_GO_PACKAGE_JOBS','4')
+    if workers not in ('1','2','4'): raise ValueError('invalid Go package worker budget')
+    def command(groups, whole):
         args=['go','test','-json','-count=1','-p='+workers,'-timeout=780s','-tags',plan['tags']]
         if os.environ.get('PORTICO_CI_GO_RACE')=='1': args+=['-race']
         if plan.get('tier')=='short': args+=['-short']
         if not whole: args+=['-run','^(?:'+'|'.join(re.escape(t['name']) for t in groups[0][1])+')$']
-        args += [package for package,tests in groups]
-        if report is not None:
-            # A separate nightly observer retains the raw output and reports
-            # timing/incomplete execution; required CI keeps its strict verdict.
-            result,timed_out=report.run(args,ROOT/module)
-            report(module,groups,result,timed_out)
-            continue
-        result=subprocess.run(args,cwd=ROOT/module,capture_output=True,text=True,timeout=900)
+        return args+[package for package,tests in groups]
+    def execute_batch(module, groups, whole):
+        result=subprocess.run(command(groups, whole),cwd=ROOT/module,capture_output=True,text=True,timeout=900)
         try: events=[json.loads(line) for line in result.stdout.splitlines()]
         except ValueError: events=[]
+        blocked=False; lines=[]
         requested={package for package,tests in groups}
         if any(e.get('Package') not in requested for e in events): blocked=True
         if result.returncode==1 and not any(not e.get('Test') and e.get('Action')=='fail' for e in events): blocked=True
@@ -94,7 +90,31 @@ def go(plan,index,report=None):
             terminal=next((e['Action'] for e in reversed(own) if not e.get('Test') and e.get('Action') in ['pass','fail','skip']),None)
             code=(0 if terminal in ['pass','skip'] else 1) if result.returncode in [0,1] else result.returncode
             status=classify(own,[t['name'] for t in tests],code,permitted)
-            print(package,status,flush=True); blocked |= status=='blocked'
+            lines.append(package+' '+status); blocked |= status=='blocked'
+        return blocked, lines
+    planned=batches(plan, selected)
+    if report is not None:
+        # A separate nightly observer retains the raw output and reports
+        # timing/incomplete execution; required CI keeps its strict verdict.
+        for module, groups, whole in planned:
+            result,timed_out=report.run(command(groups, whole),ROOT/module)
+            report(module,groups,result,timed_out)
+        return
+    # CI-2: the complete-package batch already runs `workers` packages at once
+    # (-p). The split packages (each the slow tests of one package, selected with
+    # -run) used to follow one at a time; they now share the same budget of
+    # `workers` concurrent processes. Each is still its own command with its own
+    # -run, timeout, JSONL, stderr and terminal classification.
+    complete=[b for b in planned if b[2]]; partial=[b for b in planned if not b[2]]
+    for module, groups, whole in complete:
+        stop, lines = execute_batch(module, groups, whole); blocked |= stop
+        for line in lines: print(line, flush=True)
+    if partial:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(int(workers), len(partial))) as pool:
+            for stop, lines in pool.map(lambda b: execute_batch(*b), partial):
+                blocked |= stop
+                for line in lines: print(line, flush=True)
     if blocked: raise SystemExit(1)
 
 def batches(plan, selected):
@@ -115,6 +135,27 @@ def build_helper(plan):
 def download():
     for module in ['server','apikit']: execute(['go','mod','download'],ROOT/module)
 
+def install_ffmpeg():
+    """CI-1: the distribution FFmpeg (with libsoxr), without recommended extras.
+
+    Downloads go to PORTICO_CI_APT_CACHE when the workflow restores one, so a
+    warm job installs from cached .debs instead of a slow mirror. The package
+    lists on a fresh runner are usually current enough for the cached set; only
+    when that install fails are the lists refreshed and the install retried.
+    """
+    cache=os.environ.get('PORTICO_CI_APT_CACHE')
+    install=['sudo','apt-get','install','-y','--no-install-recommends']
+    if cache:
+        Path(cache,'partial').mkdir(parents=True,exist_ok=True)
+        install+=['-o','Dir::Cache::archives='+cache]
+    try:
+        execute(install+['ffmpeg'])
+    except subprocess.CalledProcessError:
+        execute(['sudo','apt-get','update']); execute(install+['ffmpeg'])
+    if cache:
+        # apt writes as root; the cache action saves the directory as the runner user.
+        execute(['sudo','chown','-R',f'{os.getuid()}:{os.getgid()}',cache])
+
 def ensure_ffmpeg(plan, index=0, component=None):
     import shutil
     if component:
@@ -128,7 +169,7 @@ def ensure_ffmpeg(plan, index=0, component=None):
             suffix=p['package'].split('/portico/'+p['module'],1)[1].lstrip('/')
             needed |= any(re.search(r'ffmpeg|ffprobe',f.read_text(),re.I) for f in (ROOT/p['module']/suffix).glob('*.go'))
     if needed and not (shutil.which('ffmpeg') and shutil.which('ffprobe')):
-        execute(['sudo','apt-get','update']); execute(['sudo','apt-get','install','-y','ffmpeg'])
+        install_ffmpeg()
     if needed:
         for tool in ['ffmpeg','ffprobe']:
             path=shutil.which(tool)
