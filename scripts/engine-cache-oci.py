@@ -215,11 +215,17 @@ class Transport:
         manifest = json.loads(data)
         if manifest.get('schemaVersion') != 2 or manifest.get('artifactType') != TYPE or len(manifest.get('layers', [])) != 2:
             raise ValueError('unexpected cache OCI artifact')
+        config = manifest.get('config', {})
+        if (manifest.get('subject') is not None or config.get('size') != 2 or
+                config.get('digest') != 'sha256:' + hashlib.sha256(b'{}').hexdigest() or
+                config.get('annotations') or config.get('urls')):
+            raise ValueError('cache OCI config/subject changed')
         layers = {layer.get('annotations', {}).get('org.opencontainers.image.title'): layer for layer in manifest['layers']}
         if set(layers) != {'receipt.json', 'payload.tar'}: raise ValueError('cache OCI file names changed')
         for name, media, maximum in (('receipt.json', RECEIPT, 64 * 1024**2), ('payload.tar', PAYLOAD, LIMIT + 1024**3)):
             layer = layers[name]
             if (layer.get('mediaType') != media or
+                    layer.get('annotations') != {'org.opencontainers.image.title': name} or layer.get('urls') or
                     not 0 < layer.get('size', 0) <= maximum or not re.fullmatch('sha256:[a-f0-9]{64}', layer.get('digest', ''))):
                 raise ValueError('cache OCI layer inventory changed')
         return exact, manifest

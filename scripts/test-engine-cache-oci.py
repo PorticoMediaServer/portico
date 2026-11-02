@@ -23,6 +23,29 @@ MIGRATE = module('engine-cache-migration')
 
 
 class OCIControls(unittest.TestCase):
+    def test_manifest_rejects_auto_unpack_external_urls_and_named_configs(self):
+        for variant in ('valid', 'auto-unpack', 'external-url', 'named-config'):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                manifest = dict(schemaVersion=2, artifactType=OCI.TYPE,
+                    config=dict(mediaType='application/vnd.oci.empty.v1+json', size=2,
+                                digest='sha256:' + hashlib.sha256(b'{}').hexdigest()),
+                    layers=[dict(mediaType=media, size=10, digest='sha256:' + 'a' * 64,
+                                 annotations={'org.opencontainers.image.title': name})
+                            for name, media in (('receipt.json', OCI.RECEIPT), ('payload.tar', OCI.PAYLOAD))])
+                if variant == 'auto-unpack': manifest['layers'][1]['annotations']['io.deis.oras.content.unpack'] = 'true'
+                if variant == 'external-url': manifest['layers'][1]['urls'] = ['https://outside.invalid/payload']
+                if variant == 'named-config': manifest['config']['annotations'] = {'org.opencontainers.image.title': 'unexpected-file'}
+                raw = OCI.encoded(manifest); descriptor = dict(digest='sha256:' + hashlib.sha256(raw).hexdigest(), size=len(raw))
+                transport = object.__new__(OCI.Transport)
+                transport.repository = 'ghcr.io/porticomediaserver/fixture'; transport.tools = Path(temporary)
+                def reader(args, **unused):
+                    if '--descriptor' in args: return OCI.encoded(descriptor)
+                    Path(args[args.index('--output') + 1]).write_bytes(raw); return b''
+                transport.oras = reader
+                if variant == 'valid': self.assertIsNotNone(transport.manifest(transport.repository + ':fixture'))
+                else:
+                    with self.assertRaises(ValueError): transport.manifest(transport.repository + ':fixture')
+
     def source(self, root):
         source = root / 'source'; source.mkdir()
         name = '50-controlled_' + 'a' * 64 + '.tar.xz'
