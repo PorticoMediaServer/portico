@@ -67,6 +67,11 @@ type Service struct {
 	listingMu      sync.Mutex
 	listings       map[string]*scanListing
 	ignoreScopes   map[string]map[string]remoteIgnoreScope
+	// reuseMu guards what a scan remembers to spare helper processes
+	// (scan_reuse.go).
+	reuseMu  sync.Mutex
+	ready    map[string]readyProof
+	accepted map[acceptedKey]acceptedAnalysis
 }
 
 func New(db *sql.DB, c *catalog.Service, p assets.Probe) *Service {
@@ -604,7 +609,14 @@ func (s *Service) processQuantum(ctx context.Context, id, library string) bool {
 	if err != nil {
 		return false
 	}
-	if err = s.readySource(ctx, id, &source); err != nil {
+	// Steps reuse a recent root check (scan_reuse.go): every page and media
+	// read checks the root identity in its own helper. The final proofs,
+	// verification and reconciliation (and legacy adoption), decide what is
+	// absent, so they re-prove the root on every step.
+	finalProof := phase == "verifying" || phase == "reconciling" || phase == "legacy_inventory"
+	if !finalProof && s.readyStillProven(id, source) {
+		err = nil
+	} else if err = s.readySource(ctx, id, &source); err != nil {
 		if errors.Is(err, errScanPresenceAdvanced) {
 			return true
 		}

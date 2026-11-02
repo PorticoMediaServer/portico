@@ -97,6 +97,11 @@ type Probe struct {
 	ReadGuard  func(context.Context, string) error
 	Binary     string
 	Supervisor *storage.Supervisor
+	// PacketPeak asks AnalyzePlayback for the video's peak bitrate, which
+	// reads every packet of the file. A basic scan leaves it off (playback
+	// plans from the container's average, as Plex does without deep
+	// analysis); a scan whose policy reads whole files anyway turns it on.
+	PacketPeak bool
 }
 type boundedBuffer struct {
 	data  []byte
@@ -327,7 +332,10 @@ func (p Probe) inspect(ctx context.Context, path string, options []string) (Fact
 	if err := p.completeMusepackTimeline(ctx, path, &f); err != nil {
 		return Facts{}, err
 	}
-	if !strings.Contains(path, "://") {
+	// Embedded audio tags describe music and audiobooks. A file with a real
+	// video stream gets its tags and chapters from the probe above, so it
+	// does not spend another helper process on them.
+	if !strings.Contains(path, "://") && !hasMotionVideo(f) {
 		tags, err := storage.ReadAudioTags(ctx, path)
 		if err == nil {
 			f.EmbeddedAudio = &tags
@@ -416,4 +424,21 @@ func OpenPlayback(db *sql.DB, session, grantHash string) (*os.File, error) {
 func demuxerIdentity(raw string) string {
 	name, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(raw)), ",")
 	return streamText(name, 64)
+}
+
+// hasMotionVideo reports a video stream that is not a still image: cover art
+// is set aside before this (AttachedPicture), and a chapter-image track uses an
+// image codec.
+func hasMotionVideo(f Facts) bool {
+	for _, st := range f.Streams {
+		if st.Type != "video" {
+			continue
+		}
+		switch st.Codec {
+		case "mjpeg", "png", "bmp", "gif", "webp", "tiff", "jpegls":
+			continue
+		}
+		return true
+	}
+	return false
 }
