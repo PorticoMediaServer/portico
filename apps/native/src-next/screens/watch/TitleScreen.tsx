@@ -1,4 +1,5 @@
 import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {TitleSeasonBar} from './TitleSeasonBar';
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
@@ -6,7 +7,7 @@ import {cardText, episodeLabel, playbackIdentity, titleFactParts, type TextEnvir
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {AmbientArt, Artwork, type AmbientArtSource, type ArtworkSource, StandardBackdrop} from '../../kit/artwork';
 import {EpisodeTile, PosterCard, type EpisodeTileProps, type PosterCardProps} from '../../kit/cards';
-import {Button, Focusable, ResumeButton, Switch, Tabs} from '../../kit/controls';
+import {Button, Focusable, ResumeButton, Tabs} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {TVShelf, tvItemKey} from '../../tv/layout/TVShelf';
 import {FocusRegion, useOptionalFocusRegistry, type FocusRegionProps} from '../../kit/focus';
@@ -352,7 +353,11 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   const selectedSeason = (snapshot.seasons ?? []).find(season => season.id === workspace?.selected.seasonId);
   const currentSeasonLabel = workspace?.selected.group ? workspace.groups.find(group => group.id === workspace.selected.group)?.title ?? t('title.seasons')
     : selectedSeason ? selectedSeason.title || t('title.season', {number: selectedSeason.number}) : t('title.seasons');
-  const seasonProgress = selectedSeason?.episodeCount !== undefined ? t('title.seasonProgress', {watched: selectedSeason.watchedCount ?? 0, total: selectedSeason.episodeCount}) : undefined;
+  // phone-detail ep-bar: the phone bar says how many episodes the season has (its watched
+  // progress is in the season sheet); wider screens keep the progress beside the button.
+  const seasonProgress = selectedSeason?.episodeCount === undefined ? undefined : theme.platform === 'phone'
+    ? t('count.episodes', {count: selectedSeason.episodeCount})
+    : t('title.seasonProgress', {watched: selectedSeason.watchedCount ?? 0, total: selectedSeason.episodeCount});
   const remember = (y: number) => {
     setCollapsed(old => (y > heroHeight - headerHeight) === old ? old : y > heroHeight - headerHeight);
     if (y < bodyTop.current) {controller.remember({itemId: null, offset: y}); return;}
@@ -502,18 +507,9 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
           onMoreEpisodes={() => {void controller.moreEpisodes().catch(props.reportError);}}
           onRetryEpisode={() => controller.episode.retry()} renderError={props.renderError}/>)
           : <>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
-            <Button testID="watch-seasons-open" variant="glass" size="small" trailingIcon="i-chdown" style={{flexShrink: 0}}
-              onPress={openSeasons}>{currentSeasonLabel}</Button>
-            {seasonProgress ? <Text numberOfLines={1} style={[theme.type.caption, {color: theme.colors.textTertiary, flexShrink: 1}]}>{seasonProgress}</Text> : null}
-            <View style={{flex: 1}}/>
-            {!theme.isTV && <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0}}>
-              <Text style={[theme.type.bodyStrong, {fontSize: 12.5, color: theme.colors.textSecondary}]}>{t('next.controls.hideWatched')}</Text>
-              <Switch testID="watch-hide-watched" variant={theme.platform === 'phone' ? 'episode' : 'selection'} checked={snapshot.place.hideWatched}
-                accessibilityLabel={t('next.controls.hideWatched')} onCheckedChange={value => {if (bodyLease) void controller.hideWatched(value, bodyLease).catch(props.reportError);}}/>
-            </View>}
-            {props.owner && <Button testID="watch-show-settings-open" variant="icon" icon="i-more" iconOnly accessibilityLabel={t('card.more', {title})} onPress={openSettings}/>}
-          </View>
+          <TitleSeasonBar label={currentSeasonLabel} count={seasonProgress} onSeasons={openSeasons} hideWatched={snapshot.place.hideWatched}
+            onHideWatched={value => {if (bodyLease) void controller.hideWatched(value, bodyLease).catch(props.reportError);}}
+            settings={props.owner ? {label: t('card.more', {title}), onPress: openSettings} : undefined}/>
           {(() => {
             const model = (entry: ContentEntry) => cardText({id: entry.id, kind: entry.kind, title: entry.displayTitle ?? entry.title,
               episode: episodeNumbering(entry), durationSeconds: entry.duration, positionSeconds: entry.progressSeconds}, 'in-show', text);
