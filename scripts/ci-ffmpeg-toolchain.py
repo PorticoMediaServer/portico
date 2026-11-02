@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Cold hosted engine builds and exact-run native evidence. Never publishes."""
 import argparse
+from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib.util
 import json
@@ -24,6 +25,17 @@ TARGETS = {
     'macos-arm64': ('macos-15', 'macos-15', False),
     'macos-x64': ('macos-15-intel', 'macos-15-intel', True),
 }
+
+# Development receiver fixture only. Never selected by packaging or a publisher.
+WINDOWS_NATIVE_RETRY = dict(target='windows-x64',
+    name='engine-cold-windows-x64-dffa072cfd908716c7a310da6957394eae15c9fe-NOT-FOR-USE',
+    engineSourceSHA='dffa072cfd908716c7a310da6957394eae15c9fe',
+    archiveSHA256='8bf3c62c5e2b4481d9397f342ae8fa5bb44b573030c554ffa7c81fd3cd39a1b2',
+    requirementsSHA256='d9f8cb1940d6cb48bb9f65b40e15b76006ec9cf97c55a32795d1ecfcf84d63be',
+    sourcesLockSHA256='e025e8bfff2ea346670985e629e550e6024f6c385f4b0b535bc080a24bfd2cad',
+    createdAt='2026-11-01T23:13:44Z', expiresAt='2026-11-15T23:13:21Z',
+    origin=dict(kind='github-actions', repository='PorticoMediaServer/portico',
+                runId=41346289584, runAttempt=1, artifactId=13105206141))
 
 
 def module(name):
@@ -97,6 +109,28 @@ def native_matrix(selected, artifacts, source_sha, build_result, run_id):
         raise ValueError('successful construction is missing its exact artifacts')
     return {'matrix': {'include': rows}, 'missingConstruction': missing,
             'nativeEngineChecks': False, 'qualified': False, 'release': False}
+
+
+def native_retry_pin(target, now=None):
+    pin = json.loads(json.dumps(WINDOWS_NATIVE_RETRY))
+    if target != pin['target']:
+        raise ValueError('only the explicitly pinned Windows development artifact may be retried')
+    created = datetime.fromisoformat(pin['createdAt'].replace('Z', '+00:00'))
+    expires = datetime.fromisoformat(pin['expiresAt'].replace('Z', '+00:00'))
+    if not created <= (now or datetime.now(timezone.utc)) < expires or not timedelta(0) < expires - created <= timedelta(days=14):
+        raise ValueError('development artifact expired, future or outside its 14-day window')
+    return pin
+
+
+def check_retry_transfer(sender, pin, archive_sha):
+    producer = dict(engineSourceSHA=pin['engineSourceSHA'], runId=pin['origin']['runId'],
+                    runAttempt=pin['origin']['runAttempt'], context='github-actions')
+    if (any(sender.get(key) != value or type(sender.get(key)) is not type(value) for key, value in producer.items()) or
+            sender.get('target') != pin['target'] or sender.get('constructionPassed') is not True or
+            sender.get('qualified') is not False or sender.get('release') is not False or
+            sender.get('bundleArchiveSHA256') != archive_sha):
+        raise ValueError('pinned development construction identity or bytes changed')
+    return producer
 
 
 def run(command, log, env=None, timeout=315 * 60):
@@ -369,9 +403,53 @@ def native(target, transfer, evidence):
     return int(not receipt.get('nativeEngineChecks'))
 
 
+def native_retry(target, work):
+    if os.environ.get('PORTICO_ENGINE_BUILD_CONTEXT') != 'development':
+        raise ValueError('cross-run native retry is development-only')
+    qualification = context()
+    module('verify-native-engine').native(target, 'github-actions', os.environ)
+    pin = native_retry_pin(target)
+    work.mkdir(parents=True, exist_ok=False)
+    evidence = work / 'evidence'; evidence.mkdir()
+    receipt = dict(schemaVersion=1, kind='development-native-retry', target=target,
+        qualifier=qualification, inputArtifact=pin, qualified=False, release=False,
+        readyForPublication=False, nativeEngineChecks=False)
+    try:
+        if (digest(ROOT / 'third_party/ffmpeg/requirements.v1.json') != pin['requirementsSHA256'] or
+                digest(ROOT / 'third_party/ffmpeg/sources.lock.json') != pin['sourcesLockSHA256']):
+            raise ValueError('pinned development engine contracts differ from the current qualifier')
+        intake = module('fetch-engine')
+        raw = work / 'artifact.zip'; intake.remote(pin, raw)
+        if digest(raw) != pin['archiveSHA256']:
+            raise ValueError('pinned development artifact SHA-256 changed')
+        intake.extract(raw, work / 'transfer')
+        transfer = work / 'transfer'
+        sender = json.loads((transfer / 'transfer.json').read_text())
+        receipt['inputProducer'] = check_retry_transfer(sender, pin, digest(transfer / 'bundle.tar'))
+        intake.extract(transfer / 'bundle.tar', work / 'expanded')
+        bundle = work / 'expanded/bundle'
+        if (digest(bundle / 'toolchain-manifest.json') != sender['toolchainManifestSHA256'] or
+                digest(bundle / 'corresponding-source.tar.xz') != sender['correspondingSourceSHA256'] or
+                digest(bundle / 'requirements.v1.json') != pin['requirementsSHA256'] or
+                digest(bundle / 'sources.lock.json') != pin['sourcesLockSHA256']):
+            raise ValueError('pinned development manifest/source/contracts changed')
+        # Complete corresponding-source custody remains mandatory on reuse.
+        intake.verify_source(bundle / 'corresponding-source.tar.xz', target,
+                             json.loads((bundle / 'source-build-receipt.json').read_text()))
+        os.environ.pop('GH_TOKEN', None)  # Compiled media tools do not need API credentials.
+        module('verify-native-engine').verify(target, bundle, evidence / 'gates', 'github-actions')
+        receipt['nativeEngineChecks'] = True
+    except Exception as error:
+        receipt['failure'] = type(error).__name__ + ': ' + str(error)
+    finally:
+        atomic(evidence / 'development-native-retry.json', receipt)
+    print(json.dumps(receipt), flush=True)
+    return int(not receipt['nativeEngineChecks'])
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('phase', choices=('plan', 'native-plan', 'build', 'native'))
+    parser.add_argument('phase', choices=('plan', 'native-plan', 'build', 'native', 'native-retry'))
     parser.add_argument('--target', choices=('all', *TARGETS), default='all')
     parser.add_argument('--work', type=Path)
     parser.add_argument('--transfer', type=Path)
@@ -395,6 +473,8 @@ if __name__ == '__main__':
         print(json.dumps(result))
     elif args.target == 'all' or args.work is None:
         parser.error('one target and a fresh work directory required')
+    elif args.phase == 'native-retry':
+        raise SystemExit(native_retry(args.target, args.work.absolute()))
     elif args.phase == 'build':
         raise SystemExit(build(args.target, args.work.absolute()))
     else:

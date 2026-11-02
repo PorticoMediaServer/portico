@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Refusal boundaries for the first hosted cold toolchain run."""
 import importlib.util
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import tempfile
@@ -31,6 +32,24 @@ def environment():
 
 
 class ColdToolchain(unittest.TestCase):
+    def test_development_native_retry_keeps_original_identity_and_expires(self):
+        pin = cold.native_retry_pin('windows-x64', datetime(2026, 11, 2, tzinfo=timezone.utc))
+        producer = dict(engineSourceSHA=pin['engineSourceSHA'], runId=41346289584,
+                        runAttempt=1, context='github-actions')
+        sender = dict(producer, target='windows-x64', constructionPassed=True,
+                      qualified=False, release=False, bundleArchiveSHA256='b' * 64)
+        self.assertEqual(cold.check_retry_transfer(sender, pin, 'b' * 64), producer)
+        for changed in (dict(sender, runId=12), dict(sender, engineSourceSHA=SHA),
+                        dict(sender, qualified=True), dict(sender, release=True)):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                cold.check_retry_transfer(changed, pin, 'b' * 64)
+        with self.assertRaises(ValueError): cold.check_retry_transfer(sender, pin, 'c' * 64)
+        with self.assertRaises(ValueError): cold.native_retry_pin('linux-x64')
+        with self.assertRaises(ValueError):
+            cold.native_retry_pin('windows-x64', datetime(2026, 11, 16, tzinfo=timezone.utc))
+        with patch.dict('os.environ', {'PORTICO_ENGINE_BUILD_CONTEXT': 'release'}), self.assertRaises(ValueError):
+            cold.native_retry('windows-x64', Path('/must-not-be-created'))
+
     def test_native_plan_skips_failed_construction_but_keeps_successful_targets(self):
         def artifact(target):
             return dict(id=123, name='engine-cold-' + target + '-' + SHA + '-NOT-FOR-USE',

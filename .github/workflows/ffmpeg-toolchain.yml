@@ -19,6 +19,10 @@ on:
         description: Read official upstream effective inventories only
         type: boolean
         default: false
+      reuseWindowsArtifact:
+        description: Native-only development retest of the explicitly pinned Windows artifact
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -27,7 +31,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   controls:
-    if: github.repository == 'PorticoMediaServer/portico' && !inputs.upstreamComparison
+    if: github.repository == 'PorticoMediaServer/portico' && (!inputs.upstreamComparison || inputs.reuseWindowsArtifact)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -74,7 +78,14 @@ jobs:
       - id: plan
         env:
           COLD_TARGET: ${{ inputs.target || 'all' }}
-        run: echo "matrix=$(python scripts/ci-ffmpeg-toolchain.py plan --target "$COLD_TARGET")" >> "$GITHUB_OUTPUT"
+          REUSE_WINDOWS_ARTIFACT: ${{ inputs.reuseWindowsArtifact }}
+          OTHER_MODES: ${{ inputs.controlsOnly || inputs.cacheControls || inputs.upstreamComparison }}
+        run: |
+          if [[ "$REUSE_WINDOWS_ARTIFACT" == true && ( "$COLD_TARGET" != windows-x64 || "$OTHER_MODES" == true ) ]]; then
+            echo 'Development artifact reuse requires only the explicit Windows x64 native mode' >&2
+            exit 2
+          fi
+          echo "matrix=$(python scripts/ci-ffmpeg-toolchain.py plan --target "$COLD_TARGET")" >> "$GITHUB_OUTPUT"
   catalogue:
     if: github.repository == 'PorticoMediaServer/portico' && inputs.controlsOnly && !inputs.upstreamComparison
     runs-on: ubuntu-24.04
@@ -104,7 +115,7 @@ jobs:
   build:
     name: Cold build (${{ matrix.target }})
     needs: controls
-    if: '!inputs.controlsOnly && !inputs.upstreamComparison'
+    if: '!inputs.controlsOnly && !inputs.upstreamComparison && !inputs.reuseWindowsArtifact'
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
@@ -178,7 +189,7 @@ jobs:
           if-no-files-found: error
   native-plan:
     needs: [controls, build]
-    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison
+    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !inputs.reuseWindowsArtifact
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -253,6 +264,37 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+  windows-native-retry:
+    needs: controls
+    if: inputs.reuseWindowsArtifact && !inputs.controlsOnly && !inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
+    defaults:
+      run: {shell: bash}
+    steps:
+      - name: Preserve exact checked bytes on Windows
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - run: python scripts/test-engine-checkout.py
+      - name: Verify the pinned original producer and run native gates without a compiler
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/ci-ffmpeg-toolchain.py native-retry --target windows-x64 --work "$RUNNER_TEMP/development-native-retry"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: engine-development-native-retry-windows-x64-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/development-native-retry/evidence/*.json
+            ${{ runner.temp }}/development-native-retry/evidence/gates/*.json
+            ${{ runner.temp }}/development-native-retry/evidence/gates/*.log
+          retention-days: 14
+          if-no-files-found: warn
   windows-checkout-control:
     if: inputs.controlsOnly && !inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
     runs-on: windows-2025
@@ -314,7 +356,7 @@ jobs:
           retention-days: 7
 
   upstream-comparison:
-    if: inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
+    if: inputs.upstreamComparison && !inputs.reuseWindowsArtifact && github.repository == 'PorticoMediaServer/portico'
     strategy:
       fail-fast: false
       matrix:
