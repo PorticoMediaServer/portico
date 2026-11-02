@@ -40,3 +40,10 @@ test('explicit HTTP origins work on public, overlay and IPv6 addresses',()=>{
  for(const origin of ['http://media.example:32500','http://100.64.1.2:32500','http://203.0.113.9:32500','http://[2001:db8::9]:32500']) assert.equal(routeOrigin(origin),origin);
  for(const origin of ['http://user:secret@media.example','http://media.example/path','http://media.example?secret=x']) assert.throws(()=>routeOrigin(origin));
 });
+test('W-7: a clock problem tells the person how to fix it, raw and presented', async () => {
+ const {probeRoute} = await import('../src/route-identity.ts');
+ const {presentError} = await import('../src/presentation/errors.ts');
+ const server = Date.parse('2026-10-13T12:00:00.000Z');
+ const error = await probeRoute('http://192.168.1.20:32500', undefined, {fetcher: proofServer(() => server), now: () => server + 200_000}).then(() => assert.fail('accepted'), (e: unknown) => e);
+ for (const text of [(error as Error).message, presentError(error).body]) assert.match(text, /date and time are set automatically/);
+});

@@ -160,7 +160,7 @@ const PROOF_CLOCK_ALLOWANCE=120000;
 function proofTimes(v:Record<string,unknown>,maxAge:number,now:number):void {
  const issued=typeof v.issuedAt==='string'?Date.parse(v.issuedAt):NaN,expires=typeof v.expiresAt==='string'?Date.parse(v.expiresAt):NaN;
  if(!Number.isFinite(issued)||!Number.isFinite(expires)||expires<=issued||expires-issued>maxAge)throw new RouteError('route_stale','The connection evidence is expired or has an invalid clock.');
- if(issued>now+PROOF_CLOCK_ALLOWANCE||expires+PROOF_CLOCK_ALLOWANCE<=now)throw new RouteError('clocks_disagree','This device and the server do not agree on the time. No credentials were sent.');
+ if(issued>now+PROOF_CLOCK_ALLOWANCE||expires+PROOF_CLOCK_ALLOWANCE<=now)throw new RouteError('clocks_disagree','This device and the server don’t agree on the time. Check that this device’s date and time are set automatically.');
 }
 export async function verifyRoutes(value:unknown,key:RouteKey,expected:{accountId:string;serverId:string;pin?:ServerPin;allowExpiredHint?:boolean;now?:number},crypto:RouteCrypto=webRouteCrypto):Promise<VerifiedRoutes> {
  // A rotated transport key ID must take the same bounded fresh-key path as a payload/signature mismatch.

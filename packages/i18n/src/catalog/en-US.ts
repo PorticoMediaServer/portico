@@ -183,7 +183,7 @@ export const enUS = {
   'signIn.error.tooManyTries': 'Too many tries. Wait a moment, then try again.',
   'signIn.error.pinInvalid': 'That PIN isn’t right. Try again.',
   'signIn.error.expired': 'That took too long. Start again.',
-  'web.signIn.error.clock': 'This device and the server don’t agree on the time. Check the date and time on this device, then try again.',
+  'web.signIn.error.clock': 'This device and the server don’t agree on the time. Check that this device’s date and time are set automatically.',
   // A device whose saved sign-in can no longer be read (the system lost the key that protects it).
   'signIn.cleanupUnconfirmed': 'Portico couldn’t confirm that the saved sign-in was removed.',
   'signIn.unusedSession': 'Portico couldn’t end an unused sign-in. It will expire on its own.',
@@ -287,7 +287,7 @@ export const enUS = {
   'error.artworkGone': 'This artwork is no longer available. Refresh to see the latest.',
   'error.webUnavailable': 'The web app is temporarily unavailable. Try again in a moment.',
   'error.methodNotAllowed': 'This action isn’t supported here.',
-  'error.clocksDisagree': 'This device and the server do not agree on the time. No credentials were sent.',
+  'error.clocksDisagree': 'This device and the server don’t agree on the time. Check that this device’s date and time are set automatically.',
   'error.unknown': 'Something went wrong. Try again.',
   'error.readingProgressPending': 'Connect as this profile and sync reading progress before removing this download.',
   'error.factorSetupRequired': 'Turn on two-step verification for this account, then try again.',
