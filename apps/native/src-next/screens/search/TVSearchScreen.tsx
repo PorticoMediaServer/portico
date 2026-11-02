@@ -122,6 +122,7 @@ export function TVSearchScreen({focusScope, destination, runtime, activation, ex
   return <View testID="native-tv-search-screen" pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
     importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1, backgroundColor: theme.colors.ink}}>
     <StandardBackdrop/>
+    {voice.field}
     <View testID="tv-search-query" accessibilityLabel={t('web.shell.search')} style={{position: 'absolute', left: theme.gutter, top: 64, width: 500, height: 80, borderRadius: 16,
       backgroundColor: alpha(theme.colors.text, .08), paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', gap: 16}}>
       <Icon name="i-search" size={32} color={theme.colors.textTertiary}/>
