@@ -47,7 +47,7 @@ function parseObjects(raw:unknown,bound:ContentScope,libraryId:string,filter:Inv
 
 export class LibraryInventoryService {
  private state:LibraryInventorySnapshot=Object.freeze({config:null,objects:null,loading:false,error:null,filter:Object.freeze({}),cursor:'',canPrevious:false,mutation:'idle'});
- private listeners=new Set<()=>void>();private disposed=false;private epoch=0;private reads=0;private controllers=new Set<AbortController>();private history:string[]=[];private fence?:string;private commandBusy=false;
+ private listeners=new Set<()=>void>();private disposed=false;private epoch=0;private reads=0;private controllers=new Set<AbortController>();private history:string[]=[];private fences:{config?:string;objects?:string}={};private commandBusy=false;
  private readonly api:LibraryContentApi;private readonly bound:ContentScope;readonly libraryId:string;
  constructor(input:{api:LibraryContentApi;scope:ContentScope;libraryId:string}){assert(id(input.libraryId)&&id(input.scope.serverId)&&text(input.scope.viewerId,1024)&&input.scope.viewerId);this.api=input.api;this.bound=Object.freeze({...input.scope});this.libraryId=input.libraryId;}
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>this.listeners.delete(listener);};getSnapshot=()=>this.state;
@@ -57,12 +57,14 @@ export class LibraryInventoryService {
  private async request(path:string,method='GET',body?:unknown){if(this.disposed)throw new Error('Inventory view is closed.');const c=new AbortController();this.controllers.add(c);let timer:ReturnType<typeof setTimeout>|undefined;
   try{return await Promise.race([this.api.request<unknown>(path,method,body,c.signal),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{c.abort();reject(new Error('Inventory response interrupted. Check current state before issuing the command again.'));},15000);})]);}finally{if(timer)clearTimeout(timer);this.controllers.delete(c);}
  }
- private acceptFence(value:string){if(this.fence&&this.fence!==value){this.publish({config:null,objects:null});throw new Error('Owner session changed. Reopen library management.');}this.fence=value;}
+ private acceptFence(kind:'config'|'objects',value:string){const held=this.fences[kind];if(held&&held!==value){this.publish({config:null,objects:null});throw new Error('Owner session changed. Reopen library management.');}this.fences[kind]=value;}
  async refresh(){if(this.disposed)return;const epoch=this.epoch,seq=++this.reads;this.publish({loading:true,error:null});const filter=this.state.filter,cursor=this.state.cursor;
   try {const params=new URLSearchParams({limit:'40'});if(cursor)params.set('cursor',cursor);if(filter.sourceId)params.set('sourceId',filter.sourceId);if(filter.state)params.set('state',filter.state);
    const [a,b]=await Promise.all([this.request(this.base()+'/inventory-config'),this.request(this.base()+'/inventory?'+params)]);
    if(this.disposed||epoch!==this.epoch||seq!==this.reads)return;
-   const config=parseConfig(a,this.bound,this.libraryId),objects=parseObjects(b,this.bound,this.libraryId,filter);assert(config.scope.viewerFence===objects.scope.viewerFence&&config.revision===objects.revision);this.acceptFence(config.scope.viewerFence);
+   const config=parseConfig(a,this.bound,this.libraryId),objects=parseObjects(b,this.bound,this.libraryId,filter);// The config read carries the plain admin fence; the objects list hashes a library administrator's
+   // allowed libraries into its own, so each is guarded on its own and never compared with the other.
+   assert(config.revision===objects.revision);this.acceptFence('config',config.scope.viewerFence);this.acceptFence('objects',objects.scope.viewerFence);
    if(objects.nextCursor&&(objects.nextCursor===cursor||this.history.includes(objects.nextCursor)))throw new Error('Invalid inventory continuation.');
    this.publish({config,objects,loading:false,error:null,mutation:this.commandBusy?'pending':'idle'});
   }catch(e){if(this.disposed||epoch!==this.epoch||seq!==this.reads)return;const error=errorOf(e);if(['unauthorized','forbidden'].includes(error.code)){this.epoch++;for(const c of this.controllers)c.abort();this.publish({config:null,objects:null});}this.publish({loading:false,error});}

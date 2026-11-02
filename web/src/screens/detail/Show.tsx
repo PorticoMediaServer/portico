@@ -75,12 +75,13 @@ export function seasonMenuDescription(season: WorkspaceSeason): ReactNode {
 }
 
 /** Show-level commands must not target the next episode's detail binding. */
-function ShowMore({binding, data, personal, busy}: {binding: ShowBindings; data: ShowWorkspaceData; personal?: ContainerState; busy: boolean}) {
+function ShowMore({binding, data, personal, busy, watchedInMenu = false}: {binding: ShowBindings; data: ShowWorkspaceData; personal?: ContainerState; busy: boolean; watchedInMenu?: boolean}) {
   const [open, setOpen] = useState(false), [settings, setSettings] = useState(false), anchor = useRef<HTMLButtonElement>(null), owner = binding.canManage();
   useEffect(() => { setOpen(false); setSettings(false); }, [data]);
   if (!personal && !owner) return null;
   return <>
     <Menu open={open} onOpenChange={setOpen} title={data.show.title} trigger={<Button ref={anchor} icon="i-more" iconOnly aria-label={t('next.controls.more')} />}>
+      {personal && watchedInMenu && <MenuItem icon="i-check" disabled={busy} selected={personal.watched} onSelect={() => runScreenCommand(binding.context, () => binding.setWatched(data, !personal.watched))}>{t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')}</MenuItem>}
       {personal && <MenuItem icon="i-heart" disabled={busy} selected={personal.favorite} onSelect={() => runScreenCommand(binding.context, () => binding.setFavorite(data, !personal.favorite))}>{t(personal.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}</MenuItem>}
       {owner && <>{personal && <MenuSeparator />}<MenuItem onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); if (!binding.canManage()) throw new DOMException('Show management changed', 'AbortError'); setSettings(true); })}>{t('title.showSettings')}</MenuItem></>}
     </Menu>
@@ -125,6 +126,9 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
   };
   const episodes = data.episodes.sections[0]?.entries ?? [], art = binding.context.artwork;
   const offer = showPrimary(data, primary), code = offer ? episodeCode(offer.next, t) : undefined;
+  // Phone width draws the mock-up's three controls (phone-web.html #w2: Play S1 E1, My List, More): the
+  // watched toggle moves into More so the episode code in Play is never cut off.
+  const threeControls = width < 600;
   const primaryLabel = offer ? code ? t(offer.resume ? 'title.resumeEpisode' : 'title.playEpisode', {code}) : t(offer.resume ? 'next.controls.resume' : 'next.controls.play') : undefined;
   const playPrimary = () => runScreenCommand(binding.context, () => { binding.current(data); if (offer) return binding.primary.play(offer.detail, offer.action.id); });
   // J-23: the next-up episode exists but its file can't be reached: a disabled Play with the reason, never nothing.
@@ -133,8 +137,8 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
     {offer && (offer.resume ? <ResumeButton progress={offer.progress} onClick={playPrimary}>{primaryLabel}</ResumeButton> : <Button variant="primary" icon="i-play" onClick={playPrimary}>{primaryLabel}</Button>)}
     {!offer && nextUnplayable && <Button variant="primary" icon="i-play" disabled aria-describedby={`${show.id}-unplayable`}>{t('next.controls.play')}</Button>}
     {personal && <Button disabled={busy} icon={personal.watchlisted ? 'i-check' : 'i-plus'} aria-pressed={personal.watchlisted} onClick={() => { void binding.setMyList(data, !personal.watchlisted).catch(binding.context.effects.reportError); }}>{t('next.controls.myList')}</Button>}
-    {personal && <Button disabled={busy} icon="i-check" iconOnly aria-label={t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')} aria-pressed={personal.watched} onClick={() => { void binding.setWatched(data, !personal.watched).catch(binding.context.effects.reportError); }} />}
-    <ShowMore binding={binding} data={data} personal={personal} busy={busy} />
+    {personal && !threeControls && <Button disabled={busy} icon="i-check" iconOnly aria-label={t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')} aria-pressed={personal.watched} onClick={() => { void binding.setWatched(data, !personal.watched).catch(binding.context.effects.reportError); }} />}
+    <ShowMore binding={binding} data={data} personal={personal} busy={busy} watchedInMenu={threeControls} />
   </div>;
   const unplayableNote = !offer && nextUnplayable ? <p id={`${show.id}-unplayable`} className={detail.unplayable}>{t('title.fileUnavailable')}</p> : null;
   // The pinned bar carries the drawn Resume Sx Ey and My List controls once the hero is gone.

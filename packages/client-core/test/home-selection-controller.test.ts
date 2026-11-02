@@ -219,10 +219,10 @@ test('rating read error retries the retained GET and opens only the genuine valu
   }
 });
 
-test('rating read retry preserves denial, unavailable actions and stale detail scope/revisions', async () => {
+test('rating read retry preserves denial, unavailable actions and a detail for another library or item', async () => {
   const valid = ratingDetail();
   const denied = Object.assign(new Error('No longer allowed'), {code: 'forbidden', status: 403});
-  const replies = [denied, {...valid, actions: []}, {...valid, actions: [{...valid.actions[0], enabled: false}]}, {...valid, scope: {...valid.scope, viewerFence: 'new-fence'}}, {...valid, revision: {catalog: 2, viewer: 1}}, {...valid, revision: {catalog: 1, viewer: 2}}, ratingDetail('b')];
+  const replies = [denied, {...valid, actions: []}, {...valid, actions: [{...valid.actions[0], enabled: false}]}, {...valid, scope: {...valid.scope, libraryId: 'other-library'}}, ratingDetail('b')];
   for (const reply of replies) {
     const methods: (string | undefined)[] = [];
     const h = harness(undefined, async (_path, method) => {
@@ -236,6 +236,16 @@ test('rating read retry preserves denial, unavailable actions and stale detail s
     assert.equal(h.controller.getSnapshot().rating?.currentValue, undefined);
     assert.deepEqual(methods, ['GET', 'GET']); h.controller.dispose();
   }
+});
+
+// The item detail's viewer fence is computed without the library list the Home document's includes,
+// so on a real server the two never match; Rate must still open (fence sweep after W-5).
+test('rating opens from a Home card whose detail carries its own viewer fence and revision', async () => {
+  // Home's revision also sums every library, so the detail's (its own library's) differs too.
+  const detail = {...ratingDetail('a', 6), scope: {...ratingDetail('a', 6).scope, viewerFence: 'd'.repeat(64)}, revision: {catalog: 7, viewer: 3}};
+  const h = harness(undefined, async () => detail as never);
+  pickAll(h); await openRating(h);
+  assert.deepEqual(h.controller.getSnapshot().rating, {phase: 'ready', currentValue: 6, value: 6, error: null}); h.controller.dispose();
 });
 
 test('rating read retry requires the actual retained Home rate offer even when detail still offers it', async () => {
