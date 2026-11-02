@@ -130,6 +130,9 @@ export interface NativeShellRuntime {
   registerTVRailBack?: (handler: () => boolean) => () => void;
   /** Destination-scoped; legacy Home callers omit destination. Other destinations may continue navigation Back when false. */
   registerTVPageBack?: (handler: () => boolean, destination?: ShellDestination) => () => void;
+  /** A pushed TV route's own Back step before the route closes (W-14: a settings route's content
+   * returns to its page column first). Newest first; true means handled. */
+  registerTVRouteBack?: (handler: () => boolean, routeKind: NativeShellRoute['kind']) => () => void;
   /** Confirmed Appearance effects. Absent until the shell binds a preference snapshot;
    * a missing effect keeps the drawn default rather than inventing a value. */
   appearanceCardSizePercent?: 85 | 100 | 125;

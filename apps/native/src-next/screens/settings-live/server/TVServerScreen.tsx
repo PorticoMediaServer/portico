@@ -3,7 +3,7 @@ import {ScrollView, Text, View} from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import {LibraryManagementService} from '../../../../../../packages/client-core/src/library-management';
 import {Button, Focusable} from '../../../kit/controls';
-import {FocusRegion} from '../../../kit/focus';
+import {FocusGate, FocusRegion, useFocusRegistry} from '../../../kit/focus';
 import {Icon} from '../../../kit/Icon';
 import {ServerBand, ServerHeader} from '../../../kit/shell';
 import {shellType} from '../../../kit/shell/visual';
@@ -59,6 +59,13 @@ export function NativeTVServerScreen({ports, runtime, initialPage = 'general', d
   const state = useSyncExternalStore(service.subscribe, service.getSnapshot).directory;
   const ids = useMemo(() => tvFocusIds(lifetime.authority), [lifetime]);
   const column = ids.surface('server.settings.pages'), rows = ids.surface(`server.settings.${page}`);
+  const registry = useFocusRegistry();
+  // W-14: Back from anywhere in a page's content (its rows or a panel's own regions) returns to
+  // that page in the column before Back leaves server settings.
+  useEffect(() => runtime.registerTVRouteBack?.(() => {
+    const focused = registry.capture()?.regionId;
+    return !!focused && focused !== column && focused !== ids.rail && lifetime.current() && registry.focus({regionId: column, childId: page});
+  }, 'server-settings'), [runtime, registry, column, ids, page, lifetime]);
   const enter = useScreenEntry({regionId: column, childId: page}, lifetime.current);
   useEffect(() => {
     const retire = () => service.cancel();
@@ -75,6 +82,8 @@ export function NativeTVServerScreen({ports, runtime, initialPage = 'general', d
   return <Screen style={{paddingTop: 56}}>
     <ServerBand viewerRole={role} audience={audience}/>
     <View style={{flex: 1, flexDirection: 'row', gap: 80}}>
+      {/* W-14: Left from any page's content lands on its page in the column, never the rail. */}
+      <FocusGate regionId={column} testID="server-settings-page-gate" style={{position: 'absolute', left: 480 + 39, top: 0, bottom: 0, width: 2}}/>
       <TVServerPageMenu role={role} page={page} serverName={ports.serverName()} runtime={runtime} column={column} rows={rows} rail={ids.rail} onLayout={enter}
         onSelect={next => {if (lifetime.current() && (owner || next === 'dashboard' || next === 'people')) setPage(next);}}/>
       {page === 'dashboard' ? <NativeDashboardScreen controller={dashboard} ports={ports} runtime={runtime} deniedFallback={null} tvContainer={{column, rows}}/> : <ScrollView style={{flex: 1, marginHorizontal: -TV_ROW_ROOM}} contentContainerStyle={{paddingBottom: 50, paddingHorizontal: TV_ROW_ROOM}} fadingEdgeLength={TV_FOCUS_EDGE}>

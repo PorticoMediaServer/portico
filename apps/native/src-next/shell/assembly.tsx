@@ -58,7 +58,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
   const feedback = nativeScreenServices(context);
   const scope = nativeHomeSelectionScope(session.viewer);
   let alive = true, runtime: NativeShellRuntime | undefined;
-  const tvPageBack = new Map<string, {handler: () => boolean}[]>();
+  const tvPageBack = new Map<string, {handler: () => boolean}[]>(), tvRouteBack = new Map<string, {handler: () => boolean}[]>();
   let homeTopPending = false;
   let tvRailBack: (() => boolean) | undefined;
   const listeners = new Set<() => void>(), windows = new Map<string, Window>(), spotlights = new Map<ContentEntry, {id: string; key: string; cleanup: () => void; spotlight: HomeSpotlight; index: number; context: string}>(), scroll = new Map<string, () => void>();
@@ -327,6 +327,10 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
         if (homeTop && currentHome()) {homeTopPending = false; homeTop();}
         return true;
       }
+      if (Platform.isTV) {
+        const routeBack = tvRouteBack.get(navigation.route.kind);
+        if (routeBack && [...routeBack].reverse().some(registration => registration.handler())) return true;
+      }
       return context.navigation.back(context.authority());
     }
     return true;
@@ -528,6 +532,11 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
       if (homeTopPending && destination.kind === 'home' && currentHome()) {homeTopPending = false; handler();}
       return () => {if (scroll.get(key) === handler) scroll.delete(key);};},
     registerTVRailBack: handler => {tvRailBack = handler; return () => {if (tvRailBack === handler) tvRailBack = undefined;};},
+    registerTVRouteBack: (handler, routeKind) => {
+      const registration = {handler}, stack = tvRouteBack.get(routeKind) ?? []; stack.push(registration); tvRouteBack.set(routeKind, stack);
+      return () => {const index = stack.indexOf(registration); if (index < 0) return; stack.splice(index, 1);
+        if (!stack.length && tvRouteBack.get(routeKind) === stack) tvRouteBack.delete(routeKind);};
+    },
     registerTVPageBack: (handler, destination = {kind: 'home'}) => {
       const key = JSON.stringify(destination), registration = {handler};
       const stack = tvPageBack.get(key) ?? []; stack.push(registration); tvPageBack.set(key, stack);
