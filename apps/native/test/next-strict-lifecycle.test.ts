@@ -387,6 +387,7 @@ test('Home scroll registration follows the move function and runtime rather than
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard, homeContinuationSource},
     '../../../../../packages/client-core/src/presentation/home-spotlight': {}, '../../../../../packages/client-core/src/home-selection': {},
+    '../../../../../packages/client-core/src/presentation/continue-books': {continueBookFacts: () => ({reading: false, shape: 'audiobook'})},
     '../../../../../packages/client-core/src/presentation/server-text': {}, '../../../../../packages/client-core/src/presentation/kit-model': {},
     '../../kit/focus': {useFocusRegistry: () => registry}, '../../shell/tv-focus': {tvFocusIds, tvHomeRegionMap}, './tv-presentation': {tvHomeRows}, '../../shell/home-paging': {NativeHomePaging},
     '../../platform/ArtworkPipeline': {}, '../../kit/artwork': {}, '../../kit/controls': {}, '../../kit/cards': {}, '../../kit/layout': {}, '../../kit/layout/types': {},

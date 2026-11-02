@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -371,5 +372,50 @@ func TestHomeSpotlightDoesNotInventMissingOverview(t *testing.T) {
 		if spot.Reason.Text.Code == "" {
 			t.Fatal("missing real selection reason", spot)
 		}
+	}
+}
+
+// HM-5: Continue your books orders audiobooks and reading titles together by
+// when each was last used, and takes reading titles only from the viewer's
+// Home libraries.
+func TestHomeBooksMergesReadingByLastUse(t *testing.T) {
+	db := homeFixture(t)
+	c := catalogtest.New(t, db)
+	s := New(db)
+	r := homeRequestFixture("books")
+	part := homeItem(t, db, "p2")
+	book := homeItem(t, db, "book")
+	c.Exec(`INSERT INTO progress(profile_id,item_id,position,unit,playback_id)VALUES('p',?,120000,0,'book')`, part.ID)
+	c.Exec(`INSERT INTO progress_activity VALUES('p','books',?,?,'paused')`, part.ID, r.Now.Add(-2*time.Hour).UTC().Format("2006-01-02T15:04:05.000Z"))
+	c.Exec(`INSERT INTO book_resume(profile_id,book_id,item_id,playback_id,position,unit,completed) VALUES('p',?,?,'book',120000,0,0)`, book.ID, part.ID)
+	c.Drain()
+	at := func(d time.Duration) int64 { return r.Now.Add(d).UnixMilli() }
+	r.ReadingPersonalAuthorize = func(*sql.Tx, string) error { return nil }
+	r.ReadingContinue = func() ([]ReadingResume, error) {
+		return []ReadingResume{
+			{ItemID: "newer-read", LibraryID: "read", ObservedAt: at(-time.Hour)},
+			{ItemID: "older-read", LibraryID: "read", ObservedAt: at(-3 * time.Hour)},
+			{ItemID: "elsewhere", LibraryID: "not-home", ObservedAt: at(-time.Minute)},
+		}, nil
+	}
+	src, err := s.WithContext(context.Background()).homeBooksSource(r, []string{"read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.Query(`SELECT id FROM (`+src.base+`) ORDER BY ord DESC,id DESC`, src.args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	got := []string{}
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, id)
+	}
+	if len(got) != 3 || got[0] != "newer-read" || got[1] != book.Public || got[2] != "older-read" {
+		t.Fatalf("Continue your books order %v, want newer read, the audiobook, older read", got)
 	}
 }
