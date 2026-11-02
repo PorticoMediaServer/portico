@@ -116,7 +116,10 @@ export class NativeTVLiveGuide {
         const guide = parseChannelGuide(await api.request<unknown>(`${routePath('get_guide')}?${query}`, 'GET', undefined, signal), opening.authority.serverId, route);
         if (!this.current(opening)) return;
         const channel = guide.channels[0];
-        if (guide.viewerFence !== directory.viewerFence || guide.channels.length !== 1 || !channel || channel.id !== opening.fence.channelId
+        // The guide document and the sources directory compute different viewer fences (the guide's is the
+        // live authority's own; the directory hashes it with the library and restriction fences), so they
+        // never match: the channel is matched by id, source, provenance and generation instead.
+        if (guide.channels.length !== 1 || !channel || channel.id !== opening.fence.channelId
           || channel.sourceId !== opening.fence.sourceId || channel.provenance !== opening.fence.channelKind || channel.generation !== opening.fence.channelGeneration
           || !channel.tuneAvailable || channel.hidden) throw new Error('channel_source_unavailable');
         opening.origin = Object.freeze({row: legacyChannelRow(channel), options: opening.options});

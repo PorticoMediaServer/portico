@@ -495,7 +495,11 @@ export class HomeSelectionController {
     const members = this.members(ticket.target), entry = members.length === 1 ? members[0].entry as HomeEntry | undefined : undefined;
     const state = detail.getSnapshot(), data = state.data;
     if (this.detail !== detail || !entry?.libraryId || !entryActions(homeEntryCapabilities(entry, this.platform())).some(group => group.actions.some(action => action.id === 'rate')) || state.phase !== 'ready' || !data?.actions.some(action => action.id === 'rating' && action.enabled)) throw selectionExecutionError(state.error?.code ?? 'rating-not-offered');
-    if (data.scope.serverId !== ticket.context.scope.serverId || data.scope.viewerFence !== ticket.context.scope.privacyFence || data.scope.libraryId !== entry.libraryId || data.scope.itemId !== entry.id || data.item.kind !== entry.kind || String(data.revision.catalog) !== ticket.context.revision.catalogRevision || String(data.revision.viewer) !== ticket.context.revision.viewerRevision) throw selectionExecutionError('stale-rating-context');
+    // The item detail and the Home document are different server documents: Home's viewer fence
+    // includes the library list and its revision sums every library, while the detail's are its own
+    // library's. Neither is comparable, so the detail is matched to the card by server, library, item
+    // and kind; the detail binding guards its own fence and revision (as show-primary.ts does, W-5).
+    if (data.scope.serverId !== ticket.context.scope.serverId || data.scope.libraryId !== entry.libraryId || data.scope.itemId !== entry.id || data.item.kind !== entry.kind) throw selectionExecutionError('stale-rating-context');
     this.publish({rating: {phase: 'ready', currentValue: data.personal.rating, value: data.personal.rating, error: null}});
   }
   setRatingValue(value: number | null) {

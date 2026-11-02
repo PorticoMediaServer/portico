@@ -287,3 +287,16 @@ test('an older quiet completion cannot detach the newer quiet read cancellation 
  const s=service(async(p,_m,_b,a)=>{if(hold&&p.startsWith('/v1/admin/libraries?')){const read=deferred();held.push(read);signals.push(a!);return read.promise;}return data(p);});
  await s.loadLibraries();const before=s.getSnapshot();hold=true;const first=s.refreshDirectory(),second=s.refreshDirectory();assert.equal(signals[0].aborted,true);assert.deepEqual(await first,{kind:'deferred'});s.invalidateQuietDirectory();assert.equal(signals[1].aborted,true);assert.deepEqual(await second,{kind:'deferred'});assert.equal(s.getSnapshot(),before);s.dispose();
 });
+
+// A library administrator who isn't the owner: the server hashes their allowed libraries into the
+// list reads' fence (directory, jobs) but not into a single library's, so the two never match and
+// must not be compared (fence sweep after W-5). A later change within one kind still fails closed.
+test('a library administrator selects a library although list and library reads carry different fences',async()=>{
+ const listFence={serverId:'server',viewerFence:'admin-list-fence'};let libraryFence='admin-plain-fence';
+ const s=service(async p=>{const value=data(p);const u=new URL(p,'https://x');return {...value,scope:u.pathname==='/v1/admin/libraries'||u.pathname==='/v1/admin/jobs'?listFence:{serverId:'server',viewerFence:libraryFence}};});
+ await s.loadLibraries();await s.selectLibrary('one');
+ assert.equal(s.getSnapshot().directory.phase,'ready');assert.equal(s.getSnapshot().selected.phase,'ready');assert.equal(s.getSnapshot().jobs.phase,'ready');
+ libraryFence='another-session';await s.reconcile().catch(()=>{});
+ assert.equal(s.getSnapshot().selected.phase==='ready'&&s.getSnapshot().selected.error==null,false,'a changed single-library fence still refuses');
+ s.dispose();
+});
