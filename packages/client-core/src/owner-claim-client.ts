@@ -6,6 +6,7 @@ import {installationIdentity, validInstallationId} from './installation.ts';
 import {verifyOwnerClaimStart, type OwnerSignedProof, type OwnerStartExpectation} from './owner-claim-start.ts';
 import {routeBytes, routeOrigin, sameServerPin, webRouteCrypto, type RouteCrypto} from './route-identity.ts';
 import {CodedError} from './server-messages.ts';
+import {clockOrigin, serverClockFor} from './server-clock.ts';
 
 /** Private protected-journal value, never a public progress snapshot or URL.
  * The caller already holds the verifier and exact selected owner family. */
@@ -52,7 +53,7 @@ export async function prepareOwnerClaimHandoff(api: Api, expected: ClaimExpected
   binding = Object.freeze({pin: Object.freeze({...binding.pin}), origin: binding.origin, hostedOrigin: binding.hostedOrigin,
     operationId: binding.operationId, localGeneration: binding.localGeneration, state: binding.state, codeChallenge: binding.codeChallenge, installationId: binding.installationId,
     ...(purpose === undefined ? {} : {purpose, currentOwnerAccountId: binding.currentOwnerAccountId, previousOwnerRole: binding.previousOwnerRole})});
-  const now = options.now ?? Date.now;
+  const now = options.now ?? serverClockFor(clockOrigin(binding.origin));
   if (!identifier(expected.operationId) || !counter(expected.localGeneration) || !counter(expected.revision) || expected.revision === '0' ||
       expected.operationId !== binding.operationId || expected.localGeneration !== binding.localGeneration || !validInstallationId(binding.installationId) ||
       routeOrigin(binding.origin) !== binding.origin || api.baseUrl !== binding.origin || routeOrigin(binding.hostedOrigin) !== binding.hostedOrigin || !binding.hostedOrigin.startsWith('https://')) throw invalid();

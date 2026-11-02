@@ -5,6 +5,7 @@
  * retrying at most a few times before surfacing the error.
  */
 import {backoffDelay, parseRetryAfter as parseHeaderRetryAfter, type Backoff} from '../timer.ts';
+import {serverNow} from '../server-clock.ts';
 
 const rateLimitBackoff: Backoff = {baseMs: 500, maxMs: 10_000, jitter: 'none'};
 
@@ -28,7 +29,7 @@ function headerValue(headers: unknown): string | number | undefined {
  * value carries no usable delay. Clamped to at most 30 s so a faulty server
  * cannot stall the guide.
  */
-export function parseRetryAfter(value: unknown, now: number = Date.now()): number | undefined {
+export function parseRetryAfter(value: unknown, now: number = serverNow()): number | undefined {
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || value < 0) return undefined;
     return Math.min(value * 1000, 30_000);
@@ -43,7 +44,7 @@ export function parseRetryAfter(value: unknown, now: number = Date.now()): numbe
 }
 
 /** Extracts the server-directed retry delay (ms) from a 429 failure, if any. */
-export function retryAfterMs(error: unknown, now: number = Date.now()): number | undefined {
+export function retryAfterMs(error: unknown, now: number = serverNow()): number | undefined {
   if (!isRateLimited(error)) return undefined;
   const e = error as {retryAfterSeconds?: unknown; retryAfter?: unknown; headers?: unknown};
   return parseRetryAfter(e.retryAfterSeconds, now)

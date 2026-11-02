@@ -18,6 +18,7 @@ import {GenerationGate} from './generation.ts';
 import {parseObservedPlayback, type ObservedPlayback} from './observed-playback.ts';
 import type {PlayerObservation, PlayerState} from './port.ts';
 import type {Session} from './types.ts';
+import {serverNow} from '../server-clock.ts';
 
 export type ObservationState = 'playing' | 'paused' | 'buffering' | 'ended' | 'error';
 
@@ -322,8 +323,8 @@ export class ObservationReporter<S = Session> {
       this.healthy = false;
       this.o.onConnection?.(false);
     }
-    // The lease is a server wall-clock deadline.
-    if (!this.leaseWarned && this.leaseUntil !== undefined && Date.now() >= this.leaseUntil - 30_000) {
+    // The lease is a server wall-clock deadline, read against the server's clock (no client-clock requirements).
+    if (!this.leaseWarned && this.leaseUntil !== undefined && serverNow() >= this.leaseUntil - 30_000) {
       this.leaseWarned = true;
       this.o.onLeaseRisk?.();
     }

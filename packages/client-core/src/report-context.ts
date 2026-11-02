@@ -1,4 +1,5 @@
 import type {GetAdminPlayHistoryPeopleResponse} from '../../contracts/src/types.ts';
+import {serverNow} from './server-clock.ts';
 
 export type ReportContext=Readonly<{timeZone:string;until:string}>;
 export type ReportInterval=Pick<GetAdminPlayHistoryPeopleResponse,'period'|'timeZone'|'from'|'until'|'buckets'>;
@@ -17,7 +18,7 @@ export function parseReportContext(value:unknown):ReportContext{
  return Object.freeze({timeZone:value.timeZone,until:value.until});
 }
 /** Capture once per view/refresh, carrying this unchanged into full history. */
-export function captureReportContext(timeZone:string,capturedAt:Date|number=new Date()):ReportContext{
+export function captureReportContext(timeZone:string,capturedAt:Date|number=serverNow()):ReportContext{
  const at=typeof capturedAt==='number'?capturedAt:capturedAt.getTime();
  if(!Number.isFinite(at)||at<0)invalid();
  return parseReportContext({timeZone,until:new Date(Math.floor(at/QUARTER_MS)*QUARTER_MS).toISOString()});

@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {HttpLocalApi} from '../src/index.ts';
 import {setInstallationIdentity} from '../src/installation.ts';
 import {prepareOwnerClaimHandoff, type OwnerClaimHandoff} from '../src/owner-claim-client.ts';
+import {clockOrigin, observeServerTime, resetServerClocks} from '../src/server-clock.ts';
 import {routeBase64, routeBytes, webRouteCrypto} from '../src/route-identity.ts';
 
 // Actual canonical Go producer vector, not a new hand-written signed protocol.
@@ -119,3 +120,17 @@ test('caller mutation after capture cannot retarget the original signed request'
   assert.equal(await f.start(), f.approvalUrl);
   assert.equal(f.bound[0].expected.operationId, claim.operationId); assert.equal(f.bound[0].binding.state, start.state);
 });
+
+// No client-clock requirements: the claim and its signed start are the server's instants, read against the server's clock.
+for (const [label, skew] of [['a year ahead', 365 * 86_400_000], ['a year behind', -365 * 86_400_000]] as const) {
+  test(`owner web-approval is not refused when this device's clock is ${label}`, async t => {
+    const real = Date.now, serverTime = Date.parse('2030-01-02T03:04:07Z');
+    t.after(() => {Date.now = real; resetServerClocks();});
+    resetServerClocks();
+    const f = await fixture(t);
+    Date.now = () => serverTime + skew;
+    observeServerTime(clockOrigin(f.binding.origin), new Date(serverTime).toUTCString(), Date.now() - 20, Date.now() + 20);
+    const url = await prepareOwnerClaimHandoff(f.api, f.expected, f.binding, f.ports, {});
+    assert.equal(url, f.approvalUrl); assert.equal(f.bound.length, 1);
+  });
+}

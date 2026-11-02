@@ -52,10 +52,6 @@ test('ordinary purpose, actual operation, registration binding, token encodings 
     (v: any) => { v.hostedOrigin = 'http://127.0.0.1:19410'; }, (v: any) => { v.registration.origin += '/'; },
     (v: any) => { v.registration.origin = 'https://user:pass@server.example.test'; },
     (v: any) => { v.expiresAt = new Date(now).toISOString(); },
-    // The handoff envelope carries only the producer's expiry, so its ceiling is
-    // the widest an authentic issuance can reach; the signed facts (below) still
-    // refuse any real lifetime beyond one producer window.
-    (v: any) => { v.expiresAt = new Date(now + 300_000 + 60_000 + 1).toISOString(); },
   ];
   for (const change of changes) { const input = value(); change(input); assert.throws(() => buildHostedSignInStartURL(input, now)); }
   const href = buildHostedSignInStartURL(value(), now);
@@ -106,11 +102,14 @@ test('a browser clock behind the signing Server keeps the genuine handoff and si
   }
 });
 
-test('one millisecond past the skew, a reached expiry and an overlong issuance are still refused', async () => {
-  const beyond = value(now + 60_000 + 1, 300_000);
-  assert.throws(() => buildHostedSignInStartURL(beyond, now), TypeError);
-  await assert.rejects(verifyHostedSignInStart(beyond, now));
-  assert.equal(parseHostedSignInStartURL(encode(JSON.stringify(beyond)), hosted, now), undefined);
+test('a reached expiry and an overlong issuance are still refused; no stamp is refused for running ahead of this clock', async () => {
+  // No client-clock requirements: an issuance stamped ahead of this device's clock by any amount is
+  // not refused for that; this device's clock is never an upper bound on a server's stamp.
+  for (const ahead of [60_000 + 1, 365 * 86_400_000]) {
+    const beyond = value(now + ahead, 300_000);
+    assert.equal(parseHostedSignInStartURL(buildHostedSignInStartURL(beyond, now), hosted, now)?.expiresAt, beyond.expiresAt);
+    assert.equal((await verifyHostedSignInStart(beyond, now)).handoff.expiresAt, beyond.expiresAt);
+  }
   for (const expired of [value(now - 300_000), value(now - 600_000, 300_000)]) {
     assert.throws(() => buildHostedSignInStartURL(expired, now), TypeError);
     await assert.rejects(verifyHostedSignInStart(expired, now));

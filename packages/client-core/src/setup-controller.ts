@@ -4,6 +4,7 @@ import {reconcileSetup, type SetupLocal, type SetupReading, type SetupStore} fro
 import {createUserAction, describeActionError, USER_ACTION_WATCHDOG_MS, type UserAction} from './user-action.ts';
 import {nextDelay, serverFloorFrom, systemScheduler, wait, type Scheduler} from './timer.ts';
 import {randomId} from './random-id.ts';
+import {serverNow} from './server-clock.ts';
 
 /** The first-run setup controller: the runner around the pure reducer in setup-machine.ts (B-DESIGN §6). It holds the view, turns each
  * user intent into one A `createUserAction`, performs every effect the reducer emits through `SetupPorts`, and feeds each outcome back in.
@@ -132,7 +133,7 @@ type Lane = {action: UserAction<void>; seed: Seed; inflight?: SetupEffect};
 
 export function createSetupController(ports: SetupPorts, options: SetupControllerOptions = {}): SetupController {
   const {store} = ports;
-  const scheduler = options.scheduler ?? systemScheduler, wallNow = options.wallNow ?? Date.now, random = options.random ?? Math.random;
+  const scheduler = options.scheduler ?? systemScheduler, wallNow = options.wallNow ?? (() => serverNow()), random = options.random ?? Math.random;
   const life = new AbortController();
   let view: SetupView = initialSetupView, foreground = options.foreground !== false, disposed = false;
   let credentials: SetupCredentials | undefined, library: SetupLibrary | undefined, remote: SetupRemoteChoices | undefined;
