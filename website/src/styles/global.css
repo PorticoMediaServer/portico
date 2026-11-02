@@ -1,25 +1,36 @@
 /* Portico public site. Dark promo pages, light/dark documentation. */
 
 :root {
-  --bg: #05080c;
-  --bg-raised: #0b1118;
-  --surface: #101821;
-  --surface-2: #16202b;
-  --line: rgba(214, 228, 240, 0.09);
-  --line-strong: rgba(214, 228, 240, 0.18);
-  --text: #f2f5f8;
-  --text-soft: #b9c3cd;
-  --text-dim: #7f8b97;
-  --blue: #6cbcf6;
-  --blue-strong: #8fd0ff;
-  --blue-deep: #2f86d8;
+  /* Colours follow the Portico app (packages/design tokens). */
+  --bg: #071018;
+  --bg-raised: #0b1822;
+  --surface: #10212d;
+  --surface-2: #162c3a;
+  --line: rgba(237, 245, 250, 0.08);
+  --line-strong: rgba(237, 245, 250, 0.16);
+  --text: #edf5fa;
+  --text-soft: #bdccd6;
+  --text-dim: #96a9b5;
+  --blue: #409fd4;
+  --blue-strong: #5cb3e2;
+  --blue-deep: #2f86bb;
+  --glass-fill: rgba(237, 245, 250, 0.14);
+  --glass-hover-fill: rgba(237, 245, 250, 0.22);
+  --glass-blur: 20px;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* The app's standard backdrop (web/src/kit/backdrop.css): ink under blue and green glows. */
+  --backdrop-glows: radial-gradient(44% 66% at 86% 4%, rgba(47, 134, 187, 0.46) 0%, rgba(47, 134, 187, 0.15) 46%, transparent 74%),
+    radial-gradient(42% 58% at 64% 104%, rgba(30, 91, 82, 0.6) 0%, rgba(30, 91, 82, 0.18) 50%, transparent 76%),
+    radial-gradient(38% 50% at 4% 0%, rgba(21, 55, 73, 0.75) 0%, transparent 72%);
+  --backdrop-glows-size: 100% 100%;
   --teal: #4fd1c5;
   --amber: #f2b45a;
   --violet: #8e86f5;
-  --button-text: #04121f;
-  --container: 1200px;
-  --gutter: clamp(20px, 4vw, 40px);
-  --header-height: 72px;
+  --button-text: #071018;
+  --container: 1600px;
+  /* The app's desktop gutter: 32px at 1024px wide, growing to 64px. */
+  --gutter: clamp(20px, calc(32px + (100vw - 1024px) / 13), 64px);
+  --header-height: 76px;
   --radius: 18px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   font-family: 'Manrope', 'Avenir Next', Avenir, system-ui, sans-serif;
@@ -50,6 +61,33 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (max-width: 599px) {
+  :root {
+    --backdrop-glows: radial-gradient(90% 54% at 96% -6%, rgba(47, 134, 187, 0.5) 0%, rgba(47, 134, 187, 0.15) 48%, transparent 76%),
+      radial-gradient(84% 44% at -8% 30%, rgba(30, 91, 82, 0.5) 0%, rgba(30, 91, 82, 0.13) 52%, transparent 78%),
+      radial-gradient(70% 40% at 30% 0%, rgba(21, 55, 73, 0.8) 0%, transparent 72%);
+    --backdrop-glows-size: 100% 560px;
+  }
+}
+
+.theme-promo::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--bg);
+  background-image: var(--backdrop-glows);
+  background-size: var(--backdrop-glows-size);
+  background-repeat: no-repeat;
+}
+
+.theme-promo {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
 }
 
 body,
@@ -179,57 +217,56 @@ main:focus {
   transform: translateX(4px);
 }
 
-/* Buttons */
+/* Buttons: the app's hero buttons (web/src/kit/controls). Primary is a light fill
+   with ink text; secondary is frosted glass. */
 
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 50px;
-  padding: 0 24px;
-  border: 1px solid transparent;
+  height: 54px;
+  padding: 0 26px;
+  border: 0;
   border-radius: 12px;
+  font-size: 0.9375rem;
   font-weight: 700;
   white-space: nowrap;
-  transition: transform 160ms var(--ease), background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out);
 }
 
 .button:active {
-  transform: translateY(1px);
+  transform: scale(0.97);
 }
 
-/* A solid colour under the gradient keeps the button filled if Safari drops the
-   gradient when it restores a page from the back-forward cache. */
 .button-primary {
-  background-color: var(--blue);
-  background-image: linear-gradient(180deg, var(--blue-strong), var(--blue));
+  background: var(--text);
   color: var(--button-text);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 10px 30px -10px rgba(108, 188, 246, 0.7);
 }
 
 .button-primary:hover {
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 14px 40px -10px rgba(108, 188, 246, 0.9);
+  background: #ffffff;
 }
 
 .button-ghost,
 .button-dark {
-  border-color: var(--line-strong);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-fill);
   color: var(--text);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
 }
 
 .button-ghost:hover,
 .button-dark:hover {
-  border-color: rgba(214, 228, 240, 0.32);
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--glass-hover-fill);
 }
 
 .button-small {
-  min-height: 40px;
-  padding: 0 16px;
+  height: 42px;
+  padding: 0 18px;
   border-radius: 10px;
-  font-size: 0.93rem;
+  gap: 8px;
+  font-size: 15px;
 }
 
 /* Header */
@@ -239,22 +276,23 @@ main:focus {
   top: 0;
   z-index: 50;
   border-bottom: 1px solid transparent;
+  background: transparent;
   transition: background 200ms ease, border-color 200ms ease;
 }
 
 .site-header[data-scrolled],
 .site-header-docs {
   border-bottom-color: var(--line);
-  background: rgba(5, 8, 12, 0.78);
-  backdrop-filter: saturate(160%) blur(18px);
-  -webkit-backdrop-filter: saturate(160%) blur(18px);
+  background: rgba(7, 16, 24, 0.88);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
 }
 
 .header-inner {
   display: flex;
   align-items: center;
-  gap: 24px;
-  width: min(100% - var(--gutter) * 2, var(--container));
+  gap: 40px;
+  width: calc(100% - var(--gutter) * 2);
   height: var(--header-height);
   margin-inline: auto;
 }
@@ -295,29 +333,37 @@ main:focus {
   display: flex;
   flex: 1;
   align-items: center;
-  justify-content: flex-end;
-  gap: 28px;
+  gap: 10px;
 }
 
 .header-navigation nav {
   display: flex;
-  gap: 28px;
+  gap: 26px;
+  margin-right: auto;
 }
 
 .header-navigation nav a {
+  position: relative;
+  padding: 6px 0;
   color: var(--text-soft);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 600;
-  transition: color 150ms ease;
+  transition: color 160ms var(--ease-out);
+}
+
+/* The app marks the current destination with a short accent underline. */
+.header-navigation nav a[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 -2px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--blue);
 }
 
 .header-navigation nav a:hover,
 .header-navigation nav a[aria-current='page'] {
   color: var(--text);
-}
-
-.header-open + .button {
-  margin-left: -16px;
 }
 
 .menu-button {
@@ -429,6 +475,12 @@ kbd {
     radial-gradient(30% 50% at 10% 100%, rgba(79, 209, 197, 0.12), transparent 70%);
 }
 
+.theme-promo .hero-ambient,
+.theme-promo .section-ambient,
+.theme-promo .final-ambient {
+  display: none;
+}
+
 /* Hero */
 
 .hero {
@@ -485,7 +537,7 @@ kbd {
   position: absolute;
   inset: -12% -14% -18%;
   z-index: -1;
-  background: radial-gradient(50% 50% at 50% 50%, rgba(47, 134, 216, 0.42), transparent 70%);
+  background: radial-gradient(50% 50% at 50% 50%, rgba(47, 134, 187, 0.32), transparent 70%);
 }
 
 .tv-bezel {
@@ -564,14 +616,6 @@ kbd {
 
 .section {
   padding: clamp(96px, 13vw, 168px) 0;
-}
-
-.section + .section {
-  border-top: 1px solid var(--line);
-}
-
-.hero + .section {
-  border-top: 0;
 }
 
 .section-head {
@@ -1080,7 +1124,6 @@ details[open] .faq-icon::after {
 .final-cta {
   padding: clamp(110px, 14vw, 190px) 0;
   overflow: hidden;
-  border-top: 1px solid var(--line);
 }
 
 .final-cta h2 {
@@ -1093,6 +1136,12 @@ details[open] .faq-icon::after {
 .site-footer {
   border-top: 1px solid var(--line);
   background: #030508;
+}
+
+/* On promo pages the footer sits on the same backdrop as the rest of the page. */
+.theme-promo .site-footer {
+  border-top: 0;
+  background: transparent;
 }
 
 .footer-main {
@@ -1167,16 +1216,11 @@ details[open] .faq-icon::after {
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(50% 70% at 85% 0%, rgba(47, 134, 216, 0.28), transparent 70%),
-    linear-gradient(180deg, #070c13, var(--bg));
+    none;
 }
 
 .page-hero::after {
-  content: '';
-  position: absolute;
-  inset: auto 0 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(108, 188, 246, 0.6), rgba(242, 180, 90, 0.5), transparent);
+  content: none;
 }
 
 .eyebrow {
@@ -1387,12 +1431,12 @@ details[open] .faq-icon::after {
 }
 
 .download-action {
-  background: linear-gradient(180deg, var(--blue-strong), var(--blue));
+  background: var(--text);
   color: var(--button-text);
 }
 
 .download-action:hover {
-  filter: brightness(1.08);
+  background: #ffffff;
 }
 
 .download-status {
@@ -2379,8 +2423,8 @@ details[open] .faq-icon::after {
     margin-top: 16px;
   }
 
-  .header-open + .button {
-    margin-left: 0;
+  .header-navigation nav {
+    margin-right: 0;
   }
 
   .hero-grid,
@@ -3369,7 +3413,7 @@ details[open] .faq-icon::after {
 }
 
 .site-header:has(.header-navigation[data-open]) {
-  background: rgba(5, 8, 12, 0.97);
+  background: rgba(7, 16, 24, 0.97);
 }
 
 body:has(dialog[open]) {
