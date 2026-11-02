@@ -3469,3 +3469,23 @@ test('O-159 download: Try again after a watchdog stop acquires the local file ag
     assert.ok(d.engine.commands.slice(before).some(command => command.source === local.media.fileUrl), 'the engine is given the file again');
   } finally { dock.getSnapshot = real; offSurface(); d.runtime.dispose(); }
 });
+
+test('N1-5: a resume\'s first frame lifts the poster only after the opening seek lands, and a later seek never covers the picture again', async () => {
+  const d = fixture();
+  try {
+    d.engine.acknowledgeSeeks = false;
+    await d.start('movie-1', 30);
+    const opening = d.engine.lastCommand;
+    assert.ok(d.runtime.getSnapshot().playback.pendingSeek, 'the opening seek is pending');
+    d.engine.emit('firstFrame', {decodedWidth: 320, decodedHeight: 180}); await settle();
+    assert.equal(d.runtime.getSnapshot().firstVideoFrame, undefined, 'the frame drawn at 0:00 keeps the poster up');
+    d.engine.position = 30;
+    d.engine.emit('seekApplied', {seekRevision: opening.pendingSeek.revision}); await settle();
+    assert.equal(d.runtime.getSnapshot().playback.pendingSeek, undefined);
+    assert.ok(d.runtime.getSnapshot().firstVideoFrame, 'the seek landed: the picture shows');
+    const fence = d.runtime.getSnapshot().fence!;
+    await d.runtime.seek(fence, 80); await settle();
+    assert.ok(d.runtime.getSnapshot().playback.pendingSeek, 'a viewer\'s seek is pending');
+    assert.ok(d.runtime.getSnapshot().firstVideoFrame, 'and the picture stays up through it');
+  } finally {d.runtime.dispose();}
+});
