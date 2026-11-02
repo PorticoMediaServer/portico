@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
+	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"io"
 	"net"
 	"net/http"
@@ -15,8 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
-	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"strconv"
 	"strings"
 	"sync"
@@ -226,7 +226,11 @@ func sandboxArgs(v linuxSpec, socket string, n int) ([]string, error) {
 		if e != nil || !info.Mode().IsRegular() {
 			return nil, ErrInvalidConfiguration
 		}
-		args = append(args, "--ro-bind", p, p)
+		mount, err := mediaexec.LinuxReadOnlyFileArgs(p, v.Hardware)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, mount...)
 		dirs = append(dirs, filepath.Dir(p))
 	}
 	if len(dirs) > 0 {

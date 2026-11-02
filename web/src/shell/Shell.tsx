@@ -25,6 +25,7 @@ import {usePageWindowChrome} from './window-chrome';
 import {SwitchProfileServerHost, HostedServerOpening, type SwitchProfileServerOpening, type HostedSwitchSelection} from './SwitchProfileServerHost';
 import {PendingChanges, type PendingChangesBinding} from './PendingChanges';
 import {ConnectionAway} from './ConnectionAway';
+import {webScreens} from '../route-registry-view';
 
 export type ShellIdentity = Readonly<{
   viewer: Viewer; signIn?:SignInKind; capabilities?:ManagementCapabilities; username?: string; profileName: string; profileArt?: ProfileTone; serverName: string; serverVersion?: string; /** O-159: the server's `apiVersion` (major.minor), shown in About. */ serverApiVersion?: string;
@@ -97,6 +98,8 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut
   useEffect(()=>()=>profileRequest.current?.abort(),[]);
   const chooseProfile=async(profile:ProfileIdentity,pin='')=>{if(!onSwitchProfile || profileProof.current !== JSON.stringify([switchAuthorityKey(identity), profileTargetKey(profile)]))return;profileRequest.current?.abort();const controller=profileRequest.current=new AbortController();setProfileBusy(true);setProfileError(undefined);try{await onSwitchProfile(profile.id,pin,controller.signal);if(!controller.signal.aborted)setProfileChoice(undefined);}catch(error){if(!controller.signal.aborted)setProfileError(error);}finally{if(profileRequest.current===controller)setProfileBusy(false);}};
   const home = pathname === '/', [accountOpen, setAccountOpen] = useState(false), [moreOpen, setMoreOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false), bell = useRef<HTMLButtonElement>(null), closeBell = () => setBellOpen(false);
+  const NotificationsPopover = webScreens.get('notifications')?.shellPopover;
   const [switchOpening, setSwitchOpening] = useState<SwitchProfileServerOpening>(), [hostedSelection, setHostedSelection] = useState<HostedSwitchSelection>();
   const switchOwner = useRef<SwitchProfileServerOpening | undefined>(undefined);
   const offerKey = switchOfferKey(identity);
@@ -183,7 +186,10 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut
           {pending}
           <Link className={styles.icon} to="/search" search={{q: lastSearch.current}} aria-label={t('next.home.shell.search')} activeOptions={{includeSearch: false}} activeProps={{'aria-current': 'page'}}><Icon name="i-search" size={22} /></Link>
           <Link className={styles.icon} to="/saved" aria-label={t('next.home.shell.saved')} activeProps={{'aria-current': 'page'}}><Icon name="i-bookmark" size={22} /></Link>
-          <Link className={styles.icon} to="/notifications" aria-label={identity.unread > 0 ? t('next.home.shell.unread', {count: identity.unread}) : t('next.home.shell.notifications')} activeProps={{'aria-current': 'page'}}><Icon name="i-bell" size={22} />{identity.showNotificationDot && identity.unread > 0 && <span className={styles.dot} />}</Link>
+          {/* desktop-search "Notifications": the bell opens a panel over the open page; no route change. */}
+          <button ref={bell} type="button" className={styles.icon} aria-haspopup="dialog" aria-expanded={bellOpen} aria-label={identity.unread > 0 ? t('next.home.shell.unread', {count: identity.unread}) : t('next.home.shell.notifications')}
+            onClick={() => setBellOpen(value => !value)}><Icon name="i-bell" size={22} />{identity.showNotificationDot && identity.unread > 0 && <span className={styles.dot} />}</button>
+          {bellOpen && NotificationsPopover && <NotificationsPopover anchorRef={bell} onClose={closeBell} />}
           {identity.capabilities?.manageServer === true && showOwnerActivity(viewer.role, desktop) && !awayShown && <OwnerActivity />}
           {account}
         </div>

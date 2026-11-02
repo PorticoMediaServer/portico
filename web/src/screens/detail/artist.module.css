@@ -9,7 +9,6 @@
 /* A row carries its own gutter; inside this padded page it bleeds back to the edge so its heading
    and first card sit on the page gutter, not twice it. */
 .page > [data-layout-row] { margin-inline: calc(-1 * var(--shell-gutter, 40px)); }
-.albums > [data-layout-row] { margin-left: calc(-1 * var(--shell-gutter, 40px)); }
 .barTitle { font-size: var(--type-body-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hero { position: relative; height: 640px; margin: 8px calc(-1 * var(--shell-gutter, 40px)) 32px; overflow: hidden; }
 .disc { position: absolute; z-index: var(--layer-content); top: 132px; right: 140px; width: 380px; height: 380px; border-radius: 50%; }
@@ -29,9 +28,12 @@
 .meta { margin-bottom: 26px; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 0; }
 .more { display: flex; justify-content: center; margin-top: 12px; }
-.split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 72px; padding-top: 24px; margin-bottom: 56px; }
-.full { display: grid; grid-template-columns: minmax(0, 1fr); padding-top: 24px; margin-bottom: 56px; }
-.albums { min-width: 0; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 72px; padding-top: 24px; margin-bottom: 56px; align-items: start; }
+.songs { min-width: 0; }
+/* desktop-listen #artist: the aside's album cards are 200px squares (.split aside .card.sq), Details below them. */
+.albumsBlock { margin-bottom: 36px; }
+.albumGrid { display: flex; flex-wrap: wrap; gap: 20px 24px; }
+.albumGrid > * { width: 200px; }
 .aside { min-width: 0; }
 .detailsTitle { margin: 0 0 12px; font-size: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-700); letter-spacing: var(--type-fixed-tracking-minus-point-015em); }
 .facts { display: grid; grid-template-columns: 104px 1fr; gap: 12px 16px; margin: 0; font-size: var(--type-fixed-size-15px); }
