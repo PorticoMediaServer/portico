@@ -20,7 +20,7 @@ export class EntryPickerProducer {
       this.check(); return value;
     }};
     this.api = api;
-    this.detail = new DetailService({api, scope: {serverId: ports.serverId, viewerId: ports.viewerId}, requestId: ports.requestId});
+    this.detail = new DetailService({queries: ports.queries, api, scope: {serverId: ports.serverId, viewerId: ports.viewerId}, requestId: ports.requestId});
   }
   private readonly api: EntryActionPorts['api'];
   private current = () => !this.lifetime.signal.aborted && this.ports.isCurrent();

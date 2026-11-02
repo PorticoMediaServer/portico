@@ -185,3 +185,18 @@ test('privacy: a shell that ends empties its viewer\'s cache, aborts its reads a
   assert.equal(next.queries.client.getQueryData(key), undefined, 'the next viewer starts empty');
   next.dispose();
 });
+
+test('privacy: screens find the live shell\'s cache through its API; a screen that outlives its shell finds the ended cache, never the next viewer\'s', async () => {
+  const {viewerQueriesFor} = await import('../src-next/shell/freshness');
+  const reads = {home: async () => {}, hasHome: () => true, libraries: async () => {}, preferences: async () => {}, unread: async () => {}, guide: async () => {}, identity: async () => {}};
+  const alexScreensApi = {request: async () => { throw new Error('unused'); }}, kidsScreensApi = {request: async () => { throw new Error('unused'); }};
+  const alex = viewer('alex'), shell = new NativeShellFreshness(reads, {...alex.viewer, screensApi: alexScreensApi}, {random: () => 0});
+  assert.equal(viewerQueriesFor(alexScreensApi, {serverId: 'server'}), shell.queries, 'every screen of this shell shares its cache');
+  assert.throws(() => viewerQueriesFor(alexScreensApi, {serverId: 'other-server'}), {name: 'AbortError'});
+  shell.dispose();
+  assert.throws(() => viewerQueriesFor(alexScreensApi, {serverId: 'server'}), {name: 'AbortError'}, 'an old screen gets nothing once its viewer has gone');
+  const kids = new NativeShellFreshness(reads, {...viewer('kids').viewer, screensApi: kidsScreensApi}, {random: () => 0});
+  assert.equal(viewerQueriesFor(kidsScreensApi, {serverId: 'server'}), kids.queries);
+  assert.throws(() => viewerQueriesFor(alexScreensApi, {serverId: 'server'}), {name: 'AbortError'}, 'still not the next viewer\'s');
+  kids.dispose();
+});

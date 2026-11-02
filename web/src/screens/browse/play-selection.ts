@@ -1,3 +1,4 @@
+import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {playCatalogueQuerySelection, enqueueCatalogueQuerySelection} from '@core/catalogue-query-selection.ts';
 import {BrowseSelectionModel, browseSelectionKey, readCatalogueSelectionItem, playCatalogueSelection, enqueueCatalogueSelection, selectionCapabilities, selectableSelectionKind,
   type CatalogueSelectionQueuePort, type CatalogueSelectionIdentity,
@@ -34,6 +35,7 @@ export type ExplicitCatalogueSelectionSource = Readonly<{
 }>;
 export type LibraryPlaySelectionOptions = Readonly<{
   source: BrowseController | ExplicitCatalogueSelectionSource;
+  queries: ViewerQueries;
   api: DetailApi;
   scope: DetailScope;
   principal: Omit<BrowseSelectionScope, 'viewId'>;
@@ -63,7 +65,7 @@ const terminal = (error: unknown) => typeof error === 'object' && error !== null
  * are registered; explicit model picks survive viewport eviction. */
 export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
   const interactions = createCardInteractionOwner();
-  const {source, api: originalApi, requestId, signal, isCurrent} = input;
+  const {source, queries, api: originalApi, requestId, signal, isCurrent} = input;
   const principal = Object.freeze({serverId: input.principal.serverId, authority: input.principal.authority,
     accountId: input.principal.accountId, profileId: input.principal.profileId});
   const scope = Object.freeze({serverId: input.scope.serverId, viewerId: input.scope.viewerId});
@@ -129,7 +131,7 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
       if (grant.controller.signal.aborted || grants.get(grant.entry) !== grant) continue;
       active++;
       const lifetime = AbortSignal.any([signal, life.signal, grant.controller.signal]);
-      void readCatalogueSelectionItem({api, scope, requestId, signal: lifetime,
+      void readCatalogueSelectionItem({queries, api, scope, requestId, signal: lifetime,
         isCurrent: () => current() && source.contains(grant.entry)}, grant.entry, ports).then(item => {grant.pending = false;grant.resolve(item);}, failure => {
           if (grants.get(grant.entry) === grant) grants.delete(grant.entry);
           if (terminal(failure)) retire(failure);grant.reject(failure);

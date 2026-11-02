@@ -44,6 +44,7 @@ import type {NativeShellBindings, NativeShellBootstrapContext} from './bootstrap
 import type {NativeShellRuntime, NativeTouchStacksPort} from './runtime';
 import {createNativeMusicMixes, type NativeMusicMixesCaller} from '../screens/destinations/music/mixes';
 import {registerBack} from '../kit/navigation/back';
+import {viewerQueriesFor} from './freshness';
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const failure = (code: string) => Object.assign(new Error(code), {code});
@@ -119,7 +120,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     return {platform: Platform.isTV ? 'tv' as const : 'phone-app' as const, isOwner: context.account.account.role === 'owner', canEditMetadata: canEditMetadata === true};
   };
   const playback = context.playback.selectionPlayback(isCurrent);
-  const controller = new HomeSelectionController({api: context.api, events: context.events, home: context.home, context: homeSelectionContext(scope, initial), environment: environment(), isCurrent,
+  const controller = new HomeSelectionController({queries: viewerQueriesFor(context.api, {serverId: scope.serverId}), api: context.api, events: context.events, home: context.home, context: homeSelectionContext(scope, initial), environment: environment(), isCurrent,
     requestId: feedback.requestId, playback, reportError, notify: feedback.notice,
     routes: {openEntry: entry => {if (!nativeEntryRouteSupported(entry)) reportError(failure('unavailable')); else open(nativeEntryRoute(entry));}, openCollection: collection => open({kind: 'collection', libraryId: collection.collection.libraryId, collectionId: collection.collection.id, title: collection.collection.name}),
       openDestination: destination => open({kind: 'saved-destination', destination})}});

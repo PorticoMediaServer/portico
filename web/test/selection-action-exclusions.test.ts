@@ -6,6 +6,7 @@ import {wholeViewQuery} from '../src/screens/browse/selection-query';
 import {createQuerySelectionEditor} from '../src/screens/browse/selection-query-editor';
 import {componentModule} from './helpers/component-harness.mjs';
 import {createRenderer, tree} from './helpers/interaction-harness.mjs';
+import {testQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 const unavailableActions = {play: 'unsupported-sort', queue: 'unsupported-sort', playlist: 'unsupported-sort', metadataPreview: 'preview-limit'} as const;
 const count = 201, basis = 'b'.repeat(64), revision = `browse_${'a'.repeat(64)}`;
@@ -74,7 +75,8 @@ test('direct and retained Playlist picker callbacks refuse the excluded query be
   const query = wholeViewQuery(descriptor as never);
   const target = {mode: 'query', selector: query.selector, total: count, sourceTotal: count, summary: {count, types: [{kind: 'movie', count}], every, library: {kind: 'single', libraryId: 'lib'}, unavailableActions: undefined as typeof unavailableActions | undefined}, refinement: {kind: null, excludedItems: []}, expected: {catalogRevision: revision}};
   let calls = 0;
-  const producer = new LibraryPickerProducer(target as never, 'playlist', {api: {request: async () => {calls++;}}, serverId: 's', viewerId: 'v', requestId: async () => {calls++;return 'request';}, isCurrent: () => true, pickerIdentity: {authority: 'local', accountId: 'a', profileId: 'p'}} as never, true, () => {});
+  const pickerApi = {request: async () => {calls++;}} as never;
+  const producer = new LibraryPickerProducer(target as never, 'playlist', {api: pickerApi, queries: testQueries(pickerApi, {serverId: 's', viewerId: 'v'}), serverId: 's', viewerId: 'v', requestId: async () => {calls++;return 'request';}, isCurrent: () => true, pickerIdentity: {authority: 'local', accountId: 'a', profileId: 'p'}} as never, true, () => {});
   const retainedChoose = () => producer.choose('playlist');
   target.summary.unavailableActions = unavailableActions;
   try {

@@ -467,7 +467,7 @@ export class HomeSelectionController {
         this.retry = () => this.guarded(ticket, action, run); await run();
       } else {
         const scope = ticket.context.scope;
-        this.detail = new DetailService({api: this.options.api, scope: {serverId: scope.serverId, viewerId: JSON.stringify([scope.authority, scope.accountId, scope.profileId])}, requestId: this.options.requestId});
+        this.detail = new DetailService({queries: this.options.queries, api: this.options.api, scope: {serverId: scope.serverId, viewerId: JSON.stringify([scope.authority, scope.accountId, scope.profileId])}, requestId: this.options.requestId});
         await this.detail.select({libraryId: entry.libraryId!, itemId: entry.id}); this.check(ticket);
         const snapshot = this.detail.getSnapshot(), data = snapshot.data;
         if (snapshot.phase !== 'ready' || !data) throw selectionExecutionError(snapshot.error?.code ?? 'detail-unavailable');
@@ -509,7 +509,7 @@ export class HomeSelectionController {
     if (!entry?.libraryId) throw selectionExecutionError('rating-not-offered');
     this.publish({rating: {phase: 'loading', currentValue: undefined, value: undefined, error: null}});
     const scope = ticket.context.scope;
-    this.detail = new DetailService({api: this.options.api, scope: {serverId: scope.serverId, viewerId: JSON.stringify([scope.authority, scope.accountId, scope.profileId])}, requestId: this.options.requestId});
+    this.detail = new DetailService({queries: this.options.queries, api: this.options.api, scope: {serverId: scope.serverId, viewerId: JSON.stringify([scope.authority, scope.accountId, scope.profileId])}, requestId: this.options.requestId});
     try {
       const detail = this.detail;
       await detail.select({libraryId: entry.libraryId, itemId: entry.id});

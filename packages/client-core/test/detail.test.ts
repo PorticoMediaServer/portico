@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {HttpLocalApi, emptyUserMutationState, type UserMutationState, type LocalSession} from '../src/index.ts';
 import { DetailService, parseCreditPage, type DetailApi, type PersonalState } from '../src/detail.ts';
+import {withQueries} from './fixtures/viewer-queries.ts';
 const scope = { serverId: 'server', viewerId: JSON.stringify(['local','account','profile']) };
 const target = { libraryId: 'library', itemId: 'item' };
 const personal = (revision = 0): PersonalState => ({ watchlisted: false, favorite: false, rating: null, revision,watched:false,progressSeconds:0,lastPlayedAt:'',status:'current',conflicts:[] });
@@ -17,7 +18,7 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 function setup(handler: (path: string, method?: string, body?: any, signal?: AbortSignal) => Promise<any>, timeoutMs = 1000, acknowledge?: (intentId: string) => Promise<void>) {
   let ids = 0;
   const api: DetailApi = { acknowledgeUserMutation: acknowledge, request: <T>(p: string, m?: string, b?: unknown, s?: AbortSignal) => handler(p,m,b,s).then(v=>wireFixture(v,{'duration': 'durationMs', 'progressSeconds': 'progressMs', 'startSeconds': 'startMs', 'positionSeconds': 'positionMs'})) as Promise<T> };
-  return new DetailService({ api, scope, timeoutMs, requestId: async () => `12345678-1234-4123-8123-${String(++ids).padStart(12,'0')}` });
+  return new DetailService(withQueries({ api, scope, timeoutMs, requestId: async () => `12345678-1234-4123-8123-${String(++ids).padStart(12,'0')}` }));
 }
 
 test('detail preserves authoritative content, attribution, personal values and exact playback actions', async () => {
@@ -104,11 +105,11 @@ test('a matching current value cannot prove that a conflicted historical action 
   assert.equal(service.getSnapshot().data!.personal.favorite,true); service.dispose();
 });
 
-test('scope change prevents queued writes and late mutation publication in new account/profile/item', async () => {
+test('leaving the title (a new viewer gets a new cache and service) prevents queued writes and late mutation publication', async () => {
   const mutation=deferred<any>();let body:any,writes=0;
   const service=setup(async (_p,m,b)=>{if(m==='GET')return data();writes++;body=b;return mutation.promise;});
   await service.select(target);const a=service.mutate({action:'favorite',value:true});const b=service.mutate({action:'rating',value:4});await tick();
-  service.setScope({...scope,viewerId:'new-profile'},{request:async<T>()=>data() as T});await Promise.all([a,b]);
+  service.cancel();await Promise.all([a,b]);
   assert.equal(service.getSnapshot().data,null);assert.equal(service.getSnapshot().pending.length,0);
   mutation.resolve(receipt(body,{...personal(1),favorite:true}));await tick();assert.equal(writes,1);assert.equal(service.getSnapshot().data,null);
 });
@@ -242,7 +243,7 @@ test('a page that reads recommendations itself asks detail for none, on every re
   const service = setup(async path => { paths.push(path); return data(); });
   await service.select(target, {related: 'none'});
   assert.equal(service.getSnapshot().phase, 'ready');
-  await service.refresh(); await service.revalidate();
+  await service.refresh(); await service.refresh();
   await service.select({...target, itemId: 'item'});
   assert.deepEqual(paths.map(path => path.split('?')[1]), ['related=none', 'related=none', 'related=none', 'related=all']);
   assert.throws(() => service.select(target, {related: 'some' as never}));
@@ -302,7 +303,7 @@ function mountedDetail(options: {invalid?: boolean; loseResponse?: boolean} = {}
     assert.equal(path,'/v1/items/item/detail');return Response.json(wireFixture(data('item',state),{duration:'durationMs',progressSeconds:'progressMs',startSeconds:'startMs'}));
   });
   api.setUserMutationSession(session);const coordinator=api.configureUserMutations(store);let ids=0;
-  const service=new DetailService({api,scope,timeoutMs:4000,requestId:async()=>`12345678-1234-4123-8123-${String(++ids).padStart(12,'0')}`});
+  const service=new DetailService(withQueries({api,scope,timeoutMs:4000,requestId:async()=>`12345678-1234-4123-8123-${String(++ids).padStart(12,'0')}`}));
   return {service,store,coordinator,writes,reads};
 }
 

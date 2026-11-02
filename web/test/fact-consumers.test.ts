@@ -14,6 +14,8 @@ import {libraryChannelUpload} from '../src/screens/live/owner/library-channel-up
 import {componentModule} from './helpers/component-harness.mjs';
 import {createRenderer, tree, one, all} from './helpers/interaction-harness.mjs';
 import {defaultI18n} from '@i18n';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
+import {testQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences);
 const viewer = {serverId: 'server', authority: 'local' as const, accountId: 'account', profileId: 'profile', role: 'owner'};
@@ -24,7 +26,7 @@ function fixture() {
     capabilities: {manageServer: true} as never, canManageProfiles: true, accountFacts: [], libraries: [{id: 'library', name: 'Books', kind: 'book'}], liveAvailable: false, unread: 0, showNotificationDot: true};
   const source = createShellFactsSource({identity, preferences, serverName: 'Server'});
   const api = new HttpLocalApi('https://server.invalid', '', async () => {calls++;throw new Error('Unexpected read');});
-  const context = {api, session: () => session, isCurrent: () => current, factsSource: source, get facts() {return source.getSnapshot();},
+  const context = {api, freshness: {queries: testQueries(api, {serverId: viewer.serverId, viewerId: 'viewer'})}, session: () => session, isCurrent: () => current, factsSource: source, get facts() {return source.getSnapshot();},
     artwork: {}, events: {on: () => () => {}}, epoch: 1, viewerFence: 'fence'} as unknown as ShellAssemblyContext & {factsSource: typeof source};
   return {source, context, api, calls: () => calls, retire: () => {current = false;}, replaceSession: () => {session = {...session, sessionFamilyId: 'replacement'};},
     rename() {source.update({identity: {...source.getSnapshot().identity, serverName: 'Renamed server', profileName: 'Renamed profile', profileArt: 'green', libraries: [{id: 'library', name: 'Renamed books', kind: 'book'}]}, serverName: 'Renamed server'});}};
@@ -68,9 +70,9 @@ test('actual ScreenContext producer and nested copies notify current display wit
 test('actual live lease copies keep their owners and forward identity notifications', async () => {
   for (const kind of ['guide', 'group', 'rules'] as const) {
     const f = fixture(), h = createRenderer();let received: ScreenContext | undefined, disposed = 0, constructed = 0;
-    const screen = {api: f.api, events: f.context.events, artwork: {}, scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: f.context.isCurrent,
+    const screen = withQueries({api: f.api, events: f.context.events, artwork: {}, scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: f.context.isCurrent,
       get identity() {return f.context.facts.identity;}, subscribeIdentity: (listener: () => void) => subscribeFacts(f.context, listener),
-      preferences: {getSnapshot: () => preferences, subscribe: () => () => {}}, effects: {reportError() {}}} as unknown as ScreenContext;
+      preferences: {getSnapshot: () => preferences, subscribe: () => () => {}}, effects: {reportError() {}}}) as unknown as ScreenContext;
     const make = (context: ScreenContext) => {received = context;constructed++;return {life: screenLifetime(context), load: async () => {}, failure: {subscribe: () => () => {}, getSnapshot: () => undefined}, dispose() {disposed++;}};};
     const file = kind === 'guide' ? 'useLiveLease' : kind === 'group' ? 'useRecordedGroupLease' : 'useSeriesRulesLease';
     const module = await componentModule(new URL(`../src/screens/live/${file}.ts`, import.meta.url), {react: h.react, '@i18n': {defaultI18n},
@@ -225,8 +227,8 @@ test('Activity explicitly notifies its admitted source and redraws the name with
 test('Browse and Show committed adapters keep the original services and forward live identity into their command contexts', async () => {
   for (const kind of ['browse', 'show'] as const) {
     const f = fixture(), h = createRenderer();let received: ScreenContext | undefined, constructed = 0, disposed = 0;
-    const context = {api: f.api, events: f.context.events, scope: {serverId: 'server', viewerId: 'viewer'}, artwork: {}, isCurrent: f.context.isCurrent,
-      get identity() {return f.context.facts.identity;}, subscribeIdentity: (listener: () => void) => subscribeFacts(f.context, listener), preferences: {getSnapshot: () => preferences, subscribe: () => () => {}}, effects: {reportError() {}}} as unknown as ScreenContext;
+    const context = withQueries({api: f.api, events: f.context.events, scope: {serverId: 'server', viewerId: 'viewer'}, artwork: {}, isCurrent: f.context.isCurrent,
+      get identity() {return f.context.facts.identity;}, subscribeIdentity: (listener: () => void) => subscribeFacts(f.context, listener), preferences: {getSnapshot: () => preferences, subscribe: () => () => {}}, effects: {reportError() {}}}) as unknown as ScreenContext;
     // Stable per viewer, as the real freshness runtime's page memory is.
     const pageMemory = {remember() {}, recall: () => undefined, forget() {}};
     const file = kind === 'browse' ? '../src/screens/browse/useBrowseLease.ts' : '../src/screens/detail/use-show-route.ts';

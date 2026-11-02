@@ -71,7 +71,7 @@ export class TitleMenuHost {
   private detailFor(): TitleMenuDetail {
     const life = this.life();
     return this.options.detail ? this.options.detail(this.context, life)
-      : new DetailService({api: life.api, scope: this.context.scope, requestId: async () => crypto.randomUUID()});
+      : new DetailService({queries: this.context.queries, api: life.api, scope: this.context.scope, requestId: async () => crypto.randomUUID()});
   }
   private ports(): Omit<TitleMenuPorts, 'play'> {
     const viewer = this.context.identity?.viewer, effects = this.context.effects;

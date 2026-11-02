@@ -13,6 +13,24 @@ export type NativeShellFreshnessReads = Readonly<{
   identity: Read;
 }>;
 
+/** The shell's cache of server documents, found from the API a screen reads with. Native runs one
+ * shell per signed-in viewer and builds a new one for another viewer, PIN, privacy fence or
+ * sign-out; the shell registers its own API, so every screen reading with it shares that viewer's
+ * cache, and a screen that outlives its shell finds that shell's ended cache (which refuses every
+ * read), never the next viewer's. An API the shell did not register (a caller's own guarded
+ * wrapper, or a test's fake) reads through a cache of its own, so its guards still apply. */
+const byApi = new WeakMap<object, ViewerQueries>();
+export function viewerQueriesFor(api: ViewerRequester, scope: Readonly<{serverId: string; viewerId?: string}>): ViewerQueries {
+  const held = byApi.get(api);
+  if (held) {
+    if (held.isDisposed() || held.scope.serverId !== scope.serverId) throw Object.assign(new Error('This screen\'s viewer is no longer signed in here.'), {name: 'AbortError'});
+    return held;
+  }
+  const own = createViewerQueries({scope: {serverId: scope.serverId, viewerId: scope.viewerId || 'viewer'}, hub: new FreshnessHub(), api});
+  byApi.set(api, own);
+  return own;
+}
+
 /** The canonical hub maps event types to resources and retains invalidations
  * received during a read. Scan progress has no dependency on Home or shell facts;
  * scan presenters may observe it on the same hub without another event feed. */
@@ -25,9 +43,11 @@ export class NativeShellFreshness {
   private readonly unread: FreshDocument;
   private readonly guide: FreshDocument;
   private readonly libraries: FreshDocument;
-  constructor(reads: NativeShellFreshnessReads, viewer: Readonly<{scope: ViewerQueryScope; api: ViewerRequester}>, options: FreshnessHubOptions = {}) {
+  constructor(reads: NativeShellFreshnessReads, viewer: Readonly<{scope: ViewerQueryScope; api: ViewerRequester; screensApi?: object}>, options: FreshnessHubOptions = {}) {
     this.hub = new FreshnessHub(options);
     this.queries = createViewerQueries({scope: viewer.scope, hub: this.hub, api: viewer.api});
+    // Screens read with the shell's own API: they find this cache through it.
+    if (viewer.screensApi) byApi.set(viewer.screensApi, this.queries);
     const document = (dependencies: readonly string[], revalidate: Read) => {
       const value = this.hub.document({dependencies, revalidate}); value.setOpen(true); return value;
     };

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ReadingCollection, type ReadingCollectionItem} from '../src/reading-collection.ts';
+import {withQueries} from './fixtures/viewer-queries.ts';
 
 function fixture(count = 2, canCreate = false) {
   let current = true, grant = true, canAdd = true, revision = 7, fence = 'home-fence', lost = false, partial = false, pickerFailure = false, ids = 0;
@@ -44,8 +45,8 @@ function fixture(count = 2, canCreate = false) {
     }
     throw new Error(`unexpected ${method} ${path}`);
   }};
-  const controller = new ReadingCollection({api, scope: {serverId: 'server', viewerId: '["local","member","profile"]'}, requestId: async () => `00000000-0000-4000-8000-${String(++ids).padStart(12, '0')}`,
-    signal: life.signal, isCurrent: () => current, canCreate}, items);
+  const controller = new ReadingCollection(withQueries({api, scope: {serverId: 'server', viewerId: '["local","member","profile"]'}, requestId: async () => `00000000-0000-4000-8000-${String(++ids).padStart(12, '0')}`,
+    signal: life.signal, isCurrent: () => current, canCreate}), items);
   return {controller, items, calls, life, retire: () => {current = false;}, revoke: () => {grant = false;}, noDestinationGrant: () => {canAdd = false;},
     drift: () => {revision++;}, changeFence: () => {fence = 'other';}, lose: () => {lost = true;}, partial: () => {partial = true;}, failPicker: () => {pickerFailure = true;}};
 }

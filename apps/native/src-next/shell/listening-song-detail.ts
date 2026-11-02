@@ -4,6 +4,7 @@ import {sameFence, type PlaybackFence, type QueuePlaybackFence} from '../../../.
 import type {NativePlaybackReadLifetime} from '../platform/playback/types';
 import {nativeScreenServices} from '../screens/native-screen-services';
 import type {NativeShellBootstrapContext} from './bootstrap';
+import {viewerQueriesFor} from './freshness';
 
 /** The current queue song's own detail. The object is an issued offer token: only a read from
  * this port can produce one, and favorite() accepts it back only while everything it names
@@ -94,7 +95,7 @@ export function createNativeListeningSongDetail(context: NativeShellBootstrapCon
       if (!bound.live() || operation.abort.signal.aborted || lifetime.signal.aborted || !lifetime.isCurrent()) throw cancelled();
       return id;
     };
-    service = new DetailService({api: {request}, scope: bound.scope, requestId});
+    const api = {request}; service = new DetailService({queries: viewerQueriesFor(api, bound.scope), api, scope: bound.scope, requestId});
     operation.service = service; active.add(operation);
     const close = () => {lifetime.signal.removeEventListener('abort', stop); off.forEach(stop => stop()); active.delete(operation); service?.dispose();};
     try {

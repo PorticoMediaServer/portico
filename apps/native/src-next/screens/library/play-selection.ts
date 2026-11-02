@@ -7,6 +7,7 @@ import {nativeDestinationActivation} from '../../shell/routes';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {nativeScreenServices} from '../native-screen-services';
 import type {NativeLibraryDestination} from './model';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 const cancelled = () => Object.assign(new Error('native_library_selection_retired'), {name: 'AbortError', code: 'cancelled'});
 const unavailable = () => Object.assign(new Error('native_library_selection_unavailable'), {code: 'unavailable'});
@@ -83,7 +84,7 @@ export function createNativeLibraryPlaySelection(context: NativeShellBootstrapCo
         await Promise.all(Array.from({length: Math.min(4, entries.length)}, async () => {
           while (cursor < entries.length) {
             const index = cursor++;
-            items[index] = await readCatalogueSelectionItem({api: context.api, scope: lifetime.scope, requestId: common.requestId,
+            items[index] = await readCatalogueSelectionItem({queries: viewerQueriesFor(context.api, lifetime.scope), api: context.api, scope: lifetime.scope, requestId: common.requestId,
               signal: controller.signal, isCurrent: live}, entries[index], {play: true, queue, myList: true, favorite: true, watched: true, playlist: true, collection: true, edit: true, delete: true});
           }
         }));
