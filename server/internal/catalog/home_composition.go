@@ -325,6 +325,19 @@ func (s *Service) homeAudioSource(r HomeRequest, booksOnly bool) (homeSource, er
  WHERE ` + visible + ` AND ` + kind + ` GROUP BY parent.id`
 	bound := append([]any{r.Profile, r.Profile, idsJSON(r.Libraries)}, args...)
 	if !booksOnly {
+		// An album part-way through (W2-A5): songs keep no position, so the
+		// continuation base above never names one.
+		music := []string{}
+		for _, library := range libraries {
+			if library.Kind == "music" {
+				music = append(music, library.ID)
+			}
+		}
+		if len(music) > 0 {
+			albums, albumArgs := homeAlbumContinuation(r, music, nil)
+			source = `SELECT id,max(ord) AS ord FROM (` + source + ` UNION ALL SELECT pid(album.public_id) AS id,'1:'||chosen.ord AS ord FROM (` + albums + `) chosen JOIN catalog_entities album ON album.id=chosen.album) GROUP BY id`
+			bound = append(bound, albumArgs...)
+		}
 		// Reuse each library's existing bounded Recently Added shelf. The
 		// old union grouped the complete audio library before taking a page.
 		values := [][2]string{}
@@ -697,7 +710,11 @@ func (s *Service) homeAudioResume(r HomeRequest, entries []ContentEntry) ([]Home
 			}
 		}
 	}
-	return out, nil
+	albums, err := s.homeAlbumResumes(r, entries)
+	if err != nil {
+		return nil, err
+	}
+	return append(out, albums...), nil
 }
 
 func (s *Service) homeSpotlightSeasonCounts(r HomeRequest, entries []ContentEntry) error {
