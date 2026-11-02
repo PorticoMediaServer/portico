@@ -13,7 +13,8 @@ import {durationText} from '../../../packages/client-core/src/presentation/kit-m
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 // W-17: OK on a TV tab enters its section through the registry.
 const enteredRegions: string[] = [];
-const focusRegistry = {subscribe: () => () => {}, getSnapshot: () => 0, capture: () => undefined, focusRegion: (id: string) => {enteredRegions.push(id); return true;}};
+let capturedFocus: any = undefined;
+const focusRegistry = {subscribe: () => () => {}, getSnapshot: () => 0, capture: () => capturedFocus, focusRegion: (id: string) => {enteredRegions.push(id); return true;}};
 
 const {NativeTitleScreen} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), {
   './TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
@@ -68,7 +69,7 @@ test('TV title resume, Start over, watched and Play menu bind actual current tit
   } finally {await host.unmount();}
 });
 
-test('TV section edges link the hero buttons and the first row; the visible strip has real tab stops that enter their sections (W-17)', async () => {
+test('TV Down from the hero buttons goes straight to the first row; the sticky header strip has the tab stops while browsing (W-17)', async () => {
   const entry = {id: 'inside-out', kind: 'movie', title: 'Inside Out'};
   const snapshot = {retired: false, entry, place: {tab: 'related', anchor: {itemId: null, offset: 0}}, episodes: [], seasons: [],
     detail: {phase: 'ready', data: {item: entry, actions: [{id: 'play', enabled: true, playback: {itemId: entry.id, startSeconds: 0}}], personal: {progressSeconds: 0},
@@ -91,12 +92,18 @@ test('TV section edges link the hero buttons and the first row; the visible stri
     assert.equal(row.props.edges.up, actions.props.id);
     assert.equal(actions.props.entry, 'watch-title-play');
     assert.deepEqual(posters().map((node: React.ReactElement<{focusId: string}>) => node.props.focusId), ['first', 'second']);
-    // W-17: the strip under the hero is focusable while it is drawn; the compact header's copy is a marker.
-    const [strip, marker] = descendants(tree).filter(node => node.props.testID === 'watch-title-tabs');
-    assert.equal(strip.props.passive, false, 'the visible strip has tab stops, so focus is never left on an invisible container');
-    assert.equal(marker.props.passive, true, 'the compact header copy is not drawn until browsing, and stays a marker');
-    enteredRegions.length = 0; strip.props.onValueChange('related');
+    // W-17 (lead ruling: follow tv-detail): Down from the hero buttons goes straight into the first row, so the strip
+    // under the hero is a visible marker with no stops; the sticky header's copy has the tab stops while browsing.
+    const strips = () => descendants(tree).filter(node => node.props.testID === 'watch-title-tabs');
+    assert.deepEqual(strips().map(node => node.props.passive), [true, true], 'on the hero, neither strip takes focus: no stop between Play and the first row');
+    capturedFocus = {regionId: row.props.id, childId: 'first'};
+    await host.rerender(); await host.rerender();
+    const [hero, header] = strips();
+    assert.equal(hero.props.passive, true, 'the folded hero strip stays a marker');
+    assert.equal(header.props.passive, false, 'browsing: the sticky header strip has the tab stops Up from the first row reaches');
+    enteredRegions.length = 0; header.props.onValueChange('related');
     assert.deepEqual(enteredRegions, [row.props.id], 'OK on More like this enters its first row');
+    capturedFocus = undefined;
     assert.ok(descendants(tree).some(node => node.type === 'Text' && node.props.children === 'About'), 'Details stays mounted below related rows');
 
   } finally {await host.unmount();}
