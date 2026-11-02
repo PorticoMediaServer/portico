@@ -165,7 +165,7 @@ def download_sources(recipe, execute, update=lambda _: None):
             failed.add(archive)
             results[script] = {'state': 'failed', 'error': str(error)}
         update(results)
-        if store: download_cache['sync']('save', recipe, Path(store))
+    if store: download_cache['sync']('save', recipe, Path(store))
     return results, failed
 
 

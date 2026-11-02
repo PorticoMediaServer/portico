@@ -206,6 +206,15 @@ jobs:
           PORTICO_ENGINE_REGISTRY_CACHE: ${{ (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64') && '1' || '0' }}
           PORTICO_ENGINE_CACHE_WRITE: '1'
         run: python scripts/ci-ffmpeg-toolchain.py build --target "$ENGINE_TARGET" --work "$RUNNER_TEMP/engine-cold"
+      - name: Capture completed source snapshots after interruption or failure
+        if: always() && (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64')
+        env: {ENGINE_TARGET: '${{ matrix.target }}'}
+        run: |
+          recipe="$RUNNER_TEMP/engine-cold/state/recipe"
+          if [[ "$ENGINE_TARGET" == linux-arm64 ]]; then recipe="$RUNNER_TEMP/engine-cold/.scratch/hardware-r29/ffmpeg-build/linux-arm64/recipe"; fi
+          if [[ -d "$recipe/.cache/downloads" ]]; then
+            python scripts/engine-download-cache.py save --recipe "$recipe" --store "$RUNNER_TEMP/engine-download-cache"
+          fi
       - name: Retain exact source snapshots even after a failed build
         if: always() && (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64')
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
