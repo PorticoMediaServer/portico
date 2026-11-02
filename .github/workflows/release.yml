@@ -233,7 +233,7 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild -version
-          xcodebuild -version | head -1 | grep -qx 'Xcode 26.6' || { echo 'expected Xcode 26.6' >&2; exit 1; }
+          [ "$(xcodebuild -version | sed -n 1p)" = 'Xcode 26.6' ] || { echo 'expected Xcode 26.6' >&2; exit 1; }
           xcodebuild -showsdks
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
@@ -452,7 +452,7 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild -version
-          xcodebuild -version | head -1 | grep -qx 'Xcode 26.6' || { echo 'expected Xcode 26.6' >&2; exit 1; }
+          [ "$(xcodebuild -version | sed -n 1p)" = 'Xcode 26.6' ] || { echo 'expected Xcode 26.6' >&2; exit 1; }
           xcodebuild -showsdks
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: {node-version-file: .node-version, cache: npm, cache-dependency-path: "package-lock.json\napps/native/package-lock.json"}
