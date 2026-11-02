@@ -102,6 +102,10 @@ func (p *pathPresence) advance(ctx context.Context) error {
 			return p.health(ctx, source, "offline", source.IdentityConfirmed, source.RootIdentity)
 		}
 		observed := storage.RootIdentity(root)
+		if observed == "" || !root.Directory {
+			log.Printf("Source %s: root inspection did not prove a readable directory (code %s)", source.ID, root.ErrorCode)
+			return p.health(ctx, source, "offline", source.IdentityConfirmed, source.RootIdentity)
+		}
 		if observed == source.RootIdentity && (source.Health == "ready" || source.Health == "healthy") {
 			var incarnation string
 			if source.Generation <= 1 || source.LastCompleteAt != "" {
@@ -233,8 +237,8 @@ func (p *pathPresence) accept(ctx context.Context, source catalog.LibrarySource,
 		return err
 	}
 	return dbwork.WithWriteTx(dbwork.WithCatalogIngest(ctx), p.s.db, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE inventory_objects SET root_incarnation=?,object_identity=?,revision=?,evidence_json=?
- WHERE id=? AND source_id=? AND revision=? AND retired=0 AND EXISTS(SELECT 1 FROM library_sources s WHERE s.id=? AND s.generation=? AND s.configured_root=? AND s.root=? AND s.root_identity=? AND s.enabled=1 AND NOT EXISTS(SELECT 1 FROM inventory_source_active a WHERE a.source_id=s.id))`, source.Incarnation, v.ObjectIdentity, revision, evidence, o.id, source.ID, o.revision, source.ID, source.Generation, source.Path, source.ResolvedPath, source.RootIdentity)
+		_, err := tx.ExecContext(ctx, `UPDATE inventory_objects SET root_incarnation=?,object_identity=?,revision=?,evidence_json=?,analysis_revision=CASE WHEN analysis_revision=revision THEN ? ELSE analysis_revision END
+ WHERE id=? AND source_id=? AND revision=? AND retired=0 AND EXISTS(SELECT 1 FROM library_sources s WHERE s.id=? AND s.generation=? AND s.configured_root=? AND s.root=? AND s.root_identity=? AND s.enabled=1 AND NOT EXISTS(SELECT 1 FROM inventory_source_active a WHERE a.source_id=s.id))`, source.Incarnation, v.ObjectIdentity, revision, evidence, revision, o.id, source.ID, o.revision, source.ID, source.Generation, source.Path, source.ResolvedPath, source.RootIdentity)
 		return err
 	})
 }

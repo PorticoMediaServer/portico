@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+var errSourceMediaAmbiguous = errors.New("returning root contains different media without a catalogued path")
+
 func (s *Service) readySource(ctx context.Context, job string, source *catalog.LibrarySource) error {
 	if source.Health == "root_changed" && !source.IdentityConfirmed {
 		return catalog.ErrSourceChanged
@@ -59,6 +61,42 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 	if actual == "" {
 		return catalog.ErrSourceChanged
 	}
+	// A native identity change is never an admission gate. If this source
+	// already had files, however, a later complete listing must prove at least
+	// one catalogued path before publishing any absence. A previously accepted
+	// replacement has an explicit new lifetime and owes no such confirmation.
+	if !remote && (source.Health == "offline" || source.RootIdentity != "" && actual != source.RootIdentity) {
+		var discovered int64
+		if err := s.db.QueryRowContext(ctx, `SELECT discovered FROM inventory_runs WHERE job_id=?`, job).Scan(&discovered); err != nil {
+			return err
+		}
+		if discovered > 0 {
+			// A root returned partway through this listing. Its earlier
+			// observations cannot prove this root's absences. Retain the
+			// catalogue; the stat-only worker recovers it without a prompt.
+			return catalog.ErrSourceLooksUnmounted
+		}
+		accepted := false
+		if source.Generation > 1 && source.LastCompleteAt == "" {
+			var incarnation string
+			err := s.db.QueryRowContext(ctx, `SELECT root_incarnation FROM inventory_objects INDEXED BY inventory_objects_source WHERE source_id=? AND retired=0 ORDER BY id LIMIT 1`, source.ID).Scan(&incarnation)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			accepted = errors.Is(err, sql.ErrNoRows) || incarnation != source.Incarnation
+		}
+		var known bool
+		if !accepted {
+			if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM inventory_objects INDEXED BY inventory_objects_source WHERE source_id=? AND retired=0 LIMIT 1)`, source.ID).Scan(&known); err != nil {
+				return err
+			}
+		}
+		if known {
+			if _, err := dbwork.ExecWrite(ctx, s.db, dbwork.ClassBackgroundMedia, `UPDATE inventory_runs SET root_rebound=1 WHERE job_id=? AND root_rebound=0`, job); err != nil {
+				return err
+			}
+		}
+	}
 	if source.RootIdentity != "" && actual != source.RootIdentity {
 		// The configured path is the source; physical device/inode changes are
 		// informational and never require owner confirmation or a new scan.
@@ -66,9 +104,6 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 			return err
 		}
 		source.RootIdentity = actual
-		if _, err = dbwork.ExecWrite(ctx, s.db, dbwork.ClassBackgroundMedia, `UPDATE inventory_runs SET root_rebound=1 WHERE job_id=?`, job); err != nil {
-			return err
-		}
 	}
 	if source.RootIdentity == "" {
 		gated, e := dbwork.Begin(ctx, s.db, dbwork.ClassBackgroundMedia)
@@ -480,6 +515,13 @@ func (s *Service) verifyPage(ctx context.Context, job string, source catalog.Lib
 	if len(dirs) > 0 {
 		_, err = tx.ExecContext(ctx, `UPDATE inventory_runs SET verify_cursor=? WHERE job_id=?`, dirs[len(dirs)-1].path, job)
 	} else {
+		var ambiguous bool
+		if err := tx.QueryRowContext(ctx, `SELECT root_rebound=1 AND discovered>0 FROM inventory_runs WHERE job_id=?`, job).Scan(&ambiguous); err != nil {
+			return err
+		}
+		if ambiguous {
+			return errors.Join(catalog.ErrSourceChanged, errSourceMediaAmbiguous)
+		}
 		now := time.Now().UTC().Format(time.RFC3339Nano)
 		// Baseline path-only sources have no trustworthy pre-upgrade root identity.
 		// Publish their observations, but require owner confirmation before absence.
@@ -636,7 +678,12 @@ func (s *Service) fail(ctx context.Context, job, source string, cause error) {
 	if _, err = tx.ExecContext(ctx, `DELETE FROM inventory_source_active WHERE job_id=?`, job); err != nil {
 		return
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE library_sources SET health=? WHERE id=?`, health, source); err != nil {
+	if errors.Is(cause, errSourceMediaAmbiguous) {
+		_, err = tx.ExecContext(ctx, `UPDATE library_sources SET health=?,identity_confirmed=0 WHERE id=?`, health, source)
+	} else {
+		_, err = tx.ExecContext(ctx, `UPDATE library_sources SET health=? WHERE id=?`, health, source)
+	}
+	if err != nil {
 		return
 	}
 	// A stopped scan is the one ingestion outcome an administrator has to act on.

@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
@@ -17,6 +16,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/naming"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 	"github.com/PorticoMediaServer/portico/server/internal/subtitles"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -434,6 +434,14 @@ func (s *Service) observeInventoryTx(ctx context.Context, tx *sql.Tx, job string
 		return false, err
 	}
 	knownObject = object != ""
+	if knownObject && previousSeen != job {
+		// A catalogued path is present on this root. root_rebound=1 means
+		// a returning root has not yet proved any old path; 2 records that
+		// witness so a new scan can distinguish it from different media.
+		if _, err := tx.ExecContext(ctx, `UPDATE inventory_runs SET root_rebound=2 WHERE job_id=? AND root_rebound=1`, job); err != nil {
+			return false, err
+		}
+	}
 	// A file at the same place with the same size and modified time is the same
 	// file, whatever its filesystem now calls it: inode and device numbers are
 	// renumbered by remounts, by filesystems that do not keep them, and when a
