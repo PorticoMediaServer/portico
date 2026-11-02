@@ -45,7 +45,8 @@ export function nativeScreenError(service: NativeScreenServices, context: ErrorC
 export function nativeScreenErrorPage(service: NativeScreenServices, context: ErrorContext) {
   return (error: unknown, retry: () => void) => <ScreenErrorPage {...service.error(error, retry, context)}/>;
 }
-function ScreenErrorPage(props: StateContentProps) {
+/** The full-page form for a screen that renders its own state content (the person page, W-2 sweep). */
+export function ScreenErrorPage(props: StateContentProps) {
   const theme = useTheme();
   return <StateLayout {...props} testID={props.testID ?? 'screen-error-page'} contentTop={theme.isTV ? undefined : 250} backdropHeight={theme.isTV ? undefined : 420}/>;
 }
