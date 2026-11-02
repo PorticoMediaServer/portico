@@ -6,7 +6,7 @@ import type {ShowBindings} from './show-bindings';
 /** The workspace page owns this episode set. Changing season, filter, ordering,
  * page, viewer or revision retires it rather than selecting an unseen sibling. */
 export function createEpisodeSelection(context: ScreenContext, binding: ShowBindings,
-  principal: Omit<BrowseSelectionScope, 'viewId'>, metadataFence: () => string | undefined, runtime?: WebShellPlaybackRuntime) {
+  principal: Omit<BrowseSelectionScope, 'viewId'>, runtime?: WebShellPlaybackRuntime) {
   // Revalidation can replace a page with equal revision facts. Its old entry
   // objects are still an old document. Advance only on service notifications,
   // never as a side effect of a render/getSnapshot read.
@@ -29,5 +29,5 @@ export function createEpisodeSelection(context: ScreenContext, binding: ShowBind
         entries: data.episodes.sections.flatMap(section => section.entries.filter(entry => entry.kind === 'episode' && entry.libraryId === data.scope.libraryId))};
     },
   };
-  return createCatalogueDocumentSelection(context, source, principal, metadataFence, runtime);
+  return createCatalogueDocumentSelection(context, source, principal, runtime);
 }

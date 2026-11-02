@@ -20,7 +20,7 @@ class NativeRustTools(unittest.TestCase):
         pin = json.loads(pin_file.read_text())
         TOOLS['shared_versions'](pin, ROOT / 'third_party/media-engine/sources.lock.json')
         self.assertEqual(set(pin['rust']['targets']),
-                         {'aarch64-apple-darwin', 'x86_64-apple-darwin', 'x86_64-unknown-linux-gnu'})
+                         {'aarch64-apple-darwin', 'x86_64-unknown-linux-gnu'})
         for target, components in pin['rust']['targets'].items():
             self.assertEqual(set(components), {'rustc', 'cargo', 'rust-std'})
             for component, entry in components.items():

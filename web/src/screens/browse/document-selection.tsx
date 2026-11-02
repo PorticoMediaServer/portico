@@ -18,7 +18,7 @@ export type CatalogueDocumentSource = Readonly<{
 /** Explicit document selection. Each source owns its genuine continuity token;
  * no document becomes a Browse whole-query descriptor. */
 export function createCatalogueDocumentSelection(context: ScreenContext, sourceDocument: CatalogueDocumentSource,
-  principal: Omit<BrowseSelectionScope, 'viewId'>, metadataFence: () => string | undefined, runtime?: WebShellPlaybackRuntime) {
+  principal: Omit<BrowseSelectionScope, 'viewId'>, runtime?: WebShellPlaybackRuntime) {
   const life = screenLifetime(context), listeners = new Set<() => void>();
   const mounted = new Map<ContentEntry, {order: number; count: number}>();
   let admitted = new WeakSet<ContentEntry>();
@@ -69,7 +69,7 @@ export function createCatalogueDocumentSelection(context: ScreenContext, sourceD
         onView: (destination, id) => {if (!current()) return;
           void router.navigate({to: '/saved', search: destination === 'playlist' ? {view: 'playlist', playlistId: id} : {view: 'resource', resourceId: id}}).catch(context.effects.reportError);}},
       ...(owner ? {editor: {api: life.api, events: context.events, requestId: async () => randomId(), serverId: context.scope.serverId, viewerId: context.scope.viewerId,
-        artwork: context.artwork, viewerFence: metadataFence, signal: life.signal(), isCurrent: current},
+        artwork: context.artwork, signal: life.signal(), isCurrent: current},
         deletion: {api: life.api, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(), signal: life.signal(), isCurrent: current}} : {}),
       actions: {api: life.api, events: context.events, requestId: async () => randomId(), signal: life.signal(), isCurrent: current, reportError: context.effects.reportError},
       reportError: context.effects.reportError,

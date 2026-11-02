@@ -13,7 +13,9 @@ export type QueryEditorResult = Readonly<{updated: number; failed: number; jobId
 /** One server-held query, never a list of the loaded cards. The accepted job and
  * original request survive uncertain delivery; a new editor cannot revive it. */
 export function createQuerySelectionEditor(options: SelectionEditorOptions) {
-  const {api, serverId, viewerFence, requestId, events} = options;
+  const {api, serverId, requestId, events} = options;
+  // As the explicit editor: the bulk preview issues the editing fence, and the job runs only while answers match it.
+  let editingFence: string | undefined;
   const signal = options.signal ?? new AbortController().signal;
   const check = () => {if (signal.aborted || !options.isCurrent()) throw new DOMException('Selection retired', 'AbortError');};
   const grants = new WeakMap<BulkMetadataPreview, Operation>();
@@ -23,14 +25,15 @@ export function createQuerySelectionEditor(options: SelectionEditorOptions) {
       check(); const target = operation.target;
       if (target.mode !== 'query' || target.summary.types.length !== 1 || target.summary.unavailableActions?.metadataPreview || !target.summary.every.edit) throw new Error('query-editor-unavailable');
       const query = selectionQuerySelector(target); if (!query.ok) throw new Error('query-editor-refined');
-      const fence = viewerFence(); if (!fence) throw new Error('metadata-authority-unavailable');
       const preview = await fetchBulkMetadataPreview(api, {selector: query.selector, expected: query.expected}, serverId, signal, {isCurrent: options.isCurrent}); check();
-      if (viewerFence() !== fence || preview.viewerFence !== fence || preview.total !== target.total || preview.contentKind !== target.summary.types[0].kind) throw new Error('metadata-preview-mismatch');
+      if (editingFence !== undefined && preview.viewerFence !== editingFence) throw new Error('metadata-authority-changed');
+      if (preview.total !== target.total || preview.contentKind !== target.summary.types[0].kind) throw new Error('metadata-preview-mismatch');
+      editingFence = preview.viewerFence;
       grants.set(preview, operation); return preview;
     },
     async save(operation: Operation, preview: BulkMetadataPreview, draft: BulkEditorDraft, progress: (value: HomeSelectionProgress) => void): Promise<QueryEditorResult> {
       check();
-      if (grants.get(preview) !== operation || preview.viewerFence !== viewerFence() || operation.target.mode !== 'query') throw new Error('metadata-preview-not-current');
+      if (grants.get(preview) !== operation || preview.viewerFence !== editingFence || operation.target.mode !== 'query') throw new Error('metadata-preview-not-current');
       const query = selectionQuerySelector(operation.target); if (!query.ok) throw new Error('query-editor-refined');
       if (!bulkDraftValid(preview.schema, editorValues(preview), draft)) throw new Error('invalid-bulk-edit');
       const args = structuredClone(editorCoreDraft(draft)), key = JSON.stringify(args);
@@ -48,7 +51,7 @@ export function createQuerySelectionEditor(options: SelectionEditorOptions) {
       const retained = attempt;
       retained.flight = Promise.resolve().then(async () => {
         try {
-          const current = () => !signal.aborted && options.isCurrent() && viewerFence() === preview.viewerFence;
+          const current = () => !signal.aborted && options.isCurrent() && editingFence === preview.viewerFence;
           const tasks = await retained.tasks; check();
           await runSelectionJobs(api, tasks, signal, current, value => {if (current()) progress({...value, done: value.done + tasks.reduce((sum, task) => sum + (task.job?.failed ?? 0), 0)});}, undefined, events, false);
           check(); if (!current()) throw new Error('metadata-authority-changed');

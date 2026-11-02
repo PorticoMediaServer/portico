@@ -125,6 +125,9 @@ func (d Dependencies) startBulkMetadataPreview(ctx context.Context, r *http.Requ
 	if small, handled, e := d.smallBulkMetadataPreview(ctx, r, in, p, fence, hold); handled {
 		return small, e
 	}
+	if len(in.Targets) > 0 && len(in.Targets) <= explicitBulkPreviewLimit {
+		return d.explicitBulkMetadataPreview(ctx, r, in, p, fence)
+	}
 	store := d.Catalog.ReadPreparations()
 	if store == nil {
 		return out, readprep.ErrClosed
@@ -153,6 +156,41 @@ func (d Dependencies) startBulkMetadataPreview(ctx context.Context, r *http.Requ
 		_ = store.Cancel(context.WithoutCancel(ctx), caller, handle)
 	}
 	return out, err
+}
+
+// explicitBulkPreviewLimit is how many picked titles are previewed in the request itself: the selection
+// bar's explicit picks, up to the editor's own 200. Larger target lists keep the retained preparation.
+var explicitBulkPreviewLimit = 200
+
+// explicitBulkMetadataPreview answers a preview of titles picked one by one in a single pass (walk J-12, 2 Nov).
+// Picked titles name themselves, and every later edit carries each target's own revision, so they need no
+// whole-view basis. Preparing them in the shared store tied them to one, which any write anywhere retired, so a
+// busy server answered "This list changed" to the edit of a single episode. The owner check and the scope fence
+// are the same as the prepared path's, and the fence is read again before answering.
+func (d Dependencies) explicitBulkMetadataPreview(ctx context.Context, r *http.Request, in catalog.BulkMetadataPreviewRequest, p identity.Principal, fence string) (out bulkMetadataPreviewResponse, err error) {
+	raw, err := json.Marshal(bulkMetadataPreviewInput{Request: in, Fence: fence})
+	if err != nil {
+		return out, err
+	}
+	var input bulkMetadataPreviewInput
+	if err = json.Unmarshal(raw, &input); err != nil {
+		return out, err
+	}
+	access := d.bulkMetadataPreviewAccess(p, input, len(raw))
+	value, err := d.Metadata.BulkPreview(ctx, access.Source, access.Authorize)
+	if err != nil {
+		return out, err
+	}
+	after, err := d.homeFenceAfter(r, p)
+	if err != nil {
+		return out, err
+	}
+	if after != fence {
+		return out, readprep.ErrStale
+	}
+	value.ServerID, value.ViewerFence = d.Identity.ID(), fence
+	out.Ready = &value
+	return out, nil
 }
 
 type bulkMetadataPreviewInput struct {

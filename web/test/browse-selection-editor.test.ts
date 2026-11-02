@@ -26,11 +26,11 @@ test('explicit picks preview their exact identities and a whole view is refused'
 test('the preview reads through the real endpoint and the editor refuses when not current', async () => {
   const paths: string[] = [], bodies: unknown[] = [];
   const api = {request: async (path: string, _method?: string, body?: unknown) => {paths.push(path); bodies.push(body); return (body as {targets?: unknown}).targets ? preview : queryPreview; }};
-  const editor = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'op', isCurrent: () => true, serverId: 'server', viewerFence: () => preview.viewerFence});
+  const editor = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'op', isCurrent: () => true, serverId: 'server'});
   const loaded = await editor.preview({target: explicit} as never);
   assert.equal(loaded.total, 1);
   assert.match(paths[0] ?? '', /metadata\/bulk\/preview/);
-  const retired = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'op', isCurrent: () => false, serverId: 'server', viewerFence: () => preview.viewerFence});
+  const retired = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'op', isCurrent: () => false, serverId: 'server'});
   await assert.rejects(retired.preview({target: explicit} as never), (error: unknown) => error instanceof SelectionEditorError && error.code === 'cancelled');
 });
 
@@ -43,7 +43,7 @@ test('a save sends the direct bulk edit for the previewed targets and returns pe
     return {operationId: edit.operationId, results: edit.targets.map(target => ({kind: target.kind, id: target.id, ok: true, revision: 'c'.repeat(64)})),
       updated: edit.targets.length, failed: 0};
   }};
-  const editor = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, serverId: 'server', viewerFence: () => preview.viewerFence});
+  const editor = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, serverId: 'server'});
   const operation = {target: explicit} as never;
   const loaded = await editor.preview(operation);
   const receipts = await editor.save(operation, loaded, {fields: {contentRating: 'G'}, lists: {}, lockEdited: true});

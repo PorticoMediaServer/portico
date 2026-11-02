@@ -21,6 +21,16 @@ class MacCache(unittest.TestCase):
     def test_disabled_adapter_does_not_touch_recipe(self):
         with patch.dict(os.environ, {}, clear=True): M.configure(Path('/does-not-exist'))
 
+    def test_consumed_disc_patches_are_bound_to_their_reviewed_pins(self):
+        lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
+        with tempfile.TemporaryDirectory() as temporary:
+            recipe = Path(temporary); patches = recipe / 'portico-no-decryption'; patches.mkdir()
+            for pin in lock['linuxSourceBuild']['sourcePatches']:
+                (patches / Path(pin['path']).name).write_bytes((ROOT / pin['path']).read_bytes())
+            self.assertEqual(M.disc_patch_inputs(recipe), {Path(p['path']).name: p['sha256'] for p in lock['linuxSourceBuild']['sourcePatches']})
+            path = next(patches.iterdir()); path.write_bytes(path.read_bytes() + b'changed')
+            with self.assertRaisesRegex(ValueError, 'dependency patch changed'): M.disc_patch_inputs(recipe)
+
     @unittest.skipUnless(os.environ.get('PORTICO_NETWORK_BUILD_TOOL_CONTROL') == '1', 'hosted exact pinned Mac recipe control')
     def test_real_dependency_hooks_keep_final_flags_out_and_propagate_failures(self):
         lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
@@ -48,6 +58,7 @@ class MacCache(unittest.TestCase):
                 for name in ('build-ffmpeg', 'portico-macos-extras.sh'):
                     subprocess.run(['bash', '-n', recipe / name], check=True, capture_output=True)
                 plan = json.loads((recipe / 'portico-dependency-cache.json').read_text())
+                self.assertEqual(plan['context']['dependencyPatches'], M.disc_patch_inputs(recipe))
                 self.assertIn('cmake', plan['stages']); self.assertIn('portico-moltenVK', plan['stages'])
                 self.assertNotIn('ffmpeg', plan['stages'])
                 self.assertIn('ffmpeg.done', (recipe / 'build-ffmpeg').read_text())

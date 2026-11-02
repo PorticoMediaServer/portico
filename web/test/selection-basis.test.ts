@@ -59,7 +59,7 @@ test('query metadata preview and save carry the same full witness into the final
   const editor = createQuerySelectionEditor({api: {request: async <T>(path: string, _method?: string, body?: unknown) => {
     bodies.push(body); assert.ok(path === '/v1/metadata/bulk/preview' || path === '/v1/jobs');
     return (path.includes('preview') ? preview : {jobId: 'job', command: 'metadata-edit', state: 'complete', total: 2, totalKnown: true, done: 2, failed: 0}) as T;
-  }}, serverId: 'server', viewerId: 'viewer', viewerFence: () => fence, events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true});
+  }}, serverId: 'server', viewerId: 'viewer', events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true});
   try {
     const grant = await editor.preview(held.operation);
     const result = await editor.save(held.operation, grant, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {});

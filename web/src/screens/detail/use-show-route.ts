@@ -30,7 +30,7 @@ export function useShowRoute(context: ScreenContext | undefined, captured: Prote
     const binding = createShowBindings(original);
     const selection = createEpisodeSelection(original, binding,
       {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId},
-      () => assembly.viewerFence, runtime);
+      runtime);
     selection.start();
     publish({context, assembly, targetKey, runtime, current, binding, selection});
     const route: ShowWorkspaceRoute = JSON.parse(targetKey);

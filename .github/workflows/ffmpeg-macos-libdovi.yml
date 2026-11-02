@@ -5,7 +5,7 @@ on:
       nativeTarget:
         description: Exercise the real native dependency build (never an engine qualification)
         type: choice
-        options: [none, macos-arm64, macos-x64]
+        options: [none, macos-arm64]
         default: none
       nativeComponent:
         description: Required native library to exercise
@@ -45,7 +45,7 @@ jobs:
           python scripts/test-macos-zvbi.py
           python scripts/test-ffmpeg-build-tools.py
           python scripts/test-libdovi-runtime-inventory.py
-          bash -n scripts/build-ffmpeg.sh scripts/build-macos-ffmpeg-extras.sh
+          for script in scripts/build-ffmpeg.sh scripts/build-macos-ffmpeg-extras.sh; do bash -n "$script"; done
   catalogue:
     if: github.repository == 'PorticoMediaServer/portico' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-24.04
@@ -70,7 +70,7 @@ jobs:
   native:
     if: github.repository == 'PorticoMediaServer/portico' && github.event_name == 'workflow_dispatch' && inputs.nativeTarget != 'none'
     needs: controls
-    runs-on: ${{ inputs.nativeTarget == 'macos-arm64' && 'macos-15' || 'macos-15-intel' }}
+    runs-on: ${{ 'macos-15' }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683

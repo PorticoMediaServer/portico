@@ -74,6 +74,7 @@ func bulkPreviewHTTPReady(t *testing.T, h http.Handler, token string, w *httptes
 }
 
 func TestBulkMetadataPreparationHTTPManyAndDeliveryHold(t *testing.T) {
+	preparedExplicitPreviews(t)
 	if testing.Short() {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
@@ -143,6 +144,7 @@ func TestBulkMetadataPreparationHTTPManyAndDeliveryHold(t *testing.T) {
 }
 
 func TestBulkMetadataPreparationHTTPReadyCannotSurviveMetadataDrift(t *testing.T) {
+	preparedExplicitPreviews(t)
 	f := newBulkPreviewHTTPFixture(t)
 	releaseWorker := blockBulkPreviewWorker(t, f.store)
 	id := editorItemPublic(t, f.d.DB, "Alpha")
@@ -168,6 +170,7 @@ func TestBulkMetadataPreparationHTTPReadyCannotSurviveMetadataDrift(t *testing.T
 }
 
 func TestBulkMetadataPreparationHTTPPreparingAndErrorHoldThroughWrite(t *testing.T) {
+	preparedExplicitPreviews(t)
 	f := newBulkPreviewHTTPFixture(t)
 	releaseWorker := blockBulkPreviewWorker(t, f.store)
 	defer releaseWorker()
@@ -210,6 +213,7 @@ func TestBulkMetadataPreparationHTTPPreparingAndErrorHoldThroughWrite(t *testing
 }
 
 func TestBulkMetadataPreparationHTTPRetryHandlesCancelIndependently(t *testing.T) {
+	preparedExplicitPreviews(t)
 	f := newBulkPreviewHTTPFixture(t)
 	other, err := f.d.Identity.Issue("owner", "profile", "local", "owner", 1)
 	if err != nil {

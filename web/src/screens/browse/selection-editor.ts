@@ -25,7 +25,6 @@ export type SelectionEditorOptions = Readonly<{
   viewerId?: string;
   artwork?: ShellArtwork;
   signal?: AbortSignal;
-  viewerFence: () => string | undefined;
 }>;
 
 type AnyOperation = SelectionOperation<BrowseSelectionContext>;
@@ -45,7 +44,12 @@ export function editorPreviewRequest(target: BrowseTarget): BulkMetadataPreviewR
   return {targets: metadataPreviewTargets(target.displayItems.map(pick => pick.item))};
 }
 
-export function createSelectionEditor({api, events, requestId, isCurrent, serverId, viewerId, viewerFence, signal: lifetime}: SelectionEditorOptions) {
+export function createSelectionEditor({api, events, requestId, isCurrent, serverId, viewerId, signal: lifetime}: SelectionEditorOptions) {
+  // J-12 (walk, 2 Nov): each answer is checked against the fence its own domain issues, never another surface's. The
+  // bulk preview issues the editing fence and every later bulk answer must match it; the metadata reads that name an
+  // aggregate's title must match each other. The page's own Home fence exists only while Home is the current document,
+  // so a show or library page opened any other way refused every edit before asking the server.
+  let editingFence: string | undefined, displayFence: string | undefined;
   const routeSignal = lifetime ?? new AbortController().signal;
   const current = (caller?: AbortSignal) => {
     if (!isCurrent() || routeSignal.aborted || caller?.aborted) throw new SelectionEditorError('cancelled');
@@ -65,10 +69,11 @@ export function createSelectionEditor({api, events, requestId, isCurrent, server
           result.push({id: item.id, title: item.title, ...(typeof item.posterUrl === 'string' && item.posterUrl ? {posterUrl: item.posterUrl} : {})});
         } else {
           if (!viewerId) throw new SelectionEditorError('metadata-authority-unavailable');
-          const fence = viewerFence();
           const raw = await api.request(encodedRoutePath('get_metadata_kind_id', {kind: encodeURIComponent(target.kind), id: encodeURIComponent(target.id)}), 'GET', undefined, routeSignal); current();
           const data = validateRepair(raw, {serverId, viewerId}, target);
-          if (!fence || data.viewerFence !== fence || viewerFence() !== fence || data.snapshot.fields.title === undefined) throw new SelectionEditorError('metadata-target-mismatch');
+          if (displayFence !== undefined && data.viewerFence !== displayFence) throw new SelectionEditorError('metadata-authority-changed');
+          displayFence = data.viewerFence;
+          if (data.snapshot.fields.title === undefined) throw new SelectionEditorError('metadata-target-mismatch');
           const roles = target.kind === 'artist' ? ['portrait', 'square'] : target.kind === 'album' || target.kind === 'book' ? ['cover', 'square', 'poster'] : ['poster'];
           const chosen = roles.flatMap(role => data.snapshot.artwork.filter(choice => choice.role === role && choice.url))[0];
           result.push({id: target.id, title: data.snapshot.fields.title.value, ...(chosen ? {posterUrl: chosen.url} : {})});
@@ -79,17 +84,17 @@ export function createSelectionEditor({api, events, requestId, isCurrent, server
     async preview(operation: AnyOperation): Promise<BulkMetadataPreview> {
       current();
       if (operation.target.mode !== 'explicit' || !operation.target.items.every(pick => pick.item.capabilities.edit)) throw new SelectionEditorError('metadata-not-offered');
-      const fence = viewerFence(); if (!fence) throw new SelectionEditorError('metadata-authority-unavailable');
       const request = editorPreviewRequest(operation.target);
       const preview = await fetchBulkMetadataPreview(api, request, serverId, routeSignal, {isCurrent}); current();
-      if (preview.viewerFence !== fence || viewerFence() !== fence) throw new SelectionEditorError('metadata-authority-changed');
+      if (editingFence !== undefined && preview.viewerFence !== editingFence) throw new SelectionEditorError('metadata-authority-changed');
+      editingFence = preview.viewerFence;
       grants.set(preview, operation); return preview;
     },
     /** The same direct bulk endpoint the Home editor uses, so each title gets its
      * own outcome and receipt instead of a job's aggregate counts. */
     async save(operation: AnyOperation, preview: BulkMetadataPreview, draft: BulkEditorDraft, caller?: AbortSignal): Promise<readonly BulkReceipt[]> {
       current(caller);
-      if (grants.get(preview) !== operation || preview.viewerFence !== viewerFence()) throw new SelectionEditorError('metadata-preview-not-current');
+      if (grants.get(preview) !== operation || preview.viewerFence !== editingFence) throw new SelectionEditorError('metadata-preview-not-current');
       const core = structuredClone(editorCoreDraft(draft)), key = JSON.stringify(core);
       let retained = attempts.get(preview); if (!retained) {retained = new Map(); attempts.set(preview, retained);}
       // An uncertain write must finish with its exact original body before a new draft.
@@ -114,10 +119,10 @@ export function createSelectionEditor({api, events, requestId, isCurrent, server
         try {
           const bodies = await captured.bodies;
           for (let index = captured.receipts.length; index < bodies.length; index++) {
-            current(caller); if (viewerFence() !== preview.viewerFence) throw new SelectionEditorError('metadata-authority-changed');
+            current(caller); if (editingFence !== preview.viewerFence) throw new SelectionEditorError('metadata-authority-changed');
             const body = bodies[index];
             const raw = await api.request(routePath('post_metadata_bulk'), 'POST', body, caller ? AbortSignal.any([routeSignal, caller]) : routeSignal);
-            current(caller); if (viewerFence() !== preview.viewerFence) throw new SelectionEditorError('metadata-authority-changed');
+            current(caller); if (editingFence !== preview.viewerFence) throw new SelectionEditorError('metadata-authority-changed');
             captured.receipts.push(validateBulkReceipt(raw, body));
           }
           return Object.freeze([...captured.receipts]);

@@ -24,6 +24,8 @@ import {WatchMusicNowPlaying} from './music/NowPlaying';
 import {MusicExpansionSurface, useMusicExpansion} from './music/expansion-owner';
 import {WatchCapacityWait} from './CapacityWait';
 import {WatchStartFailure, WatchStartTimedOut} from './StartFailure';
+import {StartingPlayer, startsInPlayer} from './StartingPlayer';
+import type {WebPlaybackStartDisplay} from '../../platform/playback/types';
 import {StartPreparationNotice} from './StartPreparationNotice';
 import type {WatchBindings, WatchSurfaces, WatchGeometry} from './types';
 import type {WatchDockPanelOffer} from './dock-panel-opening';
@@ -212,7 +214,13 @@ export function WatchPlayback({binding, context, surfaces, geometry, live}: Watc
   const presentations = useMemo(() => snapshot && binding ? cache.update(snapshot, playbackPresentation(snapshot, binding.environment, binding.artwork, binding.skips)).map(value =>
     snapshot.fence && fenceKey(value.fence) === fenceKey(snapshot.fence) ? {...value, controls: [...new Set([...value.controls,
       ...(castAvailable ? ['play-on' as const] : []), ...listeningControls,...(dockPanels?.panels ?? [])])]} : value) : noPresentations, [snapshot, binding, cache, castAvailable, dockPanels,listeningControls]);
-  const starting = useMemo(() => snapshot?.starting && binding ? startingDock(snapshot.starting, binding.environment, binding.artwork) : undefined, [snapshot?.starting, binding]);
+  // A video start opens the full player at once (J-17); only music, audiobooks and channels start in the dock.
+  const playerStart = snapshot?.starting && startsInPlayer(snapshot.starting.display) ? snapshot.starting : undefined;
+  // A session refused after the press keeps the title's picture behind its failure (states.html f8).
+  const [startDisplay, setStartDisplay] = useState<WebPlaybackStartDisplay>();
+  const pressed = snapshot?.starting?.display;
+  useEffect(() => {if (pressed) setStartDisplay(pressed);}, [pressed]);
+  const starting = useMemo(() => snapshot?.starting && binding && !startsInPlayer(snapshot.starting.display) ? startingDock(snapshot.starting, binding.environment, binding.artwork) : undefined, [snapshot?.starting, binding]);
   const dockBinding: DockBinding | undefined = useMemo(() => runtime && binding ? {
     getSnapshot: () => runtime.dock.getSnapshot(), onAction: action => {
       if(!action.remote&&['lyrics','queue','chapters','speed','sleep'].includes(action.kind)){
@@ -399,8 +407,10 @@ export function WatchPlayback({binding, context, surfaces, geometry, live}: Watc
     </MediaSurface>
     {snapshot?.capacityWait && <WatchCapacityWait wait={snapshot.capacityWait} />}
     {snapshot && <StartPreparationNotice preparation={currentStartPreparation(snapshot, remotePlaying)} />}
-    {binding && snapshot?.startTimedOut && <WatchStartTimedOut timedOut={snapshot.startTimedOut} reportError={binding.reportError}/>}
-    {binding && snapshot?.startFailure && <WatchStartFailure failure={snapshot.startFailure} authority={snapshot.authority} context={context} reportError={binding.reportError}/>}
+    {binding && playerStart && !snapshot?.startTimedOut && !snapshot?.startFailure && <StartingPlayer starting={playerStart} artwork={binding.artwork} environment={binding.environment}/>}
+    {binding && snapshot?.startTimedOut && <WatchStartTimedOut timedOut={snapshot.startTimedOut} artwork={binding.artwork} reportError={binding.reportError}/>}
+    {binding && snapshot?.startFailure && <WatchStartFailure failure={snapshot.startFailure} authority={snapshot.authority} context={context} reportError={binding.reportError}
+      display={startsInPlayer(startDisplay) ? startDisplay : undefined} artwork={binding.artwork}/>}
     <MusicExpansionSurface motion={musicMotion}/>
     {binding && snapshot && <WatchMusicNowPlaying context={context} playOn={listeningPlayOn} listening={listening} motion={musicMotion} isCurrent={dockPanelsCurrent} binding={binding} snapshot={snapshot} expanded={expanded && !remotePlaying} onCollapse={collapse} phone={phone} />}
     {binding&&snapshot?.presentation?.kind==='audiobook'&&<AudiobookHost binding={binding} snapshot={snapshot} host={listening} expanded={expanded&&!remotePlaying} phone={phone} playOn={listeningPlayOn?()=>listeningPlayOn():undefined}/>}
