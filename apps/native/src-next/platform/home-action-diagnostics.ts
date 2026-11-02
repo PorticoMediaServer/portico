@@ -70,7 +70,6 @@ const codes = new Set([
   'invalid_identity',
   'invalid_signature',
   'invalid_address',
-  'clocks_disagree',
   'route_stale',
   'random_unavailable',
   'not_found',
@@ -106,7 +105,7 @@ const classes = new Set([
 // Keep probe observations narrower than generic error reports: no status, stack or message.
 const probeCodes = new Set<RouteProbeFailure['code']>([
   'invalid_address', 'invalid_identity', 'invalid_response', 'identity_mismatch', 'invalid_signature', 'invalid_routes',
-  'route_stale', 'clocks_disagree', 'insecure_context', 'authentication_required', 'access_denied', 'rate_limited',
+  'route_stale', 'insecure_context', 'authentication_required', 'access_denied', 'rate_limited',
   'route_unavailable', 'certificate_unverified', 'certificate_untrusted', 'cancelled', 'other',
 ]);
 const probeNames = new Set<RouteProbeFailure['name']>(['RouteError', 'Error', 'TypeError', 'SyntaxError', 'ReferenceError', 'RangeError', 'AbortError', 'unknown']);

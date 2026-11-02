@@ -20,14 +20,17 @@ older preferences retain v1 and cannot establish the v2 certificate binding.
 
 The existing response is `{payload, signature}`, both unpadded base64url. The
 identity key signs the original payload bytes. Its fields are `kind`, `version`,
-`serverId`, `publicKey`, `fingerprint`, `baseUrl`, `nonce`, `issuedAt`, `expiresAt`
-and, when nonempty in v2, `tlsCertificateFingerprints`. The lifetime is thirty
-seconds. `fingerprint` remains the identity-key SHA256. The certificate list is
+`serverId`, `publicKey`, `fingerprint`, `baseUrl` and `nonce` and, when
+nonempty in v2, `tlsCertificateFingerprints`. The proof carries no times: the
+client's fresh 32-byte nonce is what makes it current, and a replayed proof
+names someone else's nonce. No client ever compares its own clock with the
+server's ("No client-clock requirements", planning/DECISIONS.md), so a device
+whose clock is wrong connects all the same. `fingerprint` remains the identity-key SHA256. The certificate list is
 SHA256 of actual serving leaf DER, from the managed/custom certificate sources;
 client body fields or forwarded headers cannot supply an authorized leaf.
 
 The Server signs the client's supplied challenge and origin. The client owns
-challenge freshness, signature/lifetime/origin verification and the observed
+challenge freshness, signature/nonce/origin verification and the observed
 connection leaf. The proof does not assert that the requesting client observed
 a particular leaf or that any Bonjour announcement was on its local network.
 
@@ -42,7 +45,7 @@ For the Bonjour home path, all of the following must hold together:
 1. The discovered TXT `id` equals the server ID derived from the proof public key.
 2. SHA256 of that public key equals the discovered TXT `fp`.
 3. The v2 proof signature verifies under that same key for this connection's fresh
-   challenge and expected origin, within its lifetime.
+   challenge and expected origin.
 4. The signed `tlsCertificateFingerprints` includes this connection's observed
    TLS leaf fingerprint.
 

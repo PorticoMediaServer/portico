@@ -1,3 +1,4 @@
+import {serverNow} from './server-clock.ts';
 import {routeBody as hostedRouteBody} from "../../contracts/src/hosted/routes.ts";
 import {routePath as hostedRoutePath, encodedRoutePath as hostedEncodedRoutePath, routePrefix as hostedRoutePrefix} from "../../contracts/src/hosted/routes.ts";
 import {ApiError, type HostedSession} from './index.ts';
@@ -237,7 +238,7 @@ export function parseNativeAccountContinuation(raw:unknown):NativeAccountContinu
  if(typeof raw!=='string'||raw.length>8192)return invalid();const v:unknown=JSON.parse(raw);
  if(!object(v)||v.version!==1||typeof v.binding!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(v.binding)||Object.keys(v).some(k=>!['version','binding','expiresAt','transactionId','completionCode','mfa'].includes(k)))return invalid();
  if(v.completionCode!==undefined&&(!v.transactionId||typeof v.completionCode!=='string'||!completionCode.test(v.completionCode)))return invalid();
- const expiresAt=timestamp(v.expiresAt);if(Date.parse(expiresAt)<=Date.now())return;
+ const expiresAt=timestamp(v.expiresAt);if(Date.parse(expiresAt)<=serverNow())return;
  return{version:1,binding:v.binding,expiresAt,...(v.transactionId?{transactionId:identifier(v.transactionId)}:{}),...(typeof v.completionCode==='string'?{completionCode:v.completionCode}:{}),...(v.mfa?{mfa:parseMFAChallenge(v.mfa)}:{})};
 }
 

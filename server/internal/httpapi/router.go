@@ -1467,8 +1467,10 @@ func New(d Dependencies) http.Handler {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS")
 			// Converted audio publishes the decoder's trim so a browser can align
 			// Opus pre-skip and AAC priming; hidden headers read as null and look
-			// like zero trim. These are response metadata, never credentials.
-			w.Header().Set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length, Content-Disposition, X-Reading-Item, X-Reading-Source, Location, Retry-After, ETag, Idempotent-Replayed, RateLimit, RateLimit-Policy, X-Audio-Trim-Start, X-Audio-Trim-End, X-Audio-Frames")
+			// like zero trim. These are response metadata, never credentials. Date lets a
+			// client read server-issued expiries on the server's own clock, so a device
+			// with a wrong clock still works ("No client-clock requirements").
+			w.Header().Set("Access-Control-Expose-Headers", "Date, Content-Range, Accept-Ranges, Content-Length, Content-Disposition, X-Reading-Item, X-Reading-Source, Location, Retry-After, ETag, Idempotent-Replayed, RateLimit, RateLimit-Policy, X-Audio-Trim-Start, X-Audio-Trim-End, X-Audio-Frames")
 			// Without this a browser remembers a preflight for about five seconds, so the hosted web
 			// app (always cross-origin here, always sending Authorization) pays an OPTIONS before
 			// nearly every call. The answer only says which methods and headers this origin may use;
