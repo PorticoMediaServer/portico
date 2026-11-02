@@ -26,9 +26,12 @@ type BookProgress struct {
 }
 
 // Index is zero-based within ItemID and names an actual stored chapter mark.
+// Number is the chapter's 1-based place in the whole book (every visible part's
+// chapters in listening order), so "Chapter N" reads the same in every part.
 // Part numbers are never chapter numbers. All chapter times are part-relative.
 type BookProgressChapter struct {
 	Index   int    `json:"index"`
+	Number  int    `json:"number"`
 	Title   string `json:"title"`
 	StartMs int64  `json:"startMs"`
 	EndMs   int64  `json:"endMs"`
@@ -147,7 +150,10 @@ func (s *Service) bookProgressAt(viewer Viewer, book, item string, position int6
 	}
 	var chapter BookProgressChapter
 	var start, end float64
-	err := s.read().QueryRow(`SELECT c.chapter_index,c.title,c.start_seconds,c.end_seconds FROM catalog_book_chapters c JOIN catalog_entities file ON file.id=c.file_id WHERE file.public_id=pid_blob(?) AND c.start_seconds<=? AND c.end_seconds>? ORDER BY c.start_seconds DESC,c.chapter_index LIMIT 1`, item, float64(position)/1000, float64(position)/1000).Scan(&chapter.Index, &chapter.Title, &start, &end)
+	// The book-wide number rides in the same statement (no extra statement on Home or the book page).
+	visible, visibleArgs := viewer.itemVisibilitySQL("item.id")
+	err := s.read().QueryRow(`SELECT c.chapter_index,c.title,c.start_seconds,c.end_seconds,`+bookChapterNumberSQL(visible, "c.chapter_index", "file.id")+` FROM catalog_book_chapters c JOIN catalog_entities file ON file.id=c.file_id WHERE file.public_id=pid_blob(?) AND c.start_seconds<=? AND c.end_seconds>? ORDER BY c.start_seconds DESC,c.chapter_index LIMIT 1`,
+		append(append([]any{book}, visibleArgs...), item, float64(position)/1000, float64(position)/1000)...).Scan(&chapter.Index, &chapter.Title, &start, &end, &chapter.Number)
 	if err == nil {
 		chapter.StartMs = int64(math.Round(start * 1000))
 		chapter.EndMs = int64(math.Round(end * 1000))

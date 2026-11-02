@@ -277,11 +277,19 @@ func (s *Service) BookChapters(viewer Viewer, book, cursor string, limit int) ([
 			return nil, "", requestinput.New("invalid chapter cursor")
 		}
 	}
-	rows, err := s.read().Query(`SELECT pid(item.public_id)||':'||CAST(c.chapter_index AS TEXT),pid(item.public_id),c.chapter_index,c.title,c.start_seconds,c.end_seconds
+	// Number: the visible chapters at or before the cursor (a constant subquery,
+	// evaluated once) plus the row's place on this page. One statement per page.
+	before := "0"
+	beforeArgs := []any{}
+	if cursor != "" {
+		before = bookChapterNumberSQL(visible, "?", "?")
+		beforeArgs = append(append([]any{book}, args...), index, fileID)
+	}
+	rows, err := s.read().Query(`SELECT pid(item.public_id)||':'||CAST(c.chapter_index AS TEXT),pid(item.public_id),c.chapter_index,c.title,c.start_seconds,c.end_seconds,(`+before+`)+row_number() OVER (ORDER BY COALESCE(f.disc_number,1),COALESCE(f.part_number,0),item.sort_key,item.id,c.chapter_index)
  FROM catalog_book_chapters c JOIN catalog_book_files f ON f.entity_id=c.file_id JOIN catalog_entities item ON item.id=f.entity_id JOIN catalog_entities b ON b.id=f.book_id
  WHERE b.public_id=pid_blob(?) AND b.retired=0 AND item.retired=0
  AND (COALESCE(f.disc_number,1),COALESCE(f.part_number,0),item.sort_key,item.id,c.chapter_index)>(?,?,?,?,?)
- AND `+visible+` ORDER BY COALESCE(f.disc_number,1),COALESCE(f.part_number,0),item.sort_key,item.id,c.chapter_index LIMIT ?`, append(append([]any{book, disc, part, fileName, fileID, index}, args...), limit+1)...)
+ AND `+visible+` ORDER BY COALESCE(f.disc_number,1),COALESCE(f.part_number,0),item.sort_key,item.id,c.chapter_index LIMIT ?`, append(append(append(beforeArgs, book, disc, part, fileName, fileID, index), args...), limit+1)...)
 	if err != nil {
 		return nil, "", err
 	}
@@ -289,7 +297,7 @@ func (s *Service) BookChapters(viewer Viewer, book, cursor string, limit int) ([
 	out := []BookChapter{}
 	for rows.Next() {
 		var row BookChapter
-		if err = rows.Scan(&row.ID, &row.ItemID, &row.Index, &row.Title, &row.StartSeconds, &row.EndSeconds); err != nil {
+		if err = rows.Scan(&row.ID, &row.ItemID, &row.Index, &row.Title, &row.StartSeconds, &row.EndSeconds, &row.Number); err != nil {
 			return nil, "", err
 		}
 		out = append(out, row)
@@ -383,4 +391,16 @@ func boolInt(value bool) int {
 		return 1
 	}
 	return 0
+}
+
+// bookChapterNumberSQL is a scalar subquery for the 1-based place of a chapter
+// in the whole book: the visible chapters at or before it in listening order
+// (disc, part, file, chapter), the order BookChapters pages in. chapterIndex
+// and fileID are SQL expressions (columns of the outer row, or "?"). Its
+// arguments are the book's public id, then visible's arguments, then any "?"
+// the two expressions bind. Bounded by one book.
+func bookChapterNumberSQL(visible, chapterIndex, fileID string) string {
+	return `(SELECT count(*) FROM catalog_book_chapters nc JOIN catalog_book_files nf ON nf.entity_id=nc.file_id JOIN catalog_entities item ON item.id=nf.entity_id JOIN catalog_entities nb ON nb.id=nf.book_id
+ WHERE nb.public_id=pid_blob(?) AND nb.retired=0 AND item.retired=0 AND ` + visible + `
+ AND (COALESCE(nf.disc_number,1),COALESCE(nf.part_number,0),item.sort_key,item.id,nc.chapter_index)<=(SELECT COALESCE(cf.disc_number,1),COALESCE(cf.part_number,0),ci.sort_key,ci.id,` + chapterIndex + ` FROM catalog_book_files cf JOIN catalog_entities ci ON ci.id=cf.entity_id WHERE ci.id=` + fileID + `))`
 }
