@@ -8,6 +8,7 @@ import type {RelationPage} from '@core/relation-rows.ts';
 import {Menu, MenuItem} from '../../../kit/overlays';
 import {Artwork, AmbientArt} from '../../../kit/artwork';
 import {Button, Chip} from '../../../kit/controls';
+import {Icon} from '../../../kit/Icon';
 import {dependsOn, titlesWithPersonalState} from '@core/freshness-hub.ts';
 import {useFreshDocument} from '../../../platform/freshness';
 import {createAudiobookBindings, type AudiobookBindings, type AudiobookTarget} from './bindings';
@@ -241,6 +242,11 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
         })}>{rows.entries.length > CHAPTER_PREVIEW && rows.entries.length >= rows.totalCount ? t('title.showAllChapters', {count: rows.totalCount}) : t('title.showMoreChapters')}</Chip>}
       {rows.nextCursor && (book ? chaptersExpanded : true) && <Button size="small" onClick={() => run(() => {binding.current(page);return binding.service.next(rows.id);})}>{t('title.nextPage')}</Button>}
     </section>}
+    {/* The author and series pages on desktop follow the artist page (J-7): the list, then Details in the aside. */}
+    {!book && !phone && (!!entity.narrators?.length || entity.duration !== undefined) && <aside className={styles.aside}>
+      <h2 className={styles.asideTitle}>{t('next.controls.details')}</h2>
+      <dl className={styles.bookFacts}>{entity.narrators?.length ? <><dt>{t('filter.field.narrator')}</dt><dd>{serviceI18n().list(entity.narrators)}</dd></> : null}{entity.duration !== undefined && <><dt>{t('next.kit.length')}</dt><dd>{duration(entity.duration)}</dd></>}</dl>
+    </aside>}
     </div>
     {book && moreBooks && moreBooks.page === page && moreBooks.token === reads.current?.token && <MoreAudiobooksRow binding={binding} page={page} first={moreBooks.value} guard={() => {
       // A retained card belongs to this exact page and read receipt; it may not open after either was replaced.
@@ -252,7 +258,7 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
       {effects.addToCollection && <MenuItem onSelect={() => invoke(effects.addToCollection)}>{t('entry.addToCollection')}</MenuItem>}
       {localOwner && effects.deleteTitle && <MenuItem onSelect={() => invoke(effects.deleteTitle)}>{t('entry.delete')}</MenuItem>}
     </Menu>}
-    {!book && <section><div className={styles.sectionHead}><h2>{t('next.controls.details')}</h2></div><dl className={styles.details}>{entity.narrators?.length ? <><dt>{t('filter.field.narrator')}</dt><dd>{serviceI18n().list(entity.narrators)}</dd></> : null}{entity.duration !== undefined && <><dt>{t('next.kit.length')}</dt><dd>{duration(entity.duration)}</dd></>}</dl></section>}
+    {!book && phone && <section><div className={styles.sectionHead}><h2>{t('next.controls.details')}</h2></div><dl className={styles.details}>{entity.narrators?.length ? <><dt>{t('filter.field.narrator')}</dt><dd>{serviceI18n().list(entity.narrators)}</dd></> : null}{entity.duration !== undefined && <><dt>{t('next.kit.length')}</dt><dd>{duration(entity.duration)}</dd></>}</dl></section>}
   </article>;
 }
 /** The ordinary TitleRow pager supplies visibility demand and the existing square-card shelf.
@@ -267,8 +273,11 @@ function Chapter({entry, index, page, binding}: {entry: ContentEntry; index: num
   const resume = page.listening?.resume;
   const current = !!resume && entry.playback?.itemId === resume.itemId && resume.positionSeconds >= (entry.playback.startSeconds ?? 0) && entry.duration !== undefined && resume.positionSeconds < (entry.playback.startSeconds ?? 0) + entry.duration;
   const fraction = current && resume && entry.duration ? (resume.positionSeconds - (entry.playback?.startSeconds ?? 0)) / entry.duration : undefined;
-  return <div className={styles.chapterRow}><button className={styles.chapter} data-current={current || undefined} disabled={!entry.playback || entry.available === false || entry.missing} onClick={() => runScreenCommand(binding.context, () => binding.play(page, entry))}>
-    <span className={styles.number}>{index + 1}</span><span className={styles.chapterTitle}>{entry.title}</span><span className={styles.duration}>{entry.duration === undefined ? undefined : formatClock(entry.duration)}</span>
+  // desktop-listen #book: chapters before the resume point read as done (a check, dimmed), the current one is lit.
+  const done = !current && !!resume && entry.playback?.itemId === resume.itemId && entry.duration !== undefined
+    && (entry.playback.startSeconds ?? 0) + entry.duration <= resume.positionSeconds;
+  return <div className={styles.chapterRow}><button className={styles.chapter} data-current={current || undefined} data-done={done || undefined} disabled={!entry.playback || entry.available === false || entry.missing} onClick={() => runScreenCommand(binding.context, () => binding.play(page, entry))}>
+    <span className={styles.number}>{done ? <Icon name="i-check" size={18}/> : index + 1}</span><span className={styles.chapterTitle}>{entry.title}</span><span className={styles.duration}>{entry.duration === undefined ? undefined : formatClock(entry.duration)}</span>
     {fraction !== undefined && <span className={styles.chapterProgress}><i style={{width: `${Math.min(1, Math.max(0, fraction)) * 100}%`}}/></span>}
   </button>{entry.kind === 'audiobook_file' && <AudiobookMore binding={binding} page={page} entry={entry}/>}</div>;
 }

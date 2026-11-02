@@ -3,18 +3,20 @@ import {useLayoutEffect, useRef} from 'react';
 import {defaultI18n} from '@i18n';
 import {playbackUserMessage} from '@core/playback-messages.ts';
 import type {WebPlaybackStartFailure} from '../../platform/playback/start-failure';
-import type {WebPlaybackStartTimedOut} from '../../platform/playback/types';
+import type {WebPlaybackStartDisplay, WebPlaybackStartTimedOut} from '../../platform/playback/types';
 import type {WebPlaybackAuthority} from '../../platform/playback/types';
 import type {WatchPlaybackContext} from './play-on-binding';
 import {router} from '../../router';
 import {PlaybackFailure} from '../../kit/states/PlaybackFailure';
 import {WatchStreamLimitSessions} from './StreamLimitSessions';
 import styles from './capacity-wait.module.css';
+import {StartPicture} from './StartingPlayer';
+import type {ShellArtwork} from '../../shell/artwork';
 
 const t = defaultI18n.t;
 /** A refused start has no admitted fence/presentation. Its original HTTP owner is
  * the complete command authority; this view never looks up a later runtime. */
-export function WatchStartFailure({failure, authority, context, reportError}: {failure: WebPlaybackStartFailure; authority: WebPlaybackAuthority; context?: WatchPlaybackContext; reportError: (error: unknown) => void}) {
+export function WatchStartFailure({failure, authority, context, reportError, display, artwork}: {failure: WebPlaybackStartFailure; authority: WebPlaybackAuthority; context?: WatchPlaybackContext; reportError: (error: unknown) => void; display?: WebPlaybackStartDisplay; artwork?: ShellArtwork}) {
   useShellFacts(context);
   const root = useRef<HTMLDivElement>(null), restore = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
@@ -49,22 +51,26 @@ export function WatchStartFailure({failure, authority, context, reportError}: {f
         }
       }
     }}>
+    {display && artwork && <StartPicture display={display} artwork={artwork}/>}
     <PlaybackFailure error={failure.code} heading={limit ? t('next.states.streamLimit', {count: limit.playing}) : undefined} sentence={sentence}
       onRetry={failure.retryable && (failure.scope !== 'account' || failure.automaticRecoveryExhausted) ? failure.retry : undefined} onClose={configure ?? failure.cancel}
-      closeLabel={configure ? t('web.player.error.turnOnConverting') : undefined} onError={reportError}>
+      closeLabel={configure ? t('web.player.error.turnOnConverting') : t('next.states.back')} onError={reportError}>
       {failure.scope === 'account' && <WatchStreamLimitSessions failure={failure} isCurrent={failure.isCurrent} reportError={reportError}/>}
     </PlaybackFailure>
   </div>;
 }
 
-/** O-159: an accepted start that never became drawable. The runtime already stopped it and
- * wrote the diagnostic; this says so plainly and offers it again. */
-export function WatchStartTimedOut({timedOut, reportError}: {timedOut: WebPlaybackStartTimedOut; reportError: (error: unknown) => void}) {
+/** O-159 and J-17: a start that ended before it could play, drawn inside the player (states.html
+ * f8): the title's picture, frozen and dimmed, the plain reason, Try again and Back. The deadline
+ * case keeps its own words; a refused start names what failed through the playback vocabulary. */
+export function WatchStartTimedOut({timedOut, artwork, reportError}: {timedOut: WebPlaybackStartTimedOut; artwork?: ShellArtwork; reportError: (error: unknown) => void}) {
   const root = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {root.current?.querySelector<HTMLButtonElement>('button')?.focus({preventScroll: true});}, [timedOut]);
-  return <div ref={root} className={styles.cover} role="dialog" aria-modal="true" aria-label={t('web.player.error.startTitle')}
+  const deadline = timedOut.code === undefined;
+  return <div ref={root} className={styles.cover} data-start-problem={timedOut.code ?? 'playback_start_timeout'} role="dialog" aria-modal="true" aria-label={t(deadline ? 'web.player.error.startTitle' : 'next.states.playbackStopped')}
     onKeyDown={event => {if (event.key === 'Escape') {event.preventDefault();timedOut.close();}}}>
-    <PlaybackFailure error="playback_start_timeout" heading={t('web.player.error.startTitle')} sentence={t('web.player.error.startBody')}
-      onRetry={timedOut.retry} onClose={timedOut.close} onError={reportError}/>
+    {timedOut.display && artwork && <StartPicture display={timedOut.display} artwork={artwork}/>}
+    <PlaybackFailure error={timedOut.code ?? 'playback_start_timeout'} heading={deadline ? t('web.player.error.startTitle') : undefined} sentence={deadline ? t('web.player.error.startBody') : undefined}
+      onRetry={timedOut.retry} onClose={timedOut.close} closeLabel={t('next.states.back')} onError={reportError}/>
   </div>;
 }

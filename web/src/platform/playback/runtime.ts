@@ -4,6 +4,7 @@ import {advancePendingChoice, takePendingTrackChoice, type PendingChoiceProgress
 import {createWebQueueListPort, type WebQueueListPort, type WebQueueListLifetime} from './queue-list';
 import {capacityRetryHttp, type WebPlaybackCapacityWait} from './capacity-retry';
 import {startFailureHttp, type WebPlaybackStartFailure} from './start-failure';
+import {markPresentedInPlayer} from './presented';
 import {PlaybackService, type PlaybackSnapshot} from '@core/index.ts';
 import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import type {ItemResponse} from '@core/media-item.ts';
@@ -78,7 +79,7 @@ type OfferBinding = {
   readonly sessionId: string; readonly generation: number; readonly playbackRun: number;
   detailFence?: string;
 };
-type Starting = {attach(stack: Stack): void; identify(next: WebPlaybackStartDisplay): void; stopWith(stop: () => void): void; accepted(): void; end(): void};
+type Starting = {attach(stack: Stack): void; identify(next: WebPlaybackStartDisplay): void; stopWith(stop: () => void): void; accepted(): void; end(): void; display(): WebPlaybackStartDisplay | undefined};
 type StartingState = {key: string; display?: WebPlaybackStartDisplay; accepted: boolean; stack?: Stack; stop: () => void; retry: () => Promise<void>; timer: unknown; view?: WebPlaybackStarting};
 type Stack = {
   airPlay?: {key: string; abort: AbortController; receipt?: Awaited<ReturnType<SessionsClient["prepareAirPlay"]>>; failed?: boolean};
@@ -612,17 +613,21 @@ export class WebShellPlaybackRuntime {
     const finishRetention = this.retainMediaStart(context.signal, () => serial === this.operation);
     const starting = this.beginStarting(captured.display, () => this.playFromScreen(captured, this.retryLifetime())), stopped = new AbortController();
     starting.stopWith(() => stopped.abort());
+    // The reads before a session (the item and its options) share the start's deadline, so a server
+    // that never answers ends in the player's own timeout, not an endless ring.
+    const readDeadline = this.startDeadline();
     try {
-      const reading = AbortSignal.any([context.signal, previous.life.signal, this.life.signal, stopped.signal]);
+      const reading = AbortSignal.any([context.signal, previous.life.signal, this.life.signal, stopped.signal, readDeadline.signal]);
       const raw = await this.source.api.request<ItemResponse>(encodedRoutePath('get_items_id', {id: encodeURIComponent(captured.itemId)}), 'GET', undefined, reading);
       check();
       if (!this.current(previous) || serial !== this.operation) problem('stale_selection_context');
       const item = parseMediaItem(raw);
       if (item.id !== captured.itemId || item.libraryId !== captured.libraryId || !item.available || raw.missing) problem('invalid_playback_target');
       const subject = itemSubject(raw);
-      starting.identify({subject, ...(item.posterUrl ?? item.backdropUrl ? {posterUrl: item.posterUrl ?? item.backdropUrl} : {})});
+      starting.identify({subject, ...(item.posterUrl ?? item.backdropUrl ? {posterUrl: item.posterUrl ?? item.backdropUrl} : {}), ...(item.backdropUrl ? {backdropUrl: item.backdropUrl} : {})});
       if (captured.storedResume !== undefined && (typeof captured.storedResume !== 'boolean' || captured.storedResume && (subject.kind !== 'audiobook' || captured.versionId !== undefined))) problem('invalid_playback_target');
       const options = await previous.optionsClient.options(item.id, {}, reading);
+      readDeadline.clear();
       check();
       if (!this.current(previous) || serial !== this.operation) problem('stale_selection_context');
       if (options.itemId !== item.id || !options.versions.length || captured.versionId !== undefined && !options.versions.some(version => version.id === captured.versionId)) problem('playback_version_unavailable');
@@ -668,8 +673,35 @@ export class WebShellPlaybackRuntime {
         this.sync();
       } catch (error) {cancel(); if (deadline.expired() && !context.signal.aborted && !stopped.signal.aborted) problem('playback_start_timeout'); throw error;}
       finally {deadline.clear(); if (stack.capacityCurrent === current) stack.capacityCurrent = undefined; lifetime.removeEventListener('abort', cancel);}
-    } catch (error) {starting.end(); if (stopped.signal.aborted) throw startStopped(); throw error;}
-    finally {finishRetention();}
+    } catch (error) {
+      const display = starting.display();
+      starting.end(); if (stopped.signal.aborted) throw startStopped();
+      const reason = readDeadline.expired() && !context.signal.aborted ? new Error('playback_start_timeout') : error;
+      const outcome = this.reportStartProblem(reason, display, () => this.playFromScreen(captured, this.retryLifetime()), serial);
+      throw outcome === 'unhandled' ? reason : markPresentedInPlayer(reason);
+    }
+    finally {readDeadline.clear(); finishRetention();}
+  }
+
+  /** A start that failed before it could play is drawn inside the player, with its reason, the
+   * title's picture, Try again and Back; never a bare toast (J-17). Once pressed, the start
+   * belongs to the player, so a page refreshing underneath it does not hide the failure. A start
+   * superseded by a newer press, stopped or cancelled stays quiet, and a session failure the
+   * player already shows is not shown twice. Either way the toast stays quiet. */
+  private reportStartProblem(error: unknown, display: WebPlaybackStartDisplay | undefined, retry: () => Promise<void>, serial: number): 'shown' | 'quiet' | 'unhandled' {
+    if (this.disposed) return 'unhandled';
+    const value = error as {name?: unknown; code?: unknown; message?: unknown} | null;
+    const code = typeof value?.code === 'string' && value.code ? value.code
+      : typeof value?.message === 'string' && /^[a-z][a-z0-9_]{2,63}$/.test(value.message) ? value.message : 'playback_start_failed';
+    // A newer press, the page that pressed it going away, or a cancel: nothing to say, and no toast.
+    if (serial !== this.operation || value?.name === 'AbortError' || code === 'stale_selection_context') return 'quiet';
+    // A refused session already draws its own failure in the player.
+    if (this.stack.startFailure?.isCurrent()) return 'quiet';
+    const view: WebPlaybackStartTimedOut = Object.freeze({key: String(++this.startingKeys), ...(code === 'playback_start_timeout' ? {} : {code}), ...(display ? {display} : {}),
+      retry: async () => {if (this.startTimedOut !== view) return; this.startTimedOut = undefined; this.sync(); await retry();},
+      close: () => {if (this.startTimedOut === view) {this.startTimedOut = undefined; this.sync();}}});
+    this.startTimedOut = view; this.sync();
+    return 'shown';
   }
 
   /** Canonical room follower and local corrections share this runtime's one actual engine. */
@@ -1445,6 +1477,7 @@ export class WebShellPlaybackRuntime {
       stopWith: (stop: () => void) => {if (mine()) state.stop = stop;},
       accepted: () => {if (mine()) state.accepted = true;},
       end: () => {if (mine()) {this.endStarting(); this.sync();}},
+      display: () => state.display,
     };
   }
   /** A Try again after the watchdog belongs to this runtime, not to a page that may be gone. */
@@ -1489,7 +1522,9 @@ export class WebShellPlaybackRuntime {
       if (subject) state.display = {subject};
     }
     const live = this.startingState;
-    return {...(live?.display && live.stack === stack ? {starting: this.startingView(live)} : {}), ...(this.startTimedOut ? {startTimedOut: this.startTimedOut} : {})};
+    // Drawn from the press: before its stack exists (item and options still loading) the start is
+    // shown on whatever stack is current, so the player opens at once instead of after the reads.
+    return {...(live?.display && (live.stack === stack || live.stack === undefined) ? {starting: this.startingView(live)} : {}), ...(this.startTimedOut ? {startTimedOut: this.startTimedOut} : {})};
   }
   private startingView(state: StartingState): WebPlaybackStarting {
     // A starting channel whose session the server reports recoverable says so, plainly, while

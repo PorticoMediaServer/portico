@@ -7,7 +7,7 @@ audience: Server owners
 updated: 2026-10-18
 ---
 
-Download the macOS package for Apple silicon (ARM64) Macs from the [Download Portico](/download/) page. Intel Macs aren't supported by this package. If you downloaded a DMG, open it and run the `.pkg` inside. If you downloaded the `.pkg` directly, run it. The installer places the app at `/Applications/Portico Media Server.app` and installs the server service.
+Download the macOS package for Apple silicon (ARM64) Macs from the [Download Portico](/download/) page. If you downloaded a DMG, open it and run the `.pkg` inside. If you downloaded the `.pkg` directly, run it. The installer places the app at `/Applications/Portico Media Server.app` and installs the server service.
 
 ## First launch
 

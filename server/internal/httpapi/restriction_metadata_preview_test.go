@@ -29,6 +29,7 @@ import (
 //   - the owner's own release works and the handle is then gone.
 func bulkMetadataPreviewQueryRestrictionCheck(method string) func(*testing.T) {
 	return func(t *testing.T) {
+		preparedExplicitPreviews(t)
 		f := newBulkPreviewHTTPFixture(t)
 		// The second session is issued before any handle is minted: a fresh
 		// session must not disturb the first session's fence or family.
@@ -170,4 +171,13 @@ func TestBulkMetadataPreviewQueryPrivateHandleRespectsRestriction(t *testing.T) 
 	for _, method := range []string{"GET", "DELETE"} {
 		t.Run(method, bulkMetadataPreviewQueryRestrictionCheck(method))
 	}
+}
+
+// preparedExplicitPreviews sends even a short list of picked targets through the retained preparation, for the
+// tests that exercise its handles; production answers up to explicitBulkPreviewLimit picks in the request.
+func preparedExplicitPreviews(t *testing.T) {
+	t.Helper()
+	previous := explicitBulkPreviewLimit
+	explicitBulkPreviewLimit = 0
+	t.Cleanup(func() { explicitBulkPreviewLimit = previous })
 }
