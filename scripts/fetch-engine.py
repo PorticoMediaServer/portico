@@ -223,7 +223,10 @@ def verify_native_linux_sources(hashes, dockerfile, provenance):
             raise ValueError('native Linux archived inputs differ: ' + name)
     inputs = json.loads(provenance['linux-build-inputs.json'])
     ledger = json.loads(provenance['dependency-inputs.json'])
+    runner_sha = hashes.get('provenance/scripts/build-linux-ffmpeg-deps.py')
     if (not isinstance(ledger, list) or not ledger or
+            not re.fullmatch(r'[a-f0-9]{64}', str(runner_sha)) or
+            not re.fullmatch(r'.+@sha256:[a-f0-9]{64}', str(inputs.get('compilerImage'))) or
             not re.fullmatch(r'[a-f0-9]{64}', str(inputs.get('files', {}).get('Dockerfile'))) or
             not re.fullmatch(r'[a-f0-9]{64}', str(inputs.get('sourceArchiveSHA256'))) or
             hashes.get('recipe/Dockerfile') != inputs.get('files', {}).get('Dockerfile') or
@@ -259,10 +262,11 @@ def verify_native_linux_sources(hashes, dockerfile, provenance):
             expected = PurePosixPath(script).stem + '_' + record['downloadRecipeSHA256'] + '.tar.xz'
             if (archive != expected or sources[0] != '.cache/downloads/' + archive or
                     not re.fullmatch(r'.+_[a-f0-9]{64}\.tar\.xz', archive) or
+                    not re.fullmatch(r'[a-f0-9]{64}', str(record.get('sourceArchiveSHA256'))) or
                     hashes.get(name) != record.get('scriptSHA256') or
                     hashes.get('provenance/linux-dependencies/sources/' + archive) != record.get('sourceArchiveSHA256') or
                     record.get('compilerImage') != inputs.get('compilerImage') or
-                    hashes.get('provenance/scripts/build-linux-ffmpeg-deps.py') != record.get('runnerSHA256') or
+                    runner_sha != record.get('runnerSHA256') or
                     not record.get('licenses')):
                 raise ValueError('native Linux dependency source identity mismatch: ' + name)
             selected.add(name)
@@ -353,6 +357,8 @@ def verify_source(path, target, build_receipt=None, linux_provenance=None):
         # BtbN ARM keeps the same exact command-hash snapshots as Windows,
         # without the Windows-only assembly sidecar. The entire source archive
         # is bound by the externally pinned product's manifest and transfer.
+        if not {'recipe/build.sh', 'recipe/makeimage.sh', 'recipe/Dockerfile'} <= files:
+            raise ValueError('missing ARM dependency source inventory')
         verify_windows_sources(files, source_scripts, dockerfile)
     elif target.startswith('macos-') and ('recipe/build-ffmpeg' not in names or
           not any(name.startswith('recipe/packages/') and name.endswith(('.tar.gz', '.tar.xz', '.tar.bz2')) for name in names)):
