@@ -51,7 +51,7 @@ export type NativeSelectionSource = Readonly<{
 }>;
 export type NativeSelectionOptions = Readonly<{
   /** Error copy and the dialogs' test IDs. */
-  area: 'search' | 'saved';
+  area: 'search' | 'saved' | 'library';
   /** Offer Select all over the loaded leaves. */
   selectAll?: boolean;
   /** Shows, seasons, albums, artists, books and collections may be picked too. */

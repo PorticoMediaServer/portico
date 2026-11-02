@@ -36,6 +36,7 @@ import {createDestinationEntryFocus, nativeDestinationFocusIds, type NativeDesti
 import {useTVPageBack} from '../destinations/useTVPageBack';
 import {useDestinationEntryFocus} from '../destinations/useEntryFocus';
 import {NativeLibraryDestination, nativeLibraryEntryKey, nativeLibraryCanSave, type NativeLibrarySnapshot, type NativeLibraryViewDraft} from './model';
+import type {NativeSelection} from '../selection/native-selection';
 import {LibraryToolbar} from './LibraryToolbar';
 import {LibraryListRow} from './LibraryListRow';
 import {NativeLibraryDirectory} from './directory';
@@ -79,6 +80,8 @@ export type NativeLibraryScreenProps = Readonly<{
   labels: BrowseLabels;
   actions: NativeLibraryActions;
   selection?: NativeLibrarySelectionPort;
+  /** The Discover tab's own multi-select over the shelves it draws. */
+  shelfSelection?: NativeSelection;
   owner: boolean;
   /** Home's Mixes More opens this library's Discover and lands on the Mixes row. */
   mixAnchor?: boolean;
@@ -86,7 +89,7 @@ export type NativeLibraryScreenProps = Readonly<{
 const noSubscribe = () => () => {};
 const noSelection = () => undefined;
 const noFilterSnapshot = (): NativeLibraryFilterSnapshot | undefined => undefined;
-/** Discover shelves have no multi-select of their own. */
+/** A Discover shelf's own layout has no selection state; each card carries the tab's. */
 const noRowSelection: LayoutSelection = {active: false, isSelected: () => false, onToggle: () => {}, onEnter: () => {}};
 const resourceFocusMemory = new WeakMap<NativeShellRuntime, Map<string, Readonly<{key: string; index: number}>>>();
 
@@ -247,6 +250,10 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
   const [areaWidth, setAreaWidth] = useState(0);
   const state = useSyncExternalStore(destination.subscribe, destination.getSnapshot);
   const selection = state.tab.shows === 'genres' || state.tab.shows === 'playlists' ? undefined : props.selection;
+  // DESIGN: every grid, row, list and search result can select several items. The Discover
+  // shelves draw from this page's own shelf selection; its bar sits above the shelves.
+  const shelfSelection = props.shelfSelection;
+  useSyncExternalStore(shelfSelection?.subscribe ?? noSubscribe, shelfSelection?.getSnapshot ?? (() => 0));
   const summaries = useSyncExternalStore(directory.subscribe, directory.getSnapshot);
   const active = useSyncExternalStore(activation.subscribe, activation.getSnapshot);
   // One classification for the header, the grid and its skeleton: the drawn
@@ -416,6 +423,11 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
     <View style={{flex: 1, flexDirection: docked ? 'row' : 'column'}}>
       <View style={{flex: 1}}>
         {header}
+        {/* DESIGN: Select is in every card's hold-OK menu. The Discover tab's bar rides above
+            its shelves, exactly as the browse grid's bar sits under its toolbar. */}
+        {(state.tab.shows === 'rows' || theme.isTV && state.library.kind === 'music' && state.tab.id === 'discover')
+          ? shelfSelection?.render((path?: string) => {const art = path ? runtime.artwork(path) : undefined; return art ? <Artwork source={art} width={48} height={48}/> : undefined;})
+          : null}
         {/* Counts and covers that did not load are a quiet note, never a second full error. */}
         {summaries.phase === 'error' && !pageFailed && <View style={{paddingHorizontal: theme.isTV ? 0 : theme.gutter, paddingVertical: 8}}><Banner placement="inline" variant="notice" tone="warning" icon="i-alert"
           message={defaultI18n.t('next.browse.librarySummariesUnavailable')}
@@ -435,7 +447,8 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
           : emptyShown ? <LibraryEmpty runtime={runtime} regionId={emptyRegion} upRegionId={ids.libraryTabs(state.library.id)} surface={state.tab.shows}/>
           : theme.isTV && state.library.kind === 'music' && state.tab.id === 'discover' ? <TVMusicDiscover
             destination={destination} state={state} runtime={runtime} active={active} anchor={props.mixAnchor} onEntered={onEntered}
-            renderEntry={(entry, width, context) => <LibraryCard entry={entry} width={width} runtime={runtime} actions={actions} focusId={context.focusId} disabled={!active.visible} onFocus={context.onFocus} onBlur={context.onBlur}/>}/>
+            renderEntry={(entry, width, context) => <LibraryCard entry={entry} width={width} runtime={runtime} actions={actions} focusId={context.focusId} disabled={!active.visible} onFocus={context.onFocus} onBlur={context.onBlur}
+              selected={shelfSelection?.item(entry)} onSelect={shelfSelection?.item(entry)?.onEnter}/>}/>
           : state.tab.shows === 'rows' ? <ScrollView ref={discoverScroll}>
             {state.discover.error && <StateView {...runtime.error(state.discover.error, destination.retry, 'library')}/>}
             {state.discover.appended.map((section, index) => {const cardWidth = theme.isTV ? 200 : 112, cell = discoverCell(theme, cardWidth, section.entries);
@@ -447,7 +460,8 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
               onVisibleRange={(_first, last) => {
                 if (active.visible && section.nextCursor && last >= section.entries.length - 10) void destination.nextDiscover(section.id).catch(runtime.reportError);
               }}
-              renderItem={(entry, context) => <LibraryCard entry={entry} width={cardWidth} runtime={runtime} actions={actions} focusId={context.focusId} onFocus={context.onFocus} onBlur={context.onBlur}/>}/>
+              renderItem={(entry, context) => <LibraryCard entry={entry} width={cardWidth} runtime={runtime} actions={actions} focusId={context.focusId} onFocus={context.onFocus} onBlur={context.onBlur}
+                selected={shelfSelection?.item(entry)} onSelect={shelfSelection?.item(entry)?.onEnter}/>}/>
             {!theme.isTV && state.library.kind === 'music' && index === 0 && runtime.mixes ? <View onLayout={anchorMixes}>
               <MusicMixesRow focusScope={`${ids.libraryToolbar(state.library.id)}.${state.tab.id}.mixes`} port={runtime.mixes} artwork={runtime.artwork} reportError={runtime.reportError} title={defaultI18n.t('music.mixesForYou')} active={active.visible} onReady={scrollToMixes}/>
             </View> : null}
