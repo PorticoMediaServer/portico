@@ -22,6 +22,8 @@ test('show primary keeps the next episode facts and uses its actual offered play
   assert.equal(offer.progress, .25);
   assert.equal(showPrimary(workspace, ready({...detail, actions: [{...detail.actions[0], playback: {itemId: 'episode', startSeconds: 0}}]}))?.resume, false);
   assert.equal(showPrimary(workspace, ready({...detail, item: {...detail.item, progressSeconds: 0}}))?.resume, false);
+  // W-5: the episode detail and the show workspace carry different fences from the server; Play/Resume still shows.
+  assert.ok(showPrimary(workspace, ready({...detail, scope: {...detail.scope, viewerFence: 'item-document-fence'}})));
 });
 
 test('show primary refuses stale, unavailable and cross-scope episode offers', () => {
@@ -30,7 +32,7 @@ test('show primary refuses stale, unavailable and cross-scope episode offers', (
   assert.equal(showPrimary(workspace, {phase: 'ready', data: null}), undefined);
   assert.equal(showPrimary(workspace, ready({...detail, item: {...detail.item, id: 'old-episode'}})), undefined);
   assert.equal(showPrimary(workspace, ready({...detail, item: {...detail.item, kind: 'movie'}})), undefined);
-  for (const scope of [{...detail.scope, libraryId: 'other'}, {...detail.scope, serverId: 'other'}, {...detail.scope, viewerFence: 'other'}, {...detail.scope, itemId: 'other'}]) {
+  for (const scope of [{...detail.scope, libraryId: 'other'}, {...detail.scope, serverId: 'other'}, {...detail.scope, itemId: 'other'}]) {
     assert.equal(showPrimary(workspace, ready({...detail, scope})), undefined);
   }
   assert.equal(showPrimary(workspace, ready({...detail, actions: [{...detail.actions[0], enabled: false}]})), undefined);
