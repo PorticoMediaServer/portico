@@ -1,4 +1,5 @@
 import * as mutationRecovery from '../../../packages/client-core/src/user-mutation-recovery.ts';
+import {homeContinuationCard} from '../../../packages/client-core/src/presentation/home-continuation';
 import {NativePendingChanges} from '../src-next/shell/pending-changes.ts';
 // @fabric-react
 import * as layoutModel from '../src-next/kit/layout/model.ts';
@@ -78,6 +79,7 @@ for (const tv of [false, true]) test(`actual ${tv ? 'TV' : 'phone'} Home/Row eff
     './TvHomeRecovery': {TvHomeRecovery: 'TvHomeRecovery'}, './useTvHomeRecovery': recovery,
     '@portico/design': {heroSpec},
     react, 'react-native': native, 'react-native-reanimated': animated, '../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard},
     '../../../../../packages/client-core/src/presentation/home-spotlight': homePresentation, '../../../../../packages/client-core/src/home-selection': homeCapabilities,
     '../../../../../packages/client-core/src/presentation/server-text': serverText, '../../../../../packages/client-core/src/presentation/kit-model': {},
     '../../platform/ArtworkPipeline': {}, '../../kit/artwork': {}, '../../kit/controls': {Button: 'Button'}, '../../kit/cards': {},
