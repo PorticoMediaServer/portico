@@ -35,7 +35,7 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
   /** Per-host native state that outlives commits: guide destinations and memory, tvOS guide existence. */
   const state = new Map();
   const nativeOf = tag => {let value = state.get(tag); if (!value) state.set(tag, value = {destinations: [], last: undefined, guide: false, rect: undefined}); return value;};
-  let root = [], nodes = new Map(), parents = new Map(), order = [], focused, rootPreferred, commands = [], scheduled = false;
+  let root = [], nodes = new Map(), parents = new Map(), order = [], focused, rootPreferred, commands = [], events = [], scheduled = false;
 
   // ---------- host tree, layout ----------
   const rebuild = () => {
@@ -184,11 +184,11 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
     const previous = focused;
     focused = next;
     log.push({why, from: previous, to: next});
-    if (previous !== undefined && nodes.has(previous)) fire(previous, 'onBlur', {nativeEvent: {target: previous}});
-    if (next !== undefined) {
-      for (const at of ancestors(next)) if (props(at).__guide && props(at).autoFocus) nodeState(at).last = next; // requestChildFocus
-      fire(next, 'onFocus', {nativeEvent: {target: next}});
-    }
+    if (next !== undefined) for (const at of ancestors(next)) if (props(at).__guide && props(at).autoFocus) nodeState(at).last = next; // requestChildFocus
+    // Native focus changes reach JS as events, after the current JS work (the commit and its layout effects).
+    if (previous !== undefined) events.push({tag: previous, name: 'onBlur'});
+    if (next !== undefined) events.push({tag: next, name: 'onFocus'});
+    schedule();
   };
   const request = (tag, why = 'request') => {commands.push({tag, why}); schedule();};
   const runRequest = ({tag, why}) => {
@@ -278,11 +278,16 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
 
   // ---------- scheduling ----------
   const schedule = () => {if (scheduled) return; scheduled = true; setImmediate(drain);};
-  const drain = () => {scheduled = false; const batch = commands; commands = []; for (const command of batch) runRequest(command);};
+  const drain = () => {
+    scheduled = false;
+    const delivered = events; events = [];
+    for (const {tag, name} of delivered) if (nodes.has(tag)) fire(tag, name, {nativeEvent: {target: tag}});
+    const batch = commands; commands = []; for (const command of batch) runRequest(command);
+  };
   const settle = async () => {
     for (let n = 0; n < 40; n++) {
       await new Promise(resolve => setImmediate(resolve));
-      if (!scheduled && !commands.length && n > 4) {await new Promise(resolve => setImmediate(resolve)); if (!scheduled && !commands.length) break;}
+      if (!scheduled && !commands.length && !events.length && n > 4) {await new Promise(resolve => setImmediate(resolve)); if (!scheduled && !commands.length && !events.length) break;}
     }
     if (errors.length) throw errors[0];
   };

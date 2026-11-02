@@ -1,5 +1,5 @@
-import {canReturnToPage, holdsPageFocus} from '../src-next/shell/page-focus-return.ts';
 import assert from 'node:assert/strict';
+import * as layerStack from '../src-next/kit/focus/layer-stack.ts';
 import test from 'node:test';
 import * as model from '../src-next/shell/model';
 import {hooks, screenModule, stackSlotFixture} from './helpers/screen-harness.mjs';
@@ -24,12 +24,11 @@ for (const tv of [false, true]) test(`${tv ? 'TV' : 'touch'} shell hides its cov
     '../kit/overlays/SurfacePaintHost': {SurfacePaintHost: 'SurfacePaintHost'}, '../kit/shell': {AccountMenu: 'AccountMenu'},
     '../kit/theme': {useTheme: () => ({isTV: tv, colors: {ink: '#071018'}, layers: {navigation: 3, sticky: 4, player: 8}})},
     '../kit/useMotion': {useMotion: () => ({transforms: false})}, '../platform/menu-key': {}, '../platform/tv-menu': {useTVMenuCapture() {}},
-    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds: () => ({rail: 'rail'}), sameDestination: (a: unknown, b: unknown) => a === b},
+    '../kit/focus': {...layerStack, CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds: () => ({rail: 'rail'}), sameDestination: (a: unknown, b: unknown) => a === b},
     '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'},
     '../screens/home/home-start': {homeStartModel: () => ({}), resolveTVHomeStart: () => undefined, canYieldTVHomeMenu: () => false},
     './model': model, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
-    './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './MediumRail': {MediumRail: 'MediumRail'},
-    './page-focus-return': {canReturnToPage, holdsPageFocus}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'TVProfileMenu'}, './NativePlaybackLayer': {NativePlaybackLayer: 'NativePlaybackLayer'},
+    './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './MediumRail': {MediumRail: 'MediumRail'}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'TVProfileMenu'}, './NativePlaybackLayer': {NativePlaybackLayer: 'NativePlaybackLayer'},
   });
   const root = h.render(() => NativeShell({runtime}));
   const session = nodes(root).find(node => node.type?.name === 'ShellSession'); assert.ok(session);

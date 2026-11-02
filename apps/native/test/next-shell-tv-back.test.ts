@@ -169,17 +169,15 @@ test('actual assembly sends Back to topmost Home menu before player, then TV pag
   // Focus containment: the expanded player covers the route pages, never the overlays it opens.
   const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
   const pages = (tree: any) => nodes(tree).find(node => node.props?.testID === 'native-shell-routes');
-  assert.equal(pages(routes)?.props.covered, false, 'route pages take focus while the player is not expanded');
-  // W-9 (music player over an album): the TV listening screen covers the route pages even without the dock's
-  // expanded flag, and the shell can claim focus back into them when it closes.
+  // The shell's layer stack decides: renderRoutes is told whether a route is the top layer (TV-FOCUS-REVIEW §5).
   const host = {current: null};
-  const listening = pages(bindings.renderRoutes({listening: true, hostRef: host}));
-  assert.equal(listening?.props.covered, true, 'the TV listening screen blocks D-pad focus into the album page under it');
-  assert.equal(listening?.props.hostRef, host, 'the shell holds the route layer to return focus into it');
-  expanded = true;
-  const covered = pages(bindings.renderRoutes());
-  assert.equal(covered?.props.covered, true, 'the expanded player blocks D-pad focus into the route pages under it');
+  const open = pages(bindings.renderRoutes({covered: false, hostRef: host}));
+  assert.equal(open?.props.covered, false, 'a route on top takes focus');
+  assert.equal(open?.props.hostRef, host, 'the shell holds the route layer so the stack can claim focus into it');
+  const covered = pages(bindings.renderRoutes({covered: true, hostRef: host}));
+  assert.equal(covered?.props.covered, true, 'under the player or the listening screen the route pages take no D-pad focus');
   assert.deepEqual(nodes(covered.props.children).flatMap(flattened).filter((value: string) => value === 'overlay'), [], 'module overlays stay outside the covered pages');
+  assert.equal(pages(routes)?.props.covered, false, 'without the stack\'s answer the layer follows the route alone: open here');
   expanded = false;
   bindings.openServers?.('consent-kind');
   assert.deepEqual(navigation.getSnapshot().route, {kind: 'servers', initialPanel: 'consent-kind'}, 'Play on enters Link a TV directly');
