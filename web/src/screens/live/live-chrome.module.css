@@ -12,6 +12,9 @@
 .identity strong { color: var(--color-text); font-weight: var(--type-button-weight); }
 .liveTag { margin-left: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: var(--type-report-meta-size); font-weight: var(--type-button-weight); color: var(--color-record); }
 .liveTag i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--color-record); }
+/* LT-8: the tuner handover line, centred under the top bar (module contract B-11.27; no frame draws it). */
+.handover { position: absolute; z-index: var(--layer-live-chrome); top: 116px; left: 50%; transform: translateX(-50%); width: min(620px, calc(100% - 80px)); display: grid; gap: 4px; padding: 12px 18px; border-radius: 14px; background: var(--color-live-player-scrim); box-shadow: 0 10px 30px var(--color-shadow); text-align: center; font-size: var(--type-caption-size); color: var(--color-text-secondary); }
+.handover strong { font-size: var(--type-body-size); font-weight: var(--type-body-strong-weight); color: var(--color-text); }
 .gap { display: inline-block; width: 12px; flex: none; }
 .tools { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; pointer-events: auto; }
 .record.record { height: 42px; padding: 0 18px; border-radius: 10px; font-size: var(--type-body-size); gap: 8px; }
