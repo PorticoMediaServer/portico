@@ -4,6 +4,7 @@ import {Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExte
 import {defaultI18n} from '@i18n';
 import {generatedCoverTint, heroSpec} from '@design';
 import {HomeService, type HomeSnapshot} from '@core/home-service.ts';
+import {hasHomeRowContent} from '@core/home.ts';
 import type {HomeChannel, HomeDocument, HomeReason, HomeRow, HomeSeeAll, HomeSpotlight} from '@core/home.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import type {GuideChannel} from '@core/channel-guide.ts';
@@ -18,7 +19,7 @@ import {Hero, HeroFacts, type HeroCandidate, type LayoutPlatform} from '../../ki
 import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {CollectionBanner, LiveCard, PosterCard, RankedCard, SquareCard, WideCard, type CardSelection} from '../../kit/cards';
-import {HomeSkeleton, StateLayout} from '../../kit/states';
+import {HomeSkeleton, StateLayout, StateView} from '../../kit/states';
 import type {ShellArtwork} from '../../shell/artwork';
 import {useShellWidth} from '../../shell/viewport';
 import {currentHomeLive, heroArtworkTreatment, homeCardModel, homeLiveDeadline, homeLiveDelay, homePlaybackTarget, homeSpotlights, HOME_LIVE_MIN_MS, type HomeLiveSchedule} from './model';
@@ -158,6 +159,8 @@ export function HomeScreen(bindings: HomeBindings) {
 }
 
 type Spotlight = Omit<ReturnType<typeof homeSpotlights>[number], 'reason'> & HeroCandidate & {causalReason: HomeReason; source: HomeSpotlight};
+const noSubscription = () => () => {};
+const noMixes = () => undefined;
 export function HomeView({service, customization, document, nowMs, onMore, refreshLive, artwork, effects, selection, time, reducedMotion, appearance, musicMixes, musicMixesMore, notice}: HomeBindings & {document: HomeDocument; nowMs: number; onMore: (rowId: string) => void; refreshLive: () => void}) {
   const width = useShellWidth(), layout = homeLayout(width), {platform, sizeClass} = layout;
   const heroPixels = Math.max(width, heroSpec.backdropWidth[platform === 'desktop' || sizeClass === 'medium' ? 'web' : 'phone']) * devicePixelRatio;
@@ -176,6 +179,12 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
     const target = homePlaybackTarget(entry, resume);
     if (target) void effects.play(entry, resume).catch(effects.reportError);
   };
+  // J-22: a Home whose rows all came back empty (none deferred, no hero, no mixes) says so plainly, above
+  // Customize Home, instead of leaving the customize button alone on a blank page.
+  const anyContent = (list: readonly HomeRow[]): boolean => list.some(row => row.deferred || hasHomeRowContent(row) || anyContent(row.children ?? []));
+  const mixesState = useSyncExternalStore(musicMixes?.subscribe ?? noSubscription, musicMixes?.getSnapshot ?? noMixes, musicMixes?.getSnapshot ?? noMixes);
+  const mixesContent = !!mixesState && (mixesState.phase === 'loading' || mixesState.phase === 'ready' && mixesState.rows.length > 0);
+  const empty = candidates.length === 0 && !mixesContent && !anyContent(rows);
   return <div className={styles.home} data-size-class={sizeClass} data-home-document={document.viewerFence}>
     {candidates.length > 0 && <div ref={hero.ref}><Hero<Spotlight> candidates={candidates} platform={platform} sizeClass={sizeClass} visible={hero.visible} reducedMotion={appearance?.reducedMotion ?? reducedMotion}
       renderReason={slide => slide.reason}
@@ -195,7 +204,11 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
       {rows.map((row, index) => <Fragment key={row.id}><HomeRowView focusScope={service} row={row} rowIndex={index} platform={platform} layout={layout} nowMs={nowMs} refreshLive={refreshLive} onMore={() => onMore(row.id)}
         artwork={artwork} effects={effects} selection={selection} time={time} appearance={appearance} reducedMotion={appearance?.reducedMotion ?? reducedMotion} />{index === mixesAfter && mixes}</Fragment>)}
       {mixesAfter < 0 && mixes}
-      {customization && <HomeCustomizeEntry service={service} binding={customization}/>}
+      {/* J-22 review: an empty Home is one block, icon, title, sentence and Customize Home right under it. */}
+      {empty ? <div className={styles.emptyHome}>
+        <StateView variant="page" className={styles.emptyState} icon="i-home" title={t('next.home.emptyTitle')} body={t('next.home.emptyBody')}/>
+        {customization && <HomeCustomizeEntry service={service} binding={customization} inline/>}
+      </div> : customization && <HomeCustomizeEntry service={service} binding={customization}/>}
     </div>
   </div>;
 }

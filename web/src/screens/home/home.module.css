@@ -46,3 +46,8 @@
   .home[data-size-class='medium'] .rowSlot:not(:empty) ~ .rowSlot:not(:empty) { margin-top: 30px; }
   .home[data-size-class='medium'] .rows > [data-music-mixes]:not(:first-child), .home[data-size-class='medium'] .rows > [data-music-mixes] ~ .rowSlot:not(:empty) { margin-top: 30px; }
 }
+/* J-22: a Home with nothing to show yet: the state centred above Customize Home, as the customize entry is. */
+.emptyHome { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 96px 24px 24px; }
+.emptyState { padding: 0 !important; max-width: none !important; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.emptyState > * { align-items: center; text-align: center; }
+.emptyState [class*='stateIcon'] { margin-inline: auto; }
