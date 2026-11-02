@@ -53,7 +53,7 @@ button.identity:hover .expandTip, button.identity:focus-visible .expandTip { dis
 .pill { height: 32px; padding: 0 12px !important; border-radius: 16px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px !important; font-weight: 700 !important; color: var(--color-text-secondary) !important; background: rgba(237,245,250,.08) !important; margin-right: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .pill:hover { background: rgba(237,245,250,.14) !important; color: var(--color-text) !important; }
 .terminalActions { display: flex; align-items: center; justify-content: center; gap: 10px; }
-.phoneBar { position: absolute; z-index: var(--layer-player); left: 8px; right: 8px; bottom: 92px; height: 62px; border-radius: 14px; display: flex; align-items: center; gap: 12px; padding: 0 6px 0 9px; background: rgba(29,56,72,.88); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 14px 30px -10px rgba(0,0,0,.85), inset 0 0 0 1px rgba(237,245,250,.07); touch-action: pan-y; user-select: none; }
+.phoneBar { position: absolute; z-index: var(--layer-player); left: var(--dock-phone-side, 8px); right: var(--dock-phone-side, 8px); bottom: var(--dock-phone-bottom, 92px); height: 62px; border-radius: 14px; display: flex; align-items: center; gap: 12px; padding: 0 6px 0 9px; background: rgba(29,56,72,.88); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 14px 30px -10px rgba(0,0,0,.85), inset 0 0 0 1px rgba(237,245,250,.07); touch-action: pan-y; user-select: none; }
 .phoneBar[data-mode="video"], .phoneBar[data-mode="live"], .phoneBar[data-mode="cast"], .phoneBar[data-mode="play-on"] { padding-left: 7px; gap: 11px; }
 .phoneIdentity { flex: 1; min-width: 0; }
 .phoneBar .identity { gap: inherit; padding: 0 !important; }
@@ -83,7 +83,7 @@ button.identity:hover .expandTip, button.identity:focus-visible .expandTip { dis
 .phoneScrim { position: fixed; z-index: var(--layer-menu); inset: 0; background: rgba(7,16,24,.6); }
 .phoneBar.held { z-index: var(--layer-dialog); box-shadow: 0 24px 50px -10px rgba(0,0,0,.95), inset 0 0 0 1px rgba(237,245,250,.12); }
 .phoneBar[data-holding] { transform: scale(.98); }
-.menuAnchor { position: absolute; left: 8px; right: 8px; bottom: 92px; height: 62px; pointer-events: none; }
+.menuAnchor { position: absolute; left: var(--dock-phone-side, 8px); right: var(--dock-phone-side, 8px); bottom: var(--dock-phone-bottom, 92px); height: 62px; pointer-events: none; }
 .holdMenu[role="menu"] { z-index: var(--layer-dialog) !important; padding: 6px 0; font-size: 15px; border-radius: 14px; background: rgba(29,56,72,.96); backdrop-filter: blur(30px); box-shadow: 0 30px 60px -16px var(--color-shadow), 0 0 0 1px rgba(237,245,250,.1); }
 .holdMenu button { height: 42px; min-height: 42px; font-size: 15px; font-weight: 600; }
 .holdMenu button + button { border-top: 1px solid rgba(237,245,250,.06); }

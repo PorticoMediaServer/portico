@@ -1,5 +1,8 @@
 .dock { position: fixed; z-index: var(--layer-player); inset: auto 0 0; view-transition-name: playback; }
-.dock[data-phone='true'] { inset: auto 8px calc(56px + env(safe-area-inset-bottom, 0px) + 8px); }
+/* phone-web / phone-player: the collapsed bar sits 8px above the tab bar (56px + safe area). The host already
+   stands on that line, so the bar inside it sits at its bottom (J-26: it was raised a second 92px). The shell
+   reserves the same 56 + safe area + 78 (bar 62 + 2 × 8) for page scrolling (J-24), so the two agree. */
+.dock[data-phone='true'] { inset: auto 8px calc(56px + env(safe-area-inset-bottom, 0px) + 8px); --dock-phone-bottom: 0px; --dock-phone-side: 0px; }
 /* Navigation changes only the existing dock's inset, never its media owner. */
 :global(body:has([data-navigation='rail'])) .dock { left: 84px; }
 :global(body:has([data-navigation='rail'])) .dock[data-phone='true'] { left: 92px; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
