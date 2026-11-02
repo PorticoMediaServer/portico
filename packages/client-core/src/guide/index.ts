@@ -7,3 +7,4 @@ export * from './store.ts';
 export * from './legacy-source.ts';
 export * from './rate-limit.ts';
 export * from './directory.ts';
+export * from './row-state.ts';

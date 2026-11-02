@@ -2,7 +2,7 @@ import {serverNow} from '@core/server-clock.ts';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {useLocation, useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
-import {dayStarts, localDayStart, legacyChannel, legacyChannelRow, legacyProgram, pxPerMsFor, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
+import {dayStarts, guideRowChannel, localDayStart, legacyChannel, legacyChannelRow, legacyProgram, pxPerMsFor, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
 import {dayPrimeTime} from '@core/channel-guide.ts';
 import type {GuideSourceSummaries} from '@core/guide/directory.ts';
 import type {LegacyGuideOptions} from '@core/guide/legacy-source.ts';
@@ -265,7 +265,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
   const rows: GuideRowData[] = [];
   for (let index = first; index <= last; index++) {
     const channel = lease.bindings.store.channelAt(index), page = lease.bindings.store.programsFor(index, readStart, readEnd);
-    rows.push({index, ...(channel ? {channel, witness: guideWitness(lease, index, channel)} : {}), programs: page.programs, complete: page.complete, failed: page.failed});
+    rows.push({index, ...(channel ? {channel: guideRowChannel(channel, page), witness: guideWitness(lease, index, channel)} : {}), programs: page.programs, complete: page.complete, failed: page.failed});
   }
   const favoriteCount = selectedSources.reduce((sum, source) => sum + source.favoriteCount, 0);
   const chips = [
