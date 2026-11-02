@@ -1,6 +1,6 @@
 import {DetailService, readCreditPage, type DetailApi, type DetailScope, type PersonalIntent} from '../../../../../packages/client-core/src/detail';
 import {ShowWorkspaceService, saveShowSettings, type ShowSettings, type ShowWorkspaceData} from '../../../../../packages/client-core/src/show-workspace';
-import {getContainerState, setContainerState} from '../../../../../packages/client-core/src/container-state';
+import {getContainerState, setContainerFlag, setContainerState, type ContainerState} from '../../../../../packages/client-core/src/container-state';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {sameFence, type PlaybackFence} from '../../../../../packages/player-core/src';
 import type {NativeShellPlaybackAdapter} from '../../shell/playback';
@@ -56,6 +56,10 @@ export class NativeTitleController {
   private saves = new Set<Readonly<{request: AbortController; lease: NativeTitlePageLease}>>();
   private readonly offHost: () => void;
   private retired = false;
+  /** W-8: the show's own My List (and favourite) state, read for the show a show, season or
+   * episode page belongs to. The hero's My List is the show's, as on every other platform. */
+  private showState?: Readonly<{showId: string; state: ContainerState}>;
+  private showStateBusy = false;
   private snapshot: ReturnType<NativeTitleController['read']>;
   private opened = false;
 
@@ -117,7 +121,9 @@ export class NativeTitleController {
     }
     const related: Record<string, NativeRelatedRowSnapshot> = {};
     for (const [id, row] of this.related) related[id] = row.getSnapshot();
-    return Object.freeze({entry: this.entry, detail, credits: this.credits?.getSnapshot(), related: Object.freeze(related), workspace, ...this.pages.getSnapshot(), place: this.memory.getSnapshot(), retired: this.retired});
+    const showId = data?.show.id, show = showId && this.showState?.showId === showId ? this.showState.state : undefined;
+    return Object.freeze({entry: this.entry, detail, credits: this.credits?.getSnapshot(), related: Object.freeze(related), workspace, ...this.pages.getSnapshot(), place: this.memory.getSnapshot(), retired: this.retired,
+      showState: show, showStateBusy: this.showStateBusy});
   }
   getSnapshot = () => this.snapshot;
   subscribe = (listener: () => void): (() => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
@@ -136,10 +142,28 @@ export class NativeTitleController {
         const selected = this.workspace.getSnapshot().data?.selected;
         if (selected) this.memory.select({seasonId: selected.seasonId, group: selected.group ?? null});
         this.changed();
+        void this.readShowState().catch(() => { /* No My List until the show's state reads; the rest of the page is unaffected. */ });
       }));
     }
     if (kind === 'movie' || kind === 'episode' || kind === 'extra') jobs.push(this.detail.select({libraryId, itemId: id}));
     await Promise.all(jobs);
+  };
+  private readShowState = async (): Promise<void> => {
+    const showId = this.workspace.getSnapshot().data?.show.id;
+    if (!showId || !this.current()) return;
+    const state = await getContainerState(this.options.api, 'show', showId);
+    if (!this.current() || this.workspace.getSnapshot().data?.show.id !== showId) return;
+    this.showState = Object.freeze({showId, state}); this.changed();
+  };
+  /** Add the show to My List or take it off. Only the show this page still shows. */
+  setShowMyList = async (value: boolean): Promise<void> => {
+    const held = this.showState, showId = this.workspace.getSnapshot().data?.show.id;
+    if (!held || held.showId !== showId || this.showStateBusy || !this.current()) return;
+    this.showStateBusy = true; this.changed();
+    try {
+      const state = await setContainerFlag(this.options.api, 'show', held.showId, 'watchlisted', value);
+      if (this.current() && this.showState === held) this.showState = Object.freeze({showId: held.showId, state});
+    } finally {this.showStateBusy = false; if (this.current()) this.changed();}
   };
   tab = (tab: NativeTitleTab): void => {if (this.current()) {this.memory.select({tab}); this.changed();}};
   remember = (anchor: NativeTitleAnchor): void => {if (this.current()) {this.memory.remember(anchor); this.snapshot = this.read();}};

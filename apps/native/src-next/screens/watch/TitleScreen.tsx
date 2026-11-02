@@ -165,9 +165,13 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     // A row's focus identity, not each card or season in it, aligns the title body.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controller, tvSection?.browsing, tvSection?.anchor, motion.reduce]);
-  const myList = props.myList ?? (detail?.actions.some(action => action.id === 'watchlist' && action.enabled)
-    ? {selected: detail.personal.watchlisted, change: (value: boolean) => controller.personal({action: 'watchlist', value})} : undefined);
   const show = ['show', 'season', 'episode'].includes(snapshot.entry.kind);
+  // W-8: a show, season or episode page wears the show's hero, so its My List is the show's own
+  // (phone-detail frames 4-5, as on web); a movie keeps its own item action.
+  const myList = props.myList ?? (show
+    ? snapshot.showState ? {selected: snapshot.showState.watchlisted, change: (value: boolean) => controller.setShowMyList(value)} : undefined
+    : detail?.actions.some(action => action.id === 'watchlist' && action.enabled)
+      ? {selected: detail.personal.watchlisted, change: (value: boolean) => controller.personal({action: 'watchlist', value})} : undefined);
   const loading = show ? snapshot.workspace?.phase === 'loading' : snapshot.detail?.phase === 'loading';
   useEffect(() => {void controller.open().catch(props.reportError);}, [controller, props.reportError]);
   useEffect(() => {

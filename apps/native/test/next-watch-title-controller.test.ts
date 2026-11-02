@@ -106,3 +106,34 @@ test('owner show settings save the page and host the sheet opened on, and stop w
     assert.equal(d.bodies.length, 2);
   } finally {d.controller.dispose();}
 });
+
+test('W-8: a show page reads the show\'s own My List and adds the show to it', async () => {
+  const writes: unknown[] = [];
+  let watchlisted = false;
+  const workspace = {scope: {serverId: 'server', libraryId: 'library', viewerFence: 'viewer'}, revision: {catalog: 1, viewer: 1},
+    show: {id: 'show', libraryId: 'library', title: 'Actual show', libraryKind: 'tv', providerMatchStatus: 'matched'}, selected: {seasonId: 's1'},
+    seasons: [{id: 's1', showId: 'show', title: 's1', number: 1}], seasonTotalCount: 1, nextSeasonCursor: '',
+    episodes: {scope: {serverId: 'server', libraryId: 'library', libraryKind: 'tv', viewerFence: 'viewer', view: 'season', entityId: 's1'}, revision: {catalog: 1, viewer: 1},
+      query: {sort: 'episode', direction: 'asc', category: '', q: '', limit: 40, searchMode: 'none'}, sections: [{id: 'episodes', type: 'list', entries: [], totalCount: 0, nextCursor: ''}]}};
+  const state = () => ({revision: 1, watched: false, watermark: '2026-09-20T00:00:00Z', watchlisted, favorite: false, watchedCount: 0, unwatchedCount: 3});
+  const api = new HttpLocalApi('https://portico.test', '', async (input, init) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/v1/containers/show/show/personal-state') {
+      if (init?.method === 'PUT') {const body = JSON.parse(String(init.body)); writes.push(body); watchlisted = body.watchlisted ?? watchlisted;}
+      return new Response(JSON.stringify(state()), {status: 200});
+    }
+    return new Response(JSON.stringify(workspace), {status: 200});
+  });
+  const controller = new NativeTitleController({api, scope: {serverId: 'server', viewerId: 'viewer'}, entry: {id: 'show', libraryId: 'library', kind: 'show', title: 'Actual show'},
+    authority, current: () => authority, subscribeCurrent: () => () => {}, requestId: async () => 'request', playback: {start: async () => {}}});
+  try {
+    await controller.open();
+    for (let i = 0; i < 20 && !controller.getSnapshot().showState; i++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(controller.getSnapshot().showState?.watchlisted, false, 'the hero can draw My List for a show');
+    await controller.setShowMyList(true);
+    assert.equal(writes.length, 1);
+    assert.equal((writes[0] as {watchlisted?: boolean}).watchlisted, true);
+    assert.equal(controller.getSnapshot().showState?.watchlisted, true);
+    assert.equal(controller.getSnapshot().showStateBusy, false);
+  } finally {controller.dispose();}
+});
