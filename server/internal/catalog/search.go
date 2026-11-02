@@ -1073,7 +1073,10 @@ func (s *Service) searchLiveGroup(ctx context.Context, r SearchRequest, g search
 		return ErrSearchQuery
 	}
 	contains := "%" + strings.ToLower(searchPrefix(r.Q))
-	where := ` FROM live_channel_versions v JOIN live_sources s ON s.active_generation=v.generation_id AND s.state='active' WHERE lower(v.name) LIKE ? ESCAPE '\'`
+	// A channel the owner hid is hidden for everyone (livechannels/directory.go), so
+	// Search neither lists nor counts it, as the guide and playback refuse it (SR-2).
+	where := ` FROM live_channel_versions v JOIN live_sources s ON s.active_generation=v.generation_id AND s.state='active' WHERE lower(v.name) LIKE ? ESCAPE '\'` +
+		` AND NOT EXISTS(SELECT 1 FROM admin_channel_numbers n WHERE n.source_id=s.id AND n.channel_id=v.channel_id AND n.hidden=1)`
 	if e := s.read().QueryRowContext(ctx, `SELECT count(*)`+where, contains).Scan(&out.TotalCount); e != nil {
 		return e
 	}
