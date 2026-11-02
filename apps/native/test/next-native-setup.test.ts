@@ -38,6 +38,7 @@ function fakeController(initialView: any) {
     back: () => record('back'),
     startAgain: () => record('startAgain'),
     startOver: () => record('startOver'),
+    submitCode: (code: string) => record('submitCode', code),
     retry: () => record('retry'),
     approveInApp: () => record('approveInApp'),
     addLibrary: () => record('addLibrary'),
@@ -376,4 +377,18 @@ test('start over: a setup busy elsewhere starts over at once; an exhausted (appr
     await exhausted.act(() => confirm.props.onPress());
     assert.equal(exhausted.fake().count('startOver'), 1);
   } finally {await exhausted.host.unmount();}
+});
+
+test('from outside: the setup code screen takes the code from the log and sends it', async () => {
+  const starting = view('starting', {mode: 'hosted', name: 'Studio', navigate: false, step: 'start'});
+  const f = await fixture({view: view('code', {name: 'Studio', invalid: true, resume: starting})});
+  try {
+    const layout = f.layout()!;
+    assert.equal(layout.props.title, t('web.setup.codeTitle'));
+    assert.equal(layout.props.body, t('web.setup.codeInvalid'));
+    assert.equal(layout.props.primaryAction.disabled, true, 'nothing to send yet');
+    await f.act(() => field(f, t('web.setup.codeLabel')).props.onChangeText('R9TD-3MWK'));
+    await f.act(() => f.layout()!.props.primaryAction.onPress());
+    assert.equal(f.fake().count('submitCode'), 1);
+  } finally {await f.host.unmount();}
 });
