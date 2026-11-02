@@ -1014,7 +1014,8 @@ export class NativePlaybackRuntime {
     try {
       if (!current()) throw Object.assign(new Error('Playback start retired'), {name: 'AbortError'});
       await this.queue.playItem(input.target.itemId, nativeStartSeconds(input), undefined, undefined, undefined, versionId ? {versionId, ...(discTitle ? {discTitle} : {})} : undefined,
-        {...lifetime, state: input.state ?? 'playing', isCurrent: current, propagateError: true});
+        // Plays on through the item's show, album or book, anchored on it (PB-1, MU-2).
+        {...lifetime, state: input.state ?? 'playing', isCurrent: current, propagateError: true, ...(offered.container ? {from: {container: offered.container}} : {})});
     } catch (error) {
       // Keep the original typed admission refusal, including its closed reason,
       // retry policy and account detail. A retired operation cannot publish it.

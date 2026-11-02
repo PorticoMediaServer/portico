@@ -34,7 +34,7 @@ import {PlayerOffersService, type PlayerOffersData} from '@core/player-offers.ts
 import {SubtitleService, fetchSubtitleDocument, type SubtitleDocument, type SubtitlePlan, type SubtitleSnapshot} from '@core/subtitles.ts';
 import {DrawnSubtitleRetry, revalidateTextSubtitles, subtitleFetch} from './subtitle-retry.ts';
 import type {SubtitlePreferences} from '@core/preference-effects.ts';
-import type {PlaybackOptions, QueueHeader, Session} from '@core/playback-v1/types.ts';
+import type {PlaybackOptions, QueueHeader, Selector, Session} from '@core/playback-v1/types.ts';
 import type {PlaybackSubject} from '@core/presentation/kit-model/index.ts';
 import {PlaybackDock, PlaybackPolicy, PlayerSessionChoices, playbackFence, queueScope, sameFence, type DockPlayback, type DockTransition, type PlaybackFence, type PolicyCommand, type PolicyView, type QueuePlaybackFence, type ChannelPlaybackFence} from '../../../../packages/player-core/src/index.ts';
 import {WebPlayback} from './web-playback.ts';
@@ -130,6 +130,11 @@ function problem(code: string): never { throw new Error(code); }
 /** Stop on the starting dock is the viewer's own cancel: never reported as a failure. */
 const startStopped = () => new DOMException('Playback start stopped', 'AbortError');
 const validSeconds = (value: number) => Number.isFinite(value) && value >= 0 && value <= 1e9;
+const wireId = (value: unknown) => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(value);
+/** A pressed row's list: a bounded id list that holds the row, or a server container. */
+const screenListSelector = (from: Selector, itemId: string): boolean =>
+  'items' in from ? from.items.ids.length > 0 && from.items.ids.length <= 500 && from.items.ids.every(wireId) && from.items.ids.includes(itemId)
+    : 'container' in from && ['show', 'season', 'album', 'artist', 'disc', 'book', 'playlist', 'collection'].includes(from.container.kind) && wireId(from.container.id);
 const compatibleVideo = (value: VideoLike): value is VideoLike & SubtitleHost => typeof (value as Partial<SubtitleHost>).addTextTrack === 'function' && !!(value as Partial<SubtitleHost>).textTracks;
 
 /** A downloaded title's own stored facts, as the playback subject its dock names. */
@@ -612,7 +617,7 @@ export class WebShellPlaybackRuntime {
     };
     check();
     if (![captured.libraryId, captured.itemId, ...(captured.versionId === undefined ? [] : [captured.versionId])].every(id => /^[A-Za-z0-9_.-]{1,128}$/.test(id))
-      || !validSeconds(captured.startSeconds)) problem('invalid_playback_target');
+      || !validSeconds(captured.startSeconds) || captured.from !== undefined && !screenListSelector(captured.from, captured.itemId)) problem('invalid_playback_target');
     const serial = ++this.operation, previous = this.stack;
     const finishRetention = this.retainMediaStart(context.signal, () => serial === this.operation);
     const starting = this.beginStarting(captured.display, () => this.playFromScreen(captured, this.retryLifetime())), stopped = new AbortController();
@@ -666,8 +671,11 @@ export class WebShellPlaybackRuntime {
       lifetime.addEventListener('abort', cancel, {once: true});
       try {
         stack.capacityCurrent = current;
+        // The queue plays on through what the item belongs to (PB-1, MU-1, MU-2): the list it was
+        // pressed in, else its show, album or book anchored on it; a lone title is one entry.
+        const from = captured.from ?? (options.container ? {container: options.container} : undefined);
         await deadline.race(stack.queue.playItem(item.id, startSeconds, undefined, undefined, undefined,
-          {...(versionId ? {versionId} : {}), ...(audio ? {audioTrackId: audio.id} : {})}, {signal: lifetime, isCurrent: current}));
+          {...(versionId ? {versionId} : {}), ...(audio ? {audioTrackId: audio.id} : {})}, {signal: lifetime, isCurrent: current, ...(from ? {from} : {})}));
         if (!current()) problem(deadline.expired() && !context.signal.aborted ? 'playback_start_timeout' : 'stale_selection_context');
         const session = stack.queue.currentSession();
         if (stack.service.getSnapshot().phase === 'error' || session?.itemId !== item.id
@@ -926,7 +934,7 @@ export class WebShellPlaybackRuntime {
       lifetime.addEventListener('abort', cancel, {once: true});
       try {
         stack.capacityCurrent = current;
-        await stack.queue.playItem(itemId, startSeconds, undefined, undefined, undefined, {versionId}, {signal: lifetime, isCurrent: current});
+        await stack.queue.playItem(itemId, startSeconds, undefined, undefined, undefined, {versionId}, {signal: lifetime, isCurrent: current, ...(options.container ? {from: {container: options.container}} : {})});
         a.accepted(lifetime);
         if (!this.current(stack) || serial !== this.operation) problem('stale_selection_context');
         const started = stack.service.getSnapshot(), session = stack.queue.currentSession();

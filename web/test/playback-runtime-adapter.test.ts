@@ -3808,3 +3808,20 @@ test('MU-3: the sleep timer lasts the run, across the next track, and pauses wha
  await f.runtime.playFromQueue({container:{kind:'album',id:'song'}},context);await f.arrive();
  assert.equal(f.runtime.sleepTimer(f.runtime.getSnapshot().fence as typeof second),undefined);
 });
+
+test('PB-1, MU-2: a screen start queues the server-named container anchored on the item; a list it was pressed in wins',async t=>{
+ const f=setup(t),context={signal:new AbortController().signal,isCurrent:()=>true};
+ f.intercept(async(request,response)=>request.path==='/v1/items/book-part/playback-options'?{...response,body:{...response.body as object,container:{kind:'book',id:'book-1'}}}:response);
+ // The fake server's containers hold synthetic keys, so only the request is checked here; the
+ // queue player's own tests cover the anchored start against containers that hold the item.
+ await f.runtime.playFromScreen({libraryId:'library',itemId:'book-part',startSeconds:0,storedResume:true},context).catch(()=>{});
+ const created=f.log.filter(request=>request.method==='POST'&&request.path==='/v1/queues');
+ assert.deepEqual((created.at(-1)!.body as any).segments,[{source:{container:{kind:'book',id:'book-1'}},anchor:{itemId:'book-part'}}]);
+ // A title with no container is still one entry.
+ await f.runtime.playFromScreen({libraryId:'library',itemId:'movie',startSeconds:0},context);
+ assert.deepEqual((f.log.filter(request=>request.method==='POST'&&request.path==='/v1/queues').at(-1)!.body as any).segments,[{source:{items:{ids:['movie']}}}]);
+ // The pressed list wins over the item's own container, and must hold the item.
+ await f.runtime.playFromScreen({libraryId:'library',itemId:'book-part',startSeconds:0,storedResume:true,from:{items:{ids:['other','book-part']}}},context);
+ assert.deepEqual((f.log.filter(request=>request.method==='POST'&&request.path==='/v1/queues').at(-1)!.body as any).segments,[{source:{items:{ids:['other','book-part']}},anchor:{itemId:'book-part'}}]);
+ await assert.rejects(f.runtime.playFromScreen({libraryId:'library',itemId:'book-part',startSeconds:0,from:{items:{ids:['other']}}},context),/invalid_playback_target/);
+});

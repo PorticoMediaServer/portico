@@ -211,7 +211,7 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
     {/* desktop-listen #artist: Top songs on the left; Albums then Details in the 360px aside. */}
     <section className={styles.split}>
       <div className={styles.songs}>
-        {top && <ArtistTopSongs context={context} lease={lease} libraryId={libraryId} top={top} witness={witness} phone={phone}
+        {top && <ArtistTopSongs context={context} lease={lease} libraryId={libraryId} top={top} witness={witness} phone={phone} artistId={popular ? undefined : artistId}
           heading={popular ? serverTextLabel(serviceI18n(), popular.heading) : t('music.topSongs')} preview={popular ? undefined : TOP_SONGS_PREVIEW} />}
       </div>
       {(albums.length > 0 || hasDetails) && <aside className={styles.aside}>
@@ -258,8 +258,10 @@ function playableSong(song: ContentEntry, libraryId: string): boolean {
 
 /** With nothing played yet, the artist's songs stand in for Top songs: the first few, then all. */
 const TOP_SONGS_PREVIEW = 5;
-function ArtistTopSongs({context, lease, libraryId, top, witness, phone, heading, preview}: {
+function ArtistTopSongs({context, lease, libraryId, top, witness, phone, heading, preview, artistId}: {
   context: ScreenContext; lease: Lease; libraryId: string; top: ContentSection; witness: Witness; phone: boolean; heading: string; preview?: number;
+  /** The artist whose songs stand in for Top songs: a press plays on through the artist. */
+  artistId?: string;
 }) {
   const [opening, setOpening] = useState<Opening>();
   const [expanded, setExpanded] = useState(false);
@@ -299,7 +301,11 @@ function ArtistTopSongs({context, lease, libraryId, top, witness, phone, heading
     const song = rows.find(entry => entry.id === id), target = song?.playback;
     if (!song || !target || !currentRows.current.includes(song) || !playableSong(song, libraryId)) throw new DOMException('Song unavailable', 'AbortError');
     if (!witness()) throw new DOMException('Artist playback changed', 'AbortError');
-    return context.effects.play({libraryId, itemId: target.itemId, startSeconds: target.startSeconds ?? 0}, lease.signal,
+    // Plays on through the list it was pressed in (MU-1): the server's popular songs, or the
+    // artist's songs in the server's order when those stand in for them.
+    const popular = top.entries.flatMap(entry => entry.kind === 'song' && entry.playback && playableSong(entry, libraryId) ? [entry.playback.itemId] : []).slice(0, 500);
+    const from = artistId ? {container: {kind: 'artist', id: artistId}} : popular.includes(target.itemId) ? {items: {ids: popular}} : undefined;
+    return context.effects.play({libraryId, itemId: target.itemId, startSeconds: target.startSeconds ?? 0, ...(from ? {from} : {})}, lease.signal,
       () => witness() && currentRows.current.includes(song) && playableSong(song, libraryId));
   };
   if (rows.length === 0) return null;
