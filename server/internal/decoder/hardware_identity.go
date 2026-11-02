@@ -49,7 +49,7 @@ func (d *HardwareDetector) runtimeIdentity(ctx context.Context, executable strin
 			lookup = hardwareRuntimeIdentity
 		}
 		bounded, cancel := context.WithTimeout(ctx, defaultProbeTimeout)
-		run.identity, run.err = lookup(bounded, executable)
+		run.identity, run.err = scratchCachedIdentity(bounded, executable, lookup)
 		cancel()
 		d.identityMu.Lock()
 		if d.identityFlight == run {
