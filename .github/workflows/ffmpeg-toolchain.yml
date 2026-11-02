@@ -191,12 +191,12 @@ jobs:
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: ${{ runner.temp }}/engine-download-cache
-          key: engine-downloads-v1-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: engine-downloads-v1-${{ matrix.target }}-
+          key: engine-downloads-v2-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: engine-downloads-v2-${{ matrix.target }}-
       - name: Seed exact source bytes without rebuilding dependencies
         if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
         env: {GH_TOKEN: '${{ github.token }}'}
-        run: python scripts/seed-engine-download-cache.py --store "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-source-seed"
+        run: python scripts/seed-engine-download-cache.py --target "${{ matrix.target }}" --store "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-source-seed"
       - name: Authenticate the explicit dependency cache writer
         if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
         env: {GH_TOKEN: '${{ github.token }}'}
@@ -224,7 +224,7 @@ jobs:
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: ${{ runner.temp }}/engine-download-cache
-          key: engine-downloads-v1-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: engine-downloads-v2-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
       - id: dependency-cache-output
         if: always()
         run: python scripts/engine-dependency-cache.py has-output --directory "$RUNNER_TEMP/engine-stage-cache" --output "$GITHUB_OUTPUT"
@@ -445,16 +445,16 @@ jobs:
       - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: ${{ runner.temp }}/engine-download-cache
-          key: engine-downloads-v1-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: engine-downloads-v1-${{ matrix.target }}-
+          key: engine-downloads-v2-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: engine-downloads-v2-${{ matrix.target }}-
       - name: Restore only pinned corresponding-source snapshots, never binaries
         env: {GH_TOKEN: '${{ github.token }}'}
-        run: python scripts/seed-engine-download-cache.py --store "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-source-seed"
+        run: python scripts/seed-engine-download-cache.py --target "${{ matrix.target }}" --store "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-source-seed"
       - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
         if: always()
         with:
           path: ${{ runner.temp }}/engine-download-cache
-          key: engine-downloads-v1-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: engine-downloads-v2-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

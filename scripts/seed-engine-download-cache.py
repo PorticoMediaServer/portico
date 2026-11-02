@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Seed source bytes from an exact development artifact, never reuse binaries."""
 import argparse
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -12,6 +13,24 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 CI = runpy.run_path(str(ROOT / 'scripts/ci-ffmpeg-toolchain.py'))
 CACHE = runpy.run_path(str(ROOT / 'scripts/engine-download-cache.py'))
+
+
+def source_pin(target):
+    pin = json.loads(json.dumps(CI['WINDOWS_NATIVE_RETRY']))
+    if target == 'linux-arm64':
+        pin.update(target=target,
+            name='engine-cold-linux-arm64-d0ec939ff4f4e2b06b354dde0340c37827578b36-NOT-FOR-USE',
+            engineSourceSHA='d0ec939ff4f4e2b06b354dde0340c37827578b36',
+            archiveSHA256='f6a7a09f550166b53d529d3fb42e998223c2f8d622138fa9f855a54753df957c',
+            createdAt='2026-11-01T16:50:35Z', expiresAt='2026-11-15T16:50:20Z',
+            origin=dict(kind='github-actions', repository='PorticoMediaServer/portico',
+                        runId=41317199099, runAttempt=1, artifactId=13092526098))
+    elif target != 'windows-x64': raise ValueError('only explicit BtbN source seeds are supported')
+    created = datetime.fromisoformat(pin['createdAt'].replace('Z', '+00:00'))
+    expires = datetime.fromisoformat(pin['expiresAt'].replace('Z', '+00:00'))
+    if not created <= datetime.now(timezone.utc) < expires or not timedelta(0) < expires - created <= timedelta(days=14):
+        raise ValueError('development source seed expired or outside its 14-day window')
+    return pin
 
 
 def snapshots(source, destination):
@@ -36,7 +55,7 @@ def snapshots(source, destination):
     return len(seen)
 
 
-def seed(store, work):
+def seed(target, store, work):
     if os.environ.get('PORTICO_ENGINE_BUILD_CONTEXT') != 'development':
         raise ValueError('source seeding is development-only')
     provenance = CI['context']()  # Real hosted source/workflow, never synthesized.
@@ -47,7 +66,7 @@ def seed(store, work):
             report = CACHE['sync']('restore', temp / 'validated', store)
             report.update(kind='existing-development-source-cache', qualifier=provenance)
         else:
-            pin = CI['native_retry_pin']('windows-x64')
+            pin = source_pin(target)
             intake = CI['module']('fetch-engine')
             raw = temp / 'artifact.zip'; intake.remote(pin, raw)
             if CACHE['digest'](raw) != pin['archiveSHA256']: raise ValueError('source seed artifact changed')
@@ -72,5 +91,6 @@ def seed(store, work):
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--target', choices=('windows-x64', 'linux-arm64'), required=True)
     p.add_argument('--store', type=Path, required=True); p.add_argument('--work', type=Path, required=True)
-    a = p.parse_args(); print(json.dumps(seed(a.store, a.work)))
+    a = p.parse_args(); print(json.dumps(seed(a.target, a.store, a.work)))

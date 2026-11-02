@@ -43,6 +43,10 @@ class RebuildControls(unittest.TestCase):
 
     def test_retained_source_seed_extracts_only_command_named_regular_snapshots(self):
         seed = runpy.run_path(str(ROOT / 'scripts/seed-engine-download-cache.py'))
+        windows = seed['source_pin']('windows-x64'); arm = seed['source_pin']('linux-arm64')
+        self.assertNotEqual(windows['archiveSHA256'], arm['archiveSHA256'])
+        self.assertEqual(arm['origin']['artifactId'], 13092526098)
+        self.assertEqual(arm['target'], 'linux-arm64')
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             name = 'recipe/.cache/downloads/50-library_' + 'a' * 64 + '.tar.xz'

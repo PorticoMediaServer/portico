@@ -393,8 +393,10 @@ configure macro checks precede FFmpeg make. Failed-job reruns retain the origina
 producer attempt separately from the current native qualifier. Windows assembly
 has a ten-minute floor and compiler execution reserves that time within its job.
 
-The initial BtbN source cache can be seeded from the same explicitly pinned,
-not-for-use Windows development artifact used by the approved native retest.
+The initial BtbN source caches are seeded from explicitly pinned, not-for-use
+artifacts for their own target: Windows artifact 13105206141 and Linux ARM64
+artifact 13092526098. Each retains its exact source snapshot bytes; even common
+dependencies can have different tar metadata between the two original builds.
 The seed checks the original Actions identity, ZIP digest, transfer, manifest
 and corresponding-source archive hashes. It extracts only regular command-hash
 named files immediately inside recipe/.cache/downloads; duplicates, links and
