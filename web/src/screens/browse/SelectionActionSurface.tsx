@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useRef, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import {canonicalMusicQualityLadder, canonicalQualityLadder} from '../../../../packages/contracts/src/types.ts';
@@ -24,7 +25,7 @@ export function SelectionActionSurface({model, onClose, onOptionsChange}: Readon
   const job = state.job, count = preview?.total ?? job?.total;
   const title = !deleting ? t('next.detail.download') : count === 1 && preview ? t('next.selection.deleteTitle', {title: preview.confirmation})
     : count !== undefined ? t('next.selection.deleteTitles', {count}) : t('next.selection.delete');
-  const canConfirm = state.phase === 'ready' && !!preview && state.confirmation === preview.confirmation && Date.parse(preview.expiresAt) > Date.now();
+  const canConfirm = state.phase === 'ready' && !!preview && state.confirmation === preview.confirmation && Date.parse(preview.expiresAt) > serverNow();
   const firstTransfer = transfers.items[0];
   const music = state.input.selector.query.pivot === 'songs';
   const qualities = state.input.selector.query.pivot === 'parts' ? [qualityPresentation('original', false, defaultI18n)]

@@ -1,4 +1,5 @@
 import {HttpLocalApi, type HostedServer, type LocalSession} from '@core/index.ts';
+import {serverNow} from '@core/server-clock.ts';
 import {currentServedServerOrigin,savedServerIsThisPage} from './served-origin';
 import {ServerSignInProbe, negotiateServer, parseServerSignIn, type ServerSignIn} from '@core/sign-in.ts';
 import {NeedsNewerAppError} from '@core/needs-newer-app.ts';
@@ -410,7 +411,7 @@ export class BrowserAccountEntry {
    if(!op.current())return false;
    if((await this.ports.store.read()).revision!==revision)throw new CodedError('cancelled','The server selection changed.');
    if(!op.current())return false;
-   if(Date.parse(proof.expiresAt)<=Date.now())throw new CodedError('move_code_invalid','The move proof expired.');
+   if(Date.parse(proof.expiresAt)<=serverNow())throw new CodedError('move_code_invalid','The move proof expired.');
    this.moveTicket={ticket:proof.ticket,expiresAt:proof.expiresAt,revision};
    this.publish({...state,phase:'move-portico',busy:false,error:undefined});return true;
   }catch(error){if(op.current())this.publish({...state,busy:false,error});return false;}
@@ -422,7 +423,7 @@ export class BrowserAccountEntry {
   const op=this.operation();this.publish({...state,busy:true,error:undefined});
   const client=new MemberAccountMoveClient(api,{serverId:state.server.id,isCurrent:op.current,retireLateGrant:session=>this.retire(api,session)});
   try{
-   if(Date.parse(proof.preview.expiresAt)<=Date.now())throw new CodedError('move_code_invalid','The move code expired.');
+   if(Date.parse(proof.preview.expiresAt)<=serverNow())throw new CodedError('move_code_invalid','The move code expired.');
    if((await this.ports.store.read()).revision!==proof.revision)throw new CodedError('cancelled','The server selection changed.');
    if(!op.current())return;
    const result=await client.redeemLocal(proof.code,username,password,op.signal);
@@ -461,7 +462,7 @@ export class BrowserAccountEntry {
  async completePorticoOwnerReset(isCurrent:()=>boolean):Promise<boolean>{
   const state=this.state,api=this.api,session=this.session,epoch=this.epoch;
   const current=()=>!this.disposed&&this.epoch===epoch&&this.state===state&&this.api===api&&this.session===session&&isCurrent();
-  if(!current()||state.phase!=='ready'||!state.ownerResetSessionReady||state.server?.signIn!=='portico'||state.invitation||!state.pin||!session||!api||session.refreshToken||session.viewer.role!=='owner'||Date.parse(session.expiresAt)<=Date.now())return false;
+  if(!current()||state.phase!=='ready'||!state.ownerResetSessionReady||state.server?.signIn!=='portico'||state.invitation||!state.pin||!session||!api||session.refreshToken||session.viewer.role!=='owner'||Date.parse(session.expiresAt)<=serverNow())return false;
   const selected=await this.ports.store.selected();
   return current()&&!!selected&&selected.signIn==='portico'&&selected.resetFileOwner===true&&!selected.connection.hosted&&
    sameServerPin(selected.connection.pin,state.pin)&&sameRecoveryAdmission(session,selected.connection.session)&&selected.connection.session.accessToken===session.accessToken&&
@@ -509,7 +510,7 @@ export class BrowserAccountEntry {
  private async assertOwnerReset(reset:OwnerResetCapture,current:()=>boolean){
   const captured=()=>{
    const pin=reset.source.getRouteConnection()?.pin;
-   return current()&&this.ownerReset===reset&&this.api===reset.source&&!!pin&&sameServerPin(pin,reset.pin)&&Date.parse(reset.grant.session.expiresAt)>Date.now();
+   return current()&&this.ownerReset===reset&&this.api===reset.source&&!!pin&&sameServerPin(pin,reset.pin)&&Date.parse(reset.grant.session.expiresAt)>serverNow();
   };
   if(!captured())throw new CodedError('cancelled','The reset proof is no longer current.');
   const saved=await this.ports.store.read();
@@ -519,7 +520,7 @@ export class BrowserAccountEntry {
   this.stopAuthorityWatch();
   const current=()=>!this.disposed&&this.ownerReset===reset;
   const check=()=>{void this.assertOwnerReset(reset,current).catch(()=>{if(current())this.cancelLocalOwnerReset();});};
-  this.ownerResetTimer=setTimeout(()=>{if(current())this.cancelLocalOwnerReset();},Math.min(2147483647,Math.max(0,Date.parse(reset.grant.session.expiresAt)-Date.now())));
+  this.ownerResetTimer=setTimeout(()=>{if(current())this.cancelLocalOwnerReset();},Math.min(2147483647,Math.max(0,Date.parse(reset.grant.session.expiresAt)-serverNow())));
   try{this.offSelection=this.ports.observeSelection?.(check);}catch{this.cancelLocalOwnerReset();return;}
   check();
  }
@@ -690,9 +691,9 @@ export class BrowserAccountEntry {
   const checkMove=async()=>{
    if(!moving)return;
    const revision=proof?.revision??ticket!.revision,expiresAt=proof?.preview.expiresAt??ticket!.expiresAt;
-   if(!op.current()||Date.parse(expiresAt)<=Date.now())throw new CodedError('move_code_invalid','The move proof expired.');
+   if(!op.current()||Date.parse(expiresAt)<=serverNow())throw new CodedError('move_code_invalid','The move proof expired.');
    if((await this.ports.store.read()).revision!==revision)throw new CodedError('cancelled','The server selection changed.');
-   if(!op.current()||Date.parse(expiresAt)<=Date.now())throw new CodedError('cancelled','The account move request ended.');
+   if(!op.current()||Date.parse(expiresAt)<=serverNow())throw new CodedError('cancelled','The account move request ended.');
   };
   try{
    await checkMove();if(!op.current())return;

@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {finishSetupExchange, setupExchangeCancelled, setupExchangeInvalid, type SetupExchanged, type SetupExchangePorts} from '@core/setup-exchange.ts';
 import {isUnreadable, parseSetupAttempt, type SetupStore} from '@core/setup-store.ts';
 import {installationIdentity} from '@core/installation.ts';
@@ -16,7 +17,7 @@ type Ports = SetupExchangePorts & Readonly<{
 export class BrowserSetupReturn {
   private epoch = 0;
   constructor(private readonly ports: Ports) {}
-  private now() {return (this.ports.now ?? Date.now)();}
+  private now() {return (this.ports.now ?? serverNow)();}
   private async readAttempt() {
     const raw = await this.ports.attempt.read().catch(() => undefined);
     const attempt = raw === undefined ? undefined : parseSetupAttempt(raw);

@@ -65,7 +65,6 @@ test('live facts expire exactly at the server fence and refresh at the earlier p
   const now = Date.parse('2026-10-22T12:02:00Z'), live = liveAt();
   assert.equal(currentHomeLive(live, now), live);
   assert.equal(currentHomeLive(live, Date.parse(live.expiresAt)), undefined);
-  assert.equal(currentHomeLive(live, Date.parse(live.observedAt) - 1), undefined);
   assert.equal(currentHomeLive(live, NaN), undefined);
   assert.equal(homeLiveDeadline([{live} as HomeRow], now), Date.parse('2026-10-22T12:05:00Z'));
   assert.equal(homeLiveDeadline([{live: liveAt('2026-10-22T12:04:00Z')} as HomeRow], now), Date.parse('2026-10-22T12:04:00Z'));

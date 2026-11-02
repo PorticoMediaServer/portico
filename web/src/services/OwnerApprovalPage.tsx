@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useEffect, useLayoutEffect, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {goTo} from '../platform/hosted-navigation';
 import {ApiError} from '@core/index.ts';
@@ -88,7 +89,7 @@ export function OwnerApprovalPage({account, bootstrap}: {account: ServicesAccoun
   }, [account, bootstrap, scope]);
   useEffect(() => {
     if (!flow || !state.display) return;
-    const timer = setTimeout(() => flow.expire(), Math.max(0, Date.parse(state.display.expiresAt) - Date.now()));
+    const timer = setTimeout(() => flow.expire(), Math.max(0, Date.parse(state.display.expiresAt) - serverNow()));
     return () => clearTimeout(timer);
   }, [flow, state.display]);
   const error = active?.error ?? state.error;
@@ -100,7 +101,7 @@ export function OwnerApprovalPage({account, bootstrap}: {account: ServicesAccoun
       : <Button onClick={() => {void flow.start();}}>{t('next.states.tryAgain')}</Button>}</ServicesActions>
   </ServicesAuthStage>;
   if (!state.display || state.phase === 'loading') return <ServicesAuthStage variant="ownerReview"><></></ServicesAuthStage>;
-  const requested = Date.now() - Date.parse(state.display.requestedAt) < 45000 ? t('services.claim.justNow') : servicesRelativeTime(servicesI18n(), state.display.requestedAt);
+  const requested = serverNow() - Date.parse(state.display.requestedAt) < 45000 ? t('services.claim.justNow') : servicesRelativeTime(servicesI18n(), state.display.requestedAt);
   return <OwnerApprovalReview display={state.display} requested={requested} approved={state.phase !== 'review'} finishing={state.phase === 'finishing'} busy={state.busy || state.phase === 'returning'}
     onApprove={() => {void flow?.decide('approve');}} onDeny={() => {void flow?.decide('deny');}} onReturn={() => {void flow?.complete();}} />;
 }

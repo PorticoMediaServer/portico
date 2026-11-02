@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import type {LogDetailMinutes} from '@core/server-administration.ts';
 import {defaultI18n, type MessageId} from '@i18n';
@@ -13,9 +14,9 @@ const categoryKey = (category: LogCategory) => `web.logs.category.${category}` a
 export function MessagesPanel({source, options, detailMinutes}: Readonly<{source: SettingsMessagesSource; options?: ReactNode; detailMinutes?: LogDetailMinutes; reportError: (error: unknown) => void}>) {
   const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const box = useRef<HTMLDivElement>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(serverNow());
   useEffect(() => {void source.load();return source.pause;}, [source]);
-  useEffect(() => {const timer = setInterval(() => setNow(Date.now()), 30000);return () => clearInterval(timer);}, []);
+  useEffect(() => {const timer = setInterval(() => setNow(serverNow()), 30000);return () => clearInterval(timer);}, []);
   useEffect(() => {if (state.live && box.current) box.current.scrollTop = box.current.scrollHeight;}, [state.lines, state.live]);
   const until = state.settings?.debugWindowUntil, detailed = !!until && Date.parse(until) > now;
   return <div className={styles.messagePanels}>

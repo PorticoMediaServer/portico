@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {makeMemberResetCode, replaceMemberResetCode, type MemberResetCode} from '@core/account-reset.ts';
 import type {ProfileAPI} from '@core/profile-management.ts';
 import type {AccessMember} from '@core/server-administration.ts';
@@ -80,7 +81,7 @@ export class MemberResetCodeOpening {
     this.state = Object.freeze(state);
     for (const listener of this.listeners) {try {listener();} catch { /* A view cannot change the command outcome. */ }}
   }
-  private now() {return (this.options.now ?? Date.now)();}
+  private now() {return (this.options.now ?? serverNow)();}
   unexpired = (expected: MemberResetState) => this.state === expected && expected.kind === 'ready' && this.current() &&
     Date.parse(expected.result.expiresAt) > this.now();
   private assert() {if (!this.current()) throw ended();}
