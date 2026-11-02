@@ -567,36 +567,10 @@ func (s *Service) searchCatalogGroup(ctx context.Context, r SearchRequest, g sea
 		where += " AND " + restriction
 		filterArgs = append(filterArgs, restrictionArgs...)
 	}
-	// The count is asked for only when the page cannot answer it. A group's total
-	// is exact and it is in the response, and it was a second pass over the whole
-	// FTS match set with the viewer's restriction evaluated per match — measured
-	// on the release tier at 13.4 ms a group, 3,969 executions, 53 seconds of the
-	// run. A first page that comes back short has counted the group by reading
-	// it, and most groups of a real search are short.
-	//
-	// A group ranks every match of its kind in the viewer's libraries — the
-	// kind and library tokens select them inside the index — so relevance,
-	// every sort and the count are exact at any depth. A very broad prefix
-	// costs its matches, within the group's time budget.
-	libraryScope := ""
-	if !r.AllLibraries {
-		// Candidates are chosen by rank inside the index, so the viewer's
-		// libraries are part of the match: ranked server-wide, another
-		// library's titles could fill every candidate slot.
-		ids, err := s.searchLibraryTokens(ctx, r.Libraries)
-		if err != nil {
-			return err
-		}
-		if len(ids) == 0 {
-			ids = []string{"lnone"} // no library: a token no document carries
-		}
-		libraryScope = ` AND kind : (` + strings.Join(ids, " OR ") + `)`
-	}
-	kindMatch := `kind : k` + strconv.Itoa(int(kind))
-	if readingGroup {
-		kindMatch = `kind : (k20 OR k21)`
-	}
-	match = kindMatch + libraryScope + ` AND search : (` + match + `)`
+	// Scope belongs in the SQL predicates above. Including kind or library
+	// phrases in MATCH makes BM25 initialize scope-sized posting lists even
+	// when the user's words are rare.
+	match = `search : (` + match + `)`
 	sortID := resolveSearchSort(g, r.Sort)
 	// The full-text rank is computed for every match it is selected for; only
 	// relevance orders by it.
@@ -1123,26 +1097,6 @@ func (s *Service) searchLiveGroup(ctx context.Context, r SearchRequest, g search
 	}
 	out.Items = entries
 	return nil
-}
-
-// searchLibraryTokens names the viewer's libraries as the title index's
-// library tokens (l<id>).
-func (s *Service) searchLibraryTokens(ctx context.Context, libraries []string) ([]string, error) {
-	raw, _ := json.Marshal(libraries)
-	rows, err := s.read().QueryContext(ctx, `SELECT id FROM catalog_libraries WHERE library_id IN(SELECT value FROM json_each(?)) AND retired=0`, string(raw))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []string{}
-	for rows.Next() {
-		var id int64
-		if err = rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out = append(out, "l"+strconv.FormatInt(id, 10))
-	}
-	return out, rows.Err()
 }
 
 func searchGroupLabelKey(id string) string {
