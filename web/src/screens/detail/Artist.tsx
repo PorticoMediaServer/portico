@@ -169,7 +169,8 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
     ...(artist.genres && artist.genres.length > 0 ? [{id: 'genres', role: 'context' as const, text: artist.genres.slice(0, 3).join(', ')}] : []),
     ...(total === undefined ? [] : [{id: 'albums', role: 'supplement' as const, text: t('lib.count', {count: total, pivot: 'albums'})}]),
   ];
-  const long = artist.title.length > 24, details: [string, string][] = [];
+  // As on the album hero: past 16 characters the 104px line no longer fits (desktop-listen#artist).
+  const long = artist.title.length > 16, details: [string, string][] = [];
   if (artist.artistType) details.push([t('title.albumType'), artist.artistType]);
   if (artist.genres?.length) details.push([t('title.genres'), artist.genres.filter(Boolean).join(', ')]);
   const hasDetails = !!artist.overview || details.length > 0;
@@ -182,7 +183,7 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
       <div className={styles.copy}>
         <p className={styles.kind}>{t('filter.field.artist')}</p>
         <Lockup title={artist.title} long={long} platform={phone ? 'phone-web' : 'desktop'} className={styles.title}
-          style={{fontSize: phone ? (long ? 42 : 56) : (long ? 68 : 104), lineHeight: .98}}/>
+          style={{fontSize: undefined, fontWeight: undefined, lineHeight: undefined, letterSpacing: undefined}}/>
         <div className={styles.meta}><TitleFactsLine parts={facts}/></div>
         <div className={styles.actions}>
           {playArtist && <>

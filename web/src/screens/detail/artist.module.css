@@ -22,11 +22,16 @@
 @media(min-width:1024px) {
   .disc > :last-child { box-shadow: 0 50px 90px -30px color-mix(in srgb,var(--color-shadow) 90%,transparent), 0 0 0 1px color-mix(in srgb,var(--color-text) 10%,transparent); }
 }
-.copy { position: absolute; z-index: var(--layer-art-label); left: var(--shell-gutter, 40px); bottom: 60px; min-width: 0; width: 760px; max-width: calc(100% - 2 * var(--shell-gutter, 40px)); }
+/* The copy stops 48px short of the disc (right 140 + 380), so a title never runs under it. */
+.copy { position: absolute; z-index: var(--layer-art-label); left: var(--shell-gutter, 40px); bottom: 60px; min-width: 0; width: min(760px, calc(100% - var(--shell-gutter, 40px) - 568px)); }
 .kind { margin: 0 0 12px; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-secondary); }
-.title { margin-bottom: 22px; }
+/* desktop-listen#artist: .lockup.xl 104px/.94; a long name takes the album's long size, 68px/.98. */
+.title { --artist-title-size: calc(var(--type-fixed-size-16px) * 6.5); margin-bottom: 22px; font-size: var(--artist-title-size); font-weight: var(--type-lockup-weight); line-height: var(--type-fixed-line-point-94); letter-spacing: var(--type-fixed-tracking-minus-point-045em); text-wrap: balance; overflow-wrap: anywhere; }
+.title[data-long] { --artist-title-size: calc(var(--type-fixed-size-17px) * 4); line-height: var(--type-fixed-line-point-98); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .meta { margin-bottom: 26px; }
-.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 0; }
+/* The facts line's own margin would add 16px under the meta row; the row's own margin holds. */
+.meta > div { margin: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 0; }
 .more { display: flex; justify-content: center; margin-top: 12px; }
 .split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 72px; padding-top: 24px; margin-bottom: 56px; align-items: start; }
 .songs { min-width: 0; }
@@ -41,7 +46,17 @@
 .facts dd { margin: 0; }
 .overview { margin: 0 0 18px; }
 .source { display: block; margin: -8px 0 24px; color: var(--color-text-tertiary); font-size: var(--type-caption-size); }
+/* 1024-1279: no frame; a smaller disc nearer the edge, and one type step down. */
+@media (max-width: 1279px) {
+  .disc { top: 172px; right: 64px; width: 300px; height: 300px; }
+  .copy { width: min(760px, calc(100% - var(--shell-gutter, 40px) - 412px)); }
+  .title { --artist-title-size: calc(var(--type-fixed-size-21px) * 4); }
+  .title[data-long] { --artist-title-size: var(--type-fixed-size-56px); }
+  .split { grid-template-columns: minmax(0, 1fr) 280px; gap: 40px; }
+}
 @media (max-width: 1023px) {
+  .title { --artist-title-size: var(--type-fixed-size-56px); }
+  .title[data-long] { --artist-title-size: calc(var(--type-fixed-size-21px) * 2); }
   .hero { display: flex; flex-direction: column; align-items: flex-start; gap: 24px; height: auto; margin: 8px 0 32px; overflow: visible; }
   .ambient { display: none; }
   .disc { position: relative; top: auto; right: auto; width: 240px; height: 240px; }
@@ -52,8 +67,13 @@
 }
 @media (max-width: 599px) {
   .page { padding: 12px 16px 64px; }
-  .hero { gap: 16px; align-items: center; text-align: center; }
-  .disc { width: 120px; height: 120px; }
+  /* phone-app #r5 (.alb.art): a 164px circle, the name at 30px, one centred meta row. */
+  .hero { gap: 18px; align-items: center; text-align: center; }
+  .disc { width: 164px; height: 164px; }
+  .kind { display: none; }
+  .title, .title[data-long] { --artist-title-size: var(--type-fixed-size-30px); display: block; margin-bottom: 0; overflow: visible; line-height: var(--type-fixed-line-1point-1); letter-spacing: var(--type-fixed-tracking-minus-point-035em); -webkit-line-clamp: unset; }
+  .meta { margin: 8px 0 18px; }
+  .meta > div { justify-content: center; gap: 6px 12px; font-size: var(--type-fixed-size-13px); }
   .actions { justify-content: center; }
 }
 .topSongs { margin: 0 0 32px; }

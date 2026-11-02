@@ -121,6 +121,7 @@ export const fixedTypeMetrics = {
   "line-1point-45": "1.45",
   "line-1point-5": "1.5",
   "line-1point-55": "1.55",
+  "line-point-94": ".94",
   "line-point-98": ".98",
   "size-11point-5px": "11.5px",
   "size-11px": "11px",
