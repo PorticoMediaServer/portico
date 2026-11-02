@@ -1,5 +1,5 @@
 import React, {useEffect} from 'react';
-import {BackHandler, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import {catalogue, defaultI18n, enUS, type MessageId} from '../../../../../packages/i18n/src';
 import {Button} from '../../kit/controls';
@@ -10,6 +10,7 @@ import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {useDestinationEntryFocus} from '../../screens/destinations/useEntryFocus';
 import {useTVBusyEntryRevision} from './entry-revision';
 import {TVAuthLayout} from './TVAuthLayout';
+import {registerBack} from '../../kit/navigation/back';
 
 /** Display-only public URL. The account controller supplies its verified origin;
  * credentials, grants and sign-in codes never enter this presenter. */
@@ -24,8 +25,8 @@ export function publicTVHandoffAddress(value: string): {url: string; display: st
   return {url: url.href, display: `${url.host}${url.pathname}${url.search}`, pathname: url.pathname, search: url.search};
 }
 function useHandoffBack(onBack: () => void, busy = false) {
-  useEffect(() => {const listener = BackHandler.addEventListener('hardwareBackPress', () => {if (!busy) onBack(); return true;});
-    return () => listener.remove();}, [onBack, busy]);
+  useEffect(() => {const listener = registerBack(() => {if (!busy) onBack(); return true;}, {scope: 'surface'});
+    return () => listener();}, [onBack, busy]);
 }
 
 function handoffCodeCard(theme: ReturnType<typeof useTheme>, address: ReturnType<typeof publicTVHandoffAddress>, reference: MessageId, nativeBlur: boolean, testID: string) {

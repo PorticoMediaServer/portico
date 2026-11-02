@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {BackHandler, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {FocusProvider, FocusRegion} from '../../kit/focus';
@@ -11,6 +11,7 @@ import {nativeType, useTheme} from '../../kit/theme';
 import {useDestinationEntryFocus} from '../destinations/useEntryFocus';
 import {shellLayout} from '../../shell/model';
 import {useTVBusyEntryRevision} from '../../tv/auth/entry-revision';
+import {registerBack} from '../../kit/navigation/back';
 
 type Props = {busy: boolean; error?: React.ReactNode; isCurrent: () => boolean; onBack: () => void;
   onJoin: (invitation: string, address: string) => void; onFind: () => void; onRefresh: () => void; onSignOut: () => void; notice?: {title: string; body: string; onRetry?: () => void}};
@@ -70,8 +71,7 @@ export function TVNoServers(props: Props) {
   const current = useCallback(() => !!committed?.live && committed.scope === scope && active.current === committed && isCurrent(), [committed, scope, isCurrent]);
   const owns = () => current() && latest.current === draft && !props.busy;
   const back = useCallback(() => {if (!current()) return; if (joining) {setInvitation(''); setJoining(false);} else onBack();}, [current, joining, onBack]);
-  useEffect(() => {const subscription = BackHandler.addEventListener('hardwareBackPress', () => {if (!joining || !current()) return false; back(); return true;});
-    return () => subscription.remove();}, [joining, current, back]);
+  useEffect(() => registerBack(() => {if (!joining || !current()) return false; back(); return true;}, {scope: 'surface'}), [joining, current, back]);
   const window = useWindowDimensions(), canvas = shellLayout(window.width, window.height, true);
   // Frame 36 draws the keyboard at 604; the address field's five key rows make one row more
   // than the invitation's, so the actions follow the active keyboard instead of a fixed slot.

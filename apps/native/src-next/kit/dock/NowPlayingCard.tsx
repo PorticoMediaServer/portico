@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {BackHandler, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import {useTVKeyEvent} from '../../platform/tv-keys';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
@@ -16,6 +16,7 @@ import {registerOverlayKeys} from '../../platform/overlay-keys';
 import {commandAllowed, dockCommand, playbackPosition, progressOf, seekBounds, seekTo} from './model';
 import {alpha, DockFacts, dockStyles as s, dockType, LevelMeter} from './visual';
 import type {DockAction, DockRenderProps} from './types';
+import {registerBack} from '../navigation/back';
 
 export type NowPlayingCardProps = DockRenderProps & {
   expanded?: boolean;
@@ -69,9 +70,9 @@ export function NowPlayingCard({occupant, onAction, expanded = false, onExpanded
   useEffect(() => () => {release.current?.(); release.current = undefined;}, []);
   useEffect(() => {
     if (!expanded) return;
-    const back = BackHandler.addEventListener('hardwareBackPress', () => {fold(); return true;});
+    const releaseBack = registerBack(() => {fold(); return true;}, {scope: 'surface'});
     const release = registerOverlayKeys(key => {if (key === 'escape' || key === 'menu') {fold(); return true;} return false;});
-    return () => {back.remove(); release();};
+    return () => {releaseBack(); release();};
   }, [expanded, fold]);
   useEffect(() => {
     fade.value = 0;
