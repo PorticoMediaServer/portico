@@ -1960,6 +1960,7 @@ export const enUS = {
   'title.resumeChapterNumber': 'Resume chapter {number}',
   'title.bookInSeries': ', book {number}',
   'title.published': 'Published',
+  'title.aboutThisBook': 'About this book',
   'title.publisher': 'Publisher',
   'title.moreAudiobooks': 'More audiobooks',
   'title.otherBooksOnServer': 'Other books on your server',
