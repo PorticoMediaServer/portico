@@ -16,7 +16,7 @@ function ports(over: Partial<LifecyclePorts> = {}): LifecyclePorts & {calls: str
     readRecords: async () => ({outcome: 'ok' as const, servers: 1, held: held(false)}),
     resetRecords: async () => {calls.push('reset');},
     readHeld: async () => ({servers: 1, held: held(false)}),
-    connect: async () => ({profiles, rememberProfiles: true}),
+    connect: async () => ({profiles, rememberProfiles: true, manageLocked: true}),
     select: async (input: {profileId: string; remember: boolean}) => {calls.push('select:' + input.profileId); return {viewer: viewer(input.profileId, 'f2'), remembered: input.remember};},
     storeSelect: async () => {}, signOutServer: async () => ({servers: 0}), signOutAccount: async () => ({servers: 0}), forgetServer: async () => ({servers: 0}),
     clearMarker: async () => {calls.push('clearMarker');}, fenceShell: () => {calls.push('fence');}, drainRevocations: () => {calls.push('drain');},

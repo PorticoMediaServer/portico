@@ -72,6 +72,32 @@ export async function switchNativeProfile(familyId: string, profileId: string, p
   }
 }
 
+/**
+ * PR-1: the management unlock. A remembered main profile with a PIN that is past the server's management hour enters
+ * its PIN; the lifecycle chooses the same profile again (remembered), which opens management for the hour. Resolves once
+ * the new sign-in is published (the root then reopens on it); a wrong PIN rejects with the server's refusal.
+ */
+export async function unlockNativeManagement(familyId: string, pin: string): Promise<void> {
+  const {lifecycle} = nativeSessionLifecycle();
+  const open = lifecycle.getSnapshot().state;
+  if (open.kind !== 'ready' || open.viewer.familyId !== familyId || !open.manageLocked) throw profilesChanged();
+  await settle(lifecycle.actions.unlockManagement, pin);
+}
+
+/** PR-1: management refusals heard on the mounted shell's own sign-in. Each one locks management in the lifecycle and
+ *  asks for the PIN (ManageUnlockHost), whichever screen made the request. */
+let manageRefusals = 0;
+const manageListeners = new Set<() => void>();
+export const nativeManageGate = Object.freeze({
+  getSnapshot: () => manageRefusals,
+  subscribe: (listener: () => void) => {manageListeners.add(listener); return () => {manageListeners.delete(listener);};},
+  refused: () => {
+    nativeSessionLifecycle().lifecycle.report({type: 'manageRefused'});
+    manageRefusals++;
+    for (const listener of [...manageListeners]) releaseQuietly('manage gate listener', listener);
+  },
+});
+
 /** Resolves once launch has decided (anything but starting or connecting), or rejects when `signal` aborts. */
 export function lifecycleSettled(lifecycle: SessionLifecycle, signal: AbortSignal): Promise<LifecycleState> {
   return new Promise((resolve, reject) => {

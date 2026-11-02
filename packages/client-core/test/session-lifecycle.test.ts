@@ -97,9 +97,14 @@ const cases: readonly Case[] = [
     state: {kind: 'signedOut'}, advances: true},
 
   // 7–9: connected
-  {name: 'row 7: connected with a valid marker on a main profile with a PIN → ready, remembered, management locked', row: 7,
-    from: snap(connecting({held: held({remembered: true})})), event: {type: 'connected', facts: facts()},
+  {name: 'row 7: connected with a valid marker, the server says management needs the PIN → ready, remembered, management locked', row: 7,
+    from: snap(connecting({held: held({remembered: true})})), event: {type: 'connected', facts: {...facts(), manageLocked: true}},
     state: {kind: 'ready', remembered: true, manageLocked: true, canRemember: true, viewer: viewer()}, effects: [drain]},
+  // PR-1: inside the server's hour (manage_until) a remembered main profile with a PIN may still manage. The lock is the server's
+  // answer (managePinRequired), never assumed from the profile being main with a PIN.
+  {name: 'row 7: a remembered main profile with a PIN inside its management hour → manageLocked false', row: 7,
+    from: snap(connecting({held: held({remembered: true})})), event: {type: 'connected', facts: facts()},
+    state: {kind: 'ready', remembered: true, manageLocked: false}, effects: [drain]},
   {name: 'row 7: a remembered non-main profile with a PIN → manageLocked false', row: 7,
     from: snap(connecting({held: held({viewer: viewer('teen'), remembered: true})})), event: {type: 'connected', facts: facts()},
     state: {kind: 'ready', remembered: true, manageLocked: false}, effects: [drain]},
@@ -201,6 +206,8 @@ const cases: readonly Case[] = [
     state: {kind: 'enteringPin', rejected: true, waitUntil: 31_000, profile: {id: 'teen'}}},
   {name: 'row 20: wrong PIN with no floor → rejected, no waitUntil', row: 20,
     from: snap(entering(), {pending: 'pin'}), event: {type: 'pinRejected'}, state: {kind: 'enteringPin', rejected: true}, absent: ['waitUntil']},
+  {name: 'row 35: a management request refused while open (its hour ended) → management locked', row: 35,
+    from: snap(ready({remembered: true})), event: {type: 'manageRefused'}, state: {kind: 'ready', remembered: true, manageLocked: true}},
   {name: 'row 20: a wrong PIN on management unlock leaves ready as it was', row: 20,
     from: snap(ready({manageLocked: true}), {pending: 'unlock'}), event: {type: 'pinRejected'}, state: {kind: 'ready', manageLocked: true}},
   {name: 'row 21: Other profiles → choosingProfile focused on the PIN profile, switching kept', row: 21,
@@ -335,6 +342,11 @@ const cases: readonly Case[] = [
 ];
 
 for (const c of cases) test(c.name, () => check(c));
+
+test('a management refusal changes nothing while already locked, or anywhere but ready', () => {
+  assert.equal(nextLifecycle(snap(ready({manageLocked: true})), {type: 'manageRefused'}), undefined);
+  assert.equal(nextLifecycle(snap(choosing()), {type: 'manageRefused'}), undefined);
+});
 
 // Row 36: a failed action clears pending and stays on the screen it started on.
 const PENDINGS: readonly LifecyclePending[] = ['pick', 'pin', 'unlock', 'switchServer', 'signOut', 'forget', 'reset'];

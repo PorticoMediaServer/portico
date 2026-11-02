@@ -123,6 +123,9 @@ export class NativeProfileGated extends Error {
   constructor() {super('native_profile_gated'); this.name = 'NativeProfileGated';}
 }
 export const nativeProfileGated = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'profile_pin_reentry';
+/** PR-1: a remembered main profile past its management hour. Not a sign-out, a role change or a re-entry: the
+ *  profile keeps watching and the app asks for its PIN (native-session-lifecycle's manage gate). */
+export const nativeManageRefused = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'profile_pin_manage';
 
 const cancelled = () => Object.assign(new Error('native_session_lifecycle_cancelled'), {name: 'AbortError', code: 'cancelled'});
 // CC-03: the server may change this account's role; it is reconciled into the session, so it is not another viewer.
@@ -215,7 +218,8 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
         {authority: 'local', serverId, accountId: restored.session.viewer.accountId}, true); check();
       const profiles: readonly PickerProfile[] = Object.freeze(snapshot.profiles.map(value => Object.freeze({
         id: value.id, name: value.name, primary: value.primary, pinRequired: value.pinRequired})));
-      const facts: ConnectedFacts = Object.freeze({profiles, rememberProfiles: snapshot.rememberProfiles === true});
+      // PR-1: whether management needs the main profile's PIN is the server's answer, never assumed from the profile.
+      const facts: ConnectedFacts = Object.freeze({profiles, rememberProfiles: snapshot.rememberProfiles === true, manageLocked: snapshot.managePinRequired === true});
       // A refusal after this point (profile_pin_reentry) names its PIN screen from this account.
       context = Object.freeze({...context!, facts});
       const held = profiles.find(value => value.id === restored.session.viewer.profileId);

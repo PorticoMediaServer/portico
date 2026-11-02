@@ -22,8 +22,8 @@ import type {HttpLocalApi, LocalSession, Library} from '../../../../packages/cli
 import {beginRestoreTrace, markRestore} from './restore-trace';
 import {noteHomeRead} from './home-read-log';
 import {trackNativeConnection} from '../platform/server-connections';
-import {NativeProfileGated, nativeProfileGated, type NativeConnected} from '../platform/session-lifecycle-native';
-import {nativeRememberedProfile, nativeSessionLifecycle} from '../platform/native-session-lifecycle';
+import {NativeProfileGated, nativeManageRefused, nativeProfileGated, type NativeConnected} from '../platform/session-lifecycle-native';
+import {nativeManageGate, nativeRememberedProfile, nativeSessionLifecycle} from '../platform/native-session-lifecycle';
 import {beginNativeInstallation} from '../platform/installation';
 import {NativeStopResultConsumer} from '../platform/native-stop-consumer';
 import {NativeUserMutationStore,retainNativeUserMutationSelection} from '../platform/user-mutations';
@@ -162,7 +162,8 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     probe: () => api ? api.request<RouteResponse<'get_me'>>(routePath('get_me'), 'GET', undefined, signal.signal) : undefined});
   // A PIN change elsewhere (profile_pin_reentry) is neither a sign-out nor a role change: the device
   // asks for this profile's PIN again (C-DESIGN §2). Any other refusal goes through the role probe.
-  const refused = (cause?: unknown) => {if (nativeProfileGated(cause)) end(new NativeProfileGated()); else endUnlessRoleChanged();};
+  // A management refusal (profile_pin_manage) ends nothing: the manage gate asks for the PIN.
+  const refused = (cause?: unknown) => {if (nativeManageRefused(cause)) return; if (nativeProfileGated(cause)) end(new NativeProfileGated()); else endUnlessRoleChanged();};
   const abort = () => {if (alive) homeActionDiagnostics.lifetime?.('bootstrap-owner-abort', signal.signal, installation);dispose();};
   options.signal?.addEventListener('abort', abort, {once: true});
   cleanups.push(() => options.signal?.removeEventListener('abort', abort));
@@ -241,6 +242,8 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     // place (same viewer). A switch builds a new shell, so a late reply from before can't gate it.
     const ownTokens = new Set([restored.session.accessToken]);
     cleanups.push(local.subscribeProfileGate(({error, accessToken}) => {if (accessToken && ownTokens.has(accessToken)) queueMicrotask(() => refused(error));}));
+    // PR-1: a management request refused for the main profile's PIN asks for it; the shell keeps running.
+    cleanups.push(local.subscribeManageGate(({accessToken}) => {if (accessToken && ownTokens.has(accessToken)) queueMicrotask(() => {if (alive) nativeManageGate.refused();});}));
     session = restored.session;
     const accountBinding = createNativeShellAccountBinding(selected, session, {
       current: () => alive && installation.current() && !signal.signal.aborted,

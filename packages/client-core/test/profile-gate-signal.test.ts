@@ -59,3 +59,43 @@ test('a listener that throws changes nothing for the caller or the other listene
   assert.equal(failed.code, 'profile_pin_reentry');
   assert.equal(later, 1);
 });
+
+// PR-1: a remembered main profile past its management hour is refused with profile_pin_manage. That is not a PIN
+// re-entry (it keeps watching); the session's holder hears it on its own channel and asks for the PIN to manage.
+test('a request refused with profile_pin_manage reaches the manage gate, not the profile gate', async () => {
+  const api = new HttpLocalApi('http://127.0.0.1:19447', 'token-a', reply(403, 'profile_pin_manage'));
+  const manage: ProfileGateRefusal[] = []; let gated = 0;
+  api.subscribeProfileGate(() => {gated++;});
+  const off = api.subscribeManageGate(value => manage.push(value));
+  const failed = await api.request('/v1/direct/profiles', 'POST', {name: 'Kid'}).catch(error => error);
+  assert.equal(failed.code, 'profile_pin_manage');
+  assert.equal(gated, 0);
+  assert.equal(manage.length, 1);
+  assert.equal(manage[0]!.error, failed);
+  assert.equal(manage[0]!.accessToken, 'token-a');
+  off();
+  await api.request('/v1/direct/profiles', 'POST', {name: 'Kid'}).catch(() => {});
+  assert.equal(manage.length, 1, 'not heard after unsubscribing');
+});
+
+test('a playback v1 read refused with profile_pin_manage still reaches the manage gate', async () => {
+  const api = new HttpLocalApi('http://127.0.0.1:19447', 'token-a', reply(403, 'profile_pin_manage'));
+  const manage: ProfileGateRefusal[] = [];
+  api.subscribeManageGate(value => manage.push(value));
+  const answer = await api.requestRaw('/v1/admin/activity', 'GET');
+  assert.equal(answer.status, 403, 'the caller still reads its own answer');
+  assert.equal(manage.length, 1);
+  assert.equal(manage[0]!.error.code, 'profile_pin_manage');
+  assert.equal(manage[0]!.accessToken, 'token-a');
+});
+
+test('other refusals are not a management gate', async () => {
+  for (const [status, code] of [[403, 'forbidden'], [403, 'profile_pin_reentry'], [403, 'not_permitted']] as const) {
+    const api = new HttpLocalApi('http://127.0.0.1:19447', 'token', reply(status, code));
+    let heard = 0;
+    api.subscribeManageGate(() => {heard++;});
+    await api.request('/v1/direct/profiles', 'POST', {}).catch(() => {});
+    await api.requestRaw('/v1/admin/activity', 'GET');
+    assert.equal(heard, 0, code);
+  }
+});

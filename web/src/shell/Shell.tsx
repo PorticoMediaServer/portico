@@ -1,5 +1,7 @@
 import {profileTargetKey, switchAuthorityKey, switchOfferKey} from './profile-offer';
-import {enterContinuesProfile, profileContinueEnabled} from './profile-pin-enter';
+import {enterContinuesProfile, profileContinueEnabled, profileDialogText} from './profile-pin-enter';
+import {usePINLockSeconds} from '../kit/accounts/pin-feedback';
+import type {ManageGate} from './manage-gate';
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode} from 'react';
 import {Link, useNavigate, useRouterState} from '@tanstack/react-router';
 import {ownerSwitchContextAllowed} from '../platform/secure-pending';
@@ -35,6 +37,8 @@ export type ShellIdentity = Readonly<{
   /** The library directory did not answer (a timeout, a busy server). `libraries` is then not known
    * to be empty: no screen may treat it as "no libraries". Cleared when the directory answers. */
   librariesUnavailable?: true;
+  /** PR-1: the server's `managePinRequired`: this remembered main profile must enter its PIN before it manages the account. */
+  manageLocked?: true;
 }>;
 export type ShellProps = Readonly<{
   identity: ShellIdentity;
@@ -43,7 +47,9 @@ export type ShellProps = Readonly<{
   dockVisible: boolean;
   /** The verified connection reports the server away; the native desktop host draws one quiet line. */
   serverAway?: boolean;
-  onSignOut: () => void; onSignOutPorticoAccount?: () => void; onSwitchProfile?:(profileId:string,pin:string,signal:AbortSignal)=>Promise<void>; onSwitchServer?:(serverId:string,expectedRevision?:number)=>Promise<void>; savedServers?:readonly {id:string;label:string}[];
+  onSignOut: () => void; onSignOutPorticoAccount?: () => void; onSwitchProfile?:(profileId:string,pin:string,signal:AbortSignal)=>Promise<void>;
+  /** PR-1: management refusals for this sign-in; each one asks for the open profile's PIN (choosing it again unlocks management). */
+  manageGate?: ManageGate; onSwitchServer?:(serverId:string,expectedRevision?:number)=>Promise<void>; savedServers?:readonly {id:string;label:string}[];
   onFeedback?: () => void;
   pendingChanges?: PendingChangesBinding;
   overlays?: ReactNode;
@@ -61,7 +67,7 @@ const collapseMemoryKey = 'portico.next.sidebar-collapsed';
 export function Shell(props: ShellProps) {
   return <PhoneSelectionProvider><ShellFrame {...props}/></PhoneSelectionProvider>;
 }
-function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut, onSignOutPorticoAccount,onSwitchProfile,onSwitchServer,savedServers,onFeedback,pendingChanges, phoneSelection, overlays, windowChrome, children}: ShellProps) {
+function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut, onSignOutPorticoAccount,onSwitchProfile,manageGate,onSwitchServer,savedServers,onFeedback,pendingChanges, phoneSelection, overlays, windowChrome, children}: ShellProps) {
   useWindowScrollAnchor();
   const sizeClass = useSizeClass(), coarsePointer = useCoarsePointer();
   // A live screen selection draws its own action bar here, in place of the tab bar.
@@ -97,6 +103,17 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut
   };
   const profileDisplay = profileChoice && identity.profiles.find(profile => profile.id === profileChoice.id) || profileChoice;
   useEffect(()=>()=>profileRequest.current?.abort(),[]);
+  // PR-1: a management refusal asks for the open profile's PIN in the same dialog; choosing it again opens management for the hour.
+  const refusals = useSyncExternalStore(manageGate?.subscribe ?? noSubscription, () => manageGate?.getSnapshot() ?? 0, () => 0);
+  const manageLocked = identity.manageLocked === true || refusals > 0, heardRefusals = useRef(refusals);
+  useEffect(() => {
+    if (refusals === heardRefusals.current) return;
+    heardRefusals.current = refusals;
+    const self = identity.profiles.find(profile => profile.id === identity.viewer.profileId);
+    if (self && onSwitchProfile && !profileBusy && !profileChoice) offerProfile({...self, pinRequired: true});
+  }, [refusals]); // eslint-disable-line react-hooks/exhaustive-deps -- a new refusal is the only trigger
+  const lockSeconds = usePINLockSeconds(profileError), dialogText = profileDialogText(profileError, lockSeconds);
+  const unlocking = profileChoice?.id === identity.viewer.profileId;
   const chooseProfile=async(profile:ProfileIdentity,pin='')=>{if(!onSwitchProfile || profileProof.current !== JSON.stringify([switchAuthorityKey(identity), profileTargetKey(profile)]))return;profileRequest.current?.abort();const controller=profileRequest.current=new AbortController();setProfileBusy(true);setProfileError(undefined);try{await onSwitchProfile(profile.id,pin,controller.signal);if(!controller.signal.aborted)setProfileChoice(undefined);}catch(error){if(!controller.signal.aborted)setProfileError(error);}finally{if(profileRequest.current===controller)setProfileBusy(false);}};
   const home = pathname === '/', [accountOpen, setAccountOpen] = useState(false), [moreOpen, setMoreOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false), bell = useRef<HTMLButtonElement>(null), closeBell = () => setBellOpen(false);
@@ -193,7 +210,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut
           <button ref={bell} type="button" className={styles.icon} aria-haspopup="dialog" aria-expanded={bellOpen} aria-label={identity.unread > 0 ? t('next.home.shell.unread', {count: identity.unread}) : t('next.home.shell.notifications')}
             onClick={() => setBellOpen(value => !value)}><Icon name="i-bell" size={22} />{identity.showNotificationDot && identity.unread > 0 && <span className={styles.dot} />}</button>
           {bellOpen && NotificationsPopover && <NotificationsPopover anchorRef={bell} onClose={closeBell} />}
-          {identity.capabilities?.manageServer === true && showOwnerActivity(viewer.role, desktop) && !awayShown && <OwnerActivity />}
+          {identity.capabilities?.manageServer === true && !manageLocked && showOwnerActivity(viewer.role, desktop) && !awayShown && <OwnerActivity />}
           {account}
         </div>
       </nav> : !compact ? <nav className={styles.rail} data-window-drag-region="rail-empty" aria-label={t('next.home.shell.main')}>
@@ -215,7 +232,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut
         <div className={styles.railBottom} data-window-no-drag>
           {pending}
           <Link className={styles.railItem} to="/notifications" data-icon-only={navigation === 'rail' || undefined} aria-label={identity.unread > 0 ? t('next.home.shell.unread', {count: identity.unread}) : t('next.home.shell.notifications')} activeProps={{'aria-current': 'page'}}><Icon name="i-bell" size={22} />{navigation === 'sidebar' && <span data-nav-label>{t('next.home.shell.notifications')}</span>}{identity.showNotificationDot && identity.unread > 0 && <span data-nav-count aria-hidden="true">{identity.unread}</span>}</Link>
-          {identity.capabilities?.manageServer === true && viewer.role === 'owner' && !awayShown && <OwnerActivity presentation={navigation === 'sidebar' ? 'sidebar' : 'rail'} className={styles.railItem} />}
+          {identity.capabilities?.manageServer === true && !manageLocked && viewer.role === 'owner' && !awayShown && <OwnerActivity presentation={navigation === 'sidebar' ? 'sidebar' : 'rail'} className={styles.railItem} />}
           <Link className={styles.railItem} to="/settings" activeProps={{'aria-current': 'page'}}><Icon name="i-settings" size={22} /><span data-nav-label>{t('next.shell.settings')}</span></Link>
           {account}
         </div>
@@ -235,8 +252,11 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut
     </div>
     {awayShown && <ConnectionAway serverName={identity.serverName} />}
     {children}
-    <Dialog open={!!profileChoice&&(profileChoice.pinRequired===true||!!profileError)} onOpenChange={open=>{if(!open){profileProof.current=undefined;profileRequest.current?.abort();setProfileChoice(undefined);setProfilePin('');setProfileError(undefined);}}} title={profileDisplay?.name??identity.profileName} footer={<><Button variant="glass" onClick={()=>{profileProof.current=undefined;profileRequest.current?.abort();setProfileChoice(undefined);setProfilePin('');}}>{t('accounts.profiles.cancel')}</Button><Button disabled={!profileContinueEnabled(profileChoice?.pinRequired,profilePin,profileBusy)} onClick={()=>{if(profileChoice)void chooseProfile(profileChoice,profilePin);}}>{t('accounts.profiles.continue')}</Button></>}>
-      {profileChoice?.pinRequired&&<TextField type="password" inputMode="numeric" maxLength={4} autoComplete="off" label={t('accounts.profiles.pinForProfile',{profile:profileDisplay?.name ?? profileChoice.name})} value={profilePin} onChange={event=>setProfilePin(event.currentTarget.value)} onKeyDown={event=>{if(profileChoice&&enterContinuesProfile({key:event.key,isComposing:event.nativeEvent.isComposing},profileChoice.pinRequired,profilePin,profileBusy)){event.preventDefault();void chooseProfile(profileChoice,profilePin);}}} error={(profileError as {code?:unknown}|undefined)?.code==='profile_pin_invalid'?t('accounts.profiles.pinFailed'):undefined} />}
+    <Dialog open={!!profileChoice&&(profileChoice.pinRequired===true||!!profileError)} onOpenChange={open=>{if(!open){profileProof.current=undefined;profileRequest.current?.abort();setProfileChoice(undefined);setProfilePin('');setProfileError(undefined);}}} title={profileDisplay?.name??identity.profileName}
+      description={unlocking ? t('error.profilePinManage') : undefined}
+      footer={<><Button variant="glass" onClick={()=>{profileProof.current=undefined;profileRequest.current?.abort();setProfileChoice(undefined);setProfilePin('');}}>{t('accounts.profiles.cancel')}</Button><Button disabled={!profileContinueEnabled(profileChoice?.pinRequired,profilePin,profileBusy)||lockSeconds>0} onClick={()=>{if(profileChoice)void chooseProfile(profileChoice,profilePin);}}>{t('accounts.profiles.continue')}</Button></>}>
+      {profileChoice?.pinRequired&&<TextField type="password" inputMode="numeric" maxLength={4} autoComplete="off" label={t('accounts.profiles.pinForProfile',{profile:profileDisplay?.name ?? profileChoice.name})} value={profilePin} onChange={event=>setProfilePin(event.currentTarget.value)} onKeyDown={event=>{if(profileChoice&&enterContinuesProfile({key:event.key,isComposing:event.nativeEvent.isComposing},profileChoice.pinRequired,profilePin,profileBusy)&&lockSeconds===0){event.preventDefault();void chooseProfile(profileChoice,profilePin);}}} error={dialogText.pin} />}
+      {dialogText.failure&&<p role="alert">{dialogText.failure}</p>}
     </Dialog>
     {switchOpening && <SwitchProfileServerHost opening={switchOpening} presentation={identity} close={() => {if (switchOwner.current === switchOpening) switchOwner.current = undefined; setSwitchOpening(current => current === switchOpening ? undefined : current);}} />}
     {overlays}
