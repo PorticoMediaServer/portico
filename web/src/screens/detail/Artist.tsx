@@ -29,6 +29,7 @@ import type {ListeningViewerScope} from '@core/listening.ts';
 import {entrySubject} from './model';
 import {cardText} from '@core/presentation/kit-model';
 import {MusicEntryMenu} from './MusicEntryMenu';
+import {OwnerMetadataGroup} from './OwnerMetadataGroup';
 import {MusicDetailLoading} from './MusicLoading';
 import styles from './artist.module.css';
 
@@ -186,13 +187,16 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
               return playArtist(artistId, lease.signal, witness, true);
             })}>{t('title.shuffle')}</Button>
           </>}
-          {context.effects.playRadio && <Button ref={more} variant="glass" icon="i-more" iconOnly aria-label={t('card.more', {title: artist.title})}
+          {(context.effects.playRadio || context.effects.editMetadata) && <Button ref={more} variant="glass" icon="i-more" iconOnly aria-label={t('card.more', {title: artist.title})}
             onClick={event => {if (witness()) setMenu({page: projection, anchor: event.currentTarget});}}/>}
         </div>
       </div>
     </header>
     {menu?.page === projection && <Menu open onOpenChange={open => {if (!open) setMenu(current => current === menu ? undefined : current);}} anchorRef={{current: menu.anchor}} returnFocusRef={{current: menu.anchor}} title={artist.title}>
       <MusicEntryMenu context={context} seed={{id: artist.id, title: artist.title}} signal={lease.signal} current={witness}/>
+      <OwnerMetadataGroup separated={!!context.effects.playRadio} context={context} anchor={() => menu.anchor}
+        guard={() => {if (!witness()) throw new DOMException('Artist page changed', 'AbortError');}}
+        target={{entityKind: 'artist', entityId: artist.id, libraryId, title: artist.title}}/>
     </Menu>}
     {/* desktop-listen #artist: Top songs on the left; Albums then Details in the 360px aside. */}
     <section className={styles.split}>

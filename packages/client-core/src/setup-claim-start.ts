@@ -3,6 +3,7 @@ import {validInstallationId} from './installation.ts';
 import {routeBase64, routeBytes, routeOrigin, sameServerPin, serverPin, webRouteCrypto, type RouteCrypto, type ServerPin} from './route-identity.ts';
 import {setupAddressAllowed} from './setup-address.ts';
 import {CodedError} from './server-messages.ts';
+import {clockOrigin, serverNow} from './server-clock.ts';
 
 const claimFields = ['kind', 'audience', 'operationId', 'serverId', 'accountId', 'publicKey', 'localGeneration', 'name', 'address', 'purpose', 'currentOwnerAccountId', 'previousOwnerRole', 'returnRegistrationId', 'issuedAt', 'expiresAt'] as const;
 const setupFields = ['kind', 'audience', 'claimHash', 'operationId', 'serverId', 'publicKey', 'localGeneration', 'address', 'purpose', 'setupRequestId', 'setupRevision', 'state', 'codeChallenge', 'installationId', 'serverChallenge', 'issuedAt', 'expiresAt'] as const;
@@ -17,7 +18,7 @@ const timestamp = (value: string) => canonicalClaimTimestamp(value, invalid);
 /** Verify only immutable setup proof binding. The setup token is deliberately
  * absent: current request/revision authority, challenge consumption and final
  * owner admission remain Server operations, separate from switch authority. */
-export async function verifySetupClaimStart(original: unknown, signedStart: unknown, expected: SetupStartExpectation, now = Date.now(), crypto: RouteCrypto = webRouteCrypto) {
+export async function verifySetupClaimStart(original: unknown, signedStart: unknown, expected: SetupStartExpectation, now = serverNow(clockOrigin(expected.origin)), crypto: RouteCrypto = webRouteCrypto) {
   expected = Object.freeze({...expected, pin: Object.freeze({...expected.pin})});
   if (!Number.isSafeInteger(now) || !canonicalClaimCounter(expected.localGeneration) || !canonicalClaimCounter(expected.setupRevision) || expected.setupRevision === '0' ||
     !/^[A-Za-z0-9_-]{1,128}$/.test(expected.operationId) || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(expected.setupRequestId) || !validInstallationId(expected.installationId)) invalid();
@@ -33,7 +34,8 @@ export async function verifySetupClaimStart(original: unknown, signedStart: unkn
     !claim.name || new TextEncoder().encode(claim.name).length > 120 || start.setupRequestId !== expected.setupRequestId || start.setupRevision !== expected.setupRevision ||
     start.state !== expected.state || start.codeChallenge !== expected.codeChallenge || start.installationId !== expected.installationId || !/^[A-Za-z0-9_-]{32,128}$/.test(start.serverChallenge)) invalid();
   const issued = timestamp(claim.issuedAt), expires = timestamp(claim.expiresAt), startIssued = timestamp(start.issuedAt), startExpires = timestamp(start.expiresAt), nowNS = BigInt(now) * 1000000n;
-  if (issued > nowNS + 60000000000n || expires <= nowNS || expires <= issued || expires - issued > 1800000000000n || startIssued < issued || startIssued > nowNS + 60000000000n ||
+  // No client-clock requirements: an issuance is never bounded above by this device's clock; only the server's own instants constrain each other.
+  if (expires <= nowNS || expires <= issued || expires - issued > 1800000000000n || startIssued < issued ||
     startExpires <= nowNS || startExpires <= startIssued || startExpires - startIssued > 1800000000000n || startExpires > expires) invalid();
   if (routeBase64(await crypto.sha256(c.raw)) !== start.claimHash) invalid();
   routeBytes(start.claimHash, 32);

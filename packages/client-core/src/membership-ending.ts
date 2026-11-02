@@ -1,3 +1,4 @@
+import {serverNow} from './server-clock.ts';
 /** An explicit own-account directory projection. It is never derived from an
  * empty list, HTTP refusal, expired invitation or account-initiated Departure. */
 export type MembershipEndingNotice = Readonly<{serverId:string;membershipId:string;sequence:number;cause:'owner_removed';serverName?:string;expiresAt:string}>;
@@ -25,7 +26,7 @@ export function membershipEndingWasShown(store:MarkerStore,accountId:string,noti
  return markers(store,accountId).some(value=>value.id===membershipEndingIdentity(notice));
 }
 /** Record only from the actual notice's committed layout, under that same lock. */
-export function recordMembershipEndingShown(store:MarkerStore,accountId:string,notice:MembershipEndingNotice,now:number):boolean {
+export function recordMembershipEndingShown(store:MarkerStore,accountId:string,notice:MembershipEndingNotice,now:number=serverNow()):boolean {
  const expires=Date.parse(notice.expiresAt),events=markers(store,accountId),id=membershipEndingIdentity(notice);
  if(expires<=now||events.some(value=>value.id===id)||events.length>=2048)return false;
  store.setItem(markerKey(accountId),JSON.stringify({version:1,events:[...events,{id,expires}]}));return true;

@@ -2,6 +2,7 @@ import {routePath as hostedRoutePath} from "../../contracts/src/hosted/routes.ts
 import {routePath} from "../../contracts/src/route-paths.ts";
 import {randomId} from './random-id.ts';
 import {ApiError, HttpLocalApi} from './index.ts';
+import {serverNow} from './server-clock.ts';
 import type {DeviceAuthorization} from './device-authorization.ts';
 import {routeOrigin} from './route-identity.ts';
 import {hostedGate, type HostedGate, type HostedRequestKind} from './hosted-gate.ts';
@@ -49,11 +50,12 @@ export type SetupCodeSnapshot<T> = {
   grant?: T;
   message?: string;
 };
-function validAuthorization(value: DeviceAuthorization, now: number) {
+// No client-clock requirements: a code's expiry is the issuer's, so it is never bounded against this device's clock.
+function validAuthorization(value: DeviceAuthorization) {
   if (!value || normalizeSetupCode(value.userCode) !== value.userCode ||
       typeof value.deviceCode !== 'string' || value.deviceCode.length < 43 || value.deviceCode.length > 128 ||
       !Number.isSafeInteger(value.interval) || value.interval < 5 || value.interval > 300 ||
-      !Number.isFinite(Date.parse(value.expiresAt)) || Date.parse(value.expiresAt) > now + 605_000)
+      !Number.isFinite(Date.parse(value.expiresAt)))
     throw new Error('The activation response was invalid.');
   const uri = new URL(value.verificationUri);
   routeOrigin(uri.origin);
@@ -130,7 +132,7 @@ export class SetupCodeService<T> {
     const current = this.journal?.current;
     if (current?.grant !== undefined) {this.approvedRequestId=current.requestId;this.api.displayed?.(undefined); this.emit({phase: 'approved', grant: current.grant, message}); return;}
     this.approvedRequestId=undefined;
-    if (current && Date.parse(current.authorization.expiresAt) > Date.now()) {
+    if (current && Date.parse(current.authorization.expiresAt) > serverNow()) {
       const {userCode, verificationUri, verificationUriComplete, expiresAt} = current.authorization;
       this.api.displayed?.(current);
       this.emit({phase: 'waiting', userCode, verificationUri, verificationUriComplete, expiresAt});
@@ -147,7 +149,7 @@ export class SetupCodeService<T> {
     if (this.running) return;
     this.running = true; // Resume the same durable operation; only cancellation changes its generation.
     try {await this.change(record => record); const current = this.journal?.current;
-      if (current) validAuthorization(current.authorization, Date.now());
+      if (current) validAuthorization(current.authorization);
       this.explicitStart = true; this.show(); this.schedule(0);
     } catch (error) {this.running = false; this.emit({phase: 'error', message: error instanceof Error ? error.message : 'Activation could not be saved.'});}
   }
@@ -161,7 +163,7 @@ export class SetupCodeService<T> {
     const expiry = current?.grant === undefined ? Date.parse(current?.authorization.expiresAt ?? '') : 0;
     // Expire the visible code locally even while network work is deferred.
     // Keep its protected receipt so an already consumed grant can be recovered.
-    if (expiry > Date.now()) delay = Math.min(delay, expiry - Date.now());
+    if (expiry > serverNow()) delay = Math.min(delay, expiry - serverNow());
     if (this.running) this.timer = setTimeout(() => {void this.step();}, delay);
   }
   private async step() {
@@ -224,7 +226,7 @@ export class SetupCodeService<T> {
       }
     }
     if (generation !== this.generation || !this.running || this.journal?.current?.grant !== undefined) return;
-    const now = Date.now(), remaining = this.journal?.current ? Date.parse(this.journal.current.authorization.expiresAt) - now : 0;
+    const now = Date.now(), remaining = this.journal?.current ? Date.parse(this.journal.current.authorization.expiresAt) - serverNow() : 0;
     if (remaining <= this.options.replaceBeforeMs && now >= this.createAfter) {
       // Reserve room to retire the visible request AND an uncertain creation.
       if((this.journal?.retired.length??0)>=7){this.show('Previous activations need cleanup before replacement.');return;}
@@ -243,14 +245,14 @@ export class SetupCodeService<T> {
         if (error instanceof ApiError && error.retryAfterSeconds) this.createAfter = Date.now() + error.retryAfterSeconds * 1000;
         throw error;
       }
-      validAuthorization(authorization, Date.now());
+      validAuthorization(authorization);
       const entry: SetupCodeEntry<T> = {requestId: creating.requestId, authorization, nextPollAt: Date.now() + authorization.interval * 1000};
       if (generation !== this.generation) {
         // The response carries a secret learned after cancellation. Quarantine
         // it before cleanup rather than forgetting an uncertain issued grant.
         await this.change(record => ({...record, creating:record.creating?.requestId===entry.requestId?undefined:record.creating, retired:record.retired.some(v=>v.requestId===entry.requestId)?record.retired:[...record.retired, entry]})); return;
       }
-      if (Date.parse(authorization.expiresAt) <= Date.now()) {
+      if (Date.parse(authorization.expiresAt) <= serverNow()) {
         await this.change(record => ({...record, creating: undefined, retired: [...record.retired, entry]}));
         throw new Error('Creating a new activation code.');
       }
@@ -276,7 +278,7 @@ export class SetupCodeService<T> {
         // Cancellation cannot discard an idempotency key merely because the
         // create reply was lost. Reconcile that SAME operation, then revoke it.
         const authorization=await this.bounded(signal=>this.request(kind,()=>this.api.create(creating.requestId,signal,kind)));
-        validAuthorization(authorization,Date.now());
+        validAuthorization(authorization);
         const retired:SetupCodeEntry<T>={requestId:creating.requestId,authorization,nextPollAt:0};
         await this.change(record=>record.creating?.requestId===creating.requestId?{...record,creating:undefined,retired:record.retired.some(v=>v.requestId===retired.requestId)?record.retired:[...record.retired,retired]}:record);
         await this.bounded(signal=>this.request(kind,()=>this.api.cancel(retired,signal,kind)));
@@ -326,7 +328,7 @@ export class SetupCodeApprover {
     const result = await this.request(() => this.api.request<SetupPreview>(this.path + '/review', 'POST', {userCode: normalizeSetupCode(code)}, signal));
     if (!result || typeof result.requestId !== 'string' || result.requestId.length > 128 ||
         normalizeSetupCode(result.userCode) !== normalizeSetupCode(code) ||
-        !Number.isFinite(Date.parse(result.expiresAt)) || Date.parse(result.expiresAt) <= Date.now() ||
+        !Number.isFinite(Date.parse(result.expiresAt)) ||
         typeof result.deviceName !== 'string' || result.deviceName.length > 100)
       throw new Error('This device request is no longer available.');
     return result;

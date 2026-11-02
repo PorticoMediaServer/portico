@@ -6,6 +6,7 @@
  */
 import {throwIfAborted} from './abort-lifetime.ts';
 import {releaseQuietly} from './cleanup.ts';
+import {serverNow} from './server-clock.ts';
 
 /** now() is monotonic milliseconds, never wall time. */
 export interface Scheduler {
@@ -126,7 +127,7 @@ export function nextDelay(policy: Backoff, failures: number, floor?: ServerFloor
 
 /** RFC 9110 Retry-After (delay-seconds or an HTTP-date) as milliseconds from now; undefined when
  * absent, malformed or already past. Wall time is read only here; waiting uses the monotonic clock. */
-export function parseRetryAfter(value: string | null | undefined, wallNowMs: number = Date.now()): number | undefined {
+export function parseRetryAfter(value: string | null | undefined, wallNowMs: number = serverNow()): number | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;

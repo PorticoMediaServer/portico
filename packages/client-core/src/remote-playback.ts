@@ -7,6 +7,7 @@ import type {EventsClient} from './playback-v1/events.ts';
 import {SessionsClient,type SessionChange} from './playback-v1/sessions.ts';
 import {PlaybackApiError,type V1Request,type V1Response} from './playback-v1/http.ts';
 import type {Session} from './playback-v1/types.ts';
+import {serverNow} from './server-clock.ts';
 
 /** Moving playback to a Portico television, and being that television.
  *
@@ -249,7 +250,7 @@ export class ReceiverHost{
  private async take(handoff:Handoff,signal:AbortSignal){
   this.publish({phase:'starting'});
   this.player.load(handoff.itemId,Number(BigInt(handoff.requestedPositionUs)/1000n)/1000);
-  const deadline=Date.parse(handoff.expiresAt)||Date.now()+120000;
+  const deadline=Date.now()+(Date.parse(handoff.expiresAt)-serverNow()||120000); // the handoff's expiry is the server's: wait out its remaining time on this device's own timer
   while(!signal.aborted&&Date.now()<deadline){
    await wait(500,signal);
    const now=this.player.state();

@@ -14,7 +14,7 @@ function proof(fields:Record<string,unknown>,tamper=false):typeof fetch {
   const asked=JSON.parse(String(init?.body));
   assert.deepEqual(Object.keys(asked).sort(),['baseUrl','nonce']); // old servers reject unknown body fields
   const now=Date.now();
-  const raw=Buffer.from(JSON.stringify({kind:'portico.route-proof',version:'2',...pin,baseUrl:asked.baseUrl,nonce:asked.nonce,issuedAt:new Date(now).toISOString(),expiresAt:new Date(now+30000).toISOString(),...fields}));
+  const raw=Buffer.from(JSON.stringify({kind:'portico.route-proof',version:'2',...pin,baseUrl:asked.baseUrl,nonce:asked.nonce,...fields}));
   const signature=sign(null,raw,keys.privateKey);
   if(tamper)signature[0]=(signature[0]+1)%256;
   return new Response(JSON.stringify({payload:raw.toString('base64url'),signature:signature.toString('base64url')}),{headers:{'Content-Type':'application/json'}});

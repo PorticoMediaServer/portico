@@ -58,7 +58,7 @@ test('nothing waits without a chosen server, and a person choosing is never take
  const two=fixture([server,other],true);two.flow.automaticInitial();await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(two.admissions,[]);two.flow.dispose();
 });
 test('a refusal, a changed identity or a server needing an update is not retried',async()=>{
- for(const failure of [new ApiError(403,'access_refused','access_refused',false),new RouteError('api_level_mismatch','update'),new RouteError('clocks_disagree','clock')]){
+ for(const failure of [new ApiError(403,'access_refused','access_refused',false),new RouteError('api_level_mismatch','update')]){
   const f=fixture();f.admit(async()=>{throw failure;});await f.flow.open(server,f.flow.getSnapshot());
   assert.equal(f.flow.getSnapshot().waitingId,undefined);const count=f.admissions.length;f.flow.automatic();await new Promise(resolve=>setImmediate(resolve));
   assert.equal(f.admissions.length,count);f.flow.dispose();

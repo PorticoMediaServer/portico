@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../../packages/client-core/src/server-clock';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
 import React, {useCallback, useEffect, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
@@ -91,7 +92,7 @@ function General({ports, runtime, compactHeader = false, group}: {ports: NativeS
       .catch(error => {if (lifetime.current()) setUpdateError(error);}).finally(() => {if (lifetime.current()) setChecking(false);});
   }, [api, lifetime]);
   useEffect(() => {loadUpdates();}, [loadUpdates]);
-  const now = Date.now(), pausedUntil = maintenanceState.status?.pausedUntilUnixMillis ?? 0, paused = pausedUntil > now;
+  const now = serverNow(), pausedUntil = maintenanceState.status?.pausedUntilUnixMillis ?? 0, paused = pausedUntil > now;
   const pause = () => {
     setBusy(true); setProblem(undefined);
     void pauseBackgroundWork({api}, !paused, ports.requestId()).then(() => forms.maintenance.load(), error => setProblem(presentError(error, 'server-console').body)).finally(() => setBusy(false));

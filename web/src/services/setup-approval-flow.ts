@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {ApiError} from '@core/index.ts';
 import {serverFloorFrom, systemScheduler, wait, type Scheduler} from '@core/timer.ts';
 import {accountIdentity, currentAccountWork, sameAccount, type AccountIdentity, type ServicesAccount} from './session';
@@ -47,7 +48,7 @@ export class SetupApprovalFlow {
   private slowChecks = 0;
   private lapsed = false;
   constructor(private readonly account: ServicesAccount, private readonly controller: Controller,
-    private readonly navigate: (location: string) => void, private readonly now = Date.now, private readonly scheduler: Scheduler = systemScheduler) {}
+    private readonly navigate: (location: string) => void, private readonly now = serverNow, private readonly scheduler: Scheduler = systemScheduler) {}
   readonly getSnapshot = () => this.state;
   readonly subscribe = (listener: () => void) => {this.listeners.add(listener); return () => this.listeners.delete(listener);};
   private publish(state: SetupApprovalSnapshot) {

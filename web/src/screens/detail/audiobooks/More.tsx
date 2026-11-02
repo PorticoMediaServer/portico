@@ -4,6 +4,7 @@ import type {DownloadOptionsView} from '@core/downloads.ts';
 import {Button} from '../../../kit/controls';
 import {Menu, MenuItem} from '../../../kit/overlays';
 import {DownloadNotice} from '../DownloadNotice';
+import {OwnerMetadataGroup, type MetadataTarget} from '../OwnerMetadataGroup';
 import {runScreenCommand} from '../context';
 import {t} from '../text';
 import type {AudiobookBindings} from './bindings';
@@ -29,13 +30,19 @@ export function AudiobookMore({binding, page, entry, variant = 'ghost'}: {bindin
     const options = await effects.download.options(target, request.signal, valid);
     if (valid() && options.policy.allowDownloads) setDownload({options, request, busy: false});
   });
-  if (!restart && !(leaf && (effects.addToPlaylist || effects.addToCollection || effects.deleteTitle || effects.download))) return null;
+  // The book page's own More edits the whole book; a part's More edits that part.
+  const metadata: MetadataTarget | undefined = entry === page.entity && page.scope.view === 'book' && entry.kind === 'book'
+    ? {entityKind: 'book', entityId: entry.id, libraryId: page.scope.libraryId, title: entry.title} : leaf ? target as MetadataTarget : undefined;
+  const editable = !!(metadata && effects.editMetadata);
+  if (!restart && !editable && !(leaf && (effects.addToPlaylist || effects.addToCollection || effects.deleteTitle || effects.download))) return null;
   return <><Menu open={open} onOpenChange={setOpen} title={entry.title} trigger={<Button ref={anchor} variant={variant} icon="i-more" iconOnly aria-label={t('card.more', {title: entry.title})}/>}>
     {restart && <MenuItem icon="i-retry" onSelect={() => run(() => binding.primary(page, true))}>{t('action.startOver')}</MenuItem>}
     {leaf && effects.download && <MenuItem icon="i-download" onSelect={loadDownload}>{t('next.detail.downloadAction')}</MenuItem>}
     {leaf && effects.addToPlaylist && <MenuItem icon="i-listadd" onSelect={() => destination(effects.addToPlaylist)}>{t('next.selection.addToPlaylist')}</MenuItem>}
     {leaf && effects.addToCollection && <MenuItem icon="i-layers" onSelect={() => destination(effects.addToCollection)}>{t('next.selection.addToCollection')}</MenuItem>}
     {leaf && effects.deleteTitle && <MenuItem icon="i-trash" onSelect={() => destination(effects.deleteTitle)}>{t('next.selection.deleteMenu')}</MenuItem>}
+    {editable && <OwnerMetadataGroup separated={restart || leaf && !!(effects.download || effects.addToPlaylist || effects.addToCollection || effects.deleteTitle)} context={binding.context} target={metadata}
+      anchor={() => anchor.current} guard={() => {if (!current()) throw new DOMException('Audiobook page changed', 'AbortError');}}/>}
   </Menu>
     {download && <DownloadNotice open onOpenChange={value => {if (!value) close();}} title={entry.title} options={download.options} busy={download.busy} returnFocusRef={anchor}
       onChoose={quality => run(async () => {

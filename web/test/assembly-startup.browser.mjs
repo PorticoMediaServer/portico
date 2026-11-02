@@ -30,10 +30,9 @@ try {
       }
       if (pathname === '/v1/networking/identity-proof' && request.method === 'POST') {
         requests.proof++;let body = '';for await (const chunk of request) body += chunk;
-        const asked = JSON.parse(body), now = Date.now();
+        const asked = JSON.parse(body);
         assert.equal(asked.baseUrl, `http://${request.headers.host}`);
-        const payload = Buffer.from(JSON.stringify({kind: 'portico.route-proof', version: '2', ...pin, baseUrl: asked.baseUrl, nonce: asked.nonce,
-          issuedAt: new Date(now).toISOString(), expiresAt: new Date(now + 30000).toISOString()}));
+        const payload = Buffer.from(JSON.stringify({kind: 'portico.route-proof', version: '2', ...pin, baseUrl: asked.baseUrl, nonce: asked.nonce}));
         response.writeHead(200, {'Content-Type': 'application/json'});
         response.end(JSON.stringify({payload: payload.toString('base64url'), signature: sign(null, payload, keys.privateKey).toString('base64url')}));return;
       }

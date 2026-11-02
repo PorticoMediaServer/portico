@@ -1,3 +1,4 @@
+import {clockOrigin, observeResponseClock} from '../../../../packages/client-core/src/server-clock';
 import {accountExpectation, nativeAccountRead} from './account-work';
 import type {CredentialAccessExpectation} from '../../../../packages/client-core/src/credentials';
 import {nativeReadingPolicy, nativeReadingResponse, nativeReadingStreamResponse} from './reading-response';
@@ -304,7 +305,10 @@ void loadConnectionPreference();
 /** `/v1/networking/connection` without credentials, for connection details and an insecure route's
  * home check (route-connection.ts `readConnection`). */
 async function readNativeConnection(origin: string, signal: AbortSignal): Promise<unknown> {
-  return routeJSON(await nativeNetworkFetch(routeOrigin(origin) + routePath('get_connection'), {method: 'GET', signal, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', headers: {Accept: 'application/json'}}), signal, 8192);
+  const sentAt = Date.now();
+  const response = await nativeNetworkFetch(routeOrigin(origin) + routePath('get_connection'), {method: 'GET', signal, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', headers: {Accept: 'application/json'}});
+  observeResponseClock(clockOrigin(origin), response, sentAt);
+  return routeJSON(response, signal, 8192);
 }
 const nativeEnvironment = {
   fetcher: nativeNetworkFetch,

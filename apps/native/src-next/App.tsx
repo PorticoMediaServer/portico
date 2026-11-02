@@ -8,6 +8,7 @@ import {NativeShell, type NativeShellRuntime} from './shell';
 import {RestoredShell} from './shell/RestoredShell';
 import {AppErrorBoundary} from './shell/AppErrorBoundary';
 import {reportFirstFrame} from './platform/boot-host';
+import './platform/server-clock-store';
 
 if (!Platform.isTV) {
   // Native accounts routes register as a module side effect. Metro's inline

@@ -20,7 +20,7 @@ function transport(overrides:{proof?:Record<string,unknown>;system?:Record<strin
   let response:Response;
   if(url.endsWith(routePath('prove_network_identity'))){
    const asked=JSON.parse(String(init?.body)),now=Date.now();
-   const payload=Buffer.from(JSON.stringify({kind:'portico.route-proof',version:'1',...captured,baseUrl:asked.baseUrl,nonce:asked.nonce,fingerprint:createHash('sha256').update(rawKey).digest('base64url'),issuedAt:new Date(now).toISOString(),expiresAt:new Date(now+30000).toISOString(),...overrides.proof}));
+   const payload=Buffer.from(JSON.stringify({kind:'portico.route-proof',version:'1',...captured,baseUrl:asked.baseUrl,nonce:asked.nonce,fingerprint:createHash('sha256').update(rawKey).digest('base64url'),...overrides.proof}));
    response=json({payload:payload.toString('base64url'),signature:sign(null,payload,keys.privateKey).toString('base64url')});
   }else {assert.equal(url,captured.baseUrl+routePath('get_system'));response=json({...system,...overrides.system});}
   if(overrides.redirect)Object.defineProperty(response,'redirected',{value:true});

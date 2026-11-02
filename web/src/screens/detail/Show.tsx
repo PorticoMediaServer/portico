@@ -9,7 +9,7 @@ import {AmbientArt, Artwork} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {Lockup, layoutType, platformType} from '../../kit/layout';
 import {EpisodeTile} from '../../kit/cards';
-import {Menu, MenuItem, MenuSeparator, Popover} from '../../kit/overlays';
+import {Menu, MenuItem, Popover} from '../../kit/overlays';
 import {OwnerTag, ServerMark} from '../../kit/shell';
 import {StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
@@ -33,12 +33,19 @@ import {GenreNames} from './GenreNames';
 import type {ContainerState} from '@core/container-state.ts';
 import {SeasonMenu} from './SeasonMenu';
 import {showPrimary} from './show-primary';
+import {OwnerMetadataGroup} from './OwnerMetadataGroup';
 
 export type ShowScreenProps = {binding: ShowBindings; selection?: CatalogueDocumentSelection; target: ShowWorkspaceRoute};
 export function ShowScreen({binding, target, selection}: ShowScreenProps) {
   const key = JSON.stringify(target);
   useEffect(() => { const route: ShowWorkspaceRoute = JSON.parse(key), request = new AbortController(); void binding.select(route, request.signal).catch(error => { if (!request.signal.aborted) binding.context.effects.reportError(error); }); return () => { request.abort(); binding.cancel(); }; }, [binding, key]);
   return <ShowBody binding={binding} selection={selection} />;
+}
+
+/** Owner rows act only for the show page they were opened on, while this profile still manages the server. */
+function manageGuard(binding: ShowBindings, data: ShowWorkspaceData) {
+  binding.current(data);
+  if (!binding.canManage()) throw new DOMException('Show management changed', 'AbortError');
 }
 
 /** Root §14: complete-season actions; the display editor remains show-scoped. */
@@ -57,7 +64,10 @@ export function SeasonOptions({binding, data, label}: {binding: ShowBindings; da
     <Menu presentation="anchored" open={open} onOpenChange={setOpen} title={t('next.detail.seasonOptions', {season: label})} trigger={<Button ref={anchor} variant="icon" size="small" icon="i-more" iconOnly aria-label={t('next.detail.seasonOptions', {season: label})} />}>
       <MenuItem onSelect={() => runScreenCommand(binding.context, () => binding.playSeason(data))}>{t('next.detail.playSeason')}</MenuItem>
       <MenuItem disabled={!state} onSelect={() => runScreenCommand(binding.context, () => { if (!state) return; return binding.setSeasonWatched(data, state, !complete); })}>{t(complete ? 'next.detail.markSeasonUnwatched' : 'next.detail.markSeasonWatched')}</MenuItem>
-      {owner && <><MenuSeparator /><MenuItem onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); if (!binding.canManage()) throw new DOMException('Show management changed', 'AbortError'); setDisplay(true); })}>{t('next.detail.episodeDisplay')}</MenuItem></>}
+      {owner && <OwnerMetadataGroup separated context={binding.context} anchor={() => anchor.current} guard={() => manageGuard(binding, data)}
+        target={data.selected.seasonId ? {entityKind: 'season', entityId: data.selected.seasonId, libraryId: data.scope.libraryId, title: label} : undefined}>
+        <MenuItem onSelect={() => runScreenCommand(binding.context, () => { manageGuard(binding, data); setDisplay(true); })}>{t('next.detail.episodeDisplay')}</MenuItem>
+      </OwnerMetadataGroup>}
     </Menu>
     {owner && <Popover open={display} onOpenChange={setDisplay} anchorRef={anchor} returnFocusRef={anchor} width={540} className={styles.settingsMenu} title={t('title.showSettings')}><ShowSettingsMenu binding={binding} data={data} /></Popover>}
   </>;
@@ -82,7 +92,10 @@ function ShowMore({binding, data, personal, busy}: {binding: ShowBindings; data:
   return <>
     <Menu open={open} onOpenChange={setOpen} title={data.show.title} trigger={<Button ref={anchor} icon="i-more" iconOnly aria-label={t('next.controls.more')} />}>
       {personal && <MenuItem icon="i-heart" disabled={busy} selected={personal.favorite} onSelect={() => runScreenCommand(binding.context, () => binding.setFavorite(data, !personal.favorite))}>{t(personal.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}</MenuItem>}
-      {owner && <>{personal && <MenuSeparator />}<MenuItem onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); if (!binding.canManage()) throw new DOMException('Show management changed', 'AbortError'); setSettings(true); })}>{t('title.showSettings')}</MenuItem></>}
+      {owner && <OwnerMetadataGroup separated={!!personal} context={binding.context} anchor={() => anchor.current} guard={() => manageGuard(binding, data)}
+        target={{entityKind: 'show', entityId: data.show.id, libraryId: data.scope.libraryId, title: data.show.title}}>
+        <MenuItem onSelect={() => runScreenCommand(binding.context, () => { manageGuard(binding, data); setSettings(true); })}>{t('title.showSettings')}</MenuItem>
+      </OwnerMetadataGroup>}
     </Menu>
     {owner && <Popover open={settings} onOpenChange={setSettings} anchorRef={anchor} returnFocusRef={anchor} width={540} className={styles.settingsMenu} title={t('title.showSettings')}><ShowSettingsMenu binding={binding} data={data} /></Popover>}
   </>;

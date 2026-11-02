@@ -43,14 +43,14 @@ test('route evidence rejects wrong audience, signature, identity and expiry',asy
  await assert.rejects(verifyRoutes(signed({...document(),audience:'other'}),key,expected));
  await assert.rejects(verifyRoutes(signed({...document(),fingerprint:'A'.repeat(43)}),key,expected));
  const tampered=signed(document());tampered.signature='A'.repeat(86);await assert.rejects(verifyRoutes(tampered,key,expected));
- const expired=signed(document(undefined,'1',Date.now()-46*60000));await assert.rejects(verifyRoutes(expired,key,expected));
- assert.equal((await verifyRoutes(expired,key,{...expected,allowExpiredHint:true})).document.serverId,pin.serverId);
+ // No client-clock requirements: a document's times are checked against each other, never this device's clock.
+ for(const issued of [Date.now()-365*86400000,Date.now()+365*86400000])assert.equal((await verifyRoutes(signed(document(undefined,'1',issued)),key,expected)).document.serverId,pin.serverId);
 });
 test('fresh nonce proof uses no credentials and binds the actual requested origin',async()=>{
  const origin='http://192.168.1.8:32500';let sent=0;
- const fetcher=(async(url,init)=>{sent++;assert.equal(url,origin+'/v1/networking/identity-proof');assert.equal(init?.credentials,'omit');assert.equal(init?.redirect,'error');assert.equal(new Headers(init?.headers).get('Authorization'),null);const q=JSON.parse(String(init?.body));assert.equal(Buffer.from(q.nonce,'base64url').length,32);return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q,issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()})),{headers:{'Content-Type':'application/json'}});}) as typeof fetch;
+ const fetcher=(async(url,init)=>{sent++;assert.equal(url,origin+'/v1/networking/identity-proof');assert.equal(init?.credentials,'omit');assert.equal(init?.redirect,'error');assert.equal(new Headers(init?.headers).get('Authorization'),null);const q=JSON.parse(String(init?.body));assert.equal(Buffer.from(q.nonce,'base64url').length,32);return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}) as typeof fetch;
  assert.deepEqual(await probeRoute(origin,pin,{fetcher}),pin);assert.equal(sent,1);
- const wrong=(async()=>new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,baseUrl:origin,nonce:'replayed',issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()})),{headers:{'Content-Type':'application/json'}})) as typeof fetch;
+ const wrong=(async()=>new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,baseUrl:origin,nonce:'replayed'})),{headers:{'Content-Type':'application/json'}})) as typeof fetch;
  await assert.rejects(probeRoute(origin,pin,{fetcher:wrong}));
 });
 test('healthy cached LAN wins without a Hosted request',async()=>{

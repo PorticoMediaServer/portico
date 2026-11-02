@@ -1,3 +1,4 @@
+import {serverNow} from './server-clock.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import type {LocalSession,Viewer} from './index.ts';
 
@@ -24,7 +25,7 @@ export function parseLocalSession(raw:unknown,expected:Partial<Viewer>={},option
  // A record this device saved is read back, not refused: fields a later (or earlier) client added
  // are set aside rather than making the saved sign-in unreadable. Fresh server answers stay exact.
  if(options.stored&&object(raw))raw=Object.fromEntries(Object.entries(raw).filter(([key])=>STORED_KEYS.has(key)));
- if(!object(raw)||!exact(raw,['accessToken','expiresAt','viewer','sessionFamilyId','tokenGeneration','authorizationHorizon',...OPTIONAL_KEYS.filter(key=>Object.hasOwn(raw,key))])||!text(raw.accessToken,16384)||!currentUTCTimestamp(raw.expiresAt)||(!options.stored&&!options.refreshReceipt&&Date.parse(raw.expiresAt)<=Date.now())||!object(raw.viewer))invalid();
+ if(!object(raw)||!exact(raw,['accessToken','expiresAt','viewer','sessionFamilyId','tokenGeneration','authorizationHorizon',...OPTIONAL_KEYS.filter(key=>Object.hasOwn(raw,key))])||!text(raw.accessToken,16384)||!currentUTCTimestamp(raw.expiresAt)||(!options.stored&&!options.refreshReceipt&&Date.parse(raw.expiresAt)<=serverNow())||!object(raw.viewer))invalid();
  const viewer=options.stored&&object(raw.viewer)?Object.fromEntries(Object.entries(raw.viewer).filter(([key])=>['accountId','profileId','serverId','authority','role'].includes(key))):raw.viewer;
  if(!exact(viewer,['accountId','profileId','serverId','authority','role'])||!text(viewer.accountId,256)||!text(viewer.profileId,256)||!text(viewer.serverId,256)||!text(viewer.role,256)||!['local','hosted'].includes(viewer.authority as string))invalid();
  for(const [key,value]of Object.entries(expected)){if(viewer[key]!==value)throw new Error('The returned session does not match the selected account, profile and server.');}

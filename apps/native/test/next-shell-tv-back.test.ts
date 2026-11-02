@@ -172,5 +172,15 @@ test('actual assembly sends Back to topmost Home menu before player, then TV pag
   assert.deepEqual(navigation.getSnapshot().route, {kind: 'servers', initialPanel: 'consent-kind'}, 'Play on enters Link a TV directly');
   bindings.openServers?.();
   assert.deepEqual(navigation.getSnapshot().route, {kind: 'servers'}, 'ordinary Switch server still opens the chooser');
+  // W-14: a pushed TV route's own Back step (server settings: content to its page column) runs
+  // before the route closes; when it declines, Back closes the route as before.
+  let routeSteps = 0, consume = true;
+  const offRoute = bindings.registerTVRouteBack!(() => {routeSteps++; return consume;}, 'servers');
+  assert.equal(back(), true); assert.equal(routeSteps, 1);
+  assert.deepEqual(navigation.getSnapshot().route, {kind: 'servers'}, 'a handled step keeps the route open');
+  consume = false;
+  assert.equal(back(), true); assert.equal(routeSteps, 2);
+  assert.notDeepEqual(navigation.getSnapshot().route, {kind: 'servers'}, 'a declined step lets Back close the route');
+  offRoute();
   cleanup(); bindings.dispose(); navigation.dispose(); home.dispose();
 });

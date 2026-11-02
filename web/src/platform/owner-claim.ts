@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import {type AppSessionRecord, type AppSessionStore, knownServerRoutes} from '@core/app-sessions.ts';
 import {parseClaimStatus, type ClaimExpected} from '@core/claim-onboarding.ts';
@@ -53,7 +54,7 @@ export class BrowserOwnerClaim {
   private attemptId?: string;
   private busy = false;
   constructor(private readonly ports: Ports) {}
-  private now() {return (this.ports.now ?? Date.now)();}
+  private now() {return (this.ports.now ?? serverNow)();}
   private operation() {
     if (this.busy) throw new CodedError('move_request_in_progress', 'Wait for this account move request to finish.');
     this.busy = true;
@@ -81,7 +82,7 @@ export class BrowserOwnerClaim {
     if (record.version !== 1 || record.kind !== 'owner' || record.origin !== this.ports.pageOrigin() ||
       record.installationId !== this.ports.installationId() || state.revision !== record.expectedRevision || session.sessionFamilyId !== record.familyId ||
       session.tokenGeneration !== record.tokenGeneration || session.viewer.accountId !== record.accountId || session.viewer.profileId !== record.profileId ||
-      !Number.isSafeInteger(record.createdAt) || record.createdAt < 0 || record.createdAt > this.now() + 60_000 || !Number.isFinite(Date.parse(record.expiresAt)) ||
+      !Number.isSafeInteger(record.createdAt) || record.createdAt < 0 || !Number.isFinite(Date.parse(record.expiresAt)) ||
       Date.parse(record.expiresAt) <= this.now() || Date.parse(record.expiresAt) > record.createdAt + 300_000 || Date.parse(session.expiresAt) <= this.now()) throw cancelled();
     return selected;
   }

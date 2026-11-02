@@ -3,6 +3,7 @@ import type {HostedSession} from '@core/index.ts';
 import {currentUTCTimestamp} from '@core/local-session.ts';
 import {parseBrowserCredentialRecord} from '@core/credential-format.ts';
 import {routeBase64, routeBytes, routeOrigin} from '@core/route-identity.ts';
+import {serverNow} from '@core/server-clock.ts';
 import {secureBrowserPending, type SecurePendingStorage} from './secure-pending';
 
 export type CredentialSecurityPurpose = 'password_set_or_change' | 'email_change' | 'mfa_enroll' | 'mfa_disable' | 'recovery_codes';
@@ -26,7 +27,7 @@ const exactKeys = (v: Record<string, unknown>, required: readonly string[], opti
 };
 const origin = (v: unknown): string => typeof v === 'string' && v.startsWith('https://') && routeOrigin(v) === v ? v : invalid();
 const deadline = (v: unknown, allowExpired: boolean): string => {
-  if (typeof v !== 'string' || v.length > 64 || !currentUTCTimestamp(v) || !v.endsWith('Z') || !allowExpired && Date.parse(v) <= Date.now()) invalid();
+  if (typeof v !== 'string' || v.length > 64 || !currentUTCTimestamp(v) || !v.endsWith('Z') || !allowExpired && Date.parse(v) <= serverNow()) invalid();
   return v;
 };
 const reference = (v: unknown, prefix: string) => typeof v === 'string' && new RegExp('^' + prefix + '_[A-Za-z0-9_-]{43}$').test(v) ? v : invalid();
@@ -61,7 +62,7 @@ export function parseSecurityJournal(raw: unknown, allowExpired = false): Accoun
   const state = parseSecurityState(a.state, scope), providerId = id(a.provider.id, 1);
   if (state.hasPassword || !state.providers.some(v => v.id === providerId && v.provider === selectedProvider.provider && v.revision === selectedProvider.revision)) invalid();
   const createdAt = deadline(a.createdAt, true), expiresAt = deadline(a.expiresAt, allowExpired);
-  if (Date.parse(expiresAt) > Date.parse(createdAt) + 300000 || Date.parse(expiresAt) <= Date.parse(createdAt) || !allowExpired && Date.parse(createdAt) > Date.now() + 60000) invalid();
+  if (Date.parse(expiresAt) > Date.parse(createdAt) + 300000 || Date.parse(expiresAt) <= Date.parse(createdAt)) invalid();
   if (Date.parse(expiresAt) > Date.parse(session.expiresAt)) invalid();
   const original: OriginalSecurityAccount = {version: 1, kind: 'hosted-account', hostedOrigin: origin(a.hostedOrigin), session, coordinator: a.coordinator, state,
     openingId: id(a.openingId), taskId: id(a.taskId), requestId: id(a.requestId), intent: {purpose: a.intent.purpose as CredentialSecurityPurpose, target: a.intent.target, operationId: id(a.intent.operationId)},

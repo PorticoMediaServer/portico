@@ -1,5 +1,6 @@
 import {HostedAccountClient, type AccountScope, type RecentProof, type SecurityState} from '@core/hosted-security.ts';
 import type {HostedSession, LocalSession} from '@core/index.ts';
+import {serverNow} from '@core/server-clock.ts';
 import {accountSecurityUIURL} from './account-security-policy';
 import {BrowserAccountApi} from './account';
 import {currentAccountWork, type AccountIdentity} from './account-work';
@@ -15,7 +16,7 @@ const noRefresh = <T extends HostedSession | LocalSession>(session: T): T => {
 };
 const checkDeadline = (original: OriginalSecurityAccount) => {
   // Bound to the Portico Account sign-in, not one stored session: another tab's routine refresh keeps it.
-  if (Date.parse(original.expiresAt) <= Date.now() || !securityCoordinatorStillHolds(original.hostedOrigin, original.coordinator)) ended();
+  if (Date.parse(original.expiresAt) <= serverNow(original.hostedOrigin) || !securityCoordinatorStillHolds(original.hostedOrigin, original.coordinator)) ended();
 };
 /** The latest a Security return may finish: five minutes after it opens, never past the Portico
  * Account session that opened it. A date that doesn't parse ends the return at once: a NaN
@@ -49,13 +50,13 @@ export async function captureAccountSecurity(input: {
   let captured = await capture();
   // The return never refreshes on its own and lasts five minutes on the token it starts with: a token with less
   // than that (and a little) left is renewed the ordinary way first, so the return gets its whole window.
-  if (Date.parse(captured.expiresAt) - Date.now() < CAPTURE_MIN_TOKEN_MS) {
+  if (Date.parse(captured.expiresAt) - serverNow(hostedOrigin) < CAPTURE_MIN_TOKEN_MS) {
     await account.service.accessSession(true);
     assertCurrent();
     captured = await capture();
   }
   assertCurrent();
-  const coordinator = securityCoordinatorStamp(hostedOrigin), now = Date.now(), expiry = securityReturnDeadline(now, captured.expiresAt);
+  const coordinator = securityCoordinatorStamp(hostedOrigin), now = serverNow(hostedOrigin), expiry = securityReturnDeadline(now, captured.expiresAt);
   const original: OriginalSecurityAccount = {version: 1, kind: 'hosted-account', hostedOrigin, session: captured, coordinator, state,
     openingId: crypto.randomUUID(), taskId: crypto.randomUUID(), requestId: crypto.randomUUID(), intent: {purpose, target, operationId: crypto.randomUUID()}, provider: {...provider, revision: provider.revision}, createdAt: new Date(now).toISOString(), expiresAt: new Date(expiry).toISOString()};
   const pending: AccountSecurityPending = {original};
@@ -91,7 +92,7 @@ export class OriginalProviderSecurity {
   acceptsUIURL(href: string) {
     return accountSecurityUIURL(this.original.hostedOrigin, href);
   }
-  current = () => this.live && Date.parse(this.original.expiresAt) > Date.now() && this.acceptsUIURL(location.href);
+  current = () => this.live && Date.parse(this.original.expiresAt) > serverNow(this.original.hostedOrigin) && this.acceptsUIURL(location.href);
   private async assertOriginal(signal?: AbortSignal) {
     if (!this.current()) ended();
     signal?.throwIfAborted(); checkDeadline(this.original);
@@ -137,7 +138,7 @@ export class OriginalProviderSecurity {
     const completed = await client.completeSecurity(tx.transactionId, factor, identity(original), original.session.accessToken, signal);
     if (!completed.recentProof || completed.securityResult) ended(); proof = completed.recentProof;
     signal.throwIfAborted(); checkDeadline(original); await journal.assertOriginal(pending);
-    if (Date.parse(proof.expiresAt) <= Date.now()) ended();
+    if (Date.parse(proof.expiresAt) <= serverNow(original.hostedOrigin)) ended();
     return new OriginalProviderSecurity(pending, Object.freeze({...proof}), client, journal);
   }
 }

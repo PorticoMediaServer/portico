@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {DVRClient, isAccessError, validRecordingOptions, type DVRPage, type DVRSummary, type RecordingRule, type RecordingStorage, type RuleConfig} from '@core/dvr.ts';
 import {fetchGuideSourceSummaries, type GuideSourceSummaries} from '@core/guide/directory.ts';
 import {localDayStart} from '@core/guide/time.ts';
@@ -52,7 +53,7 @@ export function editedRuleConfig(rule: RecordingRule, settings: RuleSettings): R
 export function createSeriesRulesBindings(context: ScreenContext, env: Environment) {
   const life = screenLifetime(context), listeners = new Set<() => void>(), entries = new Map<string, RuleEntry>();
   const requestId = env.requestId ?? (async () => Array.from(crypto.getRandomValues(new Uint8Array(24)), value => value.toString(16).padStart(2, '0')).join(''));
-  const now = env.now ?? Date.now;
+  const now = env.now ?? serverNow;
   let offIdentity: (() => void) | undefined;
   let closed = false, generation = 0, pending: Promise<void> | undefined, previewSerial = 0, previewClient: DVRClient | undefined;
   let page: DVRPage | undefined, summary: DVRSummary | undefined, storage: RecordingStorage | undefined, sources: GuideSourceSummaries | undefined;

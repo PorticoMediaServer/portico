@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import type {HttpLocalApi} from '@core/index.ts';
 import {parseMediaItem} from '@core/media-item.ts';
 import {parseDownloadBatch, parseDownloadGrant, parseDownloadOptions, parseDownloadPreparation, type DownloadOptionsView, type DownloadPreparation} from '@core/downloads.ts';
@@ -90,7 +91,7 @@ export function createBrowserDownloadPort(api: Pick<HttpLocalApi, 'request' | 'm
         const grant = parseDownloadGrant(await api.request(encodedRoutePath('create_download_grant', {id: encodeURIComponent(preparation.id)}), 'POST', {operationId: captured.grantId}, combined));
         check();
         if (grant.preparationId !== preparation.id || grant.itemId !== target.itemId || grant.artifact.sha256 !== preparation.artifact.sha256
-          || grant.artifact.bytes !== preparation.artifact.bytes || Date.parse(grant.expiresAt) <= Date.now()) throw new Error('download-grant-mismatch');
+          || grant.artifact.bytes !== preparation.artifact.bytes || Date.parse(grant.expiresAt) <= serverNow()) throw new Error('download-grant-mismatch');
         const href = api.mediaUrl(grant.url); check();
         const anchor = document.createElement('a');
         anchor.href = href; anchor.download = grant.artifact.fileName; anchor.rel = 'noreferrer'; anchor.referrerPolicy = 'no-referrer';

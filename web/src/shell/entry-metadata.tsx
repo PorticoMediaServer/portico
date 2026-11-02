@@ -9,7 +9,8 @@ import type {ShellArtwork} from './artwork';
 import type {EntryActionPorts, EntryActionTarget} from './entry-actions';
 
 export type EntryMetadataPorts = Omit<EntryActionPorts, 'api'> & Readonly<{artwork?: ShellArtwork; api: EntryActionPorts['api'] & Readonly<{requestMetadataUpload?: <T>(path: string, body: FormData, signal?: AbortSignal) => Promise<T>}>}>;
-type AggregateMetadataTarget = Readonly<{entityKind: 'show' | 'album' | 'book'; entityId: string; libraryId: string; title: string; initialTab?: 'general' | 'matching'}>;
+/** A parent title the server's repair schema covers (show, season, album, artist, book). */
+export type AggregateMetadataTarget = Readonly<{entityKind: 'show' | 'season' | 'album' | 'artist' | 'book'; entityId: string; libraryId: string; title: string; initialTab?: 'general' | 'matching'}>;
 export type EntryMetadataEffect = (target: EntryActionTarget | AggregateMetadataTarget, anchor: HTMLElement) => Promise<void>;
 type Open = Readonly<{id: number; target: EntryActionTarget | AggregateMetadataTarget; anchor: HTMLElement; ports: EntryMetadataPorts; lifetime: AbortController; ownerCurrent: () => boolean}>;
 let opened: Open | null = null;

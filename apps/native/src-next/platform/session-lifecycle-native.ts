@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {ApiError, HttpLocalApi, type LocalSession} from '../../../../packages/client-core/src';
 import type {AppServerSession, AppSessionStorage, AppSessionStore} from '../../../../packages/client-core/src/app-sessions';
 import {releaseQuietly} from '../../../../packages/client-core/src/cleanup';
@@ -111,7 +112,7 @@ const defaults = (): Omit<NativeLifecycleDeps, 'fenceShell'> => ({
       if (live) await offlineDownloads.remove(live);
     },
   }),
-  now: Date.now, drainDelayMs: LIFECYCLE_REVOCATION_DRAIN_DELAY_MS,
+  now: serverNow, drainDelayMs: LIFECYCLE_REVOCATION_DRAIN_DELAY_MS,
   note: line => journal.note('warn', line),
 });
 

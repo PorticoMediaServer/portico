@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import type {LocalSession} from '../../../../packages/client-core/src';
 import {SessionRefreshError} from '../../../../packages/client-core/src/server-connections';
 import {routeOrigin} from '../../../../packages/client-core/src/route-identity';
@@ -30,6 +31,6 @@ export class NativeSignInEnded extends Error {
  * replacement, storage damage, permission and route/identity failures keep their handling. */
 export function nativeSignInEnded(error: unknown, hint?: NativeSignInHint, expiresAt?: string): NativeSignInEnded | undefined {
   if (hint && error instanceof SessionRefreshError && (error.code === 'refresh_refused'
-    || error.code === 'refresh_unavailable' && Date.now() >= Date.parse(expiresAt ?? ''))) return new NativeSignInEnded(hint);
+    || error.code === 'refresh_unavailable' && serverNow() >= Date.parse(expiresAt ?? ''))) return new NativeSignInEnded(hint);
   return undefined;
 }
