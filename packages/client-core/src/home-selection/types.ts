@@ -33,6 +33,10 @@ export interface HomeSelectionPlaybackPort {
 export type HomeSelectionDestination = Readonly<{kind: 'playlist' | 'collection'; id: string}>;
 export interface HomeSelectionRoutes {
   openEntry(entry: ContentEntry): void | Promise<void>;
+  /** Edit metadata on one title from its menu (J-1): the title's own editor, as its detail page opens it, never the
+   * whole-selection path. Resolves false where the platform has no single-title editor for this entry; the menu then
+   * falls back to the selection editor. */
+  editEntry?(entry: ContentEntry): boolean | Promise<boolean>;
   openCollection(collection: HomeCollection): void | Promise<void>;
   openDestination(destination: HomeSelectionDestination): void | Promise<void>;
 }
