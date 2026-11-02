@@ -61,7 +61,7 @@ func registerPlaybackControls(registry *apikit.Registry, d Dependencies) {
 		}
 		return out, nil
 	})
-	v1Route(registry, apikit.Metadata{Audience: apikit.Integrations, Admission: laneSecurityFence, ID: "stop_account_playback", Method: "POST", Path: "/v1/playback/controls/{id}:stop", Summary: "Stop playback belonging to this account without disclosing a hidden title", Access: apikit.Device, Requires: apikit.ScopePlayback, Lane: apikit.Media, Cost: apikit.Constant, Status: 204, BodyLimit: 4096, OptionalBody: true, Errors: failures}, func(ctx context.Context, r *http.Request, in playbackv1.AccountStopRequest) (noBody, error) {
+	v1Route(registry, apikit.Metadata{Audience: apikit.Integrations, Admission: lanePlaybackStop, ID: "stop_account_playback", Method: "POST", Path: "/v1/playback/controls/{id}:stop", Summary: "Stop playback belonging to this account without disclosing a hidden title", Access: apikit.Device, Requires: apikit.ScopePlayback, Lane: apikit.Media, Cost: apikit.Constant, Status: 204, BodyLimit: 4096, OptionalBody: true, Errors: failures}, func(ctx context.Context, r *http.Request, in playbackv1.AccountStopRequest) (noBody, error) {
 		p, err := d.foundationCaller(r)
 		if err != nil {
 			return noBody{}, err

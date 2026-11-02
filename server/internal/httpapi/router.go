@@ -950,6 +950,13 @@ func New(d Dependencies) http.Handler {
 		}
 	}
 	gatekeeper := newAdmission()
+	if d.DB != nil {
+		gatekeeper.livePlaybackSessions = func(ctx context.Context) (int, error) {
+			var count int
+			err := dbwork.QueryRow(ctx, d.DB, `SELECT count(*) FROM playback_v1_sessions INDEXED BY playback_v1_sessions_active WHERE ended_ms=0`).Scan(&count)
+			return count, err
+		}
+	}
 	gatekeeper.trustedProxies = d.TrustedProxies
 	gatekeeper.registerPressure()
 	d.admission = gatekeeper

@@ -675567,7 +675567,7 @@
           "Integrations"
         ],
         "x-access": "device",
-        "x-admission": "security-fence",
+        "x-admission": "playback-stop",
         "x-audience": "Integrations",
         "x-cost": "constant",
         "x-error-codes": [
@@ -678821,7 +678821,7 @@
           "Clients"
         ],
         "x-access": "device",
-        "x-admission": "security-fence",
+        "x-admission": "playback-stop",
         "x-audience": "Clients",
         "x-cost": "constant",
         "x-error-codes": [
