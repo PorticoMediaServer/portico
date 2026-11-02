@@ -365,7 +365,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     }};
     const viewer = captured.context.session().viewer;
     if (viewer.authority !== 'local' && viewer.authority !== 'hosted') throw new DOMException('Screen authority unavailable', 'AbortError');
-    const playSelection = createLibraryPlaySelection({source: resources.controller, api, scope: context.scope,
+    const playSelection = createLibraryPlaySelection({source: resources.controller, queries: context.queries, api, scope: context.scope,
       principal: {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId},
       requestId: async () => randomId(), signal,
       isCurrent: current,
@@ -379,7 +379,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       playback: runtime?.cataloguePlayback()});
     const selection = createLibrarySelection({
       playSelection, queryActions,
-      pickers: {api, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(),
+      pickers: {api, queries: context.queries, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(),
         signal, isCurrent: current,
         canCreateCollection: context.identity?.viewer.role === 'owner',
         pickerIdentity: {authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId, events: context.events}},
@@ -387,7 +387,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       owner: context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local',
       descriptor: () => resources.controller.wholeSelection(),
       wholeSelectionUnavailable: {subscribe: resources.controller.subscribe, getSnapshot: () => resources.controller.wholeSelectionUnavailable()},
-      ...(context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local' ? {deletion: {api, serverId: context.scope.serverId, viewerId: context.scope.viewerId,
+      ...(context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local' ? {deletion: {api, queries: context.queries, serverId: context.scope.serverId, viewerId: context.scope.viewerId,
         requestId: async () => randomId(), signal, isCurrent: current}, editor: {
         api, events: context.events, requestId: async () => randomId(), serverId: context.scope.serverId, viewerId: context.scope.viewerId,
         artwork: context.artwork, signal, isCurrent: current,

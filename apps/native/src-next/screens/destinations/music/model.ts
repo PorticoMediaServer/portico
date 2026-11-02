@@ -12,6 +12,7 @@ import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellPlaybackAdapter} from '../../../shell/playback';
 import {nativeDestinationLifetime} from '../lifetime';
 import {MusicSectionPager, emptyMusicSection, type MusicSection} from './paging';
+import {viewerQueriesFor} from '../../../shell/freshness';
 
 export type MusicAlbumRole = 'album' | 'ep' | 'single' | 'compilation' | 'appearance';
 /** `homeActions` is the release's aggregate selection offer (MOB-030), carried as sent: the
@@ -164,7 +165,7 @@ export class NativeTVMusicController {
     if (!operation) {
       const controller = new AbortController(), generation = this.generation;
       const current = () => !controller.signal.aborted && this.current() && generation === this.generation && this.contains(entry);
-      const service = new DetailService({scope: this.options.lifetime.scope, requestId: this.options.requestId,
+      const service = new DetailService({queries: viewerQueriesFor(this.api, this.options.lifetime.scope), scope: this.options.lifetime.scope, requestId: this.options.requestId,
         api: {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
           if (!current()) throw membershipFailure('native_music_retired');
           const value = await this.api.request<T>(path, method, body, signal);

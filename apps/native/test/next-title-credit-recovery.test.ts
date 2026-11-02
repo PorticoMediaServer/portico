@@ -48,6 +48,8 @@ async function fixture() {
     '../../shell/model': {sameAuthority: (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)},
     './title-memory': {NativeTitleMemory}, './title-pages': {NativeTitlePages}, './title-credits': {NativeTitleCredits},
     './title-episode': {NativeTitleEpisodeDetails: class {dispose() {}}},
+    // Detail is a fake here, so the cache it would read through is unused.
+    '../../shell/freshness': {viewerQueriesFor: () => ({})},
   });
   const controller = new NativeTitleController({entry: {id: 'movie', libraryId: 'movies', kind: 'movie'}, api: {}, scope: {}, authority,
     current: () => authority, subscribeCurrent: () => () => {}, requestId: async () => 'id', playback: {start() {}},

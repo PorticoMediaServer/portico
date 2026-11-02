@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DetailService, detailExtraTypes, type DetailApi} from '../src/detail.ts';
+import {withQueries} from './fixtures/viewer-queries.ts';
 
 const scope = {serverId: 'server', viewerId: JSON.stringify(['local', 'account', 'profile'])};
 const target = {libraryId: 'library', itemId: 'item'};
@@ -21,7 +22,7 @@ function detail(extras: unknown): any {
 }
 function service(payload: any) {
   const api: DetailApi = {request: async <T>() => payload as T};
-  return new DetailService({api, scope, timeoutMs: 1000, requestId: async () => '12345678-1234-4123-8123-000000000001'});
+  return new DetailService(withQueries({api, scope, timeoutMs: 1000, requestId: async () => '12345678-1234-4123-8123-000000000001'}));
 }
 
 test('detail extras arrive grouped by a published type with playable items', async () => {

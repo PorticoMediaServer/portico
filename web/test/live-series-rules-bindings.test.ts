@@ -4,6 +4,7 @@ import {routePath} from '../../packages/contracts/src/index.ts';
 import {createSeriesRulesBindings, editedRuleConfig, ruleSettings} from '../src/screens/live/series-rules-bindings.ts';
 import type {ScreenContext} from '../src/screens/detail/context.ts';
 import type {RecordingRule} from '@core/dvr.ts';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 const id = (number: number, width = 64) => number.toString(16).padStart(width, '0');
 const sourceId = id(1, 48), channelId = id(2), generation = id(3, 48), serverId = 'unit-server';
@@ -49,8 +50,8 @@ function setup(options: {total?: number; defaultNonce?: boolean; intercept?: (pa
     if (method === 'DELETE') {rows.splice(index, 1);return envelope({deleted: true}) as T;}
     rows[index] = {...rows[index], revision: rows[index].revision + 1, config: command.config};return envelope(rows[index]) as T;
   }};
-  const context = {api, scope: {serverId, viewerId: 'actual-captured-viewer'}, isCurrent: () => active,
-    identity: {serverName: 'Stored server'}, effects: {reportError() {}}} as unknown as ScreenContext;
+  const context = withQueries({api, scope: {serverId, viewerId: 'actual-captured-viewer'}, isCurrent: () => active,
+    identity: {serverName: 'Stored server'}, effects: {reportError() {}}}) as unknown as ScreenContext;
   const binding = createSeriesRulesBindings(context, {timezone: 'UTC', locale: 'en-US', now: () => Date.parse('2026-10-24T12:00:00Z'),
     ...(options.defaultNonce ? {} : {requestId: options.requestId ?? (async () => {nonces++;return id(nonces, 48);})})});
   return {binding, calls, rows, nonces: () => nonces, authority: (value: boolean) => {active = value;}};

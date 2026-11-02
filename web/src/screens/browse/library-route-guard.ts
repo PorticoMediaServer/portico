@@ -24,7 +24,7 @@ export function useLibraryRouteGuard(context: ShellAssemblyContext | undefined, 
       ...(itemId ? {readParent: async (signal: AbortSignal) => {
         signal.throwIfAborted();if (!authority() || !routeCurrent()) throw new DOMException('Item route retired', 'AbortError');
         // The title's detail route, which serves Reading titles too (E-web-23).
-        const item = await readTitleIdentity(context.api, itemId, signal);
+        const item = await readTitleIdentity(context.freshness.queries, itemId, signal);
         signal.throwIfAborted();if (!authority() || !routeCurrent()) throw new DOMException('Item route retired', 'AbortError');
         return item.libraryId;
       }} : {}),

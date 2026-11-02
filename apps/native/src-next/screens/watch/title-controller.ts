@@ -11,6 +11,7 @@ import {NativeTitlePages} from './title-pages';
 import {NativeTitleEpisodeDetails} from './title-episode';
 import {NativeTitleCredits, type NativeTitleCreditsSnapshot} from './title-credits';
 import {nativeRelatedRow, type NativeRelatedRow, type NativeRelatedRowSnapshot} from './title-related';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 export type NativeTitleControllerOptions = Readonly<{
   entry: ContentEntry;
@@ -65,7 +66,7 @@ export class NativeTitleController {
 
   constructor(options: NativeTitleControllerOptions) {
     this.options = options; this.entry = options.entry;
-    this.detail = new DetailService({api: options.api, scope: options.scope, requestId: options.requestId});
+    this.detail = new DetailService({queries: viewerQueriesFor(options.api, options.scope), api: options.api, scope: options.scope, requestId: options.requestId});
     this.workspace = new ShowWorkspaceService({api: options.api, scope: options.scope});
     this.memory = new NativeTitleMemory(['show', 'season', 'episode'].includes(this.entry.kind));
     this.episode = new NativeTitleEpisodeDetails({api: options.api, scope: options.scope, requestId: options.requestId,

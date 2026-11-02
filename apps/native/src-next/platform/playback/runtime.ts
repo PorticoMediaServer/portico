@@ -60,6 +60,7 @@ import {selectionSegments, selectionStartSeconds} from './selection';
 import type {VideoSnapshotCapture, VideoSnapshotSource} from '../video-snapshot';
 import {retainNativeVideoExitImage} from './video-exit-permission';
 import type {NativeExternalPresentationLifetime, NativePictureInPictureState, NativePlaybackReadLifetime, NativeListeningReadPort, NativeOfflinePlaybackLifetime, NativePlaybackStart, NativePlaybackChannelStart, NativePlaybackVersionSelection, NativePlaybackRuntimeOptions, NativePlaybackRuntimeSnapshot, NativePlaybackVideoSnapshot, NativePlaybackStarting, NativePlaybackStartTimedOut, NativeStartDisplay, PlaybackAuthority} from './types';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 const authorityKey = (value: PlaybackAuthority) => JSON.stringify([value.serverId, value.accountId, value.profileId, value.epoch, value.privacyFence ?? value.viewerFence]);
 /** The retained binding a native view reports, compared field by field. */
@@ -1265,13 +1266,16 @@ export class NativePlaybackRuntime {
       const kind = item.kind === 'track' ? 'song' : item.kind === 'audiobook' ? 'audiobook_file' : item.kind;
       if (!['movie', 'episode', 'extra', 'song', 'audiobook_file'].includes(kind)) return;
       this.entry = {...this.entry, ...item, kind: kind as ContentEntry['kind']}; this.subject = subjectOf(this.entry);
-      const detail = new DetailService({api: {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
+      const detailApi = {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
         if (!valid() || !signal) throw new Error('Playback detail source retired.');
         // DetailService owns its read signal; bind that actual request to this source too.
         const unguard = this.http.guard(signal, valid);
         try { return await this.request<T>(path, method, body, signal); }
         finally { unguard(); }
-      }}, scope: {serverId: this.bound.serverId, viewerId: this.bound.profileId}, requestId: async () => this.o.requestId()});
+      }};
+      // This source's own guarded reads: its page is cached with them, not with the shell's screens.
+      const detailScope = {serverId: this.bound.serverId, viewerId: this.bound.profileId};
+      const detail = new DetailService({queries: viewerQueriesFor(detailApi, detailScope), api: detailApi, scope: detailScope, requestId: async () => this.o.requestId()});
       const binding: SourceDetail = {service: detail, sourceEpoch: epoch, sourceKey: key, intentId: state.intentId,
         sessionId: state.session!.id, generation: state.session!.generation, itemId, libraryId: item.libraryId};
       this.detail = binding;

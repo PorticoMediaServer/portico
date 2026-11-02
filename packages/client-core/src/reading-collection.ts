@@ -1,3 +1,4 @@
+import type {ViewerQueries} from './query/viewer-queries.ts';
 import {DetailService, type DetailApi, type DetailScope} from './detail.ts';
 import {PersonalSavedService, type PersonalResource} from './personal-saved.ts';
 import {runSelectionJobs, type HomeJobTask} from './home-selection/execution.ts';
@@ -8,7 +9,7 @@ import {parseHomeDestinationPicker} from './home-selection/destination-picker.ts
 import type {HomeSelectionPickerRow} from './home-selection/types.ts';
 
 export type ReadingCollectionItem = Readonly<{id: string; libraryId: string; kind: 'ebook' | 'comic'; title: string}>;
-export type ReadingCollectionOptions = Readonly<{api: DetailApi; scope: DetailScope; requestId: () => Promise<string>;
+export type ReadingCollectionOptions = Readonly<{queries: ViewerQueries; api: DetailApi; scope: DetailScope; requestId: () => Promise<string>;
   signal: AbortSignal; isCurrent: () => boolean; canCreate: boolean}>;
 export type ReadingCollectionSnapshot = Readonly<{
   phase: 'idle' | 'loading' | 'ready' | 'adding' | 'result' | 'error' | 'uncertain';
@@ -51,7 +52,7 @@ export class ReadingCollection {
       this.check(); return value;
     }};
     const requestId = async () => {this.check(); const id = await options.requestId(); this.check(); return id;};
-    this.detail = new DetailService({api, scope: options.scope, requestId});
+    this.detail = new DetailService({queries: options.queries, api, scope: options.scope, requestId});
     this.saved = new PersonalSavedService(api, options.scope, requestId);
     this.api = api;
     options.signal.addEventListener('abort', this.dispose, {once: true});
@@ -73,7 +74,7 @@ export class ReadingCollection {
   }
   private async grants() {
     for (const item of this.items) {
-      this.check(); await this.detail.select({libraryId: item.libraryId, itemId: item.id}, {related: 'none'}); this.check();
+      this.check(); await this.detail.select({libraryId: item.libraryId, itemId: item.id}, {related: 'none', fresh: true}); this.check();
       const state = this.detail.getSnapshot(), data = state.data;
       if (state.phase !== 'ready' || !data || data.scope.libraryId !== item.libraryId || data.item.id !== item.id || data.item.kind !== item.kind
         || !data.actions.some(action => action.id === 'add_to_collection' && action.enabled)) throw unavailable();

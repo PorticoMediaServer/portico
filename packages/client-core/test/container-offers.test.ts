@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validateContentEntry} from '../src/library-content.ts';
 import {readCatalogueSelectionItem} from '../src/catalogue-selection.ts';
+import {withQueries} from './fixtures/viewer-queries.ts';
 
 // MOB-030: a displayed container keeps its aggregate selection offers from a
 // Browse or content page, and the catalogue selection adapter honours them.
@@ -17,8 +18,8 @@ test('a container entry keeps its offers; a leaf never borrows them', async () =
   assert.equal(song.homeActions, undefined);
   const unreadable = validateContentEntry({id: 'album', kind: 'album', title: 'Album', libraryId: 'music', homeActions: {play: true}});
   assert.equal(unreadable.homeActions, undefined, 'an unreadable offer grants nothing');
-  const item = await readCatalogueSelectionItem({api: {request: async () => { throw new Error('no read'); }} as any, scope: {serverId: 's', viewerId: 'v'} as any,
-    requestId: async () => 'r', signal: new AbortController().signal, isCurrent: () => true}, album, {favorite: true, play: true, myList: true});
+  const item = await readCatalogueSelectionItem(withQueries({api: {request: async () => { throw new Error('no read'); }} as any, scope: {serverId: 's', viewerId: 'v'} as any,
+    requestId: async () => 'r', signal: new AbortController().signal, isCurrent: () => true}), album, {favorite: true, play: true, myList: true});
   assert.equal(item.capabilities.favorite, true);
   assert.equal(item.capabilities.play, true);
   assert.equal(item.capabilities.myList, false, 'a port without its offer stays unavailable');

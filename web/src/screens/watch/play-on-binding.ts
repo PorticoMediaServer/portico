@@ -41,7 +41,7 @@ function airPlayCanReconcileCaptions(snapshot: WebPlaybackRuntimeSnapshot): bool
     && plan.mode === 'track' && (plan.renderer === 'client' || plan.renderer === 'external_text') && plan.selected?.enabled === true;
 }
 
-export type WatchPlaybackContext = Pick<ShellAssemblyContext, 'api' | 'session' | 'isCurrent' | 'epoch'> & Partial<Pick<ShellAssemblyContext, 'preferences' | 'facts'>> & Readonly<{factsSource?: ShellFactsSource}>;
+export type WatchPlaybackContext = Pick<ShellAssemblyContext, 'api' | 'freshness' | 'session' | 'isCurrent' | 'epoch'> & Partial<Pick<ShellAssemblyContext, 'preferences' | 'facts'>> & Readonly<{factsSource?: ShellFactsSource}>;
 /** Created only by the mounted persistent host. The same real video owns AirPlay. */
 export function createWatchPlayOn(context: WatchPlaybackContext, binding: WatchBindings, video: HTMLVideoElement, applicationId?: string) {
   const life = new AbortController(), authority = binding.runtime.getSnapshot().authority;

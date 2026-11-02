@@ -6,6 +6,7 @@ import {validateContentEntry, type ContentEntry} from '../../../../../packages/c
 import type {CatalogueSelectionOptions} from '../../../../../packages/client-core/src/catalogue-selection';
 import {fetchHomeDestinationPicker, type HomeDestinationPickerPage, type HomeSelectionPickerRow} from '../../../../../packages/client-core/src/home-selection/index';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 const unavailable = () => Object.assign(new Error('catalogue-selection-unavailable'), {code: 'catalogue-selection-unavailable'});
 /** One canonical picker page for the exact captured leaves, query and cursor. */
@@ -133,7 +134,7 @@ export class NativeLoadedDestinations {
     // Read only these exact leaves, in bounded order; no parent expansion.
     for (const entry of this.entries) {
       this.assertCurrent();
-      const detail = new DetailService({api: this.api, scope: this.options.scope, requestId: this.requestId});
+      const detail = new DetailService({queries: viewerQueriesFor(this.api, this.options.scope), api: this.api, scope: this.options.scope, requestId: this.requestId});
       const stop = () => detail.dispose();
       this.options.signal.addEventListener('abort', stop, {once: true});
       try {

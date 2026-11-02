@@ -1,3 +1,4 @@
+import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {useCallback, useSyncExternalStore} from 'react';
 import type {EntryMetadataEffect} from '../../shell/entry-metadata';
 import type {BrowserDownloadPort} from '../../platform/browser-download';
@@ -16,6 +17,8 @@ import type {WatchVersionRequest} from '../watch/version-presentation';
 /** Captured by the shell for one server/account/profile/role epoch. Not a wire DTO. */
 export type ScreenContext = Readonly<{
   api: HttpLocalApi;
+  /** This viewer's cache of server documents (client-core query/viewer-queries). */
+  queries: ViewerQueries;
   events: EventsClient;
   scope: ContentScope;
   isCurrent: () => boolean;

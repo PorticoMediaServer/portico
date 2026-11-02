@@ -24,6 +24,7 @@ import {
   parseFileInfoFilesPage, parseFileInfoGroupsPage, parseFileInfoHeadTracksPage, parseFileInfoMembersPage, parseFileInfoPreparing,
   parseFileInfoSourcesPage, parseFileInfoTracksPage, type FileInfoOpening,
 } from '../src/file-info-pages.ts';
+import {withQueries} from './fixtures/viewer-queries.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), 'compat-corpus');
 const recorded = readdirSync(root, {withFileTypes: true}).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
@@ -116,7 +117,7 @@ for (const release of releases) {
   check(release, 'browse-songs: parseBrowseResult', ({body}) => { assert.ok(parseBrowseResult(body).entries.length > 0); }, {file: 'browse-songs'});
   check(release, 'item: parseMediaItem', ({body}) => { assert.equal(parseMediaItem(body).id, target.itemId); }, {file: 'item'});
   check(release, 'item-detail: DetailService', async ({body}) => {
-    const service = new DetailService({api: apiFor({[itemPath('/detail')]: body}), scope, requestId: async () => '00000000-0000-4000-8000-000000000000'});
+    const service = new DetailService(withQueries({api: apiFor({[itemPath('/detail')]: body}), scope, requestId: async () => '00000000-0000-4000-8000-000000000000'}));
     await service.select(target, {related: 'none'});
     const snapshot = service.getSnapshot();
     service.dispose?.();

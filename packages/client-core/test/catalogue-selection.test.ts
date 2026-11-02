@@ -6,6 +6,7 @@ import {mediaSelectionKey} from '../src/media-selection.ts';
 import type {ContentEntry} from '../src/library-content.ts';
 import type {DetailApi} from '../src/detail.ts';
 import type {QueueHeader} from '../src/playback-v1/types.ts';
+import {withQueries} from './fixtures/viewer-queries.ts';
 
 const scope = {serverId: 'server', viewerId: 'viewer'};
 const entry: ContentEntry = {id: 'movie', libraryId: 'movies', kind: 'movie', title: 'Movie'};
@@ -67,7 +68,7 @@ test('personal binding is inert, retains captured transport and preserves retry 
     return {operationId: operation.operationId, serverId: 'server', libraryId: 'movies', itemId: 'movie', viewerFence: 'detail-only', personal: state(1)} as T;
   }};
   const options = {api, scope, requestId: async () => crypto.randomUUID(), signal: new AbortController().signal, isCurrent: () => true};
-  const binding = createCataloguePersonalSelection(options);
+  const binding = createCataloguePersonalSelection(withQueries(options));
   assert.equal(requests, 0);
   options.api = {request: async () => {throw new Error('Next viewer transport must not be used');}};
   binding.service.setEntries([entry]);
@@ -90,7 +91,7 @@ test('source retirement or original abort during Detail read prevents personal w
       if (abort) controller.abort(); else current = false;
       return detail() as T;
     }};
-    const binding = createCataloguePersonalSelection({api, scope, requestId: async () => crypto.randomUUID(), signal: controller.signal, isCurrent: () => current});
+    const binding = createCataloguePersonalSelection(withQueries({api, scope, requestId: async () => crypto.randomUUID(), signal: controller.signal, isCurrent: () => current}));
     binding.service.setEntries([entry]);binding.service.selectLoaded();
     await binding.service.apply('favorite', true);
     assert.equal(writes, 0);
@@ -100,7 +101,7 @@ test('source retirement or original abort during Detail read prevents personal w
 
 test('aggregate parent personal intent stays unavailable rather than mutating its first child', async () => {
   let requests = 0;
-  const binding = createCataloguePersonalSelection({api: {request: async () => {requests++; throw new Error('unused');}}, scope, requestId: async () => crypto.randomUUID(), signal: new AbortController().signal, isCurrent: () => true});
+  const binding = createCataloguePersonalSelection(withQueries({api: {request: async () => {requests++; throw new Error('unused');}}, scope, requestId: async () => crypto.randomUUID(), signal: new AbortController().signal, isCurrent: () => true}));
   binding.service.setEntries([{id: 'show', kind: 'show', libraryId: 'tv', title: 'Show', playback: {itemId: 'first-episode'}}]);binding.service.selectLoaded();
   assert.equal(binding.service.getSnapshot().canApply, false);
   await binding.service.apply('favorite', true);
@@ -123,14 +124,14 @@ test('selected leaf capabilities intersect actual Detail actions with real execu
     assert.equal(method, 'GET');requests.push(path);
     return {...detail(), actions: offeredActions()} as T;
   }};
-  const selected = await readCatalogueSelectionItem(capabilityOptions(api), entry, allPorts);
+  const selected = await readCatalogueSelectionItem(withQueries(capabilityOptions(api)), entry, allPorts);
   assert.deepEqual(selected, {kind: 'movie', id: 'movie', libraryId: 'movies', capabilities: selectionCapabilities('movie', allPorts)});
   assert.equal(requests.length, 1);
   assert.equal(selected.capabilities.edit, false);
   assert.equal(selected.capabilities.delete, false);
   assert.equal(selected.capabilities.queue, false);
   assert.equal(selected.capabilities.download, false);
-  const noPorts = await readCatalogueSelectionItem(capabilityOptions(api), entry);
+  const noPorts = await readCatalogueSelectionItem(withQueries(capabilityOptions(api)), entry);
   assert.deepEqual(noPorts.capabilities, selectionCapabilities('movie', {}));
 });
 
@@ -142,11 +143,11 @@ test('disabled actions, unrelated playback, missing availability and music Watch
       {id: 'unknown', labelKey: 'unknown', enabled: true, playback: {itemId: entry.id, startMs: 0}},
       ...['watchlist', 'favorite', 'watched'].map(id => ({id, labelKey: id, enabled: false})),
     ]}) as T};
-    assert.deepEqual((await readCatalogueSelectionItem(capabilityOptions(api), entry, allPorts)).capabilities, selectionCapabilities('movie', {}));
+    assert.deepEqual((await readCatalogueSelectionItem(withQueries(capabilityOptions(api)), entry, allPorts)).capabilities, selectionCapabilities('movie', {}));
   }
   const song = {...entry, kind: 'song' as const};
   const api: DetailApi = {request: async<T>(): Promise<T> => ({...detail(), item: {...detail().item, kind: 'song'}, actions: offeredActions()}) as T};
-  const result = await readCatalogueSelectionItem(capabilityOptions(api), song, allPorts);
+  const result = await readCatalogueSelectionItem(withQueries(capabilityOptions(api)), song, allPorts);
   assert.equal(result.capabilities.play, true);
   assert.equal(result.capabilities.watched, false);
 });
@@ -155,7 +156,7 @@ test('capability read captures identity, transport and available ports before as
   let release!: (raw: unknown) => void;
   const api: DetailApi = {request: <T>() => new Promise<T>(resolve => {release = raw => resolve(raw as T);})};
   const options = capabilityOptions(api), ports = {...allPorts, favorite: false}, input = {...entry};
-  const pending = readCatalogueSelectionItem(options, input, ports);
+  const pending = readCatalogueSelectionItem(withQueries(options), input, ports);
   ports.favorite = true;input.id = 'replacement';
   options.api = {request: async () => {throw new Error('Must retain captured principal');}};
   release({...detail(), actions: offeredActions()});
@@ -168,12 +169,12 @@ test('capability read captures identity, transport and available ports before as
 test('unoffered parents stay unoffered and redirected or mismatched leaves are refused', async () => {
   let reads = 0;
   const options = capabilityOptions({request: async<T>(): Promise<T> => {reads++;return detail() as T;}});
-  const parent = await readCatalogueSelectionItem(options, {id: 'show', libraryId: 'tv', kind: 'show', title: 'Show', playback: {itemId: 'first-episode'}}, allPorts);
+  const parent = await readCatalogueSelectionItem(withQueries(options), {id: 'show', libraryId: 'tv', kind: 'show', title: 'Show', playback: {itemId: 'first-episode'}}, allPorts);
   assert.deepEqual(parent.capabilities, selectionCapabilities('show', {}));
-  await assert.rejects(readCatalogueSelectionItem(options, {...entry, navigation: {view: 'item', entityId: 'other-item'}}, allPorts), {code: 'catalogue-selection-unavailable'});
+  await assert.rejects(readCatalogueSelectionItem(withQueries(options), {...entry, navigation: {view: 'item', entityId: 'other-item'}}, allPorts), {code: 'catalogue-selection-unavailable'});
   assert.equal(reads, 0);
   for (const item of [{...detail().item, id: 'other-item'}, {...detail().item, kind: 'episode'}]) {
-    await assert.rejects(readCatalogueSelectionItem(capabilityOptions({request: async<T>(): Promise<T> => ({...detail(), item}) as T}), entry, allPorts));
+    await assert.rejects(readCatalogueSelectionItem(withQueries(capabilityOptions({request: async<T>(): Promise<T> => ({...detail(), item}) as T})), entry, allPorts));
   }
 });
 
@@ -186,7 +187,7 @@ test('source retirement or original abort refuses a late capability response wit
       if (abort) controller.abort();else current = false;
       return {...detail(), actions: offeredActions()} as T;
     }};
-    await assert.rejects(readCatalogueSelectionItem({...capabilityOptions(api), signal: controller.signal, isCurrent: () => current}, entry, allPorts), {name: 'AbortError'});
+    await assert.rejects(readCatalogueSelectionItem(withQueries({...capabilityOptions(api), signal: controller.signal, isCurrent: () => current}), entry, allPorts), {name: 'AbortError'});
     assert.equal(writes, 0);
   }
 });
@@ -200,7 +201,7 @@ test('personal selection wrapper forwards acknowledgement only after a validated
       const operation=body as {operationId:string};operations.push(operation.operationId);
       return {operationId:operation.operationId,serverId:'server',libraryId:'movies',itemId:'movie',viewerFence:valid?'detail-only':'other',personal:state(1)} as T;
     }};
-    const binding=createCataloguePersonalSelection({api,scope,requestId:async()=>crypto.randomUUID(),signal:new AbortController().signal,isCurrent:()=>true});
+    const binding=createCataloguePersonalSelection(withQueries({api,scope,requestId:async()=>crypto.randomUUID(),signal:new AbortController().signal,isCurrent:()=>true}));
     try{binding.service.setEntries([entry]);binding.service.selectLoaded();await binding.service.apply('favorite',true);
       assert.deepEqual(acks,valid?operations:[]);assert.equal(binding.service.getSnapshot().results[0].status,valid?'saved':'failed');
     }finally{binding.dispose();}
