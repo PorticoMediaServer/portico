@@ -192,7 +192,7 @@ function LibrarySelectionToolbar(props: LibrarySelectionOptions & {visible: Visi
   const queryHeld = current.selection.target?.mode === 'query';
   const visibleCount = visible && current.rows.length === visible.last - visible.first + 1
     && current.rows.every((row, index) => row.position === visible.first + index) ? current.rows.length : undefined;
-  const selectAll = queryHeld ? {kind: 'clear' as const} : unavailable ? {kind: 'unavailable' as const, reason: defaultI18n.t('next.selection.selectAllSearchNotBounded')} : whole && selectWhole ? {kind: 'view' as const, total: whole.total} : undefined;
+  const selectAll = queryHeld ? {kind: 'clear' as const} : unavailable ? {kind: 'unavailable' as const, reason: defaultI18n.t(unavailable.reason === 'source_changed' ? 'next.selection.selectAllSourceChanged' : 'next.selection.selectAllSearchNotBounded')} : whole && selectWhole ? {kind: 'view' as const, total: whole.total} : undefined;
   const offers = personalOffers(current.selection, actions, playSelection), leafItems = explicitLeafItems(current.selection);
   const pickerItems = props.pickers ? explicitDestinationItems(current.selection) : leafItems;
   const queueLease = !!playSelection.captureOperation && !!playSelection.isOperationCurrent && !!actions?.signal

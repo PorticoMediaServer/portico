@@ -58,7 +58,7 @@ export type BrowseSelectionType=Readonly<{kind:string;count:number;capabilities:
  * selectionBasis is a server-issued full witness independent of the page revision;
  * its absence is supported only for legacy ordinary-200 descriptors. */
 export type BrowseWholeSelection=Readonly<{libraryId:string;pivot:string;filter:BrowseNode|null;sort:readonly BrowseSortSelection[];catalogRevision:string;selectionBasis?:string;total:number;types:readonly BrowseSelectionType[];unavailableActions?:import('./selection-model/types.ts').SelectionUnavailableActions}>;
-export type BrowseWholeSelectionUnavailable=Readonly<{reason:'search_not_bounded'}>;
+export type BrowseWholeSelectionUnavailable=Readonly<{reason:'search_not_bounded'|'source_changed'}>;
 export type BrowseResult=Readonly<{pivot:string;applied:BrowseApplied;entries:readonly ContentEntry[];pageInfo:BrowsePageInfo;positionIndex:readonly BrowsePositionAnchor[];displayTargets?:readonly BrowseDisplayTarget[];wholeSelection?:BrowseWholeSelection;wholeSelectionUnavailable?:BrowseWholeSelectionUnavailable}>;
 export type BrowseDisplayTarget=Readonly<{membershipId:string;entryId:string}>;
 export type BrowseFacetValue=Readonly<{value:string;label:string;count:number;countIsLowerBound?:boolean;seriesId?:string}>;
@@ -277,8 +277,8 @@ export function parseBrowseResult(raw:unknown):BrowseResult{
  const selectionStates=['wholeSelection','wholeSelectionPreparing','wholeSelectionUnavailable'].filter(key=>raw[key]!==undefined&&raw[key]!==null);
  if(selectionStates.length>1)bad();
  const unavailable=raw.wholeSelectionUnavailable;
- if(unavailable!==undefined&&(!obj(unavailable)||Object.keys(unavailable).length!==1||unavailable.reason!=='search_not_bounded'))bad();
- const wholeSelectionUnavailable=unavailable===undefined?undefined:freeze({reason:'search_not_bounded' as const});
+ if(unavailable!==undefined&&(!obj(unavailable)||Object.keys(unavailable).length!==1||!['search_not_bounded','source_changed'].includes(unavailable.reason as string)))bad();
+ const wholeSelectionUnavailable=unavailable===undefined?undefined:freeze({reason:unavailable.reason as BrowseWholeSelectionUnavailable['reason']});
  const wholeSelection=parseWholeSelection(raw.wholeSelection,{revision:info.revision,pivot:raw.pivot,query:appliedQuery,sort:appliedSort});
  return freeze({
   pivot:raw.pivot,

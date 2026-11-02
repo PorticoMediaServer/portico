@@ -8,12 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"github.com/PorticoMediaServer/portico/apikit"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/readprep"
+	"net/http"
 	"reflect"
 	"strconv"
 )
@@ -287,6 +287,7 @@ func (d Dependencies) browseHandler(w http.ResponseWriter, r *http.Request) {
 	// browseSelect existed to detect.
 	var out catalog.BrowseResult
 	var selectionViewer catalog.Viewer
+	var selectionPolicy string
 	e = d.compose(r, restrictions, func(cat *catalog.Service) error {
 		viewer := catalog.Viewer{Profile: identity.PersonalKey(p.Viewer), Fence: fence, Libraries: []string{r.PathValue("id")}, Restrictions: restrictions}
 		viewer, composeErr := d.readingBrowseViewer(cat.Context(), p, r.PathValue("id"), viewer)
@@ -322,7 +323,13 @@ func (d Dependencies) browseHandler(w http.ResponseWriter, r *http.Request) {
 		if composeErr = d.projectBrowseDisplay(r, p, viewer, cat, body.HomeRowDisplay, query, &out); composeErr != nil {
 			return composeErr
 		}
-		return d.attachWholeSelection(r, p, viewer, cat, browseRequest, body, &out)
+		if err := d.attachWholeSelection(r, p, viewer, cat, browseRequest, body, &out); err != nil {
+			return err
+		}
+		if out.WholeSelectionPreparing != nil {
+			selectionPolicy, composeErr = cat.BrowsePagePolicyFence(browseRequest.Library, viewer.Profile)
+		}
+		return composeErr
 	})
 	defer out.Release()
 	if e != nil {
@@ -333,7 +340,7 @@ func (d Dependencies) browseHandler(w http.ResponseWriter, r *http.Request) {
 		var access catalog.SelectionPreparationAccess
 		access, e = d.browseSelectionAccess(p, r.PathValue("id"), selectionViewer)
 		if e == nil {
-			e = d.browseSelectionExposure(r, p, selectionViewer, out.WholeSelectionPreparing.CapturedBasis(), access)
+			e = d.exposeBrowseSelectionPage(r, p, selectionViewer, &out, selectionPolicy, access)
 		}
 		if e != nil {
 			if store := d.Catalog.ReadPreparations(); store != nil && access.Caller != "" {

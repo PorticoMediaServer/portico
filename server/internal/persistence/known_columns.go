@@ -1935,6 +1935,8 @@ catalog_seasons.show_id
 catalog_seasons.title
 catalog_selection_predicate_epoch.revision
 catalog_selection_predicate_epoch.singleton
+catalog_selection_profile_epochs.profile_id
+catalog_selection_profile_epochs.revision
 catalog_show_facet_episodes.episode_id
 catalog_show_facet_episodes.field
 catalog_show_facet_episodes.show_id
@@ -7284,6 +7286,7 @@ viewer_revisions.library_id
 viewer_revisions.observation_revision
 viewer_revisions.profile_id
 viewer_revisions.revision
+viewer_revisions.selection_revision
 viewer_revisions.title_path
 webhook_create_receipts.actor
 webhook_create_receipts.created_ms
