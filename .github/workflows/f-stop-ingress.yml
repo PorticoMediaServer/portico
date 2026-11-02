@@ -186,6 +186,12 @@ jobs:
       with:
         node-version: 24.22.1
     - *id001
+    - name: Generate canonical Cast projection
+      run: 'npm ci > "$RUNNER_TEMP/reports/npm-ci.log" 2>&1
+
+        node scripts/cast/generate.mjs
+
+        '
     - run: node --experimental-transform-types --test packages/client-core/test/user-mutations.test.ts > "$RUNNER_TEMP/reports/stop-retry-tests.log"
         2>&1
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -193,6 +199,11 @@ jobs:
       with:
         name: stop-client-retry
         path: ${{ runner.temp }}/reports
+        retention-days: 7
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: stop-cast-contracts
+        path: server/receiver/cast/contracts.js
         retention-days: 7
 'on':
   push:
