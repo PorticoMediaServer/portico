@@ -30,14 +30,14 @@
 .ownerLabel { display: flex; align-items: center; gap: 8px; color: var(--color-accent-strong); font-size: 12px; font-weight: 700; min-height: 34px; }
 .ownerLabel > :last-child { margin-left: auto; }
 .toolbar { position: relative; z-index: var(--layer-sticky); }
-.toolbarMain { display: flex; align-items: center; gap: 8px; padding: 20px var(--page-gutter, 64px) 0; }
+.toolbarMain { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 8px; padding: 20px var(--page-gutter, 64px) 0; }
 .toolbarMain > * { flex-shrink: 0; }
 .toolbarMain button { white-space: nowrap; }
 .filtersButton { height: 40px; padding: 0 14px; border-radius: 10px; font-size: 14.5px; gap: 8px; }
 .filterBadge { min-width: 21px; height: 21px; padding: 0 6px; border-radius: 11px; display: inline-grid; place-items: center; background: var(--color-accent-strong); color: var(--color-action-ink); font-size: 12px; font-weight: 800; }
 .separator { width: 1px; height: 24px; background: var(--browse-line); margin: 0 6px; }
 .quickToggle { height: 40px; padding: 0 15px; border-radius: 20px; gap: 7px; font-size: 14.5px; font-weight: 600; }
-.toolbarEnd { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.toolbarEnd { margin-left: auto; display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 12px 8px; }
 .resultCount { font-size: 14.5px; font-weight: 600; color: var(--browse-secondary); margin-right: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sortTrigger { height: 40px; font-size: 14.5px; gap: 8px; padding: 0 14px; white-space: nowrap; }
 /* The Saved toolbar draws the same chip 15px in with a 4px rule between the field and its order word. */
@@ -61,7 +61,7 @@
 .toolbar[data-sticky] { position: sticky; background: color-mix(in srgb, var(--color-ink) 86%, transparent); backdrop-filter: blur(22px) saturate(1.2); -webkit-backdrop-filter: blur(22px) saturate(1.2); box-shadow: 0 1px 0 color-mix(in srgb, var(--color-text) 6%, transparent); padding-block: 12px; }
 .toolbar[data-sticky] .toolbarMain { padding-top: 0; }
 .toolbar[data-sticky]::after { content: ''; position: absolute; inset: 100% 0 auto; height: 28px; background: linear-gradient(color-mix(in srgb, var(--color-ink) 70%, transparent), transparent); pointer-events: none; }
-.toolbar[data-platform=phone] .toolbarMain { padding: 10px 20px 0; overflow-x: auto; scrollbar-width: none; }
+.toolbar[data-platform=phone] .toolbarMain { padding: 10px 20px 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
 .toolbar[data-platform=phone] .separator { display: none; }
 .phoneCount { display: flex; align-items: center; gap: 10px; padding: 10px 20px; font-size: 13px; color: var(--browse-muted); font-weight: 600; }
 .phoneCount .saveView { font-size: 13px; height: 30px; padding: 0; color: var(--color-accent-strong); }
@@ -72,7 +72,7 @@
 .phoneView .viewToggle button { width: 32px; min-width: 32px; height: 30px; }
 .toolbar[data-platform=phone] .applied { padding: 0 20px 10px; }
 .toolbar[data-platform=phone] .appliedChip { height: 30px; font-size: 13px; padding: 0 8px 0 11px; }
-.toolbar[data-platform=tv] .toolbarMain { gap: 14px; padding-inline: 0; }
+.toolbar[data-platform=tv] .toolbarMain { flex-wrap: nowrap; gap: 14px; padding-inline: 0; }
 .toolbar[data-platform=tv] .toolbarMain > button, .toolbar[data-platform=tv] .sortTrigger, .toolbar[data-platform=tv] .quickToggle { min-height: 64px; font-size: 24px; padding-inline: 24px; border-radius: 14px; }
 .toolbar[data-platform=tv] .filterBadge { height: 32px; min-width: 32px; border-radius: 16px; font-size: 18px; }
 .toolbar[data-platform=tv] .separator { height: 40px; width: 1.5px; }
