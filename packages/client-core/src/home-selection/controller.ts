@@ -14,8 +14,9 @@ import {validBulkEdit, validateBulkReceipt, type BulkEdit} from '../metadata-bul
 import {fetchBulkMetadataPreview, metadataPreviewTargets, type BulkMetadataPreviewRequest} from './metadata-preview.ts';
 import {HomeSelectionDestinations} from './destinations.ts';
 import {explicitIdentities, runSelectionJobs, selectionExecutionError, selectionJobTasks, type HomeJobTask} from './execution.ts';
-import type {HomeSelectionActionState, HomeSelectionMember, HomeSelectionMenu, HomeSelectionOptions, HomeSelectionPlaybackItem, HomeSelectionSnapshot, HomeSelectionWindowInput} from './types.ts';
+import type {HomeMenuOutcome, HomeSelectionActionState, HomeSelectionMember, HomeSelectionMenu, HomeSelectionOptions, HomeSelectionPlaybackItem, HomeSelectionSnapshot, HomeSelectionWindowInput} from './types.ts';
 import {serverNow} from '../server-clock.ts';
+import {setContinueDismissed} from '../continue-watching.ts';
 
 /** Removing a window is cleanup and must never throw: a cleanup that throws reaches the app's error boundary
  * (P2-74 E-tv-30, an unmount during a Live expiry re-read). An already removed or stale window is a no-op. */
@@ -429,7 +430,7 @@ export class HomeSelectionController {
     this.publish({menu: {windowId, key, member: current.member, groups: this.menuGroups(current.member)}});
   }
   closeMenu() {this.menuSource = undefined; const cleanup = this.menuWindow; this.menuWindow = undefined; cleanup?.(); this.publish({menu: null});}
-  async executeMenu(action: EntryActionId, value?: number | null) {
+  async executeMenu(action: EntryActionId, value?: number | null): Promise<HomeMenuOutcome | undefined | void> {
     this.active(); const shown = this.state.menu, menu = shown ? this.currentMenu(shown) : null;
     if (!menu || !menu.groups.some(group => group.actions.some(offered => offered.id === action))) throw selectionExecutionError('menu-action-not-offered');
     const {member, key} = menu;
@@ -443,6 +444,7 @@ export class HomeSelectionController {
     if (action === 'editMetadata') return this.startEditor(target, true); if (action === 'delete') return this.startDelete(target, true);
     const ticket = this.begin(target);
     if (action === 'rate') return this.openRating(ticket, member, value);
+    if (action === 'removeFromContinueWatching') return this.removeFromContinue(ticket, member);
     const mapped: Partial<Record<EntryActionId, SelectionAction>> = {play: 'play', resume: 'play', playFromStart: 'play', playNext: 'play-next', addToQueue: 'play-later', download: 'download', refreshMetadata: 'refresh'};
     if (mapped[action]) return this.executeTarget(ticket, mapped[action]!, action === 'playFromStart' ? 'start-over' : action === 'resume' ? 'resume' : undefined);
     await this.guarded(ticket, action, async () => {
@@ -477,6 +479,31 @@ export class HomeSelectionController {
       }
     });
   }
+  /** HM-1 (motion.html 3.10): the server's non-destructive dismissal. The card leaves when Home
+   * reads again; the caller shows the note with Undo, which restores this exact title for this
+   * viewer at the revision the dismissal returned, and never after the viewer changed. */
+  private async removeFromContinue(ticket: Ticket, member: HomeSelectionMember): Promise<HomeMenuOutcome | undefined> {
+    const entry = member.entry as HomeEntry | undefined;
+    if (!entry || entry.homeActions?.removeFromContinue !== true) throw selectionExecutionError('personal-action-unavailable');
+    const scope = ticket.context.scope, viewer = JSON.stringify([scope.serverId, scope.authority, scope.accountId, scope.profileId]);
+    let revision: number | undefined;
+    await this.guarded(ticket, 'removeFromContinueWatching', async () => {
+      revision = (await setContinueDismissed(this.options.api, {itemId: entry.id, dismissed: true, revision: entry.homeActions?.state.personalRevision,
+        operationId: () => this.options.requestId(), signal: ticket.controller.signal})).revision;
+    });
+    // Home reads again quietly, so the row closes up even when its title's change event arrives late.
+    if (revision !== undefined) this.rereadHome();
+    if (revision === undefined || this.state.action.phase !== 'complete') return undefined;
+    const restored = revision;
+    return Object.freeze({kind: 'removedFromContinue' as const, title: entry.displayTitle ?? entry.title, undo: async () => {
+      const now = this.state.context.scope;
+      if (this.disposed || JSON.stringify([now.serverId, now.authority, now.accountId, now.profileId]) !== viewer) throw selectionExecutionError('stale-home-context');
+      await setContinueDismissed(this.options.api, {itemId: entry.id, dismissed: false, revision: restored, operationId: () => this.options.requestId()});
+      // A row the dismissal emptied has left the document, so no event for its title reaches it: read Home again.
+      this.rereadHome();
+    }});
+  }
+  private rereadHome() {void this.options.home.revalidate?.().catch(this.options.reportError);}
   private async openRating(ticket: Ticket, member: HomeSelectionMember, supplied?: number | null) {
     const entry = member.entry;
     if (!entry?.libraryId) throw selectionExecutionError('rating-not-offered');

@@ -40,6 +40,8 @@ export interface HomeSelectionRoutes {
   openCollection(collection: HomeCollection): void | Promise<void>;
   openDestination(destination: HomeSelectionDestination): void | Promise<void>;
 }
+/** What a menu action leaves for its caller to show: Remove from Continue Watching's note and its Undo. */
+export type HomeMenuOutcome = Readonly<{kind: 'removedFromContinue'; title: string; undo: () => Promise<void>}>;
 export type HomeSelectionOptions = Readonly<{
   api: HomeApi;
   events: Pick<EventsClient, 'on'> & Partial<Pick<EventsClient, 'onResync' | 'resyncReads'>>;
