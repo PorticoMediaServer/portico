@@ -37,7 +37,7 @@ function rig(options: {local?: SetupLocal; reads?: SetupServerRead[]; handlers?:
   const reads = [...(options.reads ?? [open])];
   const defaults: Handlers = {
     readState: () => reads.length > 1 ? reads.shift() : reads[0],
-    start: () => ({kind: 'startDone'}), initializeHosted: () => ({kind: 'initializeDone'}), initializeLocal: () => ({kind: 'initializeDone'}),
+    start: () => ({kind: 'startDone'}), remoteCheck: () => ({kind: 'remoteOk'}), initializeHosted: () => ({kind: 'initializeDone'}), initializeLocal: () => ({kind: 'initializeDone'}),
     requestApproval: () => ({kind: 'approvalReady', approvalUrl: 'https://hosted.example/claim#x', expiresAt: '2026-10-31T00:30:00Z'}),
     approveInApp: () => ({kind: 'approvedInApp'}), abandon: () => ({kind: 'abandoned'}), startOver: () => ({kind: 'startedOver'}), retryDelivery: () => ({kind: 'deliveryRetried'}),
     exchange: () => ({kind: 'exchangeDone'}), renew: () => ({kind: 'renewDone'}), adoptOwner: () => ({kind: 'ownerAdopted'}), addLibrary: () => ({kind: 'libraryAdded'}),
@@ -48,7 +48,7 @@ function rig(options: {local?: SetupLocal; reads?: SetupServerRead[]; handlers?:
     calls.push({name, args, context: name === 'navigate' ? undefined : args[args.length - 1] as SetupPortContext});
     return Promise.resolve().then(() => handlers[name]!(...args));
   };
-  const ports = {store, readState: async (context: SetupPortContext) => ({server: await port('readState')(context), local: await store.read()}), start: port('start'), initializeHosted: port('initializeHosted'), initializeLocal: port('initializeLocal'),
+  const ports = {store, readState: async (context: SetupPortContext) => ({server: await port('readState')(context), local: await store.read()}), start: port('start'), remoteCheck: port('remoteCheck'), initializeHosted: port('initializeHosted'), initializeLocal: port('initializeLocal'),
     requestApproval: port('requestApproval'), approveInApp: port('approveInApp'), abandon: port('abandon'), startOver: port('startOver'), retryDelivery: port('retryDelivery'),
     exchange: port('exchange'), renew: port('renew'), adoptOwner: port('adoptOwner'), addLibrary: port('addLibrary'),
     navigate: (url: string) => {calls.push({name: 'navigate', args: [url]}); handlers.navigate!(url);}} as unknown as SetupPorts;
@@ -71,8 +71,8 @@ test('a fresh server shows the form; a hosted submit runs start, initialize and 
   assert.deepEqual(t.controller.getSnapshot(), {kind: 'form', mode: 'choose', name: ''});
   t.controller.submitHosted('Den', {navigate: true});
   await t.settle();
-  assert.deepEqual(t.calls.map(c => c.name), ['readState', 'start', 'initializeHosted', 'requestApproval', 'navigate']);
-  assert.equal(t.calls[4]!.args[0], 'https://hosted.example/claim#x');
+  assert.deepEqual(t.calls.map(c => c.name), ['readState', 'start', 'remoteCheck', 'initializeHosted', 'requestApproval', 'navigate']);
+  assert.equal(t.calls[5]!.args[0], 'https://hosted.example/claim#x');
   const keys = t.calls.filter(c => ['start', 'requestApproval'].includes(c.name)).map(c => c.context!.intentId);
   assert.deepEqual(keys, ['intent-2', 'intent-2'], 'one intent, one key (the read before it was the system lane)');
   assert.deepEqual(t.controller.getSnapshot(), {kind: 'awaiting_approval', name: 'Den', serverPhase: 'awaiting_approval', polls: 0,
@@ -86,8 +86,8 @@ test('a local submit runs start, initialize and adopt owner, shows the library a
   await t.settle();
   t.controller.submitLocal('Den', 'alice', SECRET);
   await t.settle();
-  assert.deepEqual(t.calls.map(c => c.name), ['readState', 'start', 'initializeLocal', 'adoptOwner']);
-  assert.deepEqual(t.calls[2]!.args.slice(0, 2), ['Den', {username: 'alice', password: SECRET}]);
+  assert.deepEqual(t.calls.map(c => c.name), ['readState', 'start', 'remoteCheck', 'initializeLocal', 'adoptOwner']);
+  assert.deepEqual(t.calls[3]!.args.slice(0, 2), ['Den', {username: 'alice', password: SECRET}]);
   assert.equal(t.kind(), 'library');
   assert.deepEqual(t.store.peek(), {});
   t.controller.skip();
@@ -138,7 +138,7 @@ test('Back while Continue is in flight drops the call and abandons what the serv
   assert.equal(t.kind(), 'starting');
   t.controller.back();
   await t.settle();
-  assert.deepEqual(t.calls.map(c => c.name), ['readState', 'start', 'initializeHosted', 'requestApproval', 'abandon']);
+  assert.deepEqual(t.calls.map(c => c.name), ['readState', 'start', 'remoteCheck', 'initializeHosted', 'requestApproval', 'abandon']);
   assert.ok(t.calls[3]!.context!.signal.aborted, 'the approval request is dropped');
   assert.deepEqual(t.controller.getSnapshot(), {kind: 'form', mode: 'choose', name: 'Den'});
   late.resolve({kind: 'approvalReady', approvalUrl: 'https://hosted.example/claim#late'});
@@ -649,4 +649,17 @@ test('from outside: start asks for the code, the typed code goes to the start po
   await t.settle();
   assert.deepEqual(codes, [undefined, 'AAAA-AAAA', 'R9TD-3MWK']);
   assert.equal(t.count('initializeHosted'), 1, 'setup carries on after the code');
+});
+
+test('the lockout warning: Switch to Standard changes the choices initialize sends', async () => {
+  const sent: unknown[] = [];
+  const t = rig({handlers: {remoteCheck: () => ({kind: 'remoteRefused', reason: 'http', fixes: ['standard']}), initializeHosted: (_name: string, remote: unknown) => {sent.push(remote); return {kind: 'initializeDone'};}}});
+  t.controller.start();
+  await t.settle();
+  t.controller.submitHosted('Den', {navigate: false, remote: {remoteAccess: 'on', remoteSecurity: 'enhanced'}});
+  await t.settle();
+  assert.equal(t.kind(), 'lockout');
+  t.controller.lockoutFix('standard');
+  await t.settle();
+  assert.deepEqual(sent, [{remoteAccess: 'on', remoteSecurity: 'standard'}]);
 });

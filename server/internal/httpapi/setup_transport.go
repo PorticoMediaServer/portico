@@ -370,6 +370,9 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 	if err != nil {
 		return err
 	}
+	if err = registerSetupRemoteCheck(registry, d); err != nil {
+		return err
+	}
 	// Finding #2: any unfinished setup can be started over by whoever may start setup.
 	err = apikit.Register(registry, apikit.Route[SetupStartRequest, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "post_setup_start_over", Method: "POST", Path: "/v1/setup/start-over", Summary: "End any unfinished first-run setup and start again from this address", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_source_not_local", "portico_services_unavailable", "internal", "setup_code_required", "setup_code_invalid"}}, Handler: func(ctx context.Context, r *http.Request, q SetupStartRequest) (BrowserSetupResponse, error) {
 		origin := r.Header.Get("Origin")

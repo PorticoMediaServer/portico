@@ -1,5 +1,5 @@
 import {releaseAll, releaseQuietly, releaseQuietlyAsync} from './cleanup.ts';
-import {initialSetupView, stepSetup, type SetupEffect, type SetupEffectKind, type SetupEffectName, type SetupError, type SetupFormMode, type SetupInput, type SetupView} from './setup-machine.ts';
+import {initialSetupView, stepSetup, type SetupEffect, type SetupEffectKind, type SetupEffectName, type SetupError, type SetupFormMode, type SetupInput, type SetupLockoutFix, type SetupView} from './setup-machine.ts';
 import {reconcileSetup, type SetupLocal, type SetupReading, type SetupStore} from './setup-store.ts';
 import {createUserAction, describeActionError, USER_ACTION_WATCHDOG_MS, type UserAction} from './user-action.ts';
 import {nextDelay, serverFloorFrom, systemScheduler, wait, type Scheduler} from './timer.ts';
@@ -20,7 +20,7 @@ export type SetupPortContext = Readonly<{signal: AbortSignal; intentId: string}>
 /** Handed to the one effect that needs them and held in memory only until that effect succeeds or the person leaves. */
 export type SetupCredentials = Readonly<{username: string; password: string}>;
 /** Step 1's choices about outside connections (O-169), sent with setup's initialize request. */
-export type SetupRemoteChoices = Readonly<{remoteAccess: 'on' | 'private' | 'off'; remoteSecurity: 'enhanced' | 'standard'}>;
+export type SetupRemoteChoices = Readonly<{remoteAccess: 'on' | 'private' | 'off'; remoteSecurity: 'enhanced' | 'standard'; /** The lockout warning's Keep allowing this address. */ allowAddress?: string}>;
 /** The first library, as entered: a folder path, or folders picked from the owner's own listing. */
 export type SetupLibrary = Readonly<{kind: string; name: string; path: string; folders?: readonly string[]}>;
 
@@ -36,6 +36,8 @@ export interface SetupPorts {
   readState(context: SetupPortContext): Promise<SetupRead>;
   /** S1. */
   start(context: SetupPortContext, code?: string): Promise<Of<'startDone' | 'notLocalSource' | 'addressNotAllowed' | 'setupInProgress' | 'alreadyComplete' | 'tokenRefused' | 'setupCodeRequired' | 'setupCodeInvalid'>>;
+  /** The lockout check (auth.html 1e panel 5): would this address be refused once setup is complete, with these choices. */
+  remoteCheck(remote: SetupRemoteChoices | undefined, context: SetupPortContext): Promise<Of<'remoteOk' | 'remoteRefused'>>;
   /** S4. */
   initializeHosted(name: string, remote: SetupRemoteChoices | undefined, context: SetupPortContext): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
   /** S5. */
@@ -92,6 +94,8 @@ export interface SetupController {
   startOver(): void;
   /** The setup code typed from the server's log, when setting up from outside its network. */
   submitCode(code: string): void;
+  /** The lockout warning's choice: Keep allowing this address, or Switch to Standard. */
+  lockoutFix(fix: SetupLockoutFix): void;
   /** Try again. After a failure or an unconfirmed action it keeps the same intentId. */
   retry(): void;
   approveInApp(): void;
@@ -112,7 +116,7 @@ export function setupErrorOf(error: unknown): SetupError {
 }
 
 const EFFECT_NAME: Partial<Record<SetupEffectKind, SetupEffectName>> = {
-  start: 'start', 'initialize-hosted': 'initialize', 'initialize-local': 'initialize', 'request-approval': 'request-approval', 'approve-in-app': 'approve-in-app',
+  start: 'start', 'remote-check': 'remote-check', 'initialize-hosted': 'initialize', 'initialize-local': 'initialize', 'request-approval': 'request-approval', 'approve-in-app': 'approve-in-app',
   abandon: 'abandon', 'start-over': 'start-over', 'retry-delivery': 'retry-delivery', exchange: 'exchange', renew: 'renew', 'adopt-owner': 'adopt-owner', 'add-library': 'add-library',
 };
 const failureOf = (effect: SetupEffect, error: SetupError): SetupInput =>
@@ -222,6 +226,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
     switch (effect.kind) {
       case 'read-state': return readServer(context);
       case 'start': return written(effect.code ? ports.start(context, effect.code) : ports.start(context));
+      case 'remote-check': return ports.remoteCheck(remote, context);
       case 'initialize-hosted': return written(ports.initializeHosted(effect.name, remote, context));
       case 'initialize-local': {
         if (!credentials) return failureOf(effect, {code: 'credentials_missing', retryable: false});
@@ -262,6 +267,11 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
       case 'navigate': releaseQuietly('setup navigate', () => ports.navigate(effect.url)); return undefined;
       case 'retire-record': await retireQuietly('record'); return undefined;
       case 'retire-attempt': await retireQuietly('attempt'); return undefined;
+      case 'remote-fix': {
+        const base: SetupRemoteChoices = remote ?? {remoteAccess: 'on', remoteSecurity: 'enhanced'};
+        remote = effect.fix === 'standard' ? {...base, remoteSecurity: 'standard'} : effect.address ? {...base, allowAddress: effect.address} : base;
+        return undefined;
+      }
     }
     lane.inflight = effect;
     try {
@@ -365,6 +375,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
     startAgain: () => intent({kind: 'startAgain'}),
     startOver: () => intent({kind: 'startOver'}),
     submitCode: (code: string) => intent({kind: 'submitCode', code}),
+    lockoutFix: (fix: SetupLockoutFix) => intent({kind: 'lockoutFix', fix}),
     retry() {
       if (disposed || working(user)) return;
       const {phase} = user.action.getSnapshot();

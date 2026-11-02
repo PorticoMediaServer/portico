@@ -11,7 +11,7 @@ import (
 // WireSetupRemote gives setup its writer for Remote access and Remote
 // security (O-169). cmd/server and every test server that runs setup use it.
 func WireSetupRemote(id *identity.Service) {
-	id.SetupRemoteTx = func(ctx context.Context, tx *sql.Tx, access, security string) error {
-		return SetupRemoteChoicesTx(ctx, tx, access, security, time.Now())
+	id.SetupRemoteTx = func(ctx context.Context, tx *sql.Tx, access, security, allow string) error {
+		return SetupRemoteChoicesTx(ctx, tx, access, security, allow, time.Now())
 	}
 }
