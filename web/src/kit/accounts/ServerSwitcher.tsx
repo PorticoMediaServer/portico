@@ -32,9 +32,8 @@ export function ServerSwitcher({choices, busy, error, onChoose, onRefresh, onLoc
   </Dialog></AuthStage>;
 }
 /** Connect39b: looking up an address must finish before any credential form. */
-/** `initialAddress`: the address of the server that served this page, when one did. */
-export function LocalServerAddress({busy, error, initialAddress = '', onContinue, onBack}: {busy?: boolean; error?: unknown; initialAddress?: string; onContinue: (address: string) => void; onBack: () => void}) {
-  const [address, setAddress] = useState(initialAddress);
+export function LocalServerAddress({busy, error, onContinue, onBack}: {busy?: boolean; error?: unknown; onContinue: (address: string) => void; onBack: () => void}) {
+  const [address, setAddress] = useState('');
   return <AuthStage legal={false}><h1>{t('accounts.signIn.local')}</h1><AuthError error={error} />
     <form className={styles.form} onSubmit={event => {event.preventDefault(); if (address.trim() && !busy) onContinue(address);}}>
       <TextField variant="auth" label={t('accounts.signIn.address')} name="server-address" inputMode="url" autoComplete="url" value={address} onChange={event => setAddress(event.currentTarget.value)} disabled={busy} autoFocus required />

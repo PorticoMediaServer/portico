@@ -10,7 +10,6 @@ import {browserAccount} from '../../platform/account';
 import {AuthError, AuthStage} from '../../kit/accounts';
 import {Button} from '../../kit/controls';
 import {AccountIdentityFailure} from './AccountIdentityFailure';
-import {currentServedServerOrigin, forgetDestination} from '../../platform/served-origin';
 import {AccountProfilesView, type ProfilePickerViewBinding} from './AccountProfilesView';
 import {openAfterProfile} from './open-after-profile';
 
@@ -53,9 +52,7 @@ function BoundProfiles({entry}: {entry: BrowserAccountEntry}) {
     },
   }), [entry]);
   const switchServer = () => {void router.navigate({to: '/servers'});};
-  const identityFailure = entry.serverIdentityFailure(switchServer, () => {
-    void router.navigate(forgetDestination(currentServedServerOrigin()).to === 'sign-in' ? {to: '/sign-in', replace: true} : {to: '/servers'});
-  });
+  const identityFailure = entry.serverIdentityFailure(switchServer);
   if (identityFailure) return <AccountIdentityFailure binding={identityFailure}/>;
   if (state.error && !state.snapshot) return <AuthStage legal={false}><AuthError error={state.error} />
     <Button onClick={() => void entry.loadProfiles()}>{defaultI18n.t('action.tryAgain')}</Button>

@@ -18,7 +18,6 @@ import {Icon} from '../../kit/Icon';
 import {ProfileAvatarFace} from '../../kit/shell/AccountSurfaces';
 import {CountdownRing} from '../../kit/states';
 import {LocalServerAddress, ServerSwitcher} from '../../kit/accounts/ServerSwitcher';
-import {currentServedServerOrigin} from '../../platform/served-origin';
 import wordmark from '../../shell/wordmark.svg';
 import {AccountSignInView} from './AccountSignInView';
 import {HostedServersScreen} from './HostedServers';
@@ -353,7 +352,7 @@ function BoundServers({entry, form}: {entry: BrowserAccountEntry; form: AccountS
   };
   if (mode === 'entry') return <AccountSignInView entry={entry} form={form} initialize={false} initialOrigin={origin}
     onCancel={() => {setMode('chooser'); void refresh();}} />;
-  if (mode === 'address') return <LocalServerAddress initialAddress={currentServedServerOrigin()} busy={state.phase === 'checking'} error={state.error ?? error} onBack={() => {if (choices.length) setMode('chooser'); else close();}}
+  if (mode === 'address') return <LocalServerAddress busy={state.phase === 'checking'} error={state.error ?? error} onBack={() => {if (choices.length) setMode('chooser'); else close();}}
     onContinue={address => {if (state.phase === 'checking') return; form.clear(); setError(undefined); void entry.inspect(address).then(() => {
       if (!alive.current) return;
       const result = entry.getSnapshot();
