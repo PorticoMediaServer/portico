@@ -12,3 +12,22 @@ export function usePINFeedback(initialPIN: string, rejection: unknown) {
   }, [rejection]);
   return {pin, change: (value: string) => {++revision.current; setPIN(value);}};
 }
+
+/** The seconds left on a `profile_pin_locked` refusal (its Retry-After), counting down once a second; 0 for any other error.
+ * Shared by the picker's PIN page and the avatar menu's PIN dialog so a lockout reads the same everywhere. */
+export function usePINLockSeconds(error: unknown): number {
+  const [lock, setLock] = useState<Readonly<{error: unknown; until: number}>>(), [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const failure = error as {code?: unknown; retryAfterSeconds?: unknown} | undefined;
+    const seconds = failure?.retryAfterSeconds;
+    if (failure?.code !== 'profile_pin_locked' || typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) {setLock(undefined); return;}
+    const start = Date.now(); setNow(start); setLock({error, until: start + seconds * 1000});
+  }, [error]);
+  // One tick a second while the lock lasts: each tick moves `now`, which arms the next.
+  useEffect(() => {
+    if (!lock || now >= lock.until) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.min(1000, lock.until - now));
+    return () => clearTimeout(timer);
+  }, [lock, now]);
+  return lock && lock.error === error ? Math.max(0, Math.ceil((lock.until - now) / 1000)) : 0;
+}

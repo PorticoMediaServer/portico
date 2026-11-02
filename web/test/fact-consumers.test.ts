@@ -155,7 +155,8 @@ test('mounted Shell retains switch and PIN input through rename and retires the 
     '../kit/theme': {useSizeClass: () => 'expanded', useCoarsePointer: () => false, useWindowScrollAnchor() {}}, './viewport': {useShellScrolled: () => false}, './window-chrome': {usePageWindowChrome: () => ({})},
     '../kit/shell': {AccountMenu: 'AccountMenu', ProfileAvatar: 'ProfileAvatar', ProfileAvatarFace: 'ProfileAvatarFace'},
     '../kit/selection': {PhoneSelectionProvider: ({children}: any) => children, usePhoneSelectionPresent: () => false}, '../kit/overlays': {Dialog: 'Dialog'}, '../kit/controls': {Button: 'Button', TextField: 'TextField'},
-    './SwitchProfileServerHost': {SwitchProfileServerHost: 'SwitchProfileServerHost', HostedServerOpening: 'HostedServerOpening'}});
+    './SwitchProfileServerHost': {SwitchProfileServerHost: 'SwitchProfileServerHost', HostedServerOpening: 'HostedServerOpening'},
+    './profile-pin-enter': await import('../src/shell/profile-pin-enter.ts'), '../kit/accounts/pin-feedback': {usePINLockSeconds: () => 0}});
   const draw = () => tree(h.render(() => module.Shell({identity: f.context.facts.identity, OwnerActivity: () => null, dockVisible: false, onSignOut() {}, onSwitchProfile: selectProfile})));
   try {
     draw();let ui = draw();one(ui, 'AccountMenu').props.actions.switchServer();ui = draw();const opening = one(ui, 'SwitchProfileServerHost').props.opening;

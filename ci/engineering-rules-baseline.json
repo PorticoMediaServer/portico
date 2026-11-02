@@ -45,7 +45,6 @@
   "web/src/platform/freshness.ts": 1,
   "web/src/platform/playback/DecodeAudioRender.ts": 1,
   "web/src/platform/playback/web-media-player.ts": 1,
-  "web/src/screens/accounts/AccountProfilesView.tsx": 1,
   "web/src/screens/accounts/HostedServers.tsx": 1,
   "web/src/screens/dashboard/use-read.ts": 1,
   "web/src/screens/live/Live.route.tsx": 1,

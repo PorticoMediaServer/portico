@@ -626,6 +626,20 @@ export class HttpLocalApi {
     this.profileGateListeners.add(listener);
     return () => { this.profileGateListeners.delete(listener); };
   };
+  // PR-1: a request this session made was refused with profile_pin_manage (a remembered main
+  // profile hasn't entered its PIN to manage the account in the server's window). The session's
+  // holder asks for the PIN, whichever screen asked; same token rule as the profile gate.
+  private manageGateListeners = new Set<(refusal: ProfileGateRefusal) => void>();
+  readonly subscribeManageGate = (listener: (refusal: ProfileGateRefusal) => void) => {
+    this.manageGateListeners.add(listener);
+    return () => { this.manageGateListeners.delete(listener); };
+  };
+  private announceGate(error: ApiError, response: Response) {
+    const gate = error.code === 'profile_pin_reentry' ? this.profileGateListeners : error.code === 'profile_pin_manage' ? this.manageGateListeners : undefined;
+    if (!gate) return;
+    const refusal: ProfileGateRefusal = Object.freeze({error, accessToken: this.sentWith.get(response)});
+    for (const listener of [...gate]) try { listener(refusal); } catch { /* the caller still gets its error */ }
+  }
   private fetcher: typeof fetch;
   private rawFetcher: typeof fetch;
   private routes?: RouteConnection;
@@ -912,6 +926,9 @@ export class HttpLocalApi {
         const text = await response.text();
         if (text) { try { body = JSON.parse(text); } catch { body = undefined; } }
       }
+      // Playback v1 callers read their own errors; a management refusal still reaches the session's holder.
+      const code = response.status === 403 ? (body as {error?: {code?: unknown}} | undefined)?.error?.code : undefined;
+      if (code === 'profile_pin_manage') this.announceGate(new ApiError(403, code, 'Enter this profile\'s PIN to manage this account.', false), response);
       return {status: response.status, headers, body};
     });
   }
@@ -976,10 +993,7 @@ export class HttpLocalApi {
         if(version)error.version=version;
         if(minimum)error.minimumVersion=minimum;
       }
-      if (error.code === 'profile_pin_reentry') {
-        const refusal: ProfileGateRefusal = Object.freeze({error, accessToken: this.sentWith.get(response)});
-        for (const listener of [...this.profileGateListeners]) try { listener(refusal); } catch { /* the caller still gets its error */ }
-      }
+      this.announceGate(error, response);
       throw error;
     }
     return response.status === 204 ? (undefined as T) : response.json();

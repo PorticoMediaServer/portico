@@ -170,6 +170,8 @@ function categorize(f: Facts, deviceOnline: boolean | undefined): ErrorCategory 
 const codeBodies: Record<string, MessageId> = {
   reading_progress_pending: 'error.readingProgressPending',
   factor_setup_required: 'error.factorSetupRequired',
+  // PR-1: a remembered main profile past its management hour; the app asks for the PIN (it keeps watching).
+  profile_pin_manage: 'error.profilePinManage',
   queue_too_large: 'error.queueTooLarge',
   // OPS-2: an encrypted, multi-volume, solid or compressed legacy archive; the file itself, nothing to retry.
   comic_archive_unsupported: 'error.comicArchiveUnsupported',

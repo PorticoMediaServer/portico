@@ -15,14 +15,14 @@ import {createShellFactsSource} from './fact-source';
 
 export type ShellFactGroup = 'directory' | 'server' | 'members' | 'liveSources' | 'libraryChannels';
 export type ShellFactWitnesses = Readonly<{system: ServerSignIn; direct: DirectSnapshot; guide?: Pick<GuideSourceSummaries, 'viewerFence' | 'revision'>}>;
-type ShellAccount = Pick<ShellFacts['identity'], 'username' | 'profileName' | 'profileArt' | 'primaryProfile' | 'profiles' | 'canManageProfiles' | 'accountFacts' | 'capabilities'>;
+type ShellAccount = Pick<ShellFacts['identity'], 'username' | 'profileName' | 'profileArt' | 'primaryProfile' | 'profiles' | 'canManageProfiles' | 'accountFacts' | 'capabilities' | 'manageLocked'>;
 
 export function shellAccount(snapshot: DirectSnapshot, profileId: string): ShellAccount {
   const profile = snapshot.profiles.find(value => value.id === profileId);
   if (!profile) throw new Error('The selected profile is no longer present.');
   if (!profile.primary && Object.values(snapshot.capabilities).some(Boolean)) throw new Error('Management is available only on the main profile.');
   return {capabilities: snapshot.capabilities, username: snapshot.account.username, profileName: profile.name, profileArt: profile.art,
-    primaryProfile: profile.primary, canManageProfiles: snapshot.canManage,
+    primaryProfile: profile.primary, canManageProfiles: snapshot.canManage, manageLocked: snapshot.managePinRequired === true ? true : undefined,
     profiles: snapshot.profiles.map(value => ({id: value.id, name: value.name, initial: Array.from(value.name.trim())[0] ?? '', art: value.art,
       pinRequired: value.pinRequired, primary: value.primary, revision: value.revision, pinRevision: value.pinRevision, trustRevision: value.trustRevision})), accountFacts: []};
 }

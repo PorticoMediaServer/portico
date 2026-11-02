@@ -1,10 +1,11 @@
-import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import type {DirectSnapshot} from '@core/profile-management.ts';
 import type {IdentityApi} from '@core/identity-client.ts';
 import type {AccountEntryState} from '../../platform/account-entry';
 import {AuthError, AuthStage, ServerProfiles, ServerProfilePIN} from '../../kit/accounts';
 import {ProfilePINRecovery} from '../../kit/accounts/ProfilePINRecovery';
+import {usePINLockSeconds} from '../../kit/accounts/pin-feedback';
 import {Button} from '../../kit/controls';
 
 type RecoveryPhase = Parameters<typeof ProfilePINRecovery>[0]['phase'];
@@ -38,7 +39,6 @@ type RecoveryOpening = {flow: ProfileRecoveryView; binding: ProfilePickerViewBin
 export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {binding: ProfilePickerViewBinding; onSwitchServer: () => void; focusProfileId?: string}) {
   const state = useSyncExternalStore(binding.subscribe, binding.getSnapshot);
   const [selection, setSelection] = useState<Selection>(), [remember, setRemember] = useState(false), [recovery, setRecovery] = useState<RecoveryOpening>();
-  const [lock, setLock] = useState<Readonly<{error: unknown; until: number}>>(), [now, setNow] = useState(Date.now);
   const activeRecovery = useRef<RecoveryOpening | undefined>(undefined), selectedNow = useRef(selection);
   const owner = useMemo<ViewOwner>(() => { /* Preserve the original ownership/invalidation keys. */ void binding; void state.snapshot; void state.phase; void state.server; return ({retired: false}); }, [binding, state.snapshot, state.server, state.phase]);
   const rendered = useRef(owner), [flight, setFlight] = useState<{live: boolean}>();
@@ -62,17 +62,7 @@ export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {
     const current = opening.binding.getSnapshot();
     return opening.active && activeRecovery.current === opening && !opening.owner.retired && rendered.current === opening.owner && opening.owner.active === opening.flight && opening.flight.live && selectedNow.current === opening.selection && current.phase === 'profiles' && current.snapshot === opening.snapshot && current.server === opening.server && current.snapshot.profiles.some(profile => profile.id === opening.selection.id);
   };
-  useEffect(() => {
-    const failure = state.error as {code?: unknown; retryAfterSeconds?: unknown} | undefined;
-    const seconds = failure?.retryAfterSeconds;
-    if (failure?.code !== 'profile_pin_locked' || typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) {setLock(undefined); return;}
-    const start = Date.now(); setNow(start); setLock({error: state.error, until: start + seconds * 1000});
-  }, [state.error]);
-  useEffect(() => {
-    if (!lock) return;
-    const timer = setInterval(() => {const current = Date.now(); setNow(current); if (current >= lock.until) clearInterval(timer);}, 1000);
-    return () => clearInterval(timer);
-  }, [lock]);
+  const seconds = usePINLockSeconds(state.error);
   const snapshot = state.snapshot, server = state.server;
   // DirectSnapshot is this proved account's profile list. Library access is
   // evaluated inside each profile, never used to disable its picker tile.
@@ -85,7 +75,6 @@ export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {
   // This picker cannot offer profiles until the actual controller clears it.
   if (state.phase !== 'profiles' || snapshot.twoStepSetupRequired) return null;
   const pinError = Boolean(state.error && ['profile_pin_invalid', 'profile_pin'].includes(String((state.error as {code?: unknown}).code)));
-  const seconds = lock && lock.error === state.error ? Math.max(0, Math.ceil((lock.until - now) / 1000)) : 0;
   const otherProfiles = () => {
     if (!viewCurrent() || selectedNow.current !== selection || activeRecovery.current !== recovery) return;
     if (recovery) retire(recovery);
