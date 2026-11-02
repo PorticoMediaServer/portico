@@ -105,6 +105,9 @@ func TestSamePathDifferentMediaNeedsAttentionWithoutDeleting(t *testing.T) {
 	if err != nil || source.Health != "root_changed" {
 		t.Fatal("a root check bypassed the different-media decision", source.Health, err)
 	}
+	if err := f.s.readySource(context.Background(), "unaccepted-media", &source); !errors.Is(err, catalog.ErrSourceChanged) {
+		t.Fatal("a scheduled scan bypassed the different-media decision", err)
+	}
 }
 
 func TestSamePathPresenceHelperDeadlineDoesNotDeclareStorageOffline(t *testing.T) {
