@@ -330,6 +330,64 @@ func TestARememberedMainProfileAnswersProfilePINManageOnManagementRoutes(t *test
 	}
 }
 
+// The profile PIN reset is a management write: a remembered main profile that
+// has not entered its PIN gets the same 403 the other management writes give,
+// for another profile's PIN and its own, and works once the PIN is entered.
+func TestARememberedMainProfileCannotResetAPINThroughTheRouteUntilItEntersThePIN(t *testing.T) {
+	f := newPINGateHTTP(t)
+	ctx := t.Context()
+	const pin = "4821"
+	snapshot, err := f.d.Identity.DirectMe(ctx, f.owner.AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var main identity.DirectProfile
+	for _, p := range snapshot.Profiles {
+		if p.Primary {
+			main = p
+		}
+	}
+	mainPIN := pin
+	if _, err = f.d.Identity.EditDirectProfile(ctx, f.owner.AccessToken, main.ID, identity.DirectProfileEdit{ExpectedRevision: main.Revision, PIN: &mainPIN}); err != nil {
+		t.Fatal(err)
+	}
+	login, err := f.d.Identity.DirectLogin(ctx, "owner", "Local-password1!")
+	if err != nil {
+		t.Fatal(err)
+	}
+	remembered, err := f.d.Identity.SelectDirectProfile(ctx, login.AccountToken, main.ID, identity.DirectSelection{PIN: pin, Remember: true, InstallationID: f.install})
+	if err != nil || remembered.Remembered == nil {
+		t.Fatalf("remembering the main profile: %+v %v", remembered.Remembered, err)
+	}
+	if _, err = f.d.DB.Exec(`UPDATE authorization_session_families SET manage_until='2000-01-01T00:00:00Z' WHERE id=?`, remembered.Session.SessionFamilyID); err != nil {
+		t.Fatal(err)
+	}
+	token := remembered.Session.AccessToken
+	// The same refusal the other management writes give.
+	if w := f.request(t, "POST", "/v1/direct/profiles", token, map[string]string{"name": "Mine", "art": "blue"}); w.Code != 403 || httpErrorCode(t, w) != "profile_pin_manage" {
+		t.Fatalf("the management precondition: %d %s", w.Code, w.Body.String())
+	}
+	for _, profile := range []identity.DirectProfile{main, f.kids} {
+		w := f.request(t, "POST", "/v1/direct/profiles/"+profile.ID+"/pin-reset", token, map[string]string{"pin": "1111"})
+		if w.Code != 403 || httpErrorCode(t, w) != "profile_pin_manage" {
+			t.Fatalf("resetting %s's PIN with a remembered main profile: %d %s", profile.ID, w.Code, w.Body.String())
+		}
+	}
+	// Entering the PIN again unlocks it.
+	w := f.request(t, "POST", "/v1/direct/profiles/"+main.ID+"/select", token, map[string]any{"pin": pin, "installationId": f.install, "remember": true})
+	var again struct {
+		Session identity.Envelope `json:"session"`
+	}
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &again) != nil || again.Session.AccessToken == "" {
+		t.Fatalf("entering the PIN to manage: %d %s", w.Code, w.Body.String())
+	}
+	for _, profile := range []identity.DirectProfile{main, f.kids} {
+		if w := f.request(t, "POST", "/v1/direct/profiles/"+profile.ID+"/pin-reset", again.Session.AccessToken, map[string]string{"pin": "1111"}); w.Code != 200 {
+			t.Fatalf("resetting %s's PIN after entering the management PIN: %d %s", profile.ID, w.Code, w.Body.String())
+		}
+	}
+}
+
 // Most routes are typed (apikit) and map errors through v1Error or their own
 // mapper, not through failure(). A gated sign-in and a locked management route
 // must answer the same two codes there, never 500.

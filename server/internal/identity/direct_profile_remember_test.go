@@ -536,6 +536,58 @@ func TestARememberedMainProfileWithAPINEntersItAgainToManage(t *testing.T) {
 	}
 }
 
+// A remembered main profile that has not entered its PIN may still view, but it
+// is not a manager: it may not replace any profile's PIN, its own included. The
+// PIN reset is the one write whose target is the credential the management
+// window protects, so the management gate has to cover it.
+func TestARememberedMainProfileCannotResetAPINUntilItEntersThePIN(t *testing.T) {
+	const pin = "4821"
+	ctx := context.Background()
+	s, db, login, profiles := switchPINFixture(t, map[switchProfileKind]string{switchMain: pin})
+	main, kids := profiles[switchMain], profiles[switchKids]
+	r := chooseProfile(t, s, login.AccountToken, main.ID, DirectSelection{PIN: pin, Remember: true})
+	past := time.Now().UTC().Add(-time.Minute).Format(time.RFC3339)
+	if _, err := db.Exec(`UPDATE authorization_session_families SET manage_until=? WHERE id=?`, past, r.Session.SessionFamilyID); err != nil {
+		t.Fatal(err)
+	}
+	revision := func(profile string) int64 {
+		t.Helper()
+		var n int64
+		if err := db.QueryRow(`SELECT pin_revision FROM direct_profiles WHERE id=?`, profile).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	// Precondition: ordinary management is locked for this sign-in.
+	if _, err := s.CreateDirectProfile(ctx, r.Session.AccessToken, "Managed", "sky"); !errors.Is(err, ErrProfilePINManage) {
+		t.Fatalf("precondition: management was not locked: %v", err)
+	}
+	mainBefore, kidsBefore := revision(main.ID), revision(kids.ID)
+	// The main profile's own PIN is the parent's lock on this device.
+	if _, err := s.PINReset(ctx, r.Session.AccessToken, main.ID, "1111"); !errors.Is(err, ErrProfilePINManage) {
+		t.Fatalf("a remembered main profile replaced its own PIN after the hour: err=%v", err)
+	}
+	// Another profile's PIN is the same credential by another name.
+	if _, err := s.PINReset(ctx, r.Session.AccessToken, kids.ID, "1111"); !errors.Is(err, ErrProfilePINManage) {
+		t.Fatalf("a remembered main profile replaced another profile's PIN after the hour: err=%v", err)
+	}
+	if mainAfter, kidsAfter := revision(main.ID), revision(kids.ID); mainAfter != mainBefore || kidsAfter != kidsBefore {
+		t.Fatalf("a refused reset changed a PIN: main %d→%d, kids %d→%d", mainBefore, mainAfter, kidsBefore, kidsAfter)
+	}
+
+	// Entering the PIN again unlocks the same powers, including this one.
+	unlocked := chooseProfile(t, s, r.Session.AccessToken, main.ID, DirectSelection{PIN: pin, Remember: true})
+	if _, err := s.PINReset(ctx, unlocked.Session.AccessToken, kids.ID, "1111"); err != nil {
+		t.Fatalf("another profile's PIN after entering the management PIN: %v", err)
+	}
+	if _, err := s.PINReset(ctx, unlocked.Session.AccessToken, main.ID, "1111"); err != nil {
+		t.Fatalf("its own PIN after entering the management PIN: %v", err)
+	}
+	if mainAfter, kidsAfter := revision(main.ID), revision(kids.ID); mainAfter != mainBefore+1 || kidsAfter != kidsBefore+1 {
+		t.Fatalf("the allowed resets did not land: main %d→%d, kids %d→%d", mainBefore, mainAfter, kidsBefore, kidsAfter)
+	}
+}
+
 func TestARememberedMainProfileWithoutAPINIsNeverLockedFromManaging(t *testing.T) {
 	ctx := context.Background()
 	s, db, login, profiles := switchPINFixture(t, nil)
