@@ -50,14 +50,16 @@ func TestNativeMonitorStartsALimitedScanForTheChangedFolder(t *testing.T) {
 			}
 		}
 	}
-	// The startup scan completes after the watcher was launched. It also proves
-	// the service is running its real worker rather than only a helper callback.
-	wait(func() bool {
-		return f.count(`SELECT count(*) FROM jobs WHERE status IN('complete','complete_with_warnings')`) >= 2
-	})
-	f.write("One (2000)/One (2000) - second.mkv", "new media")
+	// Startup queues no scan (#284), so nothing marks the moment the watcher is
+	// live: the new file is written again about once a second until the
+	// watcher reports it and the real worker publishes it.
 	relative := "One (2000)/One (2000) - second.mkv"
+	var written time.Time
 	wait(func() bool {
+		if time.Since(written) > time.Second {
+			f.write(relative, "new media")
+			written = time.Now()
+		}
 		return f.count(`SELECT count(*) FROM inventory_objects WHERE relative_path=? AND state='available'`, relative) == 1
 	})
 	var job string
