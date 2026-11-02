@@ -75,11 +75,16 @@ export type PlanStream = Readonly<{id: string; action: StreamAction; to?: string
 /** The player engine a plan names: the platform's own player, or mpv. */
 export type PlaybackEngine = 'native' | 'mpv';
 export type PlaybackPlan = Readonly<{versionId: string; mode: 'direct' | 'stream'; engine: PlaybackEngine; streams: readonly PlanStream[]; estimatedBitrateKbps?: number; quality: QualityInForce}>;
+export type PlaybackContainer = Readonly<{kind: 'show' | 'album' | 'book'; id: string}>;
 export type PlaybackOptions = Readonly<{
   itemId: string; kind: string;
   resume?: Readonly<{positionMs: number; partIndex: number}>;
   alternatives?: readonly Readonly<{versionId: string; label: string}>[];
   collection?: Readonly<{id: string; title: string; next: Readonly<{id: string; title: string; year?: number; genres: readonly string[]; backdropUrl?: string}>}>;
+  /** What a start of this item plays within (an episode's show, a song's album, a book part's
+   * book): the queue anchors on the item inside it, so Next, autoplay and the next part reach the
+   * rest. Absent for a title that stands alone. */
+  container?: PlaybackContainer;
   versions: readonly MediaVersion[]; chapters: readonly Chapter[]; markers: readonly Marker[]; trickplay?: Trickplay;
   /** The quality menu for the preferred (or previewed) version: the original, automatic, then the ladder steps no taller than its picture. */
   qualities: readonly QualityOption[];
@@ -151,6 +156,7 @@ export function parseOptions(v: unknown): PlaybackOptions {
     resume: obj(v.resume) ? Object.freeze({positionMs: num(v.resume.positionMs), partIndex: num(v.resume.partIndex)}) : undefined,
     versions: Object.freeze(versions),
     collection: obj(v.collection) && obj(v.collection.next) ? Object.freeze({id: id(v.collection.id, 'collection id'), title: str(v.collection.title), next: Object.freeze({id: id(v.collection.next.id, 'collection successor'), title: str(v.collection.next.title), year: optNum(v.collection.next.year), genres: Object.freeze(arr(v.collection.next.genres).filter((g): g is string => typeof g==='string')), ...(artworkPath(v.collection.next.backdropUrl)?{backdropUrl:v.collection.next.backdropUrl as string}:{})})}) : undefined,
+    container: obj(v.container) && (v.container.kind === 'show' || v.container.kind === 'album' || v.container.kind === 'book') ? Object.freeze({kind: v.container.kind, id: id(v.container.id, 'container id')}) : undefined,
     alternatives: Object.freeze(arr(v.alternatives).filter(obj).map(a => Object.freeze({versionId: id(a.versionId, 'alternative version'), label: str(a.label)}))),
     chapters: Object.freeze(arr(v.chapters).filter(obj).map(c => Object.freeze({startMs: num(c.startMs), title: str(c.title), thumbnail: typeof c.thumbnail === 'string' ? c.thumbnail : undefined}))),
     markers: Object.freeze(arr(v.markers).filter(obj).map(m => Object.freeze({id: str(m.id), type: oneOf(m.type, ['intro', 'recap', 'credits', 'preview', 'commercial'] as const, 'other' as never), startMs: num(m.startMs), endMs: num(m.endMs), confidence: oneOf(m.confidence, ['detected', 'manual', 'embedded'] as const, 'other' as never), automaticSafe: bool(m.automaticSafe)}))),

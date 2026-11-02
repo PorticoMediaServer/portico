@@ -3469,3 +3469,25 @@ test('O-159 download: Try again after a watchdog stop acquires the local file ag
     assert.ok(d.engine.commands.slice(before).some(command => command.source === local.media.fileUrl), 'the engine is given the file again');
   } finally { dock.getSnapshot = real; offSurface(); d.runtime.dispose(); }
 });
+
+test('PB-1, MU-2: a native start queues the server-named container anchored on the item', async () => {
+  const d = fixture();
+  try {
+    d.respond(async request => {
+      if (!request.path.includes('/items/movie-ep/playback-options')) return undefined;
+      const response = await d.server.handle(request);
+      return {...response, body: {...response.body as object, kind: 'episode', container: {kind: 'show', id: 'show-1'}}};
+    });
+    const sent = d.requests.length;
+    await d.start('movie-ep', 12).catch(() => {});
+    const create = d.requests.slice(sent).find(request => request.method === 'POST' && request.path === routePath('create_queue'));
+    assert.ok(create && record(create.body));
+    assert.deepEqual(create.body.segments, [{source: {container: {kind: 'show', id: 'show-1'}}, anchor: {itemId: 'movie-ep'}}]);
+    d.respond(undefined as never);
+    const alone = d.requests.length;
+    await d.start('movie-alone', 3);
+    const single = d.requests.slice(alone).find(request => request.method === 'POST' && request.path === routePath('create_queue'));
+    assert.ok(single && record(single.body));
+    assert.deepEqual(single.body.segments, [{source: {items: {ids: ['movie-alone']}}}]);
+  } finally { d.runtime.dispose(); }
+});

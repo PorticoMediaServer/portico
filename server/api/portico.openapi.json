@@ -160895,6 +160895,21 @@
             ],
             "type": "object"
           },
+          "container": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
           "itemId": {
             "type": "string"
           },
@@ -618565,6 +618580,21 @@
                         "id",
                         "title",
                         "next"
+                      ],
+                      "type": "object"
+                    },
+                    "container": {
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
                       ],
                       "type": "object"
                     },

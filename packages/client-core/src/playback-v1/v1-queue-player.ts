@@ -86,7 +86,11 @@ export type V1QueueEditReader = Readonly<{
 export type V1QueuePolicyIntent = Readonly<{action: 'repeat'; repeat: 'off' | 'one' | 'all'} | {action: 'shuffle'; shuffled: boolean}>;
 export type V1PlaybackTarget = Readonly<{sessionId: string; generation: number; playbackRun: number; itemId: string; versionId: string; queueId: string; entryId: string}>;
 /** Captured caller lifetime; its predicate must remain current across this start's own output change. */
-export type V1PlayItemContext = Readonly<{signal?: AbortSignal; isCurrent?: () => boolean; state?: 'playing' | 'paused'; propagateError?: boolean}>;
+export type V1PlayItemContext = Readonly<{signal?: AbortSignal; isCurrent?: () => boolean; state?: 'playing' | 'paused'; propagateError?: boolean;
+  /** What the item plays within: its show, album or book (`PlaybackOptions.container`), or a list
+   * the viewer pressed it in. The queue is that selector anchored on the item, so Next, autoplay,
+   * the Episodes list and the next part reach the rest. Absent: the item alone. */
+  from?: Selector}>;
 
 /**
  * How the queue player starts, adopts and ends sessions. The web gives it the session controller's
@@ -437,13 +441,19 @@ export class V1QueuePlayer implements QueueController {
     // in place. The rest of the queue is untouched.
     const current = this.currentEntry();
     if (current && current.itemId === itemId && this.session?.itemId === itemId && !this.nativeOwns()) return this.restartCurrent(startSeconds, chosen, context?.state ?? 'playing', false, context);
-    return this.play(segments([itemId], false), itemId, {startSeconds, ...context}, chosen).then(() => {});
+    const from = context?.from;
+    if (!from) return this.play(segments([itemId], false), itemId, {startSeconds, ...context}, chosen).then(() => {});
+    // A music container starts with the viewer's music defaults, as its own Play does; the
+    // pressed song still plays first (an anchored shuffle orders the rest around it).
+    const defaults = 'container' in from && MUSIC_CONTAINERS.includes(from.container.kind) ? this.musicDefaults?.() : undefined;
+    return this.play([{source: from, anchor: {itemId}, ...(defaults?.shuffle ? {order: {mode: 'shuffle' as const}} : {})}], itemId,
+      {startSeconds, ...context, repeat: defaults?.repeat}, chosen).then(() => {});
   }
 
   /** A fresh start outside the player captures the entire show on the server.
    * An in-player episode pick then jumps in this queue and retains this run. */
   playEpisode(showId: string, episodeId: string, startSeconds?: number): Promise<void> {
-    return this.play([{source:{container:{kind:'show',id:showId}},anchor:{itemId:episodeId}}],episodeId,{startSeconds}).then(()=>{});
+    return this.playItem(episodeId, startSeconds, undefined, undefined, undefined, undefined, {from: {container: {kind: 'show', id: showId}}});
   }
 
   /** Resolve beyond the resident window before using the ordinary run-preserving jump. */

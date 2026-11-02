@@ -35,6 +35,42 @@ type Options struct {
 	Plan         *Plan                `json:"plan,omitempty"`
 	Alternatives []VersionAlternative `json:"alternatives"`
 	Collection   *CollectionSuccessor `json:"collection,omitempty"`
+	// Container is what a start of this item plays within: an episode's show,
+	// a song's album, an audiobook part's book. A client's queue anchors on
+	// the item inside it, so Next, autoplay, the Episodes list and the next
+	// part reach the rest. Absent for a title that stands alone.
+	Container *OptionsContainer `json:"container,omitempty"`
+}
+
+// OptionsContainer names a queue container selector (spec §8) by kind and id.
+type OptionsContainer struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id"`
+}
+
+// containerOf is the queue container an item of this catalogue kind plays
+// within, or nil. Retired parents have no container: the queue selector would
+// refuse them.
+func containerOf(ctx context.Context, tx *sql.Tx, kind, item string) (*OptionsContainer, error) {
+	var query, container string
+	switch kind {
+	case "episode":
+		container, query = "show", `SELECT pid(parent.public_id) FROM catalog_entities item JOIN catalog_episodes e ON e.entity_id=item.id JOIN catalog_entities parent ON parent.id=e.show_id AND parent.retired=0 WHERE item.public_id=pid_blob(?)`
+	case "song":
+		container, query = "album", `SELECT pid(parent.public_id) FROM catalog_entities item JOIN catalog_songs song ON song.entity_id=item.id JOIN catalog_entities parent ON parent.id=song.album_id AND parent.retired=0 WHERE item.public_id=pid_blob(?)`
+	case "audiobook_file":
+		container, query = "book", `SELECT pid(parent.public_id) FROM catalog_entities item JOIN catalog_book_files part ON part.entity_id=item.id JOIN catalog_entities parent ON parent.id=part.book_id AND parent.retired=0 WHERE item.public_id=pid_blob(?)`
+	default:
+		return nil, nil
+	}
+	var id string
+	if err := tx.QueryRowContext(ctx, query, item).Scan(&id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &OptionsContainer{Kind: container, ID: id}, nil
 }
 
 // VersionAlternative is a version the device can actually play under its current policy.
@@ -669,6 +705,9 @@ func (s *Service) Options(ctx context.Context, p identity.Principal, item string
 	}
 	if len(out.Versions) == 0 {
 		return out, nil
+	}
+	if out.Container, err = containerOf(ctx, tx, kind, item); err != nil {
+		return Options{}, err
 	}
 	if !audioOnly {
 		out.Collection, err = s.collectionSuccessor(ctx, tx, p, item)

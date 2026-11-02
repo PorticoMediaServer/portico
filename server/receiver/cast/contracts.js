@@ -112594,6 +112594,14 @@ var PorticoCastContracts = (function(exports) {
 					],
 					"type": "object"
 				},
+				"container": {
+					"properties": {
+						"id": { "type": "string" },
+						"kind": { "type": "string" }
+					},
+					"required": ["kind", "id"],
+					"type": "object"
+				},
 				"itemId": { "type": "string" },
 				"kind": { "type": "string" },
 				"markers": {
