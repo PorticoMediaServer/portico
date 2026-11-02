@@ -120,14 +120,17 @@ test('music Top and All songs keep separate real Browse contexts and only one ac
   const {createNativeMusicSelection} = await screenModule(new URL('../src-next/screens/destinations/music/selection.tsx', import.meta.url), {
     react: h.react, '../../selection/native-selection': {createNativeSelection: (context: any, source: any, options: any) => {contexts.push(source.getSnapshot().context); return f.createNativeSelection(context, source, options);}}
   });
-  const state = {songs: [song], allSongs: {songs: [song]}};
+  const state = {songs: [song], allSongs: {songs: [song]}, albums: [], similar: []};
+  // The page's album and artist rows (W-20) are a third owner; with no loaded projection it offers no context.
   const controller = {getSnapshot: () => state, contains: (entry: any) => current && entry === song,
+    selectionProjection: () => undefined, releaseEntry: () => undefined, similarCurrent: () => false,
     subscribe: (listener: () => void) => {listeners.add(listener); return () => listeners.delete(listener);},
     selectionPage: (group: string) => current ? {generation: 9, query: group === 'songs' ? 'actual-playCount-desc-query' : 'actual-title-asc-query', revision: group === 'songs' ? 'top-revision' : 'all-revision', offset: group === 'songs' ? 0 : 40} : undefined};
   const selection = createNativeMusicSelection(f.context, controller, 'actual-route', () => current);
   try {
-    assert.deepEqual(contexts.map(value => value.revision), [{pageRevision: 'top-revision'}, {pageRevision: 'all-revision'}]);
-    assert.ok(contexts.every(value => !('privacyFence' in value.scope)));
+    assert.deepEqual(contexts.slice(0, 2).map(value => value.revision), [{pageRevision: 'top-revision'}, {pageRevision: 'all-revision'}]);
+    assert.ok(contexts.slice(0, 2).every(value => !('privacyFence' in value.scope)));
+    assert.equal(contexts[2], undefined, 'the row owner has no context until the page projection loads');
     selection.item(song, 'songs')!.onEnter(); await tick();
     assert.equal(selection.item(song, 'songs')!.selected, true); assert.equal(selection.item(song, 'all-songs')!.selected, false);
     selection.item(song, 'all-songs')!.onEnter(); await tick();
