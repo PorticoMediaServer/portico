@@ -102,7 +102,10 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
     accessibilityState={{...accessibilityState, disabled: !!disabled || accessibilityState?.disabled}}
     tvParallaxProperties={{...props.tvParallaxProperties, enabled: false}}
     onFocus={event => {if (inert) return; binding.onFocus(); setFocused(true); onFocus?.(event); observation.recordFocus(event, true);}}
-    onBlur={event => {if (!paint.interactive) return; binding.onBlur(); setFocused(false); pressed.value = 0; onBlur?.(event); observation.recordFocus(event, false);}}
+    // W-9 (2eec0520): a blur always clears this control's own ring, even while its paint is not interactive (a
+    // page arriving or leaving), or the ring stayed drawn on a control native focus had already left. Only the
+    // registry and the caller's callback stay gated, as they were.
+    onBlur={event => {setFocused(false); pressed.value = 0; if (!paint.interactive) return; binding.onBlur(); onBlur?.(event); observation.recordFocus(event, false);}}
     onHoverIn={event => {if (inert) return; setHovered(true); onHoverIn?.(event);}}
     onHoverOut={event => {if (!paint.interactive) return; setHovered(false); onHoverOut?.(event);}}
     onPressIn={disabled || inert ? undefined : event => {pressed.value = withTiming(1, {...motion.timing('quick'), ...(pressDurationMs !== undefined && !motion.reduce ? {duration: pressDurationMs} : {})}); onPressIn?.(event);}}
