@@ -9,7 +9,13 @@ const css = readFileSync(new URL('../src/screens/browse/browse.module.css', impo
 test('J-4: the desktop rail sits 18px from the window edge in the page gutter at every width', () => {
   // 64px shell gutter at 1440/1920 and 32px at 1024: 18 - gutter puts the right edge 18px in, where
   // the old fixed -46px pushed up to 14px of the rail (and its band) off-screen below 1440.
-  assert.match(css, /\.rail \{ position: absolute; right: calc\(18px - var\(--shell-gutter, var\(--gutter-desktop\)\) \+ var\(--grid-overflow, 0px\)\); top: 8px; \}/);
+  // W2-A3: the gutter the rail measures from is never under 56px, so the grid keeps its room.
+  assert.match(css, /\.rail \{ position: absolute; right: calc\(18px - max\(var\(--shell-gutter, var\(--gutter-desktop\)\), 56px\) \+ var\(--grid-overflow, 0px\)\); top: 8px; \}/);
+});
+
+test('W2-A3: a grid that draws the rail keeps at least 56px on its right, 10px clear of the rail at 1024', () => {
+  assert.match(css, /\.results:has\(> \.rail\) \{ margin-right: calc\(max\(var\(--shell-gutter, var\(--gutter-desktop\)\), 56px\) - var\(--grid-overflow, 0px\)\); \}/);
+  assert.match(css, /\.results:has\(> \.rail\) \{ margin-right: calc\(44px - var\(--grid-overflow, 0px\)\); \} \.rail \{ right: calc\(-36px \+ var\(--grid-overflow, 0px\)\); \}/, 'medium widths keep the rail 8px clear');
 });
 
 test('J-4: the rail keeps 21px rows whenever the window holds # and A–Z', () => {
