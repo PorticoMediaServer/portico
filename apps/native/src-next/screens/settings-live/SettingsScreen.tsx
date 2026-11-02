@@ -20,7 +20,7 @@ import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
 import {resetRecommendations} from '../../../../../packages/client-core/src/recommendation-feedback';
 import {nextIcons} from '../../../../../packages/design/src/next-icons';
 import {Button, Focusable, Select, Switch, TextField} from '../../kit/controls';
-import {FocusRegion, useFocusRegistry} from '../../kit/focus';
+import {FocusGate, FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {Icon, type IconName} from '../../kit/Icon';
 import {ChoiceMatrix, SettingsRow, SettingsSheet, SettingsSearchResults, LanguageList, ShortcutTiles, type LanguageOption} from '../../kit/shell';
 import {ProfileFace} from '../../kit/artwork';
@@ -243,10 +243,14 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
       return true;
     }
     if (searching) {setSearching(false); setQuery(''); setRestoreRevision(value => value + 1); return true;}
+    // W-14: Back from anywhere in the page's content (its rows, or a custom page's own panels)
+    // returns to that page in the column, never out of Settings.
+    const focused = registry.capture()?.regionId;
+    if (theme.isTV && page && focused && focused !== column && focused !== searchField && focused !== ids.rail && !focused.startsWith(keyboard)) return registry.focus({regionId: column, childId: page.id});
     if (registry.capture()?.regionId === rows && page) return registry.focus({regionId: column, childId: page.id});
     if (page && page.id !== accountPages[0]?.id) {pageState.current = {...pageState.current, selected: accountPages[0].id}; setSelected(accountPages[0].id); registry.focus({regionId: column, childId: accountPages[0].id}); return true;}
     return false;
-  }, [registry, column, rows, page, accountPages, searching, remoteSourcesPage, theme.width, viewCurrent]);
+  }, [registry, column, rows, page, accountPages, searching, remoteSourcesPage, theme.width, theme.isTV, viewCurrent, searchField, keyboard, ids]);
   const account = ports.context.account.account;
   const signedIn = account.hostedAccountId
     ? t('settings.signedInWithAccount', {server: ports.serverName()})
@@ -304,6 +308,9 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const customPage = dashboardPage || librariesPage || livePage || troubleshootingPage || storagePage || integrationsPage || generalPage || streamingPage || segmentsPage || peoplePage || signInPage || metadataPage || historyPage || remoteSourcesPage || remoteAccessPage;
   const content = <Screen style={!theme.isTV ? {paddingTop: compact ? 0 : topInset + 14} : undefined}>
     <View style={{flex: 1, flexDirection: 'row', gap: theme.isTV ? 80 : 0}}>
+      {/* W-14 (tv-focus Settings hand-off): Left from any page's content lands on the page it
+          came from in the column, never on Search settings or the rail. */}
+      {theme.isTV && !searching && <FocusGate regionId={column} testID="settings-page-gate" style={{position: 'absolute', left: 480 + 39, top: 0, bottom: 0, width: 2}}/>}
       {(!compact || !pushed) && <View style={{width: compact ? '100%' : theme.isTV ? searching ? 500 : 480 : 280}}>
         {(theme.isTV ? !searching : !compact) && <Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 30, 800), {color: theme.colors.text, marginBottom: 24, marginHorizontal: 20}]}>{t('next.shell.settings')}</Text>}
         <FocusRegion id={searchField} entry="input" edges={{left: ids.rail, down: searching ? `${keyboard}.row.0` : column}}>
