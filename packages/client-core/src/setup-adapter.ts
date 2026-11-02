@@ -272,8 +272,12 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
     },
     async startOver(context, code) {
       const p = await pair(context.signal);
+      // From outside, the setup token a setup code issued carries its admission: started over with it, nobody is asked for a new code.
+      const stored = issued?.serverId === p.pin.serverId ? undefined : (await records(p).read()).record;
+      const held = issued?.serverId === p.pin.serverId ? issued.setupToken : stored?.serverId === p.pin.serverId ? stored.setupToken : undefined;
+      await assertPaired(p);
       try {
-        const raw = await p.api.request<{serverId?: unknown; setupToken?: unknown}>(routePath('post_setup_start_over'), 'POST', code ? {setupCode: code} : {}, context.signal);
+        const raw = await (held ? tokenApi(p, held) : p.api).request<{serverId?: unknown; setupToken?: unknown}>(routePath('post_setup_start_over'), 'POST', code ? {setupCode: code} : {}, context.signal);
         await assertPaired(p);
         if (raw?.serverId !== p.pin.serverId || typeof raw.setupToken !== 'string' || !raw.setupToken) throw Object.assign(new Error('The setup answer did not match this server.'), {code: 'identity_mismatch'});
         issued = {serverId: raw.serverId, setupToken: raw.setupToken};

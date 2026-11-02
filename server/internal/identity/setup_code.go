@@ -89,16 +89,13 @@ func (s *Service) rotateSetupCodeTx(ctx context.Context, tx *sql.Tx) (string, er
 }
 
 // AdmitSetupCode checks a setup code typed from outside the server's network. A correct
-// code admits peer at origin (both kept only as keyed hashes) for setup for
-// SetupOutsideAdmission, and is replaced at once: the new code is returned for the log.
-// The origin binds the admission to the address the code was typed at, so a page that
-// rebinds another name to this server from the same peer is not admitted. A wrong code
-// is ErrUnauthorized; a set-up server ErrConflict.
-func (s *Service) AdmitSetupCode(ctx context.Context, code, peer, origin string) (next string, err error) {
+// code is replaced at once (the new code is returned for the log) and admits nothing by
+// itself: the caller binds the setup token it then issues with AdmitSetupToken, so the
+// address alone never admits anyone (a neighbour behind the same CGNAT or shared address
+// reaches the same peer and origin, but never holds that token). A wrong code is
+// ErrUnauthorized; a set-up server ErrConflict.
+func (s *Service) AdmitSetupCode(ctx context.Context, code string) (next string, err error) {
 	plain, ok := normalizedSetupCode(code)
-	if peer == "" || origin == "" {
-		return "", ErrUnauthorized
-	}
 	err = dbwork.WithWriteTx(ctx, s.db, dbwork.ClassSecurityFence, func(tx *sql.Tx) error {
 		var accounts int
 		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM accounts`).Scan(&accounts); err != nil {
@@ -117,13 +114,6 @@ func (s *Service) AdmitSetupCode(ctx context.Context, code, peer, origin string)
 		if !ok || subtle.ConstantTimeCompare([]byte(stored), []byte(s.setupHash("setup-code", plain))) != 1 {
 			return ErrUnauthorized
 		}
-		now := time.Now()
-		if _, err := tx.ExecContext(ctx, `DELETE FROM identity_setup_outside_peers WHERE expires_ms<=?`, now.UnixMilli()); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO identity_setup_outside_peers(peer_hash,origin_hash,expires_ms) VALUES(?,?,?) ON CONFLICT(peer_hash) DO UPDATE SET origin_hash=excluded.origin_hash,expires_ms=excluded.expires_ms`, s.setupHash("setup-peer", peer), s.setupHash("setup-origin", origin), now.Add(SetupOutsideAdmission).UnixMilli()); err != nil {
-			return err
-		}
 		var err error
 		next, err = s.rotateSetupCodeTx(ctx, tx)
 		return err
@@ -134,13 +124,41 @@ func (s *Service) AdmitSetupCode(ctx context.Context, code, peer, origin string)
 	return next, nil
 }
 
-// SetupPeerAdmitted reports whether a setup code admitted peer at origin and that
-// admission is live. Nothing is admitted once the server has an owner.
-func (s *Service) SetupPeerAdmitted(ctx context.Context, peer, origin string) bool {
-	if peer == "" || origin == "" {
+// AdmitSetupToken binds an outside admission to the setup token a correct setup code
+// issued, to the peer it came from and the origin it reached (all three kept only as keyed
+// hashes), for SetupOutsideAdmission. Later setup steps are admitted from outside only when
+// they present that token from that peer at that origin.
+func (s *Service) AdmitSetupToken(ctx context.Context, token, peer, origin string) error {
+	if token == "" || peer == "" || origin == "" {
+		return ErrUnauthorized
+	}
+	return dbwork.WithWriteTx(ctx, s.db, dbwork.ClassSecurityFence, func(tx *sql.Tx) error {
+		var accounts int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM accounts`).Scan(&accounts); err != nil {
+			return err
+		}
+		if accounts != 0 {
+			return ErrConflict
+		}
+		now := time.Now()
+		if _, err := tx.ExecContext(ctx, `DELETE FROM identity_setup_outside_admissions WHERE expires_ms<=?`, now.UnixMilli()); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO identity_setup_outside_admissions(token_hash,peer_hash,origin_hash,expires_ms) VALUES(?,?,?,?) ON CONFLICT(token_hash) DO UPDATE SET peer_hash=excluded.peer_hash,origin_hash=excluded.origin_hash,expires_ms=excluded.expires_ms`,
+			s.setupHash("setup-admission", token), s.setupHash("setup-peer", peer), s.setupHash("setup-origin", origin), now.Add(SetupOutsideAdmission).UnixMilli())
+		return err
+	})
+}
+
+// SetupTokenAdmitted reports whether token was issued through a setup code to peer at
+// origin, and that admission is live. The peer and origin alone never admit, and nothing
+// is admitted once the server has an owner.
+func (s *Service) SetupTokenAdmitted(ctx context.Context, token, peer, origin string) bool {
+	if token == "" || peer == "" || origin == "" {
 		return false
 	}
 	var admitted bool
-	err := s.db.QueryRowContext(ctx, `SELECT NOT EXISTS(SELECT 1 FROM accounts) AND EXISTS(SELECT 1 FROM identity_setup_outside_peers WHERE peer_hash=? AND origin_hash=? AND expires_ms>?)`, s.setupHash("setup-peer", peer), s.setupHash("setup-origin", origin), time.Now().UnixMilli()).Scan(&admitted)
+	err := s.db.QueryRowContext(ctx, `SELECT NOT EXISTS(SELECT 1 FROM accounts) AND EXISTS(SELECT 1 FROM identity_setup_outside_admissions WHERE token_hash=? AND peer_hash=? AND origin_hash=? AND expires_ms>?)`,
+		s.setupHash("setup-admission", token), s.setupHash("setup-peer", peer), s.setupHash("setup-origin", origin), time.Now().UnixMilli()).Scan(&admitted)
 	return err == nil && admitted
 }
