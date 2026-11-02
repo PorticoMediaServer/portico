@@ -115,7 +115,8 @@ type Stack = {
   /** A style change made in the options panel, for the one playback run it belongs to. */
   subtitleStyle?: Partial<Pick<SubtitlePreferences,'size'|'background'>> & Readonly<{run: number}>;
   /** The drawn sleep timer: one playback run's record, with the token that armed it. */
-  sleepTimer?: Readonly<{minutes: number; endsAt: number; timer: unknown; run: number; sessionId: string; token: object}>;
+  /** Belongs to the playback run: the queue moving on to its next track or part keeps it (MU-3). */
+  sleepTimer?: Readonly<{minutes: number; endsAt: number; timer: unknown; run: number; token: object}>;
   sessionKey?: string; metadataAbort?: AbortController; options: PlaybackOptions | null;
   offerBinding?: OfferBinding;
   itemId?: string; metadataItemId?: string; libraryId?: string; subject?: PlaybackSubject; showId?: string; seasonId?: string;
@@ -2431,9 +2432,9 @@ export class WebShellPlaybackRuntime {
     if (fence.kind !== 'queue' || !this.matches(fence)) return undefined;
     const timer = this.stack.sleepTimer;
     if (!timer) return undefined;
-    // A different run or session means its allowed lifetime is over: retire the armed record
-    // rather than leaving a timer the panel still shows as set.
-    if (timer.run !== this.playbackRun() || timer.sessionId !== fence.sessionId) { this.clearSleepTimer(this.stack); return undefined; }
+    // It lasts the whole run, across the queue's next tracks and parts (MU-3). A new playback is
+    // a new run: retire the armed record rather than show a timer that no longer applies.
+    if (timer.run !== this.playbackRun()) { this.clearSleepTimer(this.stack); return undefined; }
     return Object.freeze({minutes: timer.minutes, endsAt: timer.endsAt});
   }
   setSleepTimer(fence: PlaybackFence, minutes: number): void {
@@ -2442,17 +2443,19 @@ export class WebShellPlaybackRuntime {
     if (!Number.isSafeInteger(minutes) || ![0, 15, 30, 45, 60, 90].includes(minutes)) problem('playback_sleep_unavailable');
     this.clearSleepTimer(stack);
     if (!minutes) { this.sync(); return; }
-    const token = {}, run = this.playbackRun(), sessionId = fence.sessionId;
+    const token = {}, run = this.playbackRun();
     const timer = this.setTimer(() => {
       // Only the record that armed this callback may act; a successor timer owns the stack now.
       if (stack.sleepTimer?.token !== token) return;
       this.clearSleepTimer(stack);
-      if (!this.current(stack) || this.playbackRun() !== run || this.snapshot?.session?.id !== sessionId) { this.sync(); return; }
-      if (this.group?.matches(fence)) { this.sync(); return; }
+      // Whatever this run is playing now is paused: the track it was set on may be long gone.
+      if (!this.current(stack) || this.playbackRun() !== run) { this.sync(); return; }
+      const now = this.snapshot?.fence;
+      if (now && this.group?.matches(now)) { this.sync(); return; }
       try { stack.service.pause(); } catch { /* a retired session has nothing to pause */ }
       this.sync();
     }, minutes * 60_000);
-    stack.sleepTimer = Object.freeze({minutes, endsAt: (this.env.timers?.now ?? Date.now)() + minutes * 60_000, timer, run, sessionId, token});
+    stack.sleepTimer = Object.freeze({minutes, endsAt: (this.env.timers?.now ?? Date.now)() + minutes * 60_000, timer, run, token});
     this.sync();
   }
   private clearSleepTimer(stack: Stack): void {
