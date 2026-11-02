@@ -1,3 +1,5 @@
+import type {NativeShellPlaybackAdapter, NativeShellPlaybackSnapshot} from './playback';
+import type {DockTransition} from '../../../../packages/player-core/src';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import type {DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import type {IconName} from '../kit/Icon';
@@ -31,4 +33,13 @@ export function nativeAccountMenu(account: DirectSnapshot, open: (route: NativeS
     actions: Object.freeze(entries.filter(entry => available(entry.route)).map(({route: _route, ...action}) => action)),
     ...((viewerRole === 'owner' || viewerRole === 'administrator') && available(dashboard) ? {serverAction: {id: 'server', label: t(tv ? 'next.shell.serverSettings' : 'settings.server.dashboard'), icon: 'i-server' as const, onPress: () => open(dashboard)}} : {}),
   });
+}
+
+/** W-9: an account destination (Switch profile, Switch server, notifications…) opened while the TV music or
+ * audiobook player is expanded folds it away first, so the page opens on top and holds focus. TV video has no
+ * collapsed state (its Back closes it) and phones keep their own dock, so neither is touched. */
+export function nativeAccountOpenTransition(dock: NativeShellPlaybackAdapter['dock'], snapshot: Pick<NativeShellPlaybackSnapshot, 'fence' | 'dock'>, isTV: boolean): DockTransition | undefined {
+  const local = snapshot.dock.local;
+  if (!isTV || !snapshot.fence || !local?.expanded || local.kind === 'video' || local.kind === 'live') return undefined;
+  return dock.collapse(snapshot.fence);
 }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {DirectSnapshot} from '../../../packages/client-core/src/profile-management';
-import {nativeAccountMenu, nativeMenuRouteAvailable} from '../src-next/shell/account';
+import {nativeAccountMenu, nativeAccountOpenTransition, nativeMenuRouteAvailable} from '../src-next/shell/account';
 import {nativeShellRoutes} from '../src-next/shell/route-registry';
 
 const profile = {id: 'profile', name: 'Demo', primary: true, position: 0, art: 'blue' as const, revision: 1, pinRevision: 1, pinRequired: false};
@@ -49,4 +49,17 @@ test('TV Server settings has its own registered route and preserves the phone Da
       assert.equal(nativeAccountMenu({...account, account: {...account.account, role: 'member'}}, () => {}, true, nativeMenuRouteAvailable).serverAction, undefined);
     } finally {offSettings();}
   } finally {offDashboard();}
+});
+
+// W-9 (the audiobook player over Switch profile): an account destination opened while the TV music or
+// audiobook player is expanded folds it away first, so the page opens on top and holds focus.
+test('W-9: an account destination folds an expanded TV music or audiobook player away first, never video', () => {
+  const fence = {sessionId: 'session'} as never;
+  const dock = {collapse: (value: unknown) => ({kind: 'collapse', fence: value}), close: () => assert.fail('never closes')} as never;
+  const snapshot = (kind: string, expanded = true) => ({fence, dock: {local: {kind, expanded}}}) as never;
+  for (const kind of ['music', 'audiobook']) assert.deepEqual(nativeAccountOpenTransition(dock, snapshot(kind), true), {kind: 'collapse', fence}, kind);
+  for (const kind of ['video', 'live']) assert.equal(nativeAccountOpenTransition(dock, snapshot(kind), true), undefined, `${kind} keeps its own Back`);
+  assert.equal(nativeAccountOpenTransition(dock, snapshot('audiobook', false), true), undefined, 'a docked player stays docked');
+  assert.equal(nativeAccountOpenTransition(dock, snapshot('audiobook'), false), undefined, 'phones keep their own dock');
+  assert.equal(nativeAccountOpenTransition(dock, {fence: undefined, dock: {local: {kind: 'music', expanded: true}}} as never, true), undefined);
 });
