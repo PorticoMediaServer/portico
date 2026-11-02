@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {lanConfirmationRoots, remoteSourceDraft, withConfirmedLanRoots, type RemoteSourceDraft, type RemoteSourcePreview} from '@core/linear-api.ts';
 import {channelRequestID} from '@core/live-source-draft.ts';
@@ -43,7 +44,7 @@ export class RemoteSourceController extends OwnerStore<RemoteSourceSnapshot> {
   async save() {
     const preview = this.snapshot.preview;
     if (!this.isActive() || this.snapshot.busy || !preview) return false;
-    if (Date.parse(preview.expiresAt) <= Date.now()) {this.publish({...this.snapshot, preview: undefined, error: {code: 'channel_revision_conflict'}});return false;}
+    if (Date.parse(preview.expiresAt) <= serverNow()) {this.publish({...this.snapshot, preview: undefined, error: {code: 'channel_revision_conflict'}});return false;}
     const attempt = this.begin(), sourceId = this.snapshot.draft.id;this.saving = true;
     this.publish({...this.snapshot, busy: true, error: undefined});
     try {

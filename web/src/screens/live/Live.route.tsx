@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {useLocation, useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
@@ -33,7 +34,7 @@ import styles from './live.module.css';
 
 const t = defaultI18n.t, halfHour = 30 * 60_000;
 const liveDependencies = [dependsOn.list('guide'), dependsOn.list('liveSources'), dependsOn.list('libraryChannels'), dependsOn.list('myRecordings'), dependsOn.personal(), dependsOn.event('stream.resync')];
-const nowStart = () => Math.floor(Date.now() / halfHour) * halfHour;
+const nowStart = () => Math.floor(serverNow() / halfHour) * halfHour;
 type Selected = Readonly<{lease: LiveLease; channel: GuideChannelRow; programme?: GuideProgram; admission: SelectionAdmission}>;
 type ReadAttempt = Readonly<{current: () => boolean; retire: () => void}>;
 type CommittedSelection = {selection: Selected; live: boolean; admission: SelectionAdmission};
@@ -103,7 +104,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
     const filtersChanged = ['sourceId', 'kind', 'group', 'favorites', 'q', 'hidden'].some(key => Object.hasOwn(change, key));
     if (context.isCurrent()) void router.navigate({to: '/live', search: {...JSON.parse(searchKey), ...(filtersChanged ? {channelId: undefined} : {}), ...change}, replace: true, resetScroll: false}).catch(context.effects.reportError);
   }, [context, searchKey]);
-  const [start, setStart] = useState(nowStart), [now, setNow] = useState(Date.now), [selected, setSelected] = useState<Selected>();
+  const [start, setStart] = useState(nowStart), [now, setNow] = useState(serverNow), [selected, setSelected] = useState<Selected>();
   const [committedSelection, setCommittedSelection] = useState<CommittedSelection>();
   const committedSelectionRef = useRef<CommittedSelection | undefined>(undefined);
   const reads = useRef<ReadAttempt | undefined>(undefined);
@@ -134,7 +135,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
     committedSelectionRef.current = undefined;committed.live = false;
     setSelected(current => current === target ? undefined : current);
   };
-  useEffect(() => {const timer = setInterval(() => setNow(Date.now()), 30_000);return () => clearInterval(timer);}, []);
+  useEffect(() => {const timer = setInterval(() => setNow(serverNow()), 30_000);return () => clearInterval(timer);}, []);
   useLayoutEffect(() => {
     if (!lease || !search.sourceId || !search.channelId || search.kind !== 'live-source' && search.kind !== 'library-channel') return;
     const request = new AbortController(), link = linkKey(search.sourceId, search.channelId, search.kind);
@@ -149,7 +150,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
     reads.current?.retire();reads.current = attempt;
     void lease.bindings.selectedChannel({sourceId: search.sourceId, channelId: search.channelId, provenance: search.kind}, request.signal).then(channel => {
       if (!channel || request.signal.aborted || !attempt.current()) return;
-      const time = Date.now(), programme = channel.programmes.find(programme => Date.parse(programme.start) <= time && time < Date.parse(programme.end)) ?? channel.programmes[0];
+      const time = serverNow(), programme = channel.programmes.find(programme => Date.parse(programme.start) <= time && time < Date.parse(programme.end)) ?? channel.programmes[0];
       const row = legacyChannelRow(channel);
       setSelected({lease, channel: row, ...(programme ? {programme: legacyProgram(programme)} : {}), admission: {row, current: attempt.current, retire: attempt.retire}});
     }).catch(error => {if (!request.signal.aborted && attempt.current()) lease.screen.effects.reportError(error);});

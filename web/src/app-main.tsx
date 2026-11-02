@@ -1,4 +1,5 @@
 import './platform/polyfills';
+import './platform/server-clock-store';
 import {createRoot} from 'react-dom/client';
 import './kit/tokens.css';
 import './kit/fonts.css';

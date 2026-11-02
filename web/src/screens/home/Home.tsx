@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {homeLayout} from './layout';
 import {Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
@@ -117,16 +118,16 @@ export function HomeScreen(bindings: HomeBindings) {
     return () => {if (timer !== undefined) clearTimeout(timer); globalThis.document.removeEventListener('visibilitychange', schedule);};
   }, [hub]);
   const refreshLive = useCallback(() => display.invalidate(), [display]);
-  const [now, setNow] = useState(Date.now);
+  const [now, setNow] = useState(serverNow);
   const document = snapshot.document;
   const liveSchedule = useRef<HomeLiveSchedule>({streak: 0}), liveReadAt = useRef(0);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const refresh = () => { liveReadAt.current = Date.now(); refreshLive(); };
+    const refresh = () => { liveReadAt.current = serverNow(); refreshLive(); };
     const update = () => {
       if (timer) clearTimeout(timer);
       if (globalThis.document.hidden) return;
-      const time = Date.now(); setNow(time);
+      const time = serverNow(); setNow(time);
       // An expired live row is withdrawn at once (currentHomeLive) and re-read, but at most once
       // per HOME_LIVE_MIN_MS: a server whose expiry is past or barely ahead never loops Home.
       const expired = document?.rows.some(row => row.live && !currentHomeLive(row.live, time));
@@ -135,7 +136,7 @@ export function HomeScreen(bindings: HomeBindings) {
       if (deadline !== undefined) {
         const next = homeLiveDelay(deadline, time, liveSchedule.current);
         liveSchedule.current = next.schedule;
-        timer = setTimeout(() => { setNow(Date.now()); refresh(); }, next.delayMs);
+        timer = setTimeout(() => { setNow(serverNow()); refresh(); }, next.delayMs);
       }
     };
     update(); globalThis.document.addEventListener('visibilitychange', update);
@@ -206,7 +207,7 @@ function HomeRowView(props: HomeRowProps) {
   const onRange = useCallback((first: number, last: number) => setRange(before => before[0] === first && before[1] === last ? before : [first, last]), []);
   // Intersection can run after a suspended deadline timer. Use the actual clock
   // before both registration and rendering, even when the supplied tick is old.
-  const nowMs = Date.now(), liveCurrent = !row.live || !!currentHomeLive(row.live, nowMs);
+  const nowMs = serverNow(), liveCurrent = !row.live || !!currentHomeLive(row.live, nowMs);
   useEffect(() => {
     if (!interest.visible) return;
     if (!liveCurrent) { refreshLive(); return; }
@@ -286,7 +287,7 @@ function VisibleLive({item, mark, nowMs, order, row, artwork, effects, time, sel
   const interest = useVisible(), width = useShellWidth(), {channel} = item;
   const programme = channel.programmes.find(item => Date.parse(item.start) <= nowMs && nowMs < Date.parse(item.end));
   const start = programme && Date.parse(programme.start), end = programme && Date.parse(programme.end);
-  const current = () => !!currentHomeLive(row.live, Date.now()) && !!selection.channel(row, item);
+  const current = () => !!currentHomeLive(row.live, serverNow()) && !!selection.channel(row, item);
   const play = () => { if (current()) void effects.playChannel(channel).catch(effects.reportError); };
   const canPlay = homeChannelSelection(item, {platform: 'web', playbackAvailable: true, queueAvailable: true}).capabilities.play;
   return <div ref={interest.ref}><LiveCard style={{width: '100%', height: (width >= 1024 ? 178 : 140) * cardScale(appearance)}} channel={{sourceId: channel.sourceId, id: channel.id, name: channel.name, number: channel.number, mark}}

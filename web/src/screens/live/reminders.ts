@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 /** In-app programme reminders for this browser. The drawn note is precise: a reminder
  * arrives two minutes before the airing while Portico is open, and nothing leaves the
  * client. Keys and ids come from the guide; no server fact is invented. */
@@ -16,7 +17,7 @@ export function readReminders(): readonly LiveReminder[] {
       const item = value as Partial<LiveReminder>;
       return typeof item.programId === 'string' && typeof item.channelId === 'string' && typeof item.title === 'string'
         && typeof item.channelName === 'string' && typeof item.start === 'number' && Number.isFinite(item.start)
-        && item.start > Date.now() - 5 * MINUTE;
+        && item.start > serverNow() - 5 * MINUTE;
     });
   } catch { return []; }
 }

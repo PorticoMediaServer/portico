@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useLayoutEffect, useState, useSyncExternalStore, type ComponentType} from 'react';
 import {goTo} from '../platform/hosted-navigation';
 import {ApiError} from '@core/index.ts';
@@ -43,7 +44,7 @@ export function SetupApprovalPage({account, bootstrap, Review}: {account: Servic
       {state.phase==='expired'?<ServicesLead>{t('web.claim.expired')}</ServicesLead>:<HostedError error={error}/>}
       <ServicesActions><Button onClick={()=>goTo('/')}>{t('web.claim.backToPortico')}</Button></ServicesActions></ServicesAuthStage>;
   }
-  const display=state.display, requested=Date.now()-Date.parse(display.requestedAt)<45000?t('services.claim.justNow'):servicesRelativeTime(servicesI18n(),display.requestedAt);
+  const display=state.display, requested=serverNow()-Date.parse(display.requestedAt)<45000?t('services.claim.justNow'):servicesRelativeTime(servicesI18n(),display.requestedAt);
   return <Review phase={state.phase} serverName={display.name} address={new URL(display.address).host} accountName={display.accountName}
     requestedAt={requested} approved={state.approved === true} installed={state.installed === true || state.lapsed === true} slow={state.slow === true} retryIn={state.retryIn} busy={state.busy || state.phase === 'returning'}
     error={error} onApprove={() => {void flow?.decide('approve');}} onDeny={() => {void flow?.decide('deny');}}

@@ -2,7 +2,8 @@ import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import {type AppSessionStore, knownServerRoutes} from '@core/app-sessions.ts';
 import {installationIdentity} from '@core/installation.ts';
 import {type RegisteredSignIn, type ReturnPending, type ReturnPendingStore, prepareRegisteredSignIn, consumeSameTabReturn} from '@core/same-tab-return.ts';
-import {REGISTERED_SIGN_IN_CLOCK_SKEW_MS, registeredSignInExpiryWithinLifetime} from '@core/registered-sign-in-context.ts';
+import {serverNow} from '@core/server-clock.ts';
+import {registeredSignInExpiryWithinLifetime} from '@core/registered-sign-in-context.ts';
 import {assertFirstContactIdentity, routeBase64, routeBytes, routeOrigin, serverPin, sameServerPin, type ServerPin} from '@core/route-identity.ts';
 import {connectPairedServer, connectPairedPorticoServer, rememberNativeSession, type ConnectionEnvironment} from '@core/server-connections.ts';
 import {CodedError} from '@core/server-messages.ts';
@@ -89,7 +90,7 @@ export class BrowserRegisteredSignIn {
       const value = await (this.ports.prepare ?? prepareRegisteredSignIn)(api, port,
         {origin, hostedOrigin, installationId, ...move}, {signal: operation.signal, isCurrent: operation.current});
       const expiresAt = Date.parse(value.expiresAt);
-      const fresh = () => Number.isFinite(expiresAt) && expiresAt > Date.now();
+      const fresh = () => Number.isFinite(expiresAt) && expiresAt > serverNow();
       if (!fresh()) throw cancelled();
       const url = this.ports.startURL(value);
       if (!operation.current() || (await this.ports.sessions.read()).revision !== state.revision) throw cancelled();
@@ -121,11 +122,11 @@ export class BrowserRegisteredSignIn {
     await this.ports.journal.change(old => {record = old; return undefined;});
     this.attemptId = undefined;
     if (!record || record.version !== 1 || record.kind !== 'registered' || !record.pending) throw invalid();
-    const saved = {...record, pending: record.pending}, url = new URL(captured.href), expires = Date.parse(saved.expiresAt), now = Date.now();
-    // createdAt is this browser's clock, expires is the signing Server's. The
-    // signed prepare still bounds itself; this record adds only the same bounded
-    // skew and never accepts an expiry this browser already reached.
-    if (!Number.isSafeInteger(saved.pending.createdAt) || saved.pending.createdAt < 0 || saved.pending.createdAt > now + REGISTERED_SIGN_IN_CLOCK_SKEW_MS ||
+    const saved = {...record, pending: record.pending}, url = new URL(captured.href), expires = Date.parse(saved.expiresAt), now = serverNow();
+    // createdAt and expires are both the signing Server's clock (server-clock.ts), never this
+    // device's: the signed prepare still bounds itself, and this record never accepts an expiry
+    // the Server has already reached.
+    if (!Number.isSafeInteger(saved.pending.createdAt) || saved.pending.createdAt < 0 ||
       !registeredSignInExpiryWithinLifetime(expires, saved.pending.createdAt, now) ||
       url.origin !== this.ports.pageOrigin() || url.origin !== saved.origin || saved.pending.registrationOrigin !== saved.origin || saved.pending.purpose !== 'sign-in' ||
       saved.pending.serverId !== saved.pin.serverId || saved.pending.installationId !== this.ports.installationId() ||
@@ -136,7 +137,7 @@ export class BrowserRegisteredSignIn {
     const current = async () => {
       const state = await this.ports.sessions.read();
       if (!operation.current() || this.ports.pageOrigin() !== saved.origin || this.ports.installationId() !== saved.pending.installationId ||
-        Date.now() >= expires || state.revision !== saved.expectedRevision) throw cancelled();
+        serverNow() >= expires || state.revision !== saved.expectedRevision) throw cancelled();
     };
     await current();
     assertFirstContactIdentity(saved.origin, saved.pin, {knownRoutes: knownServerRoutes(await this.ports.sessions.read())});
@@ -170,7 +171,7 @@ export class BrowserRegisteredSignIn {
       if (grant.kind === 'signed-in') return await admit(grant);
       await current();
       const challenge = grant;
-      if (Date.parse(challenge.expiresAt) <= Date.now()) throw invalid();
+      if (Date.parse(challenge.expiresAt) <= serverNow()) throw invalid();
       let busy = false;
       const capturedChallenge = {
         close: () => {if (!busy) connected.connection.dispose();},
@@ -179,7 +180,7 @@ export class BrowserRegisteredSignIn {
           busy = true; let factorGrant: DirectSignIn | undefined, mayRetry = false;
           try {
             await current();
-            if (Date.parse(challenge.expiresAt) <= Date.now()) throw invalid();
+            if (Date.parse(challenge.expiresAt) <= serverNow()) throw invalid();
             mayRetry = true;
             factorGrant = await completeDirectSignInChallenge(connected.api, challenge.token, code, operation.signal);
             mayRetry = false;
@@ -190,7 +191,7 @@ export class BrowserRegisteredSignIn {
             if (!adopted && factorGrant?.kind === 'signed-in') await this.retire(connected.api, factorGrant.session);
             let stillCurrent = false;
             if (mayRetry) {try {await current(); stillCurrent = true;} catch { /* Closed authority cannot retain this challenge. */ }}
-            if (adopted || !stillCurrent || Date.now() >= Date.parse(challenge.expiresAt)) {
+            if (adopted || !stillCurrent || serverNow() >= Date.parse(challenge.expiresAt)) {
               if (this.challenge === capturedChallenge) this.challenge = undefined;
               connected.connection.dispose();
               if (!adopted) bound?.connection.dispose();

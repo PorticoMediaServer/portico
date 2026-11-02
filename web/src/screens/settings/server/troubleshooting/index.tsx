@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import type {LogDetailMinutes} from '@core/server-administration.ts';
 import {useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {Tabs as TabsPrimitive} from 'radix-ui';
@@ -88,8 +89,8 @@ export function TroubleshootingPage({messages, reports, feedback, support, subsc
 }
 
 function DetailWindowRow({source, detailMinutes, reportError}: {source: SettingsMessagesSource; detailMinutes?: LogDetailMinutes; reportError: (error: unknown) => void}) {
-  const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot), [now, setNow] = useState(Date.now());
-  useEffect(() => {void source.load();const timer = setInterval(() => setNow(Date.now()), 30_000);return () => {clearInterval(timer);source.pause();};}, [source]);
+  const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot), [now, setNow] = useState(serverNow());
+  useEffect(() => {void source.load();const timer = setInterval(() => setNow(serverNow()), 30_000);return () => {clearInterval(timer);source.pause();};}, [source]);
   const until = state.settings?.debugWindowUntil, detailed = !!until && Date.parse(until) > now;
   const row = settingsRowIndex.get('troubleshooting.detailWindow')!.row;
   return <SettingsRow label={t(row.label)} help={detailed ? t('settings.server.detailWindow.until', {time: defaultI18n.dateTime(until!)}) : row.help && t(row.help)}>

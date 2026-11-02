@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {legacyGuideSource, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
 import {fetchGuideSourceSummaries} from '@core/guide/directory.ts';
 import type {ChannelApi} from '@core/channel-guide.ts';
@@ -62,7 +63,7 @@ export class SearchOnNowController {
     this.publish({phase: 'loading', cards: Object.freeze([]), sourceNames: Object.freeze([])});
     const task = (async () => {
       try {
-        const now = Date.now();
+        const now = serverNow();
         const source = legacyGuideSource(this.api, this.serverId, {kind: 'all', sourceId: '', timezone: this.timezone, sort: 'favorites'});
         const page = await source.channels(0, this.limit, signal);
         if (!this.active() || generation !== this.generation || signal.aborted) throw cancelled();

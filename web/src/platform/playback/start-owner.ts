@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import type {HttpLocalApi, LocalSession} from '@core/index.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
 import {SessionsClient} from '@core/playback-v1/sessions.ts';
@@ -20,7 +21,7 @@ export function createWebPreparingStarts(api: HttpLocalApi, session: LocalSessio
     principal.authority !== 'local' && principal.authority !== 'hosted') return undefined;
   const current = () => {
     try {
-      if (!isCurrent() || Date.now() >= horizon || api.baseUrl !== origin || api.getRouteConnection() !== route ||
+      if (!isCurrent() || serverNow(origin) >= horizon || api.baseUrl !== origin || api.getRouteConnection() !== route ||
         route.pin.publicKey !== pin || route.pin.serverId !== principal.serverId || route.getSnapshot().phase !== 'ready') return false;
       const now = readSession();
       return now.sessionFamilyId === principal.family && now.deviceId === principal.device && now.installationId === principal.installation &&

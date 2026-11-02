@@ -161,7 +161,6 @@ export function SavedResourceScreen({bindings}: {bindings: SavedViewBindings}) {
           }},
         ] : [])] : []} />
     <RemovalUndo value={undo} clear={clearUndo} undo={value => {
-      if (Date.now() >= value.until) return;
       perform({action: 'restore', undoToken: value.token}, {action: 'entries', undoToken: value.token}, clearUndo);
     }} />
     <SavedDialog busy={busy} open={!!dialog} onOpenChange={open => { if (!open && !busy) setDialog(undefined); }} title={dialog === 'rename' ? renameTitle : t('web.saved.deleteTitle', {name: nameShown ?? ''})} initialFocusRef={dialog === 'rename' ? nameInput : cancel}

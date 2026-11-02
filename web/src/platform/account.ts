@@ -1,6 +1,7 @@
 import {apiRoot, routePath} from '../../../packages/contracts/src/hosted/routes.ts';
 import {parseBrowserCredentialRecord} from '@core/credential-format.ts';
 import {installationHeaders} from '@core/installation.ts';
+import {observeResponseClock} from '@core/server-clock.ts';
 import {browserAccountOrigin} from './account-origin.ts';
 import {browserCsrfCookieName, browserCsrfShape, exactBrowserCsrfCookie} from './account-csrf.ts';
 import {parseAccountSession} from '@core/hosted-security.ts';
@@ -177,9 +178,11 @@ export class BrowserAccountApi implements CredentialApi<BrowserAuthority> {
     if(this.metadataFlight)return this.metadataFlight;
     // Anonymous metadata only. Never retry a credential command to discover its cookie.
     const flight=(async()=>{
+      const sentAt=Date.now();
       const response=await fetch(this.origin+routePath('session_refresh'),{
         method:'OPTIONS',mode:'cors',credentials:'omit',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000),
       });
+      observeResponseClock(this.origin,response,sentAt);
       if(!response.ok)throw new ApiError(response.status,'csrf_metadata_unavailable','Could not reach your Portico Account.',response.status>=500,retryAfterSecondsFrom(response.headers.get('Retry-After')));
       this.keepCsrf(response,false);
       if(!this.csrfCookie)throw new ApiError(503,'csrf_metadata_unavailable','Could not reach your Portico Account.',true);
@@ -224,11 +227,13 @@ export class BrowserAccountApi implements CredentialApi<BrowserAuthority> {
     const csrf=method==='GET'?undefined:await this.csrfToken(requiresBrowserCsrf(path,method),signal);
     signal?.throwIfAborted();
     const installation=issuesHostedCredentials(path,method)?hostedInstallationHeaders():{};
+    const sentAt=Date.now();
     const response=await fetch(this.origin+path,{
       method,credentials:'include',redirect:'error',
       signal:signal?AbortSignal.any([signal,AbortSignal.timeout(15000)]):AbortSignal.timeout(15000),
       headers:{'Content-Type':'application/json',...installation,...(token?{Authorization:'Bearer '+token}:{}),...(csrf?{'X-CSRF-Token':csrf}:{})},...(payload===undefined?{}:{body:payload}),
     });
+    observeResponseClock(this.origin,response,sentAt);
     this.keepCsrf(response);
     if(!response.ok){
       const payload=await response.json().catch(()=>undefined);
