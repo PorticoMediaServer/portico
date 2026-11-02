@@ -1,0 +1,39 @@
+name: Scratch server load review
+on:
+  workflow_dispatch:
+    inputs:
+      args: {description: harness arguments, default: '--films 400 --new 1500 --books 150 --secs 40 --users 10,50,100'}
+  push:
+    branches: [scratch/server-load-main]
+permissions:
+  contents: read
+jobs:
+  load:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
+      - name: Install FFmpeg and bubblewrap; allow unprivileged user namespaces as a Debian VPS does
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq ffmpeg bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          nproc; free -m; df -h .
+      - name: Build server
+        working-directory: server
+        run: go build -tags devtrust -o "$RUNNER_TEMP/portico-server" ./cmd/server
+      - name: Load
+        run: |
+          mkdir -p "$RUNNER_TEMP/load"
+          (vmstat 5 > "$RUNNER_TEMP/load/vmstat.txt" &)
+          python3 scripts/scratch-load.py --scratch "$RUNNER_TEMP/load" --binary "$RUNNER_TEMP/portico-server" ${{ inputs.args || '--films 400 --new 1500 --books 150 --secs 40 --users 10,50,100' }}
+      - name: Collect
+        if: always()
+        run: |
+          cd "$RUNNER_TEMP/load" && mkdir -p out && cp vmstat.txt out/ || true
+          for d in load-*; do cp "$d"/load.json "$d"/*.pb.gz "$d"/diag-*.json out/ 2>/dev/null; grep -aE "exceeded|deadline|busy|bwrap|panic|refus" "$d"/server.log | sed -E "s/^[0-9/: .]+//" | cut -c1-160 | sort | uniq -c | sort -rn | head -80 > out/log-summary.txt; tail -300 "$d"/server.log > out/server-tail.log; done; ls -la out
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: server-load, path: '${{ runner.temp }}/load/out', retention-days: 14}
