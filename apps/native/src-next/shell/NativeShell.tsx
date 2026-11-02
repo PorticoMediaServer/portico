@@ -12,7 +12,7 @@ import {useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
 import {registerTVMenuFallback} from '../platform/menu-key';
 import {useTVMenuCapture} from '../platform/tv-menu';
-import {CoveredLayer, useFocusRegistry, type FocusSnapshot} from '../kit/focus';
+import {CoveredLayer, requestNativeFocus, useFocusRegistry, type FocusSnapshot} from '../kit/focus';
 import {tvFocusIds, sameDestination} from './tv-focus';
 import {HomeScreen} from '../screens/home/HomeScreen';
 import {canYieldTVHomeMenu, homeStartModel, resolveTVHomeStart} from '../screens/home/home-start';
@@ -97,6 +97,8 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const currentPageFocus = pageFocusDestination.current === JSON.stringify(destination) ? pageFocus.current : undefined;
   const pageHold = holdsPageFocus(snapshot, theme.isTV && tvListeningPresent);
   const heldPage = useRef<{opener: FocusSnapshot; destination: string; release: () => void} | undefined>(undefined);
+  /** W-12: the base page's own layer, which never holds focus itself (autoFocus) and is the last return fallback. */
+  const baseLayer = useRef<View>(null);
   const listeningPresent = useRef(tvListeningPresent); listeningPresent.current = tvListeningPresent;
   useEffect(() => () => {railRelease.current?.(); heldPage.current?.release();}, []);
   const [remembered, setRemembered] = useState<string>(), [memoryReady, setMemoryReady] = useState(false);
@@ -169,7 +171,9 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
       if (!canReturnToPage(held.destination, now, listeningPresent.current, registry.hasRetainedFocus())) return;
       if (registry.focus(held.opener)) return;
       if (tries < PAGE_RETURN_FRAMES) {frame = requestAnimationFrame(() => attempt(tries + 1)); return;}
-      registry.restore(held.opener);
+      // W-12: when neither the opener nor its row, region or neighbours come back, the page itself takes
+      // focus (its autoFocus layer lands on the last or first focusable item), never the shell's own container.
+      if (!registry.restore(held.opener)) requestNativeFocus(baseLayer.current as never);
     };
     frame = requestAnimationFrame(() => attempt(1));
     return () => cancelAnimationFrame(frame);
@@ -326,7 +330,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     </Animated.View> : <>
     <Animated.View pointerEvents={settingsPage ? 'none' : 'auto'} accessibilityElementsHidden={baseHidden || settingsPage} importantForAccessibility={baseHidden || settingsPage ? 'no-hide-descendants' : 'auto'} style={[{flex: 1}, settingsPage && !settingsSheet ? {display: 'none'} : null, sideNavigation ? {paddingLeft: sideWidth} : null, settingsPage ? undefined : pageStyle]}>
       {/* A pushed TV route covers this page: nothing under it may take D-pad focus (CoveredLayer). */}
-      {theme.isTV ? <CoveredLayer covered={baseHidden || settingsPage} style={{flex: 1}} testID="native-shell-base">{basePage}</CoveredLayer> : basePage}
+      {theme.isTV ? <CoveredLayer covered={baseHidden || settingsPage} autoFocus hostRef={baseLayer} style={{flex: 1}} testID="native-shell-base">{basePage}</CoveredLayer> : basePage}
     </Animated.View>
     {settingsPage && <Animated.View style={[{position: 'absolute', inset: 0, paddingLeft: sideNavigation ? sideWidth : 0, paddingBottom: settingsSheet ? 0 : pageBottom}, pageStyle]}>{runtime.renderDestination(destination, openLibrary)}</Animated.View>}
     </>}

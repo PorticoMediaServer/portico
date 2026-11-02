@@ -29,6 +29,9 @@ test('W-9/W-12: an autoFocus layer remembers its last focused element, so an emp
   const routes = h.render(() => CoveredLayer({covered: false, autoFocus: true, children: null, testID: 'routes'})) as any;
   assert.equal(routes.props.autoFocus, true);
   assert.equal(routes.props.focusable, true);
+  const host = {current: null};
+  const base = h.render(() => CoveredLayer({covered: false, autoFocus: true, hostRef: host, children: 'page', testID: 'native-shell-base'})) as any;
+  assert.equal(base.props.ref ?? base.ref, host, 'the shell can claim focus into its base page (W-12 fallback)');
 });
 
 test('touch has no D-pad: the layer only hides from screen readers and touches', async () => {

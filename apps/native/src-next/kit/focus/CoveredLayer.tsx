@@ -16,9 +16,11 @@ import {useTheme} from '../theme';
  * with nothing focusable inside never takes focus itself: without it, Android focuses the empty
  * container, leaving no visible focus on screen.
  */
-export function CoveredLayer({covered, children, style, testID, autoFocus = false}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string; autoFocus?: boolean}) {
+export function CoveredLayer({covered, children, style, testID, autoFocus = false, hostRef}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string; autoFocus?: boolean;
+  /** The layer's own native host, for a caller that claims focus into it (W-12: the shell's last fallback). */
+  hostRef?: React.Ref<View>}) {
   const {isTV} = useTheme();
   const hidden = {accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' as const : 'auto' as const};
-  if (!isTV) return <View style={style} testID={testID} pointerEvents={covered ? 'none' : 'auto'} {...hidden}>{children}</View>;
-  return <TVFocusGuideView style={style} testID={testID} focusable={!covered} {...(autoFocus ? {autoFocus: true} : {})} {...hidden}>{children}</TVFocusGuideView>;
+  if (!isTV) return <View ref={hostRef} style={style} testID={testID} pointerEvents={covered ? 'none' : 'auto'} {...hidden}>{children}</View>;
+  return <TVFocusGuideView ref={hostRef as never} style={style} testID={testID} focusable={!covered} {...(autoFocus ? {autoFocus: true} : {})} {...hidden}>{children}</TVFocusGuideView>;
 }

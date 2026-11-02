@@ -79,7 +79,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: useShared, withTiming: (v: unknown) => v},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})}, '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'},
     '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/browse': {}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => motion},
-    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': focusModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': shellModel,
+    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry, requestNativeFocus: () => {requests.push('base-layer'); return true;}}, './tv-focus': focusModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': shellModel,
     './PhoneTabBar': {}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'ProfileMenu'},
     './NativePlaybackLayer': {NativePlaybackLayer: 'PlaybackLayer'}, './DesktopHeader': {},
   });
@@ -172,6 +172,16 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
       await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
       await act(() => {for (let i = 0; i < 70; i++) flush();});
       assert.deepEqual(requests.slice(late), ['toolbar'], 'after the wait the usual fallback applies');
+      // W-12 reopened: when nothing on the page can be restored (card, row and toolbar all unavailable), the page's
+      // own layer takes focus (landing on its first focusable item), never the shell's container with nothing visible.
+      await act(() => {registry.didFocus(grid);});
+      await act(async () => {snapshot = {...snapshot, contentVisible: false}; await sessionHost!.rerender();});
+      gridConfig(false); registry.configure({id: toolbar.regionId, entry: toolbar.childId, order: [toolbar.childId], enabled: false});
+      const lost = requests.length;
+      await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
+      await act(() => {for (let i = 0; i < 70; i++) flush();});
+      assert.deepEqual(requests.slice(lost), ['base-layer'], 'the page claims focus itself');
+      registry.configure({id: toolbar.regionId, entry: toolbar.childId, order: [toolbar.childId]});
       gridConfig(true);
     }
     const topsBefore = tops.length, navigationsBefore = navigations.length;
