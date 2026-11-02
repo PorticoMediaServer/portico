@@ -73,7 +73,9 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
   // W-9 (2eec0520): under a covered layer a control is inert. Covering blocks new focus but cannot move focus
   // already there, so a control left focused under a pushed page neither answers OK nor draws its ring: the
   // ring on screen is always the control that answers. Blur is still recorded so no stale ring returns.
-  const covered = useCovered(), focused = nativeFocused && !covered, inert = !paint.interactive || covered;
+  // The ring is derived from native focus alone: every native focus and blur is recorded, and the ring shows only
+  // while native focus is here, on a live (interactive, uncovered) control. It can never show where focus is not.
+  const covered = useCovered(), inert = !paint.interactive || covered, focused = nativeFocused && !inert;
   const [hovered, setHovered] = useState(false);
   const scale = useSharedValue(1);
   const halo = useSharedValue(0);
@@ -101,7 +103,7 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
     onAccessibilityTap={disabled || inert ? undefined : onAccessibilityTap} onMagicTap={disabled || inert ? undefined : onMagicTap}
     accessibilityState={{...accessibilityState, disabled: !!disabled || accessibilityState?.disabled}}
     tvParallaxProperties={{...props.tvParallaxProperties, enabled: false}}
-    onFocus={event => {if (inert) return; binding.onFocus(); setFocused(true); onFocus?.(event); observation.recordFocus(event, true);}}
+    onFocus={event => {setFocused(true); if (inert) return; binding.onFocus(); onFocus?.(event); observation.recordFocus(event, true);}}
     // W-9 (2eec0520): a blur always clears this control's own ring, even while its paint is not interactive (a
     // page arriving or leaving), or the ring stayed drawn on a control native focus had already left. Only the
     // registry and the caller's callback stay gated, as they were.

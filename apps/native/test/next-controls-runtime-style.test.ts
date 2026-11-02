@@ -347,6 +347,17 @@ test('W-9 (2eec0520, anime Play): a blur while the page is not interactive still
   } finally {await control.host.unmount();}
 });
 
+test('W-9 (2eec0520, search after a profile switch): the ring follows native focus that arrived during a page transition', async () => {
+  const {Focusable, handles, paintState} = await controls(true, false, false);
+  const control = await mount(Focusable, {onPress() {}});
+  try {
+    await act(() => control.native().props.onFocus({}));
+    assert.equal(handles[1]!.read().opacity, 0, 'while the page is arriving, no ring');
+    paintState.interactive = true; await control.update({onPress() {}});
+    assert.equal(handles[1]!.read().opacity, 1, 'live again: the ring is where native focus is');
+  } finally {await control.host.unmount();}
+});
+
 test('inert outgoing paint dominates TV focusableWhenDisabled and ignores retained native events', async () => {
   for (const disabled of [false, true]) {
     const {Focusable, handles} = await controls(true, false, false);
