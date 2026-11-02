@@ -11,15 +11,37 @@ import type {EventsClient} from '@core/playback-v1/events.ts';
  * A different viewer or server gets a new hub and pool, and the old ones are let go with
  * everything they held.
  */
-export type FreshnessRuntime = {api: HttpLocalApi; scope: string; hub: FreshnessHub; pool: DocumentPool};
+export type FreshnessRuntime = {api: HttpLocalApi; scope: string; hub: FreshnessHub; pool: DocumentPool; pages: PageMemory};
 let runtime: FreshnessRuntime | undefined;
+/** The page a route last showed, in the order it was last shown. */
+const PAGE_MEMORY_MAX = 24;
+
+/**
+ * Last-known pages, kept beside the viewer (not the screen) so a route that is opened
+ * again — browser Back and Forward, a cover from the player, a card tapped twice — draws
+ * the page it had at once and reads it again in place. Only the screen's own service
+ * adopts a page: it is shown as that service's state, so every command keeps working.
+ */
+export type PageMemory = {
+  remember<T>(key: string, page: T): void;
+  recall<T>(key: string): T | undefined;
+  forget(key: string): void;
+};
+function pageMemory(): PageMemory {
+  const held = new Map<string, unknown>();
+  return {
+    remember(key, page) {held.delete(key); held.set(key, page); for (const oldest of held.keys()) {if (held.size <= PAGE_MEMORY_MAX) break; held.delete(oldest);}},
+    recall: <T,>(key: string) => held.get(key) as T | undefined,
+    forget: key => {held.delete(key);},
+  };
+}
 
 export function freshnessFor(api: HttpLocalApi, scope: {viewerId: string; serverId: string}): FreshnessRuntime {
   const key = scope.serverId + '\n' + scope.viewerId;
   if (runtime && runtime.api === api && runtime.scope === key) return runtime;
   const old = runtime;
   const hub = new FreshnessHub();
-  runtime = {api, scope: key, hub, pool: new DocumentPool(hub, {max: 32})};
+  runtime = {api, scope: key, hub, pool: new DocumentPool(hub, {max: 32}), pages: pageMemory()};
   // Let go after this render: screens still unmounting release their documents first.
   if (old) setTimeout(() => { old.pool.dispose(); old.hub.dispose(); }, 0);
   return runtime;
@@ -31,6 +53,10 @@ export function useFreshness(): FreshnessRuntime {
   const value = useContext(FreshnessContext);
   if (!value) throw new Error('A viewer freshness provider is required.');
   return value;
+}
+/** The viewer's last-known pages, for a route that shows what it had when it is opened again. */
+export function usePageMemory(): PageMemory {
+  return useFreshness().pages;
 }
 /** Browser signals only; the owning shell supplies its actual session and feed. */
 export function bindBrowserFreshness(runtime: FreshnessRuntime, events: EventsClient | null, page: Document = document, browser: Window = window): () => void {

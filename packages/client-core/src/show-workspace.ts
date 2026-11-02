@@ -80,7 +80,15 @@ function parse(raw:unknown,r:ShowWorkspaceRoute,s:ContentScope,pageSize:number,s
 type Operation={route:ShowWorkspaceRoute;cursor:string|null;history:(string|null)[];seasonCursor:string|null;seasonHistory:(string|null)[];anchor:ShowWorkspaceAnchor;pageAnchors:string[];fence:{revision:ShowWorkspaceData['revision'];viewerFence:string;allowViewerAdvance?:boolean;allowCatalogAdvance?:boolean}|null};
 export class ShowWorkspaceService{
  private api:LibraryContentApi;private scope:ContentScope;private pageSize:number;private seasonSize:number;private timeout:number;private generation=0;private disposed=false;private controller?:AbortController;private pending?:Promise<void>;private key='';private operation?:Operation;private state:ShowWorkspaceSnapshot;private listeners=new Set<()=>void>();
- constructor(o:{api:LibraryContentApi;scope:ContentScope;pageSize?:number;seasonPageSize?:number;timeoutMs?:number}){this.api=o.api;this.scope=bound(o.scope);this.pageSize=o.pageSize??40;this.seasonSize=o.seasonPageSize??128;this.timeout=o.timeoutMs??15000;if(!count(this.pageSize)||this.pageSize<1||this.pageSize>100||!count(this.seasonSize)||this.seasonSize<1||this.seasonSize>512||!Number.isFinite(this.timeout)||this.timeout<=0||this.timeout>120000)throw new Error('Invalid show request bounds.');this.state=this.empty();}
+ constructor(o:{api:LibraryContentApi;scope:ContentScope;pageSize?:number;seasonPageSize?:number;timeoutMs?:number;initial?:ShowWorkspaceSnapshot}){this.api=o.api;this.scope=bound(o.scope);this.pageSize=o.pageSize??40;this.seasonSize=o.seasonPageSize??128;this.timeout=o.timeoutMs??15000;if(!count(this.pageSize)||this.pageSize<1||this.pageSize>100||!count(this.seasonSize)||this.seasonSize<1||this.seasonSize>512||!Number.isFinite(this.timeout)||this.timeout<=0||this.timeout>120000)throw new Error('Invalid show request bounds.');this.state=this.seeded(o.initial)??this.empty();}
+ /** The page this viewer last had for this show, kept beside the viewer so a return
+  * (history Back, a cover, a route re-open) draws it at once and reads again in place.
+  * Only a ready page from this same server and viewer is adopted; anything else is a
+  * first visit. */
+ private seeded(initial?:ShowWorkspaceSnapshot):ShowWorkspaceSnapshot|undefined{
+  if(!initial||initial.phase!=='ready'||!initial.data||!initial.route||initial.scope.serverId!==this.scope.serverId||initial.scope.viewerId!==this.scope.viewerId)return undefined;
+  return Object.freeze({...initial,generation:this.generation,phase:'ready',error:null});
+ }
  private empty():ShowWorkspaceSnapshot{return Object.freeze({generation:this.generation,scope:this.scope,route:null,phase:'idle',data:null,pagination:Object.freeze({cursor:null,history:Object.freeze([]),nextCursor:null,canPrevious:false}),seasonPagination:Object.freeze({cursor:null,history:Object.freeze([]),nextCursor:null,canPrevious:false}),anchor:blankAnchor(),error:null});}
  getSnapshot=():ShowWorkspaceSnapshot=>this.state;subscribe=(fn:()=>void):(()=>void)=>{if(this.disposed)return()=>{};this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
  private active(){if(this.disposed)throw new Error('Show workspace is disposed.');}

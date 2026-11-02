@@ -243,10 +243,20 @@ export class DetailService {
   private generation = 0; private readGeneration = 0; private readController?: AbortController; private mutationController?: AbortController;
   private listeners = new Set<() => void>(); private state: DetailSnapshot; private disposed = false;
   private commands: Command[] = []; private running = false; private readPromise?: Promise<void>;
-  constructor(options: { api: DetailApi; scope: DetailScope; requestId: () => Promise<string>; timeoutMs?: number }) {
+  constructor(options: { api: DetailApi; scope: DetailScope; requestId: () => Promise<string>; timeoutMs?: number; initial?: DetailSnapshot }) {
     this.api = options.api; this.bound = checkScope(options.scope); this.requestId = options.requestId; this.timeoutMs = options.timeoutMs ?? 15000;
     if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0 || this.timeoutMs > 120000) throw new Error('Invalid detail deadline.');
-    this.state = this.empty();
+    this.state = this.seeded(options.initial) ?? this.empty();
+  }
+  /** The page this viewer last had for this title, kept beside the viewer so a return
+   * (history Back, a cover, a route re-open) draws it at once and reads again in place.
+   * Only a ready page from this same server and viewer is adopted; anything else is a
+   * first visit. */
+  private seeded(initial?: DetailSnapshot): DetailSnapshot | undefined {
+    if (!initial || initial.phase !== 'ready' || !initial.data || !initial.target) return undefined;
+    if (initial.scope.serverId !== this.bound.serverId || initial.scope.viewerId !== this.bound.viewerId) return undefined;
+    if (initial.data.item.id !== initial.target.itemId || initial.data.scope.libraryId !== initial.target.libraryId) return undefined;
+    return Object.freeze({...initial, generation: this.generation, phase: 'ready', error: null, pending: Object.freeze([]), mutationError: null});
   }
   private empty(): DetailSnapshot { return Object.freeze({ generation: this.generation, scope: this.bound, target: null, phase: 'idle', data: null, error: null, pending: Object.freeze([]), mutationError: null }); }
   private related: 'all' | 'none' = 'all';
@@ -260,7 +270,10 @@ export class DetailService {
     this.active(); const target = checkTarget(input), related = options.related ?? 'all';
     if (related !== 'all' && related !== 'none') throw new Error('Invalid detail related option.');
     if (this.state.phase === 'loading' && this.state.target?.itemId === target.itemId && this.state.target.libraryId === target.libraryId && this.related === related && this.readPromise) return this.readPromise;
-    this.fence(); this.related = related; this.publish({ ...this.empty(), target }); return this.refresh();
+    // A return to the title already on screen keeps the page it shows while the fresh read
+    // runs, so a slow server never blanks a page it is about to redraw.
+    const retained = this.state.data && this.state.target?.itemId === target.itemId && this.state.target.libraryId === target.libraryId ? this.state.data : null;
+    this.fence(); this.related = related; this.publish({ ...this.empty(), target, ...(retained ? {phase: 'loading' as const, data: retained} : {}) }); return this.refresh();
   }
   refresh(): Promise<void> {
     this.active(); if (!this.state.target) return Promise.resolve();

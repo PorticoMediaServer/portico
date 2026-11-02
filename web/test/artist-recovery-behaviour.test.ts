@@ -61,7 +61,7 @@ test('Artist Back and retry keep their committed entry and never adopt successor
     react, '@tanstack/react-router': {useLocation: () => location}, '../../router': {router},
     '@i18n': {defaultI18n: {region: {formatLocale: 'en'}}}, './text': {t},
     '@core/library-content.ts': {LibraryContentService: Service, readListeningSimilar: () => Promise.resolve({entries: []})},
-    '@core/freshness-hub.ts': {dependsOn: {libraries: 'libraries'}}, '../../platform/freshness': {useFreshDocument() {}},
+    '@core/freshness-hub.ts': {dependsOn: {libraries: 'libraries'}}, '../../platform/freshness': {useFreshDocument() {}, usePageMemory: () => ({remember() {}, recall: () => undefined, forget() {}})},
     '../../kit/controls': {Button: 'Button', Chip: 'Chip'}, '../../kit/cards': {SquareCard: 'SquareCard'}, '../../kit/artwork': {AmbientArt: 'AmbientArt', CircleArt: 'CircleArt'},
     '@core/presentation/server-text.ts': {serverTextLabel: (_i18n: unknown, heading: any) => heading?.fallback ?? ''}, '@core/presentation/service-text.ts': {serviceI18n: () => ({})},
     '../../kit/layout': {Lockup: 'Lockup'}, '../../kit/title/TitleParts': {TitleFactsLine: 'TitleFactsLine', TitleProse: 'TitleProse'},

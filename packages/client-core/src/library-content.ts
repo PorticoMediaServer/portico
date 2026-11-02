@@ -482,12 +482,19 @@ export class LibraryContentService {
   private continuationRecovery: 'restart' | 'refresh-required';
   private flight?: ContentFlight;
   private checkpoint: ContentCheckpoint;
-  constructor(options: { api: LibraryContentApi; scope: ContentScope; pageSize?: number; timeoutMs?: number; continuationRecovery?: 'restart' | 'refresh-required' }) {
+  constructor(options: { api: LibraryContentApi; scope: ContentScope; pageSize?: number; timeoutMs?: number; continuationRecovery?: 'restart' | 'refresh-required'; initial?: LibraryContentSnapshot }) {
     this.api = options.api; this.bound = scope(options.scope); this.pageSize = options.pageSize ?? 40; this.timeoutMs = options.timeoutMs ?? 15_000; this.continuationRecovery = options.continuationRecovery ?? 'restart';
     if (!Number.isInteger(this.pageSize) || this.pageSize < 1 || this.pageSize > 100 || !Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0 || this.timeoutMs > 120_000) throw new Error('Invalid content request bounds.');
     if (this.continuationRecovery !== 'restart' && this.continuationRecovery !== 'refresh-required') throw new Error('Invalid continuation recovery policy.');
-    this.snapshot = this.empty();
+    this.snapshot = this.seeded(options.initial) ?? this.empty();
     this.checkpoint = Object.freeze({ snapshot: this.snapshot, history: [], current: { cursor: null } });
+  }
+  /** The page this viewer last had for this route, kept beside the viewer so a return
+   * (history Back, a cover, a route re-open) draws it at once and reads again in place. */
+  private seeded(initial?: LibraryContentSnapshot): LibraryContentSnapshot | undefined {
+    if (!initial || initial.phase !== 'ready' || !initial.projection || !initial.route) return undefined;
+    if (initial.scope.serverId !== this.bound.serverId || initial.scope.viewerId !== this.bound.viewerId) return undefined;
+    return Object.freeze({...initial, generation: this.generation, phase: 'ready', error: null});
   }
   private empty(): LibraryContentSnapshot { return Object.freeze({ generation: this.generation, scope: this.bound, route: null, phase: 'idle', projection: null, sections: Object.freeze([]), appended: Object.freeze([]), pagination: Object.freeze({ cursor: null, canPrevious: false, next: Object.freeze([]) }), error: null }); }
   getSnapshot = (): LibraryContentSnapshot => this.snapshot;
