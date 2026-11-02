@@ -34,7 +34,7 @@ The SQLite driver files copied into Portico keep their upstream notices in [serv
 
 ## Web and build packages
 
-The [npm dependency inventory](docs/dependency-licenses.md) lists every package and its declared licence from the root lockfile, including indirect, development and platform-specific packages. The main ones: React and React DOM, TanStack Router, Radix UI, QRCode and the Noble cryptography libraries are MIT, and hls.js is Apache-2.0. The build uses TypeScript (Apache-2.0), Vite (MIT) and platform-specific bundler binaries under their recorded licences.
+The [npm dependency inventory](docs/dependency-licenses.md) lists every package and its declared licence from the root lockfile, including indirect, development and platform-specific packages. The main ones: React and React DOM, TanStack Router and TanStack Query (its core), Radix UI, QRCode and the Noble cryptography libraries are MIT, and hls.js is Apache-2.0. The build uses TypeScript (Apache-2.0), Vite (MIT) and platform-specific bundler binaries under their recorded licences.
 
 Portico uses a patched hls.js, version `1.7.2-portico.1`, based on upstream `1.7.2` at `dd669ec53b601aa9fab7a2a78c913e25018cdf18`. The original archive, the patch, the build recipe, the [licence](third_party/hls.js/LICENSE) and the [provenance record](third_party/hls.js/provenance.json) are all in `third_party/hls.js`.
 

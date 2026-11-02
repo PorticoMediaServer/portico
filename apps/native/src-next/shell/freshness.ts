@@ -1,5 +1,6 @@
 import {dependsOn, FreshnessHub, titlesWithPersonalState, type FreshDocument, type FreshnessHubOptions, type RevalidateContext} from '../../../../packages/client-core/src/freshness-hub';
 import type {EventsClient} from '../../../../packages/client-core/src/playback-v1/events';
+import {createViewerQueries, type ViewerQueries, type ViewerQueryScope, type ViewerRequester} from '../../../../packages/client-core/src/query/viewer-queries';
 
 type Read = (context: RevalidateContext) => Promise<void>;
 export type NativeShellFreshnessReads = Readonly<{
@@ -17,12 +18,16 @@ export type NativeShellFreshnessReads = Readonly<{
  * scan presenters may observe it on the same hub without another event feed. */
 export class NativeShellFreshness {
   readonly hub: FreshnessHub;
+  /** This viewer's cache of server documents. A new shell (another viewer, PIN, privacy fence or
+   * sign-out) builds a new one; `dispose` empties this one at once and aborts what it started. */
+  readonly queries: ViewerQueries;
   private readonly home: FreshDocument;
   private readonly unread: FreshDocument;
   private readonly guide: FreshDocument;
   private readonly libraries: FreshDocument;
-  constructor(reads: NativeShellFreshnessReads, options: FreshnessHubOptions = {}) {
+  constructor(reads: NativeShellFreshnessReads, viewer: Readonly<{scope: ViewerQueryScope; api: ViewerRequester}>, options: FreshnessHubOptions = {}) {
     this.hub = new FreshnessHub(options);
+    this.queries = createViewerQueries({scope: viewer.scope, hub: this.hub, api: viewer.api});
     const document = (dependencies: readonly string[], revalidate: Read) => {
       const value = this.hub.document({dependencies, revalidate}); value.setOpen(true); return value;
     };
@@ -42,7 +47,7 @@ export class NativeShellFreshness {
   loadAuxiliary(): void {this.unread.invalidate(); this.guide.invalidate();}
   /** Read the library directory again now; a failure takes the hub's own backoff. */
   invalidateLibraries(): void {this.libraries.invalidate();}
-  dispose(): void {this.hub.dispose();}
+  dispose(): void {this.queries.dispose(); this.hub.dispose();}
 }
 
 /** Independent resource reads can finish while a full refresh is still waiting

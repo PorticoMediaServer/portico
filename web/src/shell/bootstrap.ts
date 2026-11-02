@@ -33,7 +33,7 @@ import {mountBrowserUserMutations, browserConnectionEnvironment, restoreBrowserC
 import {displayableTransportCode, launchFailure, retryDelayMs, savedSignInUnusable, serverIsStarting} from './connection-retry';
 import {bootRecoveryDeadline, bootRecoveryDelay, documentStartedAt} from './boot-state';
 import {browserEventStream, browserFeedEnvironment} from '../platform/event-feed';
-import {freshnessFor, type FreshnessRuntime} from '../platform/freshness';
+import {freshnessFor, disposeFreshness, type FreshnessRuntime} from '../platform/freshness';
 import {authenticatedArtwork, type ShellArtwork} from './artwork';
 import type {ShellBindings} from './bindings';
 import type {ShellIdentity} from './Shell';
@@ -434,7 +434,7 @@ export class ShellBootstrap {
     const events = new EventsClient({http: localV1Http(api), openStream: browserEventStream(api, session.viewer.serverId + ':' + viewerId(session), () => session.accessToken)});
     cleanups.push(() => events.stop());
     const freshness = freshnessFor(api, {serverId: session.viewer.serverId, viewerId: viewerId(session)});
-    cleanups.push(() => { freshness.pool.dispose(); freshness.hub.dispose(); });
+    cleanups.push(() => disposeFreshness(freshness));
     const preferences = new PreferencesReader(api, {serverId: session.viewer.serverId, viewerId: viewerId(session)});
     cleanups.push(() => preferences.dispose());
     const notificationApi = {request: <T,>(path: string, method?: string, body?: unknown, requestSignal?: AbortSignal) => {

@@ -8,12 +8,22 @@ const settle = async () => {for (let i = 0; i < 12; i++) await Promise.resolve()
 function deferred() {let resolve!: () => void, reject!: (error: unknown) => void; const promise = new Promise<void>((yes, no) => {resolve = yes; reject = no;}); return {promise, resolve, reject};}
 const event = (type: string, id = 'movies', content?: string): ServerEvent => ({id: '1', type, resource: {kind: 'library', id},
   ...(content ? {data: {content, contentOrder: content}} : {})} as ServerEvent);
+/** A viewer's requester whose answers the test gives by hand. */
+function viewer(id: string) {
+  const calls: {path: string; signal?: AbortSignal; resolve(value: unknown): void}[] = [];
+  return {calls, viewer: {scope: {serverId: 'server', viewerId: id}, api: {request<T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal) {
+    return new Promise<T>((resolve, reject) => {
+      calls.push({path, signal, resolve: resolve as (value: unknown) => void});
+      signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), {name: 'AbortError'})), {once: true});
+    });
+  }}}};
+}
 function fixture(t: TestContext, overrides: Partial<NativeShellFreshnessReads> = {}) {
   t.mock.timers.enable({apis: ['Date', 'setTimeout'], now: 0});
   const calls = {home: 0, libraries: 0, preferences: 0, unread: 0, guide: 0, identity: 0};
   const read = (key: keyof typeof calls) => async () => {calls[key]++;};
   const reads = {home: read('home'), libraries: read('libraries'), preferences: read('preferences'), unread: read('unread'), guide: read('guide'), identity: read('identity')} satisfies Omit<NativeShellFreshnessReads, 'hasHome'>;
-  const freshness = new NativeShellFreshness({...reads, hasHome: () => true, ...overrides}, {random: () => 0, gatherMs: 10, settleMs: 0});
+  const freshness = new NativeShellFreshness({...reads, hasHome: () => true, ...overrides}, viewer('alex').viewer, {random: () => 0, gatherMs: 10, settleMs: 0});
   freshness.setHomeOpen(true); t.after(() => freshness.dispose());
   const tick = async (ms = 10) => {t.mock.timers.tick(ms); await settle();};
   return {freshness, calls, tick};
@@ -147,4 +157,31 @@ test('a cancelled newer read does not suppress an older success or another resou
   assert.equal(library.apply(older, () => {shown = 'duplicate';}), false);
   assert.equal(guide.apply(guideRead, () => {hasGuide = true;}), true);
   assert.equal(shown, 'successful'); assert.equal(hasGuide, true);
+});
+
+test('privacy: a shell that ends empties its viewer\'s cache, aborts its reads and refuses late answers; the next shell starts empty', async () => {
+  const reads = {home: async () => {}, hasHome: () => true, libraries: async () => {}, preferences: async () => {}, unread: async () => {}, guide: async () => {}, identity: async () => {}};
+  const alex = viewer('alex');
+  const shell = new NativeShellFreshness(reads, alex.viewer, {random: () => 0, gatherMs: 10, settleMs: 0});
+  const {client, api} = shell.queries;
+  const key = ['item', 'a', 'detail', 'none'];
+  const page = client.fetchQuery({queryKey: key, queryFn: ({signal}) => api.request(`/v1/items/a/detail`, 'GET', undefined, signal)});
+  await settle();
+  alex.calls[0].resolve({title: 'for Alex'});
+  assert.deepEqual(await page, {title: 'for Alex'});
+  const late = client.fetchQuery({queryKey: ['search', 'private'], queryFn: ({signal}) => api.request('/v1/search?q=private', 'GET', undefined, signal)});
+  await settle();
+  // Another profile, PIN or privacy fence: the shell is rebuilt and this one disposed.
+  shell.dispose();
+  assert.equal(shell.queries.isDisposed(), true);
+  assert.equal(alex.calls[1].signal?.aborted, true, 'the read on its way is aborted');
+  await assert.rejects(late);
+  assert.equal(client.getQueryCache().getAll().length, 0, 'nothing Alex read is kept');
+  assert.equal(client.getQueryData(key), undefined);
+  await assert.rejects(api.request('/v1/items/a/detail'), {name: 'AbortError'});
+  const kids = viewer('kids');
+  const next = new NativeShellFreshness(reads, kids.viewer, {random: () => 0, gatherMs: 10, settleMs: 0});
+  assert.notEqual(next.queries, shell.queries);
+  assert.equal(next.queries.client.getQueryData(key), undefined, 'the next viewer starts empty');
+  next.dispose();
 });

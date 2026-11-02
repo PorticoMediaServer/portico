@@ -22,12 +22,21 @@ RULES = [
      re.compile(r'''['"]retry-after['"]''', re.IGNORECASE)),
     ('throwing-cleanup', {'packages/client-core/src/cleanup.ts'},
      re.compile(r'catch\s*\(\s*(\w+)\s*\)\s*\{\s*(?:await\s+)?[\w.?!]+\.(?:dispose|close|retire|release|revoke|cleanup|stop)\([^;{}()]*\)\s*;?\s*throw\s+\1\s*;?\s*\}')),
+    # CLIENT-DATA-REVIEW §4.4: a fence is the server's; a client comparing two only learns "read again".
+    ('fence-compare', set(), re.compile(r'\b\w*[Ff]ence\b\s*[!=]==|[!=]==\s*[\w.!?]*[Ff]ence\b')),
+    # §4.1: a screen's document lives in the viewer's query cache, not a per-route memory or seed.
+    ('page-memory', set(), re.compile(r'\busePageMemory\(|\bpages\.(?:remember|recall)\(')),
+    # §4.7: currency is the cache's to own; no new per-screen lease hooks re-checking it.
+    ('lease-layer', set(), re.compile(r'\bfunction\s+use\w*Lease\b')),
 ]
 GUIDE = {
     'token-compare': 'compare sign-ins with compareSessionAuthority (packages/client-core/src/session-authority.ts)',
     'set-interval': 'poll with repeat() from packages/client-core/src/timer.ts',
     'retry-after': 'read Retry-After with parseRetryAfter() or serverFloorFrom() from packages/client-core/src/timer.ts',
     'throwing-cleanup': 'release with releaseQuietly() or releaseThenRethrow() from packages/client-core/src/cleanup.ts',
+    'fence-compare': 'read through the viewer query cache (packages/client-core/src/query); a moved fence means read again, and only a revision of the same entity is compared',
+    'page-memory': 'keep a screen\'s document in the viewer query cache (packages/client-core/src/query) instead of a page memory',
+    'lease-layer': 'read through the viewer query cache, which owns cancellation and the viewer boundary, instead of a new lease hook',
 }
 
 

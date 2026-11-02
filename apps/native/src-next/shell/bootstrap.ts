@@ -523,7 +523,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         if (me.viewer.role !== session!.viewer.role || nextAccount.account.role !== currentAccount().account.role) {rebuild(); return;}
         readOrder.identity.apply(ticket, () => {account = nextAccount; avatars = nextAvatars; publish();});
       }),
-    });
+    }, {scope: {serverId: authority.serverId, viewerId: scopeIdentity}, api: readers});
     const updateHomeFreshness = () => {
       if (!current()) return;
       const state = bound.getState();

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {browserEventStream, browserFeedEnvironment} from '../src/platform/event-feed.ts';
-import {bindBrowserFreshness, freshnessFor} from '../src/platform/freshness.ts';
+import {bindBrowserFreshness, disposeFreshness, freshnessFor} from '../src/platform/freshness.ts';
 import type {HttpLocalApi} from '@core/index.ts';
 import {BrowserAccountApi, BrowserCredentialStorage} from '../src/platform/account.ts';
 import {webEnvironment} from '../src/platform/environment.ts';
@@ -50,7 +50,8 @@ test('freshness pools are scoped to server/viewer and browser signals clean up',
   page.visibilityState = 'visible'; page.dispatchEvent(new Event('visibilitychange')); assert.equal(one.hub.isActive(), false, 'listener removed');
   const two = freshnessFor(api, {serverId: 'server', viewerId: 'two'}); assert.notEqual(one, two);
   await new Promise(resolve => setTimeout(resolve, 5)); assert.equal(one.hub.isActive(), false);
-  two.pool.dispose(); two.hub.dispose();
+  assert.equal(one.queries.isDisposed(), true, 'the previous viewer\'s cache is emptied at once');
+  disposeFreshness(two);
 });
 test('account transport sends CSRF/credentials, refuses redirects and excludes refresh tokens', async t => {
   replace(t, 'document', {cookie: '__Host-portico_refresh_csrf=' + 'a'.repeat(43)});

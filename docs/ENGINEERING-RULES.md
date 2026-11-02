@@ -27,6 +27,13 @@ Short rules that keep Portico from repeating old bugs. Each one says how it's en
   - Use `releaseQuietly`, `releaseAll` and `releaseThenRethrow` (`packages/client-core/src/cleanup.ts`).
   - Check: no new `catch (e) { x.dispose(); throw e; }` (ratchet `throwing-cleanup`).
 
+## Server data on screens
+
+- **A screen reads server documents through the viewer's query cache** (`packages/client-core/src/query`): keyed, read once however many owners ask, kept after the screen closes, and read again in place when the hub says something it was built from moved. Each viewer has its own cache, emptied with its reads aborted when the server, account, profile, role or privacy fence changes.
+  - Use `useQuery` (web `platform/freshness.ts`) with keys from `queryKeys` and `meta.dependencies` from `dependsOn`. A change made on this device calls `moved()` with what it changed.
+  - Don't compare fences between documents. A moved fence means "read again"; only a revision of the same entity is compared, for a write's precondition.
+  - Checks: no new fence comparisons (ratchet `fence-compare`), page memory (ratchet `page-memory`) or per-screen lease hooks (ratchet `lease-layer`), and the privacy tests in `packages/client-core/test/viewer-queries.test.ts`, `web/test/viewer-queries-privacy.test.ts` and `apps/native/test/next-shell-freshness.test.ts`.
+
 ## API contracts
 
 - **Responses decode open; unions are tagged.** Every response union has a `variant` (or `kind`) tag, unknown tags decode to a typed unknown, and requests decode exactly.

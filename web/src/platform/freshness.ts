@@ -1,17 +1,20 @@
 import {createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode} from 'react';
-import {DocumentPool, serviceDocument, type PooledDocument, type QuietService} from '@core/freshness-pool.ts';
+import {createViewerQueries, type ViewerQueries} from '@core/query/viewer-queries.ts';
+import {createQueryHooks, type ViewerQueryOptions} from '@core/query/react.ts';
+import type {QueryKey, QueryObserverResult} from '@tanstack/query-core';
 import {FreshnessHub, dependsOn, type FreshDocument, type FreshDocumentOptions, type FreshnessDependency, type Reachability} from '@core/freshness-hub.ts';
 import type {HttpLocalApi} from '@core/index.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 /**
  * Open screens that stay current, quietly (the shared rules are client-core's `freshness-hub`).
  *
- * One hub and one pool of last-known documents per signed-in viewer on one server. They outlive
- * the screens: a document closed by Back is kept, and shown at once when it is opened again.
- * A different viewer or server gets a new hub and pool, and the old ones are let go with
- * everything they held.
+ * One hub and one cache of server documents (`queries`, client-core's query/viewer-queries) per
+ * signed-in viewer on one server. They outlive the screens: a document closed by Back is kept, and
+ * shown at once when it is opened again. A different viewer or server gets a new hub and cache;
+ * the old cache is emptied at once, with every request it started aborted, so nothing one viewer
+ * read reaches the next.
  */
-export type FreshnessRuntime = {api: HttpLocalApi; scope: string; hub: FreshnessHub; pool: DocumentPool; pages: PageMemory};
+export type FreshnessRuntime = {api: HttpLocalApi; scope: string; hub: FreshnessHub; queries: ViewerQueries; pages: PageMemory};
 let runtime: FreshnessRuntime | undefined;
 /** The page a route last showed, in the order it was last shown. */
 const PAGE_MEMORY_MAX = 24;
@@ -38,13 +41,24 @@ function pageMemory(): PageMemory {
 
 export function freshnessFor(api: HttpLocalApi, scope: {viewerId: string; serverId: string}): FreshnessRuntime {
   const key = scope.serverId + '\n' + scope.viewerId;
-  if (runtime && runtime.api === api && runtime.scope === key) return runtime;
+  if (runtime && runtime.api === api && runtime.scope === key && !runtime.queries.isDisposed()) return runtime;
   const old = runtime;
   const hub = new FreshnessHub();
-  runtime = {api, scope: key, hub, pool: new DocumentPool(hub, {max: 32}), pages: pageMemory()};
-  // Let go after this render: screens still unmounting release their documents first.
-  if (old) setTimeout(() => { old.pool.dispose(); old.hub.dispose(); }, 0);
+  runtime = {api, scope: key, hub, queries: createViewerQueries({scope, hub, api}), pages: pageMemory()};
+  if (old) {
+    // The old viewer's documents go now; nothing may be shown or stored from them again.
+    old.queries.dispose();
+    // The hub after this render: screens still unmounting release their documents first.
+    setTimeout(() => old.hub.dispose(), 0);
+  }
   return runtime;
+}
+
+/** Ends a viewer's runtime (the shell's session ended or restarted): its cache is emptied at once. */
+export function disposeFreshness(value: FreshnessRuntime): void {
+  value.queries.dispose();
+  value.hub.dispose();
+  if (runtime === value) runtime = undefined;
 }
 
 
@@ -53,6 +67,18 @@ export function useFreshness(): FreshnessRuntime {
   const value = useContext(FreshnessContext);
   if (!value) throw new Error('A viewer freshness provider is required.');
   return value;
+}
+/** This viewer's cache of server documents. */
+export function useViewerQueries(): ViewerQueries {
+  return useFreshness().queries;
+}
+const hooks = createQueryHooks({useMemo, useEffect, useCallback, useSyncExternalStore});
+/**
+ * The document under `options.queryKey`, from this viewer's cache: read once however many screens
+ * ask, kept after the screen closes, and read again in place when the server says it moved.
+ */
+export function useQuery<TData, TKey extends QueryKey = QueryKey>(options: ViewerQueryOptions<TData, TKey>): QueryObserverResult<TData, Error> {
+  return hooks.useViewerQuery(useFreshness().queries, options);
 }
 /** The viewer's last-known pages, for a route that shows what it had when it is opened again. */
 export function usePageMemory(): PageMemory {
@@ -89,28 +115,6 @@ export function useReachability(): Reachability {
   return useSyncExternalStore(hub.subscribeReachability, hub.getReachability);
 }
 
-type MakeDocument<S> = () => {service: S; document: FreshDocumentOptions; watch?(document: FreshDocument): () => void};
-type Store<T> = {getSnapshot(): T; subscribe(listener: () => void): () => void; dispose?(): void};
-
-/**
- * A document kept in the viewer's pool under `key`: the same service, with what it has loaded,
- * every time the same thing is opened. `make` runs only when the pool has nothing under `key`.
- * The document counts as open while this component is mounted.
- */
-export function usePooled<S extends Store<T>, T>(key: string, make: MakeDocument<S>): {service: S; snapshot: T; document: FreshDocument; memo: Record<string, unknown>} {
-  const {pool} = useFreshness();
-  const factory = useRef(make);
-  factory.current = make;
-  const entry = useMemo(() => pool.peek<S>(key, () => factory.current()), [pool, key]);
-  useEffect(() => {
-    let held: PooledDocument<S> | undefined = pool.acquire<S>(key, () => factory.current());
-    held.setOpen(true);
-    return () => { held?.release(); held = undefined; };
-  }, [pool, key]);
-  const snapshot = useSyncExternalStore(entry.service.subscribe, entry.service.getSnapshot);
-  return {service: entry.service, snapshot, document: entry.document, memo: entry.memo};
-}
-
 /**
  * A failure is not shown at once. While a first load that failed is being tried again by itself
  * (the first couple of attempts, a few seconds), the screen goes on showing that it is loading;
@@ -119,17 +123,6 @@ export function usePooled<S extends Store<T>, T>(key: string, make: MakeDocument
 export function useRecovering(document: FreshDocument): boolean {
   const state = useSyncExternalStore(document.subscribe, document.getState);
   return (state.stale || state.revalidating) && state.failures < 2;
-}
-
-/** `usePooled` for a client-core service that reads itself again with `revalidate()`. */
-export function usePooledService<S extends QuietService & Store<T>, T>(key: string, create: () => S, dependencies: readonly FreshnessDependency[] | (() => readonly FreshnessDependency[]), options?: {hasContent?(service: S): boolean}) {
-  const held = usePooled<S, T>(key, () => serviceDocument(create(), dependencies, options));
-  const recovering = useRecovering(held.document);
-  const shown = held.snapshot as T & {phase?: string; error?: unknown};
-  // An error in its first moments, while the load is being tried again: still loading as far as the person is concerned.
-  const quiet = recovering && shown.phase === 'error';
-  const snapshot = useMemo(() => (quiet ? {...shown, phase: 'loading', error: null} as T : held.snapshot), [quiet, shown, held.snapshot]);
-  return {...held, snapshot};
 }
 
 /**

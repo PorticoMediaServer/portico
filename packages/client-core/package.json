@@ -13,5 +13,8 @@
   "scripts": {
     "test": "node scripts/run-tests.mjs",
     "lint:routes": "node scripts/check-generated-routes.mjs"
+  },
+  "dependencies": {
+    "@tanstack/query-core": "5.104.5"
   }
 }
