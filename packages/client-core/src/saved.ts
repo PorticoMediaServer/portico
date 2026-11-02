@@ -694,6 +694,14 @@ export function parseSavedShapeCounts(value:unknown):SavedShapeCounts {
  return Object.freeze({posters:value.posters,squares:value.squares});
 }
 export type SavedLandingSummary=Readonly<{serverId:string;viewerFence:string;revision:Readonly<{catalog:number;viewer:number}>;myList:SavedShapeCounts;favorites:SavedShapeCounts;playlists:number;collections:number;savedViews:number}>;
+/** The first page of My List (40 titles, the Saved read's fixed page), parsed by the same Saved
+ * projection. One named read, so the client data migration can move it into the query cache with
+ * a one-line change; nothing here is cached, seeded or fenced. Reading groups are left out: they
+ * aren't titles. */
+export async function readWatchlist(api: SavedApi, bound: SavedScope, signal?: AbortSignal): Promise<readonly ContentEntry[]> {
+ const page = projection(await api.request<unknown>(savedListPath('watchlist'), 'GET', undefined, signal), bound, {view: 'watchlist'});
+ return page.sections.flatMap(section => section.entries.filter((entry): entry is ContentEntry => entry.kind !== 'reading_group' && entry.kind !== 'playlist_entry' && entry.kind !== 'playlist'));
+}
 export async function fetchSavedSummary(api:SavedApi,bound:SavedScope,signal?:AbortSignal):Promise<SavedLandingSummary>{
  const value:unknown=await api.request<RouteResponse<"get_me_saved_summary">>(routePath('get_me_saved_summary'),'GET',undefined,signal);
  if(!record(value)||value.serverId!==bound.serverId||!id(value.viewerFence)||!record(value.revision)||!int(value.revision.catalog)||!int(value.revision.viewer)||!int(value.playlists)||!int(value.collections)||!int(value.savedViews))invalid();

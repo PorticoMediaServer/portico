@@ -1,7 +1,7 @@
 import {wireFixture} from './wire-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SavedService} from '../src/saved.ts';
+import {SavedService, readWatchlist} from '../src/saved.ts';
 const scope={serverId:'server',viewerId:'["local","account","profile"]'};
 const tick=()=>new Promise(r=>setTimeout(r,0));
 const deferred=()=>{let resolve!:(v:any)=>void;const promise=new Promise<any>(r=>resolve=r);return{promise,resolve};};
@@ -640,4 +640,13 @@ test('a page of the playlist’s own order witnesses moves across its edges; ano
  assert.equal(sorted.getSnapshot().phase,'ready');
  assert.throws(()=>sorted.mutate({action:'reorder',entryIds:['a'],afterEntryId:''}),/own order/);
  assert.throws(()=>s.select({view:'playlist',playlistId:'playlist',sort:'position',direction:'desc'}));
+});
+
+test('readWatchlist is one named read of My List\'s first page through the Saved projection', async () => {
+ const paths:string[]=[];
+ const api={request:async (path:string)=>{paths.push(path);return wireFixture(projection('watchlist',0,[media('one'),media('two')]),{'duration':'durationMs','progressSeconds':'progressMs','startSeconds':'startMs','positionSeconds':'positionMs'});}};
+ const titles=await readWatchlist(api as any,scope);
+ assert.deepEqual(paths,['/v1/content?view=watchlist&limit=40']);
+ assert.deepEqual(titles.map(entry=>entry.id),['one','two']);
+ await assert.rejects(readWatchlist(api as any,{...scope,serverId:'other'}),'another server\'s page is refused');
 });
