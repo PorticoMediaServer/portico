@@ -768,8 +768,8 @@ export class BrowserAccountEntry {
  async loadProfiles(){return this.restoreProfiles();}
  /** Public callbacks carry no session, family, token, origin or pin. The chooser
   * callback navigates only; this entry retires its own private state first. */
- serverIdentityFailure(chooseServer:()=>void):AccountIdentityFailureBinding|undefined{
-  return this.identityFailure?.isCurrent()?this.identityFailure.binding(chooseServer):undefined;
+ serverIdentityFailure(chooseServer:()=>void,afterForget?:()=>void):AccountIdentityFailureBinding|undefined{
+  return this.identityFailure?.isCurrent()?this.identityFailure.binding(chooseServer,afterForget):undefined;
  }
  private async restoreProfiles(expected?:Readonly<{pin:ServerPin;session:LocalSession;signIn?:SignInKind;memberMove?:boolean;initialSetup?:boolean}>){
   this.cancel();const op=this.operation();this.publish({phase:'profiles',busy:true});
