@@ -35,26 +35,26 @@ def quiet(cap=1500):  # analysis settled: no new helper process for 20 s (a watc
         n = diag()['storageHelpers']['admitted']; calm = calm+1 if n == last else 0; last = n; time.sleep(1)
     return round(time.monotonic()-t0)
 def ids(lid, pivot):
-    got = []
-    for off in range(0, 2000, 100):
-        page = a.post('/v1/libraries/'+lid+'/browse', {'pivot': pivot, 'limit': 100, 'offset': off}); got += [e['id'] for e in page['entries']]
-        if len(page['entries']) < 100: break
+    got, cur = [], ''
+    for _ in range(40):
+        page = a.post('/v1/libraries/'+lid+'/browse', {'pivot': pivot, 'limit': 100, **({'cursor': cur} if cur else {})}); got += [e['id'] for e in page['entries']]; cur = page['pageInfo'].get('nextCursor')
+        if not cur: break
     return got
 FL, BL = lib('Films', 'movie'), lib('Books', 'book'); out['settleSecs'] = quiet()
 movies, books = ids(FL, 'movies'), ids(BL, 'books'); src = {b: a.get('/v1/items/'+b+'/reading/versions').get('chosenSourceId') for b in books[:60]}
 out['catalogue'] = {'movies': len(movies), 'books': len(books), 'readable': sum(1 for v in src.values() if v)}
 def ops(u):
     m, b = random.choice(movies), random.choice([k for k, v in src.items() if v] or [None])
-    return {'browse': ('POST', '/v1/libraries/'+FL+'/browse', {'pivot': 'movies', 'limit': 50, 'offset': random.randrange(0, max(1, len(movies)-50))}),
+    return {'browse': ('POST', '/v1/libraries/'+FL+'/browse', {'pivot': 'movies', 'limit': 50}),
             'detail': ('GET', '/v1/items/'+m+'/detail', None), 'search': ('GET', '/v1/search?q='+urllib.parse.quote('Film %d' % random.randrange(400)), None),
             'options': ('GET', '/v1/items/'+m+'/playback-options', None), 'read': ('POST', '/v1/reading/sessions', {'itemId': b, 'sourceId': src.get(b)}) if b else None}
-WEIGHTS = ['browse']*30 + ['detail']*25 + ['search']*10 + ['options']*20 + ['read']*15
+WEIGHTS = ['browse']*30 + ['detail']*25 + ['search']*10 + ['options']*20 + ['read']*15 if out['catalogue']['readable'] else ['browse']*35 + ['detail']*30 + ['search']*10 + ['options']*25
 def call(u, op):
     req = ops(u)[op]; t = time.monotonic()
     try: _, h = u.call(req[0], req[1], req[2], expected=range(100, 600)); s = u.timings[-1]['status']
     except Exception as err: s = 'timeout' if 'timed out' in str(err) else 'error'
     return op, round((time.monotonic()-t)*1000, 1), s
-for op in ['browse', 'detail', 'search', 'options', 'read']:  # helper processes per request, idle server
+for op in [k for k in ['browse', 'detail', 'search', 'options', 'read'] if ops(a)[k]]:  # helper processes per request, idle server
     h0 = diag()['storageHelpers']['admitted']; [call(a, op) for _ in range(5)]; out['helpers'][op] = (diag()['storageHelpers']['admitted']-h0)/5
 users = []
 for i in range(max(map(int, A.users.split(',')))):
