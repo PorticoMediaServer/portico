@@ -3326,6 +3326,35 @@ test('P2-74 E-web-17: a playback start the server never answers is reported afte
   assert.equal(f.runtime.getSnapshot().session, undefined, 'the stalled start is retired, nothing half-started is left');
 });
 
+// J-27: a start never ends silently. A request that ignores its abort (a hung fetch, seen in WebKit) still
+// reaches the deadline: the start is reported with the timeout card, instead of the player just closing.
+test('J-27: an item read that never settles, even after its abort, still ends in the timeout card at the deadline', async t => {
+  const f = setup(t, {}, {}, undefined, undefined, {homeFence: false}), life = new AbortController();
+  f.intercept(async (request, response) => /^\/v1\/items\/[^/?]+$/.test(request.path) && request.method === 'GET' ? new Promise<never>(() => {}) : response);
+  const start = f.runtime.playFromScreen({libraryId: 'library', itemId: 'movie', startSeconds: 0}, {signal: life.signal, isCurrent: () => true});
+  const outcome = start.then(() => 'started', (error: Error) => error.message);
+  for (let step = 0; step < 10; step++) { await spinStart(); f.clock.advance?.(2500); }
+  assert.equal(await outcome, 'playback_start_timeout');
+  assert.ok(f.runtime.getSnapshot().startTimedOut, '"Couldn\'t start playback" with Try again and Close');
+});
+
+// J-27: the first reason sticks. A refused start already drawn as its card is not replaced by the timeout
+// card when the deadline passes; the card stays until the person acts.
+test('J-27: a refused start drawn before the deadline keeps its own card past the deadline', async t => {
+  const f = setup(t, {}, {}, undefined, undefined, {homeFence: false}), life = new AbortController();
+  f.intercept(async (request, response) => request.method === 'POST' && request.path.startsWith('/v1/playback/sessions')
+    ? {status: 403, headers: {}, body: {error: {code: 'transcode_not_allowed', message: 'Converting is off', retryable: false}}} : response);
+  void f.runtime.playFromScreen({libraryId: 'library', itemId: 'movie', startSeconds: 0}, {signal: life.signal, isCurrent: () => true}).catch(() => {});
+  for (let step = 0; step < 4; step++) { await spinStart(); f.clock.advance?.(500); }
+  assert.ok(f.runtime.getSnapshot().startFailure, 'the refusal is drawn as its own card');
+  for (let step = 0; step < 12; step++) { await spinStart(); f.clock.advance?.(2500); }
+  const s = f.runtime.getSnapshot();
+  assert.ok(s.startFailure, 'still the first reason after 20 s');
+  assert.equal(s.startTimedOut, undefined, 'no timeout card replaces it');
+});
+
+const spinStart = async () => {for (let i = 0; i < 20; i++) await new Promise(setImmediate);};
+
 test('P2-74 E-web-14: artist and album Play mount the music dock AND start the media element, with real-shaped queue entries', async t => {
   const {dockView} = await import('../src/kit/dock/model.ts');
   const {playbackPresentation} = await import('../src/shell/playback-model.ts');
