@@ -423,11 +423,19 @@ export function parseReceiptClaims(raw: unknown): ReceiptClaims {
  * Whether a receipt still authorizes offline playback for this viewer at `now`.
  * A signature check is required as well; this is the half a client can get
  * wrong by forgetting, so it is one function.
+ *
+ * No client-clock requirements: offline, nothing can say what the server's time is, so a receipt is
+ * judged by how long THIS device has held it. `receivedAt` is this device's clock when the receipt
+ * arrived; the receipt lives for the server's own span (`expiresAt - issuedAt`) from then, measured
+ * on the same device clock, so a clock that is wrong but steady (a year ahead or behind) reads it
+ * correctly. Without `receivedAt` the instant is compared with `now` as given (callers pass
+ * `new Date(serverNow())` there while online).
  */
-export function receiptUsable(claims: ReceiptClaims, viewer: {authority: string; accountId: string; profileId: string; serverId: string}, now: Date, revoked: ReadonlySet<string> = new Set()): boolean {
+export function receiptUsable(claims: ReceiptClaims, viewer: {authority: string; accountId: string; profileId: string; serverId: string}, now: Date, revoked: ReadonlySet<string> = new Set(), receivedAt?: number): boolean {
   if (revoked.has(claims.receiptId)) return false;
   if (claims.viewer.authority !== viewer.authority || claims.viewer.accountId !== viewer.accountId) return false;
   if (claims.viewer.profileId !== viewer.profileId || claims.viewer.serverId !== viewer.serverId) return false;
+  if (receivedAt !== undefined && Number.isFinite(receivedAt)) return now.getTime() - receivedAt < Date.parse(claims.expiresAt) - Date.parse(claims.issuedAt);
   return now.getTime() < Date.parse(claims.expiresAt);
 }
 

@@ -18,6 +18,7 @@ import {
 } from './notifications.ts';
 import {serviceProblem,serviceText} from './presentation/service-text.ts';
 import type {MessageId} from '../../i18n/src/index.ts';
+import {serverNow} from './server-clock.ts';
 
 export type InboxApi={request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>};
 export type InboxView='unread'|'all'|'archived';
@@ -160,7 +161,7 @@ export class InboxService{
   // listener woken by the optimistic patch cannot dispatch a second write.
   const flight=this.begin([{action,ids:[...ids]}]);
   if(!flight)return;
-  const before=this.state,chosen=new Set(flight.intent.operations[0].ids),now=Date.now();
+  const before=this.state,chosen=new Set(flight.intent.operations[0].ids),now=serverNow();
   const next=before.items.map(n=>!chosen.has(n.id)?n:action==='read'?{...n,read:true,readAt:n.readAt??now}:action==='unread'?{...n,read:false,readAt:null}:action==='archive'?{...n,archived:true,archivedAt:now}:{...n,archived:false,archivedAt:null});
   this.publish({items:this.visible(next),error:undefined});
   await this.dispatch(flight,before);
@@ -169,7 +170,7 @@ export class InboxService{
   if(this.disposed)return;
   const flight=this.begin([{action:'read-all'}]);
   if(!flight)return;
-  const before=this.state,now=Date.now();
+  const before=this.state,now=serverNow();
   this.publish({items:this.visible(before.items.map(n=>n.read?n:{...n,read:true,readAt:now})),error:undefined});
   await this.dispatch(flight,before);
  }

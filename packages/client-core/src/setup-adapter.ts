@@ -18,6 +18,7 @@ import {randomId} from './random-id.ts';
 import type {SetupCredentials, SetupLibrary, SetupPortContext, SetupPorts, SetupRead} from './setup-controller.ts';
 import {isUnreadable, type SetupAttempt, type SetupLocal, type SetupRecord, type SetupStore} from './setup-store.ts';
 import {decodePostLibrariesResponse} from '../../contracts/src/decoders.ts';
+import {serverNow} from './server-clock.ts';
 import {encodedRoutePath, routeBody, routePath} from '../../contracts/src/routes.ts';
 import {finishSetupExchange, type SetupExchangePorts} from './setup-exchange.ts';
 
@@ -66,7 +67,7 @@ const refused = (error: unknown, ...codes: string[]) => error instanceof ApiErro
  * Every await re-checks that the page, the installation, the selected-server revision and the pairing are still the
  * ones captured, so a late answer can never write into a successor. */
 export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
-  const now = deps.now ?? Date.now, crypto = deps.crypto ?? webRouteCrypto, newRequestId = deps.newRequestId ?? randomId;
+  const now = deps.now ?? (() => serverNow()), crypto = deps.crypto ?? webRouteCrypto, newRequestId = deps.newRequestId ?? randomId;
   const life = new AbortController();
   let paired: Paired | undefined, own: Own | undefined, issued: {serverId: string; setupToken: string} | undefined;
   let owner: {api: HttpLocalApi; session: LocalSession} | undefined, pendingLocal: LocalSession | undefined, exchanged: {api: HttpLocalApi; session: LocalSession} | undefined;

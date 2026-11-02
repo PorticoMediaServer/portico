@@ -56,6 +56,7 @@ import {audioTransitionsEnabled} from '../audio-effects.ts';
 import type {NativeListeningV1Control, NativeListeningV1Event} from '../playback/native-listening.ts';
 import {playableAudio} from './audio-render.ts';
 import {ContractError, consecutiveOnAlbum, id, parseDiscTitleRef, queueEntryFacts, type DiscTitleRef, type QueueEntry, type QueueHeader, type Selector, type ServerEvent, type Session} from './types.ts';
+import {serverNow} from '../server-clock.ts';
 
 /** Items per `items` selector segment, and segments per create (spec §8). */
 const SEGMENT_ITEMS = 500, MAX_SEGMENTS = 16;
@@ -1535,7 +1536,8 @@ export class V1QueuePlayer implements QueueController {
         const expiresAtMs = Date.parse(next.expiresAt);
         const durationSeconds = audio.durationFrames / audio.sampleRate;
         this.prepared = Object.freeze({token: next.token, queueId: header.id, itemId: next.itemId, expiresAtMs, durationSeconds});
-        this.playback.prepareAudio({token: next.token, expiresAtMs, itemId: next.itemId, audio});
+        // The engine reads its own clock: hand it the expiry on this device's clock (the server's remaining time from now).
+        this.playback.prepareAudio({token: next.token, expiresAtMs: Date.now() + (expiresAtMs - serverNow()), itemId: next.itemId, audio});
       } catch { /* no edge for this track: it ends and advances as usual */ }
     })();
     return true;
@@ -1549,7 +1551,7 @@ export class V1QueuePlayer implements QueueController {
     const prepared = this.prepared, p = this.playback.getSnapshot();
     if (this.audioCommitting || this.disposed || !prepared || prepared.token !== token || this.audioReadyToken !== token || p.audioEffects.prepared?.token !== token) return;
     if (!this.listening.mayTransition(Math.max(0, p.duration - p.positionSeconds) / Math.max(.25, p.audioEffects.rate))) { this.discardAudio(); return; }
-    if (prepared.expiresAtMs <= Date.now()) { this.discardAudio(); return; }
+    if (prepared.expiresAtMs <= serverNow()) { this.discardAudio(); return; }
     this.audioCommitting = true;
     const releaseTimerEdge=this.listening.beginAutomaticTransition();
     const generation = this.generation, intent = p.intentId;

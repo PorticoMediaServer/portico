@@ -5,6 +5,7 @@ import {unreadableServerResponse} from './server-messages.ts';
 import {keepReadable} from './tolerant.ts';
 import {serviceI18n, serviceText} from './presentation/service-text.ts';
 import type {LibraryContentApi} from './library-content.ts';
+import {serverNow} from './server-clock.ts';
 
 export type SubtitleFormat='srt'|'vtt'|'ass'|'ssa'|'pgs'|'sup'|'vobsub'|'idx'|'dvb'|'smi'|'sami'|'ttml'|'dfxp';
 export type SubtitleRendering='text'|'ass'|'pgs'|'vobsub'|'dvb';
@@ -144,7 +145,7 @@ export async function readSubtitleDocument(response:Response,signal:AbortSignal)
 const providerMessages:Readonly<Record<string,MessageId>>={subtitle_provider_not_configured:'subtitles.error.providerNotConfigured',subtitle_provider_key_rejected:'subtitles.error.providerKeyRejected',subtitle_provider_sign_in_failed:'subtitles.error.providerSignInFailed',subtitle_provider_sign_in_required:'subtitles.error.providerSignInRequired',subtitle_provider_busy:'subtitles.error.providerBusy'};
 /** OpenSubtitles' refusals, by the server's code: who can fix it, and for a used-up quota, when it resets.
  * Only a pause OpenSubtitles asked for is worth retrying from the player. */
-export function providerProblem(e:unknown,now=Date.now()):Readonly<{text:string;canRetry:boolean}>|undefined{
+export function providerProblem(e:unknown,now=serverNow()):Readonly<{text:string;canRetry:boolean}>|undefined{
  const problem=e as {code?:unknown;retryAfterSeconds?:unknown}|null;const code=typeof problem?.code==='string'?problem.code:'';
  if(code==='subtitle_provider_quota'){
   const wait=typeof problem?.retryAfterSeconds==='number'&&problem.retryAfterSeconds>0&&problem.retryAfterSeconds<=172800?problem.retryAfterSeconds:0;

@@ -3,6 +3,7 @@ import {ApiError, type SystemInfo} from './index.ts';
 import {RouteError, routeOrigin, routeJSON} from './route-identity.ts';
 import {API_LEVEL} from '../../contracts/src/api-level.ts';
 import type {SignInKind} from './app-sessions.ts';
+import {serverNow} from './server-clock.ts';
 
 export type ServerSignIn = Readonly<SystemInfo & {signIn: SignInKind}>;
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -34,7 +35,7 @@ function serverAPI(raw: Record<string, unknown>) {
 }
 /** Whole calendar days left to use the old sign-in during a move, counted on this device's
  * calendar: 0 when it ends today, 1 when it ends tomorrow. Undefined when nothing is offered. */
-export function moveOfferDays(endsAt: string | null | undefined, now: Date = new Date()): number | undefined {
+export function moveOfferDays(endsAt: string | null | undefined, now: Date = new Date(serverNow())): number | undefined {
   const end = endsAt ? new Date(endsAt) : undefined;
   if (!end || !Number.isFinite(end.getTime()) || end.getTime() <= now.getTime()) return undefined;
   const day = (value: Date) => Date.UTC(value.getFullYear(), value.getMonth(), value.getDate());

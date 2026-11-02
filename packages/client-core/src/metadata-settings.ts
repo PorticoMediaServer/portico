@@ -1,6 +1,7 @@
 import {routePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 import type {I18n, MessageId} from '../../i18n/src/index.ts';
+import {serverNow} from './server-clock.ts';
 /** Where the OpenSubtitles key and account in force come from and how OpenSubtitles last answered. Never a secret. */
 export type OpenSubtitlesStatus=Readonly<{keySource:'owner'|'environment'|'none';accountSource:'owner'|'environment'|'none';account:'none'|'incomplete'|'not_checked'|'signed_in'|'rejected';problem:string;checkedAt:string;retryAt:string;downloadsRemaining:number;downloadsAllowed:number;downloadsResetAt:string}>;
 /** The OpenSubtitles fields say whether the owner saved their own key and password (never sent back) and the account name. */
@@ -70,7 +71,7 @@ export type OpenSubtitlesSummary=Readonly<{tone:'healthy'|'warning'|'danger'|'ne
 /** A time that may be tomorrow: the time alone within the day, otherwise with its date. */
 function when(i18n:I18n,at:string,now:number):string{const t=Date.parse(at);return t-now<20*3600_000?i18n.time(t):i18n.dateTime(t);}
 /** What Server › Metadata says about OpenSubtitles: whether it is set up, works, and how many downloads are left, in the owner's words. */
-export function openSubtitlesSummary(status:OpenSubtitlesStatus,i18n:I18n,now=Date.now()):OpenSubtitlesSummary{
+export function openSubtitlesSummary(status:OpenSubtitlesStatus,i18n:I18n,now=serverNow()):OpenSubtitlesSummary{
  const {t}=i18n;
  const downloads=status.downloadsRemaining<0?undefined:status.downloadsAllowed>0?t('server.metadata.openSubtitlesDownloadsOf',{remaining:status.downloadsRemaining,allowed:status.downloadsAllowed}):t('server.metadata.openSubtitlesDownloadsLeft',{remaining:status.downloadsRemaining});
  const later=(id:MessageId,at:string)=>at?t(id,{time:when(i18n,at,now)}):t('server.metadata.openSubtitlesLater');
