@@ -83,7 +83,7 @@ func TestHomeAlwaysIncludesEveryPrivateRange(t *testing.T) {
 func TestUnconfiguredPolicyAnswersEverything(t *testing.T) {
 	outside := netip.MustParseAddr("203.0.113.9")
 	for _, access := range []string{AccessOn, AccessPrivate, AccessOff} {
-		p := NewPolicy(Settings{Security: SecurityEnhanced, Access: access, Unconfigured: true})
+		p := NewPolicy(Settings{Security: SecurityEnhanced, Access: access, Unconfigured: func() bool { return true }})
 		if !p.Unconfigured() || p.Socket(outside, false) != Admit || p.Socket(outside, true) != Admit {
 			t.Fatal(access, "socket refused before setup")
 		}
@@ -92,7 +92,7 @@ func TestUnconfiguredPolicyAnswersEverything(t *testing.T) {
 		}
 	}
 	g := New()
-	g.Set(NewPolicy(Settings{Security: SecurityEnhanced, Access: AccessOn, Unconfigured: true}))
+	g.Set(NewPolicy(Settings{Security: SecurityEnhanced, Access: AccessOn, Unconfigured: func() bool { return true }}))
 	g.Record("media.example.com", ReasonHTTP)
 	if names, _ := g.Refused.Snapshot(); len(names) != 0 {
 		t.Fatal("a refusal was recorded before setup", names)

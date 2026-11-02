@@ -407,3 +407,40 @@ func TestNoRemoteGateBeforeSetup(t *testing.T) {
 		t.Fatal("after setup, plain HTTP from outside must be refused in Enhanced")
 	}
 }
+
+// Fail closed: an owner made by a path that never reloads the connection policy (here
+// identity directly, standing in for any path that forgets) still closes the gate on the
+// very next request.
+func TestRemoteGateClosesOnSetupWithoutAReload(t *testing.T) {
+	root := t.TempDir()
+	db, err := persistence.Open(filepath.Join(root, "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	id, err := identity.New(db, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	operations.WireSetupRemote(id)
+	gate := remotegate.New()
+	h := New(Dependencies{DB: db, Identity: id, Catalog: catalog.New(db), RemoteGate: gate})
+	outside := gateRequest{url: "http://203.0.113.5:32500/v1/server", remote: "203.0.113.9:42"}
+	if _, aborted := serveGated(t, h, outside); aborted {
+		t.Fatal("refused from outside before setup")
+	}
+	before := gate.Policy()
+	token, err := id.BrowserSetupToken(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = id.Setup(token, "owner", "A-long-local-password", "Den"); err != nil {
+		t.Fatal(err)
+	}
+	if gate.Policy() != before {
+		t.Fatal("the policy was rebuilt: this test must show the gate closing without a reload")
+	}
+	if _, aborted := serveGated(t, h, outside); !aborted {
+		t.Fatal("after setup by a path that never reloads, plain HTTP from outside must still be refused")
+	}
+}

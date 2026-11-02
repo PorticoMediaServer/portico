@@ -25,7 +25,7 @@ type connectionPolicyCache struct {
 	uploadAlert atomic.Bool
 	// gate receives a fresh O-169 policy with every installed document.
 	gate       *remotegate.Gate
-	// unconfigured reports a server with no owner yet: its gate answers everything.
+	// unconfigured reports, live, a server with no owner yet: its gate answers everything.
 	unconfigured func() bool
 	envProxies []netip.Prefix
 	own        func() []netip.Addr
@@ -79,7 +79,7 @@ func (c *connectionPolicyCache) setLocked(document operations.SettingsDocument) 
 	}
 	c.setting.Store(&connectionSettingValue{secureConnections: secure, lanNetworks: append([]string{}, document.Effective.LANNetworks...), revision: document.Revision, locality: newLocalityPolicy(document.Effective), accessURLs: urls, certificateDomain: certificateDomain, apiPerMinute: document.Effective.APIRequestsPerMinute, remoteSignIn: remoteSignInPolicy(document.Effective.RemoteSignInPolicy), dlna: document.Effective.DLNAEnabled})
 	if c.gate != nil {
-		c.gate.Set(remoteGatePolicy(document.Effective, c.envProxies, c.own, c.unconfigured != nil && c.unconfigured()))
+		c.gate.Set(remoteGatePolicy(document.Effective, c.envProxies, c.own, c.unconfigured))
 	}
 }
 
