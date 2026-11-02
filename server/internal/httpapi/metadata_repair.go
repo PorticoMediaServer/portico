@@ -2,10 +2,8 @@ package httpapi
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -91,7 +89,12 @@ func (d Dependencies) metadataRepairRoutes(mux *http.ServeMux) {
 				failure(w, err)
 				return
 			}
-			out.ViewerFence = fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%s:%d", presentationIdentity(p), p.Epoch))))
+			fence, err := d.itemViewerFence(r, p)
+			if err != nil {
+				failure(w, err)
+				return
+			}
+			out.ViewerFence = fence
 			write(w, 200, out)
 		})
 	}

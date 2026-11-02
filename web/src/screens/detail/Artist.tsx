@@ -10,7 +10,9 @@ import {LibraryContentService, readListeningSimilar, type ContentEntry, type Con
 import {dependsOn} from '@core/freshness-hub.ts';
 import {useFreshDocument} from '../../platform/freshness';
 import {AmbientArt, CircleArt} from '../../kit/artwork';
-import {Button} from '../../kit/controls';
+import {Button, Chip} from '../../kit/controls';
+import {serverTextLabel} from '@core/presentation/server-text.ts';
+import {serviceI18n} from '@core/presentation/service-text.ts';
 import {Lockup} from '../../kit/layout';
 import {TitleFactsLine, TitleProse} from '../../kit/title/TitleParts';
 import {ScreenProblem} from './ScreenProblem';
@@ -18,7 +20,10 @@ import {TrackTable, type TrackRowData} from '../../kit/browse';
 import {Menu} from '../../kit/overlays';
 import {useShellWidth} from '../../shell/viewport';
 import {runScreenCommand, screenLifetime, type ScreenContext} from './context';
-import {SimilarTitleRow, TitleRow} from './Detail';
+import {SimilarTitleRow} from './Detail';
+import {SquareCard} from '../../kit/cards';
+import {entryCard} from './model';
+import {environment as env} from './text';
 import type {ListeningSimilarRead} from '@core/relation-rows.ts';
 import type {ListeningViewerScope} from '@core/listening.ts';
 import {entrySubject} from './model';
@@ -133,7 +138,10 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
   if (!projection || !artist || !admitted) return <>{bar}{localFailure || readFailure
     ? <ScreenProblem context={recoveryContext} error={content.error ?? localFailure?.error} retry={() => retry(failureCurrent)} />
     : <MusicDetailLoading kind="artist" />}</>;
-  const albumsSection = section('items'), top = section('top_songs');
+  // The music library's artist view (listening contract): 'popularTracks' (the five most played, when
+  // anything has been), 'songs' (every song crediting the artist) and 'releases' (albums and appearances).
+  const albumsSection = section('releases'), popular = section('popularTracks'), songs = section('songs');
+  const top = popular ?? songs;
   const albums: readonly ContentEntry[] = albumsSection?.entries ?? [];
   const playArtist = context.effects.playArtist;
   const total = albumsSection && typeof albumsSection.totalCount === 'number' && Number.isFinite(albumsSection.totalCount) ? albumsSection.totalCount : undefined;
@@ -146,7 +154,8 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
       && page.scope.view === 'artist' && page.scope.entityId === artistId
       && page.revision.catalog === admitted.catalog && page.revision.viewer === admitted.viewer;
   };
-  const cover = artist.posterUrl, discArt = cover ? context.artwork.foreground(cover, 480, 1) : undefined;
+  // No artist art: the first album's cover stands in (desktop-listen #artist: "clearly an album cover").
+  const cover = artist.posterUrl ?? albums.find(album => album.posterUrl)?.posterUrl, discArt = cover ? context.artwork.foreground(cover, 480, 1) : undefined;
   const facts: FactPart[] = [
     ...(artist.genres && artist.genres.length > 0 ? [{id: 'genres', role: 'context' as const, text: artist.genres.slice(0, 3).join(', ')}] : []),
     ...(total === undefined ? [] : [{id: 'albums', role: 'supplement' as const, text: t('lib.count', {count: total, pivot: 'albums'})}]),
@@ -185,22 +194,29 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
     {menu?.page === projection && <Menu open onOpenChange={open => {if (!open) setMenu(current => current === menu ? undefined : current);}} anchorRef={{current: menu.anchor}} returnFocusRef={{current: menu.anchor}} title={artist.title}>
       <MusicEntryMenu context={context} seed={{id: artist.id, title: artist.title}} signal={lease.signal} current={witness}/>
     </Menu>}
-    {top && <ArtistTopSongs context={context} lease={lease} libraryId={libraryId} top={top} witness={witness} phone={phone} />}
-    <section className={hasDetails ? styles.split : styles.full}>
-      <div className={styles.albums}>
-        {(albums.length > 0 || albumsSection?.nextCursor) && <TitleRow heading={t('music.albums')} entries={albums} binding={{context}}
-          guard={() => {if (!witness()) throw new DOMException('Artist page changed', 'AbortError');}}
-          pagination={{cursor: albumsSection?.nextCursor ?? '', loading: content.phase === 'loading', onMore: () => runScreenCommand(context, () => {
-            const now = service.getSnapshot();
-            if (!witness() || (now.appended.find(row => row.id === 'items') ?? now.projection?.sections.find(row => row.id === 'items')) !== albumsSection)
-              throw new DOMException('Artist page changed', 'AbortError');
-            return service.next('items');
-          })}} />}
+    {/* desktop-listen #artist: Top songs on the left; Albums then Details in the 360px aside. */}
+    <section className={styles.split}>
+      <div className={styles.songs}>
+        {top && <ArtistTopSongs context={context} lease={lease} libraryId={libraryId} top={top} witness={witness} phone={phone}
+          heading={popular ? serverTextLabel(serviceI18n(), popular.heading) : t('music.topSongs')} preview={popular ? undefined : TOP_SONGS_PREVIEW} />}
       </div>
-      {hasDetails && <aside className={styles.aside}>
-        <h2 className={styles.detailsTitle}>{t('title.details')}</h2>
-        {artist.overview && <><TitleProse className={styles.overview} markup={artist.overview} />{artist.overviewSource && <small className={styles.source}>{t('web.person.biographyFrom', {source: artist.overviewSource})}</small>}</>}
-        {details.length > 0 && <dl className={styles.facts}>{details.map(([label, value]) => <Fragment key={label}><dt>{label}</dt><dd>{value}</dd></Fragment>)}</dl>}
+      {(albums.length > 0 || hasDetails) && <aside className={styles.aside}>
+        {albums.length > 0 && <section className={styles.albumsBlock} aria-label={t('music.albums')}>
+          <h2 className={styles.detailsTitle}>{t('music.albums')}</h2>
+          <div className={styles.albumGrid}>{albums.map(album => <SquareCard key={album.id} model={entryCard(album, env)} artwork={context.artwork.foreground(album.posterUrl, 400, 1)}
+            onNavigate={() => runScreenCommand(context, () => {if (!witness()) throw new DOMException('Artist page changed', 'AbortError'); context.effects.openEntry(album);})} watched={album.watched}/>)}</div>
+          {albumsSection?.nextCursor && <Button size="small" disabled={content.phase === 'loading'} onClick={() => runScreenCommand(context, () => {
+            const now = service.getSnapshot();
+            if (!witness() || (now.appended.find(row => row.id === 'releases') ?? now.projection?.sections.find(row => row.id === 'releases')) !== albumsSection)
+              throw new DOMException('Artist page changed', 'AbortError');
+            return service.next('releases');
+          })}>{t('title.nextPage')}</Button>}
+        </section>}
+        {hasDetails && <>
+          <h2 className={styles.detailsTitle}>{t('title.details')}</h2>
+          {artist.overview && <><TitleProse className={styles.overview} markup={artist.overview} />{artist.overviewSource && <small className={styles.source}>{t('web.person.biographyFrom', {source: artist.overviewSource})}</small>}</>}
+          {details.length > 0 && <dl className={styles.facts}>{details.map(([label, value]) => <Fragment key={label}><dt>{label}</dt><dd>{value}</dd></Fragment>)}</dl>}
+        </>}
       </aside>}
     </section>
     {similar?.page === projection && similarRead.current === similar.token && similar.value.entries.length > 0 && <SimilarTitleRow heading={t('music.similarArtists')} subtitle={t(similar.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')}
@@ -225,13 +241,19 @@ function playableSong(song: ContentEntry, libraryId: string): boolean {
     && song.playback !== undefined && song.playback.itemId === song.id;
 }
 
-function ArtistTopSongs({context, lease, libraryId, top, witness, phone}: {
-  context: ScreenContext; lease: Lease; libraryId: string; top: ContentSection; witness: Witness; phone: boolean;
+/** With nothing played yet, the artist's songs stand in for Top songs: the first few, then all. */
+const TOP_SONGS_PREVIEW = 5;
+function ArtistTopSongs({context, lease, libraryId, top, witness, phone, heading, preview}: {
+  context: ScreenContext; lease: Lease; libraryId: string; top: ContentSection; witness: Witness; phone: boolean; heading: string; preview?: number;
 }) {
   const [opening, setOpening] = useState<Opening>();
+  const [expanded, setExpanded] = useState(false);
+  useLayoutEffect(() => { setExpanded(false); }, [lease, top.id]);
   const live = useRef<Opening | undefined>(undefined);
   const currentRows = useRef<readonly ContentEntry[]>([]), anchor = useRef<HTMLButtonElement | null>(null);
-  const rows = top.entries.filter(entry => entry.kind === 'song' && entry.libraryId === libraryId), radioPort = context.effects.playRadio;
+  const all = top.entries.filter(entry => entry.kind === 'song' && entry.libraryId === libraryId), radioPort = context.effects.playRadio;
+  const rows = preview !== undefined && !expanded ? all.slice(0, preview) : all;
+  const hidden = preview !== undefined && !expanded && (all.length > preview || !!top.nextCursor);
   // The row membership a retained handler may act on is published after commit, never during render.
   useLayoutEffect(() => { currentRows.current = rows; }, [rows]);
   anchor.current = opening?.anchor ?? null;
@@ -266,9 +288,9 @@ function ArtistTopSongs({context, lease, libraryId, top, witness, phone}: {
       () => witness() && currentRows.current.includes(song) && playableSong(song, libraryId));
   };
   if (rows.length === 0) return null;
-  return <section className={styles.topSongs} aria-label={t('music.topSongs')}>
-    <h2 className={styles.sectionHeading}>{t('music.topSongs')}</h2>
-    <TrackTable variant="top-songs" label={t('music.topSongs')} rows={data} platform={phone ? 'phone' : 'desktop'} startIndex={top.start ?? 0} totalCount={top.totalCount}
+  return <section className={styles.topSongs} aria-label={heading}>
+    <h2 className={styles.sectionHeading}>{heading}</h2>
+    <TrackTable variant="top-songs" label={heading} rows={data} platform={phone ? 'phone' : 'desktop'} startIndex={top.start ?? 0} totalCount={hidden ? rows.length : top.totalCount}
       columns={radioPort ? undefined : columnsWithoutActions}
       onPlay={id => runScreenCommand(context, () => play(id))}
       onMore={(id, anchor) => {
@@ -278,13 +300,15 @@ function ArtistTopSongs({context, lease, libraryId, top, witness, phone}: {
         live.current = next;
         setOpening(next);
       }} />
-    {top.nextCursor && <div className={styles.more}><Button size="small" onClick={() => runScreenCommand(context, () => {
+    {hidden && <div className={styles.more}><Chip variant="toolbar" trailingIcon="i-down" trailingSize={16}
+      onClick={() => {if (witness()) setExpanded(true);}}>{t('music.showAllSongs', {count: top.totalCount ?? all.length})}</Chip></div>}
+    {!hidden && top.nextCursor && <div className={styles.more}><Button size="small" onClick={() => runScreenCommand(context, () => {
       const snapshot = lease.service.getSnapshot();
-      const current = snapshot.appended.find(section => section.id === 'top_songs')
-        ?? snapshot.projection?.sections.find(section => section.id === 'top_songs');
+      const current = snapshot.appended.find(section => section.id === top.id)
+        ?? snapshot.projection?.sections.find(section => section.id === top.id);
       if (!witness() || current !== top)
         throw new DOMException('Artist page changed', 'AbortError');
-      return lease.service.next('top_songs');
+      return lease.service.next(top.id);
     })}>{t('title.nextPage')}</Button></div>}
     {opening && owns(opening) && <Menu open onOpenChange={value => { if (!value) retire(opening); }}
       title={opening.song.title} anchorRef={anchor} returnFocusRef={anchor}>

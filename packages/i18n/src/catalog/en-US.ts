@@ -1290,6 +1290,7 @@ export const enUS = {
   'notifications.unarchive': 'Move back to inbox',
   'notifications.markAllRead': 'Mark all read',
   'notifications.loadMore': 'Show more',
+  'notifications.seeAll': 'See all',
   'notifications.new': 'New',
   'notifications.loading': 'Loading notifications',
   'notifications.archived': 'Archived',

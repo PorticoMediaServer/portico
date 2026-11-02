@@ -1,0 +1,3 @@
+/* The Notifications page on desktop: the bell panel's own feed, given the page's width. */
+.page { width: 720px; max-width: 100%; margin: 0 auto; padding: calc(var(--shell-top, 76px) + 24px) 0 80px; }
+.page > section { border-radius: 18px; background: var(--color-raised); }
