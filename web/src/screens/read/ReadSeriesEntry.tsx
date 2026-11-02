@@ -11,7 +11,7 @@ import type {ScreenContext} from '../detail/context';
 import {router} from '../../router';
 import {CoverCard} from '../../kit/cards';
 import {Button} from '../../kit/controls';
-import {WindowedGrid} from '../../kit/layout';
+import {WindowedGrid, fillHeightBelow, observeShellClearance} from '../../kit/layout';
 import {ReadBookHero} from '../../kit/reader/ReadBookHero';
 import type {ArtworkSource} from '../../kit/artwork';
 import {Skeleton, StateView} from '../../kit/states';
@@ -94,9 +94,10 @@ function LiveSeriesRows({resources, context, retry}: {resources: Resources; cont
   }, [resources]);
   useEffect(() => {
     const element = grid.current; if (!element) return;
-    const measure = () => setHeight(Math.max(280, window.innerHeight - element.getBoundingClientRect().top));
+    const measure = () => setHeight(fillHeightBelow(element));
     const observer = new ResizeObserver(measure); observer.observe(element); window.addEventListener('resize', measure); measure();
-    return () => {observer.disconnect(); window.removeEventListener('resize', measure);};
+    const stopClearance = observeShellClearance(element, measure);
+    return () => {observer.disconnect(); stopClearance(); window.removeEventListener('resize', measure);};
   }, [state.status]);
   const resident = resources.rows.collection.residentItems();
   const [coverItems, setCoverItems] = useState<readonly ReadingLibraryItem[]>([]);

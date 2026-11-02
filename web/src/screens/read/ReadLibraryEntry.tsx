@@ -9,7 +9,7 @@ import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
 import {useShellWidth} from '../../shell/viewport';
 import {useReducedMotion} from '../../kit/overlays/shared';
-import {Row, WindowedGrid} from '../../kit/layout';
+import {Row, WindowedGrid, fillHeightBelow, observeShellClearance} from '../../kit/layout';
 import {CollectionBanner, CoverCard} from '../../kit/cards';
 import {GeneratedCover} from '../../kit/artwork';
 import {Skeleton, StateView} from '../../kit/states';
@@ -79,9 +79,10 @@ function LibraryRows({resources, libraryId, name, comic, view, onMore, onRetry, 
   const discovery = useRef<{life: AbortController; cursors: Map<ReadingDiscoverRowKey, string>; loading: Set<ReadingDiscoverRowKey>}>(undefined);
   useLayoutEffect(() => {
     const element = grid.current; if (!element) return;
-    const read = () => setHeight(Math.max(280, window.innerHeight - element.getBoundingClientRect().top));
+    const read = () => setHeight(fillHeightBelow(element));
     const observer = new ResizeObserver(read); observer.observe(element); window.addEventListener('resize', read); read();
-    return () => {observer.disconnect(); window.removeEventListener('resize', read);};
+    const stopClearance = observeShellClearance(element, read);
+    return () => {observer.disconnect(); stopClearance(); window.removeEventListener('resize', read);};
     // The grid mounts only on Books (or when Discover has no rows); re-measure and observe it then.
   }, [failed, reading.status, view, selecting]);
   useEffect(() => {resources.resume.collection.ensureRange(0, 11);}, [resources]);
