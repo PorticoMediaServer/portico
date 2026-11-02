@@ -1,6 +1,6 @@
-import {canReturnToPage, holdsPageFocus} from '../src-next/shell/page-focus-return.ts';
 import {homeContinuationCard} from '../../../packages/client-core/src/presentation/home-continuation';
 import * as homeWindow from '../src-next/screens/home/home-window';
+import * as layerStack from '../src-next/kit/focus/layer-stack.ts';
 import * as homeStart from '../src-next/screens/home/home-start';
 import {listeningCoverFixture, stackSlotFixture} from './helpers/screen-harness.mjs';
 import {homeActionDiagnostics} from '../src-next/platform/home-action-diagnostics.ts';
@@ -290,8 +290,7 @@ function shellRuntime(onMemoryRead?: () => void) {
 }
 async function shellSession(state: ReturnType<typeof lifecycle>, runtime: NativeShellRuntime, registry = createFocusRegistry()) {
   const theme = createTheme({isTV: false, width: 390});
-  const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture, 
-    './page-focus-return': {canReturnToPage, holdsPageFocus},
+  const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture,
     '../screens/home/home-start': homeStart,
     '../kit/overlays/SurfacePaintHost': surfacePaintFixture,
     '../kit/dock/DockClearance': {DockClearanceProvider: 'DockClearanceProvider'},
@@ -301,7 +300,7 @@ async function shellSession(state: ReturnType<typeof lifecycle>, runtime: Native
     react: state.react, 'react-native': state.native, 'react-native-reanimated': state.animated,
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => state.motion}, './model': shellModel,
-    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds, sameDestination},
+    '../kit/focus': {...layerStack, CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds, sameDestination},
     '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'}, '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/browse': {},
     '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
     './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './TVRail': {}, './TVProfileMenu': {}, './NativePlaybackLayer': {}, './DesktopHeader': {},
@@ -444,8 +443,7 @@ function driverMount(component: any, initial: any) {
 }
 async function driverShellSession(state: ReturnType<typeof lifecycle>, runtime: NativeShellRuntime, registry = createFocusRegistry()) {
   const theme = createTheme({isTV: false, width: 390});
-  const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture, 
-    './page-focus-return': {canReturnToPage, holdsPageFocus},
+  const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture,
     '../screens/home/home-start': homeStart,
     '../kit/overlays/SurfacePaintHost': surfacePaintFixture,
     '../kit/dock/DockClearance': {DockClearanceProvider: 'DockClearanceProvider'},
@@ -455,7 +453,7 @@ async function driverShellSession(state: ReturnType<typeof lifecycle>, runtime: 
     react: state.react, 'react-native': state.native, 'react-native-reanimated': state.animated,
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => state.motion}, './model': shellModel,
-    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds, sameDestination},
+    '../kit/focus': {...layerStack, CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds, sameDestination},
     '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'}, '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/browse': {},
     '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
     './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './TVRail': {}, './TVProfileMenu': {}, './NativePlaybackLayer': {}, './DesktopHeader': {},

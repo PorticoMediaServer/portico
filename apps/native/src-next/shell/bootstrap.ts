@@ -598,7 +598,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       subscribe: listener => {if (!live()) {retireOutsideRender(); return () => {};} listeners.add(listener); return () => {listeners.delete(listener);};}, getSnapshot: () => renderRead(() => snapshot, () => lastSnapshot ?? snapshot),
       // The real pushed route and revision, for a guarded control that must retire when the page
       // it opened on is left. The navigation snapshot is stable between publishes.
-      navigation: Object.freeze({subscribe: context.navigation.subscribe, getSnapshot: context.navigation.getSnapshot}),
+      navigation: Object.freeze({subscribe: context.navigation.subscribe, getSnapshot: context.navigation.getSnapshot, presentationStack: context.navigation.presentationStack}),
       lyrics: target => {
         // A reader exists only for the current local authority; callers ask inside that scope.
         assertCurrent();

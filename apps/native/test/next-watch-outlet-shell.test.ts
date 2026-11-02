@@ -1,6 +1,6 @@
 // @fabric-react
-import {canReturnToPage, holdsPageFocus} from '../src-next/shell/page-focus-return.ts';
 import * as homeStart from '../src-next/screens/home/home-start';
+import * as layerStack from '../src-next/kit/focus/layer-stack.ts';
 import {listeningCoverFixture, stackSlotFixture} from './helpers/screen-harness.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -22,8 +22,7 @@ test('the real shell mounts one persistent player and a separate box-none watch 
   const runtime = {home: {getSnapshot: () => ({document: undefined})}, getSnapshot: () => snapshot, subscribe: () => () => {}, playback: {}, memory: {read: async () => undefined}, reportError(error: unknown) {throw error;},
     renderWatch: () => React.createElement('WatchChrome'),
     renderRoutes: () => React.createElement('TitleRoutes'), renderSelection: () => React.createElement('MenuOverlays'), renderDestination() {}};
-  const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture, 
-    './page-focus-return': {canReturnToPage, holdsPageFocus},
+  const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture,
     '../screens/home/home-start': homeStart,
     '../kit/overlays/SurfacePaintHost': surfacePaintFixture,
     '../kit/dock/DockClearance': {DockClearanceProvider: 'DockClearanceProvider'},
@@ -34,7 +33,7 @@ test('the real shell mounts one persistent player and a separate box-none watch 
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: number) => React.useRef({value}).current, withTiming: (value: unknown) => value},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})}, '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'},
     '../kit/shell': {}, '../kit/browse': {}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})},
-    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': focus, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': model,
+    '../kit/focus': {...layerStack, CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': focus, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': model,
     './PhoneTabBar': {}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'ProfileMenu'},
     './NativePlaybackLayer': {NativePlaybackLayer: 'PersistentPlaybackLayer'}, './DesktopHeader': {},
   });
