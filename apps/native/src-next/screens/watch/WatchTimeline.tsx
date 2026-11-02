@@ -10,6 +10,7 @@ import type {NativePlaybackRuntimeSnapshot} from '../../platform/playback/types'
 import type {NativeShellPlaybackAdapter} from '../../shell/playback';
 import {useTVKeyEvent} from '../../platform/tv-keys';
 import {createTVSeekRepeat} from '../../platform/tv-seek-repeat';
+import {touchScrub, useSiriRemoteTouch} from '../../platform/siri-remote';
 import {Focusable} from '../../kit/controls';
 import {useTheme} from '../../kit/theme';
 import type {NativeWatchControls} from './controls';
@@ -93,6 +94,18 @@ export function NativeWatchTimeline({source, playback, controls, compact, enable
     if (previewRef.current !== undefined || live.playback.intent === 'paused') {
       previewRef.current = next; setPreview(next); onPreview?.(next); controls.scrub(fence, true);
     } else void playback.seek(fence, next).catch(reportError);
+  });
+  // N3-3 (tv-player 2: "a single preview shows while the Siri Remote's touch surface
+  // scrubs"): sliding a finger moves the same preview as holding Left or Right, and the same
+  // OK commits it (F-PLAYER-31) or Back/Down cancels it. Listening only while this bar has focus.
+  const scrub = useMemo(() => touchScrub(span), [span]);
+  useSiriRemoteTouch(tv && focused && enabled && !!fence && source.capabilities.seek && span > 0, touch => {
+    if (!remoteCurrent() || !fence) return;
+    const landing = scrub.read(touch, () => previewRef.current ?? playback.getSnapshot().playback.positionSeconds);
+    if (landing === undefined) return;
+    repeat.stop();
+    const next = Math.max(start, Math.min(end, landing));
+    previewRef.current = next; setPreview(next); onPreview?.(next); controls.scrub(fence, true);
   });
   // The touch bar paints its own progress and knob from the real pointer on the UI
   // thread; the preview seconds, the time label and the single lift seek stay on
