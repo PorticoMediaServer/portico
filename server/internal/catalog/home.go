@@ -26,7 +26,10 @@ type HomeRequest struct {
 	Rows          int
 	LiveAvailable bool
 	OnNow         func(HomeRowPage) (HomeRow, error)
-	Now           time.Time
+	// ReadingContinue is the Read service's Continue for this viewer
+	// (Continue your books); nil when Reading is unavailable to them.
+	ReadingContinue func() ([]ReadingResume, error)
+	Now             time.Time
 	// Restrictions is applied to every row by homeSource; see restrictions.go.
 	Restrictions identity.ContentRestrictions
 	// visibleShows, when set, is a first test of a started show (w.show_id)

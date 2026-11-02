@@ -48,7 +48,7 @@ async function homeFixture(width: number, height: number) {
       useAnimatedScrollHandler: (fn: unknown) => fn, useSharedValue: (value: unknown) => react.useRef({value}).current},
     '@portico/design': {heroSpec: {thumbnail: {width: 104, height: 58}}},
     '../../../../../packages/i18n/src': {defaultI18n: {has: () => true}},
-    '../../../../../packages/client-core/src/presentation/home-spotlight': {
+    '../../../../../packages/client-core/src/presentation/continue-books': {continueBookFacts: () => ({reading: false, shape: 'audiobook'})}, '../../../../../packages/client-core/src/presentation/home-spotlight': {
       homeRowPresentation: (row: any) => ({cards: row.entries.map((item: any) => ({entry: item})), title: row.id}),
       homeSpotlightModels: () => [{entry, reason: {text: 'Featured'}}], homeTitleFactParts: () => [],
     },

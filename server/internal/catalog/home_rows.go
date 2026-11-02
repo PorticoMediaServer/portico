@@ -848,6 +848,8 @@ func (s *Service) homeRowFor(r HomeRequest, spec homeRowSpec, revision ContentRe
 	var entries []ContentEntry
 	if spec.ID == "continue" {
 		entries, e = s.homeContinueEntries(r.Viewer, ids)
+	} else if spec.ID == "continue_books" {
+		entries, e = s.homeBookEntries(r, displayIDs)
 	} else if strings.HasPrefix(spec.ID, homeViewPrefix) {
 		library, err := s.library(spec.LibraryID)
 		if err != nil {

@@ -28,6 +28,7 @@ export {settingsStructure, findSettingsPage, settingsPageId, settingsRowId, sear
 export {MAX_LANGUAGES, COMMON_LANGUAGES, languageName, availableLanguages, addLanguage, removeLanguage, moveLanguage} from './language-list.ts';
 export * from './library-tabs.ts';
 export * from './card-caption.ts';
+export * from './continue-books.ts';
 export * from './home-hero.ts';
 export * from './search-model.ts';
 export * from './playback-info.ts';

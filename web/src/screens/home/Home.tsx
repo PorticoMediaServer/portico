@@ -12,13 +12,14 @@ import {dependsOn, type FreshDocument} from '@core/freshness-hub.ts';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {homeChannelSelection, homeEntryCapabilities} from '@core/home-selection.ts';
 import {homeCollectionCaption} from '@core/presentation/home-spotlight.ts';
+import {continueBookFacts} from '@core/presentation/continue-books.ts';
 import {channelMonograms, programmeFactParts, type TimeEnvironment} from '@portico/client-core/kit-model';
 import {useFreshness, useRecovering} from '../../platform/freshness';
 import {Artwork, AmbientArt, GeneratedArt, GeneratedCover} from '../../kit/artwork';
 import {Hero, HeroFacts, type HeroCandidate, type LayoutPlatform} from '../../kit/layout';
 import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
-import {CollectionBanner, LiveCard, PosterCard, RankedCard, SquareCard, WideCard, type CardSelection} from '../../kit/cards';
+import {CollectionBanner, LiveCard, PosterCard, RankedCard, ReadResumeCard, ResumeCard, SquareCard, WideCard, type CardSelection} from '../../kit/cards';
 import {HomeSkeleton, StateLayout, StateView} from '../../kit/states';
 import type {ShellArtwork} from '../../shell/artwork';
 import {useShellWidth} from '../../shell/viewport';
@@ -28,7 +29,6 @@ import {cardScale, type ScreenAppearance} from '../browse/appearance';
 import styles from './home.module.css';
 import type {HomeCustomizationBindings} from './customization';
 import {HomeCustomizeEntry} from './Customize';
-import type {ReadingContinueBindings} from './reading-continue';
 import type {MusicMixesBinding} from '../browse/music-mixes-binding';
 import {MusicMixesRow} from '../browse/MusicMixesRow';
 
@@ -47,6 +47,8 @@ export type HomeEffects = Readonly<{
   play: (entry: ContentEntry, target: ContentEntry) => Promise<void>;
   playChannel: (channel: GuideChannel) => Promise<void>;
   openEntry: (entry: ContentEntry) => void;
+  /** Opens a book, comic or magazine in the reader at its saved place (Continue your books). */
+  openReader?: (entry: ContentEntry) => void;
   /** Where opening an entry goes, as a link address; undefined when it is not a page (a radio seed). */
   entryHref?: (entry: ContentEntry) => string | undefined;
   openSeeAll: (target: HomeSeeAll) => void;
@@ -57,7 +59,7 @@ export type HomeEffects = Readonly<{
   notify?: (message: string) => void;
   openHome?: () => void;
 }>;
-export type HomeBindings = Readonly<{/** One quiet line above the rows, such as libraries that did not load. */notice?: ReactNode; service: HomeService; displayDocument?: FreshDocument; artwork: ShellArtwork; effects: HomeEffects; selection: HomeSelection; time: TimeEnvironment; reducedMotion: boolean; appearance?: ScreenAppearance; serverName?: string; customization?: HomeCustomizationBindings; readingContinue?: ReadingContinueBindings; musicMixes?: MusicMixesBinding; musicMixesMore?: ReactNode}>;
+export type HomeBindings = Readonly<{/** One quiet line above the rows, such as libraries that did not load. */notice?: ReactNode; service: HomeService; displayDocument?: FreshDocument; artwork: ShellArtwork; effects: HomeEffects; selection: HomeSelection; time: TimeEnvironment; reducedMotion: boolean; appearance?: ScreenAppearance; serverName?: string; customization?: HomeCustomizationBindings; musicMixes?: MusicMixesBinding; musicMixesMore?: ReactNode}>;
 type HomePresentation = Pick<HomeBindings, 'artwork' | 'effects' | 'selection' | 'time' | 'reducedMotion' | 'appearance'>;
 const t = defaultI18n.t;
 const pageSubscribe = (listener: () => void) => { document.addEventListener('visibilitychange', listener); return () => document.removeEventListener('visibilitychange', listener); };
@@ -243,7 +245,9 @@ function HomeRowContents({row, rowIndex, platform, layout, nowMs, onMore, onRang
   const scale = cardScale(bindings.appearance);
   // The ranked slot is the number plus the poster less the drawn overlap:
   // 240px on desktop and 170px on phone (92+170-22 / 70+116-16), matching the frame slot.
-  const cardWidth = (ranked ? platform === 'desktop' ? 240 : 170 : wide ? layout.wide : square ? layout.square : layout.poster) * scale;
+  // Continue your books draws the Read lane's resume card, smaller (tablet-read.html frame 11: 360 wide).
+  const books = row.id === 'continue_books';
+  const cardWidth = (books ? 360 : ranked ? platform === 'desktop' ? 240 : 170 : wide ? layout.wide : square ? layout.square : layout.poster) * scale;
   const live = currentHomeLive(row.live, nowMs);
   if (row.live) {
     if (!live) return null;
@@ -257,8 +261,8 @@ function HomeRowContents({row, rowIndex, platform, layout, nowMs, onMore, onRang
     return <VisibleCollection row={row} rowIndex={rowIndex} {...bindings} />;
   }
   if (!row.entries.length) return null;
-  return <PagedShelf {...header} focusScope={focusScope} items={row.entries} hasMore={!!row.nextCursor} continuation={row.nextCursor} onMore={onMore} cardWidth={cardWidth} artworkRatio={ranked ? cardWidth / ((platform === 'desktop' ? 255 : 174) * scale) : wide ? 16 / 9 : square ? 1 : 2 / 3} getKey={entry => entry.id} reducedMotion={bindings.reducedMotion} onVisibleRange={onRange}
-    renderItem={(entry, context) => <VisibleCard entry={entry} row={row} rowIndex={rowIndex} index={context.index} platform={platform} layout={layout} {...bindings} />} />;
+  return <PagedShelf {...header} focusScope={focusScope} items={row.entries} hasMore={!!row.nextCursor} continuation={row.nextCursor} onMore={onMore} cardWidth={cardWidth} artworkRatio={books ? cardWidth / (180 * scale) : ranked ? cardWidth / ((platform === 'desktop' ? 255 : 174) * scale) : wide ? 16 / 9 : square ? 1 : 2 / 3} getKey={entry => entry.id} reducedMotion={bindings.reducedMotion} onVisibleRange={onRange}
+    renderItem={(entry, context) => books ? <VisibleBookCard entry={entry} row={row} rowIndex={rowIndex} index={context.index} {...bindings} /> : <VisibleCard entry={entry} row={row} rowIndex={rowIndex} index={context.index} platform={platform} layout={layout} {...bindings} />} />;
 }
 
 function VisibleCollection({row, rowIndex, artwork, effects, selection, time, appearance}: HomePresentation & {row: HomeRow; rowIndex: number}) {
@@ -296,6 +300,26 @@ function VisibleCard({entry, row, rowIndex, index, platform, layout, artwork, ef
     onMore: selection.moreAvailable(entry) ? (anchor: HTMLButtonElement) => effects.openMore(row, entry, anchor) : undefined,
     moreExpanded: selection.moreExpanded(row, entry)};
   return <div ref={interest.ref} className={ranked ? styles.scaledRanked : undefined} style={ranked ? {'--home-card-scale': scale} as CSSProperties : undefined}>{ranked ? <RankedCard {...props} rank={row.start + index + 1} /> : wide ? <WideCard {...props} /> : square ? <SquareCard {...props} progressPlacement={left ? 'below' : 'edge'} variant={entry.kind === 'book' || entry.kind === 'audiobook_file' ? 'audiobook' : 'music'} /> : <PosterCard {...props} />}</div>;
+}
+
+/** Continue your books (Q24, tablet-read.html frame 11): every card is the Read lane's resume
+ * card. A book, comic or magazine opens the reader at its saved place; an audiobook resumes in the
+ * player. Tapping the card is the action, so it draws no play button. */
+function VisibleBookCard({entry, row, rowIndex, index, artwork, effects, selection}: HomePresentation & {entry: ContentEntry; row: HomeRow; rowIndex: number; index: number}) {
+  const interest = useVisible(), facts = continueBookFacts(entry, t), title = entry.displayTitle ?? entry.title;
+  const resume = row.resumes?.find(value => value.entryId === entry.id)?.target ?? entry;
+  const author = entry.author ?? (facts.reading ? undefined : entry.subtitle);
+  const card = {model: {title, caption: author ? [{id: 'author', text: author, role: 'identity' as const}] : [], progress: facts.progress},
+    ...(facts.where ? {location: {id: 'where', text: facts.where, role: 'context' as const}} : {}),
+    ...(facts.left ? {remaining: {id: 'left', text: facts.left, role: 'context' as const}} : {}),
+    visible: interest.visible, arrivalDurationMs: 240, style: {width: '100%'},
+    artwork: artwork.foreground(entry.posterUrl, 380, facts.shape === 'audiobook' ? 1 : facts.shape === 'book' ? 2 / 3 : 3 / 4, {order: rowIndex * 1000 + index, group: row.id}),
+    fallback: <GeneratedCover title={title} glyph={Array.from(title.trim())[0] ?? ''} tint={generatedCoverTint(title)} />,
+    onNavigate: facts.reading ? () => effects.openReader ? effects.openReader(entry) : effects.openEntry(entry) : () => { void effects.play(entry, resume).catch(effects.reportError); },
+    selection: selection.card(row, entry),
+    onMore: selection.moreAvailable(entry) ? (anchor: HTMLButtonElement) => effects.openMore(row, entry, anchor) : undefined,
+    moreExpanded: selection.moreExpanded(row, entry)};
+  return <div ref={interest.ref}>{facts.reading ? <ReadResumeCard {...card} kind={facts.shape === 'audiobook' ? 'book' : facts.shape} /> : <ResumeCard {...card} />}</div>;
 }
 
 function VisibleLive({item, mark, nowMs, order, row, artwork, effects, time, selection, appearance}: HomePresentation & {item: HomeChannel; mark: Parameters<typeof LiveCard>[0]['channel']['mark']; nowMs: number; order: number; row: HomeRow}) {

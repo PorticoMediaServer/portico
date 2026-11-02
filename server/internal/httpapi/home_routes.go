@@ -12,6 +12,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"net/http"
 	"strconv"
+	"sync"
 )
 
 // Home is composed by the server: rows, their order, their policy and their
@@ -64,6 +65,15 @@ func (d Dependencies) homeRequestFor(r *http.Request, p identity.Principal, rest
 				return identity.ErrForbidden
 			}
 			return d.allowedLibraryTx(r.Context(), live, library, tx)
+		}
+		// Continue your books takes reading titles from the Read service's own
+		// Continue, read once per request (source and hydration share it).
+		var once sync.Once
+		var resumes []catalog.ReadingResume
+		var resumeErr error
+		request.ReadingContinue = func() ([]catalog.ReadingResume, error) {
+			once.Do(func() { resumes, resumeErr = d.homeReadingContinue(r, p) })
+			return resumes, resumeErr
 		}
 	}
 	if d.LiveChannels != nil {
@@ -455,4 +465,26 @@ func (d Dependencies) serveHomeRow(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	write(w, 200, out)
+}
+
+// homeReadingContinueLimit bounds the reading titles Continue your books takes:
+// the Read service's own largest Continue page.
+const homeReadingContinueLimit = 100
+
+func (d Dependencies) homeReadingContinue(r *http.Request, p identity.Principal) ([]catalog.ReadingResume, error) {
+	page, err := d.readingService().Continue(r.Context(), p, "", "", homeReadingContinueLimit)
+	if errors.Is(err, identity.ErrForbidden) {
+		// Reading is not available to this viewer: the row has audiobooks only.
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := make([]catalog.ReadingResume, 0, len(page.Items))
+	for _, row := range page.Items {
+		location := row.Progress.Location
+		out = append(out, catalog.ReadingResume{ItemID: row.Item.ID, LibraryID: row.Item.LibraryID, ObservedAt: row.Progress.ObservedAt,
+			Progress: catalog.ReadingProgress{Progression: location.Progression, PageIndex: location.PageIndex, Stale: row.Progress.Stale}})
+	}
+	return out, nil
 }
