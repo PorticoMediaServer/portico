@@ -58,8 +58,8 @@
 .page[data-layout='desktop'] .eyebrowLine { margin: 0 0 12px; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-secondary); }
 .page[data-layout='desktop'] .eyebrowLine .eyebrow, .page[data-layout='desktop'] p.eyebrow { display: inline; margin: 0; font-size: inherit; font-weight: inherit; line-height: inherit; }
 .page[data-layout='desktop'] p.eyebrow { display: block; margin: 0 0 12px; font-size: var(--type-fixed-size-15px); }
-.page[data-layout='desktop'] .hero h1 { max-width: 900px; margin: 0 0 22px; font-size: calc(var(--type-fixed-size-16px) * 6.5); line-height: var(--type-fixed-line-point-98); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-fixed-tracking-minus-point-045em); text-wrap: balance; }
-.page[data-layout='desktop'] .hero h1[data-long] { font-size: calc(var(--type-fixed-size-17px) * 4); }
+.page[data-layout='desktop'] .hero h1 { max-width: 760px; margin: 0 0 22px; font-size: calc(var(--type-fixed-size-16px) * 6.5); line-height: var(--type-fixed-line-point-98); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-fixed-tracking-minus-point-045em); text-wrap: balance; }
+.page[data-layout='desktop'] .hero h1[data-long], .page[data-layout='desktop'][data-audiobook-view='book'] .hero h1 { font-size: calc(var(--type-fixed-size-17px) * 4); }
 .page[data-layout='desktop'] .meta { justify-content: flex-start; align-items: center; gap: 8px 18px; margin: 0 0 26px; font-size: var(--type-fixed-size-15px); }
 .page[data-layout='desktop'] .meta strong { color: var(--color-text); font-weight: var(--type-fixed-weight-700); }
 .page[data-layout='desktop'] .meta .narratorLink { text-decoration: none; font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
@@ -72,12 +72,29 @@
 .page[data-layout='desktop'] .split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 72px; padding-top: 52px; align-items: start; }
 .page[data-layout='desktop'] .split > .rows { grid-column: 1; grid-row: 1; min-width: 0; }
 .page[data-layout='desktop'] .aside { grid-column: 2; grid-row: 1; min-width: 0; }
-.page[data-layout='desktop'][data-audiobook-view='author'] .split,
+/* The author page on desktop, as the music artist page (J-7, desktop-listen #artist): a 640px hero with the
+   author's circle large on the right and the name at the lower left, then the books beside Details. */
+.page[data-layout='desktop'][data-audiobook-view='author'] { padding-top: 0; }
+.page[data-layout='desktop'][data-audiobook-view='author'] .hero { position: relative; display: block; height: 640px; margin: 0 calc(-1 * var(--shell-gutter, 40px)); }
+.page[data-layout='desktop'][data-audiobook-view='author'] .disc { position: absolute; top: 132px; right: 140px; width: 380px; height: 380px; }
+.page[data-layout='desktop'][data-audiobook-view='author'] .copy { position: absolute; left: var(--shell-gutter, 40px); bottom: 60px; width: 760px; max-width: calc(100% - 2 * var(--shell-gutter, 40px)); }
+.page[data-layout='desktop'][data-audiobook-view='author'] .split { padding-top: 24px; }
 .page[data-layout='desktop'][data-audiobook-view='book_series'] .split { grid-template-columns: minmax(0, 1fr); }
 .page[data-layout='desktop'] .sectionHead { margin: 0 0 12px; }
 .page[data-layout='desktop'] .sectionHead h2, .asideTitle { margin: 0 0 12px; font-size: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-700); letter-spacing: var(--type-fixed-tracking-minus-point-015em); }
 .page[data-layout='desktop'] .about { margin: 0 0 26px; -webkit-line-clamp: unset; display: block; }
-.page[data-layout='desktop'] .chapter { padding-left: 12px; border-radius: 10px; }
+/* desktop-listen #book chapters: a compact table (number, title, duration beside it, actions), 60px rows,
+   the current chapter lit at 76px, finished ones dimmed with a check. */
+.page[data-layout='desktop'][data-audiobook-view='book'] .rows { max-width: 760px; }
+.page[data-layout='desktop'] .chapter { height: 60px; padding: 0 12px 0 8px; border-radius: 10px; display: grid; grid-template-columns: 44px minmax(0,1fr) 90px; column-gap: 16px; }
+.page[data-layout='desktop'] .chapter:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.page[data-layout='desktop'] .chapter .number { width: auto; display: grid; place-items: center; }
+.page[data-layout='desktop'] .chapter .duration { margin: 0; text-align: right; }
+.page[data-layout='desktop'] .chapter[data-current] { height: 76px; background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.page[data-layout='desktop'] .chapter[data-current] .number { color: var(--color-accent-strong); font-weight: var(--type-fixed-weight-800); }
+.page[data-layout='desktop'] .chapterRow + .chapterRow .chapter::before { display: none; }
+.page[data-layout='desktop'] .chapterProgress { left: 68px; right: 118px; bottom: 12px; }
+.chapter[data-done] .chapterTitle, .chapter[data-done] .number { color: var(--color-text-tertiary); }
 /* A row carries its own gutter; inside this padded page it bleeds back to the edge (as on the album page). */
 .page[data-layout='desktop'] > [data-layout-row] { margin: 56px calc(-1 * var(--shell-gutter, 40px)) 0; }
 /* desktop-listen's book page: the real total names the next chapters page. */
