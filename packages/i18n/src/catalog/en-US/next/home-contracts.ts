@@ -33,6 +33,8 @@ export const homeContractsMessages = {
   'next.home.resume': 'Resume',
   'next.home.playEpisode': 'Play S{season} E{episode}',
   'next.home.resumeEpisode': 'Resume S{season} E{episode}',
+  'next.home.emptyTitle': 'Nothing to watch yet',
+  'next.home.emptyBody': 'When your server has titles you can play, they show up here.',
   'next.home.myList': 'My List',
   'next.home.seeAll': 'See all',
 } as const;
