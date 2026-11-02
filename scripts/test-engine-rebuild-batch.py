@@ -160,6 +160,50 @@ class RebuildControls(unittest.TestCase):
             self.assertEqual(result['cachedBuildKitOperationLogLines'], 2)
             self.assertEqual(len(result['receiptReadFailures']), 1)
 
+    def test_transport_keys_ignore_run_branch_and_attempt_but_bind_pins_and_compiler(self):
+        transport = CI['module']('engine-dependency-cache')
+        env = dict(PORTICO_ENGINE_BUILD_CONTEXT='development', GITHUB_ACTIONS='true',
+                   RUNNER_ENVIRONMENT='github-hosted', GITHUB_REPOSITORY='PorticoMediaServer/portico',
+                   GITHUB_EVENT_NAME='workflow_dispatch')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); keys = []
+            for index, (run, attempt, branch, image, pins) in enumerate([
+                    ('1', '1', 'main', 'a', 'a'), ('2', '3', 'topic', 'a', 'a'),
+                    ('3', '1', 'main', 'a', 'b'), ('4', '1', 'main', 'b', 'a')]):
+                output = root / (str(index) + '.out')
+                with patch.dict(os.environ, dict(env, GITHUB_RUN_ID=run, GITHUB_RUN_ATTEMPT=attempt,
+                                               GITHUB_REF='refs/heads/' + branch)), \
+                        patch.object(transport, 'compiler', return_value={'image': 'sha256:' + image * 64}), \
+                        patch.object(transport, 'dependency_inputs', return_value={'pin': pins * 64}):
+                    transport.plan('linux-x64', root / str(index), output)
+                keys.append(dict(line.split('=', 1) for line in output.read_text().splitlines()))
+            self.assertEqual(keys[0], keys[1])
+            self.assertNotEqual(keys[0]['key'], keys[2]['key'])
+            self.assertEqual(keys[0]['prefix'], keys[2]['prefix'])
+            self.assertNotEqual(keys[0]['prefix'], keys[3]['prefix'])
+            workflow = (ROOT / '.github/workflows/ffmpeg-toolchain.yml').read_text().split('  build:\n', 1)[1].split('  native-plan:\n', 1)[0]
+            for runtime_key in ('github.run_id', 'github.run_attempt', 'github.ref'):
+                self.assertNotIn(runtime_key, workflow)
+
+    def test_checkpoint_content_changes_only_with_completed_cache_data(self):
+        transport = CI['module']('engine-dependency-cache')
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, PORTICO_ENGINE_BUILD_CONTEXT='development'):
+            root = Path(temporary)
+            partial = root / 'macos/stages/.stage-incomplete'; partial.mkdir(parents=True)
+            (partial / 'index.json').write_text('{}')
+            self.assertEqual(transport.checkpoint(root), dict(present=False, snapshot='empty'))
+            stage = root / 'macos/stages' / ('a' * 64); stage.mkdir()
+            (stage / 'index.json').write_text('{"controlledFixture":true}')
+            blob = stage / 'blob'; blob.write_bytes(b'cache payload')
+            before = transport.checkpoint(root)
+            self.assertTrue(before['present'])
+            os.utime(blob, (1, 1)); (root / 'transport-context.json').write_text('{"run":999}')
+            self.assertEqual(before, transport.checkpoint(root))
+            blob.write_bytes(b'changed payload')
+            self.assertNotEqual(before['snapshot'], transport.checkpoint(root)['snapshot'])
+        with patch.dict(os.environ, PORTICO_ENGINE_BUILD_CONTEXT='release'), self.assertRaises(ValueError):
+            transport.checkpoint(Path('/must-not-be-opened'))
+
     def test_only_four_supported_targets_and_source_cache_always_saves(self):
         self.assertEqual(set(CI['TARGETS']), {'linux-x64', 'linux-arm64', 'windows-x64', 'macos-arm64'})
         workflow = (ROOT / '.github/workflows/ffmpeg-toolchain.yml').read_text()

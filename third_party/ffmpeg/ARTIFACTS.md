@@ -427,3 +427,18 @@ target's failure does not discard a successful target's native proof. The static
 source/configure graph gate runs before dependency compilation. Actual effective
 config.h checks run immediately after configure and before FFmpeg make; a cold
 dependency prefix must exist before configure can probe its libraries.
+
+Production dependency transport keys contain the target, actual compiler/SDK
+identity and dependency pin/recipe hashes; save keys add the completed checkpoint
+content hash. Branch names, run IDs, attempts and image-version labels are absent.
+An unchanged checkpoint is not saved again. A partial failed build gets a new
+content key only when another stage/source completed; incomplete captures are
+excluded. A same-compiler fallback can recover unchanged stages after a pin edit,
+while every individual stage still validates its exact inputs before reuse.
+Source-snapshot save keys likewise use their exact inventory hash.
+
+The first shared seed runs on main after this PR merges. Actions permits every
+branch to restore default-branch caches; topic-branch caches are not the shared
+seed. The explicit tiny proof-cache namespaces remain run-scoped to isolate their
+fixtures, and contain no engine/compiler build. Main's real engine run will
+report hits/misses rather than inferring warmth from a restore attempt.
