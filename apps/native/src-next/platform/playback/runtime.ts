@@ -51,7 +51,7 @@ import {NativeVideoPlaybackPolicy, nativeVideoPolicyMarkers, nativeVideoPolicyPo
 import {boundSubtitleControls, type NativePlaybackSubtitleControls} from './subtitle-controls';
 import {uploadPickedSubtitle} from './subtitle-file-upload';
 import {deviceDrawnTrack, engineSubtitleRender, externalSubtitlePreparation, fontsUrlOf, linesUrlOf, parseSubtitleFonts, type SubtitleFonts} from './engine-media';
-import {atNaturalEnd, classifyPlaybackFailure} from './playback-failure';
+import {atNaturalEnd, classifyPlaybackFailure, playbackFailureReason} from './playback-failure';
 import {mediaRecovered, NativePlaybackRecovery} from './playback-recovery';
 import {directAudioStreamIndex, NativeAudioTrackSelection} from './audio-track-selection';
 import {NativeOfflineTracks} from './offline-tracks';
@@ -207,6 +207,7 @@ export class NativePlaybackRuntime {
   /** N1-5: a first frame drawn while the opening seek is still pending is the media's 0:00, not
    * where it opens. It waits here, and lifts the poster only once that seek has settled. */
   private heldFirstVideoFrame?: NativeFirstVideoFrame;
+  private failure?: Readonly<{intentId: number; run: number; reason: import('./playback-failure').NativePlaybackFailureReason}>;
 
   constructor(options: NativePlaybackRuntimeOptions) {
     this.o = options;
@@ -1494,6 +1495,7 @@ export class NativePlaybackRuntime {
       ...(fence?.kind === 'channel' && this.channelGuide && legacyChannel(this.channelGuide.row)?.id === fence.channelId
         && legacyChannel(this.channelGuide.row)?.sourceId === fence.sourceId && legacyChannel(this.channelGuide.row)?.provenance === fence.channelKind
         && legacyChannel(this.channelGuide.row)?.generation === fence.channelGeneration ? {channelGuide: this.channelGuide} : {}),
+      ...(this.failure && playback.phase === 'error' && this.failure.intentId === playback.intentId && this.failure.run === playback.playbackRun ? {failureReason: this.failure.reason} : {}),
       startFailure: this.startFailure, capacityWait: this.capacityWait, firstVideoFrame, ...this.startingFields(fence),
       initialPresentation: this.initialPresentation?.read(fence),
       ...(fence && this.forcedImageAvailable(fence) ? {forcedOnly: Object.freeze({on: this.choices.get('forcedOnly', fence.playback, false)})} : {}),
@@ -1571,18 +1573,21 @@ export class NativePlaybackRuntime {
       this.recovery.clear(); this.playback.fact(before.intentId, before.duration, 'ended');
     }
     else if (fact.type === 'error') {
-      const failure = classifyPlaybackFailure(fact);
+      const failure = classifyPlaybackFailure(fact), reason = playbackFailureReason(fact);
+      const remember = (value = reason) => {this.failure = value ? Object.freeze({intentId: before.intentId, run: before.playbackRun, reason: value}) : undefined;};
       if (failure.network && this.o.api.getRouteConnection()) {
         const run = `${before.intentId}/${before.playbackRun}`;
         const current = () => {const state = this.playback.getSnapshot(); return this.active() && state.intentId === before.intentId
           && state.playbackRun === before.playbackRun && !!state.session && (state.phase === 'starting' || state.phase === 'ready');};
         if (!current()) return;
         this.playback.recovering(before.intentId, true);
-        this.recovery.start(run, current, () => this.playback.fail(before.intentId, serviceText('queuePlayer.startFailed')),
+        // The route recovery gave up: the connection is what failed.
+        this.recovery.start(run, current, () => {remember('connection'); this.playback.fail(before.intentId, serviceText('queuePlayer.startFailed'));},
           () => {void this.o.api.recoverRoute().catch(() => {});});
         return;
       }
       this.recovery.clear();
+      remember();
       if (failure.engine) this.playback.engineFailed(before.intentId, failure.engine, '', serviceText('queuePlayer.unsupported'));
       else this.playback.fail(before.intentId, serviceText('queuePlayer.startFailed'));
     }

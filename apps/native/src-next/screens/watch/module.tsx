@@ -27,6 +27,7 @@ import {NativeTVLiveGuide} from './live-guide';
 import {NativeTVLiveActions} from './live-actions';
 import {NativeLiveActionPanels} from './LiveActionPanels';
 import {NativePlaybackFailed} from './PlaybackFailed';
+import {failureWhatHappened} from './failure-words';
 import {NativeHandheldPlaybackFailed} from './HandheldPlaybackFailed';
 import {NativeWatchPostPlay} from './PostPlayScreen';
 import {createNativeWatchPanelNames} from './panel-names';
@@ -260,7 +261,7 @@ export function createNativeWatchModule(context: NativeShellBootstrapContext, bi
       const details = recovery.owner() ? () => {
         if (!recovery.owner()) return null;
         const facts: StateFact[] = [
-          {id: 'reason', label: defaultI18n.t('next.states.whatHappened'), value: playbackUserMessage(recovery.source.playback.error)},
+          {id: 'reason', label: defaultI18n.t('next.states.whatHappened'), value: failureWhatHappened(failure.reason, playbackUserMessage(recovery.source.playback.error))},
           {id: 'position', label: defaultI18n.t('player.position'), value: clockText(failure.positionSeconds)},
         ];
         const session = recovery.source.session, info = session?.id === failure.fence.sessionId ? session.playbackInfo : undefined;

@@ -153,6 +153,8 @@ export type NativePlaybackRuntimeSnapshot = Readonly<{
   initialPresentation?: NativeStartPresentation;
   /** Only an admitted renderer firstFrame fact for this exact current binding. */
   firstVideoFrame?: NativeFirstVideoFrame;
+  /** N1-7: why the current failure happened, for the failure state and Details; only while it is that failure. */
+  failureReason?: import('./playback-failure').NativePlaybackFailureReason;
   /** O-159: a Play drawn at once from the pressed card (Stop only) until its real dock exists. */
   starting?: NativePlaybackStarting;
   /** O-159: a Play whose real dock or player was not drawn within NATIVE_START_DEADLINE_MS of Play. */

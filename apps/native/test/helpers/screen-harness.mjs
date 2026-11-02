@@ -2,17 +2,20 @@ import {readFile} from 'node:fs/promises';
 import {compileFunction} from 'node:vm';
 import {parseSync, transformSync} from 'rolldown/utils';
 import * as serverClock from '../../../../packages/client-core/src/server-clock.ts';
+import * as failureWords from '../../src-next/screens/watch/failure-words.ts';
 import * as tvPlayPause from '../../src-next/platform/tv-play-pause.ts';
 
 // Pure leaves a screen gets for real (or as a faithful double) unless a fixture supplies its own.
 // - The server clock has no platform dependency: the real module, whether a screen imports it by
 //   its packages/ path or a client-core file by its own './server-clock.ts' (tests that fake time
 //   supply their own).
+// - The player's failure words (screens/watch/failure-words) are pure copy over the catalogue: the real module.
 // - The TV Play/Pause claims (platform/tv-play-pause) are module state over react-native's Platform:
 //   the real module, so a PIN pad's claim and the player's check meet in one place.
 // - The covered-screen layer (kit/focus/CoveredLayer) behaves as on touch: a View hidden from
 //   touches and screen readers while covered.
 const leaf = (source, react) => /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
+  : /(^|\/)failure-words$/.test(source) ? failureWords
   : /(^|\/)platform\/tv-play-pause$/.test(source) ? tvPlayPause
   : /(^|\/)kit\/focus\/CoveredLayer$/.test(source) ? {CoveredLayer: ({covered, children, style, testID}) => react.createElement('View',
     {style, testID, pointerEvents: covered ? 'none' : 'auto', accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' : 'auto'}, children)} : undefined;

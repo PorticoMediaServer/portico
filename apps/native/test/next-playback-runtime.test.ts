@@ -3489,3 +3489,17 @@ test('N1-5: a resume\'s first frame lifts the poster only after the opening seek
     assert.ok(d.runtime.getSnapshot().firstVideoFrame, 'and the picture stays up through it');
   } finally {d.runtime.dispose();}
 });
+
+test('N1-7: the runtime keeps the failure\'s reason with that failure only', async () => {
+  for (const [extra, reason] of [[{networkError: true}, 'connection'], [{httpStatus: 410}, 'stream-ended'], [{engineCode: 'decode_error'}, 'unsupported'], [{hasPlayed: true}, undefined]] as const) {
+    const d = fixture();
+    try {
+      await d.start('movie-1', 0); d.engine.position = 40; d.engine.emit('progress'); await settle();
+      d.engine.emit('error', {...extra, hasPlayed: (extra as any).hasPlayed ?? true}); await settle(40);
+      for (let i = 0; i < 20 && d.runtime.getSnapshot().playback.phase !== 'error'; i++) {(d as any).advance?.(30_000); await settle();}
+      const snapshot = d.runtime.getSnapshot();
+      if (snapshot.playback.phase === 'error') assert.equal(snapshot.failureReason, reason, JSON.stringify(extra));
+      else assert.ok(reason === 'connection' || reason === 'unsupported', `${JSON.stringify(extra)}: only a recovering connection or an engine fallback may not have failed yet`);
+    } finally {d.runtime.dispose();}
+  }
+});

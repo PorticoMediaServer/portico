@@ -10,10 +10,12 @@ import {nativeType, useTheme} from '../../kit/theme';
 import {FocusRegion} from '../../kit/focus';
 import {SidePanel} from '../../kit/overlays';
 import type {NativeWatchHostContext} from './WatchHost';
+import type {NativePlaybackFailureReason} from '../../platform/playback/playback-failure';
+import {failureBody} from './failure-words';
 
 /** The exact playback that failed: its fence, session and saved place. A callback
  * reads only this, never the live context, so a successor start is never touched. */
-export type NativePlaybackFailure = Readonly<{fence: PlaybackFence; sessionId?: string; positionSeconds: number; itemId?: string}>;
+export type NativePlaybackFailure = Readonly<{fence: PlaybackFence; sessionId?: string; positionSeconds: number; itemId?: string; reason?: NativePlaybackFailureReason}>;
 
 /** states 11: the ten-foot failure state. The frozen picture stays behind it,
  * the bar below keeps working, and nothing here retries by itself. The retry
@@ -35,8 +37,7 @@ export function NativePlaybackFailed({context, failure, retry, details, differen
   const detailsOpener = React.useRef<View>(null), identityKey = JSON.stringify(failure);
   const facts = details?.(failure), detailsOpen = detailsFor === identityKey && !!facts;
   const position = clockText(failure.positionSeconds);
-  // This snapshot has no sanctioned cause fact, so the words stay neutral about it.
-  const body = t('next.dock.native.stoppedAt', {position: position ?? ''});
+  const body = failureBody(failure.reason, position ?? '');
   return <View testID="watch-playback-failed" pointerEvents="box-none" style={StyleSheet.absoluteFill}>
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: '#03080c8c'}]}/>
     {!chromeVisible && identity && <View pointerEvents="none" style={{position: 'absolute', left: 96, right: 96, top: 72}}>
