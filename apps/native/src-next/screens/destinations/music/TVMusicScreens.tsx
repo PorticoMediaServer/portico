@@ -181,8 +181,11 @@ export function TVAlbumScreen({controller, entry, runtime, actions, openEntry, o
 
 /** tv-more8/9: the artist page, its circle cut from up to four covers, and the server's release lists. */
 /** W-12: the artist page an album was opened from returns to that album's card on Back, not Play.
- * Keyed by the page's controller, which the route cache keeps for the return. */
-const artistReturn = new WeakMap<NativeTVMusicController, string>();
+ * Keyed by the artist itself (library and id): Back opens a new navigation revision, so the
+ * returning page has a new controller, and a key on the old one was never found. One entry per
+ * artist, read once by the next page drawn for that artist. */
+const artistReturn = new Map<string, string>();
+const artistReturnKey = (entry: ContentEntry) => JSON.stringify([entry.libraryId ?? '', entry.id]);
 export function TVArtistScreen({controller, entry, runtime, actions, openEntry, selection}: {selection?: NativeSelection; controller: NativeTVMusicController; entry: ContentEntry; runtime: NativeShellRuntime; actions: Actions; openEntry: (entry: ContentEntry) => void}) {
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot), playback = usePlayback(runtime), theme = useTheme();
   const playingId = playback?.playback.itemId;
@@ -194,10 +197,10 @@ export function TVArtistScreen({controller, entry, runtime, actions, openEntry, 
   const releases = artistReleaseGroups(snapshot.albums);
   const albums = releases.find(group => group.id === 'albums')?.entries ?? [];
   const otherReleases = releases.filter(group => group.id !== 'albums');
-  const [returning] = useState(() => {const id = artistReturn.get(controller); artistReturn.delete(controller); return id;});
+  const [returning] = useState(() => {const key = artistReturnKey(entry), id = artistReturn.get(key); artistReturn.delete(key); return id;});
   const drawn = [...albums.map(album => `music-artist-album-${album.id}`), ...otherReleases.flatMap(group => group.entries.map(album => `music-release-${album.id}`))];
   const returnTo = returning && drawn.includes(returning) ? returning : undefined;
-  const openFrom = (focusId: string) => (value: ContentEntry) => {artistReturn.set(controller, focusId); openEntry(value);};
+  const openFrom = (focusId: string) => (value: ContentEntry) => {artistReturn.set(artistReturnKey(entry), focusId); openEntry(value);};
   const allSongs = snapshot.allSongs;
   const detailFacts: readonly DetailRow[] = [
     ...(artist.country ? [{id: 'country', label: t('title.country'), value: artist.country}] : []),

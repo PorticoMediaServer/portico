@@ -429,7 +429,7 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
   const {TVNowPlayingScreen} = await screenModule(new URL('../src-next/screens/destinations/music/TVNowPlayingScreen.tsx', import.meta.url), {
     react: b.react, 'react-native': b.native, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/kit-model/text': text,
     '../../../../../../packages/player-core/src': {sameFence: (a: any, c: any) => a === c}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'Ambient', Artwork: 'Artwork'},
-    '../../../kit/controls': {Button: o.Button}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel},
+    '../../../kit/controls': {Button: o.Button}, '../../../kit/focus': {requestNativeFocus: registryModule.requestNativeFocus}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel},
     '../../../kit/theme': {useTheme: () => b.theme, nativeType}, '../../../kit/dock/model': dock,
     '../../../shell/model': {shellLayout: () => ({width: 1920, height: 1080, left: 0, top: 0, scale: 1})},
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {supported: true}; return () => snapshot;})()}},
@@ -442,9 +442,28 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
     presentation: {identity: {title: 'Song', subtitle: []}, durationSeconds: 100, capabilities: {play: true, pause: true, previous: false, next: true}}},
     width: 1920, height: 1080, artwork: () => undefined, onAction() {}, onQueuePlay() {}, onClose() {}, lyrics: React.createElement('Lyrics'), equalizerCopy: {}};
   const wrap = TVNowPlayingScreen(props).props.children; let tree: any, second: any;
+  // W-9: the player claims focus as it opens, a frame after it is drawn.
+  const frames: (() => void)[] = [], realFrame = globalThis.requestAnimationFrame, realCancel = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = ((callback: () => void) => frames.push(callback)) as never; globalThis.cancelAnimationFrame = (() => {}) as never;
+  t.after(() => {globalThis.requestAnimationFrame = realFrame; globalThis.cancelAnimationFrame = realCancel;});
   const source = createFabricHookHost(() => {tree = wrap.type(wrap.props);}); await source.mount();
-  const another = createFabricHookHost(() => {second = wrap.type(wrap.props);}); await another.mount();
   const button = (name: string) => nodes(tree).find(node => node.type === o.Button && node.props.testID === `now-playing-${name}`);
+  const claimed: string[] = [];
+  for (const name of ['toggle', 'next', 'previous', 'lyrics']) button(name).props.ref.current = {requestTVFocus() {claimed.push(name);}};
+  for (const frame of frames.splice(0)) frame();
+  assert.deepEqual(claimed, ['toggle'], 'the player opens with focus on Play/Pause, off the covered page underneath');
+  // At the end of a track Play is not available: the first control that is takes focus instead.
+  const ended = {...props, occupant: {...props.occupant, playback: {...props.occupant.playback, playing: false},
+    presentation: {...props.occupant.presentation, capabilities: {play: false, pause: false, previous: false, next: false}}}};
+  const endedWrap = TVNowPlayingScreen(ended).props.children; let endedTree: any;
+  const endedHost = createFabricHookHost(() => {endedTree = endedWrap.type(endedWrap.props);}); await endedHost.mount();
+  const endedClaims: string[] = [];
+  for (const name of ['toggle', 'next', 'previous', 'lyrics']) nodes(endedTree).find(node => node.type === o.Button && node.props.testID === `now-playing-${name}`).props.ref.current = {requestTVFocus() {endedClaims.push(name);}};
+  for (const frame of frames.splice(0)) frame();
+  assert.deepEqual(endedClaims, ['lyrics'], 'a disabled Play/Pause, Next and Previous are skipped');
+  await endedHost.unmount();
+  const another = createFabricHookHost(() => {second = wrap.type(wrap.props);}); await another.mount();
+  frames.length = 0;
   const ref = button('more').props.ref; let restored = 0; ref.current = {nativeTag: 701, requestTVFocus() {restored++;}};
   button('more').props.onPress(); await source.rerender();
   const menu = () => nodes(tree).find(node => node.type === o.menu.Menu).props;

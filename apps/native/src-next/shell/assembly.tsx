@@ -498,8 +498,10 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
       return runtime && context.current() ? <View pointerEvents="box-none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
         {Platform.isTV && <NativeTVReceiver context={context} runtime={runtime}/>}
         {/* The expanded player covers the route pages on TV: nothing under it may take D-pad focus.
-            Overlays and music navigation stay above, reachable from the player. Touch has no D-pad. */}
-        {Platform.isTV ? <CoveredLayer covered={runtime.getSnapshot().mediaExpanded === true} style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}} testID="native-shell-routes">{pages}</CoveredLayer> : pages}
+            Overlays and music navigation stay above, reachable from the player. Touch has no D-pad.
+            W-9/W-12: with no route open the layer is covered too, so the empty container can never
+            hold focus over the page (Back then left focus on it, with nothing visible focused). */}
+        {Platform.isTV ? <CoveredLayer covered={runtime.getSnapshot().mediaExpanded === true || route.kind === 'shell'} autoFocus style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}} testID="native-shell-routes">{pages}</CoveredLayer> : pages}
         {musicNavigation.render()}
         {(routes.renderOverlays(runtime) ?? []).map((node, index) => <React.Fragment key={index}>{node}</React.Fragment>)}
       </View> : null;

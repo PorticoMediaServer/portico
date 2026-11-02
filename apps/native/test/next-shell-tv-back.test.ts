@@ -154,6 +154,12 @@ test('actual assembly sends Back to topmost Home menu before player, then TV pag
   navigation.back(authority);
   assert.deepEqual(bindings.getState().railDestination, {kind: 'saved'});
   assert.equal(bindings.getState().contentVisible, true);
+  // W-9/W-12: with no route open, the empty route layer is covered, so it can never hold focus.
+  const idleLayer = (function find(node: any): any {if (Array.isArray(node)) {for (const child of node) {const hit = find(child); if (hit) return hit;} return undefined;}
+    return node?.props?.testID === 'native-shell-routes' ? node : node?.props ? find(node.props.children) : undefined;})(bindings.renderRoutes());
+  assert.equal(idleLayer?.props.covered, true, 'no route open: the route layer takes no focus');
+  assert.equal(idleLayer?.props.autoFocus, true, 'and never focuses its own empty container');
+  renderOrder.length = 0;
   navigation.open({kind: 'home-customize'}, authority);
   const routes = bindings.renderRoutes();
   assert.deepEqual(renderOrder, ['active', 'retained'], 'current module exists before its retained native views are requested');

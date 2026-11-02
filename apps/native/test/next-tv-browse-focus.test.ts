@@ -210,8 +210,9 @@ test('W-12: Back to an artist returns focus to the album card it opened, and a f
   const state: any = {songs: [], albums: [album], similar: [], allSongs: {songs: [], phase: 'idle'}, songPage: {offset: 0}, releases: {}};
   const controller = {subscribe: () => () => {}, getSnapshot: () => state, similarPage: () => undefined}, runtime = {ambient: () => ({kind: 'palette'}), artwork: () => ({kind: 'image'}), text: {}}, actions = {isMenuOpen: () => false};
   const opened: unknown[] = [];
-  const page = () => {
-    const all = nodes(TVArtistScreen({controller, entry, runtime, actions, openEntry: (value: unknown) => opened.push(value)}));
+  // Back opens a new navigation revision, so the returning page has its own new controller.
+  const page = (pageController: any = {...controller}) => {
+    const all = nodes(TVArtistScreen({controller: pageController, entry, runtime, actions, openEntry: (value: unknown) => opened.push(value)}));
     const bar = all.find(node => node.type?.name === 'ActionBar'), card = all.find(node => node.type?.name === 'AlbumCard' && node.props.focusId === 'music-artist-album-release');
     return {bar, card};
   };
@@ -220,7 +221,7 @@ test('W-12: Back to an artist returns focus to the album card it opened, and a f
   first.card.props.openEntry({id: 'release', kind: 'album'});
   assert.equal(opened.length, 1);
   const back = page();
-  assert.equal(back.bar.props.entryFocus, false, 'Back does not hand focus to Play');
+  assert.equal(back.bar.props.entryFocus, false, 'Back does not hand focus to Play, though the returning page has a new controller');
   assert.equal(back.card.props.preferred, true, 'Back returns focus to the album card it opened');
   const fresh = page();
   assert.notEqual(fresh.bar.props.entryFocus, false, 'the return is used once; the next visit opens on Play');
