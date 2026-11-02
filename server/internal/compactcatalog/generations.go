@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 // ServingTables retain an old relational generation lazily: the first change
@@ -30,7 +32,32 @@ var servingIndex = regexp.MustCompile(`\s+INDEXED BY (?:catalog_browse_[a-z_]+|c
 // generation; SQL views select the serving generation in the reader's snapshot.
 var browseReadAliases = regexp.MustCompile(`(?i)\b(?:FROM|JOIN)\s+catalog_browse_rows(?:\s+(?:AS\s+)?([a-z_][a-z_0-9]*))?`)
 
+// servingSQLMemo holds rewritten statements. ServingSQL is a pure function of
+// the statement text and ran on every catalogue read: its regular expression
+// was about 6% of a busy server's CPU. Statement texts are a bounded set of
+// shapes, but the memo is capped so a caller building SQL with literals can
+// never grow it without limit; past the cap it rewrites without remembering.
+var servingSQLMemo struct {
+	entries sync.Map
+	count   atomic.Int64
+}
+
+const servingSQLMemoLimit = 4096
+
 func ServingSQL(query string) string {
+	if cached, ok := servingSQLMemo.entries.Load(query); ok {
+		return cached.(string)
+	}
+	rewritten := servingSQL(query)
+	if servingSQLMemo.count.Load() < servingSQLMemoLimit {
+		if _, loaded := servingSQLMemo.entries.LoadOrStore(query, rewritten); !loaded {
+			servingSQLMemo.count.Add(1)
+		}
+	}
+	return rewritten
+}
+
+func servingSQL(query string) string {
 	// Compound serving views can merge their two indexed runs only when ORDER
 	// BY names output columns. Normalize these equivalent expressions to the
 	// view's computed columns, preserving the original indexes and collation.
