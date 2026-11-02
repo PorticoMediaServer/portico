@@ -3787,3 +3787,24 @@ test('P2-61 local queue: Try again after the watchdog re-acquires a fresh resour
     assert.equal(released, 1);
   }
 });
+
+test('MU-3: the sleep timer lasts the run, across the next track, and pauses whatever is playing then',async t=>{
+ const f=setup(t),context={signal:new AbortController().signal,isCurrent:()=>true};
+ // The fake server's album 'song' holds song-0, song-1, …
+ await f.runtime.playFromQueue({container:{kind:'album',id:'song'}},context);await f.arrive();
+ const first=f.runtime.getSnapshot().fence!;if(first.kind!=='queue')throw Error('missing queue fence');
+ f.runtime.setSleepTimer(first,15);
+ assert.equal(f.runtime.sleepTimer(first)?.minutes,15);
+ await f.runtime.next(first);await f.arrive();
+ const second=f.runtime.getSnapshot().fence!;if(second.kind!=='queue')throw Error('missing queue fence');
+ assert.notEqual(second.sessionId,first.sessionId,'the next track is a new session');
+ assert.equal(f.runtime.sleepTimer(second)?.minutes,15,'the panel still shows the timer on the next track');
+ assert.equal(f.runtime.getSnapshot().playback.intent,'playing');
+ f.clock.advance(15*60_000);await settle();
+ assert.equal(f.runtime.getSnapshot().playback.intent,'paused','the time is up: the current track pauses');
+ assert.equal(f.runtime.sleepTimer(f.runtime.getSnapshot().fence as typeof second),undefined);
+ // A new playback is a new run: an armed timer does not carry into it.
+ f.runtime.setSleepTimer(f.runtime.getSnapshot().fence as typeof second,30);assert.equal(f.runtime.sleepTimer(f.runtime.getSnapshot().fence as typeof second)?.minutes,30);
+ await f.runtime.playFromQueue({container:{kind:'album',id:'song'}},context);await f.arrive();
+ assert.equal(f.runtime.sleepTimer(f.runtime.getSnapshot().fence as typeof second),undefined);
+});
