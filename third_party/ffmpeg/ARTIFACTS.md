@@ -463,8 +463,11 @@ input key and checkpoint inventory. Mutable input/compiler tags are hints only:
 a reader resolves one to a digest before pulling, checks the OCI manifest's exact
 two-file inventory and both layer hashes, then validates bounded, link-free tar
 members and original stage/source receipts. Restore is atomic; individual stage
-input/output checks remain authoritative. Unchanged payloads skip save. Native
-Linux/Mac builds refuse a missing compatible checkpoint by default; an explicitly
+input/output checks remain authoritative. Unchanged payloads skip save.
+Descriptor annotations requesting ORAS automatic unpacking, external blob URLs,
+named config files and subjects are refused before invoking pull; only the two
+plain files reach the bounded tar reader.
+Native Linux/Mac builds refuse a missing compatible checkpoint by default; an explicitly
 approved cold population can set allowColdDependencies=true. A cache hit still
 does not qualify or seal an engine, and final FFmpeg compilation stays fresh.
 
