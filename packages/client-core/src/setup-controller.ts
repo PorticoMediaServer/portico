@@ -35,7 +35,7 @@ export interface SetupPorts {
   readonly store: SetupStore;
   readState(context: SetupPortContext): Promise<SetupRead>;
   /** S1. */
-  start(context: SetupPortContext): Promise<Of<'startDone' | 'notLocalSource' | 'addressNotAllowed' | 'setupInProgress' | 'alreadyComplete' | 'tokenRefused'>>;
+  start(context: SetupPortContext, code?: string): Promise<Of<'startDone' | 'notLocalSource' | 'addressNotAllowed' | 'setupInProgress' | 'alreadyComplete' | 'tokenRefused' | 'setupCodeRequired' | 'setupCodeInvalid'>>;
   /** S4. */
   initializeHosted(name: string, remote: SetupRemoteChoices | undefined, context: SetupPortContext): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
   /** S5. */
@@ -46,7 +46,7 @@ export interface SetupPorts {
   /** S8. `abandoned`: the server is back to open, and the controller retires the record and the attempt. */
   abandon(context: SetupPortContext): Promise<Of<'abandonRefused'> | Readonly<{kind: 'abandoned'}>>;
   /** Finding #2. `startedOver`: the server is back to open with a fresh setup token the port keeps; the controller retires the record and the attempt. */
-  startOver(context: SetupPortContext): Promise<Of<'startedOver' | 'notLocalSource' | 'alreadyComplete'>>;
+  startOver(context: SetupPortContext, code?: string): Promise<Of<'startedOver' | 'notLocalSource' | 'alreadyComplete' | 'setupCodeRequired' | 'setupCodeInvalid'>>;
   /** S15. */
   retryDelivery(context: SetupPortContext): Promise<Of<'deliveryRetried' | 'tokenRefused' | 'alreadyComplete'>>;
   exchange(context: SetupPortContext): Promise<Of<'exchangeDone' | 'exchangeRefused' | 'tokenRefused'>>;
@@ -90,6 +90,8 @@ export interface SetupController {
   startAgain(): void;
   /** Start over (finding #2): ends any unfinished setup on the server, whoever started it. */
   startOver(): void;
+  /** The setup code typed from the server's log, when setting up from outside its network. */
+  submitCode(code: string): void;
   /** Try again. After a failure or an unconfirmed action it keeps the same intentId. */
   retry(): void;
   approveInApp(): void;
@@ -219,7 +221,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
   async function call(effect: SetupEffect, context: SetupPortContext): Promise<SetupInput | undefined> {
     switch (effect.kind) {
       case 'read-state': return readServer(context);
-      case 'start': return written(ports.start(context));
+      case 'start': return written(effect.code ? ports.start(context, effect.code) : ports.start(context));
       case 'initialize-hosted': return written(ports.initializeHosted(effect.name, remote, context));
       case 'initialize-local': {
         if (!credentials) return failureOf(effect, {code: 'credentials_missing', retryable: false});
@@ -236,7 +238,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
         return undefined;
       }
       case 'start-over': {
-        const result = await ports.startOver(context);
+        const result = await (effect.code ? ports.startOver(context, effect.code) : ports.startOver(context));
         if (result.kind === 'startedOver' && !context.signal.aborted) {await retireQuietly('record'); await retireQuietly('attempt');}
         return result;
       }
@@ -362,6 +364,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
     },
     startAgain: () => intent({kind: 'startAgain'}),
     startOver: () => intent({kind: 'startOver'}),
+    submitCode: (code: string) => intent({kind: 'submitCode', code}),
     retry() {
       if (disposed || working(user)) return;
       const {phase} = user.action.getSnapshot();

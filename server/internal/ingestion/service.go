@@ -605,6 +605,9 @@ func (s *Service) processQuantum(ctx context.Context, id, library string) bool {
 		return false
 	}
 	if err = s.readySource(ctx, id, &source); err != nil {
+		if errors.Is(err, errScanPresenceAdvanced) {
+			return true
+		}
 		if !quantumRetryable(ctx, err) {
 			s.fail(ctx, id, sourceID, err)
 		}

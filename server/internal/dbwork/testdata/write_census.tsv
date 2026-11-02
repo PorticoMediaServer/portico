@@ -257,6 +257,9 @@ internal/identity/self_registration.go	(*Service).Register	Begin	ClassSecurityFe
 internal/identity/self_registration.go	(*Service).SaveRegistrationPolicy	WithWriteTx	ClassSecurityFence	-
 internal/identity/service.go	(*Service).IssueWithDevice	Begin	ClassSecurityFence	-
 internal/identity/service.go	(*Service).retireUnreturnedLogin	ExecWrite	ClassSecurityFence	-
+internal/identity/setup_code.go	(*Service).AdmitSetupCode	WithWriteTx	ClassSecurityFence	-
+internal/identity/setup_code.go	(*Service).AdmitSetupToken	WithWriteTx	ClassSecurityFence	-
+internal/identity/setup_code.go	(*Service).RotateSetupCode	WithWriteTx	ClassSecurityFence	-
 internal/identity/sign_in_policy.go	(*Service).ChangeSignInPolicy	WithWriteTx	ClassSecurityFence	-
 internal/identity/source_security.go	(*Service).RecordSourceFailure	WithWriteTx	ClassSecurityFence	-
 internal/identity/source_security.go	(*Service).UnblockSource	WithWriteTx	ClassSecurityFence	-
@@ -279,12 +282,13 @@ internal/ingestion/inventory.go	(*Service).fail	Begin	ClassBackgroundMedia	-
 internal/ingestion/inventory.go	(*Service).phase	Begin	ClassBackgroundMedia	-
 internal/ingestion/inventory.go	(*Service).readDirectoryPage	Begin	ClassBackgroundMedia	-
 internal/ingestion/inventory.go	(*Service).readySource	Begin	ClassBackgroundMedia	-	×2
-internal/ingestion/inventory.go	(*Service).readySource	ExecWrite	ClassBackgroundMedia	-	×2
+internal/ingestion/inventory.go	(*Service).readySource	ExecWrite	ClassBackgroundMedia	-
 internal/ingestion/inventory.go	(*Service).reconcilePage	Begin	ClassBackgroundMedia	-
 internal/ingestion/inventory.go	(*Service).schedule	Begin	ClassBackgroundMedia	-
 internal/ingestion/inventory.go	(*Service).verifyPage	Begin	ClassBackgroundMedia	-
 internal/ingestion/legacy_inventory.go	(*Service).adoptLegacyPage	Begin	ClassBackgroundMedia	-
 internal/ingestion/operation_group.go	(*Service).CancelOperation	Begin	ClassBackgroundMedia	-
+internal/ingestion/path_presence.go	(*Service).prepareScanPresence	WithWriteTx	ClassBackgroundMedia	-
 internal/ingestion/path_presence.go	(*pathPresence).accept	WithWriteTx	ClassMaintenance	-
 internal/ingestion/path_presence.go	(*pathPresence).health	WithWriteTx	ClassMaintenance	-
 internal/ingestion/reading_closure.go	(*Service).blockReadingClosure	WithWriteTx	ClassBackgroundMedia	-

@@ -237,7 +237,8 @@ RUN configure-final
             commands.append(' ' * indent + 'docker buildx --builder ffbuilder build \\\n' + pad +
                             '--cache-from=type=local,src=.cache/"${' + variable + '/:/_}" \\\n' + pad +
                             '--cache-to=type=local,mode=max,dest=.cache/"${' + variable + '/:/_}" \\\n' + pad + '--load .\n')
-        self.write('makeimage.sh', ''.join(commands))
+        self.write('download.sh', 'tar -I "xz -T1" -cpf "$TGT.tmp" .\n')
+        self.write('makeimage.sh', ''.join(commands) + './download.sh\n')
         cache.configure_makeimage(self.recipe, ROOT / 'engine-registry-cache.py', 'linux-arm64')
         text = (self.recipe / 'makeimage.sh').read_text()
         self.assertNotIn('type=local', text)
@@ -246,6 +247,9 @@ RUN configure-final
         self.assertIn('--compiler-image "$TARGET_IMAGE"', text)
         self.assertIn('--compiler-image "$BASE_IMAGE"', text)
         self.assertIn('PORTICO_CACHE_LINES="$(python3 ', text)
+        self.assertIn('engine-download-cache.py" restore --recipe', text)
+        self.assertIn('engine-download-cache.py" save --recipe', text)
+        self.assertIn('./download.sh || portico_download_status=$?', text)
         self.assertNotIn('mapfile -t PORTICO_CACHE_ARGS < <(', text)
         with self.assertRaises(ValueError):
             cache.configure_makeimage(self.recipe, ROOT / 'engine-registry-cache.py', 'linux-arm64')

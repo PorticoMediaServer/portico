@@ -26,20 +26,6 @@
           "sha256": "a7c6de8aa21e7c31163a7656295b321bb85f5dce55ed8ea95ac9ac561202bb5b"
         }
       },
-      "x86_64-apple-darwin": {
-        "rustc": {
-          "url": "https://static.rust-lang.org/dist/2026-10-01/rustc-1.99.0-x86_64-apple-darwin.tar.xz",
-          "sha256": "7460910254f059b49b99ee3ddbcf7197d16b9505b59c166e14a1465ee323a81d"
-        },
-        "cargo": {
-          "url": "https://static.rust-lang.org/dist/2026-10-01/cargo-1.99.0-x86_64-apple-darwin.tar.xz",
-          "sha256": "939b71952afd63ae73bc00f3517c19f0dd7ac54884b5fac16a813ee50985d14d"
-        },
-        "rust-std": {
-          "url": "https://static.rust-lang.org/dist/2026-10-01/rust-std-1.99.0-x86_64-apple-darwin.tar.xz",
-          "sha256": "18ee81961a73c3ae966ecb1e8f6096438c90aeefece8856201a6ecc17f5bc850"
-        }
-      },
       "x86_64-unknown-linux-gnu": {
         "rustc": {
           "url": "https://static.rust-lang.org/dist/2026-10-01/rustc-1.99.0-x86_64-unknown-linux-gnu.tar.xz",

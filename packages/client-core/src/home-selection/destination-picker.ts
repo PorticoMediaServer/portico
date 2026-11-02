@@ -23,3 +23,15 @@ export async function fetchHomeDestinationPicker(api: HomeApi, request: HomeDest
   if (!Number.isSafeInteger(request.limit) || request.limit < 1 || request.limit > 40 || [...request.query].length > 100 || /[\x00-\x1f\x7f-\x9f]/.test(request.query)) throw selectionExecutionError('invalid-destination-query');
   return parseHomeDestinationPicker(await api.request(routePath('post_home_destination_picker'), 'POST', request, signal), request, serverId, viewerFence);
 }
+
+/** The destination domain's own authority: the fence and revision a playlist or collection picker read issues. A
+ * picker opened from a detail page or a library selection holds this, never the detail's or the page's fence, which
+ * the destination read never carries (walk J-11, J-13: every add said "That list could not be updated."). */
+export type DestinationAuthority = Readonly<{viewerFence: string; revision: Readonly<{catalog: number; viewer: number}>}>;
+export async function fetchDestinationAuthority(api: HomeApi, kind: 'playlist' | 'collection', serverId: string, signal?: AbortSignal): Promise<DestinationAuthority> {
+  const request = {kind, query: '', limit: 40} as const;
+  const raw = await api.request<unknown>(routePath('post_home_destination_picker'), 'POST', request, signal);
+  if (!record(raw) || typeof raw.viewerFence !== 'string' || !/^[a-f0-9]{64}$/.test(raw.viewerFence)) bad();
+  const page = parseHomeDestinationPicker(raw, request, serverId, raw.viewerFence);
+  return Object.freeze({viewerFence: raw.viewerFence, revision: page.revision});
+}

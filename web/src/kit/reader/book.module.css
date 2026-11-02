@@ -2,6 +2,9 @@
 .heroRegion { position: relative; isolation: isolate; }
 .ambient { position: absolute; z-index: -1; inset: 0 0 auto; height: 1060px; pointer-events: none; overflow: hidden; mask-image: linear-gradient(180deg,#000 0,rgba(0,0,0,.9) 40%,transparent 100%); }
 .hero { position: relative; display: flex; align-items: flex-end; gap: 60px; padding: 64px 64px 0; }
+/* desktop-read .al-hero: the hero starts at 140px, clear of the desktop top bar (bar 76 + 64), as the album and
+   audiobook pages do; otherwise a tall cover rose under the bar (J-5, sibling sweep). The rail and phone keep theirs. */
+:global([data-navigation='topbar']) .hero { padding-top: calc(var(--shell-top, 76px) + 64px); }
 .cover { position: relative; flex: none; width: 300px; aspect-ratio: 2/3; border-radius: 8px; }
 .cover[data-periodical] { width: 330px; aspect-ratio: 3/4; }
 .coverImage { position: relative; width: 100%; height: 100%; border-radius: inherit; overflow: hidden; box-shadow: 0 40px 70px -30px rgba(0,0,0,.9),0 0 0 1px rgba(237,245,250,.08); }

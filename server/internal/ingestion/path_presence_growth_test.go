@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -24,6 +25,7 @@ func TestSamePathPresenceWindowGrowth(t *testing.T) {
 		sizes = []int{10_000, 30_000, 100_000}
 	}
 	var firstRead, firstWrite, firstPages int64
+	var firstScanRead, firstScanWrite, firstScanPages int64
 	for _, size := range sizes {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {
 			f := presenceGrowthFixture(t, size)
@@ -53,6 +55,32 @@ func TestSamePathPresenceWindowGrowth(t *testing.T) {
 				firstRead, firstWrite, firstPages = read.VMSteps, write, pages
 			} else if read.VMSteps*2 > firstRead*3 || write*2 > firstWrite*3 || pages > firstPages*2 {
 				t.Fatalf("fixed presence work grows with the unseen tail: read %d/%d, write %d/%d, pages %d/%d", read.VMSteps, firstRead, write, firstWrite, pages, firstPages)
+			}
+			// A queued scan preempts the background walk. Its readiness check
+			// must advance only one raw stat window before any new publication.
+			for i := 1; i <= pathPresenceWindow; i++ {
+				if err := os.Remove(filepath.Join(f.root, fmt.Sprintf("File-%09d.mkv", i))); err != nil {
+					t.Fatal(err)
+				}
+			}
+			job := f.queue()
+			f.exec(`UPDATE jobs SET status='running' WHERE id=?`, job.ID)
+			source := f.librarySource()
+			dbwork.ResetPlans()
+			ctx, scanCost := dbwork.Measure(dbwork.WithClass(context.Background(), dbwork.ClassBackgroundMedia))
+			if err := f.s.readySource(ctx, job.ID, &source); !errors.Is(err, errScanPresenceAdvanced) {
+				t.Fatal("scan did not stop at its readiness window", err)
+			}
+			scanRead, scanPlans := scanCost(), dbwork.Plans()
+			if scanPlans.Overruns != 0 || f.count(`SELECT count(*) FROM inventory_runs WHERE job_id=? AND root_rebound=1 AND discovered=0 AND reconcile_cursor=?`, job.ID, fmt.Sprintf("obj-%09d", pathPresenceWindow)) != 1 {
+				t.Fatal("scan preflight exceeded its window or published new media", scanPlans)
+			}
+			scanWrite, scanPages := scanPlans.Largest.VMOps, scanPlans.Largest.Pages
+			t.Logf("scan-presence objects=%d window=%d readVM=%d maxWriteVM=%d maxRows=%d maxPages=%d", size+1, pathPresenceWindow, scanRead.VMSteps, scanWrite, scanPlans.Largest.Rows, scanPages)
+			if firstScanRead == 0 {
+				firstScanRead, firstScanWrite, firstScanPages = scanRead.VMSteps, scanWrite, scanPages
+			} else if scanRead.VMSteps*2 > firstScanRead*3 || scanWrite*2 > firstScanWrite*3 || scanPages > firstScanPages*2 {
+				t.Fatalf("scan readiness grows with the unseen tail: read %d/%d, write %d/%d, pages %d/%d", scanRead.VMSteps, firstScanRead, scanWrite, firstScanWrite, scanPages, firstScanPages)
 			}
 		})
 	}
