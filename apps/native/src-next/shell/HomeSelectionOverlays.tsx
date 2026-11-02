@@ -1,18 +1,16 @@
 import React, {useSyncExternalStore, type RefObject} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import type {HomeSelectionController} from '../../../../packages/client-core/src/home-selection/index';
-import type {EntryActionId} from '../../../../packages/client-core/src/presentation/entry-actions';
 import type {SelectionKind} from '../../../../packages/client-core/src/selection-model/index';
 import {presentError} from '../../../../packages/client-core/src/presentation/errors';
 import {serverTextLabel} from '../../../../packages/client-core/src/presentation/server-text';
-import {Menu, Dialog, type MenuEntry} from '../kit/overlays';
+import {Menu, type MenuAction, type MenuEntry} from '../kit/overlays';
+import {titleMenuItems} from '../kit/overlays/title-menu';
 import {TouchMenuHeader} from '../kit/overlays/Menu';
-import {DeleteMediaDialog, MixedEditExplainer} from '../kit/selection';
-import {Button} from '../kit/controls/Button';
-import {Focusable} from '../kit/controls/Focusable';
+import {DeleteMediaDialog, MixedEditExplainer, RatingDialog} from '../kit/selection';
 import {Artwork} from '../kit/artwork';
-import {Icon, type IconName} from '../kit/Icon';
+import type {IconName} from '../kit/Icon';
 import {ServerMark} from '../kit/shell';
 import {useTheme} from '../kit/theme';
 import {selectionHaptic} from '../platform/haptics';
@@ -26,9 +24,6 @@ import type {NativeHomeQueryActions} from '../screens/library/selection-actions'
 const noQuerySubscribe = (_listener: () => void) => () => {};
 const t = defaultI18n.t;
 const styles = StyleSheet.create({deletePhoneHeader: {paddingHorizontal: 20, paddingTop: 6, paddingBottom: 0, flexDirection: 'row', alignItems: 'center', gap: 8}});
-const icons: Record<EntryActionId, IconName> = {play: 'i-play', resume: 'i-play', playFromStart: 'i-restart', playNext: 'i-listplus', addToQueue: 'i-queue',
-  watchWithGroup: 'i-people', addToGroupQueue: 'i-queue', watchlist: 'i-bookmark', favorite: 'i-heart', watched: 'i-check', removeFromContinueWatching: 'i-x', notInterested: 'i-eyeoff', rate: 'i-star',
-  addToPlaylist: 'i-listplus', addToCollection: 'i-layers', download: 'i-download', details: 'i-info', editMetadata: 'i-edit', refreshMetadata: 'i-refresh', separateArtist: 'i-link', delete: 'i-trash'};
 const kindIcon = (kind: SelectionKind): IconName => kind === 'movie' ? 'i-film' : kind === 'show' || kind === 'season' || kind === 'episode' ? 'i-tvlib'
   : kind === 'song' || kind === 'album' || kind === 'artist' ? 'i-music' : kind === 'channel' ? 'i-tv' : kind === 'person' ? 'i-person' : 'i-book';
 
@@ -43,51 +38,30 @@ export function HomeSelectionOverlays({controller, runtime, ownerTag, reportErro
   const ids = theme.isTV ? tvFocusIds(runtime.getSnapshot().authority) : undefined;
   const members = state.displayMembers, count = members.length;
   const error = (value: {code: string} | null) => value ? presentError(value, 'home', {operation: 'action'}).body : undefined;
-  const items: MenuEntry[] = [];
-  for (const group of state.menu?.groups ?? []) {
-    if (items.length) items.push({id: `separator:${group.id}`, separator: true});
-    if (group.title) items.push({id: `group:${group.id}`, section: true, label: t(group.title), tone: group.id === 'manage' ? 'owner' : 'default'});
-    for (const action of group.actions) items.push({id: action.id, label: t(!theme.isTV && action.id === 'resume' ? 'entry.play' : !theme.isTV && action.id === 'rate' ? 'entry.rate' : action.label), icon: icons[action.id], selected: action.selected, destructive: action.destructive,
-      tone: group.id === 'manage' ? 'owner' : 'default', onSelect: () => {void controller.executeMenu(action.id).catch(reportError);}});
-  }
-  if (state.menu) {
-    const menu = state.menu;
-    const select: MenuEntry = {id: 'select', label: t('next.selection.select'), icon: 'i-check', onSelect: () => {
-      const current = controller.getSnapshot();
-      if (current.menu?.key !== menu.key || current.menu.windowId !== menu.windowId) return;
-      // Pick before closing: a retained menu window may be released by closeMenu.
-      if (!current.selection.selectedKeys.includes(menu.key)) {
-        // The opening state must be read before the toggle: the controller's snapshot is
-        // live, so reading it afterwards sees the selection it just made.
-        const wasActive = current.selection.active;
-        const result = controller.toggle(menu.windowId, menu.key);
-        if (!result.ok) {reportError(Object.assign(new Error(result.reason), {code: result.reason})); return;}
-        if (!wasActive && controller.getSnapshot().selection.active) void selectionHaptic().catch(reportError);
-      }
-      controller.closeMenu();
-    }};
-    if (theme.isTV) {
-      const boundary = items.findIndex(item => ['separator:open', 'details', 'separator:manage', 'group:manage'].includes(item.id));
-      const at = boundary < 0 ? items.length : boundary;
-      items.splice(at, 0, ...(at > 0 ? [{id: 'selection-separator', separator: true as const}] : []), select);
-    } else {
-      const rows = items.filter((item): item is Exclude<MenuEntry, {separator: true} | {section: true}> => !('separator' in item) && !('section' in item));
-      const order = ['play', 'resume', 'watchlist', 'watched', 'favorite', 'rate', 'addToPlaylist', 'addToCollection', 'download', 'playVersion', 'removeFromContinueWatching', 'notInterested'];
-      const regular = order.flatMap(id => rows.filter(item => item.id === id));
-      const info = rows.filter(item => item.id === 'details');
-      const owner = ['editMetadata', 'refreshMetadata', 'delete'].flatMap(id => rows.filter(item => item.id === id));
-      items.splice(0, items.length, ...regular, select, ...info,
-        ...(owner.length ? [{id: 'group:manage', section: true as const, label: t('next.selection.owner'), tone: 'owner' as const}, ...owner] : []));
+  // The rows come from the one shared title menu (kit/overlays/title-menu); Home adds only
+  // Select, and on TV the actual row's See all after the model's groups.
+  const menu = state.menu;
+  const select: MenuAction | undefined = menu ? {id: 'select', label: t('next.selection.select'), icon: 'i-check', onSelect: () => {
+    const current = controller.getSnapshot();
+    if (current.menu?.key !== menu.key || current.menu.windowId !== menu.windowId) return;
+    // Pick before closing: a retained menu window may be released by closeMenu.
+    if (!current.selection.selectedKeys.includes(menu.key)) {
+      // The opening state must be read before the toggle: the controller's snapshot is
+      // live, so reading it afterwards sees the selection it just made.
+      const wasActive = current.selection.active;
+      const result = controller.toggle(menu.windowId, menu.key);
+      if (!result.ok) {reportError(Object.assign(new Error(result.reason), {code: result.reason})); return;}
+      if (!wasActive && controller.getSnapshot().selection.active) void selectionHaptic().catch(reportError);
     }
-  }
+    controller.closeMenu();
+  }} : undefined;
   // tv-focus F-HOME-46..49: headings are not TV focus stops. See all is
   // the last action of the actual row member's Hold OK menu.
-  if (theme.isTV && state.menu) {
-    const menu = state.menu;
-    const row = runtime.homeMenuRow?.(menu.windowId);
-    if (row?.seeAll) items.push({id: 'see-all', label: `${t('shelf.seeAll')} ${serverTextLabel(defaultI18n, row.titleText, row.title)}`, icon: 'i-grid',
-      onSelect: () => {controller.closeMenu(); runtime.actions.seeAll(row.seeAll!);}});
-  }
+  const row = theme.isTV && menu ? runtime.homeMenuRow?.(menu.windowId) : undefined;
+  const seeAll: MenuAction[] = row?.seeAll ? [{id: 'see-all', label: `${t('shelf.seeAll')} ${serverTextLabel(defaultI18n, row.titleText, row.title)}`, icon: 'i-grid',
+    onSelect: () => {controller.closeMenu(); runtime.actions.seeAll(row.seeAll!);}}] : [];
+  const items: MenuEntry[] = menu ? titleMenuItems(menu.groups, {tv: theme.isTV, run: action => {void controller.executeMenu(action).catch(reportError);},
+    surface: select ? [select] : [], trailing: seeAll}) : [];
   const typeCounts = new Map<SelectionKind, number>();
   for (const member of members) typeCounts.set(member.item.kind, (typeCounts.get(member.item.kind) ?? 0) + 1);
   const groups = [...typeCounts].map(([kind, total]) => ({kind, count: total, label: t('next.home.native.selectionType', {kind}), icon: kindIcon(kind)}));
@@ -121,26 +95,7 @@ export function HomeSelectionOverlays({controller, runtime, ownerTag, reportErro
         const member = members.find(value => 'id' in value.item && value.item.id === id), source = runtime.artwork(member?.entry?.posterUrl);
         return source ? <Artwork source={source} width={24} height={36}/> : null;
       }}/>} 
-    {rating && ratingTitle && <Dialog testID={ids?.surface('rating')} open onOpenChange={open => {if (!open) controller.closeRating();}} title={t('title.rate', {title: ratingTitle})}
-      footer={<Button testID={ids ? `${ids.surface('rating')}-close` : undefined} variant="glass" size="compact" onPress={() => controller.closeRating()}>{t('action.close')}</Button>}>
-      <View style={{paddingTop: 16, gap: 16}}>
-        {rating.value === undefined ? <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('next.states.loading')}</Text>
-          : <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.isTV ? 12 : 0}} accessibilityRole="radiogroup" accessibilityLabel={t('player.rateThis')}>
-            {[1, 2, 3, 4, 5].map(stars => <Focusable key={stars} testID={ids ? `${ids.surface('rating')}-stars-${stars}` : undefined} accessibilityRole="radio" accessibilityLabel={t('title.stars', {count: stars})}
-              accessibilityState={{checked: rating.value === stars * 2, disabled: rating.phase !== 'ready'}} disabled={rating.phase !== 'ready'}
-              hasTVPreferredFocus={theme.isTV && stars === (typeof rating.value === 'number' && rating.value > 0 ? Math.ceil(rating.value / 2) : 1)}
-              onPress={() => mutation(stars * 2)} focusRadius={8} hitSlop={6} style={{width: theme.isTV ? 64 : 32, height: theme.isTV ? 64 : 32, alignItems: 'center', justifyContent: 'center'}}>
-              <View style={{width: theme.isTV ? 28 : 22, height: theme.isTV ? 28 : 22}}>
-                <Icon name="i-star" size={theme.isTV ? 28 : 22} color={theme.colors.textTertiary}/>
-                {typeof rating.value === 'number' && rating.value > (stars - 1) * 2 && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 0, bottom: 0, width: (theme.isTV ? 28 : 22) * Math.min(1, (rating.value - (stars - 1) * 2) / 2), overflow: 'hidden'}}><Icon name="i-star-f" size={theme.isTV ? 28 : 22} color={theme.colors.accentStrong}/></View>}
-              </View>
-            </Focusable>)}
-          </View>}
-        {rating.phase === 'ready' && <Button testID={ids ? `${ids.surface('rating')}-clear` : undefined} variant="text" size="compact" onPress={() => mutation(null)}>{t('title.clearRating')}</Button>}
-        {rating.phase === 'result' && <Text accessibilityLiveRegion="polite" style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('next.selection.native.saved')}</Text>}
-        {rating.error && <Text accessibilityLiveRegion="polite" style={[theme.type.body, {color: theme.colors.textSecondary}]}>{error(rating.error)}</Text>}
-        {rating.phase === 'uncertain' && <Button testID={ids ? `${ids.surface('rating')}-retry` : undefined} variant="glass" size="compact" onPress={() => {void controller.retryRating().catch(reportError);}}>{t('action.tryAgain')}</Button>}
-      </View>
-    </Dialog>}
+    {rating && ratingTitle && <RatingDialog testID={ids?.surface('rating')} title={ratingTitle} value={rating.value} phase={rating.phase} error={error(rating.error)}
+      onRate={mutation} onRetry={() => {void controller.retryRating().catch(reportError);}} onClose={() => controller.closeRating()}/>}
   </>;
 }

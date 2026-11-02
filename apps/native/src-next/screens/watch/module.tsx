@@ -13,6 +13,7 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativePlaybackRuntimeSnapshot} from '../../platform/playback/types';
 import {createNativeWatchScreens, type NativeWatchFactoryPorts, type NativeWatchMenuExtra} from './factory';
 import type {MusicPlaylistPickerHandle} from '../destinations/music/MusicPlaylistPicker';
+import type {NativeTitleActionsHandle} from './title-actions';
 import {NativePlaybackInfoPanel, playbackInfoWords} from './PlaybackInfoPanel';
 import {NativeWatchPanels, type NativeWatchPanelsProps, type NativeWatchStylePort} from './WatchPanels';
 import {NativeWatchPanelOptions} from './panel-options';
@@ -49,6 +50,8 @@ export type NativeWatchModuleBindings = Pick<NativeWatchFactoryPorts,
   names?: NativeWatchPanelNames;
   /** One playlist picker per authority-local module, rendered by its overlay outlet. */
   playlistPicker?: MusicPlaylistPickerHandle;
+  /** Rate, collection, owner and download actions behind the shared title menu. */
+  titleActions?: NativeTitleActionsHandle;
   copy?: NativeWatchPanelsProps['copy'];
   playbackInfo?: NativeWatchPanelsProps['playbackInfo'];
   episodes?: NativeWatchPanelsProps['episodes'];

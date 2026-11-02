@@ -277,3 +277,34 @@ test('the shared leaf menu hands the captured item to the playlist picker and cl
     assert.equal(d.presenters.getSnapshot(), undefined);
   } finally {d.dispose();}
 });
+
+test('a shared title action closes the menu and runs only for its exact current opening; a stale or busy menu runs nothing', async () => {
+  const d = await fixture(), calls: string[] = [];
+  const entryMenu = (over: Record<string, unknown> = {}) => ({current: () => undefined, subscribe: () => () => {}, mutate: async () => {}, dispose: () => {calls.push('dispose');},
+    rate: () => {calls.push('rate');}, addToCollection: () => {calls.push('collection');}, deleteTitle: () => {calls.push('delete');},
+    refreshMetadata: async () => {calls.push('refresh');}, playFromStart: async () => {calls.push('start-over');}, goToSeason: () => {calls.push('season');}, ...over});
+  try {
+    d.presenters.openMenu(d.capture, {fileInfo: async () => {}, entry: entryMenu()});
+    const first = d.presenters.getSnapshot()!;
+    d.presenters.titleAction(first, 'rate');
+    assert.deepEqual(calls, ['dispose', 'rate']); assert.equal(d.presenters.getSnapshot(), undefined);
+    calls.length = 0;
+    d.presenters.openMenu(d.capture, {fileInfo: async () => {}, entry: entryMenu()});
+    const second = d.presenters.getSnapshot()!;
+    d.presenters.titleAction(first, 'deleteTitle');
+    assert.deepEqual(calls, [], 'a retained row from an earlier opening acts on nothing');
+    d.presenters.startOver(second);
+    d.presenters.openMenu(d.capture, {fileInfo: async () => {}, entry: entryMenu()});
+    d.presenters.goToSeason(d.presenters.getSnapshot()!);
+    d.presenters.openMenu(d.capture, {fileInfo: async () => {}, entry: entryMenu()});
+    await d.presenters.titleAction(d.presenters.getSnapshot()!, 'refreshMetadata');
+    assert.deepEqual(calls.filter(call => !call.startsWith('dispose')), ['start-over', 'season', 'refresh']);
+    calls.length = 0;
+    d.presenters.openMenu(d.capture, {fileInfo: async () => {}, entry: entryMenu({addToCollection: undefined})});
+    d.presenters.titleAction(d.presenters.getSnapshot()!, 'addToCollection');
+    assert.equal(d.presenters.getSnapshot()?.phase, 'menu', 'no executor, nothing happens and the menu stays');
+    d.retire();
+    d.presenters.titleAction(d.presenters.getSnapshot() ?? first, 'rate');
+    assert.deepEqual(calls.filter(call => call === 'rate'), [], 'a retired route never runs the action');
+  } finally {d.dispose();}
+});
