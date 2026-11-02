@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {routePath} from '../../contracts/src/routes.ts';
 import {ActivitySummaryService,DashboardSessionsService} from '../src/admin/activity-summary/service.ts';
-import type {ActivitySummaryScope, ActivitySummarySource, ActivitySummaryTimers} from '../src/admin/activity-summary/types.ts';
+import type {ActivitySummaryScope, ActivitySummarySnapshot, ActivitySummarySource, ActivitySummaryTimers} from '../src/admin/activity-summary/types.ts';
 import type {ServerEvent} from '../src/playback-v1/types.ts';
 import type {V1Http, V1Request, V1Response} from '../src/playback-v1/http.ts';
 
@@ -132,6 +132,23 @@ test('settled quiet completion rechecks actual source after waiting for input', 
   const waiting = deferred<void>(), h = harness(); h.activate(); await h.service.load();
   const read = h.service.revalidate({settle: () => waiting.promise}); await flush(); h.source.set(null); waiting.resolve(); await read;
   assert.deepEqual(h.service.getSnapshot(), {phase: 'unavailable'}); h.service.dispose();
+});
+test('a background refresh keeps the shown document instead of withdrawing it to a loading state', async () => {
+  const pending = deferred<V1Response>(), h = harness((_r, n) => n === 1 ? ok() : pending.promise); h.activate();
+  await h.service.load();
+  const shown = h.service.getSnapshot(), published: ActivitySummarySnapshot[] = [];
+  const stop = h.service.subscribe(() => published.push(h.service.getSnapshot()));
+  // The scan hint that used to collapse the popover to its skeleton mid-read.
+  h.feed.emit('library.scan.updated'); await h.clock.advance(1000);
+  assert.equal(h.requests.length, 2);
+  for (const snapshot of published) assert.equal(snapshot.document, shown.document, 'no published snapshot withdraws the rows');
+  assert.equal(h.service.getSnapshot().document?.scans[0]?.libraryName, 'Movies');
+  pending.resolve(ok(wire({scans: [{libraryId: 'movies', libraryName: 'Movies', kind: 'movie', phase: 'discovering', discovered: 40, analyzed: 30, current: 'later-film.mkv'}]}))); await h.clock.advance(0);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.notEqual(h.service.getSnapshot().document, shown.document, 'the values changed in place');
+  assert.equal(h.service.getSnapshot().document?.scans[0]?.current, 'later-film.mkv');
+  assert.ok(published.every(snapshot => snapshot.document !== undefined), 'every intermediate snapshot still carries a document');
+  stop(); h.service.dispose();
 });
 test('real administrative hint types coalesce at most once per second and resync rereads without opening a feed', async () => {
   const h = harness(); h.activate(); await h.service.load();

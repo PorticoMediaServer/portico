@@ -148,7 +148,11 @@ export class ActivitySummaryService {
       try {
         if (!isCurrent()) return;
         if (controller.signal.aborted) { this.publish({phase: 'idle'}); return; }
-        this.publish({...this.state, phase: 'loading', error: undefined});
+        // A refresh keeps the document already on screen and swaps its values when the answer
+        // lands; only a cold read with nothing to keep shows the loading state. Publishing
+        // 'loading' over a shown document replaced every row with the skeleton on each feed
+        // hint, so the panel collapsed and grew back on every update.
+        if (!this.state.document) this.publish({phase: 'loading'});
         if (!isCurrent()) return;
         const interrupted = new Promise<never>((_, reject) => {
           abort = () => reject(failure('request_failed'));
