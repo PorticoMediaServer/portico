@@ -745,7 +745,19 @@ func (s *Service) searchCatalogGroup(ctx context.Context, r SearchRequest, g sea
 	if g.kind == "episode" {
 		episodeFacts = `context_season.number,context_episode.number,COALESCE(context_episode.numbering,'')`
 	}
-	query := page + ` SELECT pid(e.public_id),l.library_id,COALESCE(e.year,0),d.title,` + subtitle + ` subtitle,COALESCE(detail.poster_url,'') poster_url,COALESCE(detail.overview,'') overview,COALESCE(detail.added_text,'') added_at,COALESCE((SELECT max(a.duration) FROM catalog_asset_links link JOIN catalog_assets a ON a.id=link.asset_id WHERE link.entity_id=e.id),0) duration,EXISTS(SELECT 1 FROM catalog_asset_links link JOIN catalog_assets a ON a.id=link.asset_id WHERE link.entity_id=e.id AND link.available=1) available,page.ord,e.kind,e.id,` + progress + `,` + episodeFacts + ` FROM page JOIN catalog_entities e ON e.id=page.entity_id JOIN catalog_libraries l ON l.id=e.library_id JOIN catalog_search_documents d ON d.entity_id=e.id LEFT JOIN catalog_item_details detail ON detail.entity_id=e.id ` + contextJoin + ` ORDER BY page.ord ` + r.Direction + `,page.` + tie + ` ` + r.Direction
+	// The facts the shared card model reads (SR-4, SR-5), for this bounded page only: an episode
+	// names its show, a song its album and artist, and a show counts its seasons as Home and
+	// Browse do. The joined subtitle stays a display string; clients build cards from these.
+	cardFacts := "'','','','',NULL"
+	switch g.kind {
+	case "episode":
+		cardFacts = `COALESCE(pid(context_show.public_id),''),COALESCE(context_show.title,''),'','',NULL`
+	case "song":
+		cardFacts = `COALESCE(pid(context_album.public_id),''),COALESCE(context_album.title,''),COALESCE(pid(context_artist.public_id),''),COALESCE(context_artist.title,''),NULL`
+	case "show":
+		cardFacts = `'','','','',(SELECT count(*) FROM catalog_seasons sn WHERE sn.show_id=e.id AND sn.number>0 AND EXISTS(SELECT 1 FROM catalog_episodes ep WHERE ep.show_id=sn.show_id AND ep.season_id=sn.entity_id))`
+	}
+	query := page + ` SELECT pid(e.public_id),l.library_id,COALESCE(e.year,0),d.title,` + subtitle + ` subtitle,COALESCE(detail.poster_url,'') poster_url,COALESCE(detail.overview,'') overview,COALESCE(detail.added_text,'') added_at,COALESCE((SELECT max(a.duration) FROM catalog_asset_links link JOIN catalog_assets a ON a.id=link.asset_id WHERE link.entity_id=e.id),0) duration,EXISTS(SELECT 1 FROM catalog_asset_links link JOIN catalog_assets a ON a.id=link.asset_id WHERE link.entity_id=e.id AND link.available=1) available,page.ord,e.kind,e.id,` + progress + `,` + episodeFacts + `,` + cardFacts + ` FROM page JOIN catalog_entities e ON e.id=page.entity_id JOIN catalog_libraries l ON l.id=e.library_id JOIN catalog_search_documents d ON d.entity_id=e.id LEFT JOIN catalog_item_details detail ON detail.entity_id=e.id ` + contextJoin + ` ORDER BY page.ord ` + r.Direction + `,page.` + tie + ` ` + r.Direction
 	rows, e := s.read().QueryContext(ctx, query, args...)
 	if e != nil {
 		return e
@@ -765,7 +777,9 @@ func (s *Service) searchCatalogGroup(ctx context.Context, r SearchRequest, g sea
 		var year int
 		var entryKind compactcatalog.Kind
 		var internalID int64
-		if e = rows.Scan(&entry.ID, &entry.LibraryID, &year, &entry.Title, &entry.Subtitle, &entry.PosterURL, &entry.Overview, &added, &duration, &available, &ord, &entryKind, &internalID, &resume, &season, &episode, &numbering); e != nil {
+		var firstID, firstName, secondID, secondName string
+		var seasons sql.NullInt64
+		if e = rows.Scan(&entry.ID, &entry.LibraryID, &year, &entry.Title, &entry.Subtitle, &entry.PosterURL, &entry.Overview, &added, &duration, &available, &ord, &entryKind, &internalID, &resume, &season, &episode, &numbering, &firstID, &firstName, &secondID, &secondName, &seasons); e != nil {
 			rows.Close()
 			return e
 		}
@@ -818,6 +832,21 @@ func (s *Service) searchCatalogGroup(ctx context.Context, r SearchRequest, g sea
 				}
 			}
 			entry.DateBased = numbering == "date"
+			if firstID != "" && firstName != "" {
+				entry.Show = &ContentEntityRef{ID: firstID, Name: firstName}
+			}
+		}
+		if g.kind == "song" {
+			if firstID != "" && firstName != "" {
+				entry.Album = &ContentEntityRef{ID: firstID, Name: firstName}
+			}
+			if secondID != "" && secondName != "" {
+				entry.Artist = &ContentEntityRef{ID: secondID, Name: secondName}
+			}
+		}
+		if g.kind == "show" && seasons.Valid && seasons.Int64 > 0 {
+			count := int(seasons.Int64)
+			entry.SeasonCount = &count
 		}
 		entries = append(entries, entry)
 		orders = append(orders, formatOrderValue(ord))
@@ -858,6 +887,11 @@ func (s *Service) searchCatalogGroup(ctx context.Context, r SearchRequest, g sea
 	}
 	if e = s.nameEntryMakers(entries); e != nil {
 		return e
+	}
+	if g.kind == "song" {
+		if e = s.countEntryPlays(r.Profile, entries); e != nil {
+			return e
+		}
 	}
 	if len(entries) > pageSize {
 		entries = entries[:pageSize]
