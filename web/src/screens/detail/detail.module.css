@@ -196,3 +196,7 @@
 
 /* A destination's problem state owns the window under the fixed bar, as the shell's own states do. */
 .problem { min-height: 100dvh; }
+
+/* J-23: the reason under a disabled Play when the title's file can't be reached. */
+.unplayable { margin: 10px 0 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-secondary); }
+@media (max-width: 1023px) { .unplayable { margin-inline: 20px; } }
