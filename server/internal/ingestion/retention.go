@@ -11,7 +11,10 @@ import (
 
 const retainedScansPerSource = 20
 const retainedChangesPerSource = 10000
-const scanRetentionBatch = 256
+
+// Keep raw deletions below the class row plan, leaving room for child effects
+// and the source's retained-change cursor publication in the same transaction.
+const scanRetentionBatch = 64
 
 // One call removes at most one bounded chunk. Active/paused runs are never
 // eligible; integrity cadence is kept on the source rather than old work rows.
