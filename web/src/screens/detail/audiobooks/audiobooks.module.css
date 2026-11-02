@@ -13,6 +13,7 @@
 .meta { display:flex; flex-wrap:wrap; justify-content:center; margin-top:8px; font-size:var(--type-audiobook-detail-meta-size); gap:6px 12px; color:var(--color-text-secondary); }
 /* Inside the hero, which already carries the 20px phone gutter. */
 .actions { display:flex; gap:10px; margin:20px 0 0; text-align:left; }
+.unplayable { margin: 10px 0 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-secondary); }
 .primary { flex:1; }
 .round { border-radius:50%; }
 .progress { margin:14px 0 0; display:flex; align-items:center; gap:12px; font-size:var(--type-audiobook-detail-progress-size); font-weight:var(--type-audiobook-detail-progress-weight); color:var(--color-text-tertiary); }

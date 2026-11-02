@@ -18,6 +18,7 @@
 .title { --album-title-size: calc(var(--type-fixed-size-16px) * 6.5); max-width: 900px; margin-bottom: 22px; font-size: var(--album-title-size); font-weight: var(--type-lockup-weight); line-height: var(--type-fixed-line-point-98); }
 .title[data-long] { --album-title-size: calc(var(--type-fixed-size-17px) * 4); }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 0; }
+.unplayable { margin: 10px 0 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-secondary); }
 .by { font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
 .artist { margin: 6px 0 10px; font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-caption-strong-weight); color: var(--color-text-secondary); }
 .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 26px; }

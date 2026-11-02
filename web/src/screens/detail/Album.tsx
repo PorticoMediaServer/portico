@@ -79,6 +79,10 @@ export function AlbumScreen({context, libraryId, albumId, onBack}: AlbumScreenPr
   const groups = albumTrackGroups(snapshot.appended), songs = groups.flatMap(group => group.entries);
   const discNumbers = new Set(groups.flatMap(group => group.discNumber === undefined ? [] : [group.discNumber]));
   const songSections = snapshot.appended.filter(section => section.entries.some(entry => entry.kind === 'song'));
+  // FX-P2 (J-23's rule): an album none of whose loaded tracks can be reached draws a disabled Play and
+  // Shuffle with the reason, never an enabled Play that fails. Only once every track page is loaded.
+  const unplayable = songs.length > 0 && songSections.every(section => !section.nextCursor)
+    && !songs.some(song => !!song.playback && song.available !== false && !song.missing);
   const sorts = projection.sorts.map(sort => ({...sort, defaultDirection: sort.directions[0] ?? 'asc' as const, expensive: false, applicableKinds: []}));
   const selectedSort = sorts.find(sort => sort.id === projection.query.sort);
   const sort = {field: projection.query.sort, direction: projection.query.direction === 'desc' ? 'desc' as const : 'asc' as const, flippable: (selectedSort?.directions.length ?? 0) > 1, reshufflable: false};
@@ -131,11 +135,12 @@ export function AlbumScreen({context, libraryId, albumId, onBack}: AlbumScreenPr
         </div>
         <div className={styles.actions}>
           {context.effects.playAlbum && <>
-            <Button variant="primary" icon="i-play" disabled={!current()} onClick={() => runScreenCommand(context, () => context.effects.playAlbum!(albumId, false, life.signal(), current))}>{t('next.controls.play')}</Button>
-            <Button variant="glass" icon="i-shuffle" disabled={!current()} onClick={() => runScreenCommand(context, () => context.effects.playAlbum!(albumId, true, life.signal(), current))}>{t('title.shuffle')}</Button>
+            <Button variant="primary" icon="i-play" disabled={!current() || unplayable} aria-describedby={unplayable ? `${albumId}-unplayable` : undefined} onClick={() => runScreenCommand(context, () => context.effects.playAlbum!(albumId, false, life.signal(), current))}>{t('next.controls.play')}</Button>
+            <Button variant="glass" icon="i-shuffle" disabled={!current() || unplayable} onClick={() => runScreenCommand(context, () => context.effects.playAlbum!(albumId, true, life.signal(), current))}>{t('title.shuffle')}</Button>
           </>}
           <Button ref={more} variant="glass" icon="i-more" iconOnly disabled={!current()} aria-label={t('card.more', {title: album.title})} onClick={event => open(album, event.currentTarget)}/>
         </div>
+        {context.effects.playAlbum && unplayable && <p id={`${albumId}-unplayable`} className={styles.unplayable}>{t('title.fileUnavailable')}</p>}
       </div>
     </header>
     <section className={hasDetails ? styles.split : styles.full}>
