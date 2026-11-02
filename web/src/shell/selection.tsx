@@ -20,6 +20,7 @@ import {SelectionSurfaces, SelectionPhoneBar, type SelectionRendererSource} from
 import {selectionEditorAudience} from './selection-presentation';
 import {shellSelectionScope} from './selection-scope';
 import {createCardInteractionOwner} from '../kit/cards/interaction-admission';
+import {createEntryMetadataEffect, retireEntryMetadata, type EntryMetadataPorts} from './entry-metadata';
 
 export function createShellSelection(context: ShellAssemblyContext, playback: HomeSelectionPlaybackPort, reportError: (error: unknown) => void, dockVisible: () => boolean) {
   const interactions = createCardInteractionOwner(), interactionRows = new WeakMap<HomeRow, Map<string, object>>();
@@ -33,6 +34,21 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
   const environment = (): SelectionEnvironment => ({platform: window.innerWidth >= 1024 ? 'desktop-web' : 'mobile-web', isOwner: viewer.role === 'owner',
     canEditMetadata: document().rows.some(row => row.entries.some(entry => homeEntryCapabilities(entry, platform).editMetadata === true))});
   let retired = false;
+  // J-1: Edit metadata on one title opens that title's own editor, exactly as its detail page does. It depends on
+  // the owner and on Home still being shown, never on the Home selection or document staying put.
+  const entryPorts: EntryMetadataPorts = {artwork: context.artwork, api: context.api, serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId]),
+    isCurrent: () => !retired && context.isCurrent() && router.state.location.pathname === '/', requestId: async () => crypto.randomUUID()};
+  const editTitle = viewer.authority === 'local' && viewer.role === 'owner'
+    ? createEntryMetadataEffect(entryPorts, () => context.session().viewer.role === 'owner' && context.session().viewer.authority === 'local') : undefined;
+  const editEntry = (entry: ContentEntry): boolean | Promise<boolean> => {
+    const libraryId = entry.libraryId, anchorElement = anchor.current ?? globalThis.document.body;
+    if (!editTitle || !libraryId) return false;
+    if (entry.kind === 'movie' || entry.kind === 'episode' || entry.kind === 'song' || entry.kind === 'audiobook_file')
+      return editTitle({libraryId, itemId: entry.id, kind: entry.kind, title: entry.title}, anchorElement).then(() => true);
+    if (entry.kind === 'show' || entry.kind === 'album' || entry.kind === 'book')
+      return editTitle({entityKind: entry.kind, entityId: entry.id, libraryId, title: entry.title}, anchorElement).then(() => true);
+    return false;
+  };
   const isCurrent = (value: SelectionContext) => {
     const current = context.home.getSnapshot().document;
     return !retired && context.isCurrent() && !!current && router.state.location.pathname === '/' && JSON.stringify(value) === JSON.stringify(homeSelectionContext(scope(), current));
@@ -40,7 +56,7 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
   const controller = new HomeSelectionController({api: context.api, events: context.events, home: context.home,
     context: currentContext(), environment: environment(), isCurrent, requestId: async () => crypto.randomUUID(), playback,
     routes: {openEntry: entry => {const destination = entryDestination(entry);return navigateArtworkEntry(entry, destination, artworkScope, () => isCurrent(controller.getSnapshot().context), () => !retired && context.isCurrent(), manual => router.navigate({...destination, ...(manual ? {viewTransition: false} : {})}));}, openCollection: collection => router.navigate(seeAllDestination({type: 'collection', resourceId: collection.collection.id, libraryId: collection.collection.libraryId})),
-      openDestination: destination => router.navigate({to: '/saved', search: {resourceId: destination.id}})}, reportError});
+      openDestination: destination => router.navigate({to: '/saved', search: {resourceId: destination.id}}), editEntry}, reportError});
   const queryLife = new AbortController();
   const queryActions = createBrowserQueryActions({subscribe: controller.selection.subscribe, captureOperation: () => controller.selection.captureOperation(),
     isOperationCurrent: operation => controller.selection.isOperationCurrent(operation)}, {api: context.api, requestId: async () => crypto.randomUUID(),
@@ -161,6 +177,6 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
     }),
     phoneSelection: (): ReactNode => controller.getSnapshot().selection.active ? <SelectionPhoneBar source={source} /> : undefined,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    dispose: () => { retired = true;queryLife.abort();queryActions.dispose(); interactions.dispose();controller.dispose(); for (const cleanup of off) cleanup(); window.removeEventListener('resize', sync); window.removeEventListener('keyup', releasePreview);window.removeEventListener('blur', clearPreview);preview = undefined;anchor.current = null; listeners.clear(); },
+    dispose: () => { retired = true;retireEntryMetadata(entryPorts);queryLife.abort();queryActions.dispose(); interactions.dispose();controller.dispose(); for (const cleanup of off) cleanup(); window.removeEventListener('resize', sync); window.removeEventListener('keyup', releasePreview);window.removeEventListener('blur', clearPreview);preview = undefined;anchor.current = null; listeners.clear(); },
   };
 }

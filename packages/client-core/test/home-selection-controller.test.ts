@@ -635,3 +635,25 @@ test('removing a Home window never throws: after Live expiry, twice, or after th
     assert.doesNotThrow(() => registered.unregister(), 'deregistering after dispose');
   } finally {Date.now = clock;}
 });
+
+test('J-1: Edit metadata on one title from its menu opens that title\'s own editor, never the whole-selection preview', async () => {
+  const h = harness(), edited: string[] = [];
+  h.options.routes.editEntry = entry => {edited.push(entry.id); return true;};
+  h.controller.registerWindow({id: 'window', row: h.document.rows[0], sectionOrder: 0});
+  h.controller.openMenu('window', h.controller.key({kind: 'movie', id: 'a', libraryId: 'library'}));
+  await h.controller.executeMenu('editMetadata');
+  // No network request (the harness api throws on any), no selection editor, no error.
+  assert.deepEqual(edited, ['a']); assert.equal(h.controller.getSnapshot().editor, null); assert.equal(h.controller.getSnapshot().menu, null);
+  assert.equal(h.errors.length, 0); h.controller.dispose();
+});
+
+test('J-1: a platform without a single-title editor for the entry falls back to the selection editor', async () => {
+  const requests: string[] = [];
+  const h = harness(undefined, async path => {requests.push(path); throw Object.assign(new Error('offline'), {code: 'offline'});});
+  h.options.routes.editEntry = () => false;
+  h.controller.registerWindow({id: 'window', row: h.document.rows[0], sectionOrder: 0});
+  h.controller.openMenu('window', h.controller.key({kind: 'movie', id: 'a', libraryId: 'library'}));
+  await h.controller.executeMenu('editMetadata').catch(() => {});
+  assert.ok(requests.some(path => path.includes('/metadata/bulk/preview')), 'the selection editor asked for its preview');
+  h.controller.dispose();
+});
