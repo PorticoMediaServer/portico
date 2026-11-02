@@ -47,6 +47,23 @@ test('a selected channel is one named, authorized guide read and never a guessed
     assert.equal(requests.length, 2);
   } finally {owner.dispose();}
 });
+test('a deep link to a library channel names the collapsed Library Channels source and still finds the channel (LT-2)', async () => {
+  const context = {scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => true,
+    api: {async request(path: string) {
+      const url = new URL(path, 'https://example.test');
+      const source = {id: 'config-7', name: 'Saturday Matinee', provenance: 'library-channel', generation: 'generation',
+        publishedAt: new Date().toISOString(), availableStart: '', availableEnd: '', refreshState: 'healthy'};
+      return {protocolVersion: '1.0', serverId: 'server', guide: {viewerFence: 'actual-fence', state: 'no-guide-data',
+        start: url.searchParams.get('start'), end: url.searchParams.get('end'), timezone: 'UTC', observedAt: new Date().toISOString(), nextCursor: '', sources: [source],
+        channels: [{id: 'config-7', sourceId: 'config-7', provenance: 'library-channel', generation: 'generation', name: 'Saturday Matinee', number: '7', group: 'Library Channels',
+          programmes: [], tuneAvailable: true, recordAvailable: false, favorite: false, hidden: false, preferenceRevision: 0}]}};
+    }}} as unknown as ScreenContext;
+  const owner = createLiveBindings(context, {kind: 'library-channel', sourceId: 'library', timezone: 'UTC'});
+  try {
+    assert.equal((await owner.selectedChannel({sourceId: 'library', channelId: 'config-7', provenance: 'library-channel'}))?.id, 'config-7');
+    assert.equal(await owner.selectedChannel({sourceId: 'library', channelId: 'config-7', provenance: 'live-source'}), undefined, 'the collapsed id never matches a live source');
+  } finally {owner.dispose();}
+});
 test('Live construction is inert and an authority refusal retires the bounded guide before further HTTP', async () => {
   let reads = 0;
   const denied = Object.assign(new Error('denied'), {status: 403});
