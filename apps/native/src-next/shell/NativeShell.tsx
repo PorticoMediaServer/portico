@@ -228,6 +228,47 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     frame = requestAnimationFrame(claim);
     return () => cancelAnimationFrame(frame);
   }, [registry, routeOpen, runtime, theme.isTV]);
+  /** W-12 (2eec0520: Back from Watch live left the Live guide with no focus at all): a route returned to, by Back
+   * from a route opened over it, gets back the focus it had. Page return (above) covers only the base page, and a
+   * route's own page is often itself a route (the guide, an artist under an album). While a route is on top and
+   * live, its last focus is kept by route; returning to it waits up to a second for that element (by title where it
+   * has one), then falls back to its row or region, and last to the route layer itself, never to nothing. */
+  const routeFocus = useRef(new Map<string, FocusSnapshot>());
+  const navigationPort = runtime.navigation;
+  const routeKey = useSyncExternalStore(navigationPort?.subscribe ?? noStacks,
+    () => {const route = navigationPort?.getSnapshot().route; return route && route.kind !== 'shell' ? JSON.stringify(route) : undefined;},
+    () => undefined);
+  useEffect(() => {
+    if (!theme.isTV || !routeKey) return;
+    const remember = () => {
+      const now = runtime.getSnapshot();
+      if (now.mediaExpanded || tvListeningPresent || now.contentVisible !== false) return;
+      // Focus inside an overlay opened from the route (a programme's panel, a menu) is kept as the overlay's opener,
+      // so Back returns to the programme, not to a control that has gone with its panel.
+      const captured = registry.capture(), saved = captured?.returnTo ?? captured;
+      if (!saved) return;
+      const memory = routeFocus.current;
+      memory.delete(routeKey); memory.set(routeKey, saved);
+      if (memory.size > 16) memory.delete(memory.keys().next().value!);
+    };
+    return registry.subscribe(remember);
+  }, [registry, routeKey, runtime, theme.isTV, tvListeningPresent]);
+  const previousRoute = useRef(routeKey);
+  useEffect(() => {
+    const from = previousRoute.current; previousRoute.current = routeKey;
+    const saved = routeKey ? routeFocus.current.get(routeKey) : undefined;
+    // Only a return: another route was on top a moment ago, and this one had focus before it.
+    if (!theme.isTV || !routeKey || !from || from === routeKey || !saved || typeof requestAnimationFrame !== 'function') return;
+    let frame = 0;
+    const attempt = (tries: number) => {
+      if (runtime.retirementSignal?.aborted || runtime.getSnapshot().mediaExpanded) return;
+      if (registry.focus(saved)) return;
+      if (tries < PAGE_RETURN_FRAMES) {frame = requestAnimationFrame(() => attempt(tries + 1)); return;}
+      if (!registry.restore(saved)) requestNativeFocus(routeLayer.current as never);
+    };
+    frame = requestAnimationFrame(() => attempt(1));
+    return () => cancelAnimationFrame(frame);
+  }, [registry, routeKey, runtime, theme.isTV]);
   const toggleSidebar = () => {
     const lifetime = sidebarLifetime.current, authority = {...snapshot.authority};
     const valid = () => !!lifetime && sidebarLifetime.current === lifetime && current() && sameAuthority(authority, runtime.getSnapshot().authority);
