@@ -193,6 +193,9 @@ jobs:
           path: ${{ runner.temp }}/engine-download-cache
           key: engine-downloads-v2-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: engine-downloads-v2-${{ matrix.target }}-
+      - id: source-before
+        if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
+        run: python scripts/engine-download-cache.py fingerprint --store "$RUNNER_TEMP/engine-download-cache" --output "$GITHUB_OUTPUT"
       - name: Seed exact source bytes without rebuilding dependencies
         if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
         env: {GH_TOKEN: '${{ github.token }}'}
@@ -219,12 +222,15 @@ jobs:
           if [[ -d "$recipe/.cache/downloads" ]]; then
             python scripts/engine-download-cache.py save --recipe "$recipe" --store "$RUNNER_TEMP/engine-download-cache"
           fi
-      - name: Retain exact source snapshots even after a failed build
+      - id: source-after
         if: always() && (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64')
+        run: python scripts/engine-download-cache.py fingerprint --store "$RUNNER_TEMP/engine-download-cache" --output "$GITHUB_OUTPUT"
+      - name: Retain exact source snapshots even after a failed build
+        if: always() && (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64') && steps.source-after.outputs.sha256 != 'absent' && steps.source-after.outputs.sha256 != steps.source-before.outputs.sha256
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: ${{ runner.temp }}/engine-download-cache
-          key: engine-downloads-v2-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: engine-downloads-v2-${{ matrix.target }}-${{ steps.source-after.outputs.sha256 }}
       - id: dependency-cache-output
         if: always()
         run: python scripts/engine-dependency-cache.py has-output --directory "$RUNNER_TEMP/engine-stage-cache" --output "$GITHUB_OUTPUT"
@@ -447,14 +453,19 @@ jobs:
           path: ${{ runner.temp }}/engine-download-cache
           key: engine-downloads-v2-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: engine-downloads-v2-${{ matrix.target }}-
+      - id: source-before
+        run: python scripts/engine-download-cache.py fingerprint --store "$RUNNER_TEMP/engine-download-cache" --output "$GITHUB_OUTPUT"
       - name: Restore only pinned corresponding-source snapshots, never binaries
         env: {GH_TOKEN: '${{ github.token }}'}
         run: python scripts/seed-engine-download-cache.py --target "${{ matrix.target }}" --store "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-source-seed"
-      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+      - id: source-after
         if: always()
+        run: python scripts/engine-download-cache.py fingerprint --store "$RUNNER_TEMP/engine-download-cache" --output "$GITHUB_OUTPUT"
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: always() && steps.source-after.outputs.sha256 != 'absent' && steps.source-after.outputs.sha256 != steps.source-before.outputs.sha256
         with:
           path: ${{ runner.temp }}/engine-download-cache
-          key: engine-downloads-v2-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: engine-downloads-v2-${{ matrix.target }}-${{ steps.source-after.outputs.sha256 }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

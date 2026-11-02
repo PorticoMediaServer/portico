@@ -18,6 +18,14 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def fingerprint(store):
+    if os.environ.get('PORTICO_ENGINE_BUILD_CONTEXT') != 'development':
+        raise ValueError('source snapshot cache requires explicit development context')
+    receipt = store / 'receipt.json'
+    if store.is_symlink() or receipt.is_symlink(): raise ValueError('linked source cache inventory')
+    return digest(receipt) if receipt.is_file() else 'absent'
+
+
 def sync(action, recipe, store):
     if os.environ.get('PORTICO_ENGINE_BUILD_CONTEXT') != 'development':
         raise ValueError('source snapshot cache requires explicit development context')
@@ -76,8 +84,14 @@ def sync(action, recipe, store):
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action', choices=('restore', 'save')); p.add_argument('--recipe', type=Path, required=True)
+    p.add_argument('action', choices=('restore', 'save', 'fingerprint')); p.add_argument('--recipe', type=Path)
     p.add_argument('--store', type=Path, default=os.environ.get('PORTICO_ENGINE_DOWNLOAD_CACHE'))
+    p.add_argument('--output', type=Path)
     a = p.parse_args()
     if not a.store: p.error('explicit source snapshot store required')
-    print(json.dumps(sync(a.action, a.recipe, a.store)))
+    if a.action == 'fingerprint':
+        if not a.output: p.error('fingerprint requires output')
+        with a.output.open('a') as out: out.write('sha256=' + fingerprint(a.store) + '\n')
+    else:
+        if not a.recipe: p.error('restore/save requires recipe')
+        print(json.dumps(sync(a.action, a.recipe, a.store)))
