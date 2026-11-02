@@ -5,14 +5,16 @@ import {standardHomeApp} from './helpers/standard-home-app-harness.mjs';
 // Synthetic native module boundary; every production parser, signed proof, transport and store runs.
 test('current native local sign-in probes before credentials, verifies the pin and selects a server profile', async t => {
   let kind = 'local', suffix = '', held: (() => void) | undefined;
-  let requirement: 'password' | 'two-step' | 'both' | undefined, logoutFails = false;
+  let requirement: 'password' | 'two-step' | 'both' | undefined, logoutFails = false, allowRemember = false;
+  const selectBodies: any[] = [];
   const app = await standardHomeApp({setup: true, setupResponse: async (request: any, f: any) => {
     if (request.path === '/v1/system') return {status: 200, body: {id: f.pin.serverId, name: 'Synthetic local server', signIn: kind,
       version: '1', move: null, setupRequired: false, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []}};
     const snapshot = {authority: 'local', serverId: f.pin.serverId, canManage: true,
       capabilities: {manageAccount: true, managePeople: false, manageServer: false, manageSignIn: false},
       account: {id: 'account', username: 'synthetic_user', primaryProfileId: 'profile', role: 'member', revision: 1, disabled: false, allowedLibraries: []},
-      profiles: [{id: 'profile', name: 'Actual server profile', primary: true, position: 0, art: 'mint', revision: 1, pinRevision: 1, pinRequired: true}]};
+      profiles: [{id: 'profile', name: 'Actual server profile', primary: true, position: 0, art: 'mint', revision: 1, pinRevision: 1, pinRequired: true}],
+      ...(allowRemember ? {rememberProfiles: true} : {})};
     if (request.path === '/v1/direct/sign-in') {
       if (request.body.password !== 'synthetic_password') return {status: 401, body: {error: {code: 'invalid_credentials'}}};
       if (requirement) return {status: 200, body: {...snapshot, canManage: false,
@@ -24,8 +26,10 @@ test('current native local sign-in probes before credentials, verifies the pin a
     }
     if (request.path === '/v1/direct/profiles/profile/select') {
       assert.equal(request.body.installationId, f.installationId);
+      selectBodies.push(request.body);
       if (request.body.pin !== '1234') return {status: 401, body: {error: {code: 'profile_pin_invalid'}}};
-      return {status: 200, body: {session: {...f.session, accessToken: 'viewer_access' + suffix, sessionFamilyId: 'current_viewer' + suffix}}};
+      return {status: 200, body: {session: {...f.session, accessToken: 'viewer_access' + suffix, sessionFamilyId: 'current_viewer' + suffix},
+        ...(request.body.remember === true && allowRemember ? {remembered: {expiresAt: '2099-01-01T00:00:00Z'}} : {})}};
     }
     if (request.path === '/v1/direct/profiles/profile/pin-reset') return {status: 204};
     if (request.path === '/v1/me') {
@@ -104,6 +108,34 @@ test('current native local sign-in probes before credentials, verifies the pin a
         assert.equal(app.requests.slice(before).filter((r: any) => r.path === '/v1/sessions/current').length, 1, 'temporary account family retired once');
       } finally {signIn.dispose(); await app.settle();}
       assert.equal((await nativeAppSessions.selected())?.connection.session.sessionFamilyId, 'current_viewer', 'disposal preserves published viewer');
+    });
+    await t.test('Remember this profile on this device: offered only where the server allows it, sent with the PIN, and stored only after a correct PIN', async () => {
+      kind = 'local';
+      for (const allowed of [false, true]) {
+        allowRemember = allowed; selectBodies.length = 0;
+        const signIn = new NativeServerSignIn();
+        try {
+          await signIn.inspect('https://standard-home.test'); await signIn.confirmLocal(await signIn.inspectLocalIdentity());
+          const result = await signIn.signInLocal('synthetic_user', 'synthetic_password');
+          assert.equal(result.kind, 'profiles');
+          assert.equal(result.kind === 'profiles' && result.canRemember, allowed, 'the picker offers the choice exactly when the server allows remembering');
+          await assert.rejects(signIn.chooseProfile('profile', '0000', true));
+          assert.equal((await nativeAppSessions.read()).servers.every(value => value.remembered === undefined), true, 'a wrong PIN stores no marker');
+          await signIn.chooseProfile('profile', '1234', true);
+          assert.equal(selectBodies.at(-1).remember, allowed ? true : undefined, 'the tick is sent only where the server allows it');
+          const marker = (await nativeAppSessions.selected())?.remembered;
+          if (allowed) assert.deepEqual(marker, {profileId: 'profile', familyId: 'current_viewer', expiresAt: '2099-01-01T00:00:00Z'});
+          else assert.equal(marker, undefined);
+        } finally {signIn.dispose(); await app.settle(); allowRemember = false;}
+      }
+      const unticked = new NativeServerSignIn();
+      try {
+        allowRemember = true; selectBodies.length = 0;
+        await unticked.inspect('https://standard-home.test'); await unticked.confirmLocal(await unticked.inspectLocalIdentity());
+        await unticked.signInLocal('synthetic_user', 'synthetic_password'); await unticked.chooseProfile('profile', '1234');
+        assert.equal(selectBodies.at(-1).remember, undefined, 'unticked sends no remember');
+        assert.equal((await nativeAppSessions.selected())?.remembered, undefined);
+      } finally {unticked.dispose(); await app.settle(); allowRemember = false;}
     });
     await t.test('the sign-in picker exposes a fenced recovery for its own account grant', async () => {
       kind = 'local'; const signIn = new NativeServerSignIn(), before = app.requests.length;

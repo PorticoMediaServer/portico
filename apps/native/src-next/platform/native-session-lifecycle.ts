@@ -2,6 +2,7 @@ import {releaseQuietly} from '../../../../packages/client-core/src/cleanup';
 import {SessionLifecycle} from '../../../../packages/client-core/src/session-lifecycle-runtime';
 import type {LifecycleState} from '../../../../packages/client-core/src/session-lifecycle';
 import type {UserAction} from '../../../../packages/client-core/src/user-action';
+import type {LocalSession} from '../../../../packages/client-core/src';
 import {createNativeLifecyclePorts, type NativeLifecyclePorts} from './session-lifecycle-native';
 
 /**
@@ -84,5 +85,22 @@ export function lifecycleSettled(lifecycle: SessionLifecycle, signal: AbortSigna
     if (signal.aborted) {abort(); return;}
     signal.addEventListener('abort', abort, {once: true});
     check();
+  });
+}
+
+/**
+ * "Forget remembered profile" for the mounted shell (avatar menu): this device remembers the profile that is open exactly when the
+ * lifecycle is ready on that sign-in with a valid marker. Forgetting clears the marker and leaves the open profile open.
+ */
+export function nativeRememberedProfile(session: () => LocalSession | undefined) {
+  const open = () => {
+    const state = nativeSessionLifecycle().lifecycle.getSnapshot().state, held = session();
+    return state.kind === 'ready' && state.remembered && !!held && state.viewer.familyId === held.sessionFamilyId
+      && state.viewer.profileId === held.viewer.profileId && state.viewer.accountId === held.viewer.accountId;
+  };
+  return Object.freeze({
+    remembered: open,
+    subscribe: (listener: () => void) => nativeSessionLifecycle().lifecycle.subscribe(listener),
+    forget: () => open() ? settle(nativeSessionLifecycle().lifecycle.actions.forgetRemembered) : Promise.resolve(),
   });
 }

@@ -16,7 +16,7 @@ export function nativeMenuRouteAvailable(route: NativeShellRoute): boolean {
 /** All actions address the verified current account. No name, profile or role is fabricated.
  * The projection itself is pure; the shell passes the registered-route check. */
 export function nativeAccountMenu(account: DirectSnapshot, open: (route: NativeShellRoute) => void, tv = false,
-  available: (route: NativeShellRoute) => boolean = () => true): NativeShellSnapshot['account'] {
+  available: (route: NativeShellRoute) => boolean = () => true, forgetRemembered?: () => void): NativeShellSnapshot['account'] {
   const t = defaultI18n.t;
   const viewerRole = account.account.role === 'admin' ? 'administrator' : account.account.role;
   const entries: MenuEntry[] = [
@@ -28,7 +28,9 @@ export function nativeAccountMenu(account: DirectSnapshot, open: (route: NativeS
   ];
   const dashboard: NativeShellRoute = tv ? {kind: 'server-settings'} : {kind: 'server-dashboard'};
   return Object.freeze({accountLine: account.account.username, viewerRole,
-    actions: Object.freeze(entries.filter(entry => available(entry.route)).map(({route: _route, ...action}) => action)),
+    // Last in the list, where the drawn menu puts it (desktop-search.html, above Sign out): offered only while this device remembers the open profile.
+    actions: Object.freeze([...entries.filter(entry => available(entry.route)).map(({route: _route, ...action}) => action),
+      ...(forgetRemembered ? [{id: 'forget-remembered', label: t('web.direct.forgetRememberedProfile'), icon: 'i-x' as const, onPress: forgetRemembered}] : [])]),
     ...((viewerRole === 'owner' || viewerRole === 'administrator') && available(dashboard) ? {serverAction: {id: 'server', label: t(tv ? 'next.shell.serverSettings' : 'settings.server.dashboard'), icon: 'i-server' as const, onPress: () => open(dashboard)}} : {}),
   });
 }

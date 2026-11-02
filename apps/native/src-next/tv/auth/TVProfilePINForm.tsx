@@ -7,8 +7,7 @@ import {FocusProvider} from '../../kit/focus';
 import {nativeType, useTheme} from '../../kit/theme';
 import {TVProfilePINLayout} from './TVAuthLayout';
 import {TVCodeBoxes, TVNumericPad} from './TVNumericPad';
-import {Focusable} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
+import {TVRememberRow} from './TVRememberRow';
 
 export type TVProfilePINFormProps = Readonly<{
   profile: ProfileOption; code: string; onCodeChange: (value: string) => void;
@@ -54,17 +53,4 @@ function ProfilePINForm(props: TVProfilePINFormProps) {
     <TVCodeBoxes code={props.code} length={4} masked busy={props.busy} error={!!props.error}/>
     {props.remember && <TVRememberRow {...props.remember} busy={props.busy}/>}
   </TVProfilePINLayout>;
-}
-
-function TVRememberRow({checked, onChange, busy}: {checked: boolean; onChange: (checked: boolean) => void; busy: boolean}) {
-  const theme = useTheme(), label = defaultI18n.t('pin.rememberOnDevice');
-  return <Focusable focusId="tv.auth.profile.remember" accessibilityRole="checkbox" accessibilityState={{checked, disabled: busy}} accessibilityLabel={label}
-    disabled={busy} onPress={() => onChange(!checked)} focusRadius={18}
-    style={{flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 40, paddingVertical: 14, paddingHorizontal: 26, borderRadius: 18}}>
-    <View style={{width: 40, height: 40, borderRadius: 11, borderWidth: 3, alignItems: 'center', justifyContent: 'center',
-      borderColor: checked ? theme.colors.accentStrong : theme.colors.lineStrong, backgroundColor: checked ? theme.colors.accentStrong : 'transparent'}}>
-      {checked && <Icon name="i-check" size={26} color={theme.colors.ink}/>}
-    </View>
-    <Text style={[nativeType({size: 28, weight: 600, lineHeight: 'normal', tracking: 0}, theme.textScale), {color: theme.colors.textSecondary}]}>{label}</Text>
-  </Focusable>;
 }

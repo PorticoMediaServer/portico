@@ -41,7 +41,7 @@ export type LifecycleState =
   | Readonly<{kind: 'ready'; server: ServerRef; viewer: ViewerRef; profiles: readonly PickerProfile[]; remembered: boolean;
       manageLocked: boolean; canRemember: boolean}>;
 
-export type LifecyclePending = 'pick' | 'pin' | 'unlock' | 'switchServer' | 'signOut' | 'signOutAccount' | 'forget' | 'reset';
+export type LifecyclePending = 'pick' | 'pin' | 'unlock' | 'switchServer' | 'signOut' | 'signOutAccount' | 'forget' | 'reset' | 'forgetRemembered';
 export type LifecycleSnapshot = Readonly<{generation: number; state: LifecycleState; pending?: LifecyclePending}>;
 
 /** A connection to the held server succeeded and its account was read. */
@@ -62,7 +62,9 @@ export type LifecycleEvent =
   | Readonly<{type: 'connected'; facts: ConnectedFacts}>
   | Readonly<{type: 'connectFailed'; failure: ConnectFailure}>
   | Readonly<{type: 'retry'}>
-  | Readonly<{type: 'profileTapped'; profileId: string}>
+  /** `remember`: the picker's "Remember this profile on this device" was ticked. It applies at once to a profile without a PIN;
+   *  a PIN profile's tick is sent with its PIN (`pinSubmitted`), so it only ever applies after a correct PIN. */
+  | Readonly<{type: 'profileTapped'; profileId: string; remember?: boolean}>
   | Readonly<{type: 'pinSubmitted'; pin: string; remember: boolean}>
   | Readonly<{type: 'selected'; facts: SelectedFacts}>
   | Readonly<{type: 'pinRejected'; waitUntil?: number}>
@@ -71,6 +73,9 @@ export type LifecycleEvent =
   | Readonly<{type: 'switchProfile'}>
   | Readonly<{type: 'cancelSwitch'}>
   | Readonly<{type: 'unlockSubmitted'; pin: string}>
+  /** Forget remembered profile (avatar menu): this device stops opening the profile directly. The profile open now stays open. */
+  | Readonly<{type: 'forgetRemembered'}>
+  | Readonly<{type: 'markerForgotten'}>
   | Readonly<{type: 'managementUnlocked'; facts: SelectedFacts}>
   | Readonly<{type: 'gated'}>
   | Readonly<{type: 'signInEnded'; username: string}>
@@ -96,6 +101,8 @@ export type LifecycleEffect =
   | Readonly<{kind: 'signOutAccount'}>
   | Readonly<{kind: 'forgetServer'; serverId: string}>
   | Readonly<{kind: 'clearMarker'; serverId: string}>
+  /** Like clearMarker, but the person asked for it, so a failure is reported (`actionFailed`) instead of swallowed. */
+  | Readonly<{kind: 'forgetMarker'; serverId: string}>
   | Readonly<{kind: 'fenceShell'}>
   | Readonly<{kind: 'drainRevocations'; serverId: string}>;
 
@@ -104,7 +111,7 @@ export type Transition = Readonly<{snapshot: LifecycleSnapshot; effects: readonl
 const freeze = <T extends object>(value: T): T => Object.freeze(value);
 /** Events that report how a pending action ended. */
 const RESULTS = new Set<LifecycleEvent['type']>(['recordsRead', 'connected', 'connectFailed', 'selected', 'pinRejected', 'selectFailed', 'actionFailed',
-  'managementUnlocked', 'signedOut', 'forgotten', 'envelopeChanged']);
+  'managementUnlocked', 'markerForgotten', 'signedOut', 'forgotten', 'envelopeChanged']);
 const same = (a: ViewerRef, b: ViewerRef) => a.accountId === b.accountId && a.profileId === b.profileId && a.familyId === b.familyId;
 const signedInStates = new Set(['connecting', 'offline', 'choosingProfile', 'enteringPin', 'ready', 'identityFailed', 'signInEnded']);
 
@@ -144,7 +151,7 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     freeze({row, effects: freeze([...effects]), snapshot: freeze({...current, pending})});
 
   // A pending action ignores further commands until its result arrives (no double submit).
-  const command = ['profileTapped', 'pinSubmitted', 'unlockSubmitted', 'switchServer', 'signOutServer', 'signOutAccount', 'forget', 'recordsResetConfirmed'].includes(event.type);
+  const command = ['profileTapped', 'pinSubmitted', 'unlockSubmitted', 'forgetRemembered', 'switchServer', 'signOutServer', 'signOutAccount', 'forget', 'recordsResetConfirmed'].includes(event.type);
   if (command && current.pending) return undefined;
 
   switch (event.type) {
@@ -193,9 +200,10 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     if (profile.pinRequired) return to({kind: 'enteringPin', server: s.server, viewer: s.viewer, profiles: s.profiles, profile,
       reason: s.switching || profile.id !== s.viewer.profileId ? 'switch' : 'pick', canRemember: s.canRemember, switching: s.switching,
       ...(s.resume ? {resume: s.resume} : {})}, 17);
-    if (profile.id === s.viewer.profileId) return to({kind: 'ready', server: s.server, viewer: s.viewer, profiles: s.profiles,
+    // A tick on the current profile still needs a fresh sign-in (the server writes the remembering on it); an untouched tap just returns.
+    if (profile.id === s.viewer.profileId && !(event.remember === true && s.canRemember)) return to({kind: 'ready', server: s.server, viewer: s.viewer, profiles: s.profiles,
       remembered: s.resume?.remembered ?? false, manageLocked: s.resume?.manageLocked ?? false, canRemember: s.canRemember}, 15);
-    return busy('pick', [{kind: 'select', serverId: s.server.serverId, profileId: profile.id, remember: false}], 16);
+    return busy('pick', [{kind: 'select', serverId: s.server.serverId, profileId: profile.id, remember: event.remember === true && s.canRemember}], 16);
   }
   case 'pinSubmitted':
     if (s.kind !== 'enteringPin' || s.waitUntil !== undefined && event.pin === '') return undefined;
@@ -234,6 +242,13 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     if (s.kind !== 'ready' || current.pending !== 'unlock') return undefined;
     return to({...s, viewer: event.facts.viewer, remembered: event.facts.remembered, manageLocked: false}, 35, [],
       {authority: !same(event.facts.viewer, s.viewer)});
+  case 'forgetRemembered':
+    // Row 39: only while this device remembers the open profile. The sign-in stays; the next launch shows the picker.
+    if (s.kind !== 'ready' || !s.remembered) return undefined;
+    return busy('forgetRemembered', [{kind: 'forgetMarker', serverId: s.server.serverId}], 39);
+  case 'markerForgotten':
+    if (s.kind !== 'ready' || current.pending !== 'forgetRemembered') return undefined;
+    return to({...s, remembered: false}, 39);
   case 'gated':
     if (s.kind !== 'ready') return undefined;
     {const profile = s.profiles.find(value => value.id === s.viewer.profileId) ?? {id: s.viewer.profileId, name: '', primary: false, pinRequired: true};
@@ -297,6 +312,11 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     // a path that writes an account-scoped record before the pick must never reach this branch.
     if ((s.kind === 'signInEnded' || s.kind === 'identityFailed') && !(s.held && same(s.held.viewer, held.viewer)))
       return to({kind: 'connecting', server: held.server, held, admitted: true}, 34, [{kind: 'connect', serverId: held.server.serverId}], {authority: true});
+    // Row 40: the same sign-in whose remember marker was written (just after a pick on the sign-in form) or cleared by another owner:
+    // keep what the avatar menu offers true to the record.
+    if (s.kind === 'connecting' && s.held && same(s.held.viewer, held.viewer) && s.held.remembered !== held.remembered)
+      return to({...s, held: {...s.held, remembered: held.remembered}}, 40);
+    if (s.kind === 'ready' && same(s.viewer, held.viewer) && s.remembered !== held.remembered) return to({...s, remembered: held.remembered}, 40);
     const viewer = 'viewer' in s ? s.viewer : undefined;
     if (!viewer || same(viewer, held.viewer)) return undefined;
     // Same server, another sign-in (another tab picked a profile): follow it, never sign out.
