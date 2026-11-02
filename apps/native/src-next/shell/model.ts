@@ -11,7 +11,9 @@ export type ShellScope = Readonly<{serverId: string; accountId: string; profileI
  * Older servers send no privacy fence, so their viewer fence keys the shell as before. */
 export type ShellAuthority = ShellScope & Readonly<{epoch: string; viewerFence: string; privacyFence?: string}>;
 export type ShellDestination = Readonly<
-  | {kind: 'home' | 'libraries' | 'live' | 'saved' | 'settings'}
+  | {kind: 'home' | 'libraries' | 'live' | 'saved'}
+  /** `page` opens one account page directly (J-32: a notice's Review security / Review device opens Profile & account). */
+  | {kind: 'settings'; page?: 'profile'}
   /** An optional initial query seeds one ordinary Search route; the screen owns later edits. */
   | {kind: 'search'; query?: string}
   | {kind: 'library'; libraryId: string; /** An explicit authored opening pivot. */ tab?: LibraryTabId; /** A server-authored query, validated against this library's current capabilities. */ definition?: SavedDefinition; /** Scroll to the profile Mixes row once its data mounts. */ anchor?: 'mixes'}

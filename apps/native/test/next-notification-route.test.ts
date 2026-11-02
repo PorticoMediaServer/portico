@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {notificationRoute} from '../src-next/screens/notifications/notification-route.ts';
 
-test('J-32: "New device signed in" opens Settings for its security and device actions, never a dead button', () => {
-  assert.deepEqual(notificationRoute({kind: 'navigate', label: 'Review security', target: {view: 'settings-security'}}, false), {kind: 'shell', destination: {kind: 'settings'}});
-  assert.deepEqual(notificationRoute({kind: 'command', label: 'Review device', command: 'review-device', arguments: {deviceId: 'd1'}}, false), {kind: 'shell', destination: {kind: 'settings'}});
+test('J-32: "New device signed in" opens Profile & account (sign-in and devices) for its security and device actions, never a dead button', () => {
+  assert.deepEqual(notificationRoute({kind: 'navigate', label: 'Review security', target: {view: 'settings-security'}}, false), {kind: 'shell', destination: {kind: 'settings', page: 'profile'}});
+  assert.deepEqual(notificationRoute({kind: 'command', label: 'Review device', command: 'review-device', arguments: {deviceId: 'd1'}}, false), {kind: 'shell', destination: {kind: 'settings', page: 'profile'}});
   assert.equal(notificationRoute({kind: 'command', label: 'Review device', command: 'review-device', arguments: {}}, false), undefined, 'no device, no action');
 });
 
