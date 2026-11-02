@@ -9,6 +9,7 @@ import {router} from '../../router';
 import {useAdmittedTitleArtwork} from '../../shell/artwork-navigation';
 import type {ScreenContext} from './context';
 import {createDetailBindings} from './bindings';
+import {usePageMemory} from '../../platform/freshness';
 import {DetailScreen} from './Detail';
 import {createReadBindings, ReadItemEntry, type ReadItemEligibility} from '../read';
 import {resolveItemRead} from './read-resolution';
@@ -19,10 +20,17 @@ type DetailLease = {id: number; context: ScreenContext; itemId: string; live: bo
 function OrdinaryItem({context, itemId, artworkClaim}: {context: ScreenContext; itemId: string; artworkClaim?: import('../../kit/cards/source-art-transition').SourceArtClaim}) {
   const [lease, publish] = useState<DetailLease>();
   const serial = useRef(0);
+  const pages = usePageMemory();
   useLayoutEffect(() => {
-    const held: DetailLease = {id: ++serial.current, context, itemId, live: true, binding: createDetailBindings(context)};
+    // The title's page is kept beside the viewer: Back draws it at once and the
+    // route's own read refreshes it in place, so a slow server is never a blank page.
+    const key = JSON.stringify(['item-page', context.scope.serverId, context.scope.viewerId, itemId]);
+    const held: DetailLease = {id: ++serial.current, context, itemId, live: true, binding: createDetailBindings(context, {initial: pages.recall(key)})};
+    const remember = () => {const snapshot = held.binding.service.getSnapshot(); if (snapshot.phase === 'ready' && snapshot.data && snapshot.target) pages.remember(key, snapshot);};
+    remember();
+    const off = held.binding.service.subscribe(remember);
     publish(held);
-    return () => {held.live = false;held.binding.dispose();};
+    return () => {held.live = false;off();held.binding.dispose();};
   }, [context, itemId]);
   return lease?.live && lease.context === context && lease.itemId === itemId && context.isCurrent()
     ? <DetailScreen key={lease.id} binding={lease.binding} itemId={itemId} artworkClaim={artworkClaim}/> : <DetailLoading/>;
