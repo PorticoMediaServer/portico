@@ -24,6 +24,7 @@ import type {NativeDestinationActivationPort} from '../destinations/focus';
 import type {NativeSearchActions, NativeSearchExplorePort, NativeSearchGenre, NativeSearchSelectionPort, NativeSearchTVCopy} from './types';
 import {nativeSearchGenreTiles} from './genre-tiles';
 import {channelTint} from '../../../../../packages/client-core/src/presentation/kit-model';
+import {TVRow} from '../../kit/layout/TVRow';
 
 const media = (entry: SearchEntry): entry is ContentEntry => entry.kind !== 'person' && entry.kind !== 'channel';
 
@@ -81,14 +82,14 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
   const available = SEARCH_CHIPS.filter(chip => chip.id === 'all' || state.search.data?.capabilities.groups.some(group => group.id === chip.id && group.available))
     // One chip is selected: the answer covers that group alone, so the drawn row keeps its other types.
     .filter(chip => chip.id === 'all' || state.group !== 'all' || !state.groups.some(group => group.id === chip.id && group.status === 'success' && group.totalCount === 0));
-  const chips = typed && !emptyAll && !problem && state.search.data && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, paddingHorizontal: 20, paddingTop: 12}}>
+  const chips = typed && !emptyAll && !problem && state.search.data && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, paddingHorizontal: 20, paddingTop: 12}}>
     {available.map(chip => {
       const group = state.groups.find(value => value.id === chip.id);
       const count = chip.id === 'all' ? state.groups.every(value => value.totalCountExact) ? state.groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined : group?.totalCountExact ? group.totalCount : undefined;
       return <Chip key={chip.id} testID={`search-chip-${chip.id}`} selected={state.group === chip.id} count={count} retry={group?.status === 'error'} disabled={!!group && group.status === 'success' && group.totalCount === 0}
         onPress={() => destination.selectGroup(chip.id)}>{t(chip.label)}</Chip>;
     })}
-  </ScrollView>;
+  </ScrollView></TVRow>;
   const fields = <View style={{paddingTop: Math.max(typed || focused ? 56 : 58, insets.top), backgroundColor: theme.colors.ink}}>
     {!typed && !focused && <Text accessibilityRole="header" style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: 20, marginBottom: 12}]}>{t('web.shell.search')}</Text>}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16}}>
@@ -140,7 +141,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
           <Text accessibilityRole="header" style={[browseType(theme, 20, 700, -.02), {color: theme.colors.text}]}>{t(searchGroupLabel(group.id))}</Text>
           {group.totalCountExact && <Text style={[browseType(theme, 14, 600), {color: theme.colors.textTertiary}]}>{group.totalCount}</Text>}
         </View>
-        <FlatList horizontal testID={`search-shelf-${group.id}`} data={group.items} showsHorizontalScrollIndicator={false}
+        <TVRow><FlatList horizontal testID={`search-shelf-${group.id}`} data={group.items} showsHorizontalScrollIndicator={false}
           contentContainerStyle={{paddingHorizontal: 20}} ItemSeparatorComponent={() => <View style={{width: 14}}/>}
           keyExtractor={entry => nativeSearchEntryKey(group.id, entry)} initialNumToRender={7} maxToRenderPerBatch={10} windowSize={5}
           getItemLayout={(_, index) => {const length = Math.floor((surface - 40 - 6 * 14) / 7) + 14; return {length, offset: 20 + length * index, index};}}
@@ -154,7 +155,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
           ListFooterComponent={state.paging?.[group.id]?.loading ? <LoadingPaint ready={false} style={{marginLeft: 14}}
             skeleton={<View style={{flexDirection: 'row', gap: 14}}>{[0, 1, 2].map(index => <SkeletonBlock key={index}
               width={Math.floor((surface - 40 - 6 * 14) / 7)} height={Math.floor((surface - 40 - 6 * 14) / 7) * (group.id === 'movies' || group.id === 'shows' ? 1.5 : 1)}/>)}</View>}/>
-            : state.paging?.[group.id]?.error ? <StateView {...runtime.error(state.paging?.[group.id]?.error, () => run(destination.retryGroup(group.id)), 'search')} style={{width: 240}}/> : null}/>
+            : state.paging?.[group.id]?.error ? <StateView {...runtime.error(state.paging?.[group.id]?.error, () => run(destination.retryGroup(group.id)), 'search')} style={{width: 240}}/> : null}/></TVRow>
       </View>) : resultRows.map(({entry, group, heading}) => <React.Fragment key={nativeSearchEntryKey(group, entry)}>
         {heading && <Text accessibilityRole="header" style={[browseType(theme, 16, 700), {color: theme.colors.text, marginHorizontal: 20, marginTop: 18, marginBottom: 6}]}>{t(searchGroupLabel(group))}</Text>}
         <SearchResultRow entry={entry} group={group} runtime={runtime} actions={actions} selection={selection?.item(entry, group)}/>

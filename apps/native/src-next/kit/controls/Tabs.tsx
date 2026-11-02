@@ -6,6 +6,7 @@ import {useTheme} from '../theme';
 import {Focusable, type FocusableProps} from './Focusable';
 import {colorAlpha, enabledChoice, minimumHitSlop} from './control-model';
 import {useControlValue} from './useControlValue';
+import {TVRow} from '../layout/TVRow';
 
 export type TabItem = {value: string; label: React.ReactNode; count?: string | number; disabled?: boolean; panel?: React.ReactNode};
 export type TabsProps = {
@@ -45,8 +46,8 @@ export function Tabs({items, value, defaultValue, onValueChange, disabled, passi
   const stripStyle = [styles.tabs, {gap: tabsSpec.gap[theme.platform], paddingHorizontal: theme.gutter, borderBottomColor: theme.colors.line}, contentContainerStyle];
   const strip = (children: React.ReactNode) => theme.isTV
     ? <View focusable={false} style={[stripStyle, {alignSelf: 'flex-start'}]} accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>{children}</View>
-    : <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{overflow: 'visible'}} contentContainerStyle={stripStyle}
-      accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>{children}</ScrollView>;
+    : <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{overflow: 'visible'}} contentContainerStyle={stripStyle}
+      accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>{children}</ScrollView></TVRow>;
   return <View style={style} testID={testID}>
     {strip(items.map(item => {
         const childProps = itemProps?.(item);

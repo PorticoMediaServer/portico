@@ -126,7 +126,7 @@ async function layered(platform: 'android' | 'tvos' = 'android') {
             e(Stop, {id: `${route}-play`, w: 240, h: 80}), e(Stop, {id: `${route}-more`, w: 240, h: 80}))) : null),
       player ? e(n.View, {style: {position: 'absolute', left: 0, top: 900, width: 1920, height: 180}},
         e(focus.FocusRegion, {id: 'player.controls', orientation: 'horizontal', hold: true, style: {flexDirection: 'row', gap: 20}},
-          e(Stop, {id: 'player-pause', w: 120, h: 80, hasTVPreferredFocus: true}), e(Stop, {id: 'player-next', w: 120, h: 80}))) : null));
+          e(Stop, {id: 'player-pause', w: 120, h: 80, preferredFocus: true}), e(Stop, {id: 'player-next', w: 120, h: 80}))) : null));
   };
   return {...kit, Scene, stack};
 }
@@ -171,5 +171,26 @@ test('the player over the page: the page is covered, the player claims itself, a
     assert.equal(engine.focusable('slot-1'), false);
     await engine.render(e(Scene, {}));
     assert.equal(engine.focused, 'slot-1', platform);
+  }
+});
+
+test('step 4: preferredFocus asks once on both platforms; a layout change on tvOS never takes focus back, and a page returned to by Back keeps the stack\'s restore', async () => {
+  for (const platform of ['android', 'tvos'] as const) {
+    const kit = await tvFocusKit({platform}), {e, engine, focus, Stop} = kit, n = engine.native;
+    const registry = focus.createFocusRegistry();
+    const Title = ({wide, covered}: {wide: boolean; covered: boolean}) => e(focus.FocusProvider, {registry},
+      e(focus.CoveredLayer, {covered, autoFocus: true, style: {position: 'absolute', inset: 0}},
+        e(focus.FocusRegion, {id: 'title.actions', orientation: 'horizontal', style: {flexDirection: 'row', gap: 20}},
+          e(Stop, {id: 'play', w: wide ? 320 : 240, h: 80, preferredFocus: true}), e(Stop, {id: 'more', w: 240, h: 80}))),
+      e(n.View, {style: {position: 'absolute', left: 0, top: 600}}, e(n.Pressable, {testID: 'over', style: {width: 200, height: 100}})));
+    await engine.render(e(Title, {wide: false, covered: false}));
+    assert.equal(engine.focused, 'play', `${platform}: the declared start`);
+    await engine.press('right');
+    await engine.render(e(Title, {wide: true, covered: false}));
+    assert.equal(engine.focused, 'more', `${platform}: Play's label grew; focus stays on More`);
+    await engine.render(e(Title, {wide: true, covered: true}));
+    await engine.focus('over');
+    await engine.render(e(Title, {wide: true, covered: false}));
+    assert.notEqual(engine.focused, 'play', `${platform}: uncovering does not ask again`);
   }
 });

@@ -130,7 +130,7 @@ export function NativeTVGroupPill({onHost, onSheetChange}: {onHost?: (host: numb
             {permissions.isHost && member.role !== 'host' && <Button variant="glass" size="small" focusId={`group-host-${member.id}`}
               onPress={() => makeHost(member.id, currentSheet)}>{t('web.together.makeHost')}</Button>}
           </View>;})}
-        {canClaim && <Button variant="primary" focusId="group-claim-host" hasTVPreferredFocus onPress={() => makeHost(group.viewerMemberId, currentSheet)}>
+        {canClaim && <Button variant="primary" focusId="group-claim-host" preferredFocus onPress={() => makeHost(group.viewerMemberId, currentSheet)}>
           {t('web.together.becomeHost')}</Button>}
         {!permissions.canControl && <Text testID="player-group-host-controls" style={[browseType(theme, 18, 600), {color: theme.colors.textTertiary}]}>
           {t('web.together.pill.hostControls')}</Text>}

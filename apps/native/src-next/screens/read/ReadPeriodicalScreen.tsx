@@ -24,6 +24,7 @@ import {ReadingShelf} from './ReadingShelf';
 import {ReadingItemMenu, ReadingSelectionToolbar, useReadingActions, type ReadingActionsPort} from './ReadingActions';
 import type {NativeReadingActionOffer} from './reading-actions';
 import {periodicalDatePreview, periodicalDayRead, periodicalHeroIssue, readingItemIsRead} from './periodical-presentation';
+import {TVRow} from '../../kit/layout/TVRow';
 
 const {t} = defaultI18n;
 const initial = (title: string): string => title.trim().slice(0, 1).toUpperCase() || '·';
@@ -174,7 +175,7 @@ function MagazineIssues({state, controller, theme, runtime, tablet, width, onOpe
   const orderAnchor = useRef<View>(null), [orderMenu, setOrderMenu] = useState(false);
   const chooseOrder = (order: 'newest' | 'oldest') => {setOrderMenu(false); void controller.setOrder(state, order).catch(runtime.reportError);};
   const header = <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>{hero}
-    <View style={{marginTop: 24, flexDirection: 'row', alignItems: 'center'}}><FlatList horizontal style={{flex: 1}} data={state.years} keyExtractor={year => year.value} showsHorizontalScrollIndicator={false}
+    <View style={{marginTop: 24, flexDirection: 'row', alignItems: 'center'}}><TVRow><FlatList horizontal style={{flex: 1}} data={state.years} keyExtractor={year => year.value} showsHorizontalScrollIndicator={false}
       contentContainerStyle={{paddingHorizontal: tablet ? 28 : 20, gap: 8}} initialNumToRender={10} windowSize={5}
       getItemLayout={(_data, index) => ({index, length: 72, offset: (tablet ? 28 : 20) + 80 * index})}
       renderItem={({item: year}) => <Focusable accessibilityRole="button" accessibilityLabel={year.value} accessibilityState={{selected: year.value === state.selectedYear}}
@@ -183,7 +184,7 @@ function MagazineIssues({state, controller, theme, runtime, tablet, width, onOpe
           backgroundColor: year.value === state.selectedYear ? alpha(theme.colors.accent, tablet ? .2 : .28) : alpha(theme.colors.text, .08),
           borderWidth: year.value === state.selectedYear ? 1 : 0, borderColor: tablet ? alpha(theme.colors.accentStrong, .62) : theme.colors.accentStrong}}>
         <Text style={[browseType(theme, tablet ? 14 : 13.5, 700), {color: theme.colors.textSecondary}]}>{year.value}</Text>
-      </Focusable>}/>
+      </Focusable>}/></TVRow>
       {/* tablet-read 10: the archive's Order, beside the year chips. */}
       {tablet && state.order ? <Focusable ref={orderAnchor} accessibilityRole="button" accessibilityLabel={`${t('next.overlays.order')}, ${t('next.reader.issueOrder', {order: state.order})}`}
         onPress={() => setOrderMenu(true)} focusKind="chip" focusRadius={9}
@@ -269,7 +270,7 @@ function NewspaperEditions({state, controller, theme, runtime, tablet, width, on
   </View>;
   return <View style={{marginTop: 24}}>
     {monthControls}
-    {!tablet ? <FlatList ref={dayStrip} horizontal data={state.days} keyExtractor={day => day.value} showsHorizontalScrollIndicator={false}
+    {!tablet ? <TVRow><FlatList ref={dayStrip} horizontal data={state.days} keyExtractor={day => day.value} showsHorizontalScrollIndicator={false}
       contentContainerStyle={{paddingHorizontal: 16, gap: 6, paddingBottom: 14}} initialScrollIndex={dayIndex >= 0 ? dayIndex : undefined}
       getItemLayout={(_data, index) => ({index, length: 46, offset: 16 + index * 52})}
       renderItem={({item: day}) => {const chosen = day.value === state.selectedDate, read = periodicalDayRead(state, day.value), weekday = geometry.weekdays[(geometry.offset + geometry.dates.indexOf(day.value)) % 7];
@@ -279,7 +280,7 @@ function NewspaperEditions({state, controller, theme, runtime, tablet, width, on
           <Text style={[browseType(theme, 11, 700), {color: theme.colors.textTertiary}]}>{weekday}</Text>
           <Text style={[browseType(theme, 18, 800, -.02), {color: read ? theme.colors.textTertiary : theme.colors.text}]}>{Number(day.value.slice(8, 10))}</Text>
           {read ? <View accessibilityLabel={t('next.reader.markRead')} style={{position: 'absolute', bottom: 7, width: 5, height: 5, borderRadius: 3, backgroundColor: theme.colors.textTertiary}}/> : null}
-        </Focusable>;}}/> : null}
+        </Focusable>;}}/></TVRow> : null}
     <View style={expanded ? {flexDirection: 'row', alignItems: 'flex-start', gap: 28, paddingHorizontal: 28} : undefined}>
       {preview}
       {tablet ? <View style={{flex: expanded ? 1 : undefined, marginTop: expanded ? 0 : 24, paddingHorizontal: expanded ? 0 : 28}}>

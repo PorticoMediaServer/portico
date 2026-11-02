@@ -33,6 +33,7 @@ import {askNativeDownload} from '../downloads/request';
 import {NativeReadingDownloads, nativeReadingPageOpening, nativeReadingDownloadOffer, type NativeReadingPageOpening, type NativeReadingDownloadOffer, type NativeReadingOfferLifetime} from './reading-page-opening';
 import {NativeReadingDiscovery} from './reading-discovery';
 import {NativeReadingLibrary} from './reading-library';
+import {TVRow} from '../../kit/layout/TVRow';
 
 export type NativeReadingLibraryScreenProps = Readonly<{
   context: NativeShellBootstrapContext;
@@ -263,11 +264,11 @@ function DiscoveryRow({title, sub, first = false, onSeeAll, onNearEnd, children}
       </Focusable> : null}
     </View>
     {/* Within about two screens of the end, the row asks for its next page (WEB-053). */}
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={200}
+    <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={200}
       onScroll={onNearEnd ? ({nativeEvent: {contentOffset, layoutMeasurement, contentSize}}) => {
         if (contentOffset.x + layoutMeasurement.width * 3 >= contentSize.width) onNearEnd();
       } : undefined}
-      contentContainerStyle={{gap: theme.platform === 'phone' ? 16 : 14, paddingHorizontal: theme.gutter, paddingTop: 10, paddingBottom: 14}}>{children}</ScrollView>
+      contentContainerStyle={{gap: theme.platform === 'phone' ? 16 : 14, paddingHorizontal: theme.gutter, paddingTop: 10, paddingBottom: 14}}>{children}</ScrollView></TVRow>
   </View>;
 }
 

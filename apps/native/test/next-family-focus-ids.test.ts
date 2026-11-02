@@ -234,7 +234,7 @@ test('scoped TV profile entry uses actual current/remembered offered face and ke
     assert.equal(region.props.entry, 'current'); assert.equal(calls, 3, 'caller props are evaluated once per actual face');
     assert.deepEqual(region.props.order, ['first', 'current']);
     let faces = ofType(picker.tree, Focusable);
-    assert.ok(faces.every(face => face.props.hasTVPreferredFocus === false), 'one shared lifecycle request owns entry');
+    assert.ok(faces.every(face => face.props.preferredFocus === false), 'one shared lifecycle request owns entry');
     assert.equal(faces[1]!.props.focusId, 'current');
     await picker.update({...props, preferredProfileId: 'first'});
     assert.equal((picker.tree as Element).props.entry, 'first', 'original focused PIN opener has precedence');

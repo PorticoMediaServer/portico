@@ -10,6 +10,7 @@ import {Icon} from '../Icon';
 import {useTheme} from '../theme';
 import {alpha, browsePlatform, browseType} from './presentation';
 import type {AppliedFilterChip, BrowsePlatform, BrowseToolbarProps} from './types';
+import {TVRow} from '../layout/TVRow';
 
 const t = defaultI18n.t;
 
@@ -103,7 +104,7 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, onQ
   const count = <Text accessibilityLiveRegion="polite" style={[browseType(theme, tv ? 22 : phone ? 13 : 14.5, 600), {color: phone || tv ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{resultCount}</Text>;
   return <View testID={testID} accessibilityLabel={t('next.browse.native.toolbar')} style={{zIndex: sticky ? theme.layers.sticky : undefined, backgroundColor: sticky ? alpha(theme.colors.ink, .86) : undefined, paddingTop: phone ? 10 : sticky ? 12 : 20, paddingBottom: sticky ? 12 : 0}}>
     {phone ? <>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20, gap: 8, alignItems: 'center'}}>{filters}{sort}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}{quick}{children}</ScrollView>
+      <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20, gap: 8, alignItems: 'center'}}>{filters}{sort}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}{quick}{children}</ScrollView></TVRow>
       <View style={{paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 10}}>
         {count}<View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{view && <ViewToggle {...view}/>} {cardSize && <CardSizeButton {...cardSize}/>} {save && <SaveViewButton {...save}/>}</View>
       </View>

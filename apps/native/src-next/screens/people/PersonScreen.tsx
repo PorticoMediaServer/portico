@@ -18,6 +18,7 @@ import {useTheme} from '../../kit/theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {createNativeEntryActions} from '../destinations/entry-actions';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
+import {TVRow} from '../../kit/layout/TVRow';
 
 export type NativePersonScreenProps = Readonly<{
   focusScope: string; page: PersonPage; role: PersonRole; collection: WindowedCollection<PersonCredit>;
@@ -91,10 +92,10 @@ export function PersonScreen({focusScope, page, role, collection, runtime, actio
     </View>}
     {!!known.length && <View style={{marginTop: 16}}>
       <Text accessibilityRole="header" style={[browseType(theme, 19, 800), {color: theme.colors.text, marginHorizontal: 20, marginBottom: 14}]}>{t('web.person.knownFor')}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20, paddingBottom: 4, gap: 12}}>
+      <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20, paddingBottom: 4, gap: 12}}>
         {known.map(entry => <PersonEntryCard entry={entry} group="known" actions={actions} selection={selection} key={`${entry.kind}:${entry.id}`} testID={`person-known-${entry.id}`} title={entry.displayTitle || entry.title} width={96} artwork={runtime.artwork(entry.posterUrl)}
           caption={entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context'}]} />)}
-      </ScrollView>
+      </ScrollView></TVRow>
     </View>}
     <View style={{flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 12, marginHorizontal: 20, marginBottom: 10}}>
       <Text accessibilityRole="header" style={[browseType(theme, 18, 700, -.015), {color: theme.colors.text}]}>{t('web.person.credits')}</Text>
@@ -188,7 +189,7 @@ export function TVPerson({focusScope, page, role, collection, runtime, actions, 
         <Text accessibilityRole="header" style={[browseType(theme, 38, 800, -.02), {color: theme.colors.text, marginBottom: 22}]}>{t('web.person.knownFor')}</Text>
         <TVShelf items={known} getKey={knownShelfKey} itemWidth={214} itemHeight={420}
           renderItem={(entry, slot) => <PersonEntryCard entry={entry} group="known" actions={actions} selection={selection} testID={`person-known-${entry.id}`} title={entry.displayTitle || entry.title} width={214}
-            onFocus={slot.onFocus} onBlur={slot.onBlur} hasTVPreferredFocus={slot.index === 0} artwork={runtime.artwork(entry.posterUrl)} caption={entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context'}]}/>}/>
+            onFocus={slot.onFocus} onBlur={slot.onBlur} preferredFocus={slot.index === 0} artwork={runtime.artwork(entry.posterUrl)} caption={entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context'}]}/>}/>
       </View>}
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 52, marginBottom: 24}}>
         <Text accessibilityRole="header" style={[browseType(theme, 38, 800, -.02), {color: theme.colors.text}]}>{t('web.person.credits')}</Text>
@@ -202,7 +203,7 @@ export function TVPerson({focusScope, page, role, collection, runtime, actions, 
           const credit = collection.itemAt(index), entry = credit?.media;
           if (!entry) return <View testID={`person-credit-placeholder-${index}`} style={{width: 214, height: 321, borderRadius: 10, backgroundColor: theme.colors.raised}}/>;
           return <PersonEntryCard entry={entry} group="credits" actions={actions} selection={selection} testID={`person-credit-${index}`} title={entry.displayTitle || entry.title} width={214}
-            onFocus={slot.onFocus} onBlur={slot.onBlur} hasTVPreferredFocus={index === 0} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
+            onFocus={slot.onFocus} onBlur={slot.onBlur} preferredFocus={index === 0} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
             caption={[...(entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context' as const}]),
               ...(credit.character ? [{id: 'character', text: t('web.person.as', {character: credit.character}), role: 'context' as const}] : [])]}/>;
         }}/>

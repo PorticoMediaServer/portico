@@ -104,7 +104,7 @@ async function rig({count = 3, tv = true, reduced = false, initialWidth = 1920}:
   const {Row} = await screenModule(source('Row.tsx'), {react, 'react-native': {View: 'View', Text: 'Text', Pressable: 'Pressable'},
     'react-native-reanimated': animated, 'react-native-svg': {}, '../../../../../packages/i18n/src': {defaultI18n},
     '../Icon': {}, '../theme': {useTheme: () => theme}, '../focus': {...focus, focusTestID: registryModule.focusTestID}, '../focus/page-boundary': {useRowPageBoundary() {}},
-    './model': layoutModel, './row-state': rowState, './FocusAnchor': anchorModule, './MotionItem': {MotionItem: 'MotionItem'}, './types': {itemSelection: () => undefined}, './tv-scroll': {tvScrollEnabled: (isTV: boolean, hasFocusable: boolean) => !isTV || hasFocusable},
+    './model': layoutModel, './row-state': rowState, './FocusAnchor': anchorModule, './MotionItem': {MotionItem: 'MotionItem'}, './types': {itemSelection: () => undefined},
   });
   let props: any = {title: 'Continue', items: Array.from({length: count}, (_, index) => ({id: `item-${index}`})), getKey: key,
     renderItem: (item: Item, context: any) => React.createElement('Card', {item, context}), itemWidth: 400, itemHeight: 225, gap: 28,

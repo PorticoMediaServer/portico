@@ -22,6 +22,7 @@ import {usePlayingItem} from './use-playing-item';
 import {MusicScrollView, MusicWindow, MusicShelf} from './MusicWindow';
 import type {NativeSavedSelectionPort} from '../../saved/SavedScreen';
 import {SelectionCircle} from '../../../kit/selection';
+import {TVRow} from '../../../kit/layout/TVRow';
 
 const t = defaultI18n.t;
 const noSubscribe = () => () => {};
@@ -141,10 +142,10 @@ function SimilarAlbums({snapshot,controller,runtime,actions,openEntry,selection}
     <Text style={[browseType(theme,19,700),{color:theme.colors.text,marginBottom:10}]}>{t('next.controls.moreLikeThis')}</Text>
     {cards.length?<Text style={[browseType(theme,13,500),{color:theme.colors.textSecondary,marginBottom:10}]}>{t(snapshot.similarBySound?'music.moreLikeThisBySound':'music.moreLikeThisHint')}</Text>:null}
     {snapshot.similarError?<MusicErrorView testID={`music-similar-${snapshot.entry?.id??'page'}-error`} error={snapshot.similarError} onRetry={()=>{void controller.load();}}/>:null}
-    {cards.length?<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:14}} scrollEventThrottle={100} onScroll={similarNearEnd(controller,snapshot)}>
+    {cards.length?<TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:14}} scrollEventThrottle={100} onScroll={similarNearEnd(controller,snapshot)}>
       {cards.map(value=>{const id=value.id,libraryId=value.libraryId!;return <AlbumCard key={id} album={{id,libraryId,title:value.title,year:value.year,posterUrl:value.posterUrl}} original={value}
         current={()=>controller.similarCurrent(snapshot,value)} selection={selection} runtime={runtime} actions={actions} openEntry={openEntry}/>;})}
-    </ScrollView>:null}
+    </ScrollView></TVRow>:null}
   </View>;
 }
 
@@ -173,9 +174,9 @@ function SimilarArtists({snapshot,controller,runtime,actions,openEntry,inset,gap
       {cards.length?<Text numberOfLines={1} style={[browseType(theme,13,500),{color:theme.colors.textSecondary,flexShrink:1}]}>{t(snapshot.similarBySound?'music.moreLikeThisBySound':'music.moreLikeThisHint')}</Text>:null}
     </View>
     {snapshot.similarError?<MusicErrorView testID={`music-similar-${snapshot.entry?.id??'page'}-error`} error={snapshot.similarError} onRetry={()=>{void controller.load();}} style={{marginHorizontal:inset}}/>:null}
-    {cards.length?<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap,paddingHorizontal:inset}} scrollEventThrottle={100} onScroll={similarNearEnd(controller,snapshot)}>
+    {cards.length?<TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap,paddingHorizontal:inset}} scrollEventThrottle={100} onScroll={similarNearEnd(controller,snapshot)}>
       {cards.map(entry => <SimilarArtistCard key={entry.id} entry={entry} snapshot={snapshot} controller={controller} runtime={runtime} actions={actions} openEntry={openEntry} selection={selection}/>)}
-    </ScrollView>:null}
+    </ScrollView></TVRow>:null}
   </View>;
 }
 

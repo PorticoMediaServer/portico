@@ -1447,7 +1447,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   if (stage === 'servers' && directoryList === 'failed') return <StateLayout testID="accounts-server-list-failed" icon="i-warn" tone="error"
     title={t('web.chooser.loadFailed')} body={t('web.chooser.loadFailedBody')}
     // connect#13: the one button that helps holds the starting focus.
-    primaryAction={{id: 'retry-server-list', label: t('web.chooser.tryAgain'), icon: 'i-retry', loading: busy, disabled: busy, hasTVPreferredFocus: true, onPress: () => {void run(directory);}}}/>;
+    primaryAction={{id: 'retry-server-list', label: t('web.chooser.tryAgain'), icon: 'i-retry', loading: busy, disabled: busy, preferredFocus: true, onPress: () => {void run(directory);}}}/>;
   if (stage === 'servers' && target && directoryIdentityUnconfirmed(error)) return <StateLayout testID="accounts-server-unconfirmed" icon="i-question"
     title={t('web.chooser.unconfirmedTitle', {server: target.name})} body={t('web.chooser.unconfirmedBody')}
     primaryAction={{id: 'retry-identity', label: t('web.chooser.tryAgain'), icon: 'i-retry', loading: busy, disabled: busy, onPress: () => connectDirectory(target, true)}}
@@ -1504,7 +1504,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     return <StateLayout testID="accounts-hosted-waiting" icon="i-cloud-off" title={t('web.chooser.accountWaitingTitle')}
       body={t('web.chooser.accountWaitingBody', {server: captured.name})} retry={{progress: retryIn <= 0 ? 1 : 1 - retryIn / Math.max(retryDelay.current, 1), label: t('web.chooser.checkingAgain', {seconds: retryIn})}}
       // connect#11 draws Check now with the ring: the one action holds the starting focus.
-      primaryAction={{id: 'check-hosted-now', label: t('web.chooser.checkNow'), loading: busy, disabled: busy, hasTVPreferredFocus: true, onPress: () => {if (current()) connectDirectory(captured, true);}}}
+      primaryAction={{id: 'check-hosted-now', label: t('web.chooser.checkNow'), loading: busy, disabled: busy, preferredFocus: true, onPress: () => {if (current()) connectDirectory(captured, true);}}}
       secondaryAction={Platform.isTV ? {id: 'choose-another', label: t('web.chooser.otherServer'), onPress: () => {if (current()) chooseAnother();}}
         : {id: 'account-owner-help', label: t('accounts.signIn.cannotUsePortico'), disabled: busy, onPress: () => {
           if (!current() || busyRef.current || acting.current || adoptingTV.current) return;
@@ -1578,7 +1578,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       const value = servers.find(item => item.id === row.id)!;
       // TV: the list has no primary action, so the first server takes the remote's focus on arrival
       // and again when a failed connection hands control back (P2-74 X-01, E-tv-01).
-      return <Focusable key={row.id} focusTreatment="none" disabled={busy} hasTVPreferredFocus={Platform.isTV && index === 0 && !busy} accessibilityLabel={`${row.name}${row.owner ? `, ${t('accounts.settings.owner')}` : ''}${row.subtitle ? `, ${t(row.subtitle.key, row.subtitle.values)}` : ''}`}
+      return <Focusable key={row.id} focusTreatment="none" disabled={busy} preferredFocus={Platform.isTV && index === 0 && !busy} accessibilityLabel={`${row.name}${row.owner ? `, ${t('accounts.settings.owner')}` : ''}${row.subtitle ? `, ${t(row.subtitle.key, row.subtitle.values)}` : ''}`}
         onPress={() => connectDirectory(value)}
         style={({focused}) => ({flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5,
           borderColor: focused ? theme.colors.accentStrong : theme.colors.line, backgroundColor: focused ? `${theme.colors.text}14` : `${theme.colors.text}0A`,

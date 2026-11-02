@@ -11,7 +11,6 @@ import * as registryModule from '../src-next/kit/focus/registry';
 import * as hostRef from '../src-next/kit/focus/useHostRef';
 import * as destination from '../src-next/kit/focus/destination-entry';
 import * as rowState from '../src-next/kit/layout/row-state';
-import * as tvScroll from '../src-next/kit/layout/tv-scroll.ts';
 import * as layoutTypes from '../src-next/kit/layout/types';
 import * as controlModel from '../src-next/kit/controls/control-model';
 import {useTVBusyEntryRevision} from '../src-next/tv/auth/entry-revision';
@@ -88,7 +87,7 @@ test('DoorTiles original helper enters once, retains Setup host through busy, an
   const region = await b.region(() => door.props), tile = (id: string) => nodes(door).find(node => node.type === b.Focusable && node.props.focusId === id).props;
   const join = await b.target('accounts.empty.door', () => tile('join')), setup = await b.target('accounts.empty.door', () => tile('setup'));
   try {
-    await flush(); assert.equal(join.calls, 1); assert.equal(setup.calls, 0); assert.equal(join.props.hasTVPreferredFocus, undefined);
+    await flush(); assert.equal(join.calls, 1); assert.equal(setup.calls, 0); assert.equal(join.props.preferredFocus, undefined);
     const joinRef = join.props.ref, setupRef = setup.props.ref;
     setup.props.onFocus({}); await flush(); assert.equal(b.registry.capture()?.childId, 'setup');
     for (busy of [true, false, true, false]) {
@@ -117,7 +116,7 @@ async function rowComposition(b: Awaited<ReturnType<typeof bindings>>) {
     '../../platform/tv-key-adapter': {createTVKeyAdapter}, '../../platform/tv-key-source': {tvKeySource: 'native'},react: b.react, 'react-native': b.native});
   const row = await screenModule(new URL('../src-next/kit/layout/Row.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}, 'react-native-reanimated': b.animation,
-    '../../../../../packages/i18n/src': {defaultI18n}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme}, '../focus': b.focus, './model': layoutModel, './row-state': rowState, './tv-scroll': tvScroll,
+    '../../../../../packages/i18n/src': {defaultI18n}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme}, '../focus': b.focus, './model': layoutModel, './row-state': rowState,
     '../focus/page-boundary': page, './FocusAnchor': {useFocusAnchor: () => ({anchor() {}, repeating: false, offset: {value: 0}, scrollRef: {current: null}, stop() {}, move() {}})},
     './MotionItem': {MotionItem: 'MotionItem'}, './types': layoutTypes});
   const shelf = await screenModule(new URL('../src-next/tv/layout/TVShelf.tsx', import.meta.url), {react: b.react, 'react-native': b.native, '../../kit/theme': {useTheme: () => b.theme}, '../../kit/layout/Row': row});
@@ -383,7 +382,7 @@ test('MusicMixes actual original caller scope names its panel through failed bus
     react: b.react, 'react-native': b.native, 'react-native-svg': {default: 'Svg', Defs: 'Defs', RadialGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../../kit/controls': {Focusable: b.Focusable},
     '../../../kit/focus': b.focus, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel}, '../../../kit/theme': {useTheme: () => b.theme, nativeType},
-    '../../../kit/browse/presentation': presentation, '../../../kit/layout/tv-scroll': tvScroll});
+    '../../../kit/browse/presentation': presentation});
   const row = {id: 'original-mix', name: 'Mix', tint: '#123456', artists: [], more: false, songCount: 20, covers: []};
   const snapshot = {phase: 'ready', rows: [row]}, lifetime = {isCurrent: () => true};
   let reject!: (error: Error) => void, calls = 0, tree: any, mixScope = 'original-library-scope';

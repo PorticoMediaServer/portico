@@ -173,7 +173,7 @@ for (const kind of ['skip', 'undo', 'up-next']) for (const visible of [false, tr
     focusRegistry.didFocus({regionId: visible ? 'watch-controls' : 'watch-surface', childId: visible ? 'watch-option-quality' : 'watch-picture'});
     source.playback.positionSeconds = kind === 'up-next' ? 80 : 17; updatePolicy();await host.rerender(); for (let pass = 0; pass < 6 && await host.flush(); pass++) {}
     const prompt = descendants(tree).find(node => node.props.testID === entry || kind === 'up-next' && node.type === 'UpNextCard');
-    assert.ok(prompt); if (kind !== 'up-next') assert.equal(prompt.props.hasTVPreferredFocus, false);
+    assert.ok(prompt); if (kind !== 'up-next') assert.equal(prompt.props.preferredFocus, false);
     if (visible) {
       assert.deepEqual(requested, []); assert.equal(focusRegistry.capture()?.childId, 'watch-option-quality');
       const region = descendants(tree).find(node => node.props.id === 'watch-transport');

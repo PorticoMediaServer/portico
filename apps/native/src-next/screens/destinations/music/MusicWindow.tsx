@@ -2,6 +2,7 @@ import React, {createContext, useCallback, useContext, useLayoutEffect, useMemo,
 import {View, type ScrollView as NativeScrollView, type ScrollViewProps} from 'react-native';
 import Animated, {runOnJS, useAnimatedScrollHandler, useSharedValue} from 'react-native-reanimated';
 import {musicWindow, musicWindowShift} from './music-window';
+import {TVRow} from '../../../kit/layout/TVRow';
 
 type Window = Readonly<{content: React.RefObject<View | null>; scroll: React.RefObject<NativeScrollView | null>; offset: number; height: number; layout: number; origin: number; move: (offset: number) => void}>;
 const Viewport = createContext<Window | undefined>(undefined);
@@ -111,8 +112,8 @@ export function MusicShelf<T extends {id: string}>({items, width, gap, inset = 0
     </React.Fragment>;
   });
   const after = Math.max(0, (items.length - previousIndex) * stride - (previousIndex < items.length ? gap : 0));
-  return <Animated.ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={16}
+  return <TVRow><Animated.ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={16}
     onLayout={event => {const {width} = event.nativeEvent.layout; setViewport(value => ({...value, width}));}} contentContainerStyle={{paddingHorizontal: inset}}>
     {cells}{after > 0 ? <View style={{width: after}}/> : null}
-  </Animated.ScrollView>;
+  </Animated.ScrollView></TVRow>;
 }
