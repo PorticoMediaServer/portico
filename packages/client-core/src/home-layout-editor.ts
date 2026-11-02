@@ -12,8 +12,13 @@ export type HomeLayoutDraft = Readonly<{
   hidden: ReadonlySet<string>;
   added: ReadonlyMap<string, PersonalResource>;
 }>;
+/** The draft starts from the server's effective state, not only the saved hidden list: a row the
+ * server hides by default (Popular on this server) reads off, and an untouched Save keeps it off
+ * by naming it hidden rather than publishing it through the order (HM-3). */
 export function homeLayoutDraft(view: HomeLayoutView): HomeLayoutDraft {
-  return {view, order: view.rows.filter(row => !isPersonalRowId(row.id)).map(row => row.id), hidden: new Set(view.hiddenRowIds), added: new Map()};
+  const hidden = new Set(view.hiddenRowIds);
+  for (const row of view.rows) if (row.hidden && row.hideable && !row.required) hidden.add(row.id);
+  return {view, order: view.rows.filter(row => !isPersonalRowId(row.id)).map(row => row.id), hidden, added: new Map()};
 }
 export function homeDraftRow(draft: HomeLayoutDraft, id: string) {
   return draft.view.rows.find(row => row.id === id);
