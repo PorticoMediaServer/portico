@@ -22,7 +22,7 @@ import {shellSelectionScope} from './selection-scope';
 import {createCardInteractionOwner} from '../kit/cards/interaction-admission';
 import {createEntryMetadataEffect, retireEntryMetadata, type EntryMetadataPorts} from './entry-metadata';
 
-export function createShellSelection(context: ShellAssemblyContext, playback: HomeSelectionPlaybackPort, reportError: (error: unknown) => void, dockVisible: () => boolean) {
+export function createShellSelection(context: ShellAssemblyContext, playback: HomeSelectionPlaybackPort, reportError: (error: unknown) => void, dockVisible: () => boolean, notify?: (message: string) => void) {
   const interactions = createCardInteractionOwner(), interactionRows = new WeakMap<HomeRow, Map<string, object>>();
   const listeners = new Set<() => void>();
   const platform: HomeActionPlatform = {platform: 'web', playbackAvailable: true, queueAvailable: true};
@@ -56,7 +56,7 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
   const controller = new HomeSelectionController({api: context.api, events: context.events, home: context.home,
     context: currentContext(), environment: environment(), isCurrent, requestId: async () => crypto.randomUUID(), playback,
     routes: {openEntry: entry => {const destination = entryDestination(entry);return navigateArtworkEntry(entry, destination, artworkScope, () => isCurrent(controller.getSnapshot().context), () => !retired && context.isCurrent(), manual => router.navigate({...destination, ...(manual ? {viewTransition: false} : {})}));}, openCollection: collection => router.navigate(seeAllDestination({type: 'collection', resourceId: collection.collection.id, libraryId: collection.collection.libraryId})),
-      openDestination: destination => router.navigate({to: '/saved', search: {resourceId: destination.id}}), editEntry}, reportError});
+      openDestination: destination => router.navigate({to: '/saved', search: {resourceId: destination.id}}), editEntry}, reportError, ...(notify ? {notify} : {})});
   const queryLife = new AbortController();
   const queryActions = createBrowserQueryActions({subscribe: controller.selection.subscribe, captureOperation: () => controller.selection.captureOperation(),
     isOperationCurrent: operation => controller.selection.isOperationCurrent(operation)}, {api: context.api, requestId: async () => crypto.randomUUID(),

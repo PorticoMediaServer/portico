@@ -8,6 +8,7 @@ import {SelectionModel, BrowseSelectionModel, selectionKey, browseSelectionKey, 
   type SelectionContext, type BrowseSelectionContext, type SelectionSnapshot, type SelectionWindow, type SelectionItem} from '../../../../../packages/client-core/src/selection-model';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {mediaSelectionKey} from '../../../../../packages/client-core/src/media-selection';
+import {selectionDoneNotice} from '../../../../../packages/client-core/src/presentation/selection-notice';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {selectedItemsLabel} from '../../shell/selection-display';
 import {BulkEditor, DeleteMediaDialog, SelectionBar, SelectionPhoneActionBar, type SelectionActionOffer, type SelectionBarProps} from '../../kit/selection';
@@ -130,7 +131,14 @@ export function createNativeSelection(context: NativeShellBootstrapContext, sour
   let destinations: NativeLoadedDestinations | undefined, destinationKind: 'playlist' | 'collection' | undefined;
   let destinationController: AbortController | undefined, stopDestinations: (() => void) | undefined;
   let bulk: NativeBulkMedia | undefined, bulkController: AbortController | undefined, stopBulk: (() => void) | undefined;
-  const closePersonal = () => {personalController?.abort(); personalController = undefined; stopPersonal?.(); stopPersonal = undefined; personal?.dispose(); personal = undefined; personalCurrent = undefined;};
+  let personalDetach: (() => boolean) | undefined;
+  /** J-14: a reset caused by a personal write already under way lets that run
+   * finish under the principal's lifetime; it then says its outcome in a toast. */
+  const closePersonal = (detach = false) => {
+    if (detach && personalDetach?.()) {personalController = undefined; stopPersonal?.(); stopPersonal = undefined; personal = undefined; personalCurrent = undefined;}
+    else {personalController?.abort(); personalController = undefined; stopPersonal?.(); stopPersonal = undefined; personal?.dispose(); personal = undefined; personalCurrent = undefined;}
+    personalDetach = undefined;
+  };
   /** Only the dialog that still owns the surface closes; reset may force-close. */
   const closeBulk = (expected?: NativeBulkMedia) => {
     if (expected && bulk !== expected) return;
@@ -146,7 +154,7 @@ export function createNativeSelection(context: NativeShellBootstrapContext, sour
     return role === undefined || role === 'local';
   };
   const reset = () => {
-    batchGeneration++; closePersonal(); closeDestinations(); closeBulk();
+    batchGeneration++; closePersonal(true); closeDestinations(); closeBulk();
     stopPlayback?.(); stopPlayback = undefined;
     pending?.abort(); pending = undefined; stopModel?.(); stopModel = undefined;
     model?.dispose(); model = undefined; windows.clear(); token = ''; started = false; emit();
@@ -282,18 +290,35 @@ export function createNativeSelection(context: NativeShellBootstrapContext, sour
     const captured = token, route = context.navigation.getSnapshot().revision, controller = new AbortController();
     const current = () => !controller.signal.aborted && visible() && model === currentModel && token === captured
       && keyFor(source.getSnapshot()) === captured && context.navigation.getSnapshot().revision === route && operationCurrent(operation);
+    // J-14: once the run has started, its own write may end this selection or
+    // reset the view. The fixed item set then finishes under the principal's
+    // lifetime; each item still checks its own Detail fence on the server.
+    let running = false;
+    const live = () => current() || running && !controller.signal.aborted && !disposed && authority.current();
     const entries = selectedLeaves(operation.target.items.map(chosen => chosen.key));
     if (entries.length !== operation.target.items.length || !current()) return;
+    const value = action !== 'removeMyList' && action !== 'unwatched', intent = capability === 'myList' ? 'watchlist' : capability;
     personalController = controller; personalCurrent = current;
-    personal = createCataloguePersonalSelection({api: context.api, scope: authority.scope, requestId: feedback.requestId,
-      signal: controller.signal, isCurrent: current});
-    stopPersonal = personal.service.subscribe(emit);
-    personal.service.setEntries(entries); personal.service.begin();
-    for (const entry of entries) personal.service.toggle(mediaSelectionKey(entry));
+    const run = createCataloguePersonalSelection({api: context.api, scope: authority.scope, requestId: feedback.requestId,
+      signal: controller.signal, isCurrent: live});
+    personal = run;
+    personalDetach = () => run === personal && run.service.getSnapshot().busy;
+    stopPersonal = run.service.subscribe(emit);
+    run.service.setEntries(entries); run.service.begin();
+    for (const entry of entries) run.service.toggle(mediaSelectionKey(entry));
     emit();
-    try {await personal.service.apply(capability === 'myList' ? 'watchlist' : capability, action !== 'removeMyList' && action !== 'unwatched');}
+    running = true;
+    try {await run.service.apply(intent, value);}
     catch (error) {if (current()) feedback.reportError(error, area);}
-    finally {emit();}
+    finally {
+      if (run !== personal || !current()) {
+        // Nothing on screen still shows this run: say what happened instead.
+        const failed = run.service.getSnapshot().results.filter(result => result.status !== 'saved').length;
+        if (live()) feedback.notice(selectionDoneNotice(intent === 'watchlist' ? {watchlist: value} : intent === 'watched' ? {watched: value} : {favorite: value}, failed));
+        if (run === personal) closePersonal(); else run.dispose();
+      }
+      emit();
+    }
   };
   const retryPersonal = async () => {
     if (!personal || !personalCurrent?.() || personal.service.getSnapshot().busy) return;

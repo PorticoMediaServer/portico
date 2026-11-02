@@ -8,8 +8,8 @@ const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
 const movie = {id: 'same-film', libraryId: 'movies', kind: 'movie', title: 'Stored movie'};
 const song = {id: 'song', libraryId: 'music', kind: 'song', title: 'Stored song'};
-async function fixture(browse = false, preserveEvicted = true) {
-  const host = hooks(), sourceListeners = new Set<() => void>(), routeListeners = new Set<() => void>(), errors: unknown[] = [], reads: any[] = [], played: any[] = [], destinations: any[] = [];
+async function fixture(browse = false, preserveEvicted = true, personal?: (options: any) => unknown) {
+  const host = hooks(), sourceListeners = new Set<() => void>(), routeListeners = new Set<() => void>(), errors: unknown[] = [], notices: string[] = [], reads: any[] = [], played: any[] = [], destinations: any[] = [];
   const viewer = {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile'};
   const authority = {...viewer, epoch: 'epoch', viewerFence: 'home-is-not-this-page'};
   let visible = true, revision = 1, gate: Promise<void> | undefined;
@@ -32,18 +32,18 @@ async function fixture(browse = false, preserveEvicted = true) {
     '../../../../../packages/client-core/src/selection-model': {SelectionModel, BrowseSelectionModel, selectionKey, browseSelectionKey, selectionFourthAction,
       readCatalogueSelectionItem: async (lifetime: any, entry: any, ports: any) => {reads.push({lifetime, entry, ports}); await gate; return {id: entry.id, libraryId: entry.libraryId, kind: entry.kind, capabilities: selectionCapabilities(entry.kind, ports)};},
       playCatalogueSelection: async (_port: unknown, items: any[], lifetime: any) => {if (lifetime.isCurrent()) played.push(items);}, enqueueCatalogueSelection: async () => {},
-      createCataloguePersonalSelection: () => assert.fail('no personal mutation in this fixture')},
+      createCataloguePersonalSelection: personal ?? (() => assert.fail('no personal mutation in this fixture'))},
     '../../shell/selection-display': {selectedItemsLabel: (summary: any) => String(summary.count)}, '../../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'SelectionPhoneActionBar'},
     '../../kit/theme': {useTheme: () => ({isTV: true, layers: {navigation: 1}})}, '../../kit/overlays': {Dialog: 'Dialog'}, '../../kit/controls': {Button: 'Button'},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Failure'})}, '../../../../../packages/client-core/src/media-selection': {mediaSelectionKey: (entry: any) => entry.id},
-    '../destinations/lifetime': {nativeDestinationLifetime}, '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'operation', reportError: (error: unknown) => errors.push(error)})},
+    '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Failure'})}, '../../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../../packages/client-core/src/media-selection': {mediaSelectionKey: (entry: any) => entry.id},
+    '../destinations/lifetime': {nativeDestinationLifetime}, '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'operation', reportError: (error: unknown) => errors.push(error), notice: (message: string) => notices.push(message)})},
     '../search/loaded-destinations': {NativeLoadedDestinations: Destination}, '../destinations/DestinationPicker': {NativeDestinationPicker: 'Picker'}, '../destinations/bulk-media': {NativeBulkMedia: class {}}
   });
   const source = {current: () => visible, subscribe: (listener: () => void) => {sourceListeners.add(listener); return () => sourceListeners.delete(listener);}, getSnapshot: () => snapshot};
   const selection = createNativeSelection(context, source, {area: 'search', aggregates: true, preserveEvicted});
   // A covered page draws no selection chrome at all.
   const bar = () => {const element = selection.render(() => null) as any; return element ? nodes(host.render(() => element.type(element.props))).find(node => node.type === 'SelectionBar') : undefined;};
-  return {selection, bar, reads, played, destinations, errors, source, context, createNativeSelection,
+  return {selection, bar, reads, played, destinations, errors, notices, source, context, createNativeSelection,
     snapshot: () => snapshot, update: (value: any) => {snapshot = value; sourceListeners.forEach(fn => fn());},
     cover: () => {visible = false; revision++; routeListeners.forEach(fn => fn()); sourceListeners.forEach(fn => fn());},
     gate: (value: Promise<void> | undefined) => {gate = value;}, close: () => selection.dispose()};
@@ -174,4 +174,45 @@ test('ordinary Search membership loss still retires explicit picks under the sam
     f.update({...f.snapshot(), groups: [{id: 'known', status: 'error', items: []}]});
     assert.equal(f.bar(), undefined); assert.equal(f.selection.item(movie, 'known'), undefined);
   } finally {f.close();}
+});
+
+// J-14: the run's own My List write refreshes the page. The write already under
+// way still finishes, and its outcome is said once in a toast.
+function personalRun() {
+  let release!: () => void, disposed = 0, options: any;
+  const gate = new Promise<void>(resolve => {release = resolve;}), seen: boolean[] = [];
+  let busy = false, results: any[] = [];
+  const factory = (value: any) => {
+    options = value;
+    const service = {subscribe: () => () => {}, setEntries() {}, begin() {}, toggle() {}, getSnapshot: () => ({busy, results}),
+      async apply() {busy = true; results = [{key: movie.id, status: 'working'}]; seen.push(options.isCurrent()); await gate;
+        seen.push(options.isCurrent()); results = [{key: movie.id, status: options.isCurrent() ? 'saved' : 'failed'}]; busy = false;}};
+    return {service, dispose: () => {disposed++;}};
+  };
+  return {factory, release, seen, disposed: () => disposed};
+}
+
+test('J-14: a started personal write outlives the page refresh it causes and says its outcome', async () => {
+  const run = personalRun(), f = await fixture(false, true, run.factory);
+  try {
+    f.selection.item(movie, 'known')!.onEnter(); await tick();
+    f.bar().props.onAction('myList'); await tick();
+    const before = f.snapshot();
+    f.update({...before, context: {...before.context, revision: {catalogRevision: '13', viewerRevision: '8'}}});
+    assert.equal(f.bar(), undefined, 'the refresh ends the selection');
+    run.release(); await tick(); await tick();
+    assert.deepEqual(run.seen, [true, true], 'the write already under way is still followed');
+    assert.deepEqual(f.notices, [JSON.stringify([{watchlist: true}, 0])]);
+    assert.equal(run.disposed(), 1); assert.deepEqual(f.errors, []);
+  } finally {f.close();}
+});
+
+test('J-14: a closed page ends a started personal write without a toast', async () => {
+  const run = personalRun(), f = await fixture(false, true, run.factory);
+  f.selection.item(movie, 'known')!.onEnter(); await tick();
+  f.bar().props.onAction('watched'); await tick();
+  f.close();
+  run.release(); await tick(); await tick();
+  assert.deepEqual(run.seen, [true, false]);
+  assert.deepEqual(f.notices, []);
 });

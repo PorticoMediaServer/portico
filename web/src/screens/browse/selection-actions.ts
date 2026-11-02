@@ -4,6 +4,7 @@ import type {HomeApi} from '@core/home.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import {selectionQuerySelector, type BrowseSelectionContext, type SelectionContext, type SelectionOperation, type SelectionTarget} from '@core/selection-model/index.ts';
 import {runSelectionJobs, selectionJobTasks, type HomeJobTask} from '@core/home-selection/execution.ts';
+import {selectionDoneNotice} from '@core/presentation/selection-notice.ts';
 
 /** The one place a library selection becomes real work. It hands the model's own
  * target to the existing job planner and runner, so explicit picks stay explicit
@@ -18,6 +19,8 @@ export type SelectionActionsOptions = Readonly<{
   signal?: AbortSignal;
   reportError: (error: unknown) => void;
   progress?: (operation: AnyOperation, value: HomeSelectionProgress, jobIds: readonly string[]) => void;
+  /** A short confirmation once a job finishes (select.html: a toast says what happened). */
+  notify?: (message: string) => void;
 }>;
 
 export type SelectionActionResult = Readonly<{updated: number; failed: number; jobs: readonly string[]}>;
@@ -61,7 +64,7 @@ type RetainedAttempt = {
   promise?: Promise<SelectionActionResult>;
 };
 
-export function createSelectionActions({api, events, requestId, isCurrent, reportError, progress, signal: lifetime}: SelectionActionsOptions) {
+export function createSelectionActions({api, events, requestId, isCurrent, reportError, progress, notify, signal: lifetime}: SelectionActionsOptions) {
   const routeSignal = lifetime ?? new AbortController().signal;
   // One immutable task body per captured target/action. A lost response or a
   // failed job poll retains the same operation id, selector and args (and any
@@ -74,6 +77,10 @@ export function createSelectionActions({api, events, requestId, isCurrent, repor
   const run = async (operation: AnyOperation, args: JobArgs, signal: AbortSignal, guard?: () => boolean): Promise<SelectionActionResult> => {
     const target = operation.target as SelectionTarget;
     const current = () => !routeSignal.aborted && isCurrent() && (guard?.() ?? true);
+    // Walk J-14: the job's own write re-reads the page, which ends the selection and its source. A job already sent
+    // is followed to its end while the screen lives and its outcome said; it is never dropped as cancelled while the
+    // server finishes it. Nothing is sent once the selection has ended.
+    const follow = (tasks: readonly HomeJobTask[]) => () => !routeSignal.aborted && !signal.aborted && (current() || (tasks.length > 0 && tasks.every(task => task.attempted)));
     if (!current() || signal.aborted) throw new SelectionActionError('cancelled');
     if (!personalTargetSupportsJob(target)) throw new SelectionActionError('selection-personal-state-unsupported');
     const grant = args.watched !== undefined ? 'watched' : args.favorite !== undefined ? 'favorite' : args.watchlist !== undefined ? 'myList' : undefined;
@@ -107,9 +114,11 @@ export function createSelectionActions({api, events, requestId, isCurrent, repor
       try {
         tasks = await captured.tasks;
         if (!tasks.length) throw new SelectionActionError('empty-selection');
-        await runSelectionJobs(api, tasks, AbortSignal.any([routeSignal, signal]), captured.current, (value, jobs) => {if (captured.current()) progress?.(operation, {...value, done: value.done + tasks.reduce((sum, task) => sum + (task.job?.failed ?? 0), 0)}, jobs);}, undefined, events);
+        await runSelectionJobs(api, tasks, AbortSignal.any([routeSignal, signal]), follow(tasks), (value, jobs) => {if (captured.current()) progress?.(operation, {...value, done: value.done + tasks.reduce((sum, task) => sum + (task.job?.failed ?? 0), 0)}, jobs);}, undefined, events);
         attempts.delete(key);
-        return outcome(tasks);
+        const result = outcome(tasks);
+        if (!routeSignal.aborted) notify?.(selectionDoneNotice(args, result.failed));
+        return result;
       } catch (error) {
         const rejected = tasks.some(task => task.rejected || task.job?.state === 'failed' && !!task.job.errorCode);
         if (rejected) attempts.delete(key); else captured.status = 'uncertain';

@@ -15,6 +15,7 @@ import type {BulkMetadataPreview} from '../../../../../packages/client-core/src/
 import {createCataloguePersonalSelection, enqueueCatalogueSelection, selectionFourthAction,
   type BrowseSelectionContext, type QuerySelectionTarget, type SelectionSnapshot} from '../../../../../packages/client-core/src/selection-model';
 import {mediaSelectionKey} from '../../../../../packages/client-core/src/media-selection';
+import {selectionDoneNotice} from '../../../../../packages/client-core/src/presentation/selection-notice';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {selectedItemsLabel} from '../../shell/selection-display';
 import {BulkEditor, DeleteMediaDialog, SelectionBar, SelectionPhoneActionBar, type SelectionActionOffer, type SelectionBarProps} from '../../kit/selection';
@@ -66,6 +67,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
   let bulk: NativeBulkMedia | undefined, bulkController: AbortController | undefined, stopBulk: (() => void) | undefined;
   let queryAction: NativeLibrarySelectionAction | undefined, stopQueryAction: (() => void) | undefined;
   let personal: ReturnType<typeof createCataloguePersonalSelection> | undefined, personalCurrent: (() => boolean) | undefined, personalToken = 0;
+  let personalDetach: (() => boolean) | undefined;
   const emit = () => {revision++; for (const listener of [...listeners]) listener();};
   const visible = () => !disposed && lifetime.current() && activation.getSnapshot().visible;
   const model = () => producer?.model;
@@ -99,8 +101,14 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     closeDestinations();
     closeBulk();
     pending?.abort(); pending = undefined; queued = undefined;
-    personalController?.abort(); personalController = undefined; personalCurrent = undefined; personalToken++;
-    if (personal) {personal.dispose(); personal = undefined;}
+    // J-14: a personal write already under way refreshes this view itself. It
+    // finishes under the principal's lifetime and says its outcome in a toast.
+    if (personalDetach?.()) {personalController = undefined; personalCurrent = undefined; personal = undefined; personalToken++;}
+    else {
+      personalController?.abort(); personalController = undefined; personalCurrent = undefined; personalToken++;
+      if (personal) {personal.dispose(); personal = undefined;}
+    }
+    personalDetach = undefined;
     stopModel?.(); stopModel = undefined;
     producer?.dispose(); producer = undefined;
     // Every read still in flight is told so before anything is cleared, so its
@@ -225,16 +233,35 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     if (!view.summary.every[capability] || !op.target.items.every(value => value.item.capabilities[capability])) return;
     const entries = entriesFor(op.target.items.map(value => value.key));
     if (entries.length !== op.target.items.length) return;
-    const controller = new AbortController(), live = () => !controller.signal.aborted && visible() && producer === current && current.model.isOperationCurrent(op);
-    personalController = controller; personalCurrent = live;
+    // J-14: once the run has started, its own write may end this selection or
+    // rebuild the view. The fixed item set then finishes under the principal's
+    // lifetime; each item still checks its own Detail fence on the server.
+    let started = false;
+    const controller = new AbortController(), owned = () => visible() && producer === current && current.model.isOperationCurrent(op);
+    const live = () => !controller.signal.aborted && (owned() || started && !disposed && lifetime.current());
+    const value = action !== 'removeMyList' && action !== 'unwatched', intent = capability === 'myList' ? 'watchlist' : capability;
+    personalController = controller; personalCurrent = () => !controller.signal.aborted && owned();
     personalToken++;
-    personal = createCataloguePersonalSelection({api: context.api, scope: lifetime.scope, requestId: services.requestId, signal: controller.signal, isCurrent: live});
-    personal.service.setEntries(entries); personal.service.begin();
-    for (const entry of entries) personal.service.toggle(mediaSelectionKey(entry));
+    const run = createCataloguePersonalSelection({api: context.api, scope: lifetime.scope, requestId: services.requestId, signal: controller.signal, isCurrent: live});
+    personal = run;
+    personalDetach = () => run === personal && run.service.getSnapshot().busy;
+    run.service.setEntries(entries); run.service.begin();
+    for (const entry of entries) run.service.toggle(mediaSelectionKey(entry));
     emit();
-    try {await personal.service.apply(capability === 'myList' ? 'watchlist' : capability, action !== 'removeMyList' && action !== 'unwatched');}
-    catch (error) {if (live()) services.reportError(error, 'library');}
-    finally {if (personalController === controller) personalController = undefined; emit();}
+    started = true;
+    try {await run.service.apply(intent, value);}
+    catch (error) {if (live() && owned()) services.reportError(error, 'library');}
+    finally {
+      if (personalController === controller) personalController = undefined;
+      if (run !== personal || !owned()) {
+        // Nothing on screen still shows this run: say what happened instead.
+        const failed = run.service.getSnapshot().results.filter(result => result.status !== 'saved').length;
+        if (live()) services.notice(selectionDoneNotice(intent === 'watchlist' ? {watchlist: value} : intent === 'watched' ? {watched: value} : {favorite: value}, failed));
+        if (run === personal) {personal = undefined; personalCurrent = undefined; personalDetach = undefined; personalToken++;}
+        run.dispose();
+      }
+      emit();
+    }
   };
   // The drawn picker (#25/#26) is the same bounded destination controller Saved
   // and Search mount: it owns eligibility, the chosen destination, the completed

@@ -1,3 +1,4 @@
+import {selectionDoneNotice, type SelectionPersonalArgs} from '../presentation/selection-notice.ts';
 import {homeSelectionWindowLimit} from './limits.ts';
 import {SelectionModel, selectionActions, selectionKey, summarizeSelection, type SelectionAction, type SelectionContext, type SelectionRegistration, type SelectionEnvironment, type SelectionIdentity, type SelectionKind, type SelectionOperation, type SelectionTarget} from '../selection-model/index.ts';
 import {selectionCapabilityNames} from '../selection-model/capabilities.ts';
@@ -252,6 +253,8 @@ export class HomeSelectionController {
     });
   }
   private current(ticket: Ticket) {return !this.disposed && this.ticket === ticket && this.epoch === ticket.epoch && !ticket.controller.signal.aborted && this.options.home.getSnapshot().document === ticket.document && this.isHomeCurrent(ticket.context) && this.liveCurrent(ticket) && (!ticket.model || this.selection.isOperationCurrent(ticket.model));}
+  /** Aborted only when the controller is disposed: what a job already sent to the server is followed on. */
+  private readonly followLife = new AbortController();
   private check(ticket: Ticket) {if (!this.current(ticket)) {if (this.ticket === ticket) this.cancelAction(); throw selectionExecutionError('cancelled');}}
   cancelAction() {
     this.epoch++; this.ticket?.controller.abort(); this.ticket = undefined; this.pickerSession?.dispose(); this.pickerSession = undefined; this.detail?.dispose(); this.detail = undefined;
@@ -324,15 +327,26 @@ export class HomeSelectionController {
         if (ticket.target.mode !== 'explicit') throw selectionExecutionError('home-explicit-selection-required');
         const jobTarget = {...ticket.target, items: ticket.target.items.filter(item => jobKeys.has(item.key)), displayItems: ticket.target.displayItems.filter(item => jobKeys.has(item.key))};
         this.jobs = jobTarget.items.length ? await selectionJobTasks(jobTarget, action === 'refresh' ? 'refresh' : 'personal-state', args, this.options.requestId) : []; this.check(ticket);
-        await this.runJobs(ticket);
+        await this.runJobs(ticket, args);
       }
     };
-    await this.guarded(ticket, action, execute, ['my-list', 'remove-my-list', 'mark-watched', 'mark-unwatched', 'favorite', 'refresh'].includes(action) ? () => this.guarded(ticket, action, () => this.runJobs(ticket)) : undefined);
+    const personalArgs = action === 'my-list' ? {watchlist: true} : action === 'remove-my-list' ? {watchlist: false} : action === 'favorite' ? {favorite: true} : action === 'mark-watched' ? {watched: true} : action === 'mark-unwatched' ? {watched: false} : {};
+    await this.guarded(ticket, action, execute, ['my-list', 'remove-my-list', 'mark-watched', 'mark-unwatched', 'favorite', 'refresh'].includes(action) ? () => this.guarded(ticket, action, () => this.runJobs(ticket, personalArgs)) : undefined);
   }
-  private async runJobs(ticket: Ticket) {
+  private async runJobs(ticket: Ticket, args: SelectionPersonalArgs = {}) {
     for (const command of this.personalCommands) {this.check(ticket); if (!command.done) {await command.run(); this.check(ticket); command.done = true;}}
     if (!this.jobs.length) return;
-    await runSelectionJobs(this.options.api, this.jobs, ticket.controller.signal, () => this.current(ticket), (progress, jobIds) => {for (const id of jobIds) this.jobHistory.add(id); this.publish({action: {...this.state.action, progress, jobIds: [...this.jobHistory]}});}, undefined, this.options.events); this.check(ticket);
+    // Walk J-14: the job's own write refreshes Home, which ends this selection. A job already sent is followed to its
+    // end on the controller's lifetime and its outcome said in a notice; it is never dropped as cancelled while the
+    // server finishes it. Nothing is sent once the selection has ended.
+    const jobs = this.jobs, sent = () => jobs.every(task => task.attempted);
+    const follow = () => this.current(ticket) || (!this.disposed && sent());
+    await runSelectionJobs(this.options.api, jobs, this.followLife.signal, follow, (progress, jobIds) => {for (const id of jobIds) this.jobHistory.add(id); if (this.current(ticket)) this.publish({action: {...this.state.action, progress, jobIds: [...this.jobHistory]}});}, undefined, this.options.events);
+    if (!this.current(ticket)) {
+      if (!this.disposed) this.options.notify?.(selectionDoneNotice(args, new Set(jobs.flatMap(task => task.failures.map(failure => failure.itemId))).size));
+      return;
+    }
+    this.check(ticket);
     const failures = this.jobs.flatMap(task => task.failures);
     for (const task of this.jobs) if (task.job) this.jobHistory.add(task.job.jobId);
     this.publish({action: {...this.state.action, phase: failures.length ? 'partial' : 'complete', results: failures.map(failure => ({id: failure.itemId, ok: false, code: failure.code})), jobIds: [...this.jobHistory]}});
@@ -626,5 +640,5 @@ export class HomeSelectionController {
   reloadDelete() {return this.openDelete(this.ticket?.target);}
   closeDelete() {this.cancelAction(); this.deleteBody = undefined; this.publish({deletion: null});}
   private closeDialogs() {this.cancelAction(); this.closeMenu(); this.publish({menu: null, picker: null, editor: null, deletion: null, rating: null, mixedEdit: false, editExplanation: null});}
-  dispose() {if (this.disposed) return; this.cancelAction(); for (const cleanup of this.cleanups) cleanup(); this.selection.dispose(); this.windows.clear(); this.menuWindow = undefined; this.menuSource = undefined; this.held.clear(); this.operationMembers.clear(); this.disposed = true; this.state = Object.freeze({...this.state, displayMembers: [], menu: null, picker: null, editor: null, deletion: null, rating: null}); this.listeners.clear();}
+  dispose() {if (this.disposed) return; this.followLife.abort(); this.cancelAction(); for (const cleanup of this.cleanups) cleanup(); this.selection.dispose(); this.windows.clear(); this.menuWindow = undefined; this.menuSource = undefined; this.held.clear(); this.operationMembers.clear(); this.disposed = true; this.state = Object.freeze({...this.state, displayMembers: [], menu: null, picker: null, editor: null, deletion: null, rating: null}); this.listeners.clear();}
 }
