@@ -86,27 +86,28 @@ async function run(engine) {
     server = await startServer(port);
     assert.notEqual(server.id, first, 'the replacement must prove a different server identity');
 
-    // 3. The next load reaches the saved server's identity page on sign-in, never the page failure.
+    // 3. On the server's own page the identity check proves nothing (server-identity 6): the next
+    //    load drops the stale sign-in and opens sign-in for the server now here, with no identity
+    //    page, no chooser and no page failure.
     context = await open();
     page = context.pages()[0] ?? await context.newPage();
     await page.goto(server.origin + '/');
-    await page.waitForURL(/\/sign-in/, {timeout: 30000});
-    const forget = page.getByRole('button', {name: /^Forget /});
-    await forget.waitFor({timeout: 30000});
-    assert.equal(await page.getByText("Something didn't load").count(), 0, `${engine}: no page failure`);
-    assert.equal(await page.getByRole('button', {name: 'Choose another server'}).count(), 1);
-
-    // 4. Forget leads to the server chooser; the next load signs in to the server actually here.
-    await forget.click();
-    await page.getByRole('alertdialog').getByRole('button', {name: /Forget/}).click();
-    await page.waitForURL(/\/servers/, {timeout: 30000});
-    await page.goto(server.origin + '/');
-    await page.waitForURL(/\/sign-in/, {timeout: 30000});
     await page.getByLabel('Password', {exact: true}).waitFor({timeout: 30000});
+    assert.equal(new URL(page.url()).pathname, '/sign-in', `${engine}: straight to sign-in`);
     const text = await page.locator('body').innerText();
-    assert.doesNotMatch(text, /Something didn.t load/);
+    assert.doesNotMatch(text, /couldn.t confirm|Forget |Something didn.t load|Use a local server/, `${engine}: no identity page, chooser or failure`);
     assert.doesNotMatch(text, /Try again in 0:00/, `${engine}: no zero countdown`);
-    console.log(`ok ${engine}: stale sign-in → identity page → forget → sign-in`);
+    // The stale record is gone: another load goes to the same sign-in.
+    await page.goto(server.origin + '/');
+    await page.getByLabel('Password', {exact: true}).waitFor({timeout: 30000});
+    assert.equal(await page.getByRole('button', {name: /^Forget /}).count(), 0);
+
+    // 4. The "Use a local server" form on a server's own page starts with this page's address.
+    await page.goto(server.origin + '/servers?local=true');
+    const address = page.getByLabel('Server address');
+    await address.waitFor({timeout: 30000});
+    assert.equal(await address.inputValue(), server.origin, `${engine}: address prefilled`);
+    console.log(`ok ${engine}: stale sign-in on its own page → sign-in, address prefilled`);
   } finally {
     await context?.close().catch(() => {});
     await server.stop();

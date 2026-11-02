@@ -1,4 +1,5 @@
 import {HttpLocalApi, type HostedServer, type LocalSession} from '@core/index.ts';
+import {currentServedServerOrigin,savedServerIsThisPage} from './served-origin';
 import {ServerSignInProbe, negotiateServer, parseServerSignIn, type ServerSignIn} from '@core/sign-in.ts';
 import {NeedsNewerAppError} from '@core/needs-newer-app.ts';
 import {directSignIn, directSignInContinuation, shouldRetireAccountSession, completeDirectSignInChallenge, changeRequiredPassword, parseDirectSnapshot, type DirectSignIn, type DirectSnapshot} from '@core/profile-management.ts';
@@ -71,6 +72,8 @@ type EntryPorts = Readonly<{
  setupRequired?:(origin:string,pin:ServerPin)=>void;
  rememberName?:(api:HttpLocalApi,name:string)=>void;
  serverName?:(serverId:string)=>string|undefined;
+ /** The Portico server that served this page, if one did (served-origin.ts). */
+ servedOrigin?:()=>string|undefined;
 }>;
 
 /** Web account entry keeps credential entry behind an explicit kind and private-key proof.
@@ -768,8 +771,8 @@ export class BrowserAccountEntry {
  async loadProfiles(){return this.restoreProfiles();}
  /** Public callbacks carry no session, family, token, origin or pin. The chooser
   * callback navigates only; this entry retires its own private state first. */
- serverIdentityFailure(chooseServer:()=>void):AccountIdentityFailureBinding|undefined{
-  return this.identityFailure?.isCurrent()?this.identityFailure.binding(chooseServer):undefined;
+ serverIdentityFailure(chooseServer:()=>void,afterForget?:()=>void):AccountIdentityFailureBinding|undefined{
+  return this.identityFailure?.isCurrent()?this.identityFailure.binding(chooseServer,afterForget):undefined;
  }
  private async restoreProfiles(expected?:Readonly<{pin:ServerPin;session:LocalSession;signIn?:SignInKind;memberMove?:boolean;initialSetup?:boolean}>){
   this.cancel();const op=this.operation();this.publish({phase:'profiles',busy:true});
@@ -794,6 +797,14 @@ export class BrowserAccountEntry {
    this.watchAuthority();
   }catch(error){if(op.current()){
    this.release();
+   // On the saved server's own page the identity check proves nothing (server-identity 6): the
+   // stale sign-in for this address is dropped, other saved servers stay, and sign-in opens next.
+   if(saved&&error instanceof RouteError&&error.code==='identity_mismatch'&&savedServerIsThisPage(saved.connection.logicalOrigin,this.ports.servedOrigin?.())){
+    let dropped=false;
+    try{dropped=await this.ports.actions.forgetServer(saved.connection.session,{isCurrent:op.current,expectedRevision:revision});}catch{/* The identity page below still offers Forget. */}
+    if(!op.current())return;
+    if(dropped){this.publish({phase:'welcome'});return;}
+   }
    const serverName=saved&&this.ports.serverName?.(saved.connection.pin.serverId);
    if(saved&&serverName&&error instanceof RouteError&&error.code==='identity_mismatch'){
     const captured=saved;
@@ -849,4 +860,4 @@ export class BrowserAccountEntry {
 
  dispose(){this.cancel();this.disposed=true;this.probe.dispose();this.listeners.clear();this.retiredListeners.clear();}
 }
-export function createBrowserAccountEntry(options:Pick<EntryPorts,'invitationDestination'>={}){return new BrowserAccountEntry({store:browserAppSessions(),actions:browserAppSessionActions(),environment:browserConnectionEnvironment,restore:restoreBrowserConnection,inspect:inspectDirectServer,connect:connectPairedServer,remember:rememberNativeSession,observeSelection:observeBrowserSessionChanges,registered:()=>createBrowserRegisteredSignIn(buildHostedSignInStartURL),ownerReturn:createBrowserOwnerClaim,setupReturn:createBrowserSetupReturn,setupRequired:(origin)=>location.assign(new URL('/setup',origin).href),rememberName:(api,name)=>browserServerDisplay().remember(api,name),serverName:id=>browserServerDisplay().name(id),...options});}
+export function createBrowserAccountEntry(options:Pick<EntryPorts,'invitationDestination'>={}){return new BrowserAccountEntry({store:browserAppSessions(),actions:browserAppSessionActions(),environment:browserConnectionEnvironment,restore:restoreBrowserConnection,inspect:inspectDirectServer,connect:connectPairedServer,remember:rememberNativeSession,observeSelection:observeBrowserSessionChanges,registered:()=>createBrowserRegisteredSignIn(buildHostedSignInStartURL),ownerReturn:createBrowserOwnerClaim,setupReturn:createBrowserSetupReturn,setupRequired:(origin)=>location.assign(new URL('/setup',origin).href),rememberName:(api,name)=>browserServerDisplay().remember(api,name),serverName:id=>browserServerDisplay().name(id),servedOrigin:currentServedServerOrigin,...options});}

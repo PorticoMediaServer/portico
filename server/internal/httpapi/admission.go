@@ -41,6 +41,7 @@ const (
 	laneAdminLong     = "admin-long"
 	laneUpload        = "upload"
 	laneSecurityFence = "security-fence"
+	lanePlaybackStop  = "playback-stop"
 	laneDefault       = "default"
 	// laneTools carries MCP requests. One holds its slot while the API calls
 	// it makes are admitted in their own lanes, so it has a budget long enough
@@ -82,6 +83,7 @@ type laneSpec struct {
 // to revisit, with evidence.
 var laneSpecs = map[string]laneSpec{
 	laneUpload:        {capacity: 2, queueWait: 0, budget: 0, class: dbwork.ClassInteractive, pressure: false, endsWithClient: true},
+	lanePlaybackStop:  {capacity: 16, queueCapacity: 200, queuePerKey: 200, queueWait: 9 * time.Second, budget: 10 * time.Second, class: dbwork.ClassSecurityFence, pressure: true},
 	laneSecurityFence: {capacity: 16, queueWait: 9 * time.Second, budget: 10 * time.Second, class: dbwork.ClassSecurityFence, pressure: true},
 	laneAuth:          {capacity: 64, queueWait: 1500 * time.Millisecond, budget: 5 * time.Second, class: dbwork.ClassSecurityFence, pressure: true},
 	laneBrowsing:      {capacity: 24, queueWait: 3 * time.Second, budget: 5 * time.Second, class: dbwork.ClassInteractive, pressure: true},
@@ -136,9 +138,11 @@ type lane struct {
 	// included. Shares engage only when there is more than one, so a single
 	// client on a quiet server is never held to a share of a lane nobody else
 	// wants — which is the difference between fairness and a new limit.
-	interest map[string]int
-	waiting  map[string]int
-	waiters  int
+	interest      map[string]int
+	waiting       map[string]int
+	waiters       int
+	queueCapacity int
+	queuePerKey   int
 	// changed is closed and replaced on every release, which is how a request
 	// waiting for its share to come free learns to look again without polling.
 	changed chan struct{}
@@ -153,7 +157,7 @@ func newLane(name string, spec laneSpec) *lane {
 			spec.queuePerKey = spec.capacity
 		}
 	}
-	l := &lane{name: name, spec: spec, tokens: make(chan struct{}, spec.capacity), held: map[string]int{}, interest: map[string]int{}, waiting: map[string]int{}, changed: make(chan struct{})}
+	l := &lane{name: name, spec: spec, tokens: make(chan struct{}, spec.capacity), held: map[string]int{}, interest: map[string]int{}, waiting: map[string]int{}, changed: make(chan struct{}), queueCapacity: spec.queueCapacity, queuePerKey: spec.queuePerKey}
 	for i := 0; i < spec.capacity; i++ {
 		l.tokens <- struct{}{}
 	}
@@ -189,8 +193,15 @@ func (l *lane) tryAcquireLocked(key string, multipleClients bool) (admitted, ove
 // begin admits immediately or reserves a bounded queue place atomically. A
 // refused request creates neither an interest entry nor a deadline timer.
 func (l *lane) begin(key string) (admitted, waiting bool) {
+	return l.beginWithQueueLimit(key, l.spec.queueCapacity, l.spec.queuePerKey, true)
+}
+
+// The Stop lane may reserve one wait slot per live session above its floor.
+// Other lanes always use their fixed declarations.
+func (l *lane) beginWithQueueLimit(key string, capacity, perKey int, recordRefusal bool) (admitted, waiting bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.queueCapacity, l.queuePerKey = capacity, perKey
 	multiple := len(l.interest) > 1 || (len(l.interest) > 0 && l.interest[key] == 0)
 	if admitted, _ := l.tryAcquireLocked(key, multiple); admitted {
 		l.interest[key]++
@@ -200,12 +211,16 @@ func (l *lane) begin(key string) (admitted, waiting bool) {
 		l.noQueueRejected.Add(1)
 		return false, false
 	}
-	if l.waiters >= l.spec.queueCapacity {
-		l.queueFullRejected.Add(1)
+	if l.waiters >= capacity {
+		if recordRefusal {
+			l.queueFullRejected.Add(1)
+		}
 		return false, false
 	}
-	if l.waiting[key] >= l.spec.queuePerKey {
-		l.clientQueueFullRejected.Add(1)
+	if l.waiting[key] >= perKey {
+		if recordRefusal {
+			l.clientQueueFullRejected.Add(1)
+		}
 		return false, false
 	}
 	l.waiters++
@@ -341,10 +356,11 @@ type admission struct {
 	// unauthenticated request; it is the router's own list, not a second one.
 	trustedProxies []netip.Prefix
 
-	searchMu     sync.Mutex
-	searchPerKey map[string]int
-	searchTotal  int
-	searchDenied atomic.Uint64
+	livePlaybackSessions func(context.Context) (int, error)
+	searchMu             sync.Mutex
+	searchPerKey         map[string]int
+	searchTotal          int
+	searchDenied         atomic.Uint64
 }
 
 // Search is the one read that can cost more than the rest of a page put
@@ -434,6 +450,7 @@ func (a *admission) diagnostics() []LaneDiagnostics {
 		l := a.lanes[name]
 		l.mu.Lock()
 		waiting := l.waiters
+		queueCapacity, queuePerKey := l.queueCapacity, l.queuePerKey
 		l.mu.Unlock()
 		out = append(out, LaneDiagnostics{
 			Lane:                      name,
@@ -442,8 +459,8 @@ func (a *admission) diagnostics() []LaneDiagnostics {
 			Admitted:                  l.admitted.Load(),
 			Queued:                    l.queued.Load(),
 			Waiting:                   waiting,
-			QueueCapacity:             l.spec.queueCapacity,
-			PerClientQueueCapacity:    l.spec.queuePerKey,
+			QueueCapacity:             queueCapacity,
+			PerClientQueueCapacity:    queuePerKey,
 			Rejected:                  l.rejected.Load(),
 			NoQueueRefusals:           l.noQueueRejected.Load(),
 			QueueFullRefusals:         l.queueFullRejected.Load(),
@@ -484,10 +501,10 @@ func (a *admission) wrap(mux *http.ServeMux, next http.Handler) http.Handler {
 			return
 		}
 		ctx := r.Context()
-		// Search shares its fixed total budget between queueing and work. A
+		// Search and Stop share their total budget between queueing and work. A
 		// legitimate burst may wait as long as browsing, but admission cannot
 		// renew the deadline before the handler installs its narrower budget.
-		budgetIncludesQueue := l.name == laneExpensive && l.spec.budget > 0
+		budgetIncludesQueue := (l.name == laneExpensive || l.name == lanePlaybackStop) && l.spec.budget > 0
 		if budgetIncludesQueue {
 			var cancel context.CancelFunc
 			ctx, cancel = context.WithTimeout(ctx, l.spec.budget)
@@ -496,7 +513,12 @@ func (a *admission) wrap(mux *http.ServeMux, next http.Handler) http.Handler {
 		// The share key is resolved before the lane is entered, because the whole
 		// point is to decide admission without doing any work first.
 		key := a.clientKey(r)
-		admitted, queued := l.begin(key)
+		var admitted, queued bool
+		if l.name == lanePlaybackStop {
+			admitted, queued = a.beginStop(ctx, l, key)
+		} else {
+			admitted, queued = l.begin(key)
+		}
 		if !admitted && !queued {
 			a.refuse(w, r, l)
 			return

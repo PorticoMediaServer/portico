@@ -41470,7 +41470,7 @@ export const routes = [
     ],
     "status": 204,
     "optionalBody": true,
-    "admission": "security-fence"
+    "admission": "playback-stop"
   },
   {
     "audience": "Clients",
@@ -41501,7 +41501,7 @@ export const routes = [
     ],
     "status": 204,
     "optionalBody": true,
-    "admission": "security-fence"
+    "admission": "playback-stop"
   },
   {
     "audience": "Clients",
