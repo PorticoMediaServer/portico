@@ -1,18 +1,16 @@
 import {clampSpan} from '../../../../../packages/client-core/src/guide/time';
+import {guideRange} from '../../../../../packages/client-core/src/guide/range';
 import type {GuideSourceSummary} from '../../../../../packages/client-core/src/guide/directory';
 
 export type NativeGuidePanRange = Readonly<{first: number; last: number}>;
 
-/** Only the authorized selected sources' published coverage bounds this local viewport. */
+/** The selected sources' published coverage bounds this local viewport: their union, so a source
+ *  with no guide yet never erases the others' range (LT-6, shared with web through guideRange). */
 export function nativeGuidePanRange(sources: readonly GuideSourceSummary[], span: number): NativeGuidePanRange | undefined {
   if (!sources.length || !Number.isFinite(span) || span <= 0) return undefined;
-  let first = Infinity, until = -Infinity;
-  for (const source of sources) {
-    const start = Date.parse(source.availableStart), end = Date.parse(source.availableEnd);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return undefined;
-    first = Math.min(first, start); until = Math.max(until, end);
-  }
-  return until - first > span ? {first, last: until - span} : undefined;
+  const range = guideRange(sources);
+  if (range.start === undefined || range.end === undefined) return undefined;
+  return range.end - range.start > span ? {first: range.start, last: range.end - span} : undefined;
 }
 
 export function nativeGuidePanTarget(start: number, span: number, range: NativeGuidePanRange | undefined): number | undefined {
