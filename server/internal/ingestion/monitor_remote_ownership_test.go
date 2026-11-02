@@ -150,7 +150,8 @@ func TestMonitorExcludesRemoteOwnedSourcesAndUsesPresenceAtStartup(t *testing.T)
 	// debounce, so a local fallback report is the only possible new work.
 	clock.advance(16 * time.Minute)
 	deadline := time.Now().Add(8 * time.Second)
-	for f.count(`SELECT count(*) FROM inventory_path_notices WHERE source_id=?`, f.source) == 0 {
+	for f.count(`SELECT count(*) FROM inventory_path_notices WHERE source_id=?`, f.source) == 0 &&
+		f.count(`SELECT count(*) FROM jobs WHERE library_id=?`, f.library) == 0 {
 		if time.Now().After(deadline) {
 			t.Fatal("local 15-minute fallback report did not run")
 		}
