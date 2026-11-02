@@ -112,3 +112,29 @@ test('a hard page leave (reload, tab close) releases the held session with a kee
     assert.equal(f.calls.length, count, 'a disposed binding sends nothing');
   } finally {(globalThis as {window?: unknown}).window = before;}
 });
+
+test('W-19: a new page closes the session a gone page left behind before it opens its own', async () => {
+  // Safari drops the cleanup DELETE and the pagehide farewell of a real navigation, so the profile
+  // reached its server session cap after eight page loads. The left-behind id is kept in this tab's
+  // sessionStorage and the next page closes it while that document is alive.
+  const store = new Map<string, string>();
+  const before = (globalThis as {sessionStorage?: unknown}).sessionStorage;
+  Object.defineProperty(globalThis, 'sessionStorage', {configurable: true, value: {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {store.set(key, value);},
+    removeItem: (key: string) => {store.delete(key);},
+  }});
+  try {
+    const gone = fixture(), orphan = await gone.bound.open({itemId: 'unit-book', sourceId: 'unit-source'});
+    // The tab left the page without its cleanup running; only the stored id remains.
+    const next = fixture();
+    await next.bound.open({itemId: 'unit-book', sourceId: 'unit-source'});
+    const methods = next.calls.map(call => call.method);
+    assert.deepEqual(methods.slice(0, 2), ['DELETE', 'DELETE keepalive'], JSON.stringify(next.calls));
+    assert.equal(next.calls[0].path, routePath('delete_reading_sessions_sessionId', {sessionId: orphan.manifest.sessionId}));
+    assert.equal(methods.at(-1), 'POST', 'the stale session is closed before the new one opens');
+    assert.equal(store.size, 1, 'the new page holds its own session');
+    await next.bound.dispose();
+    assert.equal(store.size, 0, 'a released session is forgotten');
+  } finally {Object.defineProperty(globalThis, 'sessionStorage', {configurable: true, value: before});}
+});
