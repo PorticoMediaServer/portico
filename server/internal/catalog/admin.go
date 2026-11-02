@@ -10,6 +10,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/requestinput"
+	"github.com/PorticoMediaServer/portico/server/internal/storage"
 	"github.com/PorticoMediaServer/portico/server/internal/usermutation"
 	"strconv"
 	"strings"
@@ -371,6 +372,8 @@ func (s *Service) adminLibraries(ctx context.Context, r AdminRequest) (AdminLibr
 	}
 	return out, nil
 }
+const sourceUnreachableMessage = "Source could not be reached. Check storage access or its managed mount, then retry."
+
 func (s *Service) AdminLibrary(ctx context.Context, r AdminRequest, inspect bool) (AdminLibrary, error) {
 	out, e := s.AdminLibraries(ctx, r)
 	if e != nil {
@@ -385,18 +388,36 @@ func (s *Service) AdminLibrary(ctx context.Context, r AdminRequest, inspect bool
 			l.Source.Message = "Source checks are unavailable on this server."
 			return l, nil
 		}
+		// Storage is assumed present (Justin, 2 Nov). Only proof marks it
+		// unavailable: the root is gone, is not a folder, or is a different
+		// folder than the one scanned. A probe that is busy, slow or fails
+		// proves nothing, and the stored state stands.
+		var recorded, health string
+		if e = s.read().QueryRowContext(ctx, `SELECT root_identity,health FROM library_sources WHERE library_id=? AND enabled=1 ORDER BY configured_root=? DESC,id LIMIT 1`, l.ID, l.Source.Path).Scan(&recorded, &health); e != nil && !errors.Is(e, sql.ErrNoRows) {
+			return l, e
+		}
+		l.Source.Availability = "available"
+		if health == "offline" || health == "root_changed" {
+			l.Source.Availability = "unavailable"
+			l.Source.Message = sourceUnreachableMessage
+		}
 		check, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		_, e = s.storage.InspectRoot(check, l.Source.Path)
+		observed, probeErr := s.storage.ProbeRoot(check, "availability:"+l.Source.Path, l.Source.Path)
 		if ctx.Err() != nil {
 			return l, ctx.Err()
 		}
+		if probeErr != nil {
+			return l, nil
+		}
 		l.Source.Basis = "probe"
 		l.Source.ObservedAt = time.Now().UTC().Format(time.RFC3339Nano)
-		l.Source.Availability = "available"
-		if e != nil {
+		l.Source.Availability, l.Source.Message = "available", ""
+		gone := observed.ErrorCode != "" || !observed.Directory
+		moved := recorded != "" && observed.ObjectIdentity != "" && !storage.SameRoot(recorded, storage.RootIdentity(observed))
+		if gone || moved {
 			l.Source.Availability = "unavailable"
-			l.Source.Message = "Source could not be reached. Check storage access or its managed mount, then retry."
+			l.Source.Message = sourceUnreachableMessage
 		}
 	}
 	// The library as one snapshot read it; the source probe above runs after
