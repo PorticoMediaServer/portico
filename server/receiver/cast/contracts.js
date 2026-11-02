@@ -179770,7 +179770,7 @@ var PorticoCastContracts = (function(exports) {
 			"type": "object"
 		},
 		"PostSetupStartOverRequest": {
-			"properties": {},
+			"properties": { "setupCode": { "type": "string" } },
 			"required": [],
 			"type": "object"
 		},
@@ -204618,7 +204618,7 @@ var PorticoCastContracts = (function(exports) {
 			"type": "object"
 		},
 		"StartAppSetupRequest": {
-			"properties": {},
+			"properties": { "setupCode": { "type": "string" } },
 			"required": [],
 			"type": "object"
 		},
@@ -204631,7 +204631,7 @@ var PorticoCastContracts = (function(exports) {
 			"type": "object"
 		},
 		"StartBrowserSetupRequest": {
-			"properties": {},
+			"properties": { "setupCode": { "type": "string" } },
 			"required": [],
 			"type": "object"
 		},

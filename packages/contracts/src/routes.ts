@@ -35034,6 +35034,8 @@ export const routes = [
       "setup_source_not_local",
       "portico_services_unavailable",
       "internal",
+      "setup_code_required",
+      "setup_code_invalid",
       "database_busy",
       "writer_capacity"
     ],
@@ -41369,6 +41371,8 @@ export const routes = [
       "setup_in_progress",
       "setup_source_not_local",
       "internal",
+      "setup_code_required",
+      "setup_code_invalid",
       "database_busy",
       "writer_capacity"
     ],
@@ -41394,6 +41398,8 @@ export const routes = [
       "setup_in_progress",
       "setup_source_not_local",
       "internal",
+      "setup_code_required",
+      "setup_code_invalid",
       "database_busy",
       "writer_capacity"
     ],

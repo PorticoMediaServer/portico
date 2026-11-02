@@ -56,8 +56,8 @@ func TestSetupStartOverAdmission(t *testing.T) {
 		}
 		return out.Token
 	}
-	// A public peer is refused, by name.
-	if w := call("http://192.168.1.50:32500", "203.0.113.9:5000", "/v1/setup/start-over", map[string]any{}); w.Code != http.StatusForbidden || !bytes.Contains(w.Body.Bytes(), []byte(`"setup_source_not_local"`)) {
+	// A public peer is refused, by name: from outside, start over needs the setup code.
+	if w := call("http://192.168.1.50:32500", "203.0.113.9:5000", "/v1/setup/start-over", map[string]any{}); w.Code != http.StatusForbidden || !bytes.Contains(w.Body.Bytes(), []byte(`"setup_code_required"`)) {
 		t.Fatalf("a public peer started over: %d %s", w.Code, w.Body)
 	}
 	// A LAN peer at the server's LAN address may; with nothing started it's a plain start.

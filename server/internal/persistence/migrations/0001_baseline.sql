@@ -9367,6 +9367,11 @@ CREATE TABLE identity_owner_completions(
  route_generation INTEGER NOT NULL DEFAULT 0 CHECK(route_generation>=0),
  CHECK((switch_count_payload IS NULL AND switch_count_signature IS NULL) OR (switch_count_payload IS NOT NULL AND switch_count_signature IS NOT NULL))
 ) STRICT;
+-- First-run setup from outside the server's network (Justin, 1 Nov): the one current setup
+-- code, as a keyed hash only, and the outside peers (keyed hashes, never addresses) a
+-- correct code admitted for setup, each for 30 minutes and only while unconfigured.
+CREATE TABLE identity_setup_code(singleton INTEGER PRIMARY KEY CHECK(singleton=1),code_hash TEXT NOT NULL CHECK(length(code_hash)=43),created_ms INTEGER NOT NULL) STRICT;
+CREATE TABLE identity_setup_outside_admissions(token_hash TEXT PRIMARY KEY CHECK(length(token_hash)=43),peer_hash TEXT NOT NULL CHECK(length(peer_hash)=43),origin_hash TEXT NOT NULL CHECK(length(origin_hash)=43),expires_ms INTEGER NOT NULL) STRICT;
 CREATE TABLE identity_setup_completions(
  operation_id TEXT PRIMARY KEY REFERENCES networking_claim_intents(operation_id),
  setup_request_id TEXT NOT NULL, setup_revision INTEGER NOT NULL CHECK(setup_revision>0),setup_proof TEXT NOT NULL,

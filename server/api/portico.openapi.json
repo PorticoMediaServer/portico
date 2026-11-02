@@ -272697,7 +272697,11 @@
         "type": "object"
       },
       "PostSetupStartOverRequest": {
-        "properties": {},
+        "properties": {
+          "setupCode": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "PostSetupStartOverResponse": {
@@ -307639,7 +307643,11 @@
         "type": "object"
       },
       "StartAppSetupRequest": {
-        "properties": {},
+        "properties": {
+          "setupCode": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "StartAppSetupResponse": {
@@ -307658,7 +307666,11 @@
         "type": "object"
       },
       "StartBrowserSetupRequest": {
-        "properties": {},
+        "properties": {
+          "setupCode": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "StartBrowserSetupResponse": {
@@ -732117,7 +732129,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "properties": {},
+                "properties": {
+                  "setupCode": {
+                    "type": "string"
+                  }
+                },
                 "type": "object"
               }
             }
@@ -732194,6 +732210,8 @@
           "setup_in_progress",
           "setup_source_not_local",
           "internal",
+          "setup_code_required",
+          "setup_code_invalid",
           "database_busy",
           "writer_capacity"
         ],
@@ -732548,7 +732566,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "properties": {},
+                "properties": {
+                  "setupCode": {
+                    "type": "string"
+                  }
+                },
                 "type": "object"
               }
             }
@@ -732625,6 +732647,8 @@
           "setup_in_progress",
           "setup_source_not_local",
           "internal",
+          "setup_code_required",
+          "setup_code_invalid",
           "database_busy",
           "writer_capacity"
         ],
@@ -733582,7 +733606,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "properties": {},
+                "properties": {
+                  "setupCode": {
+                    "type": "string"
+                  }
+                },
                 "type": "object"
               }
             }
@@ -733659,6 +733687,8 @@
           "setup_source_not_local",
           "portico_services_unavailable",
           "internal",
+          "setup_code_required",
+          "setup_code_invalid",
           "database_busy",
           "writer_capacity"
         ],

@@ -1636,6 +1636,12 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 				logSetupBlock(port, ip.IsLoopback())
 			}
 		}
+		// Setup from outside this server's network needs the code; it changes every start.
+		if code, err := ident.RotateSetupCode(context.Background()); err != nil {
+			log.Printf("The setup code could not be made: %v", err)
+		} else if code != "" {
+			log.Print(identity.SetupCodeLogLine(code))
+		}
 	}
 	<-served
 	if e = serveErr; errors.Is(e, http.ErrServerClosed) {
