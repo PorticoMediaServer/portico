@@ -51,7 +51,7 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 		if errors.Is(err, context.DeadlineExceeded) {
 			return errors.Join(storage.ErrBusy, err)
 		}
-		if errors.Is(err, storage.ErrBusy) || ctx.Err() != nil {
+		if errors.Is(err, storage.ErrBusy) || errors.Is(err, context.Canceled) || ctx.Err() != nil {
 			return err
 		}
 		log.Printf("library scan %s: root inspection failed: %v", job, err)
@@ -147,7 +147,7 @@ func (s *Service) inventoryPage(ctx context.Context, job string, source catalog.
 	if errors.Is(err, context.DeadlineExceeded) {
 		return errors.Join(storage.ErrBusy, err)
 	}
-	if err == nil || ctx.Err() != nil || errors.Is(err, storage.ErrBusy) {
+	if err == nil || ctx.Err() != nil || errors.Is(err, storage.ErrBusy) || errors.Is(err, context.Canceled) {
 		return err
 	}
 	var read *directoryReadError

@@ -119,10 +119,12 @@ func TestSamePathPresenceHelperDeadlineDoesNotDeclareStorageOffline(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.s.storage = &storage.Client{Guard: func(string) error { return context.DeadlineExceeded }}
-	err = f.s.readySource(context.Background(), "deadline-proof", &source)
-	if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, storage.ErrBusy) || !quantumRetryable(context.Background(), err) {
-		t.Fatal("helper timeout became a terminal source failure", err)
+	for _, failure := range []error{context.DeadlineExceeded, context.Canceled} {
+		f.s.storage = &storage.Client{Guard: func(string) error { return failure }}
+		err = f.s.readySource(context.Background(), "deadline-proof", &source)
+		if !errors.Is(err, failure) || !quantumRetryable(context.Background(), err) {
+			t.Fatal("helper retirement became a terminal source failure", failure, err)
+		}
 	}
 	if f.count(`SELECT count(*) FROM library_sources WHERE id=? AND health='ready'`, f.source) != 1 {
 		t.Fatal("helper timeout changed source health")
@@ -247,6 +249,30 @@ func TestSamePathMoveDuringScanRetainsFilesWithoutOwnerConfirmation(t *testing.T
 	if f.count(`SELECT count(*) FROM library_sources WHERE id=? AND health='ready' AND identity_confirmed=1`, f.source) != 1 ||
 		f.count(`SELECT count(*) FROM jobs WHERE status IN('queued','running')`) != 0 {
 		t.Fatal("interrupted move did not recover without confirmation or a rescan")
+	}
+}
+
+func TestSamePathStartupNormalizesAllRootsBeforeWalkingLargeSources(t *testing.T) {
+	f := presenceFixture(t)
+	if _, err := f.s.catalog.Create("Other", "movie", t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	f.exec(`WITH RECURSIVE n(i) AS(SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<17)
+ INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,object_identity,revision,evidence_json,size,modified_ns)
+ SELECT 'extra-'||i,source_id,asset_id,root_incarnation,'Missing-'||i||'.mkv',object_identity,revision,evidence_json,size,modified_ns FROM n,inventory_objects WHERE id='presence-object'`)
+	f.exec(`UPDATE library_sources SET health='root_changed',identity_confirmed=1`)
+	jobs := f.count(`SELECT count(*) FROM jobs`)
+	p := &pathPresence{s: f.s, rootPass: true}
+	for turn := 0; p.rootPass && turn < 10; turn++ {
+		if err := p.advance(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if p.current != nil {
+			t.Fatal("one source's inventory delayed other root recovery")
+		}
+	}
+	if p.rootPass || f.count(`SELECT count(*) FROM library_sources WHERE health='root_changed'`) != 0 || f.count(`SELECT count(*) FROM jobs`) != jobs {
+		t.Fatal("startup did not normalize all roots without a content scan")
 	}
 }
 

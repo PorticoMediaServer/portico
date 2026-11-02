@@ -24,9 +24,10 @@ const pathPresenceWindow = 16
 // admission policy. This worker never lists the catalogue's content again or
 // queues a scan: it only rebinds present files' physical observations.
 type pathPresence struct {
-	s       *Service
-	after   string
-	current *pathPresenceWalk
+	s        *Service
+	after    string
+	current  *pathPresenceWalk
+	rootPass bool
 }
 
 type pathPresenceWalk struct {
@@ -44,12 +45,13 @@ type presenceObject struct {
 }
 
 func (s *Service) runPathPresence(ctx context.Context) {
-	p := &pathPresence{s: s}
+	p := &pathPresence{s: s, rootPass: true}
 	workerloop.Run(ctx, "ingestion.path-presence", nil, p.step)
 }
 
 func (p *pathPresence) step(ctx context.Context) time.Duration {
 	ctx = dbwork.WithClass(ctx, dbwork.ClassMaintenance)
+	wasRootPass := p.rootPass
 	if err := p.advance(ctx); err != nil {
 		if errors.Is(err, errVerificationStale) {
 			p.current = nil
@@ -58,6 +60,9 @@ func (p *pathPresence) step(ctx context.Context) time.Duration {
 			log.Printf("Source presence: %v", err)
 		}
 		return 15 * time.Second
+	}
+	if wasRootPass && !p.rootPass {
+		return 10 * time.Millisecond
 	}
 	if p.current == nil && p.after == "" {
 		return time.Minute
@@ -75,6 +80,7 @@ func (p *pathPresence) advance(ctx context.Context) error {
  ORDER BY id LIMIT 1`, p.after).Scan(&id)
 		if errors.Is(err, sql.ErrNoRows) {
 			p.after = ""
+			p.rootPass = false
 			return nil
 		}
 		if err != nil {
@@ -88,6 +94,12 @@ func (p *pathPresence) advance(ctx context.Context) error {
 		if p.s.storage != nil && p.s.storage.IsRemote(source.ResolvedPath) {
 			return nil
 		}
+		if p.rootPass && source.Health == "root_changed" && source.IdentityConfirmed {
+			if err := p.health(ctx, source, "offline", true, source.RootIdentity); err != nil {
+				return err
+			}
+			source.Health = "offline"
+		}
 		check, cancel := context.WithTimeout(ctx, 2*time.Second)
 		var root storage.Snapshot
 		if p.s.storage != nil {
@@ -98,7 +110,7 @@ func (p *pathPresence) advance(ctx context.Context) error {
 		cancel()
 		if err != nil {
 			// A transport failure says nothing about individual files.
-			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, storage.ErrBusy) {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || errors.Is(err, storage.ErrBusy) {
 				return err
 			}
 			return p.health(ctx, source, "offline", source.IdentityConfirmed, source.RootIdentity)
@@ -130,6 +142,11 @@ func (p *pathPresence) advance(ctx context.Context) error {
 			return err
 		}
 		source.RootIdentity, source.Health = observed, "degraded"
+		// Normalize every source before walking any large library. A million
+		// tracks must not leave later libraries behind the legacy root gate.
+		if p.rootPass {
+			return nil
+		}
 		var fence string
 		err = p.s.db.QueryRowContext(ctx, `SELECT id FROM inventory_objects INDEXED BY inventory_objects_source WHERE source_id=? AND retired=0 ORDER BY id DESC LIMIT 1`, source.ID).Scan(&fence)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -177,7 +194,7 @@ func (p *pathPresence) advance(ctx context.Context) error {
 			observed, err = storage.LocalInventoryStat(r)
 		}
 		cancel()
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, storage.ErrBusy) {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || errors.Is(err, storage.ErrBusy) {
 			return err
 		}
 		if err == nil && !observed.Directory {
@@ -307,7 +324,7 @@ func (s *Service) prepareScanPresence(ctx context.Context, job string, source ca
 			observed, err = storage.LocalInventoryStat(r)
 		}
 		cancel()
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, storage.ErrBusy) || ctx.Err() != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || errors.Is(err, storage.ErrBusy) || ctx.Err() != nil {
 			return 0, errors.Join(storage.ErrBusy, err)
 		}
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
