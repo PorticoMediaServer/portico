@@ -204,6 +204,9 @@ export class NativePlaybackRuntime {
   private initialPresentation?: NativeStartPresentationOwner;
   private initialPresentationTarget?: {owner: NativeStartPresentationOwner; epoch: number; itemId: string; session?: Session};
   private firstVideoFrame?: NativeFirstVideoFrame;
+  /** N1-5: a first frame drawn while the opening seek is still pending is the media's 0:00, not
+   * where it opens. It waits here, and lifts the poster only once that seek has settled. */
+  private heldFirstVideoFrame?: NativeFirstVideoFrame;
 
   constructor(options: NativePlaybackRuntimeOptions) {
     this.o = options;
@@ -1535,12 +1538,15 @@ export class NativePlaybackRuntime {
     // barrier, sequence and binding. ready/playing/buffering are not this proof.
     if (fact.type === 'firstFrame') {
       const binding = nativeFirstVideoFrame(fact, this.coordinator.getBinding(), this.coordinator.getEngine(), this.coordinator.getInstanceId());
-      if (binding) this.firstVideoFrame = binding;
+      if (binding && before.pendingSeek && !(this.firstVideoFrame && sameNativePresentation(this.firstVideoFrame, binding))) this.heldFirstVideoFrame = binding;
+      else if (binding) {this.firstVideoFrame = binding; this.heldFirstVideoFrame = undefined;}
     }
     this.externalPresentationBinding = nativeExternalPresentationBinding(fact, this.coordinator.getBinding());
     // BUFFERING can emit an unchanged progress tick. Keep both the UI and the
     // server observation stalled until actual media recovery is observed.
     if (!(fact.type === 'progress' && before.recovering && !recovered && before.intent === 'playing')) this.path.engineFact(fact);
+    // The opening seek landed (or failed, which shows the picture where it is): the held frame is now true.
+    if (this.heldFirstVideoFrame && !this.playback.getSnapshot().pendingSeek) {this.firstVideoFrame = this.heldFirstVideoFrame; this.heldFirstVideoFrame = undefined;}
     if (recovered || fact.type === 'ended') {this.recovery.clear(); this.playback.recovering(before.intentId, false);}
     if (this.audioTrackSelection.accept(fact)) {
       if (fact.type === 'audioTrackFailed') this.playback.fail(before.intentId, serviceText('player.opt.unavailable'));
