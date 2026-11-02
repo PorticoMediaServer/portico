@@ -115,3 +115,19 @@ test('the plan is frozen: neither the result nor its segment list can be changed
   // The caller's reverse for `next` still works on a copy.
   assert.deepEqual([...plan.segments].reverse().length, 1);
 });
+
+test('PB-1, MU-1: one pressed episode or song plays on through its show or album', () => {
+  const withParent = (item: HomeSelectionPlaybackItem, parent: Record<string, unknown>): HomeSelectionPlaybackItem => ({...item, entry: {...(item as {entry: object}).entry, ...parent}} as HomeSelectionPlaybackItem);
+  const episode = withParent(leaf('e3', 'episode', {startSeconds: 12}), {show: {id: 'show1', name: 'Show'}});
+  const plan = planSelectionPlayback([episode], 'replace');
+  assert.deepEqual(plan.segments, [{source: {container: {kind: 'show', id: 'show1'}}, anchor: {itemId: 'e3'}}]);
+  assert.equal(plan.startSeconds, 12);
+  const song = withParent(leaf('t2', 'song'), {album: {id: 'album1', name: 'Album'}});
+  assert.deepEqual(planSelectionPlayback([song], 'replace').segments, [{source: {container: {kind: 'album', id: 'album1'}}, anchor: {itemId: 't2'}}]);
+  // Enqueue adds exactly the title; a picked set stays exactly that set; a movie stays alone.
+  assert.deepEqual(planSelectionPlayback([song], 'insert').segments, [{source: {items: {ids: ['t2']}}}]);
+  assert.deepEqual(planSelectionPlayback([song, episode], 'replace').segments, [{source: {items: {ids: ['t2', 'e3']}}}]);
+  assert.deepEqual(planSelectionPlayback([leaf('m1')], 'replace').segments, [{source: {items: {ids: ['m1']}}}]);
+  // Without a known parent the episode is one entry.
+  assert.deepEqual(planSelectionPlayback([leaf('e4', 'episode')], 'replace').segments, [{source: {items: {ids: ['e4']}}}]);
+});
