@@ -65,6 +65,19 @@ class ReleasePreflight(unittest.TestCase):
             self.assertFalse(report['qualified'])
             self.assertFalse(report['release'])
 
+    def test_second_compile_is_not_a_publication_prerequisite(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for target in M['REQUIRED']:
+                directory = self.fixture(root, target)
+                (directory / 'native/repeat-build.json').unlink()
+                manifest = directory / 'native/toolchain-manifest.json'
+                data = json.loads(manifest.read_text()); data['files'].pop('repeat-build.json'); write(manifest, data)
+                for relative in ('product/transfer.json', 'native/gates/native-engine.json'):
+                    path = directory / relative; data = json.loads(path.read_text())
+                    data['toolchainManifestSHA256'] = M['digest'](manifest); write(path, data)
+            self.assertTrue(self.inspect(root)['preflightPassed'])
+
     def test_missing_mandatory_target_and_each_incomplete_or_mixed_receipt_refuse(self):
         mutations = [('product/transfer.json', 'engineSourceSHA', 'f' * 40),
                      ('product/transfer.json', 'runAttempt', 2), ('product/transfer.json', 'runId', True),
