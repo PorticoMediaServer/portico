@@ -46,6 +46,9 @@ export function savedSectionWindow(service: SavedService, sectionId: string): Wi
     retry: () => { if (!disposed) void service.retry(); },
     resident: () => ({pages: Math.ceil((section()?.entries.length ?? 0) / 40), items: section()?.entries.length ?? 0}),
     residentItems: () => section()?.entries ?? [],
+    residentEntries: () => (section()?.entries ?? []).map((item, index) => ({index, item})),
+    // This window is the service's own live page: there is no separate generation to seed.
+    seed: () => {},
     dispose: () => { disposed = true; for (const off of subscriptions) off(); subscriptions.clear(); },
   };
 }
@@ -88,6 +91,9 @@ export function personalEntriesWindow(service: PersonalSavedService): WindowedCo
     retry: () => { if (!disposed) void service.retryRead(); },
     resident: () => ({pages: Math.ceil(service.getSnapshot().entries.length / 40), items: service.getSnapshot().entries.length}),
     residentItems: () => service.getSnapshot().entries,
+    residentEntries: () => service.getSnapshot().entries.map((item, index) => ({index, item})),
+    // This window is the service's own live page: there is no separate generation to seed.
+    seed: () => {},
     dispose: () => { disposed = true; for (const off of subscriptions) off(); subscriptions.clear(); },
   };
 }

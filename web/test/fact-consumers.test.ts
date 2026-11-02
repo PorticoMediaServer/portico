@@ -230,7 +230,7 @@ test('Browse and Show committed adapters keep the original services and forward 
     const pageMemory = {remember() {}, recall: () => undefined, forget() {}};
     const file = kind === 'browse' ? '../src/screens/browse/useBrowseLease.ts' : '../src/screens/detail/use-show-route.ts';
     const module = await componentModule(new URL(file, import.meta.url), {react: h.react, '../detail/context': {forwardIdentity, screenLifetime}, './context': {forwardIdentity},
-      './controller': {BrowseController: class {constructor() {constructed++;}dispose() {disposed++;}}},
+      './controller': {BrowseController: class {constructor() {constructed++;}subscribe() {return () => {};} pageSeed() {return undefined;} dispose() {disposed++;}}},
       // The committed show opening now also keeps the page it drew in the viewer's memory, so
       // the adapter reads its service's snapshot and subscribes to it; the stub supplies both.
       '../../platform/freshness': {usePageMemory: () => pageMemory},

@@ -110,6 +110,14 @@ export type WindowedCollection<T> = {
   resident(): {pages: number; items: number};
   /** The items of the generation on screen that are held in memory (at most maxResidentPages × pageSize). */
   residentItems(): readonly T[];
+  /** Those same items at their absolute positions, for keeping a page beside the viewer. */
+  residentEntries(): readonly Readonly<{index: number; item: T}>[];
+  /**
+   * Show a page this list had before (a return to the same query): ready items at their
+   * positions, with the total and anchors they had. A later `revalidate` reads the list
+   * again and swaps in place; until then the seeded page is what the person sees.
+   */
+  seed(entries: readonly Readonly<{index: number; item: T}>[], options?: Readonly<{total?: number; totalIsLowerBound?: boolean; positionIndex?: Readonly<Record<string, number>>; fetchPage?: FetchPage<T>}>): void;
   dispose(): void;
 };
 
@@ -421,6 +429,41 @@ export function createWindowedCollection<T>(options: WindowedCollectionOptions<T
       const out: T[] = [];
       for (const p of current.pages.values()) if (p.status === 'ready') out.push(...p.items);
       return out;
+    },
+    residentEntries() {
+      const out: {index: number; item: T}[] = [];
+      for (const [page, p] of current.pages) if (p.status === 'ready') p.items.forEach((item, at) => out.push({index: page * pageSize + at, item}));
+      return out;
+    },
+    seed(entries, options = {}) {
+      if (disposed) return;
+      pending?.quiet?.resolve();
+      for (const p of pending?.pages.values() ?? []) if (p.status === 'loading') p.controller.abort();
+      // Only whole contiguous pages are seeded: a page marked ready never holds a hole a
+      // renderer would read as an item. A page with a gap is left to load normally.
+      const slots = new Map<number, T[]>();
+      for (const entry of entries) {
+        if (!Number.isSafeInteger(entry.index) || entry.index < 0) continue;
+        const page = pageOfIndex(entry.index), at = entry.index % pageSize;
+        const items = slots.get(page) ?? [];
+        items[at] = entry.item;
+        slots.set(page, items);
+      }
+      const pages = new Map<number, PageState<T>>();
+      for (const [page, items] of slots) {
+        if (!items.length) continue;
+        let whole = true;
+        for (let at = 0; at < items.length; at++) if (!(at in items)) {whole = false; break;}
+        if (!whole) continue;
+        pages.set(page, {status: 'ready', items, version: 1, used: ++tick});
+      }
+      current = {id: nextId++, fetchPage: options.fetchPage ?? current.fetchPage, pages, total: options.total ?? entries.length,
+        totalIsLowerBound: options.totalIsLowerBound ?? false, positionIndex: options.positionIndex ? {...options.positionIndex} : undefined, lastError: undefined, gate: 0};
+      pending = undefined;
+      shownGeneration++;
+      notifyAllPages();
+      pump();
+      publish();
     },
     resident() {
       let pages = 0, items = 0;

@@ -66,6 +66,12 @@ export type BrowseSessionOptions<T> = Readonly<{
   onPage?: (page: BrowseResult) => void;
   /** The view changed or ended under this query. Later pages refuse until a new session. */
   onStale?: (error: unknown) => void;
+  /**
+   * A page this query had before (a return to the same opening). `entries` are then part
+   * of this query's own page again, so their actions are admitted while the fresh first
+   * page is on its way; `revision` pins the first read that has not happened yet.
+   */
+  initial?: Readonly<{revision?: string; entries: readonly ContentEntry[]}>;
 }>;
 
 /** One applied query's page source, shared by web Browse and the native library.
@@ -85,6 +91,8 @@ export class BrowseSession<T> {
   constructor(options: BrowseSessionOptions<T>) {
     this.options = options;
     this.query = options.query;
+    this.pinned = options.initial?.revision;
+    for (const entry of options.initial?.entries ?? []) this.entries.add(entry);
   }
   private live(): boolean {return !this.retired && !this.ended && this.options.current();}
   /** The page token every page of this query carries, once the first one has replied. */
