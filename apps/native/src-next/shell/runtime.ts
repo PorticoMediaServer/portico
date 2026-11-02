@@ -55,7 +55,8 @@ export type NativeHomeActions = Readonly<{
   channel: (channel: HomeChannel) => void;
   channelMore: (channel: HomeChannel, anchorRef?: RefObject<View | null>) => void;
   collectionMore: (collection: HomeCollection, rowId: string, anchorRef?: RefObject<View | null>) => void;
-  seeAll: (destination: HomeSeeAll) => void;
+  /** `title` is the row's heading as drawn. */
+  seeAll: (destination: HomeSeeAll, title: string) => void;
   /** The real collection page, from a Home collection banner. */
   openCollection: (collection: HomeCollection) => void;
   customize: () => void;

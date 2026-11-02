@@ -31,7 +31,7 @@ import {askNativeDownload, closeNativeDownload, getNativeDownloadSnapshot} from 
 import {offlineDownloads} from '../platform/offline-downloads';
 import {selectedItemsLabel} from './selection-display';
 import {nativeHomeSelectionScope} from './selection-scope';
-import {nativeEntryRoute, nativeEntryRouteSupported, nativeRailDestination, type NativeShellRoute} from './routes';
+import {homeSeeAllRoute, nativeEntryRoute, nativeEntryRouteSupported, nativeRailDestination, type NativeShellRoute} from './routes';
 import {nativeShellRoutes} from './route-registry';
 import {sameAuthority, nativeServerHost, type ShellDestination} from './model';
 import {createNativeMusicDiscoverNavigation} from './music-discover-navigation';
@@ -471,7 +471,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
         openMenu(window.memberWindows.get(JSON.stringify([channel.channel.sourceId, channel.channel.id]))!, key, anchorRef);
       },
       collectionMore: (collection, rowId, anchorRef) => {const window = windows.get(rowId), key = window?.keys.get(collection.collection.id); if (window && key && currentHome()) openMenu(window.memberWindows.get(collection.collection.id)!, key, anchorRef);},
-      seeAll: destination => open({kind: 'home-see-all', destination}), customize: () => open({kind: 'home-customize'}),
+      seeAll: (destination, title) => open(homeSeeAllRoute(destination, title)), customize: () => open({kind: 'home-customize'}),
       openCollection: collection => open({kind: 'collection', libraryId: collection.collection.libraryId, collectionId: collection.collection.id, title: collection.collection.name}),
     },
     selection: rowId => ({active: controller.getSnapshot().selection.active,

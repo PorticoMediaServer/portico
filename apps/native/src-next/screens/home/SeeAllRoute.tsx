@@ -33,9 +33,8 @@ export function createNativeHomeSeeAllRenderer(context: NativeShellBootstrapCont
   rows.reconcile();
   return {
     render: (route, actual) => {
-      // Only real row destinations are this renderer's page. A collection banner
-      // opens the registered collection page itself; anything else here is not a
-      // row and simply keeps no retained page.
+      // Only a server row's own page is this renderer's (routes.ts homeSeeAllRoute sends
+      // every other See all to its real page).
       if (route.kind !== 'home-see-all' || route.destination.type !== 'row') return null;
       runtime = actual; rows.reconcile(); return null;
     },
