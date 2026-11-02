@@ -76,11 +76,11 @@ for (const [label, skew] of SKEWS) {
 
   test(`stored and displayed server instants read against the server's clock when the device clock is ${label}`, async t => {
     const truth = skewed(t, skew);
-    // an offline receipt is judged by how long this device has held it, not by the date on the device
+    // an offline receipt is judged on the server's clock, not by the date on the device
     const claims = {receiptId: 'r', viewer: {authority: 'local', accountId: 'a', profileId: 'p', serverId: 's'}, issuedAt: iso(truth), expiresAt: iso(truth + 30 * 86_400_000)} as unknown as ReceiptClaims;
-    const viewer = claims.viewer, receivedAt = Date.now();
-    assert.equal(receiptUsable(claims, viewer, new Date(receivedAt + 86_400_000), new Set(), receivedAt), true);
-    assert.equal(receiptUsable(claims, viewer, new Date(receivedAt + 31 * 86_400_000), new Set(), receivedAt), false);
+    const viewer = claims.viewer;
+    assert.equal(receiptUsable(claims, viewer, new Date(serverNow() + 86_400_000)), true);
+    assert.equal(receiptUsable(claims, viewer, new Date(serverNow() + 31 * 86_400_000)), false);
     // the remembered profile and the top shelf are the server's expiry against the server's now
     const held = {serverId: 's', familyId: 'f', profileId: 'p'};
     assert.equal(rememberedFor({...held, expiresAt: iso(truth + 60_000)}, held), true);
