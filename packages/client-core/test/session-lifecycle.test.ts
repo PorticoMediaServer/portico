@@ -300,12 +300,46 @@ const cases: readonly Case[] = [
   {name: 'row 35: unlocked on the same family → generation holds', row: 35,
     from: snap(ready({remembered: true, manageLocked: true}), {pending: 'unlock'}), event: {type: 'managementUnlocked', facts: {viewer: viewer('main', 'f1'), remembered: true}},
     state: {kind: 'ready', manageLocked: false, viewer: viewer('main', 'f1')}},
+
+  // J-31: Remember this profile on this device.
+  {name: 'row 16: a ticked no-PIN pick remembers at once (remember true on the select)', row: 16,
+    from: snap(choosing()), event: {type: 'profileTapped', profileId: 'kids', remember: true},
+    state: {kind: 'choosingProfile'}, effects: [{kind: 'select', serverId: 's1', profileId: 'kids', remember: true}], pending: 'pick'},
+  {name: 'row 16: a tick is dropped when the server does not allow remembering', row: 16,
+    from: snap(choosing({canRemember: false})), event: {type: 'profileTapped', profileId: 'kids', remember: true},
+    state: {kind: 'choosingProfile'}, effects: [{kind: 'select', serverId: 's1', profileId: 'kids', remember: false}], pending: 'pick'},
+  {name: 'row 16: ticking the current no-PIN profile signs in afresh so the server can remember it', row: 16,
+    from: snap(choosing({viewer: viewer('kids')})), event: {type: 'profileTapped', profileId: 'kids', remember: true},
+    state: {kind: 'choosingProfile'}, effects: [{kind: 'select', serverId: 's1', profileId: 'kids', remember: true}], pending: 'pick'},
+  {name: 'row 17: a ticked PIN profile sends nothing until its PIN: no select effect', row: 17,
+    from: snap(choosing()), event: {type: 'profileTapped', profileId: 'teen', remember: true},
+    state: {kind: 'enteringPin', profile: {id: 'teen'}, canRemember: true}, effects: []},
+  {name: 'row 19: the PIN carries the tick and the select asks to remember', row: 19,
+    from: snap(entering()), event: {type: 'pinSubmitted', pin: '1234', remember: true},
+    state: {kind: 'enteringPin'}, effects: [{kind: 'select', serverId: 's1', profileId: 'teen', pin: '1234', remember: true}], pending: 'pin'},
+  {name: 'row 19: a tick is dropped on the PIN page when the server does not allow remembering', row: 19,
+    from: snap(entering({canRemember: false})), event: {type: 'pinSubmitted', pin: '1234', remember: true},
+    state: {kind: 'enteringPin'}, effects: [{kind: 'select', serverId: 's1', profileId: 'teen', pin: '1234', remember: false}], pending: 'pin'},
+  {name: 'row 39: Forget remembered profile asks the port to clear the marker; the profile stays open', row: 39,
+    from: snap(ready({remembered: true})), event: {type: 'forgetRemembered'},
+    state: {kind: 'ready', remembered: true, viewer: viewer()}, effects: [{kind: 'forgetMarker', serverId: 's1'}], pending: 'forgetRemembered'},
+  {name: 'row 39: once cleared the profile is no longer remembered, same sign-in, nothing fenced', row: 39,
+    from: snap(ready({remembered: true}), {pending: 'forgetRemembered'}), event: {type: 'markerForgotten'},
+    state: {kind: 'ready', remembered: false, viewer: viewer()}, effects: []},
+  {name: 'row 40: the marker written just after a pick on the sign-in form reaches the ready profile', row: 40,
+    from: snap(ready()), event: {type: 'envelopeChanged', servers: 1, held: held({remembered: true})},
+    state: {kind: 'ready', remembered: true, viewer: viewer()}, effects: []},
+  {name: 'row 40: a marker written while still connecting is kept on the held sign-in', row: 40,
+    from: snap(connecting()), event: {type: 'envelopeChanged', servers: 1, held: held({remembered: true})},
+    state: {kind: 'connecting', held: {remembered: true}}, effects: []},
 ];
 
 for (const c of cases) test(c.name, () => check(c));
 
 // Row 36: a failed action clears pending and stays on the screen it started on.
 const PENDINGS: readonly LifecyclePending[] = ['pick', 'pin', 'unlock', 'switchServer', 'signOut', 'forget', 'reset'];
+/** Also pending while Forget remembered profile clears the marker (rows 39; kept out of the generated table above, which pins the others). */
+const ALL_PENDINGS: readonly LifecyclePending[] = [...PENDINGS, 'forgetRemembered'];
 for (const pending of PENDINGS) for (const type of ['selectFailed', 'actionFailed'] as const) {
   test(`row 36: ${type} while ${pending} clears pending and stays put`, () => {
     const from = snap(entering(), {pending});
@@ -329,6 +363,7 @@ test('commands are ignored while pending is set (no double submit)', () => {
     ['pinSubmitted', entering(), {type: 'pinSubmitted', pin: '1', remember: false}],
     ['unlockSubmitted', ready({manageLocked: true}), {type: 'unlockSubmitted', pin: '1'}],
     ['switchServer', ready(), {type: 'switchServer', server: S2}],
+    ['forgetRemembered', ready({remembered: true}), {type: 'forgetRemembered'}],
     ['signOutServer', ready(), {type: 'signOutServer', removeDownloads: false}],
     ['signOutAccount', ready(), {type: 'signOutAccount'}],
     ['forget', identityFailed(), {type: 'forget'}],
@@ -336,7 +371,7 @@ test('commands are ignored while pending is set (no double submit)', () => {
   ];
   for (const [name, state, event] of commands) {
     assert.ok(nextLifecycle(snap(state), event), `${name} applies when nothing is pending`);
-    for (const pending of PENDINGS) assert.equal(nextLifecycle(snap(state, {pending}), event), undefined, `${name} is ignored while ${pending}`);
+    for (const pending of ALL_PENDINGS) assert.equal(nextLifecycle(snap(state, {pending}), event), undefined, `${name} is ignored while ${pending}`);
   }
 });
 
@@ -439,7 +474,7 @@ test('generation advances on a change of server, account, profile or sign-in and
 
 // ---- generated (state × event) check ---------------------------------------------------------
 
-const DOCUMENTED_ROWS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38]);
+const DOCUMENTED_ROWS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40]);
 
 const STATES = {
   starting: {kind: 'starting'},
@@ -474,6 +509,8 @@ const EVENTS = {
   switchProfile: {type: 'switchProfile'},
   cancelSwitch: {type: 'cancelSwitch'},
   unlockSubmitted: {type: 'unlockSubmitted', pin: '4321'},
+  forgetRemembered: {type: 'forgetRemembered'},
+  markerForgotten: {type: 'markerForgotten'},
   managementUnlocked: {type: 'managementUnlocked', facts: {viewer: viewer('main', 'f2'), remembered: true}},
   gated: {type: 'gated'},
   signInEnded: {type: 'signInEnded', username: 'justin'},
@@ -571,6 +608,8 @@ const EXPECTED_APPLIES: readonly string[] = [
   ...['', ...PENDINGS.map(p => '+' + p)].flatMap(p => [`cancelSwitch @ choosingProfile${p} → 18`, `cancelSwitch @ enteringPin${p} → 18`]),
   // row 35: unlock management
   'unlockSubmitted @ ready → 35',
+  // row 39: Forget remembered profile (the representative ready profile is remembered)
+  'forgetRemembered @ ready → 39',
   'managementUnlocked @ ready+unlock → 35 ↑',
   // row 24: gated; rows 25, 26: refresh refused, identity failure; row 27
   ...['', ...PENDINGS.map(p => '+' + p)].flatMap(p => [
@@ -733,4 +772,14 @@ test('unreadable saved sign-ins show an honest error with Try again, never signe
   assert.deepEqual(again.effects, [{kind: 'readRecords'}]);
   for (const event of [{type: 'envelopeChanged', servers: 1, held: held()}, {type: 'signedIn', held: held(), continuation: 'viewer'}] as const)
     assert.equal(nextLifecycle(read.snapshot, event), undefined, `${event.type} does not leave the error`);
+});
+
+test('Forget remembered profile applies only while the open profile is remembered', () => {
+  assert.equal(nextLifecycle(snap(ready({remembered: false})), {type: 'forgetRemembered'}), undefined);
+  assert.equal(nextLifecycle(snap(choosing()), {type: 'forgetRemembered'}), undefined);
+  assert.equal(nextLifecycle(snap(entering()), {type: 'forgetRemembered'}), undefined);
+});
+
+test('a markerForgotten with nothing asking for it is ignored', () => {
+  assert.equal(nextLifecycle(snap(ready({remembered: true})), {type: 'markerForgotten'}), undefined);
 });

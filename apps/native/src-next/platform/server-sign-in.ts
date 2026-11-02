@@ -428,18 +428,20 @@ export class NativeServerSignIn {
           {code: requirement === 'password' ? 'password_change_required' : 'two_step_setup_required'});
         return {kind: 'required-setup' as const, requirement, ...publicServer};
       }
-      if (result.accountScoped) {this.account = session; return {kind: 'profiles' as const, profiles: result.snapshot.profiles};}
+      if (result.accountScoped) {this.account = session; return {kind: 'profiles' as const, profiles: result.snapshot.profiles, canRemember: result.snapshot.rememberProfiles === true};}
       await this.persist(session); return {kind: 'complete' as const};
     } catch (error) {try {await this.retire(session);} catch { /* the original error wins */ } throw error;}
   }
-  chooseProfile(profileId: string, pin?: string) {
+  /** `remember`: "Remember this profile on this device". Sent only where the server allows it, and the marker is written only for a
+   *  sign-in the server accepted (after a correct PIN, for a PIN profile) and that this device then published. */
+  chooseProfile(profileId: string, pin?: string, remember = false) {
     return this.run(async () => {
       if (!this.api || !this.snapshot || !this.account || !this.snapshot.profiles.some(profile => profile.id === profileId)) throw mismatch();
       const api = this.api, snapshot = this.snapshot;
       await boundedPick(async (signal, trace) => {
         trace.mark('select');
         const result = await selectDirectProfile(api, {authority: 'local', accountId: snapshot.account.id, serverId: snapshot.serverId},
-          profileId, {pin, installationId: this.installation?.installationId}, signal);
+          profileId, {pin, installationId: this.installation?.installationId, ...(remember && snapshot.rememberProfiles ? {remember: true} : {})}, signal);
         this.issued.set(result.session.sessionFamilyId, result.session);
         try {await this.persist(result.session, trace);} catch (error) {
           // E-mobile-01: only a proven different identity ends the picked session; anything else leaves it unpublished.
@@ -448,6 +450,10 @@ export class NativeServerSignIn {
           else this.issued.delete(result.session.sessionFamilyId);
           throw error;
         }
+        // After the new family is published, in its own write: a failure here leaves the profile not remembered (the picker shows next launch).
+        // A pick that isn't remembered drops any marker the replaced sign-in left, as a pick on the launch picker does.
+        await nativeAppSessions.setRemembered(snapshot.serverId, result.session.sessionFamilyId,
+          result.remembered ? {profileId: result.session.viewer.profileId, expiresAt: result.remembered.expiresAt} : undefined).catch(() => {});
       }, this.controller.signal);
     });
   }

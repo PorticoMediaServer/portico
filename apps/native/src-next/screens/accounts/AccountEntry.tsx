@@ -32,7 +32,7 @@ import {createTVApprovalCredentialOpening, type TVApprovalCredentialOpening} fro
 import {createTVApprovalFinalization, type TVApprovalFinalization} from './tv-approval-finalization';
 import {createTVCodeOpening, type TVCodeCapture, type TVCodeKind, type TVCodeOpening} from './tv-code-opening';
 import {hostedUrl} from '../../platform/account-authority';
-import {TVCredentialForm, TVCodePresenter, TVVerificationForm, TVRequiredSetupHandoff, TVFrontDoor, TVProfilePINForm, TVForgotPINHandoff, TVWhosWatching} from '../../tv/auth';
+import {TVCredentialForm, TVCodePresenter, TVVerificationForm, TVRequiredSetupHandoff, TVFrontDoor, TVProfilePINForm, TVForgotPINHandoff, TVWhosWatching, TVPickerRememberRow} from '../../tv/auth';
 import {TVIdentityCodeForm} from '../../tv/auth/TVIdentityCodeForm';
 import type {NativeProfileRecovery} from '../../platform/profile-recovery';
 import {passwordStrength} from '../../../../../packages/client-core/src/password-strength';
@@ -58,6 +58,7 @@ import {EndedMoveCodeAction} from './EndedMoveCodeAction';
 import {DirectoryAccessRefused} from './DirectoryAccessRefused';
 import {directoryAccessRefused, directoryClockSkew, directoryIdentityUnconfirmed} from './directory-refusal';
 import {PhonePINEntry} from './PhonePINEntry';
+import {RememberProfileRow} from './RememberProfileRow';
 import {PhoneAccountSignIn} from './PhoneAccountSignIn';
 import {LegalAgreement} from './LegalAgreement';
 import {PhoneAccountForm} from './PhoneAccountForm';
@@ -70,7 +71,7 @@ type MemberMove = Awaited<ReturnType<NativeServerSignIn['createMemberMove']>>;
 type MemberMoveSnapshot = ReturnType<MemberMove['getSnapshot']>;
 type PINRecovery = {controller: NativeProfileRecovery; profile: ManagedProfile; operation: NativeServerSignIn; retired: boolean};
 type RequiredSetup = Readonly<{kind: 'required-setup'; requirement: 'password' | 'two-step'; serverName: string; serverOrigin: string}>;
-type Result = {kind: 'profiles'; profiles: readonly ManagedProfile[]} | {kind: 'challenge'; expiresAt: string} | {kind: 'complete'} | RequiredSetup;
+type Result = {kind: 'profiles'; profiles: readonly ManagedProfile[]; canRemember?: boolean} | {kind: 'challenge'; expiresAt: string} | {kind: 'complete'} | RequiredSetup;
 const t = defaultI18n.t;
 // Development bundles only (PORTICO_DEV_SIGN_IN=1); folded to undefined, with its module, everywhere else.
 declare const __PORTICO_DEV_SIGN_IN__: boolean | undefined;
@@ -117,6 +118,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const [setupAddress, setSetupAddress] = useState('');
   const [setupPasswordConfirm, setSetupPasswordConfirm] = useState(''), [name, setName] = useState(''), [email, setEmail] = useState(''), [masked, setMasked] = useState('');
   const [server, setServer] = useState<ServerSignIn>(), [profiles, setProfiles] = useState<readonly ManagedProfile[]>([]), [profile, setProfile] = useState<ManagedProfile>();
+  // "Remember this profile on this device": offered only where the server allows it; the tick carries from the faces to a PIN page and applies after a correct PIN.
+  const [canRemember, setCanRemember] = useState(false), [remember, setRemember] = useState(false);
   const profileFocus = useRef(new WeakMap<NativeServerSignIn, string>()).current;
   const [identityCode, setIdentityCode] = useState(''), [identityWrong, setIdentityWrong] = useState(false), [identityAddress, setIdentityAddress] = useState('');
   const invitationIntent = useRef<(NonNullable<ReturnType<typeof NativeServerSignIn.parseInvitationEntry>> & Partial<Pick<NativeInvitationEntry, 'fingerprint' | 'signIn' | 'expiresAt'>> & {publicPreview?: boolean}) | undefined>(undefined);
@@ -431,13 +434,13 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     if (!lifetime.current) return;
     if (result.kind === 'required-setup') {
       if (!Platform.isTV) throw Object.assign(new Error('native_required_account_setup'), {code: 'access_refused'});
-      setPassword(''); setCode(''); setRecoveryCode(''); setRecovery(false); setProfiles([]); setProfile(undefined);
+      setPassword(''); setCode(''); setRecoveryCode(''); setRecovery(false); setProfiles([]); setProfile(undefined); setCanRemember(false); setRemember(false);
       setTransaction(undefined); setOptions(undefined); setName(''); setEmail(''); setMasked('');
       setIdentityCode(''); setIdentityWrong(false); setIdentityAddress(''); identityOrigin.current = undefined;
       accountScope.current = undefined; contact.current = undefined;
       setRequiredSetup(result); setStage('tv-required-setup');
     }
-    else if (result.kind === 'profiles') {setServer(operation.current!.serverDescriptor()); setProfiles(result.profiles); setStage('profiles');}
+    else if (result.kind === 'profiles') {setServer(operation.current!.serverDescriptor()); setProfiles(result.profiles); setCanRemember(result.canRemember === true); setRemember(false); setStage('profiles');}
     else if (result.kind === 'challenge') {factorKind.current = 'local'; setCode(''); setRecovery(false); setStage('factor');}
     else onComplete();
   }, [onComplete]);
@@ -747,7 +750,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const capturedOrigin = identityOrigin.current; if (!capturedOrigin) return;
     setIdentityCode(''); setIdentityWrong(false); await inspect(capturedOrigin);
   };
-  const choose = async (id: string, enteredPin?: string) => {await operation.current!.chooseProfile(id, enteredPin); onComplete();};
+  const choose = async (id: string, enteredPin?: string) => {await operation.current!.chooseProfile(id, enteredPin, canRemember && remember); onComplete();};
   const typeTVCredentials = async (kind: TVCodeKind, current: () => boolean, opening: TVCodeOpening) => {
     if (!current()) return;
     if (kind === 'portico') {
@@ -1599,7 +1602,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       onOpen={value => {
         if (!current() || captured.controller.getSnapshot().phase !== 'done' || !/^\d{4}$/.test(value) || busyRef.current || acting.current) return;
         retireRecovery(captured); setCode(value);
-        void run(async () => {await captured.operation.chooseProfile(captured.profile.id, value); if (lifetime.current && operation.current === captured.operation) onComplete();});
+        void run(async () => {await captured.operation.chooseProfile(captured.profile.id, value, canRemember && remember); if (lifetime.current && operation.current === captured.operation) onComplete();});
       }}
       onClose={() => {if (!current()) return; retireRecovery(captured); setCode(''); setError(undefined);}}/>;
   }
@@ -1610,6 +1613,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       <ProfilePicker focusScope={`tv.auth.profiles.${server!.id}`} focusBusy={busy} title={t('accounts.profiles.onServer', {server: server!.name})} profiles={profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art, primary: value.primary, pinRequired: value.pinRequired, disabled: busy}))} preferredProfileId={profileFocus.get(originalOperation)}
         onFocusChange={id => {if (id && operation.current === originalOperation) profileFocus.set(originalOperation, id);}}
         onSelect={id => {const value = profiles.find(item => item.id === id)!; if (value.pinRequired) {setProfile(value); setCode(''); setStage('profile-pin');} else void run(() => choose(id));}}/>
+      {canRemember && <TVPickerRememberRow checked={remember} onChange={setRemember} busy={busy}/>}
       {status}
       <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/>
     </TVWhosWatching>;
@@ -1617,6 +1621,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     <><ProfilePicker focusScope={`tv.auth.profiles.${server!.id}`} focusBusy={busy} profiles={profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art, primary: value.primary, pinRequired: value.pinRequired, disabled: busy}))} preferredProfileId={theme.isTV ? profileFocus.get(originalOperation) : undefined}
       onFocusChange={id => {if (id && operation.current === originalOperation) profileFocus.set(originalOperation, id);}} showTitle={false}
       onSelect={id => {const value = profiles.find(item => item.id === id)!; if (value.pinRequired) {setProfile(value); setCode(''); setStage('profile-pin');} else void run(() => choose(id));}}/>
+    {canRemember && <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy} marginTop={34}/>}
     <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/></>);
   }
   if (theme.isTV && stage === 'profile-forgot-pin') return <TVForgotPINHandoff profileName={profile!.name}
@@ -1624,11 +1629,13 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   if (theme.isTV && stage === 'profile-pin') return <TVProfilePINForm
     profile={{id: profile!.id, name: profile!.name, initial: [...profile!.name][0] ?? '', color: profile!.art, primary: profile!.primary, pinRequired: true}}
     code={code} onCodeChange={setCode} busy={busy} error={status} onBack={back}
+    {...(canRemember ? {remember: {checked: remember, onChange: setRemember}} : {})}
     hints={busy ? <BootWaitLine active serverName={server?.name} testID="accounts-profile-wait"/> : undefined}
     onSubmit={value => {void run(() => choose(profile!.id, value));}}
     onForgotPIN={() => {if (!busy) {setCode(''); setError(undefined); setStage('profile-forgot-pin');}}}/>;
   if (stage === 'profile-pin') return layout(t('profile.pinTitle', {name: profile!.name}), undefined,
     <View style={{alignSelf: 'stretch'}}><PhonePINEntry value={code} onChange={setCode} onComplete={value => {void run(() => choose(profile!.id, value));}} busy={busy} error={!!error}/>
+      {canRemember && <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/>}
       <View style={{alignItems: 'center', marginTop: 8}}><Button variant="text" disabled={busy} onPress={() => {if (busy || !profile || !operation.current) return; try {setError(undefined); retireRecovery(); const next: PINRecovery = {profile, operation: operation.current, controller: operation.current.profileRecovery(profile.id), retired: false}; pinRecoveryRef.current = next; setPinRecovery(next);} catch (failure) {setError(failure);}}}>{t('pin.forgot')}</Button></View>
       <BootWaitLine active={busy} serverName={server?.name} testID="accounts-profile-wait"/></View>,
     action('profile-pin', t('action.continue'), () => choose(profile!.id, code), !/^\d{4}$/.test(code)));

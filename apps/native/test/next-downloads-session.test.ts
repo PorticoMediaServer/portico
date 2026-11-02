@@ -106,7 +106,7 @@ const bootModules: Record<string, Record<string, unknown>> = {
   },
   '../platform/server-connections': {trackNativeConnection: noop},
   // The session lifecycle opens the connection the shell takes (C2b).
-  '../platform/native-session-lifecycle': {nativeSessionLifecycle: () => ({ports: {lendInstallation: noop, classifyConnect: noop, failure: noop,
+  '../platform/native-session-lifecycle': {nativeRememberedProfile: () => undefined, nativeSessionLifecycle: () => ({ports: {lendInstallation: noop, classifyConnect: noop, failure: noop,
     reconnect: async () => ({serverId: 'server', api: localApi(), session: active.session, installation: {current: () => active.state.current, dispose: noop},
       prepared: {saved: {viewer: {session: active.session, serverUrl: 'https://server.test'}}, env: {}, identity: {appVersion: 'test'}},
       selected: await selected(), server: {serverId: 'server', familyId: active.session.sessionFamilyId, fingerprint: 'f', signIn: 'local', name: 'Server'},
