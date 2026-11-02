@@ -31,6 +31,25 @@ def environment():
 
 
 class ColdToolchain(unittest.TestCase):
+    def test_native_plan_skips_failed_construction_but_keeps_successful_targets(self):
+        def artifact(target):
+            return dict(id=123, name='engine-cold-' + target + '-' + SHA + '-NOT-FOR-USE',
+                expired=False, size_in_bytes=100, digest='sha256:' + 'b' * 64,
+                workflow_run=dict(id=12, head_sha=SHA))
+        result = cold.native_matrix('all', [artifact('windows-x64')], SHA, 'failure', 12)
+        self.assertEqual([r['target'] for r in result['matrix']['include']], ['windows-x64'])
+        self.assertIn('macos-x64', result['missingConstruction'])
+        self.assertFalse(result['nativeEngineChecks'])
+        with self.assertRaisesRegex(ValueError, 'missing its exact artifacts'):
+            cold.native_matrix('all', [artifact('windows-x64')], SHA, 'success', 12)
+        original = artifact('windows-x64')
+        for bad in (dict(original, expired=True), dict(original, workflow_run=dict(id=11, head_sha=SHA)),
+                    dict(original, digest='sha256:bad')):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                cold.native_matrix('windows-x64', [bad], SHA, 'success', 12)
+        with self.assertRaises(ValueError):
+            cold.native_matrix('windows-x64', [original, original], SHA, 'success', 12)
+
     def test_first_set_has_four_required_targets_and_optional_intel(self):
         rows = cold.matrix('all')['include']
         self.assertEqual({r['target'] for r in rows if not r['optional']},

@@ -110,7 +110,7 @@ portico_cmake -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DENABLE_CXX_DEPS=ON \
 portico_clone soxr
 portico_cmake -DWITH_OPENMP=OFF -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 portico_clone fontconfig
-portico_meson -Dtests=disabled -Dtools=disabled -Ddoc=disabled -Dxml-backend=libxml2
+portico_meson -Dtests=disabled -Dtools=disabled -Ddoc=disabled -Dxml-backend=libxml2 -Dnls=disabled
 portico_clone dvdread
 portico_disc_patch libdvdread-no-decryption.patch
 portico_meson -Dlibdvdcss=disabled

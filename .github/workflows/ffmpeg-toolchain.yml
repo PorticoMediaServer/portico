@@ -35,7 +35,9 @@ jobs:
     steps:
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
@@ -56,6 +58,7 @@ jobs:
           python scripts/test-windows-rav1e-custody.py
           python scripts/test-capture-engine-prepack.py
           python scripts/test-ci-ffmpeg-toolchain.py
+          python scripts/test-engine-checkout.py
           python scripts/test-ffmpeg-build-tools.py
           python scripts/test-native-rust-tools.py
           python scripts/test-macos-source-checkout.py
@@ -79,7 +82,9 @@ jobs:
     steps:
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -112,7 +117,9 @@ jobs:
     steps:
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
@@ -169,26 +176,53 @@ jobs:
           compression-level: 0
           retention-days: 14
           if-no-files-found: error
+  native-plan:
+    needs: [controls, build]
+    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      available: ${{ steps.plan.outputs.available }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENGINE_TARGET: ${{ inputs.target || 'all' }}
+          ENGINE_BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '[.[] | .artifacts[]]' > "$RUNNER_TEMP/engine-artifact-metadata.json"
+          python scripts/ci-ffmpeg-toolchain.py native-plan --target "$ENGINE_TARGET" --build-result "$ENGINE_BUILD_RESULT" --artifacts "$RUNNER_TEMP/engine-artifact-metadata.json" --work "$RUNNER_TEMP/engine-native-plan" --github-output "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: engine-native-plan-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/engine-native-plan/*.json
+          retention-days: 14
+          if-no-files-found: warn
   native:
     name: Native cold gates (${{ matrix.target }})
-    needs: [controls, build]
-    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.upstreamComparison
+    needs: [controls, native-plan]
+    if: always() && needs.controls.result == 'success' && needs.native-plan.result == 'success' && needs.native-plan.outputs.available == 'true'
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.controls.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.native-plan.outputs.matrix) }}
     runs-on: ${{ matrix.nativeRunner }}
     timeout-minutes: 90
     defaults:
       run:
         shell: bash
     steps:
-      - name: Enable long checkout paths on the disposable Windows runner
-        if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
@@ -197,9 +231,12 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.13.17'
+      - name: Verify checkout contract bytes before native qualification
+        run: python scripts/test-engine-checkout.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: engine-cold-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          artifact-ids: ${{ matrix.artifactId }}
+          merge-multiple: true
           path: ${{ runner.temp }}/engine-transfer
       - name: Verify exact-run bytes and run matching native gates
         env:
@@ -216,6 +253,32 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+  windows-checkout-control:
+    if: inputs.controlsOnly && !inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
+    runs-on: windows-2025
+    timeout-minutes: 10
+    defaults:
+      run: {shell: bash}
+    steps:
+      - run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - name: Record the runner's original checkout filter
+        run: python scripts/test-engine-checkout.py --inspect --report "$RUNNER_TEMP/original-checkout.json"
+      - name: Materialize the exact Git bytes and exercise both filter cases
+        run: |
+          git config --global core.autocrlf false
+          git checkout-index --force -a
+          python scripts/test-engine-checkout.py
+          python scripts/test-engine-checkout.py --inspect --report "$RUNNER_TEMP/fixed-checkout.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: engine-checkout-control-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/*-checkout.json
+          retention-days: 7
   system-library-control:
     if: inputs.controlsOnly && !inputs.staticControlsOnly && !inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
     strategy:
@@ -226,7 +289,9 @@ jobs:
     steps:
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -262,7 +327,9 @@ jobs:
     steps:
       - name: Allow the checked monorepo's long fixture paths
         if: runner.os == 'Windows'
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1

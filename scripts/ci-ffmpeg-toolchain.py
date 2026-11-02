@@ -71,6 +71,34 @@ def matrix(selected):
                         if selected in ('all', target)]}
 
 
+def native_matrix(selected, artifacts, source_sha, build_result, run_id):
+    """Only schedule receivers whose exact-run construction artifact exists."""
+    if not re.fullmatch(r'[a-f0-9]{40}', source_sha):
+        raise ValueError('exact construction source required')
+    if build_result not in ('success', 'failure', 'cancelled'):
+        raise ValueError('completed construction result required')
+    rows, missing = [], []
+    for row in matrix(selected)['include']:
+        expected = 'engine-cold-' + row['target'] + '-' + source_sha + '-NOT-FOR-USE'
+        matches = [item for item in artifacts if item.get('name') == expected]
+        if not matches:
+            missing.append(row['target'])
+            continue
+        item = matches[0]
+        if (len(matches) != 1 or item.get('expired') is not False or
+                type(item.get('id')) is not int or item['id'] <= 0 or
+                not 0 < item.get('size_in_bytes', 0) <= 3 * 1024**3 or
+                not re.fullmatch(r'sha256:[a-f0-9]{64}', item.get('digest', '')) or
+                item.get('workflow_run', {}).get('id') != run_id or
+                item.get('workflow_run', {}).get('head_sha') != source_sha):
+            raise ValueError('ambiguous or changed construction artifact: ' + expected)
+        rows.append(dict(row, artifactId=item['id']))
+    if missing and build_result == 'success':
+        raise ValueError('successful construction is missing its exact artifacts')
+    return {'matrix': {'include': rows}, 'missingConstruction': missing,
+            'nativeEngineChecks': False, 'qualified': False, 'release': False}
+
+
 def run(command, log, env=None, timeout=315 * 60):
     started = time.monotonic()
     with log.open('wb') as output:
@@ -343,13 +371,28 @@ def native(target, transfer, evidence):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('phase', choices=('plan', 'build', 'native'))
+    parser.add_argument('phase', choices=('plan', 'native-plan', 'build', 'native'))
     parser.add_argument('--target', choices=('all', *TARGETS), default='all')
     parser.add_argument('--work', type=Path)
     parser.add_argument('--transfer', type=Path)
+    parser.add_argument('--artifacts', type=Path)
+    parser.add_argument('--build-result')
+    parser.add_argument('--github-output', type=Path)
     args = parser.parse_args()
     if args.phase == 'plan':
         print(json.dumps(matrix(args.target)))
+    elif args.phase == 'native-plan':
+        provenance = context()
+        if not args.artifacts or not args.work or not args.github_output:
+            parser.error('native-plan requires artifact metadata, work and GitHub output')
+        result = native_matrix(args.target, json.loads(args.artifacts.read_text()),
+                               provenance['engineSourceSHA'], args.build_result, provenance['runId'])
+        args.work.mkdir(parents=True, exist_ok=False)
+        atomic(args.work / 'native-plan.json', dict(result, **provenance))
+        with args.github_output.open('a') as output:
+            output.write('matrix=' + json.dumps(result['matrix'], separators=(',', ':')) + '\n')
+            output.write('available=' + ('true' if result['matrix']['include'] else 'false') + '\n')
+        print(json.dumps(result))
     elif args.target == 'all' or args.work is None:
         parser.error('one target and a fresh work directory required')
     elif args.phase == 'build':

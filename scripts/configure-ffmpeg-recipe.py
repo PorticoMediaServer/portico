@@ -38,7 +38,10 @@ if target.startswith('macos'):
     build = recipe / 'build-ffmpeg'
     text = build.read_text()
     marker = 'build "ffmpeg" "${FFMPEG_VERSION}"'
-    addition = mac_source['extras_block']() + 'CONFIGURE_OPTIONS+=(' + ' '.join('"' + x + '"' for x in flags.split()) + ')\n'
+    addition = (mac_source['extras_block']() +
+        'python3 "${CWD}/portico-macos-runtime.py" check-prefix --prefix "$WORKSPACE" --target "' + target +
+        '" --report "$CWD/../fontconfig-link-inputs.json"\n' +
+        'CONFIGURE_OPTIONS+=(' + ' '.join('"' + x + '"' for x in flags.split()) + ')\n')
     if marker not in text:
         raise ValueError('macOS recipe changed')
     text = text.replace(marker, addition + marker, 1)
@@ -60,6 +63,7 @@ if target.startswith('macos'):
     shutil.copy2(root / 'scripts/build-macos-zvbi.sh', recipe / 'portico-build-macos-zvbi.sh')
     shutil.copy2(root / 'scripts/configure-macos-shaderc.py', recipe / 'portico-configure-macos-shaderc.py')
     shutil.copy2(root / 'scripts/macos-ffmpeg-source.py', recipe / 'portico-macos-ffmpeg-source.py')
+    shutil.copy2(root / 'scripts/macos-engine-runtime.py', recipe / 'portico-macos-runtime.py')
     extra_pin = json.loads((root / 'third_party/ffmpeg/sources.lock.json').read_text())['macosRecipe']['extrasLock']
     if hashlib.sha256((root / extra_pin['path']).read_bytes()).hexdigest() != extra_pin['sha256']:
         raise ValueError('Checked Mac extras source lock changed')
