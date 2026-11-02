@@ -767,7 +767,7 @@ jobs:
           retention-days: 14
   cache-budget:
     needs: cache-migration
-    if: inputs.cacheMigrationOnly && github.ref == 'refs/heads/main' && github.repository == 'PorticoMediaServer/portico'
+    if: always() && needs.cache-migration.result != 'skipped' && inputs.cacheMigrationOnly && github.ref == 'refs/heads/main' && github.repository == 'PorticoMediaServer/portico'
     runs-on: ubuntu-24.04
     permissions: {contents: read, actions: read}
     timeout-minutes: 5
