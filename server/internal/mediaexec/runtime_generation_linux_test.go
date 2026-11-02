@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 )
 
@@ -75,6 +76,61 @@ func TestCachedRuntimeIdentityRefusesChangedCodeGeneration(t *testing.T) {
 	}
 	if got, ready := CachedRuntimeIdentity(t.Context(), tool); !ready || got != after {
 		t.Fatal("refreshed generation unavailable", got, ready)
+	}
+}
+
+func TestCachedRuntimeIdentityRefusesLibraryAndAliasChanges(t *testing.T) {
+	for _, change := range []string{"library", "alias"} {
+		t.Run(change, func(t *testing.T) {
+			tool, library := copyCacheELF(t), copyCacheELF(t)
+			alias := filepath.Join(t.TempDir(), "libgeneration.so")
+			if err := os.Symlink(library, alias); err != nil {
+				t.Fatal(err)
+			}
+			configured.Lock()
+			previous := configured.libraries
+			configured.libraries = []string{alias}
+			configured.Unlock()
+			t.Cleanup(func() {
+				configured.Lock()
+				configured.libraries = previous
+				configured.Unlock()
+			})
+			if _, complete, err := RuntimeIdentity(t.Context(), tool); err != nil || !complete {
+				t.Fatal(complete, err)
+			}
+			if _, ready := CachedRuntimeIdentity(t.Context(), tool); !ready {
+				t.Fatal("completed configured-library generation missing")
+			}
+			if change == "alias" {
+				replacement := copyCacheELF(t)
+				if err := os.Symlink(replacement, alias+".new"); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Rename(alias+".new", alias); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				info, err := os.Stat(library)
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw, err := os.ReadFile(library)
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw[8] ^= 1
+				if err := os.WriteFile(library, raw, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chtimes(library, info.ModTime(), info.ModTime()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, ready := CachedRuntimeIdentity(t.Context(), tool); ready {
+				t.Fatal("changed library custody reused a generation", change)
+			}
+		})
 	}
 }
 
