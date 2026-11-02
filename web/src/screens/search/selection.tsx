@@ -7,7 +7,7 @@ const searchableSelectionKinds = new Set(['movie', 'show', 'season', 'episode', 
 
 /** Search is explicit; its own fence/revision never becomes Browse query authority. */
 export function createSearchSelection(context: ScreenContext, service: Pick<SearchService, 'getSnapshot' | 'subscribe'>, principal: Omit<BrowseSelectionScope, 'viewId'>,
-  metadataFence: () => string | undefined, runtime?: WebShellPlaybackRuntime) {
+  runtime?: WebShellPlaybackRuntime) {
   const source: CatalogueDocumentSource = {subscribe: service.subscribe, getSnapshot: () => {
     const snapshot = service.getSnapshot(), data = snapshot.data, query = snapshot.query;
     if (!context.isCurrent() || !data || !query || !['ready', 'loading'].includes(snapshot.phase)
@@ -15,7 +15,7 @@ export function createSearchSelection(context: ScreenContext, service: Pick<Sear
     return {key: JSON.stringify([data.scope.serverId, data.scope.viewerFence, data.revision, query.q, query.group, query.groups, query.libraryIds, query.sort, query.direction]),
       revision: JSON.stringify([data.scope.viewerFence, data.revision]), entries: snapshot.groups.flatMap(group => group.items.flatMap(entry => 'libraryId' in entry && searchableSelectionKinds.has(entry.kind) ? [entry] : []))};
   }};
-  const selection = createCatalogueDocumentSelection(context, source, principal, metadataFence, runtime);
+  const selection = createCatalogueDocumentSelection(context, source, principal, runtime);
   const members = (group: SearchGroupResult, shown: readonly SearchEntry[]) => {
     if (!service.getSnapshot().groups.includes(group) || !shown.length || shown.some(entry => !group.items.includes(entry))) return;
     const entries = shown.flatMap(entry => 'libraryId' in entry && searchableSelectionKinds.has(entry.kind) ? [entry] : []);

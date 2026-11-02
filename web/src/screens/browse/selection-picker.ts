@@ -1,6 +1,6 @@
 import {selectionQuerySelector} from '@core/selection-model/index.ts';
 import {routePath} from '../../../../packages/contracts/src/routes.ts';
-import {parseHomeDestinationPicker} from '@core/home-selection/destination-picker.ts';
+import {fetchDestinationAuthority, parseHomeDestinationPicker} from '@core/home-selection/destination-picker.ts';
 import {DetailService} from '@core/detail.ts';
 import {HomeSelectionDestinations} from '@core/home-selection/destinations.ts';
 import type {HomeSelectionPicker} from '@core/home-selection/types.ts';
@@ -71,12 +71,10 @@ export class LibraryPickerProducer {
     if (!targets.every((item): item is SelectionItem & CatalogueSelectionIdentity => item.kind !== 'channel' && item.kind !== 'person' && 'libraryId' in item)) throw new Error('picker-action-not-permitted');
     if (new Set(targets.map(item => item.id)).size !== targets.length) throw new Error('picker-target-required');
     const picks: SelectedItem[] = [];
-    let parents = false;
     let captured: {fence: string; catalog: number; viewer: number} | undefined;
     for (const selected of targets) {
       if (!('libraryId' in selected) || selected.capabilities[this.kind] !== true) throw new Error('picker-action-not-permitted');
       if (['show', 'season', 'album', 'artist', 'book', 'collection'].includes(selected.kind)) {
-        parents = true;
         picks.push(Object.freeze({key: JSON.stringify([selected.libraryId, selected.kind, selected.id]), item: selected}));
         continue;
       }
@@ -92,21 +90,16 @@ export class LibraryPickerProducer {
       const item = Object.freeze({...selected, capabilities: Object.freeze({...selected.capabilities, playlist, collection})});
       picks.push(Object.freeze({key: JSON.stringify([item.libraryId, item.kind, item.id]), item}));
     }
-    if (parents) {
-      // This authenticated read issues the destination domain's own fence. Do
-      // not substitute the Search token, a metadata fence or a descendant read.
-      const request = {kind: this.kind, query: '', limit: 40};
-      const raw = await this.api.request<unknown>(routePath('post_home_destination_picker'), 'POST', request, this.lifetime.signal); this.check();
-      if (!raw || typeof raw !== 'object' || !('viewerFence' in raw) || typeof raw.viewerFence !== 'string' || !/^[a-f0-9]{64}$/.test(raw.viewerFence)) throw new Error('picker-authority-required');
-      const page = parseHomeDestinationPicker(raw, request, this.ports.serverId, raw.viewerFence);
-      captured = {fence: raw.viewerFence, catalog: page.revision.catalog, viewer: page.revision.viewer};
-    }
-    if (!captured) throw new Error('picker-target-required');
+    if (!picks.length) throw new Error('picker-target-required');
+    // The detail reads above only proved each leaf may be added (and agree with each other). The destination session
+    // holds the fence the destination read itself issues: never a detail's, the Search token or a descendant read
+    // (walk J-11, J-13: substituting the detail's fence made every add say "That list could not be updated.").
+    const authority = await fetchDestinationAuthority(this.api, this.kind, this.ports.serverId, this.lifetime.signal); this.check();
     const viewId = await this.ports.requestId(); this.check();
     const target: SelectionTarget = Object.freeze({mode: 'explicit', items: Object.freeze(picks), displayItems: Object.freeze(picks), context: {
       scope: {serverId: this.ports.serverId, authority: identity.authority, accountId: identity.accountId, profileId: identity.profileId,
-        viewId, privacyFence: captured.fence},
-      revision: {catalogRevision: String(captured.catalog), viewerRevision: String(captured.viewer)}}});
+        viewId, privacyFence: authority.viewerFence},
+      revision: {catalogRevision: String(authority.revision.catalog), viewerRevision: String(authority.revision.viewer)}}});
     this.session = new HomeSelectionDestinations({api: this.api, events: identity.events, requestId: this.ports.requestId}, target, this.kind,
       this.lifetime.signal, this.current, this.update);
     await this.session.load();

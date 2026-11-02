@@ -1,5 +1,6 @@
 import {DetailService} from '@core/detail.ts';
 import {HomeSelectionDestinations} from '@core/home-selection/destinations.ts';
+import {fetchDestinationAuthority} from '@core/home-selection/destination-picker.ts';
 import type {HomeSelectionPicker} from '@core/home-selection/types.ts';
 import type {SelectionTarget} from '@core/selection-model/index.ts';
 import type {EntryActionPorts, EntryActionTarget, EntryDestination} from './entry-actions';
@@ -44,10 +45,12 @@ export class EntryPickerProducer {
     const item = Object.freeze({kind: this.target.kind, id: this.target.itemId, libraryId: this.target.libraryId,
       capabilities: Object.freeze({play: false, queue: false, playlist, collection, myList: false, watched: false, favorite: false, download: false, edit: false, refresh: false, delete: false})});
     const pick = Object.freeze({key: JSON.stringify([item.libraryId, item.kind, item.id]), item});
+    // The detail only proved this title may be added; the destination session holds the destination read's own fence.
+    const authority = await fetchDestinationAuthority(this.api, this.kind, this.ports.serverId, this.lifetime.signal); this.check();
     const target: SelectionTarget = Object.freeze({mode: 'explicit', items: Object.freeze([pick]), displayItems: Object.freeze([pick]), context: {
       scope: {serverId: this.ports.serverId, authority: identity.authority, accountId: identity.accountId, profileId: identity.profileId,
-        viewId: JSON.stringify(['entry-picker', this.target.libraryId, this.target.itemId]), privacyFence: data.scope.viewerFence},
-      revision: {catalogRevision: String(data.revision.catalog), viewerRevision: String(data.revision.viewer)}}});
+        viewId: JSON.stringify(['entry-picker', this.target.libraryId, this.target.itemId]), privacyFence: authority.viewerFence},
+      revision: {catalogRevision: String(authority.revision.catalog), viewerRevision: String(authority.revision.viewer)}}});
     this.session = new HomeSelectionDestinations({api: this.api, events: identity.events, requestId: this.ports.requestId}, target, this.kind,
       this.lifetime.signal, this.current, this.update);
     await this.session.load();

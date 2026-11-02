@@ -61,7 +61,7 @@ function BoundSaved({captured, owner}: {captured: ProtectedLibraryScreen; owner:
     const operations = new SavedOperations(current), borrowed = owner.runtime;
     const selection = createSavedCatalogueSelection(original, borrowed, savedReaderRoute(originalRoute),
       {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId},
-      () => captured.context.viewerFence, current, playback);
+      current, playback);
     const select: typeof borrowed.select = async (value, restore) => {
       // SavedScreen passes its exact normalized reader to a retry (bare /saved
       // remains the home URL). Admit only those two captured representations.

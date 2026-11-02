@@ -125,6 +125,7 @@ func TestReadingOwnerMetadataUsesExistingRouteAndCurrentLibraryAuthority(t *test
 // MOB-055: a Reading selection's owner edit starts from the shared bulk preview,
 // which admits ebook and comic targets with their own Reading schema.
 func TestReadingBulkMetadataPreviewAdmitsReadingTargets(t *testing.T) {
+	preparedExplicitPreviews(t)
 	f := administrationFixtureNew(t)
 	c := catalogtest.New(t, f.deps.DB)
 	read := c.Library("read", "Read", "book", "/read")
