@@ -144,10 +144,12 @@ func TestScanAnalysisConsumesItsOwnArtworkObservation(t *testing.T) {
 	}
 	// The item's artwork key takes one admission stat and one blob. Cold
 	// candidate enumeration takes three fresh stats (pre-check, byte admission,
-	// post-check) and one blob. Publication then causes a warm candidate check:
-	// two fresh observations, no blob. No observation pays an extra explicit stat.
+	// post-check) and one blob. When the file is picked again after the derived
+	// worker applies its publication, the same accepted observation is accepted
+	// again, so the poster is not read a second time (OPS-1). No observation
+	// pays an extra explicit stat.
 	calls := counts("Movie (2020)-poster.png")
-	if calls["inventory-stat"] != 6 || calls["inventory-blob"] != 2 {
+	if calls["inventory-stat"] != 4 || calls["inventory-blob"] != 2 {
 		t.Fatal("the scan did not consume its own observation around the admitted read", calls)
 	}
 }
