@@ -128,3 +128,34 @@ func TestSearchChannelAnchorUsesActualActiveSourceMapping(t *testing.T) {
 		t.Fatalf("stale source identity retained: %+v", out.Groups)
 	}
 }
+
+// SR-2: a channel the owner hid is hidden for everyone, so Search neither lists
+// nor counts it, as the guide, its directory and channel playback already refuse it.
+func TestSearchLiveTVOmitsOwnerHiddenChannels(t *testing.T) {
+	s, request := searchPrivacyCatalog(t)
+	request.LiveTV, request.Group, request.Limit = true, "live-tv", 10
+	names := func() ([]string, int) {
+		t.Helper()
+		out, err := s.Search(context.Background(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(out.Groups) != 1 {
+			t.Fatalf("groups: %+v", out.Groups)
+		}
+		got := []string{}
+		for _, item := range out.Groups[0].Items {
+			got = append(got, item.Title)
+		}
+		return got, out.Groups[0].TotalCount
+	}
+	if got, total := names(); len(got) != 2 || total != 2 {
+		t.Fatalf("before hiding: %v total %d", got, total)
+	}
+	if _, err := s.db.Exec(`INSERT INTO admin_channel_numbers(source_id,channel_id,hidden,updated_ms) VALUES(?,?,1,1)`, "active", "news24"); err != nil {
+		t.Fatal(err)
+	}
+	if got, total := names(); len(got) != 1 || got[0] != "Northwind News" || total != 1 {
+		t.Fatalf("after hiding Northwind News 24: %v total %d", got, total)
+	}
+}
