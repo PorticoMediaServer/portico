@@ -146,28 +146,137 @@ func rarFileBlock(name string, payload []byte) []byte {
 
 // CBR4 is a legacy RAR4 (2.9/3.x/4.x block format) comic whose pages are
 // stored, as many real CBRs are; OPS-2's walk fixture is this shape. method is
-// the RAR4 compression method byte for every member (0x30 stored, 0x33 normal)
-// and flags are added to each file header (0x10 solid, 0x04 encrypted), so a
-// test can build the variants the server refuses. Compressed members carry the
-// raw page bytes: the server must refuse them from the headers alone.
+// the RAR4 compression method byte for every member (0x30 stored) and flags are
+// added to each file header (0x10 solid, 0x04 encrypted), so a test can build
+// the variants the server refuses or routes to its worker. A compressed member
+// built this way still carries the raw page bytes: it is only a header shape,
+// not a decodable stream.
 func CBR4(method byte, fileFlags uint16) []byte {
 	var b bytes.Buffer
 	b.WriteString("Rar!\x1a\x07\x00")
 	b.Write(rar4Block(0x73, 0, make([]byte, 6), nil))
 	for _, member := range comicMembers() {
-		fields := binary.LittleEndian.AppendUint32(nil, uint32(len(member.data)))
-		fields = binary.LittleEndian.AppendUint32(fields, uint32(len(member.data)))
-		fields = append(fields, 3) // host OS: Unix
-		fields = binary.LittleEndian.AppendUint32(fields, crc32.ChecksumIEEE(member.data))
-		fields = binary.LittleEndian.AppendUint32(fields, 0x5a210000) // DOS time
-		fields = append(fields, 20, method)
-		fields = binary.LittleEndian.AppendUint16(fields, uint16(len(member.name)))
-		fields = binary.LittleEndian.AppendUint32(fields, 0o100644<<16)
-		fields = append(fields, member.name...)
-		b.Write(rar4Block(0x74, 0x8000|fileFlags, fields, member.data))
+		b.Write(rar4FileBlock(member.name, member.data, member.data, 20, method, fileFlags))
 	}
 	b.Write(rar4Block(0x7b, 0x4000, nil, nil))
 	return b.Bytes()
+}
+
+// CBR4Compressed is the compressed RAR4 shape: two pages with the RAR 2.9 LZ
+// method (0x33) in one non-solid archive. The bitstream is literal-only, so it
+// is a legal RAR 2.9 stream produced without any third-party encoder.
+func CBR4Compressed() []byte { return cbr4LZ(false) }
+
+// CBR4Solid is the solid RAR4 shape: the archive's main block and the second
+// file carry the solid flags, and the second page's literals continue the first
+// page's window and tables as a solid decoder expects.
+func CBR4Solid() []byte { return cbr4LZ(true) }
+
+func cbr4LZ(solid bool) []byte {
+	members := comicMembers()[:2]
+	var b bytes.Buffer
+	b.WriteString("Rar!\x1a\x07\x00")
+	var mainFlags uint16
+	if solid {
+		mainFlags = 0x0008 // archive is solid
+	}
+	b.Write(rar4Block(0x73, mainFlags, make([]byte, 6), nil))
+	for index, member := range members {
+		var bits rar4BitWriter
+		if !solid || index == 0 {
+			rar4LZHeader(&bits)
+		}
+		for _, value := range member.data {
+			bits.put(uint64(value), 9)
+		}
+		bits.put(256, 9) // end of block
+		bits.put(0, 2)   // no more blocks in this file
+		var fileFlags uint16
+		if solid && index == 1 {
+			fileFlags = 0x0010 // file is solid
+		}
+		b.Write(rar4FileBlock(member.name, member.data, bits.flush(), 29, 0x33, fileFlags))
+	}
+	b.Write(rar4Block(0x7b, 0x4000, nil, nil))
+	return b.Bytes()
+}
+
+// rar4FileBlock writes one RAR4 file header (method 0x30 stored or a compressed
+// method) whose packed bytes are already encoded.
+func rar4FileBlock(name string, plain, packed []byte, unpackver, method byte, flags uint16) []byte {
+	fields := binary.LittleEndian.AppendUint32(nil, uint32(len(packed)))
+	fields = binary.LittleEndian.AppendUint32(fields, uint32(len(plain)))
+	fields = append(fields, 3) // host OS: Unix
+	fields = binary.LittleEndian.AppendUint32(fields, crc32.ChecksumIEEE(plain))
+	fields = binary.LittleEndian.AppendUint32(fields, 0x5a210000) // DOS time
+	fields = append(fields, unpackver, method)
+	fields = binary.LittleEndian.AppendUint16(fields, uint16(len(name)))
+	fields = binary.LittleEndian.AppendUint32(fields, 0o100644<<16)
+	fields = append(fields, name...)
+	return rar4Block(0x74, 0x8000|flags, fields, packed)
+}
+
+// rar4BitWriter writes the RAR 2.9 bit order: high bit of each byte first, as
+// rardecode's rarBitReader reads it.
+type rar4BitWriter struct {
+	data  []byte
+	value uint64
+	bits  uint8
+}
+
+func (w *rar4BitWriter) put(value uint64, bits uint8) {
+	if bits == 0 {
+		return
+	}
+	w.value = w.value<<bits | value&(1<<bits-1)
+	w.bits += bits
+	for w.bits >= 8 {
+		w.bits -= 8
+		w.data = append(w.data, byte(w.value>>w.bits))
+	}
+	if w.bits == 0 {
+		w.value = 0
+	} else {
+		w.value &= 1<<w.bits - 1
+	}
+}
+
+// flush pads the last byte with zero bits; the decoder stops at the end marker.
+func (w *rar4BitWriter) flush() []byte {
+	if w.bits > 0 {
+		w.data = append(w.data, byte(w.value<<(8-w.bits)))
+		w.value, w.bits = 0, 0
+	}
+	return w.data
+}
+
+// rar4LZHeader writes the literal-only LZ block header: LZ mode, fresh tables,
+// a 20-entry bit-length table giving the symbols 0, 9, 16 and 18 two bits each,
+// and main code lengths of 9 for every literal plus the end-of-block symbol
+// (codes 0..256, in symbol order).
+func rar4LZHeader(w *rar4BitWriter) {
+	w.put(0, 1) // LZ, not PPM
+	w.put(0, 1) // new tables, not an update of the previous ones
+	for _, length := range [20]byte{2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0} {
+		w.put(uint64(length), 4)
+	}
+	// Canonical two-bit codes: 00 = length 0, 01 = length 9, 10 = repeat the
+	// previous length, 11 = repeat zero (3..10 times, as three bits plus three).
+	w.put(1, 2)            // the first main symbol has code length 9
+	rar4CodeRun(w, 2, 256) // the other 256 main symbols are also 9
+	rar4CodeRun(w, 3, 147) // offset, low-offset and length tables stay empty
+}
+
+func rar4CodeRun(w *rar4BitWriter, symbol uint64, count int) {
+	for count > 0 {
+		run := min(count, 10)
+		if remaining := count - run; remaining > 0 && remaining < 3 {
+			run = count - 3
+		}
+		w.put(symbol, 2)
+		w.put(uint64(run-3), 3)
+		count -= run
+	}
 }
 
 // rar4Block writes one RAR4 block: CRC16 (low half of the header's CRC32), type,

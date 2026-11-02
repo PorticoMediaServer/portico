@@ -70,6 +70,13 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 			return errors.New("member required")
 		}
 		return page(stdin, stdout, args[1])
+	case "rar-list":
+		return rarList(stdin, stdout)
+	case "rar-page":
+		if len(args) != 2 {
+			return errors.New("member required")
+		}
+		return rarPage(stdin, stdout, args[1])
 	default:
 		return errors.New("unknown mode")
 	}
@@ -78,11 +85,22 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 // spool copies stdin into the parent-provided private scratch root; 7z needs
 // random access and no archive path is ever passed on the command line.
 func spool(stdin io.Reader) (string, int64, error) {
+	path, written, err := spoolArchive(stdin, "archive.7z")
+	if err != nil {
+		return "", 0, err
+	}
+	return filepath.Dir(path), written, nil
+}
+
+// spoolArchive is spool with the archive's name chosen by the caller: the RAR
+// reader also needs a private, fully written file.
+func spoolArchive(stdin io.Reader, name string) (string, int64, error) {
 	directory, err := os.MkdirTemp("", "portico-cb7-")
 	if err != nil {
 		return "", 0, err
 	}
-	file, err := os.Create(filepath.Join(directory, "archive.7z"))
+	path := filepath.Join(directory, name)
+	file, err := os.Create(path)
 	if err != nil {
 		_ = os.RemoveAll(directory)
 		return "", 0, err
@@ -93,7 +111,7 @@ func spool(stdin io.Reader) (string, int64, error) {
 		_ = os.RemoveAll(directory)
 		return "", 0, errors.New("archive too large")
 	}
-	return directory, written, nil
+	return path, written, nil
 }
 
 func admit(path string, size int64) error {
