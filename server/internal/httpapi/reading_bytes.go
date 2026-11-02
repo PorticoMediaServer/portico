@@ -89,6 +89,8 @@ func readingFailure(w http.ResponseWriter, err error) {
 		// Match the concealed content-restriction response: availability must
 		// not distinguish an absent publication from an inaccessible one.
 		failure(w, sql.ErrNoRows)
+	case errors.Is(err, reading.ErrArchiveFormat):
+		policyError(w, "comic_archive_unsupported")
 	case errors.Is(err, reading.ErrInvalid):
 		policyError(w, "invalid_request")
 	case errors.Is(err, reading.ErrLimit):

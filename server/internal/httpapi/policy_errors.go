@@ -37,6 +37,9 @@ func policyErrorDefinitions() []apierror.Definition {
 		{Code: "artwork_gone", Status: 410, Message: "This artwork version is no longer available.", Retry: apierror.AfterRefresh},
 		{Code: "method_not_allowed", Status: 405, Message: "This action is not supported.", Retry: apierror.Never},
 		{Code: "web_unavailable", Status: 503, Message: "The web app is temporarily unavailable.", Retry: apierror.SameRequest},
+		// OPS-2: a comic archive this server cannot read (encrypted, multi-volume, solid, or a compressed legacy RAR) is a
+		// definite answer about the file, never an internal failure.
+		{Code: "comic_archive_unsupported", Status: 422, Message: "This comic's archive type isn't supported.", Retry: apierror.Never},
 		{Code: "source_folders_unsupported", Status: 422, Message: "Folder browsing inside a mounted source is not available on this server.", Retry: apierror.Never},
 	}
 }

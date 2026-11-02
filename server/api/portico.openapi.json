@@ -620823,6 +620823,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "metadata_conflict",
           "source_unavailable",
@@ -620951,6 +620952,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy"
         ],
@@ -708737,6 +708739,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy"
         ],
@@ -710044,6 +710047,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy"
         ],
@@ -710799,6 +710803,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy",
           "writer_capacity"
@@ -711309,6 +711314,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy",
           "writer_capacity"
@@ -711720,6 +711726,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "search_busy",
           "database_busy"
@@ -712122,6 +712129,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy",
           "writer_capacity"
@@ -712196,6 +712204,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy",
           "writer_capacity"
@@ -713063,6 +713072,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy"
         ],
@@ -713170,6 +713180,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy",
           "writer_capacity"
@@ -713295,6 +713306,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy"
         ],
@@ -713459,6 +713471,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy"
         ],
@@ -713679,6 +713692,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy",
           "writer_capacity"
@@ -713897,6 +713911,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "search_busy",
           "database_busy"
@@ -714016,6 +714031,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy"
         ],
@@ -714121,6 +714137,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "comic_archive_unsupported",
           "internal",
           "database_busy"
         ],

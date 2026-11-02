@@ -17583,6 +17583,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -23845,6 +23846,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26253,6 +26255,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26365,6 +26368,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26489,6 +26493,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "search_busy",
       "database_busy"
@@ -26596,6 +26601,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26634,6 +26640,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26668,6 +26675,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26709,6 +26717,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "search_busy",
       "database_busy"
@@ -26741,6 +26750,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -28877,6 +28887,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -33670,6 +33681,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "metadata_conflict",
       "source_unavailable",
@@ -34765,6 +34777,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -34793,6 +34806,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -34821,6 +34835,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -34852,6 +34867,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -37445,6 +37461,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"

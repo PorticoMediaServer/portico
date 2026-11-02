@@ -141,6 +141,7 @@ export const enUS = {
   'action.tryAgain': 'Try again',
   'error.playbackConversionCapacity': 'This server is already converting as many streams as it is allowed. Wait a moment or stop another stream, then try again.',
   'error.queueTooLarge': 'This queue is too long. Remove some of it or start a new one.',
+  'error.comicArchiveUnsupported': 'This comic’s archive type isn’t supported.',
   // The Vega app's connection notices (its transport cannot refuse a redirect before following it).
   'vega.connection.redirectLimit': 'This device can check redirects only after a request has been sent.',
   'vega.connection.credentialExposed': 'This connection sent your sign-in details to another address, so you have been signed out.',
