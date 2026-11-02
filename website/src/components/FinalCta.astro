@@ -1,0 +1,33 @@
+---
+import PlatformIcon from '@/components/PlatformIcon.astro';
+import { serverPlatforms } from '@/data/platforms';
+
+type Props = { id: string; title?: string; lede?: string; secondary?: { label: string; href: string } };
+const {
+  id,
+  title = 'Start your Portico server.',
+  lede = 'Install it on the computer that holds your media, add a library, and invite the people you watch with.',
+  secondary = { label: 'Read the quick start', href: '/docs/start/quick-start/' }
+} = Astro.props;
+---
+
+<section class="finale" aria-labelledby={id}>
+  <div class="finale-light" aria-hidden="true"></div>
+  <div class="container finale-inner">
+    <img class="finale-mark" src="/brand/portico-symbol-white.svg" alt="" width="42" height="56" />
+    <h2 id={id} class="type-d1">{title}</h2>
+    <p class="finale-lede">{lede}</p>
+    <div class="actions actions-center">
+      <a class="button button-primary" href="/download/">Get Portico</a>
+      <a class="button button-ghost" href={secondary.href}>{secondary.label}</a>
+    </div>
+    <div class="finale-platforms">
+      <span>Portico Server for</span>
+      <ul role="list">
+        {serverPlatforms.map((platform) => (
+          <li><a href="/download/"><PlatformIcon name={platform.icon} />{platform.name}</a></li>
+        ))}
+      </ul>
+    </div>
+  </div>
+</section>
