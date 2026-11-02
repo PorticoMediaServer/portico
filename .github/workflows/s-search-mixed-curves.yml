@@ -1,0 +1,89 @@
+name: Search mixed-kind cap comparison
+on:
+  push:
+    branches: [rebuild/S-search-mixed-evidence-r1]
+permissions:
+  contents: read
+jobs:
+  curves:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        items: [100000]
+        songs: [100000, 1000000]
+    env:
+      PORTICO_SEARCH_MIXED_SONGS: '${{ matrix.songs }}'
+      PORTICO_HOME_SOURCE_ITEMS: '${{ matrix.items }}'
+      PORTICO_HOME_SOURCE_FILMS: '1'
+      PORTICO_SEARCH_PROFILE_ITEMS: '${{ matrix.items }}'
+      PORTICO_SEARCH_REALISTIC: '1'
+      PORTICO_SEARCH_WORD_SOURCE: '${{ github.workspace }}/.search-evidence/word-frequency.txt'
+      PORTICO_SEARCH_POS_SOURCE: '${{ github.workspace }}/.search-evidence/wordnet.zip'
+      PORTICO_SCALE_SEEDS: '${{ github.workspace }}/.search-evidence/seeds'
+      PORTICO_SCALE_REPORT: '${{ github.workspace }}/.search-evidence/reports'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false, fetch-depth: 0}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - name: Record provenance and pinned natural sources
+        run: |
+          mkdir -p "$PORTICO_SCALE_REPORT" "$PORTICO_SCALE_SEEDS"
+          git rev-parse HEAD > "$PORTICO_SCALE_REPORT/evidence-sha.txt"
+          git archive HEAD | sha256sum > "$PORTICO_SCALE_REPORT/evidence-archive-sha256.txt"
+          python3 - <<'PY'
+          import pathlib,urllib.request,os,zipfile,io,hashlib
+          raw=urllib.request.urlopen('https://raw.githubusercontent.com/hermitdave/FrequencyWords/525f9b560de45753a5ea01069454e72e9aa541c6/content/2018/en/en_50k.txt',timeout=60).read()
+          pathlib.Path(os.environ['PORTICO_SEARCH_WORD_SOURCE']).write_bytes(raw)
+          raw=urllib.request.urlopen('https://raw.githubusercontent.com/nltk/nltk_data/550b6625bcef1f2abff2ff770a5a0d272c9c6b2a/packages/corpora/wordnet.zip',timeout=60).read()
+          assert hashlib.sha256(raw).hexdigest()=='cbda5ea6eef7f36a97a43d4a75f85e07fccbb4f23657d27b4ccbc93e2646ab59'
+          pathlib.Path(os.environ['PORTICO_SEARCH_POS_SOURCE']).write_bytes(raw)
+          pathlib.Path(os.environ['PORTICO_SCALE_REPORT'],'WordNet-LICENSE.txt').write_bytes(zipfile.ZipFile(io.BytesIO(raw)).read('wordnet/LICENSE'))
+          PY
+          lscpu > "$PORTICO_SCALE_REPORT/machine.txt"
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        id: facts
+        with:
+          path: '${{ github.workspace }}/.search-evidence/seeds/new-server-films-*.sqlite'
+          key: F-new-server-films-${{ matrix.items }}-${{ hashFiles('server/internal/catalog/scalebench/home_source_seed_test.go', 'server/internal/catalog/scalebench/bulk_reference.go', 'server/internal/persistence/migrations/**') }}
+      - name: Seed missing facts on hosted runner
+        if: steps.facts.outputs.cache-hit != 'true'
+        working-directory: server
+        run: go test ./internal/catalog/scalebench -run '^TestHomeSourceSeedMeasurement$' -count=1 -v -timeout=70m > "$PORTICO_SCALE_REPORT/facts.log" 2>&1
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: steps.facts.outputs.cache-hit != 'true'
+        with:
+          path: '${{ github.workspace }}/.search-evidence/seeds/new-server-films-*.sqlite'
+          key: '${{ steps.facts.outputs.cache-primary-key }}'
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        id: search
+        with:
+          path: '${{ github.workspace }}/.search-evidence/seeds/search-realistic-films-*'
+          key: F-search-realistic-v1-${{ matrix.items }}-${{ hashFiles('server/internal/compactcatalog/search_profile_seed_test.go', 'server/internal/compactcatalog/search_realistic_corpus_test.go', 'server/internal/compactcatalog/derive_search.go', 'server/internal/catalog/scalebench/home_source_seed_test.go', 'server/internal/catalog/scalebench/bulk_reference.go', 'server/internal/persistence/migrations/**') }}
+      - name: Produce missing search documents
+        if: steps.search.outputs.cache-hit != 'true'
+        working-directory: server
+        run: go test ./internal/compactcatalog -run '^TestSearchProfileSeed$' -count=1 -v -timeout=80m > "$PORTICO_SCALE_REPORT/search-seed.log" 2>&1
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: steps.search.outputs.cache-hit != 'true'
+        with:
+          path: '${{ github.workspace }}/.search-evidence/seeds/search-realistic-films-*'
+          key: '${{ steps.search.outputs.cache-primary-key }}'
+      - name: Add Zipf songs, episodes, books and sparse library authority
+        working-directory: server
+        run: |
+          df -h .
+          go test ./internal/compactcatalog -run '^TestSearchMixedSeed$' -count=1 -v -timeout=200m > "$PORTICO_SCALE_REPORT/mixed-seed.log" 2>&1
+          df -h .
+      - name: Compare fixed candidate caps against current top results
+        working-directory: server
+        run: go test ./internal/catalog -run '^TestSearchCapMeasurement$' -count=1 -v -timeout=12m > "$PORTICO_SCALE_REPORT/caps.log" 2>&1
+      - name: Compare restricted viewer with under one percent visibility
+        working-directory: server
+        env: {PORTICO_SEARCH_SPARSE: '1'}
+        run: go test ./internal/catalog -run '^TestSearchCapMeasurement$' -count=1 -v -timeout=12m > "$PORTICO_SCALE_REPORT/sparse-caps.log" 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: 'search-mixed-${{ matrix.items }}-${{ matrix.songs }}', path: '${{ github.workspace }}/.search-evidence/reports', retention-days: 14}

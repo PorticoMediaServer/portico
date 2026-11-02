@@ -46,6 +46,16 @@ func TestSearchCapMeasurement(t *testing.T) {
 	if err = db.QueryRow(`SELECT title,library_id FROM catalog_search_documents ORDER BY entity_id LIMIT 1`).Scan(&title, &library); err != nil {
 		t.Fatal(err)
 	}
+	libraryName := "movies"
+	if os.Getenv("PORTICO_SEARCH_SPARSE") == "1" {
+		libraryName = "sparse-films"
+		if err = db.QueryRow(`SELECT id FROM catalog_libraries WHERE library_id=?`, libraryName).Scan(&library); err != nil {
+			t.Fatal(err)
+		}
+		if err = db.QueryRow(`SELECT title FROM catalog_search_documents WHERE entity_kind=1 AND library_id=? ORDER BY entity_id LIMIT 1`, library).Scan(&title); err != nil {
+			t.Fatal(err)
+		}
+	}
 	queries["exact-title"] = title
 	words := strings.Fields(title)
 	queries["starts-with"] = strings.Join(words[:min(2, len(words))], " ")
@@ -74,18 +84,18 @@ func TestSearchCapMeasurement(t *testing.T) {
 				bound = facettext.NumericSearchPrefixRunes
 			}
 			prefix := string(runes[:min(bound, len(runes))])
-			var id, count int64
-			if err = db.QueryRow(`SELECT t.id,coalesce(sum(c.total),0) FROM catalog_search_prefix_terms t LEFT JOIN catalog_search_prefix_counts c ON c.term_id=t.id AND c.kind=1 AND c.library_id=? AND c.container=-1 WHERE t.prefix=? GROUP BY t.id`, library, prefix).Scan(&id, &count); err != nil {
+			var id, count, globalCount int64
+			if err = db.QueryRow(`SELECT t.id,coalesce(sum(CASE WHEN c.kind=1 AND c.library_id=? THEN c.total ELSE 0 END),0),coalesce(sum(c.total),0) FROM catalog_search_prefix_terms t LEFT JOIN catalog_search_prefix_counts c ON c.term_id=t.id AND c.container=-1 WHERE t.prefix=? GROUP BY t.id`, library, prefix).Scan(&id, &count, &globalCount); err != nil {
 				t.Fatal(err)
 			}
 			if count < minimum {
 				lead, minimum = id, count
 			}
-			if count > maximum {
-				maximum = count
+			if globalCount > maximum {
+				maximum = globalCount
 			}
 		}
-		baseline, err := s.Search(context.Background(), SearchRequest{Viewer: Viewer{Profile: "F-empty-profile", Fence: "F-search", Libraries: []string{"movies"}}, Q: q, Group: "movies", Limit: 10, Sort: "relevance"})
+		baseline, err := s.Search(context.Background(), SearchRequest{Viewer: Viewer{Profile: "F-empty-profile", Fence: "F-search", Libraries: []string{libraryName}}, Q: q, Group: "movies", Limit: 10, Sort: "relevance"})
 		if err != nil || len(baseline.Groups) != 1 || baseline.Groups[0].Status != "success" {
 			t.Fatalf("baseline %s: %+v %v", name, baseline, err)
 		}
@@ -209,11 +219,11 @@ SELECT p.entity_id,d.entity_pid,d.title,p.tier,` + score + ` FROM candidates p C
 			results = append(results, map[string]any{"query": name, "q": q, "cap": cap, "bm25": bm25, "rarest_postings": minimum, "broadest_postings": maximum, "p50_ms": times[15], "p95_ms": times[28], "p99_ms": times[29], "median_vm": vms[15], "before": before, "after": after, "retained": retained, "top": top, "queries": statements})
 		}
 	}
-	raw, err = json.MarshalIndent(map[string]any{"items": n, "results": results, "boundary": "single public film scope prototype; sparse authority, Unicode and cursor contracts need production tests"}, "", "  ")
+	raw, err = json.MarshalIndent(map[string]any{"items": n, "results": results, "boundary": "single film scope prototype with other-kind contamination and optional sparse library authority; Unicode and cursor contracts need production tests"}, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = os.WriteFile(filepath.Join(os.Getenv("PORTICO_SCALE_REPORT"), "cap-comparison.json"), raw, 0600); err != nil {
+	if err = os.WriteFile(filepath.Join(os.Getenv("PORTICO_SCALE_REPORT"), "cap-comparison"+os.Getenv("PORTICO_SEARCH_SPARSE")+".json"), raw, 0600); err != nil {
 		t.Fatal(err)
 	}
 }
