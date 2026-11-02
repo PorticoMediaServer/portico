@@ -1,5 +1,5 @@
 import {FileInfoSession} from '@core/file-info-session.ts';
-import {DetailService, parseCreditPage, type DetailProjection, type DetailTarget, type PersonalIntent} from '@core/detail.ts';
+import {DetailService, parseCreditPage, type DetailProjection, type DetailSnapshot, type DetailTarget, type PersonalIntent} from '@core/detail.ts';
 import type {FileInfoFileRow} from '@core/file-info-pages.ts';
 import {readListeningSimilar} from '@core/library-content.ts';
 import type {ListeningViewerScope} from '@core/listening.ts';
@@ -21,9 +21,9 @@ import type {RefObject} from 'react';
 export type WebDetailTarget = Readonly<{itemId: string; libraryId?: string; kind?: string}>;
 
 /** Constructor is inert. Only select/openFileInfo/readVersions perform reads. */
-export function createDetailBindings(context: ScreenContext) {
+export function createDetailBindings(context: ScreenContext, page: {initial?: DetailSnapshot} = {}) {
   const life = screenLifetime(context);
-  const service = new DetailService({api: life.api, scope: context.scope, requestId: async () => { life.assert(); return crypto.randomUUID(); }});
+  const service = new DetailService({api: life.api, scope: context.scope, ...(page.initial ? {initial: page.initial} : {}), requestId: async () => { life.assert(); return crypto.randomUUID(); }});
   const options = new PlaybackOptionsClient(localV1Http(life.api));
   const versionReads = new WeakMap<PlaybackOptions, DetailProjection>();
   const recommendations = createRecommendations(context);

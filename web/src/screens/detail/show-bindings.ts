@@ -1,4 +1,4 @@
-import {ShowWorkspaceService, saveShowSettings, type ShowSettings, type ShowWorkspaceData, type ShowWorkspaceRoute, type WorkspaceShow} from '@core/show-workspace.ts';
+import {ShowWorkspaceService, saveShowSettings, type ShowSettings, type ShowWorkspaceData, type ShowWorkspaceRoute, type ShowWorkspaceSnapshot, type WorkspaceShow} from '@core/show-workspace.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import {createDetailBindings} from './bindings';
 import {screenLifetime, type ScreenContext} from './context';
@@ -9,8 +9,8 @@ import {openGenre} from './genre-binding';
 import {browseCapabilitiesPath, parseBrowseCapabilities, validateBrowseQuery, type BrowseNode} from '@core/browse.ts';
 import {preferenceValue} from '@core/preferences.ts';
 
-export function createShowBindings(context: ScreenContext) {
-  const life = screenLifetime(context), service = new ShowWorkspaceService({api: life.api, scope: context.scope});
+export function createShowBindings(context: ScreenContext, options: {initial?: ShowWorkspaceSnapshot} = {}) {
+  const life = screenLifetime(context), service = new ShowWorkspaceService({api: life.api, scope: context.scope, ...(options.initial ? {initial: options.initial} : {})});
   const episode = createDetailBindings(context), primary = createDetailBindings(context), listedPlayback = createDetailBindings(context);
   const recommendations = createRecommendations(context);
   const view = titleView('episodes', ['episodes', 'related', 'details'], life.assert);

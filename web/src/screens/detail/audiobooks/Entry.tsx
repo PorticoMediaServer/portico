@@ -11,7 +11,7 @@ import {Artwork, AmbientArt} from '../../../kit/artwork';
 import {Button, Chip} from '../../../kit/controls';
 import {Icon} from '../../../kit/Icon';
 import {dependsOn, titlesWithPersonalState} from '@core/freshness-hub.ts';
-import {useFreshDocument} from '../../../platform/freshness';
+import {useFreshDocument, usePageMemory} from '../../../platform/freshness';
 import {createAudiobookBindings, type AudiobookBindings, type AudiobookTarget} from './bindings';
 import {runScreenCommand, type ScreenContext} from '../context';
 import {DetailLoading} from '../Loading';
@@ -34,13 +34,20 @@ type Operation = Readonly<{binding: AudiobookBindings; page: ContentProjection; 
  * was made for is published, so a stale body can never render under new ones. */
 export function AudiobookEntry({context, target, onMore}: Props) {
   const {libraryId, view, entityId} = target, key = JSON.stringify([libraryId, view, entityId]);
+  const pages = usePageMemory();
+  const pageKey = JSON.stringify(['audiobook-page', context.scope.serverId, context.scope.viewerId, libraryId, view, entityId]);
   const [lease, setLease] = useState<Lease>();
   const live = useRef<Lease | undefined>(undefined), serial = useRef(0);
   useLayoutEffect(() => {
-    const binding = createAudiobookBindings(context, {libraryId, view, entityId}), next: Lease = Object.freeze({token: ++serial.current, context, key, binding});
+    // Back draws the book page this viewer left at once, then reads it again in place.
+    const binding = createAudiobookBindings(context, {libraryId, view, entityId}, {initial: pages.recall(pageKey)});
+    const remember = () => {const snapshot = binding.service.getSnapshot(); if (snapshot.phase === 'ready' && snapshot.projection) pages.remember(pageKey, snapshot);};
+    remember();
+    const off = binding.service.subscribe(remember);
+    const next: Lease = Object.freeze({token: ++serial.current, context, key, binding});
     live.current = next;
     setLease(next);
-    return () => { binding.dispose(); if (live.current === next) live.current = undefined; setLease(current => current === next ? undefined : current); };
+    return () => { off(); binding.dispose(); if (live.current === next) live.current = undefined; setLease(current => current === next ? undefined : current); };
   }, [context, libraryId, view, entityId, key]);
   const current = lease && live.current?.token === lease.token && lease.context === context && lease.key === key ? lease : undefined;
   return current ? <AudiobookBound key={current.token} binding={current.binding} onMore={onMore}/> : <DetailLoading/>;
