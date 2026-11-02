@@ -5,7 +5,7 @@ import {usePlayerMorphPublication} from '../kit/dock/PlayerMorphBridge';
 import {InitialPicturePresentation} from '../kit/dock/InitialPicturePresentation';
 import {initialPictureKey} from '../kit/dock/initial-picture-model';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {BackHandler, Image, Platform, View, useWindowDimensions} from 'react-native';
+import {Image, Platform, View, useWindowDimensions} from 'react-native';
 import {GestureDetector} from 'react-native-gesture-handler';
 import Animated, {useAnimatedStyle} from 'react-native-reanimated';
 import {sameFence, type PlaybackFence} from '../../../../packages/player-core/src';
@@ -43,6 +43,7 @@ import {TVStartFailure} from './TVStartFailure';
 import {TouchPlaybackPreparation} from './TouchPlaybackPreparation';
 import {TouchStartFailure} from './TouchStartFailure';
 import {TVPlaybackPreparation} from './TVPlaybackPreparation';
+import {registerBack} from '../kit/navigation/back';
 
 const noListeningSubscribe = () => () => {};
 const noListeningNavigation = () => undefined;
@@ -329,7 +330,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
   useEffect(() => {
     const original = runtime.retirementSignal;
     if (original?.aborted) return;
-    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+    const releaseBack = registerBack(() => {
       if (original?.aborted) return false;
       const current = adapter.getSnapshot();
       const shell = runtime.getSnapshot();
@@ -338,8 +339,8 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
       if (!transition) return false;
       void adapter.onTransition(transition).catch(runtime.reportError);
       return true;
-    });
-    const off = () => back.remove();
+    }, {scope: 'surface'});
+    const off = () => releaseBack();
     original?.addEventListener('abort', off, {once: true});
     if (original?.aborted) off();
     return () => {original?.removeEventListener('abort', off);off();};

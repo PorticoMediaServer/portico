@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
-import {BackHandler, ScrollView, Text, View} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
@@ -28,6 +28,7 @@ import {SavedDownloadCard, type NativeSavedDownloadsCopy} from './SavedDownloadC
 import {openNativeSavedDownload} from '../downloads/playback';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import type {NativeEntryMenuState} from '../destinations/entry-actions';
+import {registerBack} from '../../kit/navigation/back';
 
 const t = defaultI18n.t;
 const content = (entry: SavedEntry): entry is ContentEntry => entry.kind !== 'playlist' && entry.kind !== 'playlist_entry' && entry.kind !== 'reading_group';
@@ -102,8 +103,8 @@ export function SavedScreen({destination, runtime, device, actions, selection, o
   const myListColumns = theme.platform === 'tablet' ? 4 : 5;
   useEffect(() => {
     if (!tablet || savedTab === 'watchlist' || !active.visible) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {if (!activation.getSnapshot().visible) return false; setSavedTab('watchlist'); return true;});
-    return () => subscription.remove();
+    const subscription = registerBack(() => {if (!activation.getSnapshot().visible) return false; setSavedTab('watchlist'); return true;}, {scope: 'page', active: () => activation.getSnapshot().visible});
+    return () => subscription();
   }, [active.visible, activation, savedTab, tablet]);
   const tabItems = [
     {value: 'watchlist', label: t('saved.tab.watchlist')}, {value: 'favorites', label: t('saved.tab.favorites')},

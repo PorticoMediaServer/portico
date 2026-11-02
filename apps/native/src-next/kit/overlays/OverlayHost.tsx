@@ -1,5 +1,5 @@
 import React, {createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {BackHandler, Platform, StyleSheet, View, type GestureResponderEvent} from 'react-native';
+import {Platform, StyleSheet, View, type GestureResponderEvent} from 'react-native';
 import {registerOverlayKeys} from '../../platform/overlay-keys';
 import {captureTVMenuKey} from '../../platform/tv-menu';
 import {OverlayPaintProvider, useOverlayPaintMode, useOverlayPaintReturnCurrent} from './OverlayPaintContext';
@@ -8,6 +8,7 @@ import {FocusProvider, requestNativeFocus, useOptionalFocusRegistry} from '../fo
 import {containsPoint, type Rect} from './geometry';
 import {createOverlayStack} from './overlay-stack';
 import type {FocusRef, FocusTarget, OverlayReason} from './types';
+import {registerBack} from '../navigation/back';
 
 type Entry = {id: string; node: React.ReactNode; rect?: Rect; outside?: () => void};
 type Portal = {put: (entry: Entry) => void; remove: (id: string) => void; frame: Rect};
@@ -111,14 +112,14 @@ export function useOverlayLifecycle(open: boolean, modal: boolean, dismiss: (rea
       const target = initial.current?.current;
       if (target) focusTarget(target); else if (regionId && (Platform as typeof Platform | undefined)?.isTV) registry?.focusRegion(regionId);
     }, delay.current);
-    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+    const releaseBack = registerBack(() => {
       if (!stack.isTop(registration)) return false;
       dismissRef.current('back');
       return true;
-    });
+    }, {scope: 'overlay'});
     return () => {
       clearTimeout(timer);
-      back.remove();
+      releaseBack();
       const wasTop = remove();
       releaseKeys();
       releaseMenu();

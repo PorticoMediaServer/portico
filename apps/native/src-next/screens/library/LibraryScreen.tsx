@@ -1,7 +1,7 @@
 import {TVSparseCardFrame, TVCardPaintFrame, TVPendingCardPaint} from '../../kit/cards/TVSparseCardFrame';
 import type {CardProps} from '../../kit/cards/primitives';
 import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject} from 'react';
-import {BackHandler, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent, type StyleProp, type TextStyle} from 'react-native';
+import {Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent, type StyleProp, type TextStyle} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
@@ -49,6 +49,7 @@ import {libraryTabletGridGeometry} from './library-grid';
 import {hiddenReadingLibraryOnTV, isReadingLibraryKind} from '../read/platform';
 import type {NativeEntryMenuState} from '../destinations/entry-actions';
 import type {NativeMarkAllRequest} from './mark-all';
+import {registerBack} from '../../kit/navigation/back';
 
 export type NativeLibraryActions = Readonly<{
   dispose?: () => void;
@@ -407,9 +408,9 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
   // Back closes the panel before it leaves the library, as the phone sheet does.
   useEffect(() => {
     if (!docked && !over) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {closeFilters(filtersRef.current); return true;});
-    return () => subscription.remove();
-  }, [docked, over, closeFilters]);
+    const subscription = registerBack(() => {closeFilters(filtersRef.current); return true;}, {scope: 'page', active: () => activation.getSnapshot().visible});
+    return () => subscription();
+  }, [activation, docked, over, closeFilters]);
   const panel = filterDraft && <LibraryFilters key={filterOpening.current} draft={filterDraft} source={state} runtime={runtime} labels={props.labels} owner={props.owner}
     onClose={() => closeFilters(filterDraft)} docked geometry={libraryFiltersTabletPane}/>;
   // The phone sheet and the TV panel own their exit motion, so their draft stays

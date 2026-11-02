@@ -5,7 +5,7 @@ import {createNativeListeningQueuePolicy} from './listening-queue-policy';
 import {createNativeListeningSongDetail} from './listening-song-detail';
 import {NativeHomeEmpty} from '../screens/home/HomeEmpty';
 import React, {type RefObject} from 'react';
-import {BackHandler, Platform, View} from 'react-native';
+import {Platform, View} from 'react-native';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import {UserMutationRecoveryModel, type UserMutationRecoveryDestination} from '../../../../packages/client-core/src/user-mutation-recovery';
 import {NativePendingChanges} from './pending-changes';
@@ -43,6 +43,7 @@ import {nativeDispatchedPlayLifetime, nativeHomeEntryLifetime, reportDispatchedP
 import type {NativeShellBindings, NativeShellBootstrapContext} from './bootstrap';
 import type {NativeShellRuntime, NativeTouchStacksPort} from './runtime';
 import {createNativeMusicMixes, type NativeMusicMixesCaller} from '../screens/destinations/music/mixes';
+import {registerBack} from '../kit/navigation/back';
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const failure = (code: string) => Object.assign(new Error(code), {code});
@@ -313,7 +314,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     if (currentHome()) onDocument();
     publish();
   }), nativeShellRoutes.subscribe(publish)];
-  const back = BackHandler.addEventListener('hardwareBackPress', () => {
+  const releaseBack = registerBack(() => {
     if (!alive || !context.current()) return false;
     const state = controller.getSnapshot();
     if (queryAction) closeQueryAction(queryAction);
@@ -347,8 +348,8 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
       return context.navigation.back(context.authority());
     }
     return true;
-  });
-  cleanups.push(() => back.remove());
+  }, {scope: 'shell'});
+  cleanups.push(() => releaseBack());
   // The menu offers Forget only while this device remembers the open profile, so it follows the lifecycle's marker.
   if (context.rememberedProfile) cleanups.push(context.rememberedProfile.subscribe(publish));
   const run = (work: (signal: AbortSignal) => Promise<void>) => {

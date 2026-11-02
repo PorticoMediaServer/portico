@@ -1,5 +1,5 @@
 import React, {useEffect, useId, useRef} from 'react';
-import {BackHandler, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {Defs, LinearGradient, RadialGradient, Rect, Stop} from 'react-native-svg';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
@@ -15,6 +15,7 @@ import {selectionControlID as controlID} from './focus-ids';
 import {SelectionSurface, SelectionText} from './surface';
 import {SelectionActionRow} from './SelectionActionRow';
 import type {SelectionAction, SelectionActionOffer, SelectionBarProps} from './types';
+import {registerBack} from '../navigation/back';
 
 const icons: Record<SelectionAction, IconName> = {play: 'i-play', queue: 'i-queue', playlist: 'i-listplus', myList: 'i-plus', watched: 'i-check', unwatched: 'i-eyeoff', collection: 'i-layers', favorite: 'i-heart', removeMyList: 'i-x', download: 'i-download', edit: 'i-edit', refresh: 'i-refresh', delete: 'i-trash', playNext: 'i-queue', playLater: 'i-listadd', more: 'i-more'};
 const ownerActions: readonly SelectionAction[] = ['edit', 'refresh', 'delete'];
@@ -78,8 +79,8 @@ function SelectionMenus(props: SelectionBarProps & {returnFocusRef?: FocusRef}) 
 function useSelectionBack(onCancel: () => void, menu: SelectionBarProps['menu']) {
   useEffect(() => {
     if (menu !== null) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {onCancel(); return true;});
-    return () => subscription.remove();
+    const subscription = registerBack(() => {onCancel(); return true;}, {scope: 'overlay'});
+    return () => subscription();
   }, [onCancel, menu]);
 }
 function activate(props: SelectionBarProps, id: SelectionAction) {
