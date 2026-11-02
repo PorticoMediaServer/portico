@@ -173,6 +173,18 @@ performed. `PORTICO_CONSOLE_URL` can select the console address from a shell.
 To uninstall, run with `sudo` the app's `Contents/Resources/launchd/uninstall.sh`.
 It removes the app and the current user's agent while retaining data.
 
+## Linux FFmpeg runtime changes
+
+Hardware selection reuses a completed executable and library generation. Normal
+file replacement, symlink changes, permissions and loader-directory changes
+invalidate it; playback uses software while a background probe refreshes the
+hardware verdict. Request handling does not rehash the runtime's code bytes.
+
+Restart Portico after modifying FFmpeg or a library in place while preserving
+all observed file metadata. Such a metadata-indistinguishable edit cannot
+invalidate the generation witness. Hardware probe runs still verify the full
+runtime before and after qualification.
+
 ## Data, transcodes and backups
 
 The data folder contains `portico.toml`, `Database/`, `Metadata/`, `Cache/`,

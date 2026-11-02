@@ -13,3 +13,8 @@ func inventoryIdentity(ctx context.Context, executable string) (string, bool, er
 	identity, err := ffmpegIdentity(executable)
 	return identity, true, err
 }
+
+func cachedHardwareIdentity(ctx context.Context, executable string) (string, bool) {
+	identity, _, err := inventoryIdentity(ctx, executable)
+	return identity, err == nil
+}

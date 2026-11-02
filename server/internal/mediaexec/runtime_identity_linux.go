@@ -19,6 +19,8 @@ type identityReader struct {
 	reader io.Reader
 }
 
+var openRuntimeIdentityFile = os.Open
+
 func (r identityReader) Read(p []byte) (int, error) {
 	if err := r.ctx.Err(); err != nil {
 		return 0, err
@@ -36,7 +38,7 @@ func RuntimeIdentity(ctx context.Context, executable string) (string, bool, erro
 	if !filepath.IsAbs(executable) || filepath.Clean(executable) != executable {
 		return "", false, ErrInvalidJob
 	}
-	file, err := os.Open(executable)
+	file, err := openRuntimeIdentityFile(executable)
 	if err != nil {
 		return "", false, err
 	}
@@ -45,14 +47,18 @@ func RuntimeIdentity(ctx context.Context, executable string) (string, bool, erro
 	file.Close()
 	native := readErr == nil && string(magic[:]) == "\x7fELF"
 	paths := []string{executable}
+	extra := append([]string(nil), configuredLibraries()...)
+	key := runtimeGenerationKey(executable, extra)
+	var watch libraryWatch
 	if native {
-		libraries, err := ResolveLibraries(executable, executable, append([]string(nil), configuredLibraries()...))
+		libraries, err := ResolveLibraries(executable, executable, extra)
 		if err != nil {
 			// Keep custom/unmatched tools on fresh ordinary inventories when
 			// their loader closure cannot be represented by our sandbox.
 			native = false
 		} else {
 			paths = append(paths, libraries...)
+			watch = runtimeGenerationWatch(executable, extra, libraries)
 		}
 	}
 	sort.Strings(paths)
@@ -71,7 +77,7 @@ func RuntimeIdentity(ctx context.Context, executable string) (string, bool, erro
 		if err != nil {
 			return "", false, err
 		}
-		source, err := os.Open(path)
+		source, err := openRuntimeIdentityFile(path)
 		if err != nil {
 			return "", false, err
 		}
@@ -120,5 +126,9 @@ func RuntimeIdentity(ctx context.Context, executable string) (string, bool, erro
 	if err := ctx.Err(); err != nil {
 		return "", false, err
 	}
-	return hex.EncodeToString(sum.Sum(nil)), native, nil
+	identity := hex.EncodeToString(sum.Sum(nil))
+	if native && key == runtimeGenerationKey(executable, configuredLibraries()) {
+		rememberRuntimeGeneration(ctx, key, identity, watch)
+	}
+	return identity, native, nil
 }
