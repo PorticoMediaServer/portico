@@ -17,6 +17,11 @@ import (
 // owner (local setup, a Portico Account claim or owner exchange, the setup exchange, an
 // owner reset file, or one added later), the very next gate decision sees it, without a
 // policy reload and without a per-request count.
+//
+// The one thing it can't see is an accounts write that bypasses dbwork, such as a backup
+// restore swapping the database under a live process. Any such path must restart the
+// process (New counts again) or latch explicitly (markSetUp); otherwise the gate stays
+// open until the next restart.
 type setupGate struct {
 	setUp atomic.Bool
 	wake  *worker.Signal
