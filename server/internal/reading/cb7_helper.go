@@ -14,13 +14,13 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/archive7z"
 )
 
-// CB7 decoding runs in the owned bounded helper, never in this process. The
-// parent copies the leased bytes into its own private scratch root (bounded by
-// MaxSource, read through the source lease; nothing is uploaded or fetched from
-// a provider beyond that lease), gives the helper that file on stdin, owns the
-// process group and deadline, closes the file and removes the scratch root only
-// after the physical wait. The page mode's argv carries one already-validated
-// member name — the archive's own path never does.
+// CB7 and the compressed or solid CBR path decode in the owned bounded helper,
+// never in this process. The parent copies the leased bytes into its own private
+// scratch root (bounded by MaxSource, read through the source lease; nothing is
+// uploaded or fetched from a provider beyond that lease), gives the helper that
+// file on stdin, owns the process group and deadline, closes the file and
+// removes the scratch root only after the physical wait. The page mode's argv
+// carries one already-validated member name — the archive's own path never does.
 const (
 	cb7ListMaxBytes  = 1 << 20
 	cb7PageMaxBytes  = MaxMember
@@ -121,7 +121,7 @@ func runCB7Helper(ctx context.Context, ra io.ReaderAt, size int64, args ...strin
 		return nil, ErrArchiveFormat
 	}
 	limit := int64(cb7ListMaxBytes)
-	if len(args) > 0 && args[0] == "page" {
+	if len(args) > 0 && (args[0] == "page" || args[0] == "rar-page") {
 		limit = cb7PageMaxBytes
 	}
 	body, readErr := io.ReadAll(io.LimitReader(stdout, limit+1))

@@ -79,15 +79,16 @@ func TestOpenClassicComicReadsStoredRAR4(t *testing.T) {
 	}
 }
 
-// Compressed, solid or encrypted RAR4 members are refused from their headers as an
-// unsupported format (a definite 422 to clients), never decoded and never a 500.
+// Encrypted, split and LONG_BLOCK-less RAR4 members are refused from their
+// headers as an unsupported format (a definite 422 to clients), never decoded
+// and never a 500. Compressed and solid RAR4 are routed to the worker instead;
+// a plain reader cannot stage them, so they stay unsupported here too.
 func TestOpenClassicComicRefusesUnsupportedRAR4(t *testing.T) {
 	for name, raw := range map[string][]byte{
-		"compressed": readingtest.CBR4(0x33, 0),
-		"solid":      readingtest.CBR4(0x30, 0x0010),
-		"encrypted":  readingtest.CBR4(0x30, 0x0004),
-		"split":      readingtest.CBR4(0x30, 0x0002),
-		// The OPS-2 walk fixture's shape: file headers without LONG_BLOCK, which the decoder cannot read.
+		"compressed":    readingtest.CBR4(0x33, 0),
+		"solid":         readingtest.CBR4(0x30, 0x0010),
+		"encrypted":     readingtest.CBR4(0x30, 0x0004),
+		"split":         readingtest.CBR4(0x30, 0x0002),
 		"no-long-block": stripRAR4LongBlock(readingtest.CBR4(0x30, 0)),
 	} {
 		_, err := OpenClassicComic(context.Background(), "cbr", bytes.NewReader(raw), int64(len(raw)))
