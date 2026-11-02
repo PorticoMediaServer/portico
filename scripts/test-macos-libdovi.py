@@ -16,7 +16,7 @@ M = runpy.run_path(str(ROOT / 'scripts/build-macos-libdovi.py'))
 
 class MacDovi(unittest.TestCase):
     def test_rust_and_cargo_c_cannot_drift_from_the_shared_media_engine_versions(self):
-        pin = json.loads((ROOT / 'third_party/ffmpeg/macos-rust-tools.lock.json').read_text())
+        pin = json.loads((ROOT / 'third_party/ffmpeg/native-rust-tools.lock.json').read_text())
         canonical = ROOT / 'third_party/media-engine/sources.lock.json'
         M['shared_versions'](pin, canonical)
         for tool, field in [('rust', 'version'), ('cargoC', 'version')]:
@@ -76,8 +76,8 @@ class MacDovi(unittest.TestCase):
             inputs = recipe / 'portico-libdovi-inputs'
             self.assertEqual((inputs / 'shared-collector.py').read_bytes(), (ROOT / 'scripts/build-linux-libdovi.py').read_bytes())
             self.assertEqual((inputs / 'contract.json').read_bytes(), (ROOT / source['libdovi']['contract']).read_bytes())
-            self.assertEqual(hashlib.sha256((recipe / 'portico-macos-rust-tools.lock.json').read_bytes()).hexdigest(),
-                             source['macosRustTools']['sha256'])
+            self.assertEqual(hashlib.sha256((recipe / 'portico-native-rust-tools.lock.json').read_bytes()).hexdigest(),
+                             source['nativeRustTools']['sha256'])
             self.assertIn('sys.argv[4]', (inputs / 'collect.py').read_text())
 
     def test_vendor_uses_both_locked_manifests_and_keeps_the_complete_tree(self):
