@@ -12,6 +12,7 @@ import {createFocusRegistry} from '../src-next/kit/focus/registry.ts';
 import {sameAuthority} from '../src-next/shell/model.ts';
 import {nativePostPlayNavigation} from '../src-next/screens/watch/post-play-navigation.ts';
 import * as landingStoreModule from '../src-next/screens/watch/landing-store.ts';
+import {touchScrub} from '../src-next/platform/siri-remote.ts';
 
 const fence = playerCore.playbackFence({kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'version', entryId: 'entry', generation: 1});
 const t = (key: string) => key;
@@ -28,7 +29,7 @@ const animation = (h: ReturnType<typeof watchHooks>) => ({default: {View: 'Anima
 
 async function timelineFixture(vega = false) {
   const h = watchHooks(), adapter = createTVKeyAdapter({source: vega ? 'vega' : 'native'}), controls = new NativeWatchControls(true);
-  let key: (value: any) => void = () => {}, now = 0, serial = 0;
+  let key: (value: any) => void = () => {}, now = 0, serial = 0, touch: (value: any) => void = () => {}, touchListening = false;
   const timers = new Map<number, {at: number; callback: () => void}>(), seeks: unknown[] = [], previews: (number | undefined)[] = [];
   const clock = {now: () => now, schedule: (callback: () => void, ms: number) => {const id = ++serial; timers.set(id, {at: now + ms, callback}); return id;}, cancel: (id: unknown) => {timers.delete(id as number);}};
   let source: any = {fence, retired: false, capabilities: {seek: true}, dock: {local: {expanded: true}}, playback: {positionSeconds: 100, duration: 1000, intent: 'paused'}, options: {itemId: 'item', markers: [{id: 'intro', type: 'intro', startMs: 10000, endMs: 20000}]}};
@@ -39,11 +40,13 @@ async function timelineFixture(vega = false) {
     react: h.react, 'react-native': nativeAtoms, 'react-native-gesture-handler': {Gesture: {Pan: gesture}, GestureDetector: 'Gesture'}, 'react-native-reanimated': animation(h),
     '../../../../../packages/player-core/src': playerCore, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/i18n/src': i18n,
     '../../kit/controls': controlsAtoms, '../../kit/theme': themed, './TrickplayStrip': {NativeTrickplayStrip: 'Trickplay'}, './landing-store': landingStoreModule, '../../kit/useMotion': {useMotion: () => ({timing: () => ({})})},
-    '../../platform/tv-keys': {useTVKeyEvent: (handler: typeof key) => {key = handler;}}, '../../platform/tv-seek-repeat': {createTVSeekRepeat: (step: any) => createTVSeekRepeat(step, clock)},
+    '../../platform/tv-keys': {useTVKeyEvent: (handler: typeof key) => {key = handler;}},
+    '../../platform/siri-remote': {touchScrub, useSiriRemoteTouch: (enabled: boolean, handler: typeof touch) => {touchListening = enabled; touch = handler;}}, '../../platform/tv-seek-repeat': {createTVSeekRepeat: (step: any) => createTVSeekRepeat(step, clock)},
   });
   const draw = () => {props.source = source; h.render(() => NativeWatchTimeline(props)); return h.flush();};
   draw();
   return {h, props, controls, seeks, previews, timers, draw, tree: () => h.flush(),
+    touch: (phase: string, x: number) => {touch({phase, x, y: 0}); h.flush();}, listening: () => touchListening,
     key: (eventType: string, eventKeyAction: number) => {const event = adapter.read({eventType, eventKeyAction}); if (event) key(event); h.flush();},
     advance: (ms: number) => {const end = now + ms; for (;;) {const due = [...timers.entries()].sort((a, b) => a[1].at - b[1].at)[0]; if (!due || due[1].at > end) break; now = due[1].at; timers.delete(due[0]); due[1].callback(); h.flush();} now = end;},
     replace: () => {source = {...source, fence: playerCore.playbackFence({...fence, generation: 2})}; draw();},
@@ -60,6 +63,25 @@ test('native release-only seek enters preview once, keeps a fixed bar, and commi
     assert.equal(tree.props.children.props.style.height, 40);
     assert.equal(descendants(tree).filter((node: any) => node.type === 'Text').length, 0, 'Chrome alone owns marker labels');
     seek.props.onPress(); await Promise.resolve(); assert.deepEqual(f.seeks, [130, 'toggle']);
+  } finally {f.close();}
+});
+
+test('N3-3: a finger sliding on the Siri Remote moves the same preview, which OK commits once; the surface is read only while the bar has focus', async () => {
+  const f = await timelineFixture();
+  try {
+    assert.equal(f.listening(), true);
+    f.touch('began', 0); f.touch('changed', 0.02);
+    assert.deepEqual(f.seeks, []); assert.equal(f.previews.filter(value => value !== undefined).length, 0, 'a rest or a wobble moves nothing');
+    // 1000 s title: the whole surface (x -1 to 1) covers 333 s, so +0.6 is 100 s on from 100 s.
+    f.touch('changed', 0.6); f.touch('ended', 0.6);
+    assert.equal(Math.round(f.previews.at(-1)!), 200);
+    assert.deepEqual(f.seeks, [], 'lifting keeps the preview; nothing seeks until OK');
+    f.touch('began', 0.6); f.touch('changed', -1);
+    assert.equal(Math.round(f.previews.at(-1)!), 0, 'a second slide carries on from the preview and stops at the start');
+    find(f.tree(), 'watch-seek').props.onPress(); await Promise.resolve();
+    assert.equal(f.seeks.length, 2); assert.equal(Math.round(f.seeks[0] as number), 0); assert.equal(f.seeks[1], 'toggle');
+    f.props.focused = false; f.draw();
+    assert.equal(f.listening(), false, 'focus elsewhere: the remote reports normally again');
   } finally {f.close();}
 });
 
