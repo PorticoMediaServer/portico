@@ -23,6 +23,7 @@ import {RequiredFactorDialogs} from './RequiredSetup';
 import {LocalPasswordRecoveryFlow} from './LocalPasswordRecoveryFlow';
 import {PorticoOwnerRecoveryFlow} from './PorticoOwnerRecoveryFlow';
 import {AccountIdentityFailure} from './AccountIdentityFailure';
+import {currentServedServerOrigin, forgetDestination} from '../../platform/served-origin';
 import {MemberMoveForm} from './MemberMoveForm';
 import {openAfterProfile} from './open-after-profile';
 import {localAccountStorage, readRememberedLocalAccounts, rememberLocalAccount, rememberedLocalKey, type RememberedLocalAccount} from './remembered-local-accounts';
@@ -142,7 +143,13 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
       if (url && alive.current && form.getSnapshot().inputEpoch === epoch && current.phase === phase && current.server?.id === serverId && current.origin === origin && current.pin === pin) location.assign(url);
     }).catch(failure => {if (alive.current && form.getSnapshot().inputEpoch === epoch && entry.getSnapshot().origin === origin && entry.getSnapshot().pin === pin) setError(failure);});
   };
-  const identityFailure = entry.serverIdentityFailure(() => {void router.navigate({to: '/servers'});});
+  const chooseServer = () => {void router.navigate({to: '/servers'});};
+  const identityFailure = entry.serverIdentityFailure(chooseServer, () => {
+    // A page this server served signs in to the server now at its address, with no detour.
+    const next = forgetDestination(currentServedServerOrigin());
+    if (next.to === 'servers' || !alive.current) {chooseServer(); return;}
+    form.clear(); setError(undefined); void entry.inspect(next.origin);
+  });
   if (identityFailure) return <AccountIdentityFailure binding={identityFailure}/>;
   if (joining) return <ShortInvitationEntry onBack={leaveJoin} onJoined={destination => location.assign(destination.origin)} />;
   if (!input.factor && state.memberMoveCompleted && !state.busy && !state.error && state.snapshot && !state.snapshot.twoStepSetupRequired && (state.phase === 'profiles' || state.phase === 'ready') && acknowledgedMove !== state) return <AuthStage>
