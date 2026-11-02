@@ -1,10 +1,10 @@
-name: F Debian usr-merged sandbox reproduction
+name: Debian usr-merged decoder sandbox
 on:
   pull_request:
     paths:
       - server/internal/mediaexec/**
       - server/internal/decoder/**
-      - .github/workflows/f-usrmerge.yml
+      - .github/workflows/decoder-usrmerge.yml
   workflow_dispatch:
 permissions:
   contents: read
