@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 	"sync"
 	"time"
 
@@ -260,17 +261,24 @@ func (s *Service) Prepare(ctx context.Context, p identity.Principal, item, sourc
 	if err != nil {
 		return nil, Publication{}, f.StopAndRecheck(err)
 	}
-	if err = s.adoptPublicationType(ctx, p, f.Selection, document.Metadata); err != nil {
-		return nil, Publication{}, err
-	}
-	if err = s.adoptEmbeddedFacts(ctx, p, f.Selection, document.EmbeddedAuthor, document.EmbeddedSeries, document.EmbeddedSeriesNumber); err != nil {
-		return nil, Publication{}, err
-	}
-	if err = s.adoptTextCount(ctx, p, f); err != nil {
-		return nil, Publication{}, err
-	}
-	if err = s.adoptComicPageCount(ctx, p, f.Selection, len(document.PageNames)); err != nil {
-		return nil, Publication{}, err
+	// The publication's type, embedded credits and counts are descriptive facts
+	// the catalogue keeps for later; none of them is needed to read this book.
+	// Failing to keep one never fails the open (RD-4). A changed source or an
+	// abandoned request still ends it, and Validate below rechecks the source.
+	for _, adopt := range []struct {
+		fact string
+		run  func() error
+	}{
+		{"publication type", func() error { return s.adoptPublicationType(ctx, p, f.Selection, document.Metadata) }},
+		{"embedded credits", func() error {
+			return s.adoptEmbeddedFacts(ctx, p, f.Selection, document.EmbeddedAuthor, document.EmbeddedSeries, document.EmbeddedSeriesNumber)
+		}},
+		{"word count", func() error { return s.adoptTextCount(ctx, p, f) }},
+		{"page count", func() error { return s.adoptComicPageCount(ctx, p, f.Selection, len(document.PageNames)) }},
+	} {
+		if err = optionalAdoption(ctx, adopt.fact, adopt.run()); err != nil {
+			return nil, Publication{}, err
+		}
 	}
 	// Catalogue identity is authoritative; do not resurrect package creators.
 	// This is a current authorized DB snapshot, with no added provider Stat or
@@ -467,5 +475,21 @@ func (s *Service) Close() error {
 		session.close()
 		delete(s.sessions, id)
 	}
+	return nil
+}
+
+// optionalAdoption keeps a fact adoption's failure from failing an open. Only
+// the request ending or the source changing under it is returned.
+func optionalAdoption(ctx context.Context, fact string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+	if errors.Is(err, ErrChanged) {
+		return err
+	}
+	log.Printf("Reading: an opened publication's %s was not kept: %v", fact, err)
 	return nil
 }

@@ -114,6 +114,7 @@ func Begin(ctx context.Context, db *sql.DB, class Class) (*Write, error) {
 		parent.mu.Unlock()
 		return &Write{tx: parent.tx, ctx: ctx, parent: parent}, nil
 	}
+	class = Effective(ctx, class)
 	site := captureSite(2)
 	ctx = walContext(ctx, db, class, "")
 	release, err := acquireCatalogWrite(ctx, db, class)
@@ -476,6 +477,7 @@ func ExecWrite(ctx context.Context, db *sql.DB, class Class, query string, args 
 		}
 		return parent.tx.ExecContext(ctx, query, args...)
 	}
+	class = Effective(ctx, class)
 	site := captureSite(2)
 	ctx = walContext(ctx, db, class, query)
 	release, err := acquireCatalogWrite(ctx, db, class)
