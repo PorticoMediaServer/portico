@@ -111,6 +111,31 @@ func LinuxHardwareSandboxArgs(environment [][2]string) []string {
 	return args
 }
 
+// LinuxReadOnlyFileArgs preserves exact-file grants outside the hardware trees.
+// Inside those trees the earlier directory mounts already expose host aliases:
+// mounting onto a loader symlink is forbidden by bubblewrap. Bind its resolved
+// file instead; the original spelling remains visible through the same tree.
+// The decoder bridge uses the same mount order and must follow the same rule.
+func LinuxReadOnlyFileArgs(file string, hardware bool) ([]string, error) {
+	if hardware {
+		return linuxReadOnlyFileArgs(file, hardwareReadable)
+	}
+	return []string{"--ro-bind", file, file}, nil
+}
+
+func linuxReadOnlyFileArgs(file string, mountedTrees []string) ([]string, error) {
+	for _, tree := range mountedTrees {
+		if strings.HasPrefix(file, tree+string(filepath.Separator)) {
+			real, err := filepath.EvalSymlinks(file)
+			if err != nil {
+				return nil, fmt.Errorf("resolve sandbox file %s: %w", file, err)
+			}
+			return []string{"--ro-bind", real, real}, nil
+		}
+	}
+	return []string{"--ro-bind", file, file}, nil
+}
+
 // linuxArgv is the bubblewrap invocation for a job. The root is an empty,
 // read-only tmpfs; the process sees the tool, its exact ELF dependencies, the
 // job's declared paths, a private /tmp, a minimal /dev and its own /proc (so
@@ -159,7 +184,11 @@ func linuxArgv(bwrap string, job Job, disableUserns bool) ([]string, error) {
 			continue
 		}
 		seen[file] = true
-		args = append(args, "--ro-bind", file, file)
+		mount, err := LinuxReadOnlyFileArgs(file, job.Hardware)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, mount...)
 		if dir := filepath.Dir(file); !seen[dir] {
 			seen[dir] = true
 			dirs = append(dirs, dir)

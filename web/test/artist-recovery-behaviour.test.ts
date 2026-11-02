@@ -62,12 +62,13 @@ test('Artist Back and retry keep their committed entry and never adopt successor
     '@i18n': {defaultI18n: {region: {formatLocale: 'en'}}}, './text': {t},
     '@core/library-content.ts': {LibraryContentService: Service, readListeningSimilar: () => Promise.resolve({entries: []})},
     '@core/freshness-hub.ts': {dependsOn: {libraries: 'libraries'}}, '../../platform/freshness': {useFreshDocument() {}},
-    '../../kit/controls': {Button: 'Button'}, '../../kit/artwork': {AmbientArt: 'AmbientArt', CircleArt: 'CircleArt'},
+    '../../kit/controls': {Button: 'Button', Chip: 'Chip'}, '../../kit/cards': {SquareCard: 'SquareCard'}, '../../kit/artwork': {AmbientArt: 'AmbientArt', CircleArt: 'CircleArt'},
+    '@core/presentation/server-text.ts': {serverTextLabel: (_i18n: unknown, heading: any) => heading?.fallback ?? ''}, '@core/presentation/service-text.ts': {serviceI18n: () => ({})},
     '../../kit/layout': {Lockup: 'Lockup'}, '../../kit/title/TitleParts': {TitleFactsLine: 'TitleFactsLine', TitleProse: 'TitleProse'},
     '../../kit/browse': {TrackTable: 'TrackTable'}, '../../kit/overlays': {Menu: 'Menu'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../shell/viewport': {useShellWidth: () => 1440}, './context': {...identity, screenLifetime, runScreenCommand},
     '../detail/context': identity,
-    './ScreenProblem': {ScreenProblem: problem.ScreenProblem}, './Detail': {TitleRow: 'TitleRow'}, './model': {entrySubject: () => ({})},
+    './ScreenProblem': {ScreenProblem: problem.ScreenProblem}, './Detail': {TitleRow: 'TitleRow', SimilarTitleRow: 'SimilarTitleRow'}, './model': {entrySubject: () => ({}), entryCard: (entry: any) => ({title: entry.title})},
     './MusicEntryMenu': {MusicEntryMenu: 'MusicEntryMenu'}, './MusicLoading': {MusicDetailLoading: 'MusicDetailLoading'}, './artist.module.css': {default: {}},
   });
   const context: any = {scope: {serverId: 's', viewerId: 'v'}, isCurrent: () => contextCurrent, api: {}, artwork: {ambient: () => undefined, foreground: () => undefined}, effects: {reportError: (e: unknown) => reports.push(e), back: () => backs.push('one')}};
@@ -120,22 +121,24 @@ test('Artist Back and retry keep their committed entry and never adopt successor
   const fresh = services.at(-1); fresh.snapshot = {phase: 'ready', projection: {entity: {id: artistId, kind: 'artist', title: 'Real artist'}, scope: {libraryId, view: 'artist', entityId: artistId}, revision: {catalog: 1, viewer: 1}, sections: []}, appended: [], error: null}; fresh.resolve(); view = await settle();
   assert.equal(all(view, 'Lockup')[0].props.title, 'Real artist'); assert.ok(back(view));
   assert.ok(all(view, 'span').some((node: any) => node.props.children?.includes?.('Real artist')), 'bar shows the admitted artist title');
-  const album = {id: 'release', kind: 'album', libraryId, title: 'Release'}, albums = {id: 'items', entries: [album], nextCursor: 'next-release', totalCount: 2};
+  // The music library's artist view publishes its albums as 'releases' (the listening contract).
+  const album = {id: 'release', kind: 'album', libraryId, title: 'Release'}, albums = {id: 'releases', entries: [album], nextCursor: 'next-release', totalCount: 2};
   fresh.snapshot = {...fresh.snapshot, projection: {...fresh.snapshot.projection, entity: {...fresh.snapshot.projection.entity, overview: 'Stored biography', overviewSource: 'Provider'}, sections: [albums]}, appended: [albums]};
   view = render();
   assert.equal(all(view, 'TitleProse')[0].props.markup, 'Stored biography');
-  const row = all(view, 'TitleRow')[0];
-  assert.equal(row.props.pagination.cursor, 'next-release');
-  assert.equal(row.props.pagination.loading, false);
-  row.props.pagination.onMore(); view = render();
-  assert.deepEqual(fresh.pages, ['items']);
+  assert.equal(all(view, 'SquareCard').length, 1, 'the aside draws each album as a card');
+  const nextPage = (node: any) => all(node, 'Button').find((button: any) => [button.props.children].flat(3).includes('title.nextPage'));
+  const more = nextPage(view);
+  assert.equal(more.props.disabled, false);
+  more.props.onClick(); view = render();
+  assert.deepEqual(fresh.pages, ['releases']);
   assert.equal(all(view, 'Lockup')[0].props.title, 'Real artist', 'the page stays mounted while the serialized source fetches a shelf page');
-  assert.equal(all(view, 'TitleRow')[0].props.pagination.loading, true);
+  assert.equal(nextPage(view).props.disabled, true);
   const final = {...albums, entries: [...albums.entries, {...album, id: 'second-release'}], nextCursor: ''};
   fresh.snapshot = {...fresh.snapshot, phase: 'ready', projection: {...fresh.snapshot.projection, sections: [final]}, appended: [final]};
   view = render();
-  assert.equal(all(view, 'TitleRow')[0].props.entries.length, 2);
-  assert.equal(all(view, 'TitleRow')[0].props.pagination.cursor, '');
-  row.props.pagination.onMore(); await Promise.resolve();
-  assert.deepEqual(fresh.pages, ['items'], 'a retained callback cannot advance a replacement projection');
+  assert.equal(all(view, 'SquareCard').length, 2);
+  assert.equal(nextPage(view), undefined);
+  more.props.onClick(); await Promise.resolve();
+  assert.deepEqual(fresh.pages, ['releases'], 'a retained callback cannot advance a replacement projection');
 });
