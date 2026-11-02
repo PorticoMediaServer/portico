@@ -739,6 +739,10 @@ func (s *Service) homeRecommendationWhy(r HomeRequest) (*ServerText, []ContentEn
 	if err != nil || len(candidates) == 0 {
 		return fallback, nil, err
 	}
+	candidates, err = s.homeExplanationCandidates(r.Profile, candidates)
+	if err != nil || len(candidates) == 0 {
+		return fallback, nil, err
+	}
 	base, args := recBase(r, candidates)
 	rows, err := s.read().Query(base+` SELECT pid(e.public_id),e.title FROM seeds seed JOIN works w ON w.work=seed.work JOIN catalog_entities e ON e.id=w.id
  WHERE w.kind IN('movie','show') AND EXISTS(SELECT 1 FROM members m WHERE m.work=seed.work AND EXISTS(SELECT 1 FROM personal_items p WHERE p.item_id=m.id AND p.profile_id=? AND (p.last_played_at<>'' OR p.watched=1)))
