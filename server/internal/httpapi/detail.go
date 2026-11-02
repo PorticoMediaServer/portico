@@ -39,19 +39,31 @@ func (d Dependencies) detailLibraryFenceFor(r *http.Request, p identity.Principa
 	if e := d.allowedLibrary(r.Context(), p, library); e != nil {
 		return "", "", e
 	}
+	fence, e := d.itemViewerFence(r, p)
+	if e != nil {
+		return "", "", e
+	}
+	return library, fence, nil
+}
+
+// itemViewerFence is the one viewer fence of a single title's surfaces: its detail and its
+// metadata editing documents (editor, repair, artwork). A client holding a title's detail
+// opens its editor only while both carry the same fence, so they must be computed here and
+// nowhere else: who the viewer is (identity and epoch), and what they may see (policy,
+// restrictions and the content fence).
+func (d Dependencies) itemViewerFence(r *http.Request, p identity.Principal) (string, error) {
 	var policy, restriction int64
 	if p.Authority != "local" {
 		e := d.DB.QueryRowContext(r.Context(), `SELECT COALESCE((SELECT revision FROM policy WHERE server_id=?),0),COALESCE((SELECT revision FROM restrictions WHERE profile_id=?),0)`, d.Identity.ID(), p.ProfileID).Scan(&policy, &restriction)
 		if e != nil {
-			return "", "", e
+			return "", e
 		}
 	}
 	_, contentFence, e := d.viewerRestrictions(r, p)
 	if e != nil {
-		return "", "", e
+		return "", e
 	}
-	fence := fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%d:%s", presentationIdentity(p), p.Epoch, policy, restriction, contentFence))))
-	return library, fence, nil
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%d:%s", presentationIdentity(p), p.Epoch, policy, restriction, contentFence)))), nil
 }
 
 // markerAccess builds the analysis access for a viewer read. Authorization is

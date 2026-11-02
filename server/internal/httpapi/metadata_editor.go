@@ -2,11 +2,9 @@ package httpapi
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
@@ -182,7 +180,12 @@ func (d Dependencies) writeRepairState(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 	out.Server = d.Identity.ID()
-	out.ViewerFence = fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%s:%d", presentationIdentity(p), p.Epoch))))
+	fence, err := d.itemViewerFence(r, p)
+	if err != nil {
+		failure(w, err)
+		return
+	}
+	out.ViewerFence = fence
 	write(w, 200, out)
 }
 

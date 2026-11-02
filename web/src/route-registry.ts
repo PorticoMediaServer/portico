@@ -1,4 +1,4 @@
-import type {ComponentType} from 'react';
+import type {ComponentType, RefObject} from 'react';
 import type {ShellPlaybackBinding} from './shell/Playback';
 import {accountReturnPath} from './route-registry-return';
 
@@ -28,13 +28,17 @@ export type WebScreenDefinition = Readonly<{
   /** A screen-owned protected lifetime that may survive an auxiliary route.
    * The component owns visibility and starts work only for its actual destination. */
   retainedHost?: ComponentType;
+  /** Notifications only: the bell's panel, mounted by the shell over the open page (no route change). */
+  shellPopover?: ComponentType<ShellPopoverProps>;
 }>;
+export type ShellPopoverProps = Readonly<{anchorRef: RefObject<HTMLElement | null>; onClose: () => void}>;
 export function defineWebScreen<T extends WebScreenDefinition>(definition: T): Readonly<T> {
   if (!Object.hasOwn(webScreenPaths, definition.id)) throw new Error('unknown-web-screen');
   if (definition.phoneChrome !== undefined && !['shell', 'standalone'].includes(definition.phoneChrome)) throw new Error('invalid-phone-chrome');
   if (definition.validateSearch !== undefined && typeof definition.validateSearch !== 'function') throw new Error('invalid-web-search-validator');
   if (definition.playbackHost && definition.id !== 'player') throw new Error('playback-host-must-belong-to-player');
   if (definition.retainedHost && definition.id === 'player') throw new Error('player-already-has-playback-host');
+  if (definition.shellPopover && definition.id !== 'notifications') throw new Error('shell-popover-must-belong-to-notifications');
   return Object.freeze({...definition});
 }
 export type WebActionId = 'feedback';

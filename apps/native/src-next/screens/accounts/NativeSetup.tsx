@@ -42,7 +42,7 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
   const signedIn = useSyncExternalStore(credentials?.subscribe ?? noSubscription, () => !!credentials?.getSnapshot().session);
   const [name, setName] = useState(target.server.name);
   const [username, setUsername] = useState(''), [password, setPassword] = useState(''), [confirm, setConfirm] = useState('');
-  const [notNow, setNotNow] = useState(false), [startingOver, setStartingOver] = useState(false);
+  const [notNow, setNotNow] = useState(false), [startingOver, setStartingOver] = useState(false), [setupCode, setSetupCode] = useState('');
   const [chosen, setChosen] = useState<'hosted' | 'local'>(target.server.hostedConfigured ? 'hosted' : 'local');
   // O-169, step 1 continued: unset follows the sign-in kind (On for Portico Accounts, Off for local sign-in).
   const [accessChoice, setAccessChoice] = useState<'on' | 'private' | 'off'>(), [securityChoice, setSecurityChoice] = useState<'enhanced' | 'standard'>('enhanced');
@@ -94,6 +94,12 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
     case 'failed':
       if (offer.offer) return view.retryable ? message(t('accounts.setup.title'), setupErrorMessage(view.error), tryAgain(), startOver) : message(t('accounts.setup.title'), setupErrorMessage(view.error), startOver);
       return message(t('accounts.setup.title'), setupErrorMessage(view.error), view.retryable ? tryAgain() : undefined);
+    case 'code':
+      // From outside the server's network: the setup code from its log (auth.html 1e panels 1–2).
+      return <Layout testID="accounts-setup" title={t('web.setup.codeTitle')} body={view.invalid ? t('web.setup.codeInvalid') : t('web.setup.codeHint')}
+        primaryAction={{id: 'continue', label: t('accounts.signIn.continue'), disabled: busy || !setupCode.trim(), loading: busy, onPress: () => controller.submitCode(setupCode)}}
+        secondaryAction={back}
+        beforeActions={<View style={{alignSelf: 'stretch', gap: 14, marginBottom: 20}}>{field(t('web.setup.codeLabel'), setupCode, setSetupCode)}</View>}/>;
     case 'unknown':
       return message(t('accounts.setup.title'), setupNewerMessage(), tryAgain());
     case 'awaiting_approval': {
