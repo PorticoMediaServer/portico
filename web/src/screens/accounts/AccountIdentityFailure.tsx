@@ -15,6 +15,6 @@ export function AccountIdentityFailure({binding}: {binding: AccountIdentityFailu
     finally {if (epoch.active) setBusy(false);}
   };
   if (!binding.isCurrent()) return null;
-  return <AuthStage legal={false}><ServerIdentityFailure serverName={binding.serverName} failure={binding.failure} busy={busy}
-    onRetry={() => {void retry();}} onChooseServer={binding.onChooseServer} onForget={binding.onForget}/><AuthError error={error}/></AuthStage>;
+  return <AuthStage layout="state" legal={false}><ServerIdentityFailure serverName={binding.serverName} failure={binding.failure} busy={busy}
+    onRetry={() => {void retry();}} onChooseServer={binding.onChooseServer} onForget={binding.onForget} after={<AuthError error={error}/>}/></AuthStage>;
 }
