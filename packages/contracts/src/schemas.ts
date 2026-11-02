@@ -250456,7 +250456,11 @@ export const schemas = {
     "type": "object"
   },
   "PostSetupStartOverRequest": {
-    "properties": {},
+    "properties": {
+      "setupCode": {
+        "type": "string"
+      }
+    },
     "required": [],
     "type": "object"
   },
@@ -284101,7 +284105,11 @@ export const schemas = {
     "type": "object"
   },
   "StartAppSetupRequest": {
-    "properties": {},
+    "properties": {
+      "setupCode": {
+        "type": "string"
+      }
+    },
     "required": [],
     "type": "object"
   },
@@ -284121,7 +284129,11 @@ export const schemas = {
     "type": "object"
   },
   "StartBrowserSetupRequest": {
-    "properties": {},
+    "properties": {
+      "setupCode": {
+        "type": "string"
+      }
+    },
     "required": [],
     "type": "object"
   },

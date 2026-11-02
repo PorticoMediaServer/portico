@@ -55,10 +55,11 @@ func TestBrowserSetupLocalOriginAndSingleUse(t *testing.T) {
 			}
 		})
 	}
-	// A public-internet source is refused, honestly and by name, whatever its scheme.
+	// A public-internet source is refused, honestly and by name, whatever its scheme:
+	// from outside, setup needs the setup code from the server's log (Justin, 1 Nov).
 	for _, peer := range []string{"198.51.100.8:5000", "[2001:db8::8]:5000"} {
 		w := call("https://demo.example", "https://demo.example", peer, "/v1/setup/browser", map[string]any{})
-		if w.Code != http.StatusForbidden || !bytes.Contains(w.Body.Bytes(), []byte(`"setup_source_not_local"`)) {
+		if w.Code != http.StatusForbidden || !bytes.Contains(w.Body.Bytes(), []byte(`"setup_code_required"`)) {
 			t.Fatalf("a public source %s started setup: %d %s", peer, w.Code, w.Body.String())
 		}
 	}

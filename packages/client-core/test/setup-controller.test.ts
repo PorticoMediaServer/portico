@@ -633,3 +633,20 @@ test('start over on a server that was set up meanwhile says so', async () => {
   await t.settle();
   assert.deepEqual(t.controller.getSnapshot(), {kind: 'refused', reason: 'already_set_up'});
 });
+
+test('from outside: start asks for the code, the typed code goes to the start port, and setup carries on', async () => {
+  const codes: (string | undefined)[] = [];
+  const t = rig({handlers: {start: (...args: unknown[]) => {const code = args.length > 1 ? args[1] as string : undefined; codes.push(code); return code === 'R9TD-3MWK' ? {kind: 'startDone'} : code ? {kind: 'setupCodeInvalid'} : {kind: 'setupCodeRequired'};}}});
+  t.controller.start();
+  await t.settle();
+  t.controller.submitHosted('Den', {navigate: false});
+  await t.settle();
+  assert.equal(t.kind(), 'code');
+  t.controller.submitCode('AAAA-AAAA');
+  await t.settle();
+  assert.deepEqual([t.kind(), (t.controller.getSnapshot() as Extract<SetupView, {kind: 'code'}>).invalid], ['code', true]);
+  t.controller.submitCode('R9TD-3MWK');
+  await t.settle();
+  assert.deepEqual(codes, [undefined, 'AAAA-AAAA', 'R9TD-3MWK']);
+  assert.equal(t.count('initializeHosted'), 1, 'setup carries on after the code');
+});

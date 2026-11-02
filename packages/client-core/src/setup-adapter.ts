@@ -176,17 +176,19 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
-    async start(context) {
+    async start(context, code) {
       const p = await pair(context.signal);
       // The same rule the server and Portico Services apply: a public http address is refused before any request.
       if (!setupAddressAllowed(p.api.baseUrl)) return {kind: 'addressNotAllowed'};
       try {
-        const raw = await p.api.request<{serverId?: unknown; setupToken?: unknown}>(routePath(deps.tokenRoute), 'POST', {}, context.signal);
+        const raw = await p.api.request<{serverId?: unknown; setupToken?: unknown}>(routePath(deps.tokenRoute), 'POST', code ? {setupCode: code} : {}, context.signal);
         await assertPaired(p);
         if (raw?.serverId !== p.pin.serverId || typeof raw.setupToken !== 'string' || !raw.setupToken) throw Object.assign(new Error('The setup answer did not match this server.'), {code: 'identity_mismatch'});
         issued = {serverId: raw.serverId, setupToken: raw.setupToken};
         return {kind: 'startDone'};
       } catch (error) {
+        if (refused(error, 'setup_code_required')) return {kind: 'setupCodeRequired'};
+        if (refused(error, 'setup_code_invalid')) return {kind: 'setupCodeInvalid'};
         if (refused(error, 'setup_in_progress')) return {kind: 'setupInProgress', ...((error as ApiError).retryAfterSeconds ? {retryAfterSeconds: (error as ApiError).retryAfterSeconds} : {})};
         if (refused(error, 'setup_source_not_local')) return {kind: 'notLocalSource'};
         if (refused(error, 'setup_complete', 'not_setup_required', 'conflict')) return {kind: 'alreadyComplete'};
@@ -268,16 +270,18 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
-    async startOver(context) {
+    async startOver(context, code) {
       const p = await pair(context.signal);
       try {
-        const raw = await p.api.request<{serverId?: unknown; setupToken?: unknown}>(routePath('post_setup_start_over'), 'POST', {}, context.signal);
+        const raw = await p.api.request<{serverId?: unknown; setupToken?: unknown}>(routePath('post_setup_start_over'), 'POST', code ? {setupCode: code} : {}, context.signal);
         await assertPaired(p);
         if (raw?.serverId !== p.pin.serverId || typeof raw.setupToken !== 'string' || !raw.setupToken) throw Object.assign(new Error('The setup answer did not match this server.'), {code: 'identity_mismatch'});
         issued = {serverId: raw.serverId, setupToken: raw.setupToken};
         own = undefined;
         return {kind: 'startedOver'};
       } catch (error) {
+        if (refused(error, 'setup_code_required')) return {kind: 'setupCodeRequired'};
+        if (refused(error, 'setup_code_invalid')) return {kind: 'setupCodeInvalid'};
         if (refused(error, 'setup_source_not_local')) return {kind: 'notLocalSource'};
         if (refused(error, 'setup_already_complete', 'setup_complete', 'not_setup_required', 'conflict')) return {kind: 'alreadyComplete'};
         throw error;

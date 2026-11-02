@@ -10,6 +10,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/networking"
 	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/remotegate"
+	"log"
 	"mime"
 	"net/http"
 	"net/netip"
@@ -37,6 +38,11 @@ func (d Dependencies) browserSetupAuthorityAllowed(r *http.Request) bool {
 	origin, err := url.Parse(networkpolicy.Origin(r, d.trustedProxyPrefixes(r.Context())))
 	if err != nil || origin.Host == "" {
 		return false
+	}
+	// A setup code admitted this peer at exactly this origin: a page rebinding another
+	// name to this server is a different origin and isn't admitted.
+	if d.outsideSetupAdmitted(r) {
+		return true
 	}
 	if addr, err := netip.ParseAddr(origin.Hostname()); err == nil {
 		return !addr.IsUnspecified() && !addr.IsMulticast()
@@ -134,7 +140,81 @@ func (d Dependencies) setupSourceAllowed(r *http.Request) bool {
 		}
 	}
 	client, ok := networkpolicy.Client(r, proxies)
-	return ok && (d.localSetupPeer(client.Unmap()) || !d.requestIsRemote(r))
+	return ok && (d.localSetupPeer(client.Unmap()) || !d.requestIsRemote(r) || d.outsideSetupAdmitted(r))
+}
+
+// SetupStartRequest is the body of a setup start: empty, or, from outside the server's
+// network, the setup code the person typed from the server's log.
+type SetupStartRequest struct {
+	SetupCode string `json:"setupCode,omitempty"`
+}
+
+var (
+	errSetupCodeRequired = &apierror.Error{Code: "setup_code_required"}
+	errSetupCodeInvalid  = &apierror.Error{Code: "setup_code_invalid"}
+)
+
+// setupPeer is the request's client (the forwarded one behind a trusted proxy) and the
+// origin it reached, the pair a setup code admits.
+func (d Dependencies) setupPeer(r *http.Request) (peer, origin string) {
+	client, ok := networkpolicy.Client(r, d.trustedProxyPrefixes(r.Context()))
+	if !ok {
+		return "", ""
+	}
+	return client.Unmap().String(), networkpolicy.Origin(r, d.trustedProxyPrefixes(r.Context()))
+}
+
+// outsideSetupAdmitted: a setup code admitted this peer at this origin, and it's still live.
+func (d Dependencies) outsideSetupAdmitted(r *http.Request) bool {
+	if d.Identity == nil {
+		return false
+	}
+	peer, origin := d.setupPeer(r)
+	return d.Identity.SetupPeerAdmitted(r.Context(), peer, origin)
+}
+
+// admitOutsideSetup is the setup code's half of starting setup (Justin, 1 Nov): from
+// home or the local network nothing is asked; from outside, a peer already admitted
+// carries on, and anyone else must give the current code, which is then replaced (the
+// new one goes to the log). Guesses share the per-peer setup bucket.
+func (d Dependencies) admitOutsideSetup(ctx context.Context, r *http.Request, code string) error {
+	proxies := d.trustedProxyPrefixes(r.Context())
+	client, ok := networkpolicy.Client(r, proxies)
+	if ok && (d.localSetupPeer(client.Unmap()) || !d.requestIsRemote(r)) {
+		return nil
+	}
+	if d.outsideSetupAdmitted(r) {
+		return nil
+	}
+	if code == "" {
+		return errSetupCodeRequired
+	}
+	if err := d.Identity.SetupLimit(ctx, d.setupPeerSubject(r), "setup-code", 10); err != nil {
+		return setupTransportError(err)
+	}
+	// The source budget: a whole /24 (or /48) shares a larger allowance, so many addresses
+	// in one network can't each guess ten times.
+	if ok {
+		bits := 24
+		if !client.Unmap().Is4() {
+			bits = 48
+		}
+		network := netip.PrefixFrom(client.Unmap(), bits).Masked().String()
+		if err := d.Identity.SetupLimit(ctx, "network:"+network, "setup-code-network", 30); err != nil {
+			return setupTransportError(err)
+		}
+	}
+	peer, origin := d.setupPeer(r)
+	next, err := d.Identity.AdmitSetupCode(ctx, code, peer, origin)
+	switch {
+	case errors.Is(err, identity.ErrUnauthorized):
+		return errSetupCodeInvalid
+	case err != nil:
+		return setupTransportError(err)
+	}
+	log.Print("Setup code used.")
+	log.Print(identity.SetupCodeLogLine(next))
+	return nil
 }
 
 // localSetupPeer is the one notion of a local peer, shared with the remote gate: the
@@ -202,7 +282,10 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 	if err != nil {
 		return err
 	}
-	err = apikit.Register(registry, apikit.Route[struct{}, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "start_browser_setup", Method: "POST", Path: "/v1/setup/browser", Summary: "Start first-run setup from this origin", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_in_progress", "setup_source_not_local", "internal"}}, Handler: func(ctx context.Context, r *http.Request, _ struct{}) (BrowserSetupResponse, error) {
+	err = apikit.Register(registry, apikit.Route[SetupStartRequest, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "start_browser_setup", Method: "POST", Path: "/v1/setup/browser", Summary: "Start first-run setup from this origin", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_in_progress", "setup_source_not_local", "internal", "setup_code_required", "setup_code_invalid"}}, Handler: func(ctx context.Context, r *http.Request, q SetupStartRequest) (BrowserSetupResponse, error) {
+		if err := d.admitOutsideSetup(ctx, r, q.SetupCode); err != nil {
+			return BrowserSetupResponse{}, err
+		}
 		if !d.setupRequestAllowed(r) || !d.sameRequestOrigin(r, r.Header.Get("Origin")) {
 			return BrowserSetupResponse{}, foundationAuthError(identity.ErrUnauthorized)
 		}
@@ -212,7 +295,10 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 		return err
 	}
 	// Finding #2: any unfinished setup can be started over by whoever may start setup.
-	err = apikit.Register(registry, apikit.Route[struct{}, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "post_setup_start_over", Method: "POST", Path: "/v1/setup/start-over", Summary: "End any unfinished first-run setup and start again from this address", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_source_not_local", "portico_services_unavailable", "internal"}}, Handler: func(ctx context.Context, r *http.Request, _ struct{}) (BrowserSetupResponse, error) {
+	err = apikit.Register(registry, apikit.Route[SetupStartRequest, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "post_setup_start_over", Method: "POST", Path: "/v1/setup/start-over", Summary: "End any unfinished first-run setup and start again from this address", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_source_not_local", "portico_services_unavailable", "internal", "setup_code_required", "setup_code_invalid"}}, Handler: func(ctx context.Context, r *http.Request, q SetupStartRequest) (BrowserSetupResponse, error) {
+		if err := d.admitOutsideSetup(ctx, r, q.SetupCode); err != nil {
+			return BrowserSetupResponse{}, err
+		}
 		origin := r.Header.Get("Origin")
 		if !d.setupRequestAllowed(r) || (origin == "" && !d.appSetupRequest(r)) || (origin != "" && !d.sameRequestOrigin(r, origin)) {
 			return BrowserSetupResponse{}, foundationAuthError(identity.ErrUnauthorized)
@@ -235,7 +321,10 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 		return err
 	}
 	// First run from the Portico app on a phone or tablet that found a server nobody has set up.
-	return apikit.Register(registry, apikit.Route[struct{}, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "start_app_setup", Method: "POST", Path: "/v1/setup/app", Summary: "Start first-run setup from an app", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_in_progress", "setup_source_not_local", "internal"}}, Handler: func(ctx context.Context, r *http.Request, _ struct{}) (BrowserSetupResponse, error) {
+	return apikit.Register(registry, apikit.Route[SetupStartRequest, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "start_app_setup", Method: "POST", Path: "/v1/setup/app", Summary: "Start first-run setup from an app", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_in_progress", "setup_source_not_local", "internal", "setup_code_required", "setup_code_invalid"}}, Handler: func(ctx context.Context, r *http.Request, q SetupStartRequest) (BrowserSetupResponse, error) {
+		if err := d.admitOutsideSetup(ctx, r, q.SetupCode); err != nil {
+			return BrowserSetupResponse{}, err
+		}
 		if !d.appSetupRequest(r) {
 			return BrowserSetupResponse{}, foundationAuthError(identity.ErrUnauthorized)
 		}
@@ -282,6 +371,8 @@ func connectionErrorDefinitions() []apierror.Definition {
 	return []apierror.Definition{{Code: "setup_already_complete", Status: 409, Message: "This server is already set up.", Retry: apierror.Never},
 		{Code: "setup_in_progress", Status: 409, Message: "Setup is already in progress in another browser.", Retry: apierror.SameRequest},
 		{Code: "setup_source_not_local", Status: 403, Message: "Setup has to start from a device on the same network as this server.", Retry: apierror.Never},
+		{Code: "setup_code_required", Status: 403, Message: "Enter the setup code from the server's log.", Retry: apierror.Never},
+		{Code: "setup_code_invalid", Status: 403, Message: "That code isn't right.", Retry: apierror.Never},
 		{Code: "setup_portico_mode", Status: 409, Message: "This server is being set up for a Portico Account. Go back to the start of setup to choose local sign-in.", Retry: apierror.Never},
 		{Code: "setup_state_changed", Status: 409, Message: "Setup moved on. Read its state again.", Retry: apierror.Never}}
 }

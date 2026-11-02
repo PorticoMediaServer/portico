@@ -847,6 +847,18 @@ export const errors = [
     "retry": "never"
   },
   {
+    "code": "setup_code_invalid",
+    "status": 403,
+    "message": "That code isn't right.",
+    "retry": "never"
+  },
+  {
+    "code": "setup_code_required",
+    "status": 403,
+    "message": "Enter the setup code from the server's log.",
+    "retry": "never"
+  },
+  {
     "code": "setup_in_progress",
     "status": 409,
     "message": "Setup is already in progress in another browser.",

@@ -515,3 +515,22 @@ test('start over is taken only where setup can no longer finish by itself, and i
   assert.deepEqual(setupStartOverOffer({kind: 'ended', outcome: 'expired'}), {offer: false, confirm: false});
   assert.deepEqual(setupStartOverOffer({kind: 'failed', hold: 'unapproved'}), {offer: false, confirm: false});
 });
+
+test('from outside the server asks for the setup code; the interrupted start runs again with it', () => {
+  const starting: SetupView = {kind: 'starting', mode: 'hosted', name: 'Den', navigate: true, step: 'start'};
+  const asked = stepSetup(starting, {kind: 'setupCodeRequired'}, NOW);
+  assert.deepEqual(asked, {view: {kind: 'code', name: 'Den', invalid: false, resume: starting}, effects: []});
+  assert.equal(stepSetup(asked.view, {kind: 'submitCode', code: '   '}, NOW).view, asked.view, 'an empty code does nothing');
+  assert.deepEqual(stepSetup(asked.view, {kind: 'submitCode', code: ' 7k4m-q2xp '}, NOW), {view: starting, effects: [{kind: 'start', code: '7k4m-q2xp'}]});
+  const wrong = stepSetup(starting, {kind: 'setupCodeInvalid'}, NOW).view;
+  assert.deepEqual(wrong, {kind: 'code', name: 'Den', invalid: true, resume: starting});
+  // Start over from outside asks for it the same way.
+  const over: SetupView = {kind: 'starting_over', name: 'Den'};
+  const overAsked = stepSetup(over, {kind: 'setupCodeRequired'}, NOW).view;
+  assert.deepEqual(stepSetup(overAsked, {kind: 'submitCode', code: 'R9TD-3MWK'}, NOW), {view: over, effects: [{kind: 'start-over', code: 'R9TD-3MWK'}]});
+  // Back leaves for the form.
+  assert.equal(stepSetup(asked.view, {kind: 'back'}, NOW).view.kind, 'form');
+  // A code result outside the start step changes nothing.
+  const later: SetupView = {...starting, step: 'initialize'};
+  assert.equal(stepSetup(later, {kind: 'setupCodeRequired'}, NOW).view, later);
+});

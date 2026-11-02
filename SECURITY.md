@@ -61,7 +61,10 @@ Refused addresses only lists names that point at your server, so scanner noise s
 
 ### First-run setup
 
-Anyone who can reach a server that hasn't been set up yet can complete setup. There's no separate setup code. Browser setup only accepts same-origin requests, so another website can't do it for you. **Finish setup before you make the server reachable.**
+- From home or the local network (the rule above), setup needs nothing more.
+- From outside, setup asks for the **setup code**. The server makes a new one each time it starts unset, and prints it to its log on a line starting `Portico setup code:` (for Docker, `docker logs portico | grep "Portico setup code"`). The server stores only a hash of the code. A code works once and is then replaced with a new one in the log. Wrong codes count against a limit per address and per network.
+- Browser setup accepts only same-origin requests, so another website can't do it for you.
+- Anyone who could start setup can **start over** while it's unfinished. This cancels an approval already given at Portico Services, and setup begins again at their address. Once an owner exists, start over is refused.
 
 ### Passwords, PINs and sign-in
 
