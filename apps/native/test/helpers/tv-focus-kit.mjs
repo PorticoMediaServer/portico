@@ -3,6 +3,7 @@
 // is a TV theme, motion is instant, and the dev layout observer records nothing.
 import {focusSpec} from '@portico/design';
 import * as registryModule from '../../src-next/kit/focus/registry.ts';
+import * as layerStack from '../../src-next/kit/focus/layer-stack.ts';
 import * as controlModel from '../../src-next/kit/controls/control-model.ts';
 import {liveOverlayPaint, screenModule} from './screen-harness.mjs';
 import {tvFocusEngine} from './tv-focus-engine.mjs';
@@ -18,7 +19,8 @@ export async function tvFocusKit(options = {}) {
   const regions = await screenModule(src('kit/focus/FocusRegion.tsx'), {...common, './registry': registryModule, './cell-navigation': {}, './useHostRef': {useHostRef}});
   const covered = await screenModule(src('kit/focus/CoveredLayer.tsx'), common);
   const gate = await screenModule(src('kit/focus/FocusGate.tsx'), {...common, './FocusRegion': regions});
-  const focus = {...regions, ...covered, ...gate, createFocusRegistry: registryModule.createFocusRegistry, focusTestID: registryModule.focusTestID, requestNativeFocus: registryModule.requestNativeFocus};
+  const focus = {...regions, ...covered, ...gate, createFocusRegistry: registryModule.createFocusRegistry, focusTestID: registryModule.focusTestID, requestNativeFocus: registryModule.requestNativeFocus,
+    createTVLayerStack: layerStack.createTVLayerStack};
   const {Focusable} = await screenModule(src('kit/controls/Focusable.tsx'), {...common,
     '@portico/design': {focusSpec}, '../useMotion': {useMotion: () => ({reduce: true, transforms: false, timing: () => ({duration: 0})})},
     './control-model': controlModel, './useFocusedMenu': {useFocusedMenu() {}}, '../overlays/OverlayPaintContext': liveOverlayPaint,
