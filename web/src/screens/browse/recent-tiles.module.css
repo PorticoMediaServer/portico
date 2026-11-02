@@ -1,6 +1,9 @@
 /* Phone-web frame 7: the Music library's Recently played row is the app's two-column
    quick grid — 52px art, 13px title, 11.5px artist — with the playing one marked. */
 .rows > * + * { margin-top:44px; }
+/* J-29: the Discover empty state (nothing in this library yet) keeps the page's standard gutter,
+   like the library toolbar and every row inside the tab. */
+.emptyState { padding: 20px var(--shell-gutter, var(--gutter-desktop)) 0; }
 .section { width: 100%; }
 .heading { margin: 0 0 8px; }
 .heading h2 { margin: 0; font-size: var(--type-row-heading-size); font-weight: var(--type-button-weight); letter-spacing: var(--type-row-heading-tracking); }

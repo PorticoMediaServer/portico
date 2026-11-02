@@ -22,6 +22,9 @@
 .library { position: relative; min-height: 100%; }
 .books { position: relative; margin: 0 var(--shell-gutter, var(--gutter-desktop)); }
 @media (max-width: 1023px) { .books { margin-inline: 20px; } }
+/* J-29: a Reading library with nothing in it still starts at the page's gutter. */
+.emptyLibrary { margin: 0 var(--shell-gutter, var(--gutter-desktop)); padding-top: 20px; }
+@media (max-width: 1023px) { .emptyLibrary { margin-inline: 20px; } }
 
 /* phone-read 4/4c: the series' own name and count head its volume grid. */
 .seriesHeading { display: flex; align-items: baseline; gap: 10px; margin: 24px var(--shell-gutter, var(--gutter-desktop)) 8px; }

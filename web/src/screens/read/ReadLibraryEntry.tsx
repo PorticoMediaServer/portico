@@ -142,7 +142,8 @@ function LibraryRows({resources, libraryId, name, comic, view, onMore, onRetry, 
   if (state.status === 'error') return <StateView variant="page" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}
     primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: onRetry}}/>;
   const resume = reading.status === 'error' ? [] : resources.resume.collection.residentItems();
-  if (state.total === 0 && resume.length === 0) return <StateView title={t('library.emptyLibrary')} body={t('library.emptyLibraryBody')}/>;
+  // J-29: an empty Discover tab takes the page's standard gutter, as the rows and grids around it do.
+  if (state.total === 0 && resume.length === 0) return <div className={styles.emptyLibrary}><StateView title={t('library.emptyLibrary')} body={t('library.emptyLibraryBody')}/></div>;
   const rows: readonly ReadDiscoveryRow[] = [
     ...(resume.length > 0 ? [{id: 'continue', kind: 'resume' as const, heading: t('next.cards.read'), items: resumeRows(resources, resume)}] : []),
     ...(recent && recent.length > 0 ? [{
