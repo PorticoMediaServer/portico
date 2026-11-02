@@ -196,7 +196,7 @@ export function TVPerson({focusScope, page, role, collection, runtime, actions, 
         <View style={{flex: 1}}/>
         <Chip testID="person-role-filter" selected={role !== 'all'} onPress={() => setFilters(true)}>{t('next.browse.native.filters')}</Chip>
       </View>
-      <TVShelf items={slots} getKey={creditSlotKey} itemWidth={214} itemHeight={440}
+      <TVShelf items={slots} getKey={creditSlotKey} itemWidth={214} itemHeight={440} isFocusable={index => !!collection.itemAt(index)?.media}
         onVisibleRange={(first, last) => setRange(current => current.first === first && current.last === last ? current : {first, last})}
         renderItem={(index, slot) => {
           const credit = collection.itemAt(index), entry = credit?.media;
