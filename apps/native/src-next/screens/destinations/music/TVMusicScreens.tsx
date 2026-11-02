@@ -4,7 +4,7 @@ import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import {cardText} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {artistReleaseGroups} from '../../../../../../packages/client-core/src/presentation/library-tabs';
-import {AmbientArt, Artwork, ArtistCircle, StandardBackdrop} from '../../../kit/artwork';
+import {AmbientArt, Artwork, ArtistCircle, StandardBackdrop, missingArt} from '../../../kit/artwork';
 import {Button, Chip, Focusable} from '../../../kit/controls';
 import {SkeletonBlock} from '../../../kit/states';
 import {SquareCard} from '../../../kit/cards';
@@ -149,7 +149,7 @@ export function TVAlbumScreen({controller, entry, runtime, actions, openEntry, o
     <MusicScrollView onNearEnd={()=>{void controller.nextSongs(snapshot.songPage);}} contentContainerStyle={{paddingBottom: 64}} showsVerticalScrollIndicator={false}>
       <View style={{width: 1920, height: Math.max(1320,moreTop+424)}}>
         <View style={{position: 'absolute', left: 200, top: 150, width: 480, height: 480, borderRadius: 18, backgroundColor: theme.colors.raised, zIndex: 2, boxShadow: [{offsetX: 0, offsetY: 60, blurRadius: 120, spreadDistance: -40, color: 'rgba(0,0,0,.9)'}, {offsetX: 0, offsetY: 0, blurRadius: 0, spreadDistance: 1, color: 'rgba(237,245,250,.08)'}]}}><View style={{width: 480, height: 480, borderRadius: 18, overflow: 'hidden'}}>
-          {art ? <Artwork source={art} width={480} height={480} priority/> : null}
+          <Artwork source={art} width={480} height={480} priority fallback={art ? undefined : missingArt({title: entry.displayTitle ?? entry.title, author: entry.artist?.name, shape: 'square', width: 480, height: 480})}/>
         </View></View>
         <Text style={[browseType(theme, 22, 700), {position: 'absolute', left: 760, top: 150, color: theme.colors.textSecondary, zIndex: 2}]}>{t('search.kind.album')}</Text>
         <Text numberOfLines={2} onTextLayout={event => setTitleLines(Math.min(2, Math.max(1, event.nativeEvent.lines.length)))} style={[browseType(theme, 120, 800, -.045, albumTitleLine), {position: 'absolute', left: 760, top: 186, width: 1000, color: theme.colors.text, zIndex: 2}]}>{entry.displayTitle ?? entry.title}</Text>
