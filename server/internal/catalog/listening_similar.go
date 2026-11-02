@@ -117,6 +117,16 @@ func (s *Service) listeningSimilarRanked(viewer Viewer, id string) (string, []st
 	if err != nil {
 		return out.LibraryID, nil, err
 	}
+	// A book's row is never empty on a library with other books (lead, 2 Nov):
+	// after the similar ranking come the same author's books, then the same
+	// series, then the library's recently added books, deduplicated and
+	// capped at the row size. Every one is authorized below like a ranked one.
+	var fallback []int64
+	if kind == 8 {
+		if fallback, err = s.listeningBookFallback(seed, libraryID); err != nil {
+			return out.LibraryID, nil, err
+		}
+	}
 	works := map[int64]map[string]bool{}
 	for _, g := range genres {
 		if err = s.recPostings(g, libraryID, 150, func(work int64, _ float64) {
@@ -192,6 +202,11 @@ func (s *Service) listeningSimilarRanked(viewer Viewer, id string) (string, []st
 	ids := []int64{}
 	for work := range works {
 		ids = append(ids, work)
+	}
+	for _, work := range fallback {
+		if works[work] == nil {
+			ids = append(ids, work)
+		}
 	}
 	if len(ids) == 0 {
 		return out.LibraryID, nil, nil
@@ -295,10 +310,78 @@ func (s *Service) listeningSimilarRanked(viewer Viewer, id string) (string, []st
 		return a.id < b.id
 	})
 	public := make([]string, 0, len(ranked))
+	shown := map[int64]bool{seed: true}
 	for _, c := range ranked {
 		public = append(public, c.public)
+		shown[c.id] = true
+	}
+	for _, work := range fallback {
+		if len(public) >= listeningRowSize {
+			break
+		}
+		// Only candidates authorized above (visible, available, this library).
+		if c := candidates[work]; c != nil && !shown[work] {
+			public = append(public, c.public)
+			shown[work] = true
+		}
 	}
 	return out.LibraryID, public, nil
+}
+
+// listeningRowSize caps what a fallback adds to a listening "More …" row:
+// the largest page a client reads (ListeningSimilarPage, relation rows).
+const listeningRowSize = 24
+
+// listeningBookFallback lists the works that fill a book's row after its
+// similar ranking: the book's authors' books, then its series' books, then the
+// library's recently added books. The order is kept and duplicates dropped;
+// the caller authorizes each one and stops at listeningRowSize.
+func (s *Service) listeningBookFallback(book, library int64) ([]int64, error) {
+	// Author and series facets belong to the book itself; the caller has
+	// already checked this viewer may see it.
+	facets := map[string][]string{}
+	rows, err := s.read().Query(`SELECT facet FROM catalog_rec_facets WHERE entity_id=? AND (facet LIKE 'b:%' OR facet LIKE 'k:%') GROUP BY facet ORDER BY facet`, book)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var f string
+		if err = rows.Scan(&f); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		facets[f[:2]] = append(facets[f[:2]], f)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	out, seen := []int64{}, map[int64]bool{book: true}
+	add := func(work int64, _ float64) {
+		if !seen[work] {
+			seen[work] = true
+			out = append(out, work)
+		}
+	}
+	// A wide walk per facet: the caller drops hidden or unavailable works, so
+	// the row can still fill after they are skipped.
+	for _, prefix := range []string{"b:", "k:"} {
+		for _, f := range facets[prefix] {
+			if err = s.recPostings(f, library, 4*listeningRowSize, add); err != nil {
+				return nil, err
+			}
+		}
+	}
+	recent, err := scanInt64s(s.read().Query(`SELECT m.entity_id FROM catalog_browse_member_metrics m JOIN catalog_entities work ON work.id=m.entity_id
+ WHERE work.kind=8 AND work.library_id=? AND work.retired=0 AND m.added IS NOT NULL GROUP BY m.entity_id ORDER BY max(m.added) DESC,m.entity_id DESC LIMIT ?`, library, 4*listeningRowSize))
+	if err != nil {
+		return nil, err
+	}
+	for _, work := range recent {
+		add(work, 0)
+	}
+	return out, nil
 }
 
 func listeningProfileKeys(rows *sql.Rows, err error) ([]string, error) {

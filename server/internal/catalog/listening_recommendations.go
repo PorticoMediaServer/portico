@@ -72,10 +72,23 @@ func (s *Service) listeningRelations(profile string, item Item) ([]relationSpec,
 				return nil, err
 			}
 			out := &relationOrdered{public: []string{}, complete: true}
+			seen := map[string]bool{}
 			for _, c := range all {
 				if containsString(c.Facets, facet) {
 					out.public = append(out.public, c.ID)
+					seen[c.ID] = true
 				}
+			}
+			// The ranking only holds what scored as related; the row is still
+			// this facet's (lead, 2 Nov), so the facet's other titles follow,
+			// up to the row size. The row is a boundary row: relationEntries
+			// drops anything this viewer can't see.
+			if len(out.public) < listeningRowSize {
+				more, err := s.listeningFacetFill(item, facet, seen, listeningRowSize-len(out.public))
+				if err != nil {
+					return nil, err
+				}
+				out.public = append(out.public, more...)
 			}
 			return out, nil
 		}
@@ -83,4 +96,41 @@ func (s *Service) listeningRelations(profile string, item Item) ([]relationSpec,
 			caching: relationContinuation, boundary: true, order: order})
 	}
 	return out, nil
+}
+
+// listeningFacetFill lists up to n more works of one facet (an artist, author,
+// genre or series) in item's library, best first, skipping the item's own
+// album or book and every id already in the row.
+func (s *Service) listeningFacetFill(item Item, facet string, seen map[string]bool, n int) ([]string, error) {
+	var library, own int64
+	if err := s.read().QueryRow(`SELECT l.id,COALESCE(song.album_id,part.book_id,0) FROM catalog_entities e JOIN catalog_libraries l ON l.id=e.library_id
+ LEFT JOIN catalog_songs song ON song.entity_id=e.id LEFT JOIN catalog_book_files part ON part.entity_id=e.id
+ WHERE e.public_id=pid_blob(?) AND e.retired=0 AND l.retired=0`, item.ID).Scan(&library, &own); err != nil {
+		return nil, err
+	}
+	works := []int64{}
+	if err := s.recPostings(facet, library, 4*listeningRowSize, func(work int64, _ float64) {
+		if work != own {
+			works = append(works, work)
+		}
+	}); err != nil || len(works) == 0 {
+		return nil, err
+	}
+	rows, err := s.read().Query(`SELECT pid(e.public_id) FROM json_each(?) j JOIN catalog_entities e ON e.id=j.value WHERE e.retired=0 ORDER BY j.key`, idsJSON64(works))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() && len(out) < n {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out, rows.Err()
 }
