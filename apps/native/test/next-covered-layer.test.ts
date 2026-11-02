@@ -2,10 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
+// CoveredLayer provides whether its subtree is covered (W-9); the shallow hook host has no createContext.
+const withContext = (react: any) => {const out = {...react, createContext: (value: unknown) => ({value, Provider: 'CoveredProvider'})}; return {...out, default: out};};
+
 async function layer(tv: boolean) {
   const h = hooks();
   const {CoveredLayer} = await screenModule(new URL('../src-next/kit/focus/CoveredLayer.tsx', import.meta.url), {
-    react: h.react, 'react-native': {TVFocusGuideView: 'TVFocusGuideView', View: 'View'}, '../theme': {useTheme: () => ({isTV: tv})}});
+    react: withContext(h.react), 'react-native': {TVFocusGuideView: 'TVFocusGuideView', View: 'View'}, '../theme': {useTheme: () => ({isTV: tv})}});
   return (covered: boolean) => h.render(() => CoveredLayer({covered, children: 'page', testID: 'base'})) as any;
 }
 
@@ -25,7 +28,7 @@ test('a covered TV layer blocks D-pad focus into everything under it, and an unc
 test('W-9/W-12: an autoFocus layer remembers its last focused element, so an empty layer never takes focus itself', async () => {
   const h = hooks();
   const {CoveredLayer} = await screenModule(new URL('../src-next/kit/focus/CoveredLayer.tsx', import.meta.url), {
-    react: h.react, 'react-native': {TVFocusGuideView: 'TVFocusGuideView', View: 'View'}, '../theme': {useTheme: () => ({isTV: true})}});
+    react: withContext(h.react), 'react-native': {TVFocusGuideView: 'TVFocusGuideView', View: 'View'}, '../theme': {useTheme: () => ({isTV: true})}});
   const routes = h.render(() => CoveredLayer({covered: false, autoFocus: true, children: null, testID: 'routes'})) as any;
   assert.equal(routes.props.autoFocus, true);
   assert.equal(routes.props.focusable, true);
@@ -40,4 +43,13 @@ test('touch has no D-pad: the layer only hides from screen readers and touches',
   assert.equal(covered.type, 'View');
   assert.equal(covered.props.pointerEvents, 'none');
   assert.equal(covered.props.accessibilityElementsHidden, true);
+});
+
+test('W-9 (2eec0520): a covered layer tells every control in it that it is covered, so none answers OK or draws a ring', async () => {
+  const h = hooks();
+  const module = await screenModule(new URL('../src-next/kit/focus/CoveredLayer.tsx', import.meta.url), {
+    react: withContext(h.react), 'react-native': {TVFocusGuideView: 'TVFocusGuideView', View: 'View'}, '../theme': {useTheme: () => ({isTV: true})}});
+  const provided = (element: any) => [element.props.children].flat()[0].props.value;
+  assert.equal(provided(h.render(() => module.CoveredLayer({covered: true, children: 'page'}))), true, 'covered: its controls are inert');
+  assert.equal(provided(h.render(() => module.CoveredLayer({covered: false, children: 'page'}))), false, 'uncovered: its controls work');
 });

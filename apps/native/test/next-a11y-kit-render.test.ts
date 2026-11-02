@@ -28,7 +28,7 @@ function fixture(fontScale = 1, width = 390) {
     react: {...react, default: react}, 'react-native': native, 'react-native-reanimated': animated,
     '../theme': {useTheme: () => theme, nativeType, fontFamilies},
     '../useMotion': {useMotion: () => ({reduce: false, transforms: false, timing: () => ({duration: 0})})},
-    '../focus': {useFocusTarget: (options: any) => ({waiting: state.waiting, testID: options.testID, ref: null, onFocus() {}, onBlur() {}}), useFocusWaiting: () => state.waiting, FocusRegion: 'FocusRegion'},
+    '../focus': {useCovered: () => false, useFocusTarget: (options: any) => ({waiting: state.waiting, testID: options.testID, ref: null, onFocus() {}, onBlur() {}}), useFocusWaiting: () => state.waiting, FocusRegion: 'FocusRegion'},
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref: unknown) => ({ref, textProps: {}, recordFocus() {}, recordDeclaredStyle() {}})},
   };
   return {host, theme, state, common, native};

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {createContext, useContext} from 'react';
 import {TVFocusGuideView, View, type StyleProp, type ViewStyle} from 'react-native';
 import {useTheme} from '../theme';
 
@@ -16,11 +16,20 @@ import {useTheme} from '../theme';
  * with nothing focusable inside never takes focus itself: without it, Android focuses the empty
  * container, leaving no visible focus on screen.
  */
+/** W-9 (2eec0520): whether this subtree is under a covered layer. A control in it never acts and never draws
+ * its focus ring, even if native focus was left on it when its layer was covered (covering blocks new focus but
+ * cannot move focus that is already there). So OK can never reach a page the user can't see, and the ring
+ * drawn on screen is always the control that answers. */
+const Covered = createContext(false);
+export function useCovered(): boolean {return useContext(Covered);}
+
 export function CoveredLayer({covered, children, style, testID, autoFocus = false, hostRef}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string; autoFocus?: boolean;
   /** The layer's own native host, for a caller that claims focus into it (W-12: the shell's last fallback). */
   hostRef?: React.Ref<View>}) {
   const {isTV} = useTheme();
+  const outer = useContext(Covered), inside = covered || outer;
   const hidden = {accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' as const : 'auto' as const};
-  if (!isTV) return <View ref={hostRef} style={style} testID={testID} pointerEvents={covered ? 'none' : 'auto'} {...hidden}>{children}</View>;
-  return <TVFocusGuideView ref={hostRef as never} style={style} testID={testID} focusable={!covered} {...(autoFocus ? {autoFocus: true} : {})} {...hidden}>{children}</TVFocusGuideView>;
+  const content = <Covered.Provider value={inside}>{children}</Covered.Provider>;
+  if (!isTV) return <View ref={hostRef} style={style} testID={testID} pointerEvents={covered ? 'none' : 'auto'} {...hidden}>{content}</View>;
+  return <TVFocusGuideView ref={hostRef as never} style={style} testID={testID} focusable={!covered} {...(autoFocus ? {autoFocus: true} : {})} {...hidden}>{content}</TVFocusGuideView>;
 }
