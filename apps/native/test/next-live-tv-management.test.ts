@@ -108,7 +108,7 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
     '../destinations/useTVPageBack': {useTVPageBack: (_r: unknown, _d: unknown, enabled: boolean, page: any) => {pageBack.enabled = enabled; pageBack.page = page;}},
     '../destinations/useEntryFocus': {useDestinationEntryFocus: (...args: any[]) => entries.push(args)}, './guide-presentation': guidePresentation,
     '../../kit/useScreenReader': {useScreenReader: () => false},
-    './useGuideTimePan': {useGuideTimePan: () => ({active: false, position: {value: 0}})}, './guide-pan-model': guidePan, './LivePhonePicker': {NativeLivePhonePicker: 'PhonePicker'},
+    './useGuideTimePan': {useGuideTimePan: () => ({active: false, position: {value: 0}})}, '../../../../../packages/client-core/src/presentation/live-availability': {channelUnavailableMessage: () => undefined}, './guide-pan-model': guidePan, './LivePhonePicker': {NativeLivePhonePicker: 'PhonePicker'},
     './LiveOwnerScreen': {NativeLiveOwnerScreen: (props: any) => {editors.push(`owner:${props.initialAction}`); return jsx('OwnerEditor', props);}},
     './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'}, './server/tv-server-reader': {nativeServerAdmission}, '../../tv/auth': handoff, '../../tv/auth/TVHandoff': handoff,
   });

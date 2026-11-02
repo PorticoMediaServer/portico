@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode} from 'react';
+import {channelUnavailableMessage} from '@core/presentation/live-availability.ts';
 import {defaultI18n} from '@i18n';
 import {layoutRow, legacyChannel, type GuideCell, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
 import {rulerTicks} from '@core/guide/time.ts';
@@ -65,6 +66,8 @@ export type GuideScreenProps = Readonly<{
   onNow?: ReactNode;
   /** A page-level problem (channel page failed) shown above the guide. */
   problem?: ReactNode;
+  /** Guide-wide notices from the server's own state (a stale guide, Live TV unavailable here). */
+  notice?: ReactNode;
   /** Replaces the guide grid when the filtered view has nothing to draw. */
   empty?: ReactNode;
   day: Readonly<{label: string; value: string; options: readonly SelectOption[]; onChange: (value: string) => void}>;
@@ -147,8 +150,11 @@ function GuideRowFrame({channel, onMenu, className, style, children}: Readonly<{
   channel?: GuideChannelRow; onMenu?: () => void; className: string; style: CSSProperties; children: ReactNode;
 }>) {
   const gestures = useChannelMenuGestures(() => onMenu?.());
+  // Spec §10: an unavailable channel is dimmed and says why on hover, focus and in its label (LT-4).
+  const reason = channel && !channel.tuneAvailable ? channelUnavailableMessage(channel.tuneUnavailableReason ?? '') : undefined;
   return <div className={className} style={style} data-guide-row={channel?.id} data-hidden={channel && legacyChannel(channel)?.serverHidden || undefined}
-    role={channel ? 'group' : undefined} aria-label={channel ? [channel.number, channel.name].filter(Boolean).join(', ') : undefined}
+    data-unavailable={channel && !channel.tuneAvailable || undefined} title={reason ? t(reason) : undefined}
+    role={channel ? 'group' : undefined} aria-label={channel ? [channel.number, channel.name, reason ? t(reason) : undefined].filter(Boolean).join(', ') : undefined}
     {...(channel && onMenu ? gestures : {})}>
     {children}
   </div>;
@@ -214,7 +220,7 @@ function PhoneListProgramme({channel, current, next, now, timezone, onSelect}: R
   </div>;
 }
 
-export function GuideScreen({title, switcher, summary, conflicts, onTabChange, chips, onNow, problem, empty, day, sort, view, time, onViewChange,
+export function GuideScreen({title, switcher, summary, conflicts, onTabChange, chips, onNow, problem, notice, empty, day, sort, view, time, onViewChange,
   span, rows, total, selected, onSelect, onPlay, channelMenu, onVisibleWindow, onRetry}: GuideScreenProps) {
   const body = useRef<HTMLDivElement>(null);
   const [menuFor, setMenuFor] = useState<string>();
@@ -300,6 +306,7 @@ export function GuideScreen({title, switcher, summary, conflicts, onTabChange, c
       </div>
     </div>
     </div>
+    {notice && <div className={styles.guideProblem}>{notice}</div>}
     {problem && <div className={styles.guideProblem}>{problem}</div>}
     {empty ?? (view === 'guide'
       ? <div {...swipe} className={styles.guide} data-guide-grid role="group" aria-label={t('guide.label')} style={{'--guide-column': `${column}px`, '--guide-row': `${rowHeight}px`} as CSSProperties}>

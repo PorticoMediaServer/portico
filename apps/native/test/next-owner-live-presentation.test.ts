@@ -111,7 +111,7 @@ async function guideFixture(width = 1180, screenReader = false) {
     '../../tv/layout/guide-focus': {}, '../destinations/useTVPageBack': {useTVPageBack() {}}, '../destinations/useEntryFocus': {useDestinationEntryFocus() {}},
     './guide-presentation': {nativeGuideClock: () => () => '12:00', nativeGuideDate: () => () => 'Today', nativeGuideRegion: () => ({locale: 'en-US', hour12: false}), nativeGuideNext: () => undefined},
     './useGuideTimePan': {useGuideTimePan: (options: any) => {panOptions = options; return {active: true, position: {value: 0}, adjust: (delta: number) => adjustments.push(delta)};}},
-    './guide-pan-model': {nativeGuidePanRange: () => ({first: 0, last: Number.MAX_SAFE_INTEGER})}, './LivePhonePicker': {NativeLivePhonePicker: 'Picker'}, './LiveOwnerScreen': {NativeLiveOwnerScreen: 'Owner'}, './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'},
+    '../../../../../packages/client-core/src/presentation/live-availability': {channelUnavailableMessage: () => undefined}, './guide-pan-model': {nativeGuidePanRange: () => ({first: 0, last: Number.MAX_SAFE_INTEGER})}, './LivePhonePicker': {NativeLivePhonePicker: 'Picker'}, './LiveOwnerScreen': {NativeLiveOwnerScreen: 'Owner'}, './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'},
     '../../tv/auth': {TVManagementHandoff: 'Handoff'}, '../../tv/auth/TVHandoff': {publicTVHandoffAddress: (url: string) => ({url})}, './recording-rule-presentation': {}, './server/tv-server-reader': {nativeServerAdmission: () => 'owner'},
   });
   const render = () => host.render(() => NativeLiveScreen({controller, recordings: {}, owner: {}, ports: {context}, runtime}));

@@ -1,4 +1,5 @@
 import {forwardIdentity} from '../detail/context';
+import {channelUnavailableMessage} from '@core/presentation/live-availability.ts';
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties} from 'react';
 import {defaultI18n} from '@i18n';
 import {channelTint, programmeFactParts, type ChannelMarkModel} from '@portico/client-core/kit-model';
@@ -81,6 +82,7 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
   const started = programme ? Math.max(0, Math.round((now - programme.start) / 60_000)) : 0;
   const left = programme ? Math.max(0, Math.round((programme.end - now) / 60_000)) : 0;
   const progress = programme && programme.end > programme.start ? Math.min(1, Math.max(0, (now - programme.start) / (programme.end - programme.start))) : 0;
+  const unavailable = channelUnavailableMessage(channel.tuneUnavailableReason ?? '');
   const watchLabel = airing ? t('guide.watchLive') : t('guide.watchChannel');
   const titleMatch = programme?.seriesId === undefined || programme?.seriesId === '';
   const recordingFact = snapshot.recording !== undefined || (programme?.recording !== undefined && snapshot.recordingRemoved !== true);
@@ -122,6 +124,8 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
     <p className={styles.programmeDescription}>{programme?.description || (programme ? t('guide.noDescription') : t('guide.noInformation'))}</p>
     {snapshot.error && <Banner className={styles.programmeBanner}>{snapshot.error}</Banner>}
     {notice && <Banner className={styles.programmeBanner}>{notice}</Banner>}
+    {/* Spec §10: an unavailable channel says why beside its disabled Watch (LT-4). */}
+    {!channel.tuneAvailable && unavailable && <Banner className={styles.programmeBanner}>{t(unavailable)}</Banner>}
     <div className={styles.programmeActions}>
       {onWatch && !future && <Button className={styles.programmeAction} variant="primary" icon="i-play" onClick={onWatch} disabled={!channel.tuneAvailable}>{watchLabel}</Button>}
       {canRecord && (recordingFact
