@@ -84,6 +84,9 @@ func TestRelatedProjectionPreservesEveryOriginalCandidate(t *testing.T) {
 		for _, key := range []string{"m1", "e101", "t1", "p1"} {
 			s := New(f.db)
 			expected := originalRelatedCandidates(t, s, r, f.items[key].Public)
+			if key == "m1" && len(expected) < 5 {
+				t.Fatalf("oracle fixture has only %d related movies", len(expected))
+			}
 			actual, err := s.recommendationCandidates(r, "related", f.items[key].Public)
 			if err != nil || !reflect.DeepEqual(actual, expected) {
 				t.Fatalf("seed%s original%v optimized%v error%v", key, expected, actual, err)
@@ -112,6 +115,7 @@ func TestRelatedProjectionPreservesEveryOriginalCandidate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Logf("original%d optimized%dVM", before().VMSteps, after().VMSteps)
 		if before().VMSteps == 0 || after().VMSteps*5 >= before().VMSteps*4 {
 			t.Fatalf("unused work remains: original%d optimized%dVM", before().VMSteps, after().VMSteps)
 		}
