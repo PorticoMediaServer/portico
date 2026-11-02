@@ -71,7 +71,7 @@ test('LiveCard forwards the authoritative mark and logo without a palette overri
     const {LiveCard} = await screenModule(new URL('../src-next/kit/cards/SurfaceCards.tsx', import.meta.url), {
       react: {...React, default: React}, 'react-native': {View: 'View', Text: 'Text'},
       '../../../../../packages/i18n/src/index': {defaultI18n: {}},
-      '../artwork/index': Object.fromEntries(['AmbientArt', 'Artwork', 'ChannelMark', 'CoverFan', 'CoverMosaic', 'MediaArt'].map(name => [name, name])),
+      '../artwork/index': {...Object.fromEntries(['AmbientArt', 'Artwork', 'ChannelMark', 'CoverFan', 'CoverMosaic', 'MediaArt'].map(name => [name, name])), GeneratedCoverClearance: {Provider: 'Provider'}},
       '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme}, './MediaCards': {CardOverlays: 'CardOverlays'},
       './primitives': Object.fromEntries(['ArtFrame', 'Caption', 'CardFrame', 'Parts', 'Progress', 'Scrim', 'alpha', 'titleStyle'].map(name => [name, name])),
     });

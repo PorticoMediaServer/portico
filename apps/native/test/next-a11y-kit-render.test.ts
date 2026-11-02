@@ -226,14 +226,14 @@ test('specialized cards forward episode context and the same viewer/session fact
   const f = fixture();
   const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
     ...f.common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n},
-    '../artwork/index': {}, '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
+    '../artwork/index': {GeneratedCoverClearance: {Provider: 'Provider'}}, '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
     './primitives': {CardFrame: 'CardFrame', Parts: 'Parts', titleStyle: () => ({})},
   });
   const episode = f.host.render(() => media.EpisodeTile({title: 'Pilot', label: [{id: 'episode', text: 'S1 E2'}, {id: 'show', text: 'Show'}],
     length: '43 min', status: 'New episode', layout: 'row', onNavigate() {}}));
   assert.deepEqual(episode.props.accessibilityDetails, ['S1 E2', 'Show', 'New episode', '43 min']);
   const listening = await screenModule(new URL('../src-next/kit/cards/ListeningCards.tsx', import.meta.url), {
-    ...f.common, '../../../../../packages/i18n/src/index': {defaultI18n}, '../artwork/index': {}, '../controls/index': {Button: 'Button'},
+    ...f.common, '../../../../../packages/i18n/src/index': {defaultI18n}, '../artwork/index': {GeneratedCoverClearance: {Provider: 'Provider'}}, '../controls/index': {Button: 'Button'},
     './MediaCards': {CardOverlays: 'CardOverlays'}, './primitives': {CardFrame: 'CardFrame'}, './session-identity': {sessionViewerParts},
   });
   const session = f.host.render(() => listening.SessionCard({title: 'Pilot', identity: [{id: 'episode', text: 'S1 E2'}],
