@@ -262,11 +262,41 @@ def stage_timings(work, scratch, target):
     return stages
 
 
+def cache_usage(work, scratch, target):
+    result = {'dependencyReceiptHits': 0, 'dependencyReceiptMisses': 0,
+              'cachedBuildKitOperationLogLines': 0, 'receiptReadFailures': []}
+    build_root = scratch / 'ffmpeg-build' / target
+    for directory in (build_root / 'dependency-cache-receipts', build_root / 'linux-deps/dependency-cache-receipts'):
+        if directory.is_dir():
+            for path in directory.glob('*.json'):
+                try:
+                    if path.stat().st_size > 128 * 1024**2: raise ValueError('receipt exceeds count bound')
+                    hit = json.loads(path.read_text()).get('cacheHit')
+                    if type(hit) is bool:
+                        result['dependencyReceiptHits' if hit else 'dependencyReceiptMisses'] += 1
+                except (OSError, ValueError) as error:
+                    result['receiptReadFailures'].append(path.name + ': ' + type(error).__name__)
+    producer = work / 'state/report.json'
+    if producer.is_file():
+        rows = json.loads(producer.read_text()).get('stages', {})
+        result['windowsDependencyStages'] = {state: sum(row.get('state') == state for name, row in rows.items()
+            if name not in ('portico-ffmpeg', 'portico-engine-output')) for state in ('passed', 'cached', 'failed', 'blocked')}
+    for parent in (work / 'state', build_root):
+        path = parent / 'source-cache-restore.json'
+        if path.is_file(): result['sourceSnapshotsRestored'] = json.loads(path.read_text()).get('restored')
+    log = work / 'evidence/build.log'
+    if log.is_file():
+        with log.open('rb') as stream:
+            result['cachedBuildKitOperationLogLines'] = sum(bool(re.fullmatch(rb'#\d+ CACHED\s*', line)) for line in stream)
+    result['scope'] = 'Actual dependency receipt flags and cached operation log lines; no cache hit qualifies an engine.'
+    return result
+
+
 def build(target, work):
     if os.environ.get('PORTICO_ENGINE_BUILD_CONTEXT', 'development') != 'development':
         raise ValueError('development-only producer refuses qualified/release/publisher contexts')
     receipt = dict(schemaVersion=1, target=target, **context(), qualified=False, release=False,
-                   cold=True, startedUTC=time.strftime('%FT%TZ', time.gmtime()), phases={})
+                   cacheRequested=bool(os.environ.get('PORTICO_ENGINE_STAGE_CACHE') or os.environ.get('PORTICO_ENGINE_REGISTRY_CACHE') == '1'), startedUTC=time.strftime('%FT%TZ', time.gmtime()), phases={})
     work.mkdir(parents=True, exist_ok=False)
     evidence = work / 'evidence'; evidence.mkdir()
     product = work / 'product'; product.mkdir()
@@ -360,6 +390,7 @@ def build(target, work):
         receipt.update(elapsedSeconds=round(time.monotonic() - started, 3), resourcesAfter=resources(work))
         receipt['sampledDisk'] = sampler.finish()
         receipt['stageSeconds'] = stage_timings(work, scratch, target)
+        receipt['cacheUsage'] = cache_usage(work, scratch, target)
         for tool_receipt in (scratch / 'ffmpeg-build' / target / 'meson-tool.json',
                              scratch / 'ffmpeg-build' / target / 'linux-deps/meson-tool.json'):
             if tool_receipt.is_file():
