@@ -56,6 +56,7 @@ async function fixture(t: TestContext, options: Readonly<{
     'GET /v1/setup/state': () => json(state),
     'POST /v1/setup/app': () => json({serverId: pin.serverId, setupToken: SETUP_TOKEN}),
     'POST /v1/setup/browser': () => failure(400, 'wrong_setup_route'),
+    'POST /v1/setup/start-over': () => json({serverId: pin.serverId, setupToken: 'fresh-setup-token'}),
     'POST /v1/setup': () => json({variant: 'claim-required', claimRequired: true, serverId: pin.serverId, requestId: REQUEST, authMode: 'hosted', revision: '2'}),
     'POST /v1/setup/approval': body => {
       const start = body.setupStart;
@@ -158,6 +159,22 @@ test('start asks the app for a setup token at the app route, never the browser r
   assert.deepEqual(posted.map(call => `${call.method} ${call.path}`), ['POST /v1/setup/app']);
   assert.deepEqual(posted[0]!.body, {});
   assert.equal(f.calls.some(call => call.path === '/v1/setup/browser'), false);
+});
+
+test('start over carries the setup token a setup code issued as its bearer, so an admitted client is not asked for a new code', async t => {
+  const fresh = await fixture(t);
+  assert.deepEqual(await fresh.ports.startOver(fresh.context()), {kind: 'startedOver'});
+  assert.equal(fresh.calls.find(call => call.path === '/v1/setup/start-over')!.token, undefined, 'nothing held: no bearer');
+  const f = await fixture(t);
+  assert.deepEqual(await f.ports.start(f.context(), 'R9TD-3MWK'), {kind: 'startDone'});
+  assert.deepEqual(f.calls.find(call => call.path === '/v1/setup/app')!.body, {setupCode: 'R9TD-3MWK'});
+  assert.deepEqual(await f.ports.startOver(f.context()), {kind: 'startedOver'});
+  const over = f.calls.find(call => call.path === '/v1/setup/start-over')!;
+  assert.equal(over.token, SETUP_TOKEN);
+  assert.deepEqual(over.body, {});
+  // The fresh token it was given carries on.
+  assert.deepEqual(await f.ports.startOver(f.context()), {kind: 'startedOver'});
+  assert.equal(f.calls.filter(call => call.path === '/v1/setup/start-over')[1]!.token, 'fresh-setup-token');
 });
 
 test('a public http address is refused before any setup request', async t => {

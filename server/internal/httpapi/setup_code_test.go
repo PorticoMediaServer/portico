@@ -22,7 +22,9 @@ import (
 
 // Setup from outside the server's network needs the setup code from the server's log;
 // from home or the local network it needs nothing. A code works once, is replaced in the
-// log, admits only its own peer at its own origin, and guesses are rate-limited.
+// log, admits only the setup token it issued, from its own peer at its own origin (never
+// the address alone: a neighbour behind the same CGNAT has the same peer and origin), and
+// guesses are rate-limited, counted only once a request's shape and origin pass.
 func TestSetupCodeAdmitsOutsideSetup(t *testing.T) {
 	root := t.TempDir()
 	db, err := persistence.Open(filepath.Join(root, "db"))
@@ -44,18 +46,24 @@ func TestSetupCodeAdmitsOutsideSetup(t *testing.T) {
 	var logged bytes.Buffer
 	log.SetOutput(writerFunc(func(p []byte) (int, error) { mu.Lock(); defer mu.Unlock(); return logged.Write(p) }))
 	t.Cleanup(func() { log.SetOutput(os.Stderr) })
-	call := func(address, peer, path, code string, body map[string]any) *httptest.ResponseRecorder {
+	send := func(address, origin, peer, bearer, path, code string, body map[string]any) *httptest.ResponseRecorder {
 		if code != "" {
 			body["setupCode"] = code
 		}
 		raw, _ := json.Marshal(body)
 		r := httptest.NewRequest("POST", address+path, bytes.NewReader(raw))
 		r.RemoteAddr = peer
-		r.Header.Set("Origin", address)
+		r.Header.Set("Origin", origin)
 		r.Header.Set("Content-Type", "application/json")
+		if bearer != "" {
+			r.Header.Set("Authorization", "Bearer "+bearer)
+		}
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
 		return w
+	}
+	call := func(address, peer, path, code string, body map[string]any) *httptest.ResponseRecorder {
+		return send(address, address, peer, "", path, code, body)
 	}
 	refused := func(w *httptest.ResponseRecorder, code string) {
 		t.Helper()
@@ -83,6 +91,16 @@ func TestSetupCodeAdmitsOutsideSetup(t *testing.T) {
 	if err != nil || code == "" {
 		t.Fatal(err)
 	}
+	// Another site open in the owner's browser is refused before the code is looked at: it
+	// neither spends this address's guesses nor uses up (and rotates) a correct code.
+	for i := 0; i < 12; i++ {
+		if w := send(address, "http://evil.example", outside, "", "/v1/setup/browser", "ZZZZ-ZZZZ", map[string]any{}); w.Code/100 != 4 || w.Code == http.StatusTooManyRequests {
+			t.Fatalf("a cross-origin guess: %d %s", w.Code, w.Body)
+		}
+	}
+	if w := send(address, "http://evil.example", outside, "", "/v1/setup/browser", code, map[string]any{}); w.Code/100 != 4 {
+		t.Fatalf("a cross-origin page with the right code: %d %s", w.Code, w.Body)
+	}
 	first := token(call(address, outside, "/v1/setup/browser", code, map[string]any{}))
 	mu.Lock()
 	lines := logged.String()
@@ -91,10 +109,17 @@ func TestSetupCodeAdmitsOutsideSetup(t *testing.T) {
 	if !strings.Contains(lines, "Setup code used.") || next == nil || next[1] == code {
 		t.Fatalf("the log names the replacement code: %q", lines)
 	}
-	// Admitted: this peer carries on without the code, setup's own steps included.
-	if w := call(address, outside, "/v1/setup", "", map[string]any{"requestId": "66666666-6666-4666-8666-666666666666", "setupToken": first, "name": "My media", "authMode": "hosted", "interactive": true}); w.Code/100 != 2 {
-		t.Fatalf("an admitted peer's setup step: %d %s", w.Code, w.Body)
+	// A neighbour behind the same address (same peer, same origin) without the setup token
+	// the code issued is not admitted: it can neither start setup nor start it over.
+	step := map[string]any{"requestId": "66666666-6666-4666-8666-666666666666", "setupToken": first, "name": "My media", "authMode": "hosted", "interactive": true}
+	refused(call(address, outside, "/v1/setup/start-over", "", map[string]any{}), "setup_code_required")
+	refused(call(address, outside, "/v1/setup/browser", "", map[string]any{}), "setup_code_required")
+	// Admitted: the client holding that token carries on without the code, setup's own steps included.
+	if w := send(address, address, outside, first, "/v1/setup", "", step); w.Code/100 != 2 {
+		t.Fatalf("an admitted client's setup step: %d %s", w.Code, w.Body)
 	}
+	// The same token from another peer, or at another origin, is not admitted.
+	refused(send(address, address, "198.51.100.7:5000", first, "/v1/setup/start-over", "", map[string]any{}), "setup_code_required")
 	// The used code doesn't work again, from anyone; another peer needs the new code.
 	refused(call(address, "198.51.100.7:5000", "/v1/setup/browser", code, map[string]any{}), "setup_code_invalid")
 	// The same peer at another origin (a rebinding name) is not admitted.
