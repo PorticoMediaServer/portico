@@ -1,3 +1,4 @@
+import {searchGroupCount, searchGroupEmpty} from '../../../packages/client-core/src/presentation/search-model';
 import {retainRecognizerReturn} from '../src-next/kit/focus/recognizer-return.ts';
 import {sameAuthority} from '../src-next/shell/model.ts';
 import test from 'node:test';
@@ -33,7 +34,7 @@ test('the actual TV Search caller binds genuine query, navigation activation and
   const {TVSearchScreen} = await screenModule(new URL('../src-next/screens/search/TVSearchScreen.tsx', import.meta.url), {
     react: {...host.react, useEffect: effect, useId: () => 'gradient'}, 'react-native': {ScrollView: 'ScrollView', View: 'View', Text: 'Text', useWindowDimensions: () => ({width: 1920, height: 1080})},
     'react-native-svg': {default: 'Svg'}, '../../../../../packages/client-core/src/presentation/kit-model': {},
-    '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups: (groups: unknown) => groups, SEARCH_CHIPS: [], topSearchResult: () => undefined, searchGroupLabel: (id: string) => id},
+    '../../../../../packages/client-core/src/presentation/search-model': {searchGroupCount, searchGroupEmpty, orderedSearchGroups: (groups: unknown) => groups, SEARCH_CHIPS: [], topSearchResult: () => undefined, searchGroupLabel: (id: string) => id},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../kit/controls': {}, '../../kit/cards/primitives': {},
     '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {}, '../../kit/browse/presentation': {alpha: () => '', browseType: () => ({})},
     '../../kit/theme': {useTheme: () => theme}, '../destinations/focus': {nativeDestinationFocusIds}, '../home/model': {}, './model': {nativeSearchEntryKey},

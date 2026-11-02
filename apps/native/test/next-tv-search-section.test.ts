@@ -6,7 +6,7 @@ import {createTheme} from '../src-next/kit/theme';
 import {nativeSearchEntryKey, nativeSearchTailKey} from '../src-next/screens/search/model';
 import {browseType} from '../src-next/kit/browse/presentation';
 import {defaultI18n} from '../../../packages/i18n/src';
-import {searchGroupLabel} from '../../../packages/client-core/src/presentation/search-model';
+import {searchGroupLabel, searchGroupCount} from '../../../packages/client-core/src/presentation/search-model';
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 const child = (node: any) => Array.isArray(node.props.children) ? node.props.children[0] : node.props.children;
 const flatten = (style: any): any => Array.isArray(style) ? Object.assign({}, ...style.map(flatten)) : style ?? {};
@@ -15,7 +15,7 @@ async function fixture() {
   let boundary: any;
   const {TVSearchSection} = await screenModule(new URL('../src-next/screens/search/TVSearchSection.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/search-model': {searchGroupLabel},
+    '../../../../../packages/client-core/src/presentation/search-model': {searchGroupLabel, searchGroupCount},
     '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
     '../../kit/focus/page-boundary': {useRowPageBoundary: (...args: any[]) => {boundary = args;}},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
@@ -102,4 +102,11 @@ test('the actual card accepts absent data only under its owned loading slot and 
   assert.equal(filled.type, pending.type); assert.equal(filled.props.focusId, pending.props.focusId);
   filled.props.onNavigate(); assert.deepEqual(calls, [[entry, 'movies']]);
   assert.throws(() => host.render(() => SearchGridCard(props)), /served entry or an owned waiting slot/);
+});
+
+test('an inexact count is rendered as a lower bound in the native section', async () => {
+ const f = await fixture();
+ f.props.group.totalCountExact = false;
+ const tree = f.render();
+ assert.ok(nodes(tree).some(node => [node.props.children].flat(Infinity).includes('53+')));
 });

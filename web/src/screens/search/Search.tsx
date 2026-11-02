@@ -7,7 +7,7 @@ import {t, locale} from '../detail/text';
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
 import {searchQueryProblem, type SearchEntry, type SearchGroup, type SearchGroupResult, type SearchHistoryPage} from '@core/search.ts';
-import {SEARCH_CHIPS, searchGroupLabel, topSearchResult} from '@core/presentation/search-model.ts';
+import {SEARCH_CHIPS, searchGroupLabel, searchGroupCount, topSearchResult} from '@core/presentation/search-model.ts';
 import {Button, Chip, TextField} from '../../kit/controls';
 import {useSelectionRangePreview, PosterCard, SquareCard, CircleCard, EpisodeTile, GenreTile, LiveCard, CoverCard} from '../../kit/cards';
 import {Artwork} from '../../kit/artwork';
@@ -250,7 +250,7 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
       if (value.id === 'reading' && capability?.available !== true) return null;
       const off = value.id !== 'all' && result?.status === 'success' && result.totalCountExact && result.totalCount === 0 && !('nextCursor' in result && result.nextCursor);
       return <Chip key={value.id} variant="search" selected={chip === value.id} dim={off} disabled={off} retry={result?.status === 'error'}
-        count={!off && result?.totalCountExact ? result.totalCount : undefined} onClick={() => { setChip(value.id); }}>{t(value.label)}</Chip>;
+        count={!off ? searchGroupCount(result) : undefined} onClick={() => { setChip(value.id); }}>{t(value.label)}</Chip>;
     })}</div>}
     <div ref={results} className={styles.results}>
       {!text.trim() && beforeTyping}
@@ -368,7 +368,7 @@ function SearchGroupWindow({binding, group, result, selection, onCommit}: {bindi
   }, [window, result, queryKey, snapshot.phase, snapshot.pagination.cursor]);
   useEffect(() => () => window.dispose(), [window]);
   const songs = group === 'songs';
-  return <section className={styles.single}><h2>{t(searchGroupLabel(group))}{songs && result?.totalCountExact && <span className={styles.resultTotal}>{t('web.search.results', {count: result.totalCount})}</span>}</h2>
+  return <section className={styles.single}><h2>{t(searchGroupLabel(group))}{songs && result?.status === 'success' && <span className={styles.resultTotal}>{t('web.search.results', {count: searchGroupCount(result)})}</span>}</h2>
     {songs && <div className={styles.songColumns} aria-hidden="true"><span>{t('next.browse.number')}</span><span>{t('next.browse.title')}</span><span>{t('next.browse.artist')}</span><span>{t('next.browse.album')}</span><span>{t('next.browse.plays')}</span><span>{t('next.browse.duration')}</span></div>}
     <WindowedGrid collection={window.collection} label={t(searchGroupLabel(group))}
     cardWidth={group === 'songs' ? 10000 : group === 'episodes' ? 316 : 174} rowHeight={group === 'songs' ? 58 : group === 'episodes' ? 285 : 320} height="calc(100vh - 270px)" gap={16}

@@ -1,3 +1,4 @@
+import {searchGroupCount, searchGroupEmpty} from '../../../packages/client-core/src/presentation/search-model';
 import {retainRecognizerReturn} from '../src-next/kit/focus/recognizer-return.ts';
 import {sameAuthority} from '../src-next/shell/model.ts';
 import {createFocusRegistry} from '../src-next/kit/focus/registry.ts';
@@ -53,7 +54,7 @@ async function screen(react: unknown) {
     '../../../../../packages/client-core/src/library-content': {}, '../../../../../packages/client-core/src/search': {}, '../../shell/runtime': {}, './types': {},
     '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({id: 'text', title: 'text',
       caption: [{id: 'season-count', text: '1 season'}, {id: 'year', text: '2023'}], detail: [], progress: modelProgress})},
-    '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups: (value: unknown) => value,
+    '../../../../../packages/client-core/src/presentation/search-model': {searchGroupCount, searchGroupEmpty, orderedSearchGroups: (value: unknown) => value,
       SEARCH_CHIPS: [{id: 'all', label: 'search.chip.all'}, {id: 'movies', label: 'search.chip.movies'}], topSearchResult: () => top,
       searchGroupLabel: () => 'search.chip.movies', topResultKindLabel: () => 'search.kind.show'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable'},

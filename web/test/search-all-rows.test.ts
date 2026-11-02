@@ -11,8 +11,8 @@ registerHooks({load(url, context, next) {
   return next(url, context);
 }});
 const {AllResultsRow} = await import('../src/screens/search/AllResultsRow.tsx');
-function render(id: string, items: any[], cursor = 'next', excluded?: any) {
-  const result = {id, title: id, entityKind: id, status: 'success', errorCode: '', items, totalCount: 100, totalCountExact: true, hasMore: !!cursor, nextCursor: cursor};
+function render(id: string, items: any[], cursor = 'next', excluded?: any, exact = true) {
+  const result = {id, title: id, entityKind: id, status: 'success', errorCode: '', items, totalCount: 100, totalCountExact: exact, hasMore: !!cursor, nextCursor: cursor};
   const binding = {results: {page: () => ({loading: false, error: null})}, service: {getSnapshot: () => ({query: {q: 'harbor'}})}, context: {effects: {reportError() {}}}};
   return renderToStaticMarkup(createElement(AllResultsRow, {result, binding, size: 1, excluded, onSeeAll() {},
     renderEntry: (entry: any, index: number) => createElement('button', {'data-result': entry.id, 'data-position': index}, entry.id)} as any));
@@ -43,4 +43,9 @@ test('Songs continuation keeps every song available to the four-row horizontal l
   assert.equal((html.match(/data-result=/g) ?? []).length, 13);
   assert.equal((html.match(/data-row-pending/g) ?? []).length, 1);
   assert.match(html, /data-group="songs"/);
+});
+
+test('an inexact count is rendered as a lower bound in the web row', () => {
+ const html = render('movies', [{id:'one', libraryId:'library', kind:'movie'}], 'next', undefined, false);
+ assert.match(html, /100\+/);
 });

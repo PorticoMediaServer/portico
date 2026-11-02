@@ -31,7 +31,7 @@ export function searchGroupLabel(id: SearchGroup): MessageId {
 
 /** The groups that have results, in the chips' order. */
 export function orderedSearchGroups(groups: readonly SearchGroupResult[]): readonly SearchGroupResult[] {
-  return groups.filter(group => group.items.length > 0).slice().sort((a, b) => (ORDER.get(a.id) ?? 99) - (ORDER.get(b.id) ?? 99));
+  return groups.filter(group => group.items.length > 0 || !!group.nextCursor || group.status === 'error').slice().sort((a, b) => (ORDER.get(a.id) ?? 99) - (ORDER.get(b.id) ?? 99));
 }
 
 const plain = (text: string) => text.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -65,4 +65,15 @@ export function topSearchResult(query: string, groups: readonly SearchGroupResul
 const TOP_KIND: Readonly<Partial<Record<SearchGroup, MessageId>>> = {movies: 'search.kind.movie', shows: 'search.kind.show', artists: 'search.kind.artist', albums: 'search.kind.album', books: 'search.kind.audiobook', people: 'search.kind.person'};
 export function topResultKindLabel(group: SearchGroup): MessageId | undefined {
   return TOP_KIND[group];
+}
+
+/** The API count is a lower bound unless explicitly exact. */
+export function searchGroupCount(group: Pick<SearchGroupResult, 'status' | 'totalCount' | 'totalCountExact'> | undefined): string | number | undefined {
+  if (!group || group.status !== 'success') return undefined;
+  return group.totalCountExact ? group.totalCount : `${group.totalCount}+`;
+}
+
+/** An unfilled bounded page with a continuation is not an empty result. */
+export function searchGroupEmpty(group: Pick<SearchGroupResult, 'status' | 'totalCount' | 'totalCountExact'> & Partial<Pick<SearchGroupResult, 'nextCursor'>>): boolean {
+  return group.status === 'success' && group.totalCountExact && group.totalCount === 0 && !group.nextCursor;
 }

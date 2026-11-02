@@ -4,7 +4,7 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core/src/search';
-import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
+import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, searchGroupCount, searchGroupEmpty, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import {Artwork, StandardBackdrop} from '../../kit/artwork';
 import {GenreTile, type CardSelection} from '../../kit/cards';
 import {CardFrame} from '../../kit/cards/primitives';
@@ -46,7 +46,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
   const [surface, setSurface] = useState(dimensions.width);
   const groups = useMemo(() => orderedSearchGroups(state.groups), [state.groups]);
   const typed = state.text.trim().length > 0;
-  const empty = typed && state.search.phase === 'ready' && state.groups.every(group => group.status === 'success' && group.totalCount === 0);
+  const empty = typed && state.search.phase === 'ready' && state.groups.every(group => searchGroupEmpty(group));
   const loading = state.search.phase === 'loading' && !state.groups.length;
   const top = state.group === 'all' ? topSearchResult(state.text, state.groups) : undefined;
   const run = useCallback((work: Promise<void>) => {void work.catch(runtime.reportError);}, [runtime]);
@@ -77,12 +77,12 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
   const problem = state.problem === 'long' ? t('web.search.tooLong') : state.problem === 'words' ? t('web.search.tooManyWords') : state.problem ? t('web.search.tooShort') : undefined;
   const available = SEARCH_CHIPS.filter(chip => chip.id === 'all' || state.search.data?.capabilities.groups.some(group => group.id === chip.id && group.available))
     // One chip is selected: the answer covers that group alone, so the drawn row keeps its other types.
-    .filter(chip => chip.id === 'all' || state.group !== 'all' || !state.groups.some(group => group.id === chip.id && group.status === 'success' && group.totalCount === 0));
+    .filter(chip => chip.id === 'all' || state.group !== 'all' || !state.groups.some(group => group.id === chip.id && searchGroupEmpty(group)));
   const chips = typed && !empty && !problem && state.search.data && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, paddingHorizontal: 20, paddingTop: 12}}>
     {available.map(chip => {
       const group = state.groups.find(value => value.id === chip.id);
-      const count = chip.id === 'all' ? state.groups.every(value => value.totalCountExact) ? state.groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined : group?.totalCountExact ? group.totalCount : undefined;
-      return <Chip key={chip.id} testID={`search-chip-${chip.id}`} selected={state.group === chip.id} count={count} retry={group?.status === 'error'} disabled={!!group && group.status === 'success' && group.totalCount === 0}
+      const count = chip.id === 'all' ? state.groups.every(value => value.totalCountExact) ? state.groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined : searchGroupCount(group);
+      return <Chip key={chip.id} testID={`search-chip-${chip.id}`} selected={state.group === chip.id} count={count} retry={group?.status === 'error'} disabled={!!group && searchGroupEmpty(group)}
         onPress={() => destination.selectGroup(chip.id)}>{t(chip.label)}</Chip>;
     })}
   </ScrollView>;
@@ -133,7 +133,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
       {wideSearch ? groups.filter(group => group.items.length).map(group => <View key={group.id}>
         <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 8, marginHorizontal: 20, marginTop: 22, marginBottom: 10}}>
           <Text accessibilityRole="header" style={[browseType(theme, 20, 700, -.02), {color: theme.colors.text}]}>{t(searchGroupLabel(group.id))}</Text>
-          {group.totalCountExact && <Text style={[browseType(theme, 14, 600), {color: theme.colors.textTertiary}]}>{group.totalCount}</Text>}
+          {group.status === 'success' && <Text style={[browseType(theme, 14, 600), {color: theme.colors.textTertiary}]}>{searchGroupCount(group)}</Text>}
         </View>
         <FlatList horizontal testID={`search-shelf-${group.id}`} data={group.items} showsHorizontalScrollIndicator={false}
           contentContainerStyle={{paddingHorizontal: 20}} ItemSeparatorComponent={() => <View style={{width: 14}}/>}
@@ -154,6 +154,10 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
         {heading && <Text accessibilityRole="header" style={[browseType(theme, 16, 700), {color: theme.colors.text, marginHorizontal: 20, marginTop: 18, marginBottom: 6}]}>{t(searchGroupLabel(group))}</Text>}
         <SearchResultRow entry={entry} group={group} runtime={runtime} actions={actions} selection={selection?.item(entry, group)}/>
       </React.Fragment>)}
+      {state.groups.filter(group => !group.items.length && group.nextCursor).map(group => <Focusable key={`more:${group.id}`}
+        testID={`search-continue-${group.id}`} accessibilityRole="button" accessibilityLabel={t('next.search.moreResults')}
+        disabled={!!state.paging?.[group.id]?.loading} onPress={() => run(destination.next(group.id))}
+        style={{padding: 20}}><Text style={[browseType(theme, 16, 600), {color: theme.colors.text}]}>{t(searchGroupLabel(group.id))} · {t('next.search.moreResults')}</Text></Focusable>)}
       {loading && <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={Math.max(0, dimensions.height - 180)} width={surface} columns={3} totalCount={9}/>}
     </ScrollView> : <FlatList ref={grid} key={state.group} data={active?.items ?? []} numColumns={3} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled"
       keyExtractor={entry => nativeSearchEntryKey(state.group as SearchGroup, entry)} contentContainerStyle={{padding: 16, gap: 16, paddingBottom: 28}}

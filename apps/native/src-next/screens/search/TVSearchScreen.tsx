@@ -4,7 +4,7 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core/src/search';
 import {cardText} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {orderedSearchGroups, SEARCH_CHIPS, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
+import {orderedSearchGroups, SEARCH_CHIPS, searchGroupCount, searchGroupEmpty, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Artwork, StandardBackdrop} from '../../kit/artwork';
 import {Chip, Focusable} from '../../kit/controls';
@@ -100,16 +100,16 @@ export function TVSearchScreen({focusScope, destination, runtime, activation, ex
     text => destination.setText(text), runtime.reportError);
   const typed = !!state.text.trim(), groups = orderedSearchGroups(state.groups);
   const genreTiles = nativeSearchGenreTiles(landing.genres, 'tv');
-  const empty = typed && state.search.phase === 'ready' && groups.every(group => group.status === 'success' && group.totalCount === 0);
+  const empty = typed && state.search.phase === 'ready' && groups.every(group => searchGroupEmpty(group));
   // Top result is chosen from the actual preview read, never from a later continuation.
   const preview = state.search.data?.groups ?? groups;
   const top = state.group === 'all' ? topSearchResult(state.text, orderedSearchGroups(preview)) : undefined;
-  const shown = groups.filter(group => (state.group === 'all' || state.group === group.id) && (group.items.length > 0 || group.status === 'error'));
+  const shown = groups.filter(group => (state.group === 'all' || state.group === group.id) && (group.items.length > 0 || !!group.nextCursor || group.status === 'error'));
   const problem = state.problem === 'long' ? t('web.search.tooLong') : state.problem === 'words' ? t('web.search.tooManyWords') : state.problem ? t('web.search.tooShort') : undefined;
   // The drawn row keeps every available type while one is selected; in All it
   // drops the types this answer proved empty (tv.html#f5 counts the rest).
   const chips = SEARCH_CHIPS.filter(chip => chip.id === 'all' || (state.search.data?.capabilities ?? state.capabilities)?.groups.some(group => group.id === chip.id && group.available))
-    .filter(chip => chip.id === 'all' || state.group !== 'all' || !groups.some(group => group.id === chip.id && group.status === 'success' && group.totalCount === 0));
+    .filter(chip => chip.id === 'all' || state.group !== 'all' || !groups.some(group => group.id === chip.id && searchGroupEmpty(group)));
   const chipsDrawn = typed && !empty && !problem && !!(state.search.data?.capabilities ?? state.capabilities);
   // Each result section is its own region, so the surrounding region never names a result
   // entry: it delegates to the first drawn section and that section's own remembered row.
@@ -152,7 +152,7 @@ export function TVSearchScreen({focusScope, destination, runtime, activation, ex
         {chipsDrawn && <FocusRegion id={ids.searchChips} enabled={active.visible} orientation="horizontal" entry={`chip:${state.group}`} stops={{up: true}}
           edges={{left: keyboard, ...(top ? {down: ids.searchTop} : sections[0] ? {down: ids.searchSection(sections[0].id)} : {})}} style={tvSearchR46.chips}>{chips.map(chip => {
           const group = groups.find(value => value.id === chip.id);
-          const count = chip.id === 'all' ? groups.every(value => value.totalCountExact) ? groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined : group?.totalCountExact ? group.totalCount : undefined;
+          const count = chip.id === 'all' ? groups.every(value => value.totalCountExact) ? groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined : searchGroupCount(group);
           return <Chip key={chip.id} focusId={`chip:${chip.id}`} testID={`tv-search-chip-${chip.id}`} selected={state.group === chip.id} count={count} retry={group?.status === 'error'}
             disabled={!active.visible} style={tvSearchR46.chip} textStyle={tvSearchR46.chipLabel} onPress={() => destination.selectGroup(chip.id)}>{t(chip.label)}</Chip>;
         })}</FocusRegion>}

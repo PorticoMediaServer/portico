@@ -1,7 +1,7 @@
 import React, {useCallback, useMemo, useState, type RefObject} from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {searchGroupLabel} from '../../../../../packages/client-core/src/presentation/search-model';
+import {searchGroupLabel, searchGroupCount} from '../../../../../packages/client-core/src/presentation/search-model';
 import type {SearchEntry, SearchGroupResult} from '../../../../../packages/client-core/src/search';
 import {Focusable} from '../../kit/controls';
 import {FocusItem, FocusRegion, useFocusRegistry, type FocusAddress} from '../../kit/focus';
@@ -45,7 +45,7 @@ export function TVSearchSection({group, destination, runtime, actions, selection
   const groupFailure = group.status === 'error' ? runtime.error({code: group.errorCode}, paging?.error ? retry : () => {void destination.retry().catch(runtime.reportError);}) : undefined;
   const edges = {left: keyboardRegion, ...(previousRegion ? {up: previousRegion} : {}), ...(nextRegion ? {down: nextRegion} : {})};
   const heading = <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 14}}><Text accessibilityRole="header" style={[browseType(theme, 32, 700, -.019), {color: theme.colors.text}]}>{defaultI18n.t(searchGroupLabel(group.id))}</Text>
-    {group.totalCountExact && <Text style={[browseType(theme, 20, 600), {color: theme.colors.textTertiary}]}>{group.totalCount}</Text>}</View>;
+    {group.status === 'success' && <Text style={[browseType(theme, 20, 600), {color: theme.colors.textTertiary}]}>{searchGroupCount(group)}</Text>}</View>;
   if (singleRow && !songs && group.items.length) {
     const waitingId = tailId ?? paging?.fulfilled?.waitingId;
     return <View style={{marginTop: 46}}>{heading}<Row<Cell> title="" showHeading={false} style={{marginTop: 30, marginLeft: -focusRoom}}

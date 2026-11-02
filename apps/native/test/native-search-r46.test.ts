@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createI18n, defaultI18n, resolveRegion} from '../../../packages/i18n/src';
 import {channelTint} from '../../../packages/client-core/src/presentation/kit-model';
-import {SEARCH_CHIPS, orderedSearchGroups, searchGroupLabel, topResultKindLabel, topSearchResult} from '../../../packages/client-core/src/presentation/search-model';
+import {SEARCH_CHIPS, orderedSearchGroups, searchGroupCount, searchGroupEmpty, searchGroupLabel, topResultKindLabel, topSearchResult} from '../../../packages/client-core/src/presentation/search-model';
 import {browseType} from '../src-next/kit/browse/presentation';
 import {createTheme} from '../src-next/kit/theme';
 import {homeCardText} from '../src-next/screens/home/model';
@@ -50,7 +50,7 @@ async function mount(snapshot: any, landing: any, text = defaultI18n) {
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34, left: 0, right: 0})},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel},
+    '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups, SEARCH_CHIPS, searchGroupCount, searchGroupEmpty, searchGroupLabel, topSearchResult, topResultKindLabel},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/cards': {GenreTile: 'GenreTile'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame'},
     '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
     '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
@@ -218,4 +218,14 @@ test('Search no-match genre counts use the actual runtime regional formatter', a
   const count = text.t('next.selection.titles', {count: genre.count});
   assert.notEqual(count, defaultI18n.t('next.selection.titles', {count: genre.count}));
   assert.ok(texts(paint(tile)).some(node => label(node) === count));
+});
+
+test('an empty capped page keeps its continuation instead of claiming no matches', async () => {
+ const pending = {...group('movies', []), totalCountExact: false, nextCursor: 'unvisited', hasMore: true};
+ const snapshot = {text:'harbor', group:'all', groups:[pending], clearing:false, recent:[],
+  search:{phase:'ready', data:{groups:[pending], capabilities:{groups:[{id:'movies',available:true}]}}}};
+ const {tree, find} = await mount(snapshot, {phase:'ready', genres:[], initialHeading:'next.search.browseByGenre', emptyHeading:'next.search.browseInstead'});
+ assert.equal(texts(tree).some(node => label(node) === defaultI18n.t('next.states.noMatches', {query:'harbor'})), false);
+ assert.ok(nodes(tree).some(node => node.props.testID === 'search-continue-movies'));
+ assert.equal(nodes(tree).find(node => node.props.testID === 'search-chip-movies')?.props.disabled, false);
 });

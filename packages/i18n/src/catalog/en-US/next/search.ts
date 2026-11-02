@@ -1,4 +1,5 @@
 export const searchMessages = {
+  'next.search.moreResults': 'More results',
   'next.search.allGenres': 'All genres',
   'next.search.browseByGenre': 'Browse by genre',
   'next.search.genresUnavailable': 'Genres didn’t load.',
