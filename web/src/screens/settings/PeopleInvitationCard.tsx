@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
 import type {ServerInvitation} from '@core/direct-account.ts';
@@ -28,13 +29,13 @@ export function PeopleInvitationCard({open, invitation, invitations, serverName,
   useLayoutEffect(() => {
     setCard(undefined); setError(false); setCopied(false);
     const expiresAt = Date.parse(facts.expiresAt);
-    if (!open || !isCurrent() || invitation.state !== 'pending' || !(expiresAt > Date.now())) return;
+    if (!open || !isCurrent() || invitation.state !== 'pending' || !(expiresAt > serverNow())) return;
     const ticket = {scope, request: new AbortController()}; active.current = ticket;
-    const current = () => active.current === ticket && !ticket.request.signal.aborted && scope.isCurrent() && expiresAt > Date.now();
+    const current = () => active.current === ticket && !ticket.request.signal.aborted && scope.isCurrent() && expiresAt > serverNow();
     let timer: ReturnType<typeof setTimeout>;
     const expire = () => {
       if (active.current !== ticket) return;
-      const remaining = expiresAt - Date.now();
+      const remaining = expiresAt - serverNow();
       if (remaining > 0) {timer = setTimeout(expire, Math.min(remaining, 2_147_483_647));return;}
       ticket.request.abort();active.current = undefined;setCard(undefined);setExpired(scope);
     };
@@ -53,8 +54,8 @@ export function PeopleInvitationCard({open, invitation, invitations, serverName,
     })();
     return () => {clearTimeout(timer);ticket.request.abort(); if (active.current === ticket) active.current = undefined;};
   }, [scope, open, invitation, invitations, facts, isCurrent, retry]);
-  const available = expired !== scope && invitation.state === 'pending' && Date.parse(facts.expiresAt) > Date.now();
-  const current = (value: Card) => open && available && active.current?.scope === scope && value.ticket === active.current && !active.current.request.signal.aborted && isCurrent() && Date.parse(facts.expiresAt) > Date.now();
+  const available = expired !== scope && invitation.state === 'pending' && Date.parse(facts.expiresAt) > serverNow();
+  const current = (value: Card) => open && available && active.current?.scope === scope && value.ticket === active.current && !active.current.request.signal.aborted && isCurrent() && Date.parse(facts.expiresAt) > serverNow();
   const visible = card && current(card) ? card : undefined;
   const access = facts.allLibraries ? t('next.settings.allLibraries') : facts.libraryNames.length === facts.libraryCount && facts.libraryCount <= 3
     ? defaultI18n.list(facts.libraryNames) : t('next.settings.invitations.libraries', {count: facts.libraryCount});

@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {parseRememberMarker, rememberedFor, type RememberMarker} from '@core/remember-marker.ts';
 
 /**
@@ -35,7 +36,7 @@ function writeAll(next: Record<string, unknown>) {
 }
 
 /** True when this tab may open `held` with no picker or PIN. */
-export function tabAdmits(held: Held, wallNowMs = Date.now()): boolean {
+export function tabAdmits(held: Held, wallNowMs = serverNow()): boolean {
   if (admitted.get(held.serverId) === held.profileId) return true;
   // An unreadable marker is simply not a marker (R-23): never thrown, never erased here.
   return rememberedFor(parseRememberMarker(readAll()[held.serverId]), held, wallNowMs);

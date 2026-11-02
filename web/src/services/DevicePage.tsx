@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {ApiError} from '@core/index.ts';
 import {ServicesAccountLine, ServicesAuthStage, ServicesCodeChip} from '../kit/accounts/ServicesAuth';
@@ -34,7 +35,7 @@ export function DevicePage({account, initialCode = ''}: {account: ServicesAccoun
       setReview(current => current === review ? undefined : current);
       setError(new ApiError(410, 'expired', 'expired', false));
     };
-    const remaining = Date.parse(review.preview.expiresAt) - Date.now();
+    const remaining = Date.parse(review.preview.expiresAt) - serverNow();
     if (remaining <= 0) {expire(); return;}
     const timer = setTimeout(expire, Math.min(remaining, 2147483647));
     return () => clearTimeout(timer);
@@ -57,7 +58,6 @@ export function DevicePage({account, initialCode = ''}: {account: ServicesAccoun
   const inspect = () => run(async signal => { const value = await reviewHostedDevice(account, code, signal); if (!signal.aborted) setReview(value); });
   const decide = (decision: 'approve' | 'deny') => run(async signal => {
     if (!review) return;
-    if (Date.parse(review.preview.expiresAt) <= Date.now()) throw new ApiError(410, 'expired', 'expired', false);
     await decideHostedDevice(account, review, decision, signal);
     if (!signal.aborted) {setDone({decision, identity: review.identity}); setReview(undefined);}
   });

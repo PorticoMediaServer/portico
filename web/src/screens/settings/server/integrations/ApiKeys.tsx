@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {AppPasswordsPanel} from './AppPasswords';
 import type {ApiAccessTransport} from '@core/api-access.ts';
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
@@ -58,7 +59,7 @@ export function IntegrationsPage({api, source, webhooks, baseUrl, isCurrent, rep
     const attempt = heldForm;
     if (!isCurrent() || state.busy || !attempt || formAttempt.current !== attempt || attempt.source !== source) return;
     const held = generation.current;
-    const out = await (state.pendingCreate ? source.retryCreate() : source.create({name, scopes: chosen, ...(days ? {expiresAt: expiryInstant(days, Date.now())} : {})}));
+    const out = await (state.pendingCreate ? source.retryCreate() : source.create({name, scopes: chosen, ...(days ? {expiresAt: expiryInstant(days, serverNow())} : {})}));
     if (out && isCurrent() && held === generation.current && formAttempt.current === attempt) {closeForm();const next = {source, value: out, token: {}};card.current = next;setCopied(false);setIssued(next);}
   };
   const copy = async () => {

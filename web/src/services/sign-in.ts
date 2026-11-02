@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {ApiError} from '@core/index.ts';
 import {buildHostedSignInStartURL, parseHostedSignInStartURL, verifyHostedSignInStart} from '@core/hosted-sign-in-start.ts';
 import {completeRegisteredReturn} from '@core/same-tab-return.ts';
@@ -71,7 +72,7 @@ export async function continueHostedSignIn(account: ServicesAccount, pending: Ho
   });
   if (!cleared) throw invalid();
   signal.throwIfAborted();
-  if (Date.parse(handoff.expiresAt) <= Date.now()) throw invalid();
+  if (Date.parse(handoff.expiresAt) <= serverNow()) throw invalid();
   // No await between the final live-family check and same-tab navigation.
   const session = account.service.getSnapshot().session;
   if (!session || session.account.id !== expected.accountId || session.familyId !== expected.familyId) throw invalid();

@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import type {HttpLocalApi, LocalSession} from '@core/index.ts';
 import {routePath} from '../../../../packages/contracts/src/routes.ts';
 
@@ -20,7 +21,7 @@ export function captureLocalDeviceOpening(input: Readonly<{
   location: LocalDeviceLocation; getLocation(): LocalDeviceLocation; now?: () => number;
 }>): LocalDeviceOpening | undefined {
   const {api, location, pageOrigin} = input;
-  const session = input.session, isCurrent = input.isCurrent, getLocation = input.getLocation, now = input.now ?? Date.now;
+  const session = input.session, isCurrent = input.isCurrent, getLocation = input.getLocation, now = input.now ?? serverNow;
   let connection: ReturnType<Api['getRouteConnection']>, original: LocalSession;
   try {
     if (!isCurrent() || !['http:', 'https:'].includes(new URL(pageOrigin).protocol) || new URL(pageOrigin).origin !== pageOrigin) return;

@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useEffect} from 'react';
 import {createPortal} from 'react-dom';
 import {defaultI18n} from '@i18n';
@@ -13,7 +14,7 @@ export function RemovalUndo({value, clear, undo}: {value?: PlaylistRemovalUndo; 
     if (!value) return;
     let timer: ReturnType<typeof setTimeout>;
     const expire = () => {
-      const remaining = value.until - Date.now();
+      const remaining = value.until - serverNow();
       if (remaining <= 0) clear();
       else timer = setTimeout(expire, Math.min(remaining, 2_147_483_647));
     };
@@ -22,6 +23,6 @@ export function RemovalUndo({value, clear, undo}: {value?: PlaylistRemovalUndo; 
   }, [value, clear]);
   return value && typeof document !== 'undefined' ? createPortal(<div className={styles.removalToast}>
     <Toast open onOpenChange={open => { if (!open) clear(); }} message={s('next.saved.removedPlaylist', {title: value.title})}
-      action={{label: defaultI18n.t('next.overlays.undo'), variant: 'text', onAction: () => { if (Date.now() < value.until) undo(value); }}} />
+      action={{label: defaultI18n.t('next.overlays.undo'), variant: 'text', onAction: () => undo(value)}} />
   </div>, document.body) : null;
 }

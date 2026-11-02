@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import type {SelectionActionSource} from '@core/selection-actions-controller.ts';
 import {listSelectionActionPreparations, type SelectionActionsApi} from '@core/selection-actions.ts';
 import {parseDownloadGrant, parseDownloadPreparation, type DownloadPreparation} from '@core/downloads.ts';
@@ -122,7 +123,7 @@ export class SelectionActionTransferQueue {
       const grant = parseDownloadGrant(await this.options.api.request(routePath('create_download_grant', {id: preparation.id}), 'POST', {operationId: this.grant.operationId}, lifetime.signal));
       if (!this.current() || this.lifetime !== lifetime) return;
       if (grant.preparationId !== preparation.id || grant.itemId !== preparation.itemId || grant.artifact.sha256 !== preparation.artifact.sha256
-        || grant.artifact.bytes !== preparation.artifact.bytes || Date.parse(grant.expiresAt) <= Date.now()) throw new Error('download-grant-mismatch');
+        || grant.artifact.bytes !== preparation.artifact.bytes || Date.parse(grant.expiresAt) <= serverNow()) throw new Error('download-grant-mismatch');
       const href = this.options.api.mediaUrl(grant.url);
       if (!this.current() || this.lifetime !== lifetime) return;
       (this.options.handoff ?? attachment)(href, grant.artifact.fileName);
