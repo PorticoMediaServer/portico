@@ -5,7 +5,7 @@ import type {SelectedViewerRecord} from '@core/viewer-selection.ts';
 
 class TabStorage {values = new Map<string, string>(); getItem(k: string) {return this.values.get(k) ?? null;} setItem(k: string, v: string) {this.values.set(k, v);} removeItem(k: string) {this.values.delete(k);}}
 const tab = new TabStorage();
-(globalThis as {sessionStorage?: unknown}).sessionStorage = tab;
+(globalThis as {localStorage?: unknown}).localStorage = tab;
 const gate = await import('../src/platform/tab-session-gate.ts');
 
 const session = {accessToken: 'access', expiresAt: '2099-01-01T00:00:00Z', authorizationHorizon: '2099-02-01T00:00:00Z', sessionFamilyId: 'family-a', tokenGeneration: '1',

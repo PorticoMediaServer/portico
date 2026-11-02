@@ -1,11 +1,12 @@
 import {parseRememberMarker, rememberedFor, type RememberMarker} from '@core/remember-marker.ts';
 
 /**
- * Which profile this browser tab may open without asking (C-DESIGN §2, the web half).
+ * Which profile this browser may open without asking (C-DESIGN §2, the web half).
  *
- * - "Remember this profile in this browser tab" (auth.html) is a marker in sessionStorage, so it
- *   lasts for this tab, reloads included, and never reaches another tab. It counts only for the
- *   exact sign-in that remembered it (server, family and profile), until it expires.
+ * - "Remember this profile on this device" (auth.html section 8, DECISIONS 2 Nov) is a marker in
+ *   localStorage, so it lasts across tabs and restarts of this browser. It counts only for the
+ *   exact sign-in that remembered it (server, family and profile), until it expires, and is cleared
+ *   from the avatar menu, by signing out or by forgetting the server.
  * - A page load that has opened a profile on a server follows later sign-ins to that same profile
  *   (a renewal, or another tab choosing it again): that tab is never signed out or asked again until
  *   its next reload. Another tab choosing a different profile sends this tab to Who's watching,
@@ -21,15 +22,15 @@ type Held = Readonly<{serverId: string; familyId: string; profileId: string}>;
 
 function readAll(): Record<string, unknown> {
   try {
-    const raw = sessionStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY);
     const value: unknown = raw ? JSON.parse(raw) : {};
     return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
   } catch {return {};}
 }
 function writeAll(next: Record<string, unknown>) {
   try {
-    if (Object.keys(next).length) sessionStorage.setItem(KEY, JSON.stringify(next));
-    else sessionStorage.removeItem(KEY);
+    if (Object.keys(next).length) localStorage.setItem(KEY, JSON.stringify(next));
+    else localStorage.removeItem(KEY);
   } catch { /* Private storage can be refused: the picker shows at the next reload. */ }
 }
 
@@ -46,7 +47,19 @@ export function admitProfile(serverId: string, profileId: string): void {admitte
 /** The profile this page load last opened on `serverId`, for the picker's focus. */
 export function admittedProfile(serverId: string): string | undefined {return admitted.get(serverId);}
 
-/** A profile chosen here: remembered for this tab when the server said so, otherwise not remembered. */
+/** True when this browser remembers `profileId` on `serverId` (the avatar menu then offers Forget remembered profile). */
+export function deviceRemembers(serverId: string, profileId: string, wallNowMs = Date.now()): boolean {
+  const marker = parseRememberMarker(readAll()[serverId]);
+  return !!marker && marker.serverId === serverId && marker.profileId === profileId && Date.parse(marker.expiresAt) > wallNowMs;
+}
+
+/** Forget remembered profile: the next visit shows the picker; the profile open now stays open. */
+export function forgetRememberedProfile(serverId: string): void {
+  const all = readAll();
+  if (serverId in all) {delete all[serverId]; writeAll(all);}
+}
+
+/** A profile chosen here: remembered on this device when the server said so, otherwise not remembered. */
 export function recordTabPick(serverId: string, profileId: string, remembered: RememberMarker | undefined): void {
   admitted.set(serverId, profileId);
   const all = readAll();

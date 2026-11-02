@@ -78,6 +78,8 @@ export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {
   // evaluated inside each profile, never used to disable its picker tile.
   const profiles = snapshot?.profiles.map(profile => ({...profile, eligible: true}));
   const selected = profiles?.find(profile => profile.id === selection?.id);
+  // Offered only where the server's Remember PIN for isn't Off (the server would not remember).
+  const canRemember = snapshot?.rememberProfiles === true;
   if (!snapshot || !server) return <AuthStage legal={false}>{!state.error && <p role="status">{defaultI18n.t('auth.loadingProfiles')}</p>}<AuthError error={state.error} />{Boolean(state.error) && <Button onClick={() => void binding.loadProfiles()}>{defaultI18n.t('action.tryAgain')}</Button>}</AuthStage>;
   // Required password/two-step pages are a different account-only continuation.
   // This picker cannot offer profiles until the actual controller clears it.
@@ -87,14 +89,14 @@ export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {
   const otherProfiles = () => {
     if (!viewCurrent() || selectedNow.current !== selection || activeRecovery.current !== recovery) return;
     if (recovery) retire(recovery);
-    selectedNow.current = undefined; setSelection(undefined); setRemember(false); void binding.loadProfiles();
+    selectedNow.current = undefined; setSelection(undefined); void binding.loadProfiles();
   };
   const switchServer = () => {if (viewCurrent() && selectedNow.current === selection && activeRecovery.current === recovery) onSwitchServer();};
 
   return <>
-    {selected ? <ServerProfilePIN key={JSON.stringify([selected.id, selected.pinRevision])} serverName={server.name} profile={selected} remember={remember} onRememberChange={value => {if (viewCurrent() && selectedNow.current === selection && !activeRecovery.current && !binding.getSnapshot().busy) setRemember(value);}}
+    {selected ? <ServerProfilePIN key={JSON.stringify([selected.id, selected.pinRevision])} serverName={server.name} profile={selected} remember={remember} onRememberChange={!canRemember ? undefined : value => {if (viewCurrent() && selectedNow.current === selection && !activeRecovery.current && !binding.getSnapshot().busy) setRemember(value);}}
       busy={state.busy || seconds > 0} error={pinError} rejectionKey={state.error} errorText={seconds ? defaultI18n.t('accounts.profiles.pinLocked', {seconds}) : undefined}
-      failure={!pinError && !seconds ? state.error : undefined} onComplete={pin => {if (viewCurrent() && selectedNow.current === selection && !activeRecovery.current && !binding.getSnapshot().busy) void binding.chooseProfile(selected.id, pin, remember);}}
+      failure={!pinError && !seconds ? state.error : undefined} onComplete={pin => {if (viewCurrent() && selectedNow.current === selection && !activeRecovery.current && !binding.getSnapshot().busy) void binding.chooseProfile(selected.id, pin, canRemember && remember);}}
       onOtherProfiles={otherProfiles} onSwitchServer={switchServer} onForgotPIN={() => {
         if (!viewCurrent() || !flight || !selection || selectedNow.current !== selection || activeRecovery.current || binding.getSnapshot().busy) return;
         let opening: RecoveryOpening | undefined;
@@ -102,7 +104,9 @@ export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {
         opening = {flow, binding, owner, flight, snapshot, server, selection, active: true, completing: false};
         activeRecovery.current = opening; setRecovery(opening);
       }} /> : <ServerProfiles serverName={server.name} profiles={profiles!} error={state.error} onSwitchServer={switchServer} autoFocusId={focusProfileId}
-        onSelect={profile => {if (!viewCurrent() || selectedNow.current !== selection || activeRecovery.current || binding.getSnapshot().busy) return; setRemember(false); if (profile.pinRequired) {const selected = {id: profile.id}; selectedNow.current = selected; setSelection(selected);} else void binding.chooseProfile(profile.id, '', false);}} />}
+        remember={remember} onRememberChange={!canRemember ? undefined : value => {if (viewCurrent() && !activeRecovery.current && !binding.getSnapshot().busy) setRemember(value);}}
+        // A tick on the picker remembers a profile without a PIN at once, and carries to a PIN profile's page, where it applies after a correct PIN.
+        onSelect={profile => {if (!viewCurrent() || selectedNow.current !== selection || activeRecovery.current || binding.getSnapshot().busy) return; if (profile.pinRequired) {const selected = {id: profile.id}; selectedNow.current = selected; setSelection(selected);} else void binding.chooseProfile(profile.id, '', canRemember && remember);}} />}
     {selected && recovery && <Recovery binding={binding} flow={recovery.flow} current={() => openingCurrent(recovery)} profileName={selected.name} username={snapshot.account.username}
       onClose={() => retire(recovery)} onOpen={pin => {
         if (!openingCurrent(recovery) || recovery.completing || recovery.flow.getSnapshot().phase !== 'done') return;

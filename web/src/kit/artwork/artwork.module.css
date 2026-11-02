@@ -115,7 +115,7 @@
 .lockBadge svg { width: 55%; height: 55%; }
 .currentFace { box-shadow: 0 0 0 3px var(--color-ink), 0 0 0 5px var(--color-accent-strong); }
 .picker { position: relative; display: flex; flex-direction: column; align-items: center; line-height: normal; }
-.profileRow { display: flex; gap: 32px; align-items: flex-start; }
+.profileRow { display: flex; flex-wrap: wrap; justify-content: center; gap: 32px; align-items: flex-start; max-width: 100%; }
 .profileTile { border: 0; padding: 0; font: inherit; color: inherit; background: none; cursor: pointer; width: 168px; text-align: center; border-radius: 20px; }
 .profileTile > .profileFace { width: 160px; height: 160px; margin: 0 auto 18px; font-size: 62px; transition: transform var(--motion-hover) var(--ease-out), opacity var(--motion-quick) var(--ease-out); }
 .profileFace::after { content: ''; position: absolute; inset: 0; border-radius: 50%; opacity: 0; box-shadow: 0 0 0 4px var(--color-ink), 0 0 0 7px var(--color-focus), 0 0 40px 6px rgba(213,239,255,.22), 0 30px 50px -22px rgba(0,0,0,.9); transition: opacity var(--motion-quick) var(--ease-out); }
@@ -134,8 +134,8 @@
 .manageProfiles:hover { background: rgba(237,245,250,.22); }
 .shortPin { display: none; }
 .pickerphone { align-items: stretch; }
-.pickerphone .profileRow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px 8px; }
-.pickerphone .profileTile { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.pickerphone .profileRow { gap: 26px 8px; }
+.pickerphone .profileTile { width: calc((100% - 16px) / 3); display: flex; flex-direction: column; align-items: center; }
 .pickerphone .profileTile > .profileFace { width: 90px; height: 90px; font-size: 36px; margin: 0; }
 .pickerphone .profileName { font-size: 15px; margin-top: 10px; max-width: 100%; }
 .pickerphone .profileBadge { gap: 4px; font-size: 12px; margin-top: 3px; min-height: 16px; font-weight: 600; }
@@ -164,8 +164,8 @@
 }
 @media (width < 600px) {
   .pickerauto { align-items: stretch; }
-  .pickerauto .profileRow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px 8px; }
-  .pickerauto .profileTile { width: 100%; display: flex; flex-direction: column; align-items: center; }
+  .pickerauto .profileRow { gap: 26px 8px; }
+  .pickerauto .profileTile { width: calc((100% - 16px) / 3); display: flex; flex-direction: column; align-items: center; }
   .pickerauto .profileTile > .profileFace { width: 90px; height: 90px; font-size: 36px; margin: 0; }
   .pickerauto .profileName { font-size: 15px; margin-top: 10px; max-width: 100%; }
   .pickerauto .profileBadge { gap: 4px; font-size: 12px; margin-top: 3px; min-height: 16px; font-weight: 600; }

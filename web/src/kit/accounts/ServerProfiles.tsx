@@ -12,19 +12,22 @@ import styles from './accounts.module.css';
 const t = defaultI18n.t;
 // Auth's approved blue face is brighter than the compact account avatar.
 const profileTint = (profile: ProfilePickerProfile) => profile.art === 'blue' ? colors.accountAvatar1Start : undefined;
-export function ServerProfiles({serverName, profiles, onSelect, onSwitchServer, error, autoFocusId}: {
+export function ServerProfiles({serverName, profiles, onSelect, onSwitchServer, error, autoFocusId, remember, onRememberChange}: {
   serverName: string; profiles: readonly ProfilePickerProfile[]; onSelect: (profile: ProfilePickerProfile) => void; onSwitchServer: () => void; error?: unknown; autoFocusId?: string;
+  /** Remember this profile on this device, under the faces (auth.html frame 13); omitted where the server's Remember PIN for is Off. */
+  remember?: boolean; onRememberChange?: (value: boolean) => void;
 }) {
   // Every same-account profile supplied by this server can be selected. Library
   // scope applies inside the profile; it is never a picker restriction.
   return <AuthStage shape="round" phoneShape="top" className={styles.profilesStage} layout="center" legal={false} topRight={<Button icon="i-server" size="small" onClick={onSwitchServer}>{t('settings.switchServer')}</Button>}>
     <h1 className={styles.pickerTitle}>{t('accounts.profiles.onServer', {server: serverName})}</h1>
     <AuthError error={error} /><ProfilePicker profiles={profiles} onSelect={onSelect} autoFocusId={autoFocusId} getProfileTint={profileTint} layout="auto" />
+    {onRememberChange && <label className={`${styles.remember} ${styles.pickerRemember}`}><input type="checkbox" checked={remember === true} onChange={event => onRememberChange(event.currentTarget.checked)} />{t('web.direct.rememberProfile')}</label>}
   </AuthStage>;
 }
 export function ServerProfilePIN({serverName, profile, onComplete, onOtherProfiles, onForgotPIN, onSwitchServer, remember, onRememberChange, error, errorText, rejectionKey, failure, busy, initialPIN = '', autoFocus = true}: {
   serverName: string; profile: ProfilePickerProfile; onComplete: (pin: string) => void; onOtherProfiles: () => void; onForgotPIN: () => void; onSwitchServer: () => void;
-  remember: boolean; onRememberChange: (value: boolean) => void; error?: boolean; errorText?: ReactNode; rejectionKey?: unknown; failure?: unknown; busy?: boolean; initialPIN?: string; autoFocus?: boolean;
+  remember?: boolean; onRememberChange?: (value: boolean) => void; error?: boolean; errorText?: ReactNode; rejectionKey?: unknown; failure?: unknown; busy?: boolean; initialPIN?: string; autoFocus?: boolean;
 }) {
   const {pin, change} = usePINFeedback(initialPIN, error || errorText || failure ? rejectionKey ?? failure ?? true : undefined);
   const context = t('accounts.profiles.serverContext', {server: '\uFFFC'}).split('\uFFFC');
@@ -38,7 +41,7 @@ export function ServerProfilePIN({serverName, profile, onComplete, onOtherProfil
     <label className={styles.phonePINLabel}>{t('accounts.profiles.pinLabel')}</label>
     <AuthCodeBoxes length={4} value={pin} label={t('accounts.profiles.pinLabel')} onChange={change} autoFocus={autoFocus} disabled={busy}
       error={errorText ?? (error && t('accounts.profiles.pinFailed'))} onComplete={onComplete} />
-    <label className={styles.remember}><input type="checkbox" checked={remember} onChange={event => onRememberChange(event.currentTarget.checked)} />{t('web.direct.rememberProfile')}</label>
+    {onRememberChange && <label className={styles.remember}><input type="checkbox" checked={remember === true} onChange={event => onRememberChange(event.currentTarget.checked)} />{t('web.direct.rememberProfile')}</label>}
     <div className={styles.pinActions}><Button size="small" icon="i-left" onClick={onOtherProfiles}>{t('web.direct.otherProfiles')}</Button><Button variant="ghost" size="small" onClick={onForgotPIN}>{t('pin.forgot')}</Button></div>
   </div></AuthStage>;
 }
