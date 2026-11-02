@@ -1,5 +1,5 @@
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {BackHandler, findNodeHandle, View} from 'react-native';
+import {findNodeHandle, View} from 'react-native';
 import {useTVKeyEvent} from '../../../platform/tv-keys';
 import {createTVSeekRepeat} from '../../../platform/tv-seek-repeat';
 import {sameFence} from '../../../../../../packages/player-core/src/identity';
@@ -10,6 +10,7 @@ import {FocusRegion, type FocusRegionProps} from '../../../kit/focus';
 import {useTheme} from '../../../kit/theme';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {useDestinationEntryFocus} from '../../destinations/useEntryFocus';
+import {registerBack} from '../../../kit/navigation/back';
 
 /** These regions only compose the TV screen. Touch keeps its existing views. */
 export function MusicFocusRegion({children, ...props}: FocusRegionProps) {
@@ -28,11 +29,11 @@ export function TVMusicFocus({id, visible, interactive = true, entry, onClose, c
   const theme = useTheme(), latest = useRef({visible, onClose}); latest.current = {visible, onClose};
   useLayoutEffect(() => {
     if (!theme.isTV) return;
-    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+    const releaseBack = registerBack(() => {
       if (!latest.current.visible) return false;
       latest.current.onClose(); return true;
-    });
-    return () => back.remove();
+    }, {scope: 'overlay'});
+    return () => releaseBack();
   }, [theme.isTV]);
   if (!theme.isTV) return <>{children}</>;
   return <FocusRegion id={id} hold enabled={interactive} style={{position: 'absolute', inset: 0}}>
@@ -64,10 +65,10 @@ export function TVMusicSeek({occupant, onAction, enabled, testID}: {occupant: Do
   const fenceKey = JSON.stringify(occupant.presentation.fence);
   useLayoutEffect(() => {repeat.stop(); seekPosition.current = undefined; return () => repeat.stop();}, [enabled, fenceKey, repeat]);
   useEffect(() => {
-    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+    const releaseBack = registerBack(() => {
       repeat.stop(); seekPosition.current = undefined; return false;
-    });
-    return () => back.remove();
+    }, {scope: 'observer'});
+    return () => releaseBack();
   }, [repeat]);
   useTVKeyEvent(event => {
     if (!enabled || !focused.current) {repeat.stop(); return;}

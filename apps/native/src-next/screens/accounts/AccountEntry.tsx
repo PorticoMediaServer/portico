@@ -1,6 +1,6 @@
 import {accountExpectation, nativeAccountRead} from '../../platform/account-work';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {AppState, BackHandler, Linking, NativeModules, Platform, Share, Image, Text, View} from 'react-native';
+import {AppState, Linking, NativeModules, Platform, Share, Image, Text, View} from 'react-native';
 import {useTVMenuCapture} from '../../platform/tv-menu';
 import QRCode from 'react-native-qrcode-svg';
 import {HttpHostedApi, type HostedServer} from '../../../../../packages/client-core/src';
@@ -65,6 +65,7 @@ import {PhoneAccountForm} from './PhoneAccountForm';
 import {PasswordStrengthMeter} from './PasswordStrengthMeter';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 import {directoryFailure, directoryOfflineBody, directoryRows, nextRetryDelay} from './directory-chooser';
+import {registerBack} from '../../kit/navigation/back';
 
 export type NativeAccountEntryStage = 'welcome' | 'ended-sign-in' | 'owner-reset' | 'owner-reset-code' | 'owner-reset-done' | 'setup-confirm' | 'setup' | 'address' | 'identity-code' | 'local' | 'factor' | 'uses-portico' | 'portico' | 'forgot' | 'forgot-sent' | 'register' | 'verify' | 'provider' | 'contact' | 'servers' | 'account-sign-out' | 'profiles' | 'profile-pin' | 'profile-forgot-pin' | 'tv' | 'tv-credentials' | 'tv-required-setup' | 'member-move' | 'invitation-code' | 'invitation-local' | 'invitation-portico' | 'invitation-sign-out' | 'invitation-entry' | 'invitation-account' | 'account-workspace';
 type MemberMove = Awaited<ReturnType<NativeServerSignIn['createMemberMove']>>;
@@ -423,12 +424,12 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     if (stage === initialStage) onBack?.(); else reset();
   };
   backRef.current = back;
-  useEffect(() => {const listener = BackHandler.addEventListener('hardwareBackPress', () => {
+  useEffect(() => {const listener = registerBack(() => {
     if (stageRef.current === 'tv' && !adoptingTV.current) {backRef.current(); return true;}
     if (busyRef.current || adoptingTV.current) return true;
     if (stageRef.current === 'welcome' && !onBackRef.current) return false;
     backRef.current(); return true;
-  }); return () => listener.remove();}, []);
+  }, {scope: 'surface'}); return () => listener();}, []);
   useTVMenuCapture(Platform.isTV && (stage !== 'welcome' || !!onBack));
   const consume = useCallback((result: Result) => {
     if (!lifetime.current) return;

@@ -86,6 +86,9 @@ export function auditBoundary({appRoot, configPath = path.join(appRoot, 'tsconfi
           if (node.arguments[0]) dependency(node.arguments[0], node);
           else fail(file, node, 'module path is required', ast);
         }
+        // TV-FOCUS-REVIEW step 3: Back has one listener; everything else registers a scoped step.
+        if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && callee.expression.text === 'BackHandler' && callee.name.text === 'addEventListener'
+          && !file.endsWith(path.join('kit', 'navigation', 'back.ts'))) fail(file, node, 'register Back through kit/navigation/back (registerBack), never BackHandler directly', ast);
         if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && callee.expression.text === 'require' && callee.name.text === 'context') {
           const directory = node.arguments[0] && constant(node.arguments[0]);
           if (!directory || !inside(real(path.resolve(path.dirname(file), directory)), real(path.join(next, 'dev')))) fail(file, node, 'gallery context must stay inside src-next/dev', ast);

@@ -1,5 +1,5 @@
 import React, {useEffect, useState, useSyncExternalStore} from 'react';
-import {BackHandler, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import {StateLayout} from '../../kit/states';
 import {Button} from '../../kit/controls';
 import {ProfilePicker} from '../../kit/artwork';
@@ -20,6 +20,7 @@ import {PhonePINEntry} from './PhonePINEntry';
 import {profilePinFailureText} from './profile-pin-failure';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 import {RememberProfileRow} from './RememberProfileRow';
+import {registerBack} from '../../kit/navigation/back';
 
 const t = defaultI18n.t;
 
@@ -53,8 +54,8 @@ export function LifecycleProfileGate() {
     else if (state.kind === 'choosingProfile' && state.switching) lifecycle.cancelSwitch();
   };
   useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {back(); return state.kind === 'enteringPin' || !!recovery || forgot || state.kind === 'choosingProfile' && state.switching;});
-    return () => subscription.remove();
+    const subscription = registerBack(() => {back(); return state.kind === 'enteringPin' || !!recovery || forgot || state.kind === 'choosingProfile' && state.switching;}, {scope: 'surface'});
+    return () => subscription();
   });
   if (state.kind !== 'choosingProfile' && state.kind !== 'enteringPin') return null;
 
