@@ -11,6 +11,7 @@ import {clockText, durationText} from '../../../../../packages/client-core/src/p
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {NativePlaybackAdapter, NativePlaybackRuntimeSnapshot} from '../../platform/playback/types';
 import {useTVKeyEvent} from '../../platform/tv-keys';
+import {admitTVPlayPause, tvPlayPauseClaimed, tvPlayPauseTogglesPlayback} from '../../platform/tv-play-pause';
 import {Button, Focusable} from '../../kit/controls';
 import {FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {Icon, type IconName} from '../../kit/Icon';
@@ -339,6 +340,22 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
     if (!theme.isTV || !fence || !current() || source.dock.local?.expanded !== true || state.panel || state.panelReturning || liveOverlayOpen || miniPaintPresent || event.phase === 'long-end') return;
     const onPrompt = registry.capture()?.regionId === 'watch-skip';
     if (onPrompt && event.key === 'select') return;
+    if (event.key === 'playPause') {
+      // F-PLAYER-1: with the controls hidden the remote's Play/Pause raises them on
+      // Play/Pause and does nothing else; with them up it is the transport key.
+      if (event.phase !== 'press' || tvPlayPauseClaimed() || !admitTVPlayPause('key')) return;
+      if (!controls.getSnapshot().visible) {
+        if (onPrompt) promptRevealToToggle.current = true;
+        controls.key(fence);
+        return;
+      }
+      // The same admission as the on-screen Play/Pause button. Android's media
+      // session already toggles, so only Apple TV toggles here.
+      const owner = playback.getSnapshot();
+      if (!tvPlayPauseTogglesPlayback() || !controlsCurrent() || !owner.capabilities.play && !owner.capabilities.pause) return;
+      controls.reveal(fence); void playback.toggle(fence).catch(props.reportError);
+      return;
+    }
     if (['up', 'down', 'left', 'right', 'select'].includes(event.key)) {
       if (onPrompt && !visible) promptRevealToToggle.current = true;
       if (!controls.key(fence)) controls.reveal(fence);

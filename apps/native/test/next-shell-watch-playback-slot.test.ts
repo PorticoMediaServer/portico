@@ -64,7 +64,7 @@ async function layer(withWatch = true, canonical?: NativeWatchReader, options: {
     '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../../kit/overlays': {SidePanel: 'SidePanel'},
     '../../../kit/theme': {useTheme: () => {throw Error('unexpected_music_signal_render');}, nativeType: () => {throw Error('unexpected_music_signal_render');}},
   });
-  const {NativePlaybackLayer} = await screenModule(new URL('../src-next/shell/NativePlaybackLayer.tsx', import.meta.url), {'./StartTimedOut': {StartTimedOut: 'StartTimedOut'}, '../kit/dock/StartingDock': {StartingDock: 'StartingDock'}, 
+  const {NativePlaybackLayer} = await screenModule(new URL('../src-next/shell/NativePlaybackLayer.tsx', import.meta.url), {'../platform/tv-keys': {useTVKeyEvent() {}}, './StartTimedOut': {StartTimedOut: 'StartTimedOut'}, '../kit/dock/StartingDock': {StartingDock: 'StartingDock'}, 
     './listening-presentation': {captureListeningOpening, expandedListeningOccupant, localListeningOccupant},
     '../kit/dock/video-exit-paint': {DockVideoExitImages},
     '../kit/dock/DockHandover': {DockVideoExitProvider: 'DockVideoExitProvider', DockVideoExitCanvas: 'DockVideoExitCanvas'},

@@ -14,7 +14,10 @@ import {useTheme} from '../kit/theme';
 import {focusTestID} from '../kit/focus';
 import {tvFocusIds} from './tv-focus';
 import {DockHost, PlayerMorph, bindNativeDock, usePlayerMorph, type DockPresentation,type CastDockBinding} from '../kit/dock';
-import {commandIsCurrent, dockBarFrame, liveWaitingIdentity, playbackPosition} from '../kit/dock/model';
+import {commandIsCurrent, currentOccupant, dockBarFrame, listeningPlayPauseCommand, liveWaitingIdentity, playbackPosition} from '../kit/dock/model';
+import type {DockHostProps} from '../kit/dock/types';
+import {useTVKeyEvent} from '../platform/tv-keys';
+import {tvPlayPauseClaimed, tvPlayPauseTogglesPlayback} from '../platform/tv-play-pause';
 import {StartingDock} from '../kit/dock/StartingDock';
 import {StartTimedOut} from './StartTimedOut';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -398,6 +401,15 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
     return {itemId, libraryId, sessionId, sessionGeneration, ...(sourceId ? {sourceId} : {})};
   }, [lyricsKeys]);
   const lyricsOffered = !!lyricsTarget && !!runtime.lyrics && runtime.lyricsEnabled?.() === true;
+  // tv-player 8: on Apple TV the remote's Play/Pause pauses and resumes music or an
+  // audiobook from any screen. The read happens at the press, from the dock itself.
+  const listeningPresentation = useRef<DockHostProps['presentation']>({});
+  useTVKeyEvent(event => {
+    if (!theme.isTV || event.key !== 'playPause' || event.phase !== 'press' || !tvPlayPauseTogglesPlayback() || tvPlayPauseClaimed()) return;
+    if (!sameAuthority(adapter.getSnapshot().authority, authority)) return;
+    const command = listeningPlayPauseCommand(currentOccupant(adapter.dock, adapter.dock.getSnapshot(), listeningPresentation.current));
+    if (command && commandIsCurrent(adapter.dock, command)) void action(command).catch(runtime.reportError);
+  });
   if (!sameAuthority(snapshot.authority, authority)) return null;
   const initial = !theme.isTV && initialGeometry.current?.key === snapshot.initialPresentation?.key && !snapshot.retired && snapshot.playback.phase !== 'error'
     && snapshot.initialPresentation && fence && sameFence(snapshot.initialPresentation.fence, fence) ? snapshot.initialPresentation : undefined;
@@ -426,6 +438,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
     skipBackSeconds:runtime.skipBackSeconds,skipForwardSeconds:runtime.skipForwardSeconds,
     capabilities:{play:casting&&known&&observed.paused,pause:casting&&known&&!observed.paused,stop:cast.cast.phase!=='off'||cast.cast.transferPending===true,
       seek:casting&&known&&observed.durationSeconds>0,previous:false,next:false,cast:false}}:undefined;
+  listeningPresentation.current = {local: presentation, remote: remotePresentation};
   // A validated returning receiver is a view-only occupant. No local fence,
   // queue, runtime session or source is fabricated to keep this bar mounted.
   const viewFence=cast?.control,returningView=cast?.resumed,viewKind=cast?.displayKind,viewTitle=cast?.title;

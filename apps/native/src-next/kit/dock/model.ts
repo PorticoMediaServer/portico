@@ -56,6 +56,20 @@ export function commandAllowed(occupant: DockRenderOccupant, type: DockAction): 
   return true;
 }
 
+/** The transport key a listening occupant's Play/Pause means right now: Replay once
+ * finished, else Pause or Play. The same choice the TV card's centre button makes. */
+export function listeningTransportAction(occupant: DockRenderOccupant): 'replay' | 'pause' | 'play' {
+  return occupant.presentation.finished ? 'replay' : occupant.playback.playing ? 'pause' : 'play';
+}
+
+/** tv-player 8: the remote's Play/Pause pauses and resumes music or an audiobook from
+ * any screen. Video has its own player handling; a remote occupant is never driven. */
+export function listeningPlayPauseCommand(occupant: DockRenderOccupant | null): DockCommand | undefined {
+  if (!occupant || occupant.remote || occupant.mode !== 'music' && occupant.mode !== 'audiobook') return;
+  const type = listeningTransportAction(occupant);
+  return commandAllowed(occupant, type) ? dockCommand(occupant, type) : undefined;
+}
+
 export const playbackPosition = (occupant: DockRenderOccupant) => occupant.remote?.positionSeconds ?? occupant.playback.positionSeconds;
 export function seekBounds(occupant: DockRenderOccupant) {
   const window = occupant.presentation.seekWindow;

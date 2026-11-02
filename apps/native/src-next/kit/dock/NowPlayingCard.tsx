@@ -13,7 +13,7 @@ import {FocusRegion, useOptionalFocusRegistry} from '../focus';
 import {useMotion} from '../useMotion';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {registerOverlayKeys} from '../../platform/overlay-keys';
-import {commandAllowed, dockCommand, playbackPosition, progressOf, seekBounds, seekTo} from './model';
+import {commandAllowed, dockCommand, listeningTransportAction, playbackPosition, progressOf, seekBounds, seekTo} from './model';
 import {alpha, DockFacts, dockStyles as s, dockType, LevelMeter} from './visual';
 import type {DockAction, DockRenderProps} from './types';
 
@@ -103,7 +103,7 @@ export function NowPlayingCard({occupant, onAction, expanded = false, onExpanded
     </Focusable>
   </Animated.View>;
 
-  const playAction = p.finished ? 'replay' : playback.playing ? 'pause' : 'play';
+  const playAction = listeningTransportAction(occupant);
   const playLabel = p.finished ? t('player.post.replay') : t(playback.playing ? 'action.pause' : 'action.play');
   const control = (type: DockAction, icon: IconName, label: string, primary = false) => <Focusable key={primary ? 'transport' : type} testID={controlID(testID, primary ? 'transport' : type)} ref={primary ? pause : undefined} hasTVPreferredFocus={primary}
     focusRadius={primary ? 44 : 36} accessibilityRole="button" accessibilityLabel={label} disabled={!visible || !commandAllowed(occupant, type)} onPress={() => act(type)} onLongPressAction={fold}

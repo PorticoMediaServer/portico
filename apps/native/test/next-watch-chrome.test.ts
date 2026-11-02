@@ -14,6 +14,8 @@ import * as registryModule from '../src-next/kit/focus/registry.ts';
 import * as hostRefModule from '../src-next/kit/focus/useHostRef.ts';
 import {NativeWatchControls} from '../src-next/screens/watch/controls.ts';
 import * as landingStoreModule from '../src-next/screens/watch/landing-store.ts';
+import * as tvPlayPause from '../src-next/platform/tv-play-pause.ts';
+import {Platform} from 'react-native';
 
 const gesture = () => {const value: Record<string, unknown> = {}; for (const key of ['enabled', 'runOnJS', 'activeOffsetY', 'failOffsetX', 'onEnd']) value[key] = () => value; return value;};
 const focusRegistry = registryModule.createFocusRegistry();
@@ -42,6 +44,7 @@ const chromeModules = {
   '../../kit/theme': {nativeType: () => ({}), useTheme: () => ({isTV, colors: {}, type: {body: {}, bodyStrong: {}, caption: {}}})},
   '../../kit/useMotion': {useMotion: () => motion, useReducedMotion: () => true}, './controls': {NativeWatchControls}, './landing-store': landingStoreModule, './WatchTimeline': {NativeWatchTimeline: 'Timeline'},
   '../../kit/useScreenReader': {useScreenReader: () => false},
+  '../../platform/tv-play-pause': tvPlayPause,
 };
 const {NativeWatchChrome} = await screenModule(new URL('../src-next/screens/watch/WatchChrome.tsx', import.meta.url), chromeModules);
 const fence = playbackFence({kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'version', entryId: 'entry', generation: 1});
@@ -64,6 +67,45 @@ test('TV first Select event plus its genuine picture press only reveals; second 
     const toggle = descendants(tree).find(node => node.props.testID === 'watch-toggle');
     toggle.props.onPress(); assert.deepEqual(commands, ['toggle']);
   } finally {await host.unmount(); controls.dispose();}
+});
+
+test('N3-2: the remote Play/Pause raises hidden controls without pausing, then toggles on Apple TV only', async () => {
+  const platform = Platform as {OS: string; isTV: boolean}, before = {...platform};
+  for (const os of ['ios', 'android']) {
+    Object.assign(platform, {OS: os, isTV: true}); tvPlayPause.resetTVPlayPauseForTest();
+    const controls = new NativeWatchControls(true), commands: string[] = [];
+    const source = {fence, retired: false, dock: {local: {expanded: true}}, queue: {}, capabilities: {play: true, pause: true, seek: true}, playback: {intent: 'playing', positionSeconds: 17, duration: 100}};
+    const playback = {getSnapshot: () => source, toggle: async () => {commands.push('toggle');}};
+    controls.source(fence, {expanded: true, autoHide: true, hiddenByPanel: false, paused: false, scrubbing: false, focusHeld: false});
+    const host = createFabricHookHost(() => {NativeWatchChrome({source, controls, playback, text: {t: defaultI18n.t}, quality: 'Original', width: 1920, height: 1080, compact: false, skipBackSeconds: 10, skipForwardSeconds: 30, onMinimize() {}, onPanel() {}, reportError(error: unknown) {throw error;}});});
+    await host.mount();
+    try {
+      // F-PLAYER-1: hidden controls rise on Play/Pause and the key does nothing else.
+      event!({eventType: 'playPause', eventKeyAction: 0}); event!({eventType: 'playPause', eventKeyAction: 1});
+      assert.equal(controls.getSnapshot().visible, true, os); assert.equal(controls.getSnapshot().focus, 'toggle'); assert.deepEqual(commands, [], os);
+      await host.flush();
+      event!({eventType: 'playPause', eventKeyAction: 1});
+      // Android TV's media session already toggles the unconsumed media key.
+      assert.deepEqual(commands, os === 'ios' ? ['toggle'] : [], os);
+      assert.equal(controls.getSnapshot().visible, true);
+    } finally {await host.unmount(); controls.dispose();}
+  }
+  Object.assign(platform, before); tvPlayPause.resetTVPlayPauseForTest();
+});
+
+test('N3-2: a PIN pad holding Play/Pause keeps the player from taking it', async () => {
+  const platform = Platform as {OS: string; isTV: boolean}, before = {...platform};
+  Object.assign(platform, {OS: 'ios', isTV: true}); tvPlayPause.resetTVPlayPauseForTest();
+  const release = tvPlayPause.claimTVPlayPause();
+  const controls = new NativeWatchControls(true), commands: string[] = [];
+  const source = {fence, retired: false, dock: {local: {expanded: true}}, queue: {}, capabilities: {play: true, pause: true, seek: true}, playback: {intent: 'playing', positionSeconds: 17, duration: 100}};
+  controls.source(fence, {expanded: true, autoHide: true, hiddenByPanel: false, paused: false, scrubbing: false, focusHeld: false});
+  const host = createFabricHookHost(() => {NativeWatchChrome({source, controls, playback: {getSnapshot: () => source, toggle: async () => {commands.push('toggle');}}, text: {t: defaultI18n.t}, quality: 'Original', width: 1920, height: 1080, compact: false, skipBackSeconds: 10, skipForwardSeconds: 30, onMinimize() {}, onPanel() {}, reportError(error: unknown) {throw error;}});});
+  await host.mount();
+  try {
+    event!({eventType: 'playPause', eventKeyAction: 1});
+    assert.equal(controls.getSnapshot().visible, false); assert.deepEqual(commands, []);
+  } finally {release(); await host.unmount(); controls.dispose(); Object.assign(platform, before); tvPlayPause.resetTVPlayPauseForTest();}
 });
 
 test('every genuine chrome child mounts the strict focus target hook with unique stable semantic caller IDs', async () => {

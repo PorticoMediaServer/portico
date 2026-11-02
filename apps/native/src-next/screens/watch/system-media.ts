@@ -3,6 +3,7 @@ import {sameFence, type PlaybackFence} from '../../../../../packages/player-core
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {sameAuthority} from '../../shell/model';
 import {tvKeySource} from '../../platform/tv-key-source';
+import {admitTVPlayPause, tvPlayPauseTogglesPlayback} from '../../platform/tv-play-pause';
 
 type VideoMetadata = Readonly<{
   itemId: string; sourceToken: string; title: string; subtitle?: string; seriesTitle?: string;
@@ -71,6 +72,8 @@ export function bindVideoSystemMedia(context: Context, port: NativeVideoSystemMe
         // alone would admit an old event into a new session for the same title.
         if (command.itemId !== captured.itemId || command.sourceToken !== captured.sourceToken) return;
         const ready = live.playback.phase !== 'ended' && live.playback.phase !== 'error';
+        // Apple TV: a Siri Remote press the player already took as a key is not toggled twice.
+        if ((command.command === 'play' || command.command === 'pause' || command.command === 'toggle') && tvPlayPauseTogglesPlayback() && !admitTVPlayPause('system')) return;
         let operation: Promise<void> | undefined;
         try {
           switch (command.command) {
