@@ -780,6 +780,7 @@ export const routePaths = {
   "post_setup_approval": "/v1/setup/approval",
   "post_setup_resume": "/v1/setup/resume",
   "post_setup_retry": "/v1/setup/retry",
+  "post_setup_start_over": "/v1/setup/start-over",
   "post_shows_id_metadata_screen_retry": "/v1/shows/{id}/metadata/screen/retry",
   "post_shows_id_metadata_screen_search": "/v1/shows/{id}/metadata/screen/search",
   "post_shows_id_metadata_tvdb_retry": "/v1/shows/{id}/metadata/tvdb/retry",

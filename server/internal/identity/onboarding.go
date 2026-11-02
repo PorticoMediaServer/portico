@@ -402,6 +402,66 @@ func (s *Service) AbandonSetup(ctx context.Context, requestID, secret string, re
 	return setupflow.State{Phase: setupflow.Open}, nil
 }
 
+// ErrSetupClaimLive refuses a start over while the setup's approved claim is still in
+// force on this server: the caller withdraws it (networking RetireSetupClaim) first.
+var ErrSetupClaimLive = errors.New("setup claim still live")
+
+// StartOverSetup ends any unfinished setup and returns a fresh setup secret (finding #2:
+// "switch or start over"). It needs no secret from the earlier attempt: whoever may start
+// setup may start it over. The earlier signed starts end as superseded, so their return
+// and owner exchange can never complete, and the onboarding row goes. An unapproved claim
+// is retired here alone, as Abandon; an approved or installed one must already be
+// withdrawing (its deny-only cancellation queued for Portico Services), else
+// ErrSetupClaimLive. A set-up server refuses as a start does.
+func (s *Service) StartOverSetup(ctx context.Context) (string, error) {
+	gated, err := dbwork.Begin(ctx, s.db, dbwork.ClassSecurityFence)
+	if err != nil {
+		return "", err
+	}
+	defer gated.Rollback()
+	tx := gated.Tx()
+	state, _, err := setupflow.Require(ctx, tx, time.Now(), nil, setupflow.EventStartOver)
+	if err != nil {
+		return "", setupRefusal(state, err)
+	}
+	if state.Phase == setupflow.Open {
+		if err = gated.Commit(); err != nil {
+			return "", err
+		}
+		return s.BrowserSetupToken(ctx)
+	}
+	retire := state
+	if op := state.Operation; op != nil {
+		var account string
+		var approval int64
+		if err = tx.QueryRowContext(ctx, `SELECT account_id,approval_revision FROM networking_claim_intents WHERE operation_id=?`, op.ID).Scan(&account, &approval); err != nil {
+			return "", err
+		}
+		if account != "account-unbound" || approval != 0 {
+			if !state.Cancelling {
+				return "", ErrSetupClaimLive
+			}
+			// An approved claim's queued withdrawal is Portico Services' only notice:
+			// it stays, and ends the claim when delivered.
+			retire.Operation = nil
+		}
+	}
+	// Every signed start of this request ends, installed ones included: an installed
+	// claim's withdrawal is already queued, so none of them may admit an owner. Their
+	// identity challenges are spent with them.
+	if _, err = tx.ExecContext(ctx, `DELETE FROM hosted_identity_challenges WHERE challenge_hash IN(SELECT server_challenge_hash FROM identity_setup_completions WHERE setup_request_id=? AND phase IN('prepared','expired','installed','consumed'))`, state.RequestID); err != nil {
+		return "", err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE identity_setup_completions SET phase='superseded' WHERE setup_request_id=? AND phase IN('prepared','expired','installed','consumed')`, state.RequestID); err != nil {
+		return "", err
+	}
+	token, err := s.retireSetupTx(ctx, tx, retire, "superseded")
+	if err != nil {
+		return "", err
+	}
+	return token, gated.Commit()
+}
+
 // retireSetupTx retires an unapproved Portico Account setup on this server alone:
 // its signed starts end as phase, its claim (still exactly as prepared, or being
 // withdrawn) is cancelled with any queued withdrawal dropped, and the onboarding row

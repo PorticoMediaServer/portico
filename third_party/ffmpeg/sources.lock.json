@@ -463,7 +463,7 @@
       "third_party/ffmpeg/patches/homebridge-intel-gmp-pic.patch"
     ],
     "pythonBuildTools": {
-      "meson": "1.7.0",
+      "meson": "1.12.1",
       "ninja": "1.11.1.4",
       "setuptools": "75.8.0"
     },
@@ -475,6 +475,10 @@
         "gmp-make-check",
         "nettle-pkcs1-conv-link"
       ]
+    },
+    "extrasLock": {
+      "path": "third_party/ffmpeg/macos-extras.lock.json",
+      "sha256": "dcacd53fa1002640d3dee96d7ec0f334c403e93c6c6e2540987b1894b11df507"
     }
   },
   "requiredConfigure": [
@@ -622,5 +626,9 @@
   "compilerImages": {
     "path": "third_party/ffmpeg/compiler-images.lock.json",
     "sha256": "9c830e8ca8ce2fadae4f0da241101466eeabfa09649b62a679c773bebd89d0fe"
+  },
+  "macosRustTools": {
+    "path": "third_party/ffmpeg/macos-rust-tools.lock.json",
+    "sha256": "cb1baa26aeed16bdf3ed5a755d736f1e10d64557d9269d19db73a6eacbc31994"
   }
 }

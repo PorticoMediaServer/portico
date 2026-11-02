@@ -42,5 +42,16 @@
   "shaderc": {
     "repository": "https://github.com/google/shaderc.git",
     "commit": "7060a6615a1c6e2515e696651eea685524ecadb5"
+  },
+  "zvbi": {
+    "repository": "https://github.com/zapping-vbi/zvbi",
+    "commit": "d3a5ee9f2b047bf16cd1ee5ccf6ec05ee75409d0",
+    "authority": "Existing pinned BtbN scripts.d/50-zvbi.sh"
+  },
+  "gettextTools": {
+    "version": "0.26",
+    "url": "https://ftp.gnu.org/gnu/gettext/gettext-0.26.tar.xz",
+    "sha256": "d1fb86e260cfe7da6031f94d2e44c0da55903dbae0a2fa0fae78c91ae1b56f00",
+    "scope": "Private build tools for ZVBI autoreconf; no gettext runtime is added to the engine"
   }
 }

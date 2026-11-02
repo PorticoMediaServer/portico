@@ -228,6 +228,7 @@ internal/identity/migrate_sealed.go	(*Service).migrateSealedToPlain	Begin	ClassS
 internal/identity/onboarding.go	(*Service).AbandonSetup	Begin	ClassSecurityFence	-
 internal/identity/onboarding.go	(*Service).CompleteAccountSetup	WithWriteTx	ClassSecurityFence	-
 internal/identity/onboarding.go	(*Service).SetupWithOptions	Begin	ClassSecurityFence	-
+internal/identity/onboarding.go	(*Service).StartOverSetup	Begin	ClassSecurityFence	-
 internal/identity/onboarding.go	(*Service).supersedeStaleSetup	Begin	ClassSecurityFence	-
 internal/identity/owner_reset_file.go	(*Service).MakeMemberResetCode	WithWriteTx	ClassSecurityFence	-
 internal/identity/owner_reset_file.go	(*Service).RequestOwnerReset	WithWriteTx	ClassSecurityFence	-

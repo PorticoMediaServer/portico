@@ -194,6 +194,7 @@ may be missed) and retain dependency/stage timings. These measurements do not
 exist retroactively for the first cold run. A separate read-only PR-context pull
 probe checks access to every preserved compiler using the actual PR token and
 reviewed main pins. It does not execute PR code with registry credentials.
+
 Windows recipe construction takes its Rust and cargo-c versions from
 `third_party/media-engine/sources.lock.json`, currently 1.99.0 and 0.10.26.
 The base installs those exact versions, uses Cargo's locked tool resolution,
@@ -247,3 +248,26 @@ missing, qualified, release and publisher contexts refuse before cache I/O or
 registry arguments. Only the development build/control jobs set this capability.
 There is no publisher in this workflow; a later qualified/release producer cannot
 consume these caches. Cache-enabled development output remains NOT-FOR-USE.
+
+The native macOS libdovi stage uses the same checked source archive, both Cargo
+locks, C ABI header hash and shared crate/Rust notice collector as the other
+platforms. `macos-rust-tools.lock.json`, sealed through the source lock, selects
+Rust compiler/Cargo/standard-library components and matching library source
+from one exact official distribution manifest, plus the exact cargo-c crate and
+its Cargo.lock. Tools install in a private prefix outside the source recipe;
+complete libdovi and cargo-c registry vendors, original archives/locks and Rust
+library source stay in corresponding source. Both builds run locked and offline
+after source preparation. The receipt records the actual native compiler/target,
+tool executable hashes and linked-runtime archive inventory; these build records
+do not themselves establish native media or final engine acceptance.
+
+Mac's required ZVBI uses the same Git commit as the existing pinned BtbN ZVBI
+stage. A private source-built GNU gettext0.26 supplies its autoreconf tools;
+the exact official source archive SHA-256 is in the sealed Mac extras lock.
+No gettext runtime is added to the engine, and ZVBI retains static/PIC builds
+with X, DVB, BKTR, NLS and proxy support disabled as in the checked BtbN recipe.
+The complete tool/library sources and actual tool receipt remain in the source
+archive. The source lock's Meson version now matches the shared1.12.1 wheel and
+media-engine pin; a producer control refuses drift among those inputs.
+The real wheel installation control is explicitly enabled in hosted tool jobs;
+the general Python fixture suite stays offline.

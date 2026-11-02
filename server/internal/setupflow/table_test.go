@@ -40,6 +40,15 @@ exhausted delivery_refused started
 finishing installed installed
 installed exchange completed
 installed admission_window_passed installed_lapsed
+open start_over open
+started start_over open
+awaiting_approval start_over open
+expired start_over open
+approved start_over open
+finishing start_over open
+exhausted start_over open
+installed start_over open
+installed_lapsed start_over open
 `
 
 func TestEveryPhaseAndEventHasExactlyTheDesignedOutcome(t *testing.T) {

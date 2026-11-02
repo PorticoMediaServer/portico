@@ -86,6 +86,7 @@ var publicSurfaceRoutes = map[string]publicSurfaceAllow{
 	// invalid body gets a closed failure, never a validation of internals.
 	"POST /v1/setup":                        {status: 400, keys: publicFailureRetryable},
 	"POST /v1/setup/browser":                {status: 401, keys: publicFailureRequestID},
+	"POST /v1/setup/start-over":             {status: 409, keys: publicFailureRequestID},
 	"POST /v1/setup/app":                    {status: 409, keys: publicFailureRequestID},
 	"POST /v1/setup/resume":                 {status: 401, keys: publicFailureRetryable},
 	"POST /v1/setup/abandon":                {status: 401, keys: publicFailureRetryable},
