@@ -58,6 +58,10 @@ class RebuildControls(unittest.TestCase):
                     else: member.size = 7
                     out.addfile(member, None if mode == 'link' else io.BytesIO(b'snapshot'[:7]))
                     if mode == 'duplicate': out.addfile(member, io.BytesIO(b'snapshot'[:7]))
+                    if mode == 'valid':
+                        alias = tarfile.TarInfo('recipe/.cache/downloads/50-library.tar.xz')
+                        alias.type = tarfile.SYMTYPE; alias.linkname = Path(name).name
+                        out.addfile(alias)
                     ignored = tarfile.TarInfo('recipe/bin/never-execute'); ignored.size = 3
                     out.addfile(ignored, io.BytesIO(b'bin'))
                 if mode == 'valid':
