@@ -6,9 +6,9 @@
 .returnAccount small { display: block; font-size: 12.5px; color: var(--color-text-tertiary); margin-top: 1px; font-weight: 600; }
 .returnAccount button { margin-left: auto; padding: 0; border: 0; background: none; color: var(--color-accent-strong); font-size: 13.5px; font-weight: 700; cursor: pointer; }
 .stage > header { top: 28px; }
-.content { width: 440px; max-width: calc(100vw - 128px); }
-.stage[data-layout="center"] .content.state { width: 480px; max-width: calc(100vw - 128px); margin-inline: auto; }
-.ownerReview { width: 600px; }
+.content { width: calc(440px * var(--auth-zoom, 1)); max-width: calc(100vw - 128px); }
+.stage[data-layout="center"] .content.state { width: calc(480px * var(--auth-zoom, 1)); max-width: calc(100vw - 128px); margin-inline: auto; }
+.ownerReview { width: calc(600px * var(--auth-zoom, 1)); }
 .ownerReview .heading { font-size: 52px; }
 .ownerReview .facts > div { grid-template-columns: 136px 1fr; }
 .ownerReview .facts [data-fact="address"] dd { font-variant-numeric: tabular-nums; }
@@ -23,9 +23,9 @@
 .verificationCode > div { align-items: flex-start; }
 .verificationCode > div > div > span { width: 58px; height: 68px; }
 .verificationCode > div > div > span:nth-of-type(4) { margin-left: 14px; }
-.reset { width: 480px; align-self: stretch; justify-content: flex-start; padding-top: 88px; }
-.device, .deviceSignIn, .deviceReview { width: 460px; align-self: stretch; justify-content: flex-start; padding-top: 88px; }
-.deviceReview { width: 480px; }
+.reset { width: calc(480px * var(--auth-zoom, 1)); align-self: stretch; justify-content: flex-start; padding-top: 88px; }
+.device, .deviceSignIn, .deviceReview { width: calc(460px * var(--auth-zoom, 1)); align-self: stretch; justify-content: flex-start; padding-top: 88px; }
+.deviceReview { width: calc(480px * var(--auth-zoom, 1)); }
 .device .lead, .deviceReview .lead { margin-bottom: 12px; }
 .deviceSignIn .lead { margin-bottom: 18px; }
 .device .accountLine b, .deviceReview .accountLine b { color: var(--color-text-secondary); font-weight: 700; }
@@ -46,8 +46,8 @@
 .deviceAnother { margin-top: 22px; font-size: 15px; line-height: normal; font-weight: 700; }
 .deviceAnother button { border: 0; padding: 0; background: none; font: inherit; color: var(--color-text-secondary); cursor: pointer; }
 .devicePhone { display: none; }
-.signup { width: 480px; align-self: stretch; justify-content: flex-start; padding-top: 80px; padding-bottom: 80px; }
-.providerOnboarding { width: 480px; align-self: stretch; justify-content: flex-start; padding-top: 88px; padding-bottom: 80px; }
+.signup { width: calc(480px * var(--auth-zoom, 1)); align-self: stretch; justify-content: flex-start; padding-top: 80px; padding-bottom: 80px; }
+.providerOnboarding { width: calc(480px * var(--auth-zoom, 1)); align-self: stretch; justify-content: flex-start; padding-top: 88px; padding-bottom: 80px; }
 .providerOnboarding .lead { margin-bottom: 24px; }
 .providerContext b { letter-spacing: 0; }
 .providerContext > span { display: contents; }
@@ -115,7 +115,7 @@
 .strength[data-level="0"], .strength[data-level="1"] { color: var(--color-danger); }
 .strength[data-level="2"] { color: var(--color-amber); }
 .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(237,245,250,.16); border-top-color: var(--color-accent-strong); flex: none; animation: services-spin 1s linear infinite; }
-.state { align-items: center; text-align: center; width: 520px; }
+.state { align-items: center; text-align: center; width: calc(520px * var(--auth-zoom, 1)); }
 .state .heading { font-size: 52px; line-height: 1; letter-spacing: -.04em; text-shadow: none; }
 .stateIcon { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; margin: 0 0 26px; color: var(--color-healthy); background: rgba(134,207,179,.12); box-shadow: 0 0 0 8px rgba(134,207,179,.05); }
 .stateIcon[data-tone="warning"] { color: var(--color-amber); background: rgba(232,188,106,.12); box-shadow: 0 0 0 8px rgba(232,188,106,.05); }
