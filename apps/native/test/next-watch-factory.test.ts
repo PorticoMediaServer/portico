@@ -1,6 +1,7 @@
 import {episodeLabel} from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import test from 'node:test';
+import * as tvScroll from '../src-next/kit/layout/tv-scroll.ts';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
 import {HttpLocalApi} from '../../../packages/client-core/src/index.ts';
@@ -45,7 +46,7 @@ const seasons = await screenModule(new URL('../src-next/screens/watch/SeasonsShe
 const episodes = await screenModule(new URL('../src-next/screens/watch/EpisodePanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, ...episodeAtoms,
   '../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText}, './SeasonsSheet': seasons,
-  '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}});
+  '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, '../../kit/layout/tv-scroll': tvScroll, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}});
 const {createNativeWatchScreens} = await screenModule(new URL('../src-next/screens/watch/factory.tsx', import.meta.url), {'../share/share-actions': {shareLinkActions: () => []}, 
   react, '../../../../../packages/client-core/src/cleanup': cleanup, '../../../../../packages/client-core/src/playback-v1/options': {PlaybackOptionsClient},
   '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http},

@@ -4,6 +4,7 @@ import Animated, {runOnJS, useAnimatedScrollHandler, useSharedValue} from 'react
 import type {WindowedCollection} from '../../../../../packages/client-core/src/collections/windowed';
 import {useTheme} from '../theme';
 import {useFocusAnchor} from './FocusAnchor';
+import {tvScrollEnabled} from './tv-scroll';
 import {captionItemHeight} from './model';
 import {itemSelection, type LayoutItemContext, type LayoutSelection} from './types';
 
@@ -76,7 +77,9 @@ function Row<T>({collection, getKey, renderItem, renderPlaceholder, itemWidth, i
   const indices: number[] = [];
   for (let index = first; index <= last; index++) indices.push(index);
   if (focused !== undefined && focused < total && !indices.includes(focused)) indices.push(focused);
-  return <Animated.ScrollView ref={anchor.scrollRef} horizontal testID={testID} style={[style, ringRoom ? {marginVertical: -ringRoom} : undefined, anchor.scrollStyle]} showsHorizontalScrollIndicator={false}
+  // W-17: a TV window that is all placeholders (before the first page answers) has no focus stop, so the scroller must not be one.
+  const hasFocusable = indices.some(index => collection.slotAt(index).kind === 'item');
+  return <Animated.ScrollView ref={anchor.scrollRef} horizontal scrollEnabled={tvScrollEnabled(theme.isTV, hasFocusable)} testID={testID} style={[style, ringRoom ? {marginVertical: -ringRoom} : undefined, anchor.scrollStyle]} showsHorizontalScrollIndicator={false}
     onLayout={event => setWidth(event.nativeEvent.layout.width)} onScroll={onScroll} scrollEventThrottle={16}
     onScrollBeginDrag={anchor.stop} onTouchStart={anchor.stop} scrollAnimationEnabled={false} removeClippedSubviews={false}>
     <View style={{width: extent, height: itemHeight + 2 * ringRoom}}>

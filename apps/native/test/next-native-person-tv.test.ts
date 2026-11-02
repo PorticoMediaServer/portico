@@ -58,6 +58,9 @@ test('TV person draws the ten-foot composition from the real person page', async
     const shelf = nodes.find(node => node.type === 'TVShelf');
     assert.ok(shelf, 'the credits are drawn by the shared TV shelf');
     assert.deepEqual(shelf.props.items, [0, 1], 'every real credit keeps its own shelf slot');
+    // W-17: a not-yet-loaded credit is a plain placeholder, so a shelf of only those is not a focus stop.
+    assert.equal(shelf.props.isFocusable(0), true, 'a loaded credit is focusable');
+    assert.equal(shelf.props.isFocusable(7), false, 'an unloaded slot is only a placeholder');
     const card = shelf.props.renderItem(0, {index: 0, id: '0', onFocus: () => {}, onBlur: () => {}});
     assert.equal(card.props.testID, 'person-credit-0');
     assert.equal(card.props.hasTVPreferredFocus, true, 'the first real credit is the page focus target');
