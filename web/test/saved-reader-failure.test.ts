@@ -65,7 +65,7 @@ async function mount(initial: {posters: any; squares: any}) {
     '../../kit/cards': {PlaylistMosaic: 'PlaylistMosaic', PosterCard: 'PosterCard', SquareCard: 'SquareCard', NewPlaylistCard: 'NewPlaylistCard'},
     '../../kit/artwork': {AmbientArt: 'AmbientArt', CoverMosaic: 'CoverMosaic'},
     '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/layout': {WindowedGrid: 'WindowedGrid'},
+    '../../kit/layout': {WindowedGrid: 'WindowedGrid', shellBottomClearance: () => 0},
     '../../kit/states': {Skeleton: 'Skeleton', StateView: 'StateView'},
     '../../platform/freshness': {useQuietRefresh: () => {}},
     '../../shell/viewport': {useShellWidth: () => 1440},
