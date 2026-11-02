@@ -8,6 +8,34 @@
    against each user's own containing block, the full-width stage or setup host. */
 :global(:root) { --auth-left: calc(max(0px, (100% - 1440px) / 2) + clamp(64px, calc(64px + (100% - 1280px) * .1), 112px)); }
 .stage[data-layout="state"] { --state-left: var(--auth-left); }
+/* auth.html 2w: the column's content grows with the window, one shared factor: 1 up to 1280 px,
+   rising in even 32 px steps to 1.25 from 1920 px (1.0625 at 1440). Zoom scales the content's own
+   type, spacing, controls and hit targets crisply; each column width above multiplies by it, so the
+   column widens with its content. The wordmark and Terms/Privacy stay as they are, on the same edge.
+   Phone and tablet widths never reach a step. */
+:global(:root) { --auth-zoom: 1; }
+@media (min-width: 1312px) { :global(:root) { --auth-zoom: 1.0125; } }
+@media (min-width: 1344px) { :global(:root) { --auth-zoom: 1.025; } }
+@media (min-width: 1376px) { :global(:root) { --auth-zoom: 1.0375; } }
+@media (min-width: 1408px) { :global(:root) { --auth-zoom: 1.05; } }
+@media (min-width: 1440px) { :global(:root) { --auth-zoom: 1.0625; } }
+@media (min-width: 1472px) { :global(:root) { --auth-zoom: 1.075; } }
+@media (min-width: 1504px) { :global(:root) { --auth-zoom: 1.0875; } }
+@media (min-width: 1536px) { :global(:root) { --auth-zoom: 1.1; } }
+@media (min-width: 1568px) { :global(:root) { --auth-zoom: 1.1125; } }
+@media (min-width: 1600px) { :global(:root) { --auth-zoom: 1.125; } }
+@media (min-width: 1632px) { :global(:root) { --auth-zoom: 1.1375; } }
+@media (min-width: 1664px) { :global(:root) { --auth-zoom: 1.15; } }
+@media (min-width: 1696px) { :global(:root) { --auth-zoom: 1.1625; } }
+@media (min-width: 1728px) { :global(:root) { --auth-zoom: 1.175; } }
+@media (min-width: 1760px) { :global(:root) { --auth-zoom: 1.1875; } }
+@media (min-width: 1792px) { :global(:root) { --auth-zoom: 1.2; } }
+@media (min-width: 1824px) { :global(:root) { --auth-zoom: 1.2125; } }
+@media (min-width: 1856px) { :global(:root) { --auth-zoom: 1.225; } }
+@media (min-width: 1888px) { :global(:root) { --auth-zoom: 1.2375; } }
+@media (min-width: 1920px) { :global(:root) { --auth-zoom: 1.25; } }
+.stage:not([data-bare]):not([data-layout="state"]) [data-auth-content] > * { zoom: var(--auth-zoom); }
+.stage[data-layout="state"] { --state-zoom: var(--auth-zoom); }
 .stage { position: relative; isolation: isolate; min-height: 100svh; overflow: hidden; background: var(--color-ink); font-size: 16px; }
 .stage, .stage button, .stage input { font-family: var(--font); }
 .phoneFace, .phonePINHeading, .phonePINLabel, .phoneProfileBack { display: none; }
@@ -17,7 +45,7 @@
 .topRight { position: absolute; z-index: 1; right: var(--auth-left); top: 20px; display: flex; align-items: center; gap: 14px; font-size: 14px; color: var(--color-text-tertiary); }
 .topRight button { height: 44px; }
 .topRight button[data-variant="glass"] { box-shadow: inset 0 0 0 1px rgba(237,245,250,.1), 0 40px 80px -28px rgba(0,0,0,.9); }
-.content { position: relative; min-height: 100svh; width: 440px; margin-left: var(--auth-left); display: flex; flex-direction: column; justify-content: center; padding: 100px 0; }
+.content { position: relative; min-height: 100svh; width: calc(440px * var(--auth-zoom, 1)); margin-left: var(--auth-left); display: flex; flex-direction: column; justify-content: center; padding: 100px 0; }
 .content :where(h1) { font-size: 64px; line-height: .98; font-weight: 800; letter-spacing: -.045em; margin: 0 0 14px; text-wrap: balance; text-shadow: 0 2px 30px rgba(7,16,24,.5); }
 .content :where(h2) { font-size: 44px; line-height: normal; font-weight: 800; letter-spacing: -.04em; margin: 26px 0 8px; }
 .eyebrow { margin: 0 0 10px; font-size: 15px; line-height: normal; font-weight: 600; color: var(--color-accent-strong); }
@@ -110,7 +138,7 @@
 .recovery > label { color: var(--color-text-secondary); font-size: 13px; font-weight: 700; }
 .recovery .recoveryQuiet { font-size: 13px; color: var(--color-text-tertiary); text-align: center; }
 /* Auth 12: actual invitation facts, with no guessed library-kind artwork. */
-.invitationContent { width: 480px; }
+.invitationContent { width: calc(480px * var(--auth-zoom, 1)); }
 .phoneInvitationBody, .phoneInvitationLibraries { display: none; }
 .invitedBy { display: flex; align-items: center; gap: 12px; margin: -10px 0 26px; font-size: 15px; font-weight: 600; color: var(--color-text-tertiary); }
 .invitedBy b { color: var(--color-text-secondary); }
@@ -157,7 +185,7 @@
 .invitationAccount small { display: block; font-size: 12.5px; color: var(--color-text-tertiary); margin-top: 1px; font-weight: 600; }
 .invitationAccount button { margin-left: auto; padding: 0; border: 0; background: none; color: var(--color-accent-strong); font-size: 13.5px; font-weight: 700; cursor: pointer; }
 .invitationQuiet { margin: 14px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--color-text-tertiary); }
-.invitationFailureContent { align-items: center; text-align: center; width: 460px; }
+.invitationFailureContent { align-items: center; text-align: center; width: calc(460px * var(--auth-zoom, 1)); }
 .invitationFailureContent h2 { font-size: 25px; line-height: 1.12; font-weight: 800; letter-spacing: -.03em; margin: 0 0 10px; text-wrap: balance; }
 .invitationFailureContent > p { font-size: 15px; line-height: 1.5; color: var(--color-text-secondary); margin: 0 0 24px; text-wrap: pretty; }
 .invitationFailureContent > button { width: 100%; margin-bottom: 10px; }

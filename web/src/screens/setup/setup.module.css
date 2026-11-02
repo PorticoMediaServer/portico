@@ -2,10 +2,10 @@
    the colour backdrop, wordmark and legal line; these are the setup column and
    its right-hand steps. */
 .host { position: relative; }
-.content { width: 560px; padding-top: 104px; justify-content: flex-start; }
-.approvalContent { width: 560px; }
+.content { width: calc(560px * var(--auth-zoom, 1)); padding-top: 104px; justify-content: flex-start; }
+.approvalContent { width: calc(560px * var(--auth-zoom, 1)); }
 .approvalContent h1 { font-size: calc(var(--type-lockup-size) * 26 / 23); line-height: calc(var(--type-lockup-size) * 26 / 23 * .98); }
-.contentLibrary { width: 720px; padding-top: 112px; justify-content: flex-start; }
+.contentLibrary { width: calc(720px * var(--auth-zoom, 1)); padding-top: 112px; justify-content: flex-start; }
 .loadingContent.loadingContent { width: 100%; max-width: none; padding: 100px 20px; }
 .one { white-space: nowrap; }
 .lede { font-size: var(--type-subheading-size); line-height: calc(var(--type-subheading-size) * 1.5); color: var(--color-text-secondary); margin: 0 0 28px; }
