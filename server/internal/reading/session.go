@@ -32,6 +32,7 @@ type Session struct {
 	mu           sync.Mutex
 	closed       bool
 	active       int
+	lastUsed     time.Time
 }
 
 func (s *Session) close() {
@@ -63,10 +64,17 @@ func (s *Session) touch() bool {
 	if s.closed || s.life.Err() != nil {
 		return false
 	}
+	s.lastUsed = time.Now()
 	if s.active == 0 {
 		s.timer.Reset(sessionIdle)
 	}
 	return true
+}
+
+func (s *Session) lastUsedAt() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastUsed
 }
 
 func (s *Session) claim() (func(), bool) {
@@ -76,6 +84,7 @@ func (s *Session) claim() (func(), bool) {
 		return nil, false
 	}
 	s.active++
+	s.lastUsed = time.Now()
 	s.timer.Stop()
 	var once sync.Once
 	return func() {
@@ -83,6 +92,9 @@ func (s *Session) claim() (func(), bool) {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			s.active--
+			if !s.closed {
+				s.lastUsed = time.Now()
+			}
 			if !s.closed && s.active == 0 {
 				s.timer.Reset(sessionIdle)
 			}
@@ -161,8 +173,31 @@ func (s *Service) captureSessionState(p identity.Principal, f *Source) (*Session
 			count++
 		}
 	}
-	if len(s.sessions) >= 128 || count >= 8 {
-		return nil, ErrLimit
+	// A profile never loses its new book to an old one: evict its least recently
+	// used live session through the normal close path, releasing its caches and
+	// remote retention exactly as an explicit close would. The eviction also
+	// returns that slot to the server-wide ceiling checked after it.
+	for count >= 8 {
+		var oldest *Session
+		var oldestAt time.Time
+		for _, old := range s.sessions {
+			if old.owner != owner {
+				continue
+			}
+			at := old.lastUsedAt()
+			if oldest == nil || at.Before(oldestAt) || (at.Equal(oldestAt) && old.ID < oldest.ID) {
+				oldest, oldestAt = old, at
+			}
+		}
+		if oldest == nil {
+			break
+		}
+		oldest.close()
+		delete(s.sessions, oldest.ID)
+		count--
+	}
+	if len(s.sessions) >= 128 {
+		return nil, ErrSessionsBusy
 	}
 	// This is the actual authenticated token/horizon deadline, independent of
 	// idle expiry or provider throttling. It cannot extend captured authority.
@@ -182,6 +217,7 @@ func (s *Service) captureSessionState(p identity.Principal, f *Source) (*Session
 		f.derivedRetained = true
 	}
 	out.timer = time.AfterFunc(sessionIdle, out.close)
+	out.lastUsed = time.Now()
 	out.mu.Unlock()
 	f.remoteRetained = true
 	context.AfterFunc(out.life, out.close)

@@ -17,6 +17,9 @@ var (
 	ErrLimit       = errors.New("publication safety limit exceeded")
 	ErrChanged     = errors.New("publication source changed")
 	ErrUnavailable = errors.New("reading source unavailable")
+	// ErrSessionsBusy is the server-wide retained-session ceiling. It is
+	// distinct from ErrLimit, which is a publication safety limit.
+	ErrSessionsBusy = errors.New("reading sessions at capacity")
 )
 
 const (

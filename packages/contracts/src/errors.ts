@@ -739,6 +739,12 @@ export const errors = [
     "retry": "same_request"
   },
   {
+    "code": "reading_sessions_busy",
+    "status": 503,
+    "message": "Too many reading sessions are open. Try again in a moment.",
+    "retry": "same_request"
+  },
+  {
     "code": "receipt_expired",
     "status": 410,
     "message": "This change needs review because its receipt is no longer available.",
