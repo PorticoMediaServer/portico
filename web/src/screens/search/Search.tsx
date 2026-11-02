@@ -28,6 +28,7 @@ import {appendedWindow} from './window';
 import styles from './search.module.css';
 import {TopResult} from './TopResult';
 import {artistAlbumArt} from './artist-art';
+import {newlyRecorded} from './recorded';
 import {runScreenCommand} from '../detail/context';
 import {useLoadingClock} from '../detail/Loading';
 import {ScreenProblem} from '../detail/ScreenProblem';
@@ -70,6 +71,8 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
   const preferences = useSyncExternalStore(context.preferences.subscribe, context.preferences.getSnapshot, context.preferences.getSnapshot);
   const [text, setText] = useState(linkedQuery ?? initial.text), [chip, setChip] = useState<ChipId>(initial.group ?? 'all');
   const [historyView, setHistoryView] = useState<HistoryView>(), [clearFailed, setClearFailed] = useState(false);
+  // SR-8: a search the server recorded on this visit reads Recent searches again.
+  const [recordedReads, setRecordedReads] = useState(0), lastRecorded = useRef<number | undefined>(undefined);
   // The history row the viewer is looking at belongs to this exact mount (or replay) and
   // to the page it was rendered from; the rendered callbacks close over that state, and a
   // retained one cannot write into a successor.
@@ -94,6 +97,11 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
     return () => clearTimeout(timer);
   }, [binding, service, text, group, problem, context.effects.reportError, snapshot.query?.q, snapshot.query?.group]);
   useEffect(() => { input.current?.focus(); }, [binding]);
+  useEffect(() => {
+    const recorded = newlyRecorded(lastRecorded.current, snapshot);
+    if (recorded === undefined) return;
+    lastRecorded.current = recorded; setRecordedReads(value => value + 1);
+  }, [snapshot]);
   useLayoutEffect(() => {
     const lease: HistoryLease = {retired: false, pending: false};
     activeLease.current = lease;
@@ -123,7 +131,7 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
       active = false;
       controller.abort();
     };
-  }, [binding, context, remember, historyView?.lease]);
+  }, [binding, context, remember, historyView?.lease, recordedReads]);
   useEffect(() => {
     if (text.trim() || context.identity?.liveAvailable !== true) return;
     if (binding.onNow.getSnapshot().phase === 'idle') void binding.onNow.load().catch(() => {});
