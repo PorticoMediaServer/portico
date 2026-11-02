@@ -206,9 +206,21 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   const selectedTab = snapshot.place.tab;
   const tabItems = [...(show ? [{value: 'episodes', label: t('title.episodes')}] : []), {value: 'related', label: t('next.controls.moreLikeThis')}, {value: 'details', label: t('title.details')}];
   const focusedSection = tvSection?.tab ?? tvTab;
-  const tabs = <Tabs testID="watch-title-tabs" passive={theme.isTV} value={theme.isTV ? focusedSection : selectedTab}
-    onValueChange={theme.isTV ? undefined : value => controller.tab(value as NativeTitleTab)} items={tabItems}
-    contentContainerStyle={{paddingHorizontal: theme.isTV ? 0 : 20, justifyContent: centered ? 'center' : undefined}}/>;
+  // W-17 (tv-detail: "the strip is only a shortcut: press Up to reach it, then Left or Right to jump"):
+  // on TV the strip under the hero has real, visible tab stops while it is on screen; OK on a tab
+  // enters that section's first row. The compact header's copy (shown once browsing hides the
+  // hero) stays a section marker, so focus can never sit in a strip that is not drawn.
+  const enterSection = (tab: NativeTitleTab) => {
+    const region = tab === 'episodes' ? regions.episodes?.id : tab === 'related' ? [...regions.related.values()][0]?.id : regions.people?.id;
+    if (region) registry?.focusRegion(region);
+  };
+  const tvTabs = (marker: boolean) => <Tabs testID="watch-title-tabs" passive={marker} value={focusedSection} items={tabItems}
+    itemProps={() => ({focusKind: 'row' as const})} onValueChange={marker ? undefined : value => enterSection(value as NativeTitleTab)}
+    contentContainerStyle={{paddingHorizontal: 0, justifyContent: centered ? 'center' : undefined}}/>;
+  const tabs = theme.isTV ? tvTabs(tvBrowsing) : <Tabs testID="watch-title-tabs" value={selectedTab}
+    onValueChange={value => controller.tab(value as NativeTitleTab)} items={tabItems}
+    contentContainerStyle={{paddingHorizontal: 20, justifyContent: centered ? 'center' : undefined}}/>;
+  const compactTabs = theme.isTV ? tvTabs(true) : tabs;
   const originalArt = (): NativeStartArtworkOffer | undefined => {
     const node = titleArt.current, decoded = readyArt.current;
     if (theme.isTV || props.watch || !artMounted.current || !node || !foreground || decoded?.cacheKey !== foreground.cacheKey || decoded.uri !== foreground.uri) return undefined;
@@ -640,7 +652,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
         style={{backgroundColor: theme.isTV ? 'transparent' : theme.colors.ink, opacity: theme.isTV && tvBrowsing ? 0 : 1, paddingLeft: theme.isTV ? 200 : 0, paddingRight: theme.isTV ? 96 : 0}}>{tabs}</View>
       {bodyNode}
     </ScrollView>}{pinnedBar ?? header}
-    {theme.isTV && <TVTitleCompactHeader title={title} browsing={tvBrowsing}>{tabs}</TVTitleCompactHeader>}
+    {theme.isTV && <TVTitleCompactHeader title={title} browsing={tvBrowsing}>{compactTabs}</TVTitleCompactHeader>}
     {!theme.isTV && <NativeSeasonsSheet open={!!seasonsSheet} onOpenChange={value => {if (value) openSeasons(); else closeSeasons();}}
       seasons={snapshot.seasons} total={workspace?.seasonTotalCount ?? snapshot.seasons.length} selectedId={workspace?.selected.seasonId ?? null}
       onSelect={id => {const lease = seasonsSheet; closeSeasons(); if (lease) void controller.season(id, lease).catch(props.reportError);}}
