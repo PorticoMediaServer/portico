@@ -32,7 +32,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/presence-results"
           set -o pipefail
-          go test -p=2 -count=1 -timeout=15m -v ./internal/ingestion -run '^(TestSamePath(Presence|Empty|Different).*|TestSourceVerification.*|TestMonitorExcludesRemoteOwnedSourcesAndUsesPresenceAtStartup|TestDirectoryHintDoesNotAuthorizeEmptyRoot|TestHiddenJunkDoesNotAuthorizeEmptyRoot)$' 2>&1 | tee "$RUNNER_TEMP/presence-results/proof.log"
+          go test -p=2 -count=1 -timeout=15m -v ./internal/ingestion -run '^(TestSamePath.*|TestSourceVerification.*|TestMonitorExcludesRemoteOwnedSourcesAndUsesPresenceAtStartup|TestDirectoryHintDoesNotAuthorizeEmptyRoot|TestHiddenJunkDoesNotAuthorizeEmptyRoot)$' 2>&1 | tee "$RUNNER_TEMP/presence-results/proof.log"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
