@@ -21,6 +21,13 @@ def epub(path, i):
         z.writestr('OEBPS/n.xhtml', '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>n</title></head><body><nav epub:type="toc"><ol><li><a href="c.xhtml">One</a></li></ol></nav></body></html>')
         z.writestr('OEBPS/c.xhtml', '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>c</title></head><body>' + '<p>Words of the story go on here. </p>'*400 + '</body></html>')
 films('Films', A.films); films('New', A.new, 100000); [epub(M/'Books'/f'Author {i%20}'/f'Book {i}.epub', i) for i in range(A.books)]
+_call = e2e.API.call
+def call401(self, method, path, body=None, expected=(200,), headers=None, raw=False):  # access tokens expire: sign in again once
+    r = _call(self, method, path, body, (*expected, 401), headers, raw)
+    if self.timings[-1]['status'] != 401 or path == '/v1/direct/sign-in': return _call(self, method, path, body, expected, headers, raw) if self.timings[-1]['status'] == 401 else r
+    self.token = _call(self, 'POST', '/v1/direct/sign-in', {'username': 'owner', 'password': X.password})[0]['session']['accessToken']
+    return _call(self, method, path, body, expected, headers, raw)
+e2e.API.call = call401
 X = e2e.Exercise(D, A.binary.resolve()); X.start()
 try: X.setup()
 except KeyError: pass  # e2e-server.py's final 'ready' assert is stale against /v1/setup/state
