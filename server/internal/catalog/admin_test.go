@@ -232,3 +232,61 @@ func TestAdminLibraryCountsFilesThatNeedAttention(t *testing.T) {
 		}
 	}
 }
+
+// Storage is assumed present: only proof that the root is gone or is a
+// different folder marks a library's source unavailable. A probe that could
+// not finish proves nothing and leaves the stored state.
+func TestAdminLibraryAvailabilityNeedsProof(t *testing.T) {
+	db, e := persistence.Open(filepath.Join(t.TempDir(), "db"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer db.Close()
+	s := New(db)
+	root, other := t.TempDir(), t.TempDir()
+	identity := func(path string) string {
+		v, err := storage.LocalInventoryDirectory(storage.InventoryRequest{Root: path, RelativePath: "."})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return storage.RootIdentity(v)
+	}
+	c := catalogtest.New(t, db)
+	c.Library("a", "Library A", "movie", root)
+	set := func(recorded, health string) {
+		t.Helper()
+		if _, err := db.Exec(`UPDATE library_sources SET root_identity=?,health=? WHERE library_id='a'`, recorded, health); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := AdminRequest{ServerID: "server", Profile: "p", ViewerFence: "f", Limit: 1, LibraryID: "a"}
+	check := func(what, want string) {
+		t.Helper()
+		l, err := s.AdminLibrary(context.Background(), r, true)
+		if err != nil || l.Source.Availability != want {
+			t.Fatalf("%s: availability=%q basis=%q (err %v), want %q", what, l.Source.Availability, l.Source.Basis, err, want)
+		}
+	}
+	// A helper that cannot even start: nothing was observed.
+	s.SetStorage(storage.New(filepath.Join(t.TempDir(), "missing-helper")))
+	set(identity(root), "healthy")
+	check("failed probe on a healthy source", "available")
+	set(identity(root), "offline")
+	check("failed probe on a source already known offline", "unavailable")
+
+	binary, e := os.Executable()
+	if e != nil {
+		t.Fatal(e)
+	}
+	s.SetStorage(storage.New(binary))
+	set(identity(root), "offline")
+	check("the recorded folder, present", "available")
+	set(identity(other), "healthy")
+	check("a different folder at the path", "unavailable")
+	set("", "healthy")
+	check("never scanned, present", "available")
+	if err := os.Remove(root); err != nil {
+		t.Fatal(err)
+	}
+	check("root gone", "unavailable")
+}

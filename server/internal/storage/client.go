@@ -13,6 +13,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/mediasource"
 	"github.com/PorticoMediaServer/portico/server/internal/progressio"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -150,6 +151,27 @@ func (c *Client) InspectRoot(ctx context.Context, path string) (Snapshot, error)
 	e := c.run(ctx, path, "root", path, func(v Snapshot) error { value = v; return nil })
 	return value, e
 }
+// Root probe answers. ProbeRoot returns one of these as Snapshot.ErrorCode
+// when the root is provably not there; any error it returns instead says only
+// that the probe did not finish (busy, timed out, the helper failed).
+const (
+	RootNotFound     = "root_not_found"
+	RootNotDirectory = "root_not_directory"
+)
+
+// ProbeRoot observes a library root for an availability answer. Unlike
+// InspectRoot, a root that is provably absent is a result, not an error, so a
+// caller can tell "gone" from "could not look". key keeps the probe from
+// colliding with a scan's own root inspection, which uses the bare path.
+func (c *Client) ProbeRoot(ctx context.Context, key, path string) (Snapshot, error) {
+	if c.IsRemote(path) {
+		return c.Remote.InspectRoot(ctx, path)
+	}
+	var value Snapshot
+	e := c.run(ctx, key, "root-probe", path, func(v Snapshot) error { value = v; return nil })
+	return value, e
+}
+
 func (c *Client) Stat(ctx context.Context, key, path string) (Snapshot, error) {
 	if c.IsRemote(path) {
 		return c.Remote.Stat(ctx, path)
@@ -277,6 +299,12 @@ func Helper(in io.Reader, out io.Writer) (result error) {
 			return errors.New("not a directory")
 		}
 		return encoder.Encode(snapshot(path, info))
+	case "root-probe":
+		v, e := probeRoot(r.Path)
+		if e != nil {
+			return e
+		}
+		return encoder.Encode(v)
 	case "inventory-audio-prefix":
 		return inventoryAudioPrefixHelper(r, out)
 	case "inventory-blob", "inventory-subtitle-blob":
@@ -574,4 +602,43 @@ func subtitleCandidate(name string, directory bool, stem string) bool {
 		return true
 	}
 	return false
+}
+
+// probeRoot is the helper half of ProbeRoot: an absent root, or one that is
+// not a directory, is an answer; anything else is an error.
+func probeRoot(root string) (Snapshot, error) {
+	if err := checkLocalRoot(root); err != nil {
+		if code := rootAbsence(err); code != "" {
+			return Snapshot{Path: root, ErrorCode: code}, nil
+		}
+		return Snapshot{}, err
+	}
+	path, err := filepath.EvalSymlinks(root)
+	if err == nil {
+		path, err = filepath.Abs(path)
+	}
+	var info os.FileInfo
+	if err == nil {
+		info, err = os.Stat(path)
+	}
+	if err != nil {
+		if code := rootAbsence(err); code != "" {
+			return Snapshot{Path: root, ErrorCode: code}, nil
+		}
+		return Snapshot{}, err
+	}
+	if !info.IsDir() {
+		return Snapshot{Path: root, ErrorCode: RootNotDirectory}, nil
+	}
+	return snapshot(path, info), nil
+}
+
+func rootAbsence(err error) string {
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return RootNotFound
+	case errors.Is(err, syscall.ENOTDIR), errors.Is(err, ErrRootLease):
+		return RootNotDirectory
+	}
+	return ""
 }
