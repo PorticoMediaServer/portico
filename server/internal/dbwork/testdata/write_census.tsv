@@ -258,6 +258,7 @@ internal/identity/self_registration.go	(*Service).SaveRegistrationPolicy	WithWri
 internal/identity/service.go	(*Service).IssueWithDevice	Begin	ClassSecurityFence	-
 internal/identity/service.go	(*Service).retireUnreturnedLogin	ExecWrite	ClassSecurityFence	-
 internal/identity/setup_code.go	(*Service).AdmitSetupCode	WithWriteTx	ClassSecurityFence	-
+internal/identity/setup_code.go	(*Service).AdmitSetupToken	WithWriteTx	ClassSecurityFence	-
 internal/identity/setup_code.go	(*Service).RotateSetupCode	WithWriteTx	ClassSecurityFence	-
 internal/identity/sign_in_policy.go	(*Service).ChangeSignInPolicy	WithWriteTx	ClassSecurityFence	-
 internal/identity/source_security.go	(*Service).RecordSourceFailure	WithWriteTx	ClassSecurityFence	-

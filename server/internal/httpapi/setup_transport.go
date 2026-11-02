@@ -23,12 +23,21 @@ import (
 // Native clients may omit Origin. Browser writes require the request's exact
 // origin, including for callers otherwise permitted by cross-origin API CORS.
 func (d Dependencies) setupRequestAllowed(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	return d.setupShapeAllowed(r) && (origin == "" || d.browserSetupAuthorityAllowed(r))
+}
+
+// setupShapeAllowed is the half of setupRequestAllowed that doesn't depend on a setup
+// code's admission: JSON, never a cross-site fetch, and a browser only from the address it
+// is at. The starts check it before a setup code is looked at, so another site open in
+// the owner's browser can't spend that address's guesses or a correct code.
+func (d Dependencies) setupShapeAllowed(r *http.Request) bool {
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/json" || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
 		return false
 	}
 	origin := r.Header.Get("Origin")
-	return origin == "" || (d.sameRequestOrigin(r, origin) && d.browserSetupAuthorityAllowed(r))
+	return origin == "" || d.sameRequestOrigin(r, origin)
 }
 
 // The bootstrap secret must not be readable through an attacker-controlled DNS
@@ -39,8 +48,8 @@ func (d Dependencies) browserSetupAuthorityAllowed(r *http.Request) bool {
 	if err != nil || origin.Host == "" {
 		return false
 	}
-	// A setup code admitted this peer at exactly this origin: a page rebinding another
-	// name to this server is a different origin and isn't admitted.
+	// A setup code admitted this setup token from this peer at exactly this origin: a page
+	// rebinding another name to this server is a different origin and isn't admitted.
 	if d.outsideSetupAdmitted(r) {
 		return true
 	}
@@ -120,7 +129,13 @@ type BrowserSetupResponse struct {
 func (d Dependencies) appSetupRequest(r *http.Request) bool {
 	// The same address check as a browser start: an app reached the server at a local or
 	// configured address, never through a name that rebinds to it.
-	return d.setupRequestAllowed(r) && r.Header.Get("Origin") == "" && r.Header.Get("Sec-Fetch-Mode") == "" && d.browserSetupAuthorityAllowed(r)
+	return d.appSetupShape(r) && d.browserSetupAuthorityAllowed(r)
+}
+
+// appSetupShape is appSetupRequest without the address check a setup code's admission can
+// satisfy: what an app start is checked for before its code is looked at.
+func (d Dependencies) appSetupShape(r *http.Request) bool {
+	return d.setupShapeAllowed(r) && r.Header.Get("Origin") == "" && r.Header.Get("Sec-Fetch-Mode") == ""
 }
 
 // setupSourceAllowed is PLEX-SETUP-NOTES S1: first-run setup is open to this machine and
@@ -164,33 +179,65 @@ func (d Dependencies) setupPeer(r *http.Request) (peer, origin string) {
 	return client.Unmap().String(), networkpolicy.Origin(r, d.trustedProxyPrefixes(r.Context()))
 }
 
-// outsideSetupAdmitted: a setup code admitted this peer at this origin, and it's still live.
+// setupCodeAccepted marks a start admitted from outside, by a setup code just accepted or
+// a setup token a code issued, so its own later checks admit it and the setup token it is
+// issued is bound to its peer and origin.
+type setupCodeAccepted struct{}
+
+// setupBearer is the setup token a setup step presents as its bearer, or "".
+func setupBearer(r *http.Request) string {
+	values := r.Header.Values("Authorization")
+	if len(values) != 1 {
+		return ""
+	}
+	token, ok := strings.CutPrefix(values[0], "Bearer ")
+	if !ok || token == "" || strings.ContainsAny(token, " ,\r\n") {
+		return ""
+	}
+	return token
+}
+
+// outsideSetupAdmitted: this request's setup code was just accepted, or it presents a
+// setup token a setup code issued, from the same peer at the same origin, while that
+// admission is live. The peer and origin alone never admit: behind CGNAT or any shared
+// address, a neighbour has the same peer and reaches the same origin.
 func (d Dependencies) outsideSetupAdmitted(r *http.Request) bool {
 	if d.Identity == nil {
 		return false
 	}
+	if accepted, _ := r.Context().Value(setupCodeAccepted{}).(bool); accepted {
+		return true
+	}
+	token := setupBearer(r)
+	if token == "" {
+		return false
+	}
 	peer, origin := d.setupPeer(r)
-	return d.Identity.SetupPeerAdmitted(r.Context(), peer, origin)
+	return d.Identity.SetupTokenAdmitted(r.Context(), token, peer, origin)
 }
 
 // admitOutsideSetup is the setup code's half of starting setup (Justin, 1 Nov): from
-// home or the local network nothing is asked; from outside, a peer already admitted
-// carries on, and anyone else must give the current code, which is then replaced (the
-// new one goes to the log). Guesses share the per-peer setup bucket.
-func (d Dependencies) admitOutsideSetup(ctx context.Context, r *http.Request, code string) error {
+// home or the local network nothing is asked; from outside, a client presenting the setup
+// token a code admitted carries on, and anyone else must give the current code, which is
+// then replaced (the new one goes to the log). Guesses share the per-peer setup bucket
+// and a per-network budget. It returns the request to carry on with: on a correct code,
+// marked so that its own checks admit it and its setup token is bound (admitSetupToken).
+// Callers check the request's shape and origin first.
+func (d Dependencies) admitOutsideSetup(ctx context.Context, r *http.Request, code string) (*http.Request, error) {
 	proxies := d.trustedProxyPrefixes(r.Context())
 	client, ok := networkpolicy.Client(r, proxies)
 	if ok && (d.localSetupPeer(client.Unmap()) || !d.requestIsRemote(r)) {
-		return nil
+		return r, nil
 	}
 	if d.outsideSetupAdmitted(r) {
-		return nil
+		// The token this start issues (start over issues a new one) carries the admission on.
+		return r.WithContext(context.WithValue(r.Context(), setupCodeAccepted{}, true)), nil
 	}
 	if code == "" {
-		return errSetupCodeRequired
+		return r, errSetupCodeRequired
 	}
-	if err := d.Identity.SetupLimit(ctx, d.setupPeerSubject(r), "setup-code", 10); err != nil {
-		return setupTransportError(err)
+	if err := d.Identity.SetupLimit(ctx, d.setupPeerSubject(r), "setup-code", setupCodeGuesses); err != nil {
+		return r, setupTransportError(err)
 	}
 	// The source budget: a whole /24 (or /48) shares a larger allowance, so many addresses
 	// in one network can't each guess ten times.
@@ -200,20 +247,38 @@ func (d Dependencies) admitOutsideSetup(ctx context.Context, r *http.Request, co
 			bits = 48
 		}
 		network := netip.PrefixFrom(client.Unmap(), bits).Masked().String()
-		if err := d.Identity.SetupLimit(ctx, "network:"+network, "setup-code-network", 30); err != nil {
-			return setupTransportError(err)
+		if err := d.Identity.SetupLimit(ctx, "network:"+network, "setup-code-network", setupCodeNetworkGuesses); err != nil {
+			return r, setupTransportError(err)
 		}
 	}
-	peer, origin := d.setupPeer(r)
-	next, err := d.Identity.AdmitSetupCode(ctx, code, peer, origin)
+	next, err := d.Identity.AdmitSetupCode(ctx, code)
 	switch {
 	case errors.Is(err, identity.ErrUnauthorized):
-		return errSetupCodeInvalid
+		return r, errSetupCodeInvalid
 	case err != nil:
-		return setupTransportError(err)
+		return r, setupTransportError(err)
 	}
 	log.Print("Setup code used.")
 	log.Print(identity.SetupCodeLogLine(next))
+	return r.WithContext(context.WithValue(r.Context(), setupCodeAccepted{}, true)), nil
+}
+
+// Wrong setup codes allowed per peer, and per /24 or /48, in SetupLimit's window.
+const (
+	setupCodeGuesses        = 10
+	setupCodeNetworkGuesses = 30
+)
+
+// admitSetupToken binds the setup token issued to a request whose setup code was just
+// accepted to that request's peer and origin; any other request passes through.
+func (d Dependencies) admitSetupToken(ctx context.Context, r *http.Request, token string) error {
+	if accepted, _ := r.Context().Value(setupCodeAccepted{}).(bool); !accepted {
+		return nil
+	}
+	peer, origin := d.setupPeer(r)
+	if err := d.Identity.AdmitSetupToken(ctx, token, peer, origin); err != nil {
+		return setupTransportError(err)
+	}
 	return nil
 }
 
@@ -247,6 +312,9 @@ func (d Dependencies) setupStart(ctx context.Context, r *http.Request, bucket st
 	if err != nil {
 		return BrowserSetupResponse{}, setupTransportError(err)
 	}
+	if err := d.admitSetupToken(ctx, r, token); err != nil {
+		return BrowserSetupResponse{}, err
+	}
 	return BrowserSetupResponse{d.Identity.ID(), token}, nil
 }
 
@@ -274,6 +342,9 @@ func (d Dependencies) setupStartOver(ctx context.Context, r *http.Request) (Brow
 	if err != nil {
 		return BrowserSetupResponse{}, setupTransportError(err)
 	}
+	if err := d.admitSetupToken(ctx, r, token); err != nil {
+		return BrowserSetupResponse{}, err
+	}
 	return BrowserSetupResponse{d.Identity.ID(), token}, nil
 }
 
@@ -283,10 +354,15 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 		return err
 	}
 	err = apikit.Register(registry, apikit.Route[SetupStartRequest, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "start_browser_setup", Method: "POST", Path: "/v1/setup/browser", Summary: "Start first-run setup from this origin", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_in_progress", "setup_source_not_local", "internal", "setup_code_required", "setup_code_invalid"}}, Handler: func(ctx context.Context, r *http.Request, q SetupStartRequest) (BrowserSetupResponse, error) {
-		if err := d.admitOutsideSetup(ctx, r, q.SetupCode); err != nil {
+		// Shape and origin first, then the code, then the name check that a code's admission can satisfy.
+		if !d.setupShapeAllowed(r) || !d.sameRequestOrigin(r, r.Header.Get("Origin")) {
+			return BrowserSetupResponse{}, foundationAuthError(identity.ErrUnauthorized)
+		}
+		r, err := d.admitOutsideSetup(ctx, r, q.SetupCode)
+		if err != nil {
 			return BrowserSetupResponse{}, err
 		}
-		if !d.setupRequestAllowed(r) || !d.sameRequestOrigin(r, r.Header.Get("Origin")) {
+		if !d.browserSetupAuthorityAllowed(r) {
 			return BrowserSetupResponse{}, foundationAuthError(identity.ErrUnauthorized)
 		}
 		return d.setupStart(ctx, r, "browser-setup")
@@ -299,11 +375,15 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 	}
 	// Finding #2: any unfinished setup can be started over by whoever may start setup.
 	err = apikit.Register(registry, apikit.Route[SetupStartRequest, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "post_setup_start_over", Method: "POST", Path: "/v1/setup/start-over", Summary: "End any unfinished first-run setup and start again from this address", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_source_not_local", "portico_services_unavailable", "internal", "setup_code_required", "setup_code_invalid"}}, Handler: func(ctx context.Context, r *http.Request, q SetupStartRequest) (BrowserSetupResponse, error) {
-		if err := d.admitOutsideSetup(ctx, r, q.SetupCode); err != nil {
+		origin := r.Header.Get("Origin")
+		if !d.setupShapeAllowed(r) || (origin == "" && !d.appSetupShape(r)) {
+			return BrowserSetupResponse{}, foundationAuthError(identity.ErrUnauthorized)
+		}
+		r, err := d.admitOutsideSetup(ctx, r, q.SetupCode)
+		if err != nil {
 			return BrowserSetupResponse{}, err
 		}
-		origin := r.Header.Get("Origin")
-		if !d.setupRequestAllowed(r) || (origin == "" && !d.appSetupRequest(r)) || (origin != "" && !d.sameRequestOrigin(r, origin)) {
+		if !d.browserSetupAuthorityAllowed(r) {
 			return BrowserSetupResponse{}, foundationAuthError(identity.ErrUnauthorized)
 		}
 		return d.setupStartOver(ctx, r)
@@ -325,10 +405,14 @@ func registerSetupTransport(registry *apikit.Registry, d Dependencies) error {
 	}
 	// First run from the Portico app on a phone or tablet that found a server nobody has set up.
 	return apikit.Register(registry, apikit.Route[SetupStartRequest, BrowserSetupResponse]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "start_app_setup", Method: "POST", Path: "/v1/setup/app", Summary: "Start first-run setup from an app", Access: apikit.Public, Requires: apikit.ScopeSession, Lane: apikit.Security, Cost: apikit.Constant, Status: 200, BodyLimit: 4096, Errors: []string{"unauthorized", "invalid_request", "rate_limited", "setup_already_complete", "setup_in_progress", "setup_source_not_local", "internal", "setup_code_required", "setup_code_invalid"}}, Handler: func(ctx context.Context, r *http.Request, q SetupStartRequest) (BrowserSetupResponse, error) {
-		if err := d.admitOutsideSetup(ctx, r, q.SetupCode); err != nil {
+		if !d.appSetupShape(r) {
+			return BrowserSetupResponse{}, foundationAuthError(identity.ErrUnauthorized)
+		}
+		r, err := d.admitOutsideSetup(ctx, r, q.SetupCode)
+		if err != nil {
 			return BrowserSetupResponse{}, err
 		}
-		if !d.appSetupRequest(r) {
+		if !d.browserSetupAuthorityAllowed(r) {
 			return BrowserSetupResponse{}, foundationAuthError(identity.ErrUnauthorized)
 		}
 		return d.setupStart(ctx, r, "app-setup")

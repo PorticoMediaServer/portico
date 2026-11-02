@@ -1315,7 +1315,7 @@ table identity_security_minutes
 table identity_service_outbox
 table identity_setup_code
 table identity_setup_completions
-table identity_setup_outside_peers
+table identity_setup_outside_admissions
 table identity_sign_in_policy
 table identity_source_attempts
 table identity_state

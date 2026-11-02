@@ -9371,7 +9371,7 @@ CREATE TABLE identity_owner_completions(
 -- code, as a keyed hash only, and the outside peers (keyed hashes, never addresses) a
 -- correct code admitted for setup, each for 30 minutes and only while unconfigured.
 CREATE TABLE identity_setup_code(singleton INTEGER PRIMARY KEY CHECK(singleton=1),code_hash TEXT NOT NULL CHECK(length(code_hash)=43),created_ms INTEGER NOT NULL) STRICT;
-CREATE TABLE identity_setup_outside_peers(peer_hash TEXT PRIMARY KEY CHECK(length(peer_hash)=43),origin_hash TEXT NOT NULL CHECK(length(origin_hash)=43),expires_ms INTEGER NOT NULL) STRICT;
+CREATE TABLE identity_setup_outside_admissions(token_hash TEXT PRIMARY KEY CHECK(length(token_hash)=43),peer_hash TEXT NOT NULL CHECK(length(peer_hash)=43),origin_hash TEXT NOT NULL CHECK(length(origin_hash)=43),expires_ms INTEGER NOT NULL) STRICT;
 CREATE TABLE identity_setup_completions(
  operation_id TEXT PRIMARY KEY REFERENCES networking_claim_intents(operation_id),
  setup_request_id TEXT NOT NULL, setup_revision INTEGER NOT NULL CHECK(setup_revision>0),setup_proof TEXT NOT NULL,
