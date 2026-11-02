@@ -4,7 +4,7 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core/src/search';
 import {cardText} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {orderedSearchGroups, SEARCH_CHIPS, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
+import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Artwork, StandardBackdrop, missingArt} from '../../kit/artwork';
 import {Chip, Focusable} from '../../kit/controls';
@@ -101,6 +101,9 @@ export function TVSearchScreen({focusScope, destination, runtime, activation, ex
   const typed = !!state.text.trim(), groups = orderedSearchGroups(state.groups);
   const genreTiles = nativeSearchGenreTiles(landing.genres, 'tv');
   const empty = typed && state.search.phase === 'ready' && groups.every(group => group.status === 'success' && group.totalCount === 0);
+  // SR-7 (DECISIONS.md:160): nothing in one selected type keeps the chips, whose All is the way
+  // back; only a query that matched nothing anywhere draws the no-match landing.
+  const emptyAll = empty && state.group === 'all', emptyIn = empty && state.group !== 'all' ? state.group : undefined;
   // Top result is chosen from the actual preview read, never from a later continuation.
   const preview = state.search.data?.groups ?? groups;
   const top = state.group === 'all' ? topSearchResult(state.text, orderedSearchGroups(preview)) : undefined;
@@ -110,7 +113,7 @@ export function TVSearchScreen({focusScope, destination, runtime, activation, ex
   // drops the types this answer proved empty (tv.html#f5 counts the rest).
   const chips = SEARCH_CHIPS.filter(chip => chip.id === 'all' || (state.search.data?.capabilities ?? state.capabilities)?.groups.some(group => group.id === chip.id && group.available))
     .filter(chip => chip.id === 'all' || state.group !== 'all' || !groups.some(group => group.id === chip.id && group.status === 'success' && group.totalCount === 0));
-  const chipsDrawn = typed && !empty && !problem && !!(state.search.data?.capabilities ?? state.capabilities);
+  const chipsDrawn = typed && !emptyAll && !problem && !!(state.search.data?.capabilities ?? state.capabilities);
   // Each result section is its own region, so the surrounding region never names a result
   // entry: it delegates to the first drawn section and that section's own remembered row.
   const keyboard = keyboardRow ?? ids.searchKeyboardRow(0);
@@ -130,7 +133,7 @@ export function TVSearchScreen({focusScope, destination, runtime, activation, ex
     </View>
     <View style={{position: 'absolute', left: theme.gutter, top: 176}}><NativeTVKeyboard id={ids.searchKeyboard} value={state.text} onRowFocus={setKeyboardRow}
       onChangeText={value => destination.setText(value)} activation={active} leftRegionId={ids.rail} rightRegionId={ids.searchResults}/></View>
-    {!empty && <FocusRegion id={`${ids.searchKeyboard}.voice`} entry="voice" enabled={active.visible && !!voice.begin} edges={{left: ids.rail, right: ids.searchResults, up: keyboard}} style={{position: 'absolute', left: theme.gutter, top: 792, width: 500, flexDirection: 'row', alignItems: 'flex-start', gap: 18}}>
+    {!emptyAll && <FocusRegion id={`${ids.searchKeyboard}.voice`} entry="voice" enabled={active.visible && !!voice.begin} edges={{left: ids.rail, right: ids.searchResults, up: keyboard}} style={{position: 'absolute', left: theme.gutter, top: 792, width: 500, flexDirection: 'row', alignItems: 'flex-start', gap: 18}}>
       <Focusable focusId="voice" disabled={!voice.begin || voice.busy || !active.visible} focusableWhenDisabled={voice.busy} accessibilityRole="button" accessibilityLabel={t(copy.preferToTalk)}
         onPress={() => {
           const finish = retainRecognizerReturn(registry, keyboardKey ? {regionId: keyboard, childId: keyboardKey} : undefined);
@@ -140,7 +143,7 @@ export function TVSearchScreen({focusScope, destination, runtime, activation, ex
       <Text style={[browseType(theme, 20, 400, 0, 29), {color: theme.colors.textTertiary, flex: 1}]}><Text style={[browseType(theme, 20, 700), {color: theme.colors.textSecondary}]}>{t(copy.preferToTalk)}</Text>{' '}{t(copy.voiceHint)}</Text>
       </Focusable>
     </FocusRegion>}
-    <FocusRegion id={ids.searchResults} entryRegion={typed && !empty && !problem && top ? ids.searchTop : sections[0] ? ids.searchSection(sections[0].id) : genreTiles.length ? ids.searchLanding : state.recent.length ? ids.searchRecent : chipsDrawn ? ids.searchChips : undefined}
+    <FocusRegion id={ids.searchResults} entryRegion={typed && !empty && !problem && top ? ids.searchTop : sections[0] ? ids.searchSection(sections[0].id) : emptyIn && chipsDrawn ? ids.searchChips : genreTiles.length ? ids.searchLanding : state.recent.length ? ids.searchRecent : chipsDrawn ? ids.searchChips : undefined}
       enabled={active.visible} edges={{left: keyboardRow ?? ids.searchKeyboardRow(0)}} style={tvSearchR46.results}>
       <ScrollView ref={scroll} onContentSizeChange={(_width, height) => setContentHeight(height)} onLayout={event => {const {height} = event.nativeEvent.layout; setViewport(current => ({...current, height}));}} contentContainerStyle={{paddingLeft: tvSearchFocusRoom, paddingTop: tvSearchFocusRoom, paddingBottom: 72}} scrollEventThrottle={100} onScroll={event => {
         setViewport({y: event.nativeEvent.contentOffset.y, height: event.nativeEvent.layoutMeasurement.height});
@@ -158,10 +161,11 @@ export function TVSearchScreen({focusScope, destination, runtime, activation, ex
         })}</FocusRegion>}
         {state.search.error && <StateView testID="tv-search-read-error" {...runtime.error(state.search.error, () => run(destination.retry()))}/>}
         {problem && <StateView variant="search" title={problem}/>}
-        {empty && <View><Text accessibilityRole="header" style={[browseType(theme, 52, 800, -.04, 54.6), {color: theme.colors.text, marginBottom: 14}]}>{t('next.states.noMatches', {query: state.text.trim()})}</Text>
+        {emptyAll && <View><Text accessibilityRole="header" style={[browseType(theme, 52, 800, -.04, 54.6), {color: theme.colors.text, marginBottom: 14}]}>{t('next.states.noMatches', {query: state.text.trim()})}</Text>
           <Text style={[browseType(theme, 26, 400), {color: theme.colors.textSecondary, marginBottom: 54}]}>{t('next.states.noMatchesBody')}</Text></View>}
-        {(!typed || empty) && <>
-          {!!genreTiles.length && <Text accessibilityRole="header" style={[browseType(theme, 32, 700, -.019), {color: theme.colors.text, marginBottom: 22}]}>{t(empty ? landing.emptyHeading : landing.initialHeading)}</Text>}
+        {emptyIn && <Text testID="tv-search-none-in" accessibilityRole="header" style={[browseType(theme, 40, 800, -.03, 46), {color: theme.colors.text, marginBottom: 14}]}>{t('web.search.nothingIn', {group: t(searchGroupLabel(emptyIn))})}</Text>}
+        {(!typed || emptyAll) && <>
+          {!!genreTiles.length && <Text accessibilityRole="header" style={[browseType(theme, 32, 700, -.019), {color: theme.colors.text, marginBottom: 22}]}>{t(emptyAll ? landing.emptyHeading : landing.initialHeading)}</Text>}
           {landing.phase === 'error' && <StateView testID="tv-search-landing-error" {...runtime.error(landing.error, () => run(explore.load()))}/>}
           <FocusRegion id={ids.searchLanding} enabled={active.visible} grid={{columns: 2, count: genreTiles.length}} order={genreTiles.map(genre => `genre:${genre.id}`)}
             edges={{left: keyboard, ...(!typed && state.recent.length ? {down: ids.searchRecent} : {})}} stops={{up: true, right: true, ...(!typed && state.recent.length ? {} : {down: true})}} style={{flexDirection: 'row', flexWrap: 'wrap', gap: 26}}>{genreTiles.map(genre => <TVSearchGenre key={genre.id} genre={genre} width={(resultsWidth - 26) / 2}

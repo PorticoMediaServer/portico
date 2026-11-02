@@ -31,6 +31,17 @@ export function searchChipOffered(id: SearchChip['id'], capabilities: SearchCapa
   return capabilities.groups.some(group => group.id === id && group.available);
 }
 
+/** The groups a client asks for when the All view is shown: the drawn chips' groups and no
+ *  others (notes/search.md item 16), so no client receives a group it cannot name; Collections
+ *  and Authors stay out of the chips and the answer (notes/search.md:211). Reading is asked for
+ *  only once the server has said it is installed, so an older server never gets an unknown group. */
+export function searchRequestGroups(readingOffered: boolean): SearchGroup[] {
+  return SEARCH_CHIPS.flatMap(chip => chip.id === 'all' || chip.id === 'reading' && !readingOffered ? [] : [chip.id]);
+}
+/** Whether this answer says the server has Reading installed for this viewer. */
+export const searchReadingOffered = (capabilities: SearchCapabilities | undefined): boolean =>
+  capabilities?.groups.some(group => group.id === 'reading' && group.available) === true;
+
 const ORDER = new Map<string, number>(SEARCH_CHIPS.map((chip, index) => [chip.id, index]));
 
 /** A group's name, the chip's. */

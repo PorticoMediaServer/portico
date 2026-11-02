@@ -39,6 +39,20 @@ export function createNativeSearchActions(context: NativeShellBootstrapContext, 
     });
     offMenu = borrowed.menuState.subscribe(emit); emit();
   };
+  const openResult = (entry: SearchEntry, group: SearchGroup): boolean => {
+    if (media(entry)) {borrowed?.open(entry); return true;}
+    if (entry.kind === 'person' && group === 'people' && entry.navigation.view === 'person') {
+      context.navigation.open(Object.freeze({kind: 'person', personId: entry.navigation.entityId}), context.authority()); return true;
+    }
+    if (entry.kind === 'channel' && group === 'live-tv' && entry.navigation.view === 'channel') {
+      const {sourceId, channelId, provenance} = entry.navigation;
+      if (sourceId && channelId && provenance === 'live-source') {
+        context.navigation.open(Object.freeze({kind: 'channel', sourceId, channelId}), context.authority()); return true;
+      }
+      common.reportError(Object.assign(new Error('native_search_channel_source_unavailable'), {code: 'unavailable'}), 'search');
+    }
+    return false;
+  };
   const offSource = source.subscribe(reconcile);
   reconcile();
   return Object.freeze({
@@ -49,19 +63,9 @@ export function createNativeSearchActions(context: NativeShellBootstrapContext, 
     canMenu: (entry, group) => media(entry) && contains(entry, group),
     open: (entry, group) => {
       if (!contains(entry, group)) return;
-      if (media(entry)) {borrowed?.open(entry); return;}
-      if (entry.kind === 'person' && group === 'people' && entry.navigation.view === 'person') {
-        context.navigation.open(Object.freeze({kind: 'person', personId: entry.navigation.entityId}), context.authority()); return;
-      }
-      if (entry.kind === 'channel' && group === 'live-tv' && entry.navigation.view === 'channel') {
-        const {sourceId, channelId, provenance} = entry.navigation;
-        if (sourceId && channelId && provenance === 'live-source') {
-          context.navigation.open(Object.freeze({kind: 'channel', sourceId, channelId}), context.authority()); return;
-        }
-        common.reportError(Object.assign(new Error('native_search_channel_source_unavailable'), {code: 'unavailable'}), 'search');
-      }
+      if (openResult(entry, group)) source.recordOpened();
     },
-    play: (entry, group) => {if (media(entry) && contains(entry, group)) borrowed?.play(entry);},
+    play: (entry, group) => {if (media(entry) && contains(entry, group)) {borrowed?.play(entry); source.recordOpened();}},
     menu: (entry: SearchEntry, group: SearchGroup, anchor?: RefObject<View | null>) => {
       if (!media(entry) || !contains(entry, group)) return;
       const captured = source.getSnapshot().search.generation;

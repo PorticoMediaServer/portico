@@ -2,6 +2,7 @@ import {
   SearchService, clearSearchHistory, readSearchHistory, searchQueryProblem,
   type SearchEntry, type SearchGroup, type SearchGroupResult, type SearchHistoryEntry, type SearchSnapshot,
 } from '../../../../../packages/client-core/src/search';
+import {searchReadingOffered, searchRequestGroups} from '../../../../../packages/client-core/src/presentation/search-model';
 import type {ContentScope, LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
 
 export const nativeSearchTailKey = (group: SearchGroup, cursor: string): string => JSON.stringify(['search-tail', group, cursor]);
@@ -114,15 +115,44 @@ export class NativeSearchDestination {
   private async select(record: boolean): Promise<void> {
     if (!this.current() || this.paused || !this.state.text.trim() || this.state.problem) return;
     const revision = ++this.selectionRevision; this.stopGroupReads(); this.publish({paging: {}});
+    // SR-6: the All view asks for the drawn groups only, as web does, so no section arrives
+    // that this app cannot name (Collections and Authors were drawn under "All").
+    const selected = this.state.group, all = selected === 'all', readingOffered = searchReadingOffered(this.state.capabilities);
     try {
       await this.service.select(this.state.text, {
-        ...(this.state.group === 'all' ? {} : {group: this.state.group}),
+        ...(selected === 'all' ? {groups: searchRequestGroups(readingOffered)} : {group: selected}),
         record: record && this.options.rememberHistory(),
       });
+      // An answer that first says Reading is installed adds it by a read-only repeat.
+      if (all && !readingOffered && this.current() && !this.paused && revision === this.selectionRevision
+        && searchReadingOffered(this.service.getSnapshot().data?.capabilities)) {
+        await this.service.select(this.state.text, {groups: searchRequestGroups(true), record: false});
+      }
       if (record && this.current() && !this.paused && revision === this.selectionRevision) await this.refreshHistory();
     } catch (error) {if (this.current() && !this.paused && revision === this.selectionRevision) this.options.reportError(error);}
   }
-  commit = async (): Promise<void> => {this.stopTimer(); await this.select(true);};
+  private committedText?: string;
+  commit = async (): Promise<void> => {this.stopTimer(); this.committedText = this.state.text.trim(); await this.select(true);};
+  private recorder?: SearchService;
+  /** SR-3: opening or playing a result commits the query it came from, once, as web does; on
+   *  TV, which has no Search key, it is the only natural commit. The record is its own one-group
+   *  read, so the drawn answer (and the open or play that is starting from it) is never replaced. */
+  recordOpened = (): void => {
+    const data = this.state.search.data, text = data?.query.q.trim() ?? '';
+    if (!this.current() || this.paused || !text || this.committedText === text || !this.options.rememberHistory()) return;
+    const group = this.state.group !== 'all' ? this.state.group : data?.groups[0]?.id ?? data?.query.groups[0];
+    if (!group) return;
+    this.committedText = text;
+    this.recorder?.dispose();
+    const recorder = new SearchService({api: this.options.api, scope: this.options.scope});
+    this.recorder = recorder;
+    void recorder.select(text, {group, record: true}).then(async () => {
+      if (this.recorder !== recorder) return;
+      const recorded = recorder.getSnapshot().data?.query.recorded === true;
+      recorder.dispose(); this.recorder = undefined;
+      if (recorded && this.current() && !this.paused) await this.refreshHistory();
+    }).catch(error => {if (this.current()) this.options.reportError(error);});
+  };
   useRecent = (query: string): void => {this.setText(query); void this.commit();};
   private groupChanged = (group: SearchGroup): void => {
     const read = this.groupReads.get(group);
@@ -226,6 +256,7 @@ export class NativeSearchDestination {
   dispose = (): void => {
     if (this.disposed) return;
     this.disposed = true; this.selectionRevision++; this.stopTimer(); this.history?.abort(); this.historyRevision++;
+    this.recorder?.dispose(); this.recorder = undefined;
     this.unsubscribe(); this.stopGroupReads(); this.service.cancel(); this.service.dispose(); this.pages.clear(); this.listeners.clear();
     this.state = Object.freeze({...this.state, text: '', search: this.service.getSnapshot(), capabilities: undefined, paging: {}, groups: [], recent: [], clearing: false});
   };
