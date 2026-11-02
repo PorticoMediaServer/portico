@@ -16,6 +16,7 @@ import {Button} from '../../kit/controls';
 import type {ShellPopoverProps} from '../../route-registry';
 import styles from './notifications.module.css';
 import {notificationDestination} from './notification-destination';
+import {startNotificationScan} from '@core/notification-actions.ts';
 import {NotificationScreenAdmission} from './notification-screen-admission';
 
 const t = defaultI18n.t;
@@ -79,6 +80,14 @@ function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured;
     if (!opening?.owns(state) || !state.items.includes(note) || !note.actions.includes(action)) return;
     const target = notificationDestination(action, context.facts.identity.libraries, context.facts.identity.capabilities?.manageServer === true, note);
     if (!target) return;
+    // Commands done in place: the notice stays where it is (Dismiss archives it; Scan again starts the scan and marks it read).
+    if (target.view === 'archive') {apply('archive', note); return;}
+    if (target.view === 'scan') {
+      opening.run(state, () => {
+        void startNotificationScan(context.api, target.libraryId).then(() => service.apply('read', [note.id])).catch(error => {if (context.isCurrent()) captured.binding.home.effects.reportError(error);});
+      });
+      return;
+    }
     opening.leave(state, current => {
       void service.apply('read', [note.id]);
       // Mark-read publishes optimistically; this already-claimed navigation
@@ -89,6 +98,9 @@ function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured;
       else if (target.view === 'dashboard') go(() => router.navigate({to: '/dashboard'}));
       else if (target.view === 'library') go(() => router.navigate({to: '/library/$libraryId', params: {libraryId: target.id}}));
       else if (target.view === 'downloads') go(() => router.navigate({to: '/saved', search: {view: 'downloads'}}));
+      else if (target.view === 'live') go(() => router.navigate({to: '/live', search: target.tab ? {tab: target.tab} : {}}));
+      else if (target.view === 'search') go(() => router.navigate({to: '/search'}));
+      else if (target.view === 'person') go(() => router.navigate({to: '/person/$personId', params: {personId: target.id}}));
       else go(() => router.navigate({to: '/item/$itemId', params: {itemId: target.id}}));
     });
   };

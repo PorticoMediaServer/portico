@@ -16,7 +16,8 @@ import {nativeMenuRouteAvailable} from '../../shell/account';
 import {sameAuthority, type ShellDestination} from '../../shell/model';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute} from '../../shell/routes';
-import {notificationRoute} from './notification-route';
+import {notificationCommand, notificationRoute, type NotificationCommandTarget} from './notification-route';
+import {startNotificationScan} from '../../../../../packages/client-core/src/notification-actions';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {StandardBackdrop} from '../../kit/artwork';
 
@@ -174,7 +175,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
     ...(section.state.more ? [{kind: 'more' as const, key: `more:${section.id}`, section}] : []),
   ]);
 
-  const routeFor = (action: NotificationAction) => notificationRoute(action, hasLiveTV);
+  const routeFor = (action: NotificationAction, notice: Notification) => notificationRoute(action, hasLiveTV, notice);
   const routeAvailable = (targetRoute: NativeShellRoute) =>
     targetRoute.kind === 'shell' && targetRoute.destination.kind === 'home' ? true : nativeMenuRouteAvailable(targetRoute);
   const openAction = (notice: Notification, targetRoute: NativeShellRoute, viewAt: InboxView) => {
@@ -187,8 +188,17 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
     if (!current()) return;
     context.navigation.open(targetRoute, context.authority());
   };
+  // OW-1: Dismiss archives the notice; Scan again starts the library's scan and marks the notice read.
+  const runCommand = (notice: Notification, command: NotificationCommandTarget, viewAt: InboxView) => {
+    const service = serviceFor(notice);
+    if (!noticeLive(service, viewAt, notice)) return;
+    if (command.kind === 'archive') {void service.apply('archive', [notice.id]).catch(runtime.reportError); return;}
+    void startNotificationScan(context.api, command.libraryId).then(() => service.apply('read', [notice.id])).catch(runtime.reportError);
+  };
   const actionsFor = (notice: Notification, viewAt: InboxView) => notice.actions.flatMap((action, index) => {
-    const targetRoute = routeFor(action);
+    const command = notificationCommand(action, notice);
+    if (command) return [{id: String(index), label: action.label, onPress: () => runCommand(notice, command, viewAt)}];
+    const targetRoute = routeFor(action, notice);
     return targetRoute && routeAvailable(targetRoute) ? [{id: String(index), label: action.label, onPress: () => openAction(notice, targetRoute, viewAt)}] : [];
   });
   const apply = (notice: Notification, action: InboxAction, viewAt: InboxView) => {
