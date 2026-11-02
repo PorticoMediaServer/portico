@@ -262,17 +262,19 @@ jobs:
     steps:
       - run: git config --global core.longpaths true
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {ref: '${{ github.sha }}', persist-credentials: false}
+        with: {ref: '${{ github.sha }}', path: original-checkout, persist-credentials: false}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with: {python-version: '3.13.17'}
       - name: Record the runner's original checkout filter
-        run: python scripts/test-engine-checkout.py --inspect --report "$RUNNER_TEMP/original-checkout.json"
-      - name: Materialize the exact Git bytes and exercise both filter cases
+        run: python original-checkout/scripts/test-engine-checkout.py --inspect --report "$RUNNER_TEMP/original-checkout.json"
+      - name: Select exact bytes before a fresh checkout, as in native qualification
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', path: fixed-checkout, persist-credentials: false}
+      - name: Exercise both filter cases and verify the fresh checkout
         run: |
-          git config --global core.autocrlf false
-          git checkout-index --force -a
-          python scripts/test-engine-checkout.py
-          python scripts/test-engine-checkout.py --inspect --report "$RUNNER_TEMP/fixed-checkout.json"
+          python fixed-checkout/scripts/test-engine-checkout.py
+          python fixed-checkout/scripts/test-engine-checkout.py --inspect --report "$RUNNER_TEMP/fixed-checkout.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
