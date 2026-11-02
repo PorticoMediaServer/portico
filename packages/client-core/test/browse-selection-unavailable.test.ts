@@ -72,3 +72,18 @@ test('retirement during refusal publication prevents page publication and owners
   await assert.rejects(session.fetchPage(0, 1, signal()), {name: 'AbortError'});
   assert.equal(pages, 0); assert.equal(session.wholeSelectionUnavailable(), undefined);
 });
+
+
+test('content drift keeps the first page usable without a stale whole-view selector', async () => {
+  const unavailable = {reason: 'source_changed'} as const;
+  const result = parseBrowseResult(page(0, {wholeSelectionUnavailable: unavailable}));
+  assert.deepEqual(result.wholeSelectionUnavailable, unavailable);
+  assert.equal(result.entries.length, 1);
+  assert.equal(result.wholeSelection, undefined);
+  const session = new BrowseSession<ContentEntry>({query, current: () => true, item: entry => entry,
+    request: async () => page(0, {wholeSelectionUnavailable: unavailable})});
+  const first = await session.fetchPage(0, 1, signal());
+  assert.ok(session.owns(first.items[0]!));
+  assert.deepEqual(session.wholeSelectionUnavailable(), unavailable);
+  session.retire();
+});
