@@ -88,7 +88,7 @@ for (const tv of [false, true]) test(`actual ${tv ? 'TV' : 'phone'} Home/Row eff
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})},
     '../kit/dock/DockClearance': {useDockClearance: () => 0, feedbackBottomOffset: (base: number) => base},
     react, 'react-native': {NativeModules: {}}, './screen-services': {NativeScreenServices},
-    '../kit/overlays': {ToastHost: 'Toast'}, '../kit/states': {StateView: 'State'},
+    '../kit/overlays': {ToastHost: 'Toast'}, '../kit/states': {StateView: 'State', StateLayout: 'StateLayout'}, '../kit/theme': {useTheme: () => ({isTV: false})},
   });
   // Independent listening overlays are outside this Home registration fixture,
   // as are the already-stubbed route renderers. Any attempted action is a failure.

@@ -46,7 +46,7 @@ test('Home window unmounts and expired Live windows never throw (P2-74 E-tv-30)'
   const expanded = false;
   const screenServices = await screenModule(new URL('../src-next/screens/native-screen-services.tsx', import.meta.url), {
     react: h.react, 'react-native': {NativeModules: {}}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})}, '../kit/dock/DockClearance': {useDockClearance: () => 0, feedbackBottomOffset: () => 0}, './screen-services': {NativeScreenServices},
-    '../kit/overlays': {ToastHost: 'Toast'}, '../kit/states': {StateView: 'State'},
+    '../kit/overlays': {ToastHost: 'Toast'}, '../kit/states': {StateView: 'State', StateLayout: 'StateLayout'}, '../kit/theme': {useTheme: () => ({isTV: false})},
   });
   const {createNativeShellBindings} = await screenModule(new URL('../src-next/shell/assembly.tsx', import.meta.url), {
     '../screens/library/selection-actions': {}, '../screens/downloads/request': {}, '../platform/offline-downloads': {}, './selection-display': {},
@@ -58,7 +58,7 @@ test('Home window unmounts and expired Live windows never throw (P2-74 E-tv-30)'
     '../../../../packages/client-core/src/home-selection': homeCapabilities,
     '../../../../packages/client-core/src/presentation/errors': {presentError: () => ({silent: true})},
     '../../../../packages/client-core/src/library-management': {}, '../../../../packages/client-core/src/presentation/home-spotlight': {},
-    '../platform/home-action-diagnostics': {homeActionDiagnostics}, '../platform/haptics': {}, '../kit/overlays': {ToastHost: 'Toast'}, '../kit/states': {StateView: 'State'}, '../kit/shell': {OwnerTag: 'Owner'},
+    '../platform/home-action-diagnostics': {homeActionDiagnostics}, '../platform/haptics': {}, '../kit/overlays': {ToastHost: 'Toast'}, '../kit/states': {StateView: 'State', StateLayout: 'StateLayout'}, '../kit/theme': {useTheme: () => ({isTV: false})}, '../kit/shell': {OwnerTag: 'Owner'},
     './HomeSelectionBars': {HomeSelectionBars: 'Bars'}, './HomeSelectionOverlays': {HomeSelectionOverlays: 'Overlays'}, './account': {nativeAccountMenu() {}, nativeMenuRouteAvailable: () => true}, './library-scan': {libraryScanReadiness: () => ({ok: true})}, '../screens/downloads/DownloadSheet': {NativeDownloadSheet: 'NativeDownloadSheet'},
     '../screens/home/HomeEmpty': {NativeHomeEmpty: 'NativeHomeEmpty'},
     './model': shellModel,
