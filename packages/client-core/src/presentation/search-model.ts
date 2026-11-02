@@ -1,4 +1,4 @@
-import type {SearchEntry, SearchGroup, SearchGroupResult} from '../search.ts';
+import type {SearchCapabilities, SearchEntry, SearchGroup, SearchGroupResult} from '../search.ts';
 import type {MessageId} from '../../../i18n/src/index.ts';
 
 /**
@@ -21,6 +21,15 @@ export const SEARCH_CHIPS: readonly SearchChip[] = [
   {id: 'reading', label: 'search.chip.reading'},
   {id: 'live-tv', label: 'search.chip.liveTV'},
 ];
+
+/** Whether a type chip is drawn. All always is. Once an answer has named the groups this viewer may
+ *  search, a group it leaves out (Live TV on a profile without it) or marks unavailable (Live TV not set
+ *  up) has no chip; before that only Reading waits, because it is optional on every server. */
+export function searchChipOffered(id: SearchChip['id'], capabilities: SearchCapabilities | undefined): boolean {
+  if (id === 'all') return true;
+  if (!capabilities) return id !== 'reading';
+  return capabilities.groups.some(group => group.id === id && group.available);
+}
 
 const ORDER = new Map<string, number>(SEARCH_CHIPS.map((chip, index) => [chip.id, index]));
 

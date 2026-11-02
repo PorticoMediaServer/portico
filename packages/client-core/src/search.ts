@@ -121,8 +121,11 @@ function parse(raw:unknown,op:Operation,s:ContentScope,limit:number):SearchData{
  if(q.recorded===true&&op.query.record!==true)invalid();
  const sort=oneOfOr('search','query.sort',q.sort,sorts,'relevance'),direction=oneOfOr('search','query.direction',q.direction,directions,'desc');
  const echoedGroups=known('query.groups',q.groups,MAX_PUBLISHED,groups);
- const requested=op.query.group?[op.query.group]:op.query.groups;
- if(requested&&(echoedGroups.length!==requested.length||requested.some(g=>!echoedGroups.includes(g))))invalid();
+ // One named group is answered as itself or refused. A list of groups is a filter over what this viewer
+ // may search: the server leaves out a group the viewer may not read (Live TV on a profile without it),
+ // so the echo may be shorter, never wider.
+ if(op.query.group&&(echoedGroups.length!==1||echoedGroups[0]!==op.query.group))invalid();
+ if(op.query.groups&&echoedGroups.some(g=>!op.query.groups!.includes(g)))invalid();
  const libraryIds=names(q.libraryIds??[],64);
  const published=capabilities(raw.capabilities);
  const results=firstOfEach('search','groups',keepReadable('search','groups',array(raw.groups,MAX_PUBLISHED),value=>{
