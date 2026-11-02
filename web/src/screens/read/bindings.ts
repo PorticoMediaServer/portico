@@ -47,11 +47,35 @@ export function createReadBindings(context: ReadBindingContext): ReadBindings {
   }});
   // Each open holds one of the profile's few server reading sessions (P2-74 E-web-15): release it on
   // replacement and on leaving, including one that arrives after the reader has already gone.
+  //
+  // Safari drops a keepalive request issued from a real navigation's pagehide, and its ordinary DELETE
+  // from the cleanup is cancelled with it, so each page left a session held until the server's deadline;
+  // eight page loads reached the profile's cap (W-19, the magazine page after a book and a comic). The
+  // IDs of sessions this tab opened and could not close are kept in sessionStorage and closed, keepalive,
+  // by the next page that opens a publication — while that document is alive, where every browser delivers it.
+  const heldKey = typeof sessionStorage === 'undefined' ? undefined : `portico.reading.held.${viewer.serverId}.${viewer.accountId}.${viewer.profileId}`;
+  const heldSessions = (): readonly string[] => {
+    if (!heldKey) return [];
+    try {const raw = sessionStorage.getItem(heldKey), parsed = raw === null ? [] : JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string' && value.length > 0 && value.length <= 256) : [];} catch {return [];}
+  };
+  const setHeldSessions = (ids: readonly string[]) => {
+    if (!heldKey) return;
+    try {if (ids.length) sessionStorage.setItem(heldKey, JSON.stringify(ids.slice(-7))); else sessionStorage.removeItem(heldKey);} catch { /* storage is optional; the server's deadline still retires the session */ }
+  };
+  const rememberHeld = (id: string) => setHeldSessions([...heldSessions().filter(value => value !== id), id]);
+  const forgetHeld = (id: string) => setHeldSessions(heldSessions().filter(value => value !== id));
+  const sweepHeld = () => {
+    const stale = heldSessions();
+    if (!stale.length) return;
+    setHeldSessions([]);
+    for (const id of stale) context.api.farewell?.(routePath('delete_reading_sessions_sessionId', {sessionId: id}), 'DELETE');
+  };
   const release = (opened: ReadingSession): Promise<void> => {
     if (!viewerMatches()) return Promise.resolve();
     releasing++;
     const cleanup = new AbortController(), deadline = setTimeout(() => cleanup.abort(), 2000);
-    return opened.close(cleanup.signal).catch(() => {}).finally(() => {clearTimeout(deadline); releasing--;});
+    return opened.close(cleanup.signal).then(() => forgetHeld(opened.manifest.sessionId)).catch(() => {}).finally(() => {clearTimeout(deadline); releasing--;});
   };
   let opening: Promise<void> = Promise.resolve();
   const close = () => {
@@ -67,12 +91,13 @@ export function createReadBindings(context: ReadBindingContext): ReadBindings {
     const before = close(), operation = new AbortController(); pending = operation;
     await before;
     if (!current() || pending !== operation) throw new ReadingError('cancelled');
+    sweepHeld();
     inFlight++;
     const attempt = owner.open(request, operation.signal).finally(() => {inFlight--;});
     opening = attempt.then(opened => {if (pending !== operation || !current()) return release(opened);}, () => {});
     const opened = await attempt;
     if (!current() || pending !== operation) throw new ReadingError('cancelled');
-    pending = undefined; session = opened; return opened;
+    pending = undefined; session = opened; rememberHeld(opened.manifest.sessionId); return opened;
   };
   // A hard leave (reload, tab close) never runs the cleanup below, so each one left a session held until it
   // expired, and about ten reloads reached the profile's cap (P2-74 E-web-33). The held session gets a farewell the
