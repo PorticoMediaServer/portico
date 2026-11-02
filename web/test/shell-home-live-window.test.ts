@@ -10,6 +10,7 @@ import {homeChannelSelection, homeEntrySelection} from '@core/home-selection.ts'
 import {transformTsx} from './transform-tsx.mjs';
 import type {HomeBindings} from '../src/screens/home/Home';
 import type {ShellAssemblyContext} from '../src/shell/bootstrap';
+import {testQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 // The actual Home component functions, effects and selection facade run here.
 // Only browser sensors, the freshness hook adapter and leaf kit renderers are
@@ -100,7 +101,7 @@ async function fixture(t:import('node:test').TestContext) {
   // Observe the original rejection entering the canonical document; rethrow so debt remains owed.
   const refresh=service.refresh.bind(service);service.refresh=async input=>{try{return await refresh(input);}catch(error){errors.push(error);throw error;}};
   const clock=quietClock(),hub=new FreshnessHub({...clock.env,gatherMs:0,settleMs:0,backoffMs:[1000]}),display=createShellHomeDocument(hub,service);bridge.hub=hub;
-  const context={home:service,api,session:()=>({viewer:{serverId:'server',authority:'local',accountId:'account',profileId:'profile',role:'owner'}}),events:{on:()=>()=>{}},isCurrent:()=>current} as unknown as ShellAssemblyContext;
+  const context={home:service,api,freshness:{queries:testQueries(api,{serverId:'server',viewerId:'viewer'})},session:()=>({viewer:{serverId:'server',authority:'local',accountId:'account',profileId:'profile',role:'owner'}}),events:{on:()=>()=>{}},isCurrent:()=>current} as unknown as ShellAssemblyContext;
   const facade=createShellSelection(context,{play:async()=>{},enqueue:async()=>{},playChannel:async()=>{}},e=>errors.push(e),()=>false);
   const tree=new Tree({service,displayDocument:display.document,selection:facade.selection,artwork:{foreground:()=>undefined,ambient:()=>undefined} as any,time:{locale:'en-US',timeZone:'UTC'},reducedMotion:true,effects:{reportError:e=>errors.push(e),play:async()=>{},playChannel:async c=>{played.push(c);},openEntry(){},openSeeAll(){},openMore(){},setMyList:async()=>{}}});
   const intersect=(id:string,visible:boolean)=>{for(const observer of [...observers])if(observer.target?.frame?.rowId===id)observer.notify([{isIntersecting:visible}]);};

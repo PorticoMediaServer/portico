@@ -38,7 +38,7 @@ export async function resolveQueryDelete(target: QuerySelectionTarget<BrowseSele
   for (const entry of result.entries) {
     check();
     if (entry.libraryId !== query.libraryId || !['movie', 'episode', 'song', 'audiobook_file'].includes(entry.kind)) throw new Error('query-delete-target-mismatch');
-    const item = await readCatalogueSelectionItem({api: ports.api, scope: {serverId: ports.serverId, viewerId: ports.viewerId},
+    const item = await readCatalogueSelectionItem({queries: ports.queries, api: ports.api, scope: {serverId: ports.serverId, viewerId: ports.viewerId},
       requestId: ports.requestId, signal, isCurrent: ports.isCurrent}, entry, {delete: true});check();
     if (!item.capabilities.delete) throw new Error('query-delete-not-offered');
     targets.push(Object.freeze({itemId: entry.id, libraryId: query.libraryId, kind: entry.kind}));

@@ -4,6 +4,7 @@ import {defaultI18n} from '../../packages/i18n/src/index.ts';
 import {onNowProgramme} from '../src/screens/live/on-now-programme.ts';
 import {createLiveBindings} from '../src/screens/live/bindings.ts';
 import type {ScreenContext} from '../src/screens/detail/context.ts';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 test('On now retains genuine programme flags/episode/progress and never promotes a future airing', () => {
   const now = Date.parse('2026-10-23T20:05:00Z');
@@ -17,8 +18,8 @@ test('On now retains genuine programme flags/episode/progress and never promotes
 });
 test('On now requests bounded server favorites order and retires with the same authority', async () => {
   const calls: URL[] = [], denied = Object.assign(new Error('denied'), {status: 403});
-  const context = {scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => true,
-    api: {async request(path: string) {calls.push(new URL(path, 'https://example.test'));throw denied;}}} as unknown as ScreenContext;
+  const context = withQueries({scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => true,
+    api: {async request(path: string) {calls.push(new URL(path, 'https://example.test'));throw denied;}}}) as unknown as ScreenContext;
   const owner = createLiveBindings(context, {kind: 'live-source', sourceId: 'actual-source', timezone: 'UTC', group: 'Drama', sort: 'number'});
   const shelf = owner.onNow();assert.equal(calls.length, 0);
   shelf.store.setViewport({firstRow: 0, lastRow: 4, start: 1_000, end: 1_001});

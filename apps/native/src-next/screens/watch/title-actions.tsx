@@ -19,6 +19,7 @@ import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {nativeScreenServices} from '../native-screen-services';
 import {askNativeDownload} from '../downloads/request';
 import {nativeDownloadRequest} from './download-request';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 const t = defaultI18n.t;
 const leaves = ['movie', 'episode', 'song', 'audiobook_file'];
@@ -89,7 +90,7 @@ export function createNativeTitleActions(context: NativeShellBootstrapContext): 
     // The caller's opening plus this host's own: closing the action retires every request under it.
     const controller = new AbortController();
     lifetime.signal.addEventListener('abort', () => controller.abort(), {once: true});
-    return {controller, options: {api: context.api, scope: lifetimeOf.scope, requestId: services.requestId, signal: controller.signal, isCurrent: () => !controller.signal.aborted && live(lifetime)}};
+    return {controller, options: {queries: viewerQueriesFor(context.api, lifetimeOf.scope), api: context.api, scope: lifetimeOf.scope, requestId: services.requestId, signal: controller.signal, isCurrent: () => !controller.signal.aborted && live(lifetime)}};
   };
   const patchRating = (expected: Open, change: Partial<Rating>) => {
     if (open !== expected || expected.kind !== 'rate') return;
@@ -112,7 +113,7 @@ export function createNativeTitleActions(context: NativeShellBootstrapContext): 
     },
     rate: (entry, lifetime) => {
       const started = begin(entry, lifetime, () => ({kind: 'rate', rating: {phase: 'loading', value: undefined},
-        detail: new DetailService({api: context.api, scope: lifetimeOf.scope, requestId: services.requestId})}));
+        detail: new DetailService({queries: viewerQueriesFor(context.api, lifetimeOf.scope), api: context.api, scope: lifetimeOf.scope, requestId: services.requestId})}));
       if (!started || started.kind !== 'rate') return;
       const detail = started.detail;
       void (async () => {

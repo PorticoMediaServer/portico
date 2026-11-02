@@ -6,6 +6,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {readFileSync} from 'node:fs';
 import {defaultI18n} from '@i18n';
 import {transformTsx} from './transform-tsx.mjs';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 registerHooks({load(url, context, next) {
   if (url.endsWith('.module.css')) return {format: 'module', source: 'export default new Proxy({}, {get: (_, key) => String(key)});', shortCircuit: true};
@@ -32,8 +33,8 @@ const specimenContext = (specimen: ReturnType<typeof createDetailSpecimen>) => (
 
 async function detailData(frame: '2' | '3') {
   const specimen = createDetailSpecimen(frame);
-  const service = new DetailService({api: specimen.api, scope: {serverId: specimen.serverId, viewerId: specimen.personalFence},
-    requestId: async () => crypto.randomUUID()});
+  const service = new DetailService(withQueries({api: specimen.api, scope: {serverId: specimen.serverId, viewerId: specimen.personalFence},
+    requestId: async () => crypto.randomUUID()}));
   await service.select({libraryId: 'movies', itemId: specimen.itemId});
   const data = service.getSnapshot().data;
   assert.ok(data);

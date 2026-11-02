@@ -5,6 +5,7 @@ import {EntryPickerProducer} from '../src/shell/entry-picker.ts';
 import {LibraryPickerProducer} from '../src/screens/browse/selection-picker.ts';
 import {createSelectionEditor, SelectionEditorError} from '../src/screens/browse/selection-editor.ts';
 import {createSelectionActions} from '../src/screens/browse/selection-actions.ts';
+import {testQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 // Walk J-11 to J-14 (2 Nov): every selection action answers against the fence its own domain issues and sends
 // picked titles as their own IDs. The detail, Home and destination reads each carry a different fence; checking
@@ -24,8 +25,8 @@ function api(requests: {path: string; method?: string; body?: any}[]) {
   }};
 }
 const identity = {authority: 'local' as const, accountId: 'account', profileId: 'profile', events: {on: () => () => {}}};
-const ports = (requests: {path: string; method?: string; body?: any}[]) => ({api: api(requests), serverId, viewerId: '["local","account","profile"]',
-  isCurrent: () => true, requestId: async () => 'request-1', pickerIdentity: identity});
+const ports = (requests: {path: string; method?: string; body?: any}[]) => {const value = api(requests); return {api: value, queries: testQueries(value, {serverId, viewerId: 'viewer'}), serverId, viewerId: '["local","account","profile"]',
+  isCurrent: () => true, requestId: async () => 'request-1', pickerIdentity: identity};};
 assert.notEqual(detailFence, destinationFence, 'the fixture must exercise two different fences');
 
 test('J-11 Add to playlist from a title page: the picker holds the destination read\'s fence and lists the playlists', async () => {

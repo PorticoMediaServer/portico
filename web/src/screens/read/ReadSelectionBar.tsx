@@ -30,7 +30,7 @@ export function ReadSelectionBar(props: Props) {
     const captured = props, items = [...captured.selection.values()], life = screenLifetime(captured.context);
     const current = () => life.current() && latest.current.selection === captured.selection && latest.current.context === captured.context
       && items.every(item => latest.current.current(item));
-    const controller = new ReadingCollection({api: life.api, scope: captured.context.scope, requestId: async () => crypto.randomUUID(),
+    const controller = new ReadingCollection({queries: captured.context.queries, api: life.api, scope: captured.context.scope, requestId: async () => crypto.randomUUID(),
       signal: life.signal(), isCurrent: current, canCreate: authority.create}, items.map(item => ({id: item.id, libraryId: item.libraryId, title: item.title, kind: captured.kind})));
     anchor.current = element;
     const held = {controller, close: () => {life.dispose(); controller.dispose();}};

@@ -37,7 +37,7 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
   let retired = false;
   // J-1: Edit metadata on one title opens that title's own editor, exactly as its detail page does. It depends on
   // the owner and on Home still being shown, never on the Home selection or document staying put.
-  const entryPorts: EntryMetadataPorts = {artwork: context.artwork, api: context.api, serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId]),
+  const entryPorts: EntryMetadataPorts = {queries: context.freshness.queries, artwork: context.artwork, api: context.api, serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId]),
     isCurrent: () => !retired && context.isCurrent() && router.state.location.pathname === '/', requestId: async () => crypto.randomUUID()};
   const editTitle = viewer.authority === 'local' && viewer.role === 'owner'
     ? createEntryMetadataEffect(entryPorts, () => context.session().viewer.role === 'owner' && context.session().viewer.authority === 'local') : undefined;
@@ -54,7 +54,7 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
     const current = context.home.getSnapshot().document;
     return !retired && context.isCurrent() && !!current && router.state.location.pathname === '/' && JSON.stringify(value) === JSON.stringify(homeSelectionContext(scope(), current));
   };
-  const controller = new HomeSelectionController({api: context.api, events: context.events, home: context.home,
+  const controller = new HomeSelectionController({queries: context.freshness.queries, api: context.api, events: context.events, home: context.home,
     context: currentContext(), environment: environment(), isCurrent, requestId: async () => crypto.randomUUID(), playback,
     routes: {openEntry: entry => {const destination = entryDestination(entry);return navigateArtworkEntry(entry, destination, artworkScope, () => isCurrent(controller.getSnapshot().context), () => !retired && context.isCurrent(), manual => router.navigate({...destination, ...(manual ? {viewTransition: false} : {})}));}, openCollection: collection => router.navigate(seeAllDestination({type: 'collection', resourceId: collection.collection.id, libraryId: collection.collection.libraryId})),
       openDestination: destination => router.navigate({to: '/saved', search: {resourceId: destination.id}}), editEntry}, reportError, ...(notify ? {notify} : {})});

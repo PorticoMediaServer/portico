@@ -1,3 +1,4 @@
+import type {ViewerQueries} from '../query/viewer-queries.ts';
 import type {HomeApi, HomeChannel, HomeCollection, HomeDocument, HomeRow} from '../home.ts';
 import type {HomeService} from '../home-service.ts';
 import type {EventsClient} from '../playback-v1/events.ts';
@@ -43,6 +44,8 @@ export interface HomeSelectionRoutes {
 /** What a menu action leaves for its caller to show: Remove from Continue Watching's note and its Undo. */
 export type HomeMenuOutcome = Readonly<{kind: 'removedFromContinue'; title: string; undo: () => Promise<void>}>;
 export type HomeSelectionOptions = Readonly<{
+  /** The viewer's cache of server documents: a title's page is read through it. */
+  queries: ViewerQueries;
   api: HomeApi;
   events: Pick<EventsClient, 'on'> & Partial<Pick<EventsClient, 'onResync' | 'resyncReads'>>;
   home: HomeService;

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createDetailBindings} from '../src/screens/detail/bindings.ts';
 import {createWatchBodyBindings} from '../src/screens/detail/watch-body.ts';
 import type {ScreenContext} from '../src/screens/detail/context.ts';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 function deferred<T>() {
   let resolve!: (value: T) => void, reject!: (error: unknown) => void;
@@ -22,7 +23,7 @@ const page = (id = 'movie', kind = 'movie', embedded = false) => ({
 });
 function setup(handler: (path: string, signal?: AbortSignal, body?: unknown) => Promise<unknown>) {
   const paths: string[] = []; let current = true;
-  const context = {
+  const context = withQueries({
     api: {
       request: async (path: string, _method?: string, body?: unknown, signal?: AbortSignal) => {paths.push(path);return handler(path, signal, body);},
       requestRaw: async () => {throw new Error('No raw request expected');},
@@ -30,7 +31,7 @@ function setup(handler: (path: string, signal?: AbortSignal, body?: unknown) => 
     scope: {serverId: 'server', viewerId: JSON.stringify(['local', 'account', 'profile'])}, isCurrent: () => current,
     preferences: {getSnapshot: () => ({}), subscribe: () => () => {}},
     effects: {openEntry: () => {}, openSettings: () => {}, play: async () => {}, reportError: () => {}},
-  } as unknown as ScreenContext;
+  }) as unknown as ScreenContext;
   return {context, paths, retire: () => {current = false;}};
 }
 
@@ -42,10 +43,11 @@ test('the bare movie route reuses its item kind and never computes embedded reco
   try {
     await binding.select({itemId: 'movie'});
     await binding.readRecommendations(binding.service.getSnapshot().data!);
-    assert.deepEqual(owner.paths, ['/v1/items/movie/detail?related=none', '/v1/items/movie/detail?related=none', '/v1/items/movie/recommendations?limit=12']);
+    // The route's library lookup and the page share one read of the title (CLIENT-DATA step 1; it was two).
+    assert.deepEqual(owner.paths, ['/v1/items/movie/detail?related=none', '/v1/items/movie/recommendations?limit=12']);
     assert.equal(binding.recommendations.getSnapshot().phase, 'ready');
     assert.deepEqual(binding.recommendations.getSnapshot().data?.rows, [], 'an empty successful full read is not a failure');
-    await binding.service.revalidate();
+    await binding.service.refresh();
     assert.equal(owner.paths.at(-1), '/v1/items/movie/detail?related=none', 'freshness reads retain the selected computation mode');
   } finally {binding.dispose();}
 });
@@ -118,7 +120,7 @@ for (const invalidRevision of [false, true]) {
       assert.equal(fallback.related?.rows[0]?.entries[0]?.id, 'other');
       await binding.readRecommendations(fallback);
       assert.deepEqual(owner.paths, ['/v1/items/movie/detail?related=none', '/v1/items/movie/recommendations?limit=12', '/v1/items/movie/detail?related=all']);
-      await binding.service.revalidate();
+      await binding.service.refresh();
       assert.equal(owner.paths.at(-1), '/v1/items/movie/detail?related=all');
     } finally {binding.dispose();}
   });

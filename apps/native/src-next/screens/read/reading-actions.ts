@@ -10,6 +10,7 @@ import {ReadingCollection} from '../../../../../packages/client-core/src/reading
 import {NativeBulkMedia} from '../destinations/bulk-media';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {nativeScreenServices} from '../native-screen-services';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 export type NativeReadingActionOffer = Readonly<{
   item: Readonly<{id: string; libraryId?: string; title: string}>;
@@ -201,7 +202,7 @@ export class NativeReadingActions {
     const abort = new AbortController(), life = this.life, selected = rendered.selected, authority = nativeDestinationLifetime(this.context);
     const current = () => !abort.signal.aborted && this.life === life && authority.current() && this.current()
       && this.state.selected.length === selected.length && selected.every(offer => this.state.selected.includes(offer) && this.offered(offer));
-    const bulk = new NativeBulkMedia({api: this.context.api, scope: authority.scope, requestId: nativeScreenServices(this.context).requestId,
+    const bulk = new NativeBulkMedia({queries: viewerQueriesFor(this.context.api, authority.scope), api: this.context.api, scope: authority.scope, requestId: nativeScreenServices(this.context).requestId,
       signal: abort.signal, isCurrent: current}, entries);
     const stop = bulk.subscribe(() => {if (this.editing?.bulk === bulk) this.publish({...this.state});});
     this.editing = Object.freeze({bulk, abort, stop});
@@ -233,7 +234,7 @@ export class NativeReadingActions {
     const abort = new AbortController(), life = this.life, selected = rendered.selected, authority = nativeDestinationLifetime(this.context);
     const current = () => !abort.signal.aborted && this.life === life && authority.current() && this.current()
       && this.state.selected === selected && selected.every(this.offered);
-    const controller = new ReadingCollection({api: this.context.api, scope: authority.scope, requestId: nativeScreenServices(this.context).requestId,
+    const controller = new ReadingCollection({queries: viewerQueriesFor(this.context.api, authority.scope), api: this.context.api, scope: authority.scope, requestId: nativeScreenServices(this.context).requestId,
       signal: abort.signal, isCurrent: current, canCreate: this.context.session()?.viewer.authority === 'local'}, entries);
     const stop = controller.subscribe(() => {if (this.collecting?.controller === controller) this.publish({...this.state});});
     this.collecting = {controller, abort, stop};

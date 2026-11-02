@@ -1,10 +1,11 @@
+import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import type {ContentEntryKind} from '@core/library-content.ts';
 
 /** One title a screen can act on; facts only, never a projection. */
 export type EntryActionTarget = Readonly<{libraryId: string; itemId: string; kind: ContentEntryKind; title: string}>;
 type Api = Readonly<{request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<T>}>;
-export type EntryActionPorts = Readonly<{api: Api; serverId: string; viewerId: string; isCurrent: () => boolean; requestId: () => Promise<string>; pickerIdentity?: Readonly<{authority: 'local' | 'hosted'; accountId: string; profileId: string; events: Pick<EventsClient, 'on'>}>}>;
+export type EntryActionPorts = Readonly<{api: Api; queries: ViewerQueries; serverId: string; viewerId: string; isCurrent: () => boolean; requestId: () => Promise<string>; pickerIdentity?: Readonly<{authority: 'local' | 'hosted'; accountId: string; profileId: string; events: Pick<EventsClient, 'on'>}>}>;
 type OpenDelete = Readonly<{kind: 'delete'; target: EntryActionTarget; anchor: HTMLElement | null; ports: EntryActionPorts}>;
 export type EntryDestination = 'playlist' | 'collection';
 type OpenPicker = Readonly<{kind: 'picker'; destination: EntryDestination; target: EntryActionTarget; anchor: HTMLElement | null; ports: EntryActionPorts; canCreate: boolean}>;

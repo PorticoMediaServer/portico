@@ -42,7 +42,7 @@ function CheckedMetadata({value}: {value: Open & {target: EntryActionTarget}}) {
     check(); return result;
   }}), [value]);
   useEffect(() => {
-    const service = new DetailService({api, scope: {serverId: value.ports.serverId, viewerId: value.ports.viewerId}, requestId: value.ports.requestId});
+    const service = new DetailService({queries: value.ports.queries, api, scope: {serverId: value.ports.serverId, viewerId: value.ports.viewerId}, requestId: value.ports.requestId});
     void service.select({libraryId: value.target.libraryId, itemId: value.target.itemId}).then(() => {
       if (!current(value)) return;
       const snapshot = service.getSnapshot(), detail = snapshot.data;
