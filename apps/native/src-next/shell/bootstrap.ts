@@ -59,6 +59,7 @@ import {createNativeShellAccountBinding} from './account-binding';
 import {homeActionDiagnostics} from '../platform/home-action-diagnostics';
 import {NativeReadOrder, NativeShellFreshness, nativeQueuedRefresh} from './freshness';
 import {retainNativeDownloadsDevice} from '../screens/downloads/device';
+import {bindNativeTopShelf} from '../platform/top-shelf';
 
 export type NativeRememberedProfile = Readonly<{
   /** True while this device opens the profile that is open now without asking. */
@@ -616,6 +617,13 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     homeActionDiagnostics.libraryMenu('attached', runtime);
     const retireTopShelfLocale = bindNativeTopShelfLocale(context, runtime.text, error => nativeScreenServices(context).reportError(error));
     if (retireTopShelfLocale) cleanups.push(retireTopShelfLocale);
+    const retireTopShelf = bindNativeTopShelf({current, baseUrl: local.baseUrl,
+      viewer: () => current() && session ? {...session.viewer, installationId: session.installationId} : undefined,
+      request: (path, method, body, signal) => local.request(path, method, body, signal),
+      subscribePlayback: context.playback.subscribe,
+      playbackKey: () => {const fence = context.playback.getSnapshot().fence; return !fence ? undefined : fence.kind === 'channel' ? `channel:${fence.channelId}` : `item:${fence.itemId}`;}},
+    error => nativeScreenServices(context).reportError(error));
+    if (retireTopShelf) cleanups.push(retireTopShelf);
     const downloads = retainNativeDownloadsDevice(context);
     cleanups.push(downloads.dispose);
     void downloads.open().catch(error => {if (current()) bound.reportError(error);});

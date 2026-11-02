@@ -90,8 +90,20 @@ export function parseRememberedAccounts(raw:unknown):readonly RememberedAccount[
 
 const shapes=['poster','landscape','square'] as const;
 
-/** The Top Shelf feed is read by the tvOS extension with a token valid for 24
- * hours. Artwork URLs carry that token, so they expire with the feed; a client
+/** What `POST /v1/topshelf/token` returns to the signed-in tvOS app: the feed
+ * token it hands the shelf extension, valid for thirty days (the app renews it
+ * whenever it is opened), and the feed's server-relative path. */
+export type TopShelfToken=Readonly<{token:string;expiresAt:string;feedUrl:string}>;
+export function parseTopShelfToken(raw:unknown):TopShelfToken{
+ if(!obj(raw))fail('token');only(raw,['token','expiresAt','feedUrl']);
+ if(typeof raw.token!=='string'||raw.token.length<16||raw.token.length>8192||!/^[A-Za-z0-9_.~-]+$/.test(raw.token))fail('token value');
+ if(!instant(raw.expiresAt))fail('token expiry');
+ if(typeof raw.feedUrl!=='string'||!raw.feedUrl.startsWith('/')||raw.feedUrl.length>256)fail('feed path');
+ return Object.freeze({token:raw.token as string,expiresAt:raw.expiresAt as string,feedUrl:raw.feedUrl as string});
+}
+
+/** The Top Shelf feed is read by the tvOS extension with a token valid for thirty
+ * days. Artwork URLs carry that token, so they expire with the feed; a client
  * must refetch rather than caching an image URL past `expiresAt`. */
 export function parseTopShelfFeed(raw:unknown):TopShelfFeed{
  if(!obj(raw))fail('feed');only(raw,['serverId','profileId','expiresAt','sections']);
