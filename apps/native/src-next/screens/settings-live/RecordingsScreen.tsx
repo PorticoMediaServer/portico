@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, ScrollView, Text, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
@@ -363,7 +364,7 @@ function RecordingDetails({recording, controller, runtime, opener, onClose, onPl
 
 function RuleRow({rule, runtime, refNode, onOpen, onFocus, onBlur}: {rule: RecordingRule; runtime: NativeShellRuntime; refNode: (node: View | null) => void; onOpen: () => void; onFocus: () => void; onBlur: () => void}) {
   const theme = useTheme(), t = runtime.text.t, tv = theme.isTV, paused = !rule.config.enabled, facts = ruleFacts(rule.summary);
-  const scope = ruleScope(rule, rule.summary?.channel.name, runtime.text), next = ruleNext(rule.summary, defaultI18n, Date.now());
+  const scope = ruleScope(rule, rule.summary?.channel.name, runtime.text), next = ruleNext(rule.summary, defaultI18n, serverNow());
   const factsRow = [t(rule.config.episodes === 'new' ? 'recordings.newEpisodes' : 'recordings.allEpisodes'), scope, keepLabel(runtime.text, ruleKeep(rule.config.options))];
   return <Focusable onFocus={onFocus} onBlur={onBlur} ref={refNode} focusId={rule.id} testID={`recordings-rule-${rule.id}`} focusKind="row" onPress={onOpen}
     style={{height: tv ? 140 : 110, paddingVertical: tv ? 8 : 12, paddingHorizontal: tv ? 24 : 12, borderRadius: tv ? 20 : 16, flexDirection: 'row', alignItems: 'center', gap: tv ? 30 : 12, backgroundColor: theme.colors.raised}}>

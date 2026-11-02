@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -262,7 +263,7 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
   const submit = () => {
     const attempt = held, chosen = chosenScopes(ticked), trimmed = name.trim();
     if (!current(attempt) || busyRef.current || !trimmed || !chosen.length) return;
-    const expiresAt = expiryInstant(days, Date.now());
+    const expiresAt = expiryInstant(days, serverNow());
     // One operation id per draft: a retry of the same ask never makes a second token.
     const operationId = operations.current.forPayload(JSON.stringify([trimmed, chosen, expiresAt ?? '']));
     void run(attempt, h => createAccessToken(h.transport, {operationId, name: trimmed, scopes: chosen, ...(expiresAt ? {expiresAt} : {})}, h.scope.signal), receipt => {

@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {decode} from '../../../../packages/contracts/src/runtime';
 import type {RouteRequest} from '../../../../packages/contracts/src/routes';
 import {ApiError, type LocalSession} from '../../../../packages/client-core/src';
@@ -140,7 +141,7 @@ export class NativeMemberAccountMove<Result> {
       this.proof = undefined;
       const ticket = await client.password(username, password, signal);
       await this.fence(epoch);
-      if (Date.parse(ticket.expiresAt) <= Date.now()) throw invalidProof();
+      if (Date.parse(ticket.expiresAt) <= serverNow()) throw invalidProof();
       this.proof = Object.freeze({credential: {ticket: ticket.ticket}, expiresAt: ticket.expiresAt});
       this.publish({phase: 'portico'});
     });
@@ -152,14 +153,14 @@ export class NativeMemberAccountMove<Result> {
       const preview = await client.previewCode(code, signal);
       await this.fence(epoch);
       if (preview.signIn !== this.ports.server.signIn) throw new CodedError('identity_mismatch', 'The server sign-in changed.');
-      if (Date.parse(preview.expiresAt) <= Date.now()) throw invalidProof();
+      if (Date.parse(preview.expiresAt) <= serverNow()) throw invalidProof();
       this.proof = Object.freeze({credential: {code}, expiresAt: preview.expiresAt, preview});
       this.publish({phase: preview.signIn === 'local' ? 'local' : 'portico', username: preview.username});
     });
   }
   private takeProof() {
     const proof = this.proof; this.proof = undefined;
-    if (!proof || Date.parse(proof.expiresAt) <= Date.now()) throw invalidProof();
+    if (!proof || Date.parse(proof.expiresAt) <= serverNow()) throw invalidProof();
     return proof;
   }
   private async adopt(result: DirectSignIn, epoch: number, hosted?: NativeMoveHostedCapture) {
@@ -205,7 +206,7 @@ export class NativeMemberAccountMove<Result> {
       await this.fence(epoch, hosted);
       const identity = await requestIdentityAssertion(hosted.api, hosted.origin, this.ports.server.id, challenge, 'interactive', signal);
       await this.fence(epoch, hosted);
-      if (Date.parse(proof.expiresAt) <= Date.now()) throw invalidProof();
+      if (Date.parse(proof.expiresAt) <= serverNow()) throw invalidProof();
       const client = new MemberAccountMoveClient(this.ports.api, {serverId: this.ports.server.id,
         isCurrent: () => this.current(epoch, hosted), retireLateGrant: session => this.retireFresh(session)});
       try {

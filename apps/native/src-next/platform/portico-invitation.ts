@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {ApiError} from '../../../../packages/client-core/src';
 import {PeopleInvitationsClient, type PublicInvitation} from '../../../../packages/client-core/src/direct-account';
 import type {ProfileAPI} from '../../../../packages/client-core/src/profile-management';
@@ -29,7 +30,7 @@ export async function readPorticoInvitationPreview(api: ProfileAPI, raw: string,
   try {
     const preview = shortCode ? await client.previewShort(shortCode, signal) : await client.preview(link!.code, signal);
     check(); if (preview.signInMethod !== 'portico') throw cancelled();
-    if (Date.parse(preview.expiresAt) <= Date.now()) throw new InvitationExpired();
+    if (Date.parse(preview.expiresAt) <= serverNow()) throw new InvitationExpired();
     return Object.freeze({preview, entry: Object.freeze({raw, server: target.origin, id: target.id, fingerprint: target.fingerprint,
       signIn: 'portico' as const, expiresAt: preview.expiresAt})});
   } catch (error) {
@@ -71,14 +72,14 @@ export class NativePorticoInvitation<T> {
     try {
       const preview = 'shortCode' in capability ? await this.client.previewShort(capability.shortCode, this.abort.signal) : await this.client.preview(capability.code, this.abort.signal);
       this.assertCurrent(); if (preview.signInMethod !== 'portico') throw cancelled();
-      if (Date.parse(preview.expiresAt) <= Date.now() || this.ports.expiresAt && Date.parse(this.ports.expiresAt) <= Date.now()) throw new InvitationExpired();
+      if (Date.parse(preview.expiresAt) <= serverNow() || this.ports.expiresAt && Date.parse(this.ports.expiresAt) <= serverNow()) throw new InvitationExpired();
       this.invitation = {raw: input, capability, preview}; return preview;
     } catch (error) {this.assertCurrent(); throw error;} finally {this.busy = false;}
   }
   async join(preview: PublicInvitation): Promise<T> {
     this.assertCurrent(); const invitation = this.invitation;
     if (this.busy || !invitation || invitation.preview !== preview) throw cancelled();
-    if (Date.parse(preview.expiresAt) <= Date.now() || this.ports.expiresAt && Date.parse(this.ports.expiresAt) <= Date.now()) throw new InvitationExpired();
+    if (Date.parse(preview.expiresAt) <= serverNow() || this.ports.expiresAt && Date.parse(this.ports.expiresAt) <= serverNow()) throw new InvitationExpired();
     this.busy = true;
     try {return await this.ports.accept(Object.freeze({...invitation.capability}));}
     catch (error) {this.assertCurrent(); throw error;} finally {this.busy = false;}

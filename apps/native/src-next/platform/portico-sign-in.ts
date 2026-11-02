@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {NativeModules} from 'react-native';
 import {MFARequiredError, parseAccountReturn, parseNativeAccountContinuation,
   type HostedAccountClient, type IdentityProvider, type IdentityTransaction, type MFAChallenge, type NativeAccountContinuation, type Registration} from '../../../../packages/client-core/src/hosted-security';
@@ -72,7 +73,7 @@ export class NativePorticoSignIn {
       if (typeof raw === 'string') {try {saved = parseNativeAccountContinuation(raw);} catch { /* Invalid noncredential continuation is replaced. */ }}
       const binding: unknown = saved?.binding ?? await this.bridge.newBinding(); this.check();
       if (typeof binding !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(binding)) throw new Error('native_continuation_invalid');
-      const continuation = saved ?? {version: 1 as const, binding, expiresAt: new Date(Date.now() + 15 * 60000).toISOString()};
+      const continuation = saved ?? {version: 1 as const, binding, expiresAt: new Date(serverNow() + 15 * 60000).toISOString()};
       const bytes = JSON.stringify(continuation);
       this.check(); await this.bridge.saveContinuation(hostedUrl, bytes); this.check();
       this.continuation = continuation;
@@ -128,7 +129,7 @@ export class NativePorticoSignIn {
     if (!witness && !caller) return this.authenticate(signal => this.api().mfa(challenge, code, signal));
     const issued = this.factorWitness;
     if (!witness || !caller || !issued || witness !== issued.witness || issued.challenge !== challenge
-      || !(Date.parse(challenge.expiresAt) > Date.now())) throw new CodedError('cancelled', 'native_factor_changed');
+      || !(Date.parse(challenge.expiresAt) > serverNow())) throw new CodedError('cancelled', 'native_factor_changed');
     const formLive = () => !this.abort.signal.aborted && this.isCurrent() && caller.isCurrent() && !caller.signal.aborted;
     const callerLive = () => formLive() && this.continuation?.mfa === challenge;
     // Admission and the pre-write checks require the original challenge. Our own
@@ -198,7 +199,7 @@ export class NativePorticoSignIn {
       if (!current()) throw new CodedError('cancelled', 'native_provider_changed');
       if (!fresh || fresh.transactionId !== original.transactionId || fresh.provider !== original.provider || fresh.mode !== 'login'
         || !fresh.needsUsername || !fresh.contactVerified || !['onboarding', 'verified'].includes(fresh.status)
-        || fresh.verifiedEmail !== original.verifiedEmail || fresh.expiresAt !== original.expiresAt || !(Date.parse(fresh.expiresAt) > Date.now())
+        || fresh.verifiedEmail !== original.verifiedEmail || fresh.expiresAt !== original.expiresAt || !(Date.parse(fresh.expiresAt) > serverNow())
         || !fresh.onboardingToken || fresh.onboardingToken === original.onboardingToken) {
         this.transaction = undefined;
         throw new CodedError('account_changed', 'native_provider_changed');
@@ -288,7 +289,7 @@ export class NativePorticoSignIn {
       return !!witness && this.bindingWitness === witness && continuationBindingCurrent(hostedUrl, witness)
         && this.registration === registration && this.continuation?.binding === binding;
     };
-    if (!binding || !current() || (replacement && (!registration.contactVerified || !(Date.parse(registration.expiresAt) > Date.now()))))
+    if (!binding || !current() || (replacement && (!registration.contactVerified || !(Date.parse(registration.expiresAt) > serverNow()))))
       throw new CodedError('cancelled', 'native_registration_changed');
     try {
       return await this.authenticate(signal => this.api().verifyRegistration(id, input, signal), current);
@@ -297,7 +298,7 @@ export class NativePorticoSignIn {
         const fresh = await this.api().registration(id, this.abort.signal);
         if (!current()) throw new CodedError('cancelled', 'native_registration_changed');
         if (!fresh || fresh.registrationId !== registration.registrationId || fresh.revision !== registration.revision || fresh.expiresAt !== registration.expiresAt
-          || fresh.maskedAddress !== registration.maskedAddress || fresh.status === 'completed' || !fresh.contactVerified || !(Date.parse(fresh.expiresAt) > Date.now()))
+          || fresh.maskedAddress !== registration.maskedAddress || fresh.status === 'completed' || !fresh.contactVerified || !(Date.parse(fresh.expiresAt) > serverNow()))
           throw new CodedError('account_changed', 'native_registration_changed');
         const verified = Object.freeze({...fresh});
         this.registration = verified; this.registrationCollision = {original: registration, verified};
