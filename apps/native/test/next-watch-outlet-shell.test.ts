@@ -34,7 +34,7 @@ test('the real shell mounts one persistent player and a separate box-none watch 
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: number) => React.useRef({value}).current, withTiming: (value: unknown) => value},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})}, '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'},
     '../kit/shell': {}, '../kit/browse': {}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})},
-    '../kit/focus': {useFocusRegistry: () => registry}, './tv-focus': focus, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': model,
+    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': focus, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': model,
     './PhoneTabBar': {}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'ProfileMenu'},
     './NativePlaybackLayer': {NativePlaybackLayer: 'PersistentPlaybackLayer'}, './DesktopHeader': {},
   });

@@ -189,3 +189,40 @@ test('artist Top songs has real vertical exits and Play entry; album geometry an
   const backdrop = all.find(node => node.type?.name === 'Backdrop');
   assert.equal(nodes(backdrop.type(backdrop.props)).find(node => node.type === 'AmbientArt').props.treatment, 'music');
 });
+
+test('W-12: Back to an artist returns focus to the album card it opened, and a fresh visit still opens on Play', async () => {
+  const react: any = {createElement: (type: any, props: any, ...children: any[]) => ({type, props: {...props, children}}),
+    useSyncExternalStore: (_subscribe: any, get: any) => get(), useMemo: (read: any) => read(),
+    useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, () => {}], useRef: () => ({current: null})}; react.default = react;
+  const {TVArtistScreen} = await screenModule(new URL('../src-next/screens/destinations/music/TVMusicScreens.tsx', import.meta.url), {
+    '../../../kit/states': {SkeletonBlock: () => null},
+    react, 'react-native': native, '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, number: String}},
+    '../../../../../../packages/client-core/src/presentation/kit-model': {cardText: (entry: any) => ({title: entry.title, caption: [], detail: []})},
+    '../../../../../../packages/client-core/src/presentation/library-tabs': {artistReleaseGroups: (albums: any[]) => [{id: 'albums', label: 'Albums', entries: albums}]},
+    '../../../kit/artwork': {AmbientArt: 'AmbientArt', Artwork: 'Artwork', ArtistCircle: 'ArtistCircle'}, '../../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'},
+    '../../../kit/cards': {SquareCard: 'SquareCard'}, '../../../kit/browse': {TrackRow: 'TrackRow'}, '../../../kit/selection': {SelectionCircle: 'SelectionCircle'},
+    '../../../kit/browse/presentation': type, '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/theme': {useTheme: () => theme},
+    '../../../tv/layout/TVShelf': {TVShelf: 'TVShelf'}, '../../../tv/layout/TVArtFocus': {TVArtFocus: 'TVArtFocus'},
+    './MusicErrorView': {MusicErrorView: 'MusicErrorView'}, './MusicSectionControls': {MusicSectionControls: 'MusicSectionControls', musicNearEnd: () => false}, './MusicFormatBadges': {MusicFormatBadges: 'MusicFormatBadges'},
+    './MusicWindow': {MusicScrollView: 'MusicScrollView', MusicWindow: 'MusicWindow'},
+  });
+  const album = {id: 'release', title: 'Release'}, entry = {id: 'entity', kind: 'artist', title: 'Artist'};
+  const state: any = {songs: [], albums: [album], similar: [], allSongs: {songs: [], phase: 'idle'}, songPage: {offset: 0}, releases: {}};
+  const controller = {subscribe: () => () => {}, getSnapshot: () => state, similarPage: () => undefined}, runtime = {ambient: () => ({kind: 'palette'}), artwork: () => ({kind: 'image'}), text: {}}, actions = {isMenuOpen: () => false};
+  const opened: unknown[] = [];
+  const page = () => {
+    const all = nodes(TVArtistScreen({controller, entry, runtime, actions, openEntry: (value: unknown) => opened.push(value)}));
+    const bar = all.find(node => node.type?.name === 'ActionBar'), card = all.find(node => node.type?.name === 'AlbumCard' && node.props.focusId === 'music-artist-album-release');
+    return {bar, card};
+  };
+  const first = page();
+  assert.notEqual(first.bar.props.entryFocus, false, 'the artist page opens on Play (ruling 31)');
+  first.card.props.openEntry({id: 'release', kind: 'album'});
+  assert.equal(opened.length, 1);
+  const back = page();
+  assert.equal(back.bar.props.entryFocus, false, 'Back does not hand focus to Play');
+  assert.equal(back.card.props.preferred, true, 'Back returns focus to the album card it opened');
+  const fresh = page();
+  assert.notEqual(fresh.bar.props.entryFocus, false, 'the return is used once; the next visit opens on Play');
+  assert.notEqual(fresh.card.props.preferred, true);
+});

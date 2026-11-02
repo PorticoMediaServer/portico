@@ -1,4 +1,5 @@
 import {useNativeStackHosted, useNativeStackPlacement} from '../../kit/navigation/stack-slot';
+import {CoveredLayer} from '../../kit/focus/CoveredLayer';
 import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Platform, View, useWindowDimensions} from 'react-native';
 import {useFocusRegistry, type FocusSnapshot} from '../../kit/focus';
@@ -188,7 +189,7 @@ function RetainedHomeRow({source, runtime, active, onBack, onPlay, onOpen, onPla
     return () => cancelAnimationFrame(frame);
   }, [active, registry]);
   useEffect(() => () => release.current?.(), []);
-  return place(<View pointerEvents={active ? 'auto' : 'none'} accessibilityElementsHidden={!active} importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
+  return place(<CoveredLayer covered={!active}
     style={{position: 'absolute', inset: 0, opacity: active || stacked ? 1 : 0}}>
     <HomeSeeAll controller={source.controller} runtime={runtime} active={active && !filters} onBack={onBack} onPlay={onPlay} onOpen={onOpen} onPlayEntry={onPlayEntry}
       onMenu={(entry, anchor) => source.actions.menu(entry, anchor, undefined, recommendation ? [{id: 'not-interested', label: defaultI18n.t('entry.notInterested'), icon: 'i-eyeoff', onSelect: () => {
@@ -212,5 +213,5 @@ function RetainedHomeRow({source, runtime, active, onBack, onPlay, onOpen, onPla
       if (displayedUndo.current?.id === id) displayedUndo.current = undefined;
       setUndo(value => value?.id === id ? undefined : value);
     }}/>
-  </View>);
+  </CoveredLayer>);
 }

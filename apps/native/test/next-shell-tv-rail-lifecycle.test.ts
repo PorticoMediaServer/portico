@@ -79,7 +79,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: useShared, withTiming: (v: unknown) => v},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})}, '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'},
     '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/browse': {}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => motion},
-    '../kit/focus': {useFocusRegistry: () => registry}, './tv-focus': focusModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': shellModel,
+    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': focusModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': shellModel,
     './PhoneTabBar': {}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'ProfileMenu'},
     './NativePlaybackLayer': {NativePlaybackLayer: 'PlaybackLayer'}, './DesktopHeader': {},
   });
@@ -144,6 +144,36 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     await act(async () => {snapshot = {...snapshot, destination: {kind: 'library', libraryId: 'movies'}, railDestination: {kind: 'library', libraryId: 'movies'},
       libraries: [{id: 'movies'}]}; await sessionHost!.rerender();});
     assert.deepEqual(rail().props.destination, {kind: 'library', libraryId: 'movies'}, 'the rail follows the actual title-highlighted page');
+    {
+      // W-12: Back from a title returns to the library card it was opened from, even when the grid
+      // re-enables its cards a frame after the route has gone, never to the toolbar above it.
+      const grid = {regionId: 'movies-grid', childId: 'blade-runner'}, toolbar = {regionId: 'movies-toolbar', childId: 'sort'};
+      const flush = () => {for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}};
+      registry.configure({id: toolbar.regionId, entry: toolbar.childId, order: [toolbar.childId]});
+      registry.attach(toolbar, {requestTVFocus() {requests.push('toolbar'); registry.didFocus(toolbar);}});
+      const gridConfig = (enabled: boolean) => registry.configure({id: grid.regionId, entry: grid.childId, order: [grid.childId], neighbors: {previous: toolbar.regionId}, enabled});
+      gridConfig(true);
+      registry.attach(grid, {requestTVFocus() {requests.push('grid-card'); registry.didFocus(grid);}});
+      await act(() => {registry.didFocus(grid);});
+      await act(async () => {snapshot = {...snapshot, contentVisible: false}; await sessionHost!.rerender();});
+      gridConfig(false);
+      const before = requests.length;
+      await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
+      await act(() => {flush(); flush();});
+      assert.deepEqual(requests.slice(before), [], 'while the grid is still re-enabling, focus waits for its card');
+      gridConfig(true);
+      await act(() => {flush();});
+      assert.deepEqual(requests.slice(before), ['grid-card'], 'Back lands on the originating card, not the toolbar');
+      // A card that never returns still falls back after the wait, as before.
+      await act(() => {registry.didFocus(grid);});
+      await act(async () => {snapshot = {...snapshot, contentVisible: false}; await sessionHost!.rerender();});
+      gridConfig(false);
+      const late = requests.length;
+      await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
+      await act(() => {for (let i = 0; i < 20; i++) flush();});
+      assert.deepEqual(requests.slice(late), ['toolbar'], 'after the wait the usual fallback applies');
+      gridConfig(true);
+    }
     const topsBefore = tops.length, navigationsBefore = navigations.length;
     // cb0ef443: a pushed destination hides the shell chrome. The rail is then absent,
     // so there is no retained hidden origin to act on; hiding alone navigates and
@@ -252,7 +282,7 @@ test('the real rail declares current-page entry and semantic Right return; nativ
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop', Path: 'Path'},
     'react-native-reanimated': {default: {View: 'AnimatedView', Text: 'AnimatedText'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: number) => ({value}), withTiming: (value: unknown) => value, withDelay: (_delay: unknown, value: unknown) => value},
     '../../../../packages/i18n/src': {defaultI18n}, '../kit/controls': {Focusable: 'Focusable'},
-    '../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry, focusTestID: (await import('../src-next/kit/focus/registry')).focusTestID}, './tv-focus': focusModel,
+    '../kit/focus': {CoveredLayer: 'CoveredLayer', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry, focusTestID: (await import('../src-next/kit/focus/registry')).focusTestID}, './tv-focus': focusModel,
     '../kit/artwork': {ProfileFace: 'ProfileFace'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme},
     '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './model': shellModel,
   });

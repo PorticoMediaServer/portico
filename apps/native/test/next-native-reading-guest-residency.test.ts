@@ -98,7 +98,7 @@ test('twenty original sessions can evict and restore real guest components witho
       else await mount(index, row.props.active, row.props.onGuestState);
     }
     assert.ok(mounted.size <= 2);
-    assert.equal([...mounted.values()].filter(item => (item.tree() as Node).props.pointerEvents === 'auto').length, navigation.getSnapshot().route.kind === 'read' ? 1 : 0);
+    assert.equal([...mounted.values()].filter(item => {const props = (item.tree() as Node).props as {pointerEvents?: string; covered?: boolean}; return props.pointerEvents === 'auto' || props.covered === false;}).length, navigation.getSnapshot().route.kind === 'read' ? 1 : 0);
   };
   try {
     for (let index = 0; index < 20; index++) {

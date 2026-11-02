@@ -1,4 +1,5 @@
 import {NativeTVReceiver} from '../screens/settings-live/NativeTVReceiver';
+import {CoveredLayer} from '../kit/focus/CoveredLayer';
 import {createNativeListeningPlaylist} from './listening-playlist';
 import {createNativeListeningQueuePolicy} from './listening-queue-policy';
 import {createNativeListeningSongDetail} from './listening-song-detail';
@@ -486,10 +487,15 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
       // A native stack draws each page in its own screen; here it only needs every module to exist.
       if (stacks) for (const presentation of context.navigation.presentationStack()) routes.prepare(presentation.route);
       const active = route.kind === 'shell' || stacks ? null : render(route);
-      return runtime && context.current() ? <View pointerEvents="box-none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
-        {Platform.isTV && <NativeTVReceiver context={context} runtime={runtime}/>}
+      const pages = runtime ? <>
         {(routes.renderRetained(runtime) ?? []).map((node, index) => <React.Fragment key={index}>{node}</React.Fragment>)}
         {active}
+      </> : null;
+      return runtime && context.current() ? <View pointerEvents="box-none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
+        {Platform.isTV && <NativeTVReceiver context={context} runtime={runtime}/>}
+        {/* The expanded player covers the route pages on TV: nothing under it may take D-pad focus.
+            Overlays and music navigation stay above, reachable from the player. Touch has no D-pad. */}
+        {Platform.isTV ? <CoveredLayer covered={runtime.getSnapshot().mediaExpanded === true} style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}} testID="native-shell-routes">{pages}</CoveredLayer> : pages}
         {musicNavigation.render()}
         {(routes.renderOverlays(runtime) ?? []).map((node, index) => <React.Fragment key={index}>{node}</React.Fragment>)}
       </View> : null;
