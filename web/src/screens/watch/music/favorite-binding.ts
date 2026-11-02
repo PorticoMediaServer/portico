@@ -42,7 +42,7 @@ export function createMusicFavorite(source: MusicFavoriteSource) {
     const result = await context.api.request<T>(path, method, body, active);
     assert();active.throwIfAborted();return result;
   }};
-  service = new DetailService({api, scope: {serverId: authority.serverId, viewerId: JSON.stringify([authority.authority, authority.accountId, authority.profileId])},
+  service = new DetailService({queries: context.freshness.queries, api, scope: {serverId: authority.serverId, viewerId: JSON.stringify([authority.authority, authority.accountId, authority.profileId])},
     requestId: async () => {assert();return crypto.randomUUID();}});
   const owned = service;
   const admit = (shown: DetailSnapshot) => {assert();if (owned.getSnapshot() !== shown) throw new DOMException('Favorite detail changed', 'AbortError');assert();};

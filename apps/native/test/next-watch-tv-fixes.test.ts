@@ -203,6 +203,7 @@ test('post-play rows stay horizontal, preserve card widths, connect both directi
     const {NativeWatchPostPlay} = await screenModule(new URL('../src-next/screens/watch/PostPlayScreen.tsx', import.meta.url), {
       react: h.react, 'react-native': nativeAtoms, 'react-native-svg': svg, '../../../../../packages/i18n/src': i18n,
       '../../../../../packages/client-core/src/detail': {DetailService: class {getSnapshot = () => ({data}); subscribe = () => () => {}; dispose() {}}},
+      '../../shell/freshness': {viewerQueriesFor: () => ({})},
       '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/controls': controlsAtoms, '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': themed,
     });
     try {

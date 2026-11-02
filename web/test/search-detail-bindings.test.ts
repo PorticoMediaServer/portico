@@ -15,11 +15,12 @@ import {titleCreditsWindow} from '../src/screens/detail/credits-window.ts';
 import {setImmediate} from 'node:timers/promises';
 import type {PreferenceSnapshot} from '@core/preferences.ts';
 import type {WatchVersionRequest} from '../src/screens/watch/version-presentation.ts';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return {promise, resolve}; }
 function setup(handler: (path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<unknown>) {
   let current = true, requests = 0;
-  const context = {
+  const context = withQueries({
     api: {
       request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => { requests++; return handler(path, method, body, signal) as Promise<T>; },
       requestRaw: async (path: string, method?: string, options?: {body?: unknown; signal?: AbortSignal}) => { requests++; return {status: 200, headers: {}, body: await handler(path, method, options?.body, options?.signal)}; },
@@ -27,7 +28,7 @@ function setup(handler: (path: string, method?: string, body?: unknown, signal?:
     scope: {serverId: 'server', viewerId: JSON.stringify(['local', 'account', 'profile'])}, isCurrent: () => current,
     preferences: {getSnapshot: () => ({}), subscribe: () => () => {}},
     effects: {openEntry: () => {}, openSettings: () => {}, play: async () => {}, reportError: () => {}},
-  } as unknown as ScreenContext;
+  }) as unknown as ScreenContext;
   return {context, requests: () => requests, retire: () => { current = false; }};
 }
 const personPage = (id: string) => ({serverId: 'server', viewerFence: 'fence', revision: {catalog: 1, viewer: 1}, person: {id, name: id, revision: 1}, credits: [], pageInfo: {total: 0, nextCursor: ''}});
@@ -250,7 +251,9 @@ test('a bare item-library resolution aborts at disposal and never starts detail 
   const owner = setup(async (_path, _method, _body, input) => { signal = input; return response.promise; });
   const binding = createDetailBindings(owner.context), read = binding.select({itemId: 'one'});
   assert.equal(owner.requests(), 1);
-  binding.dispose(); assert.equal(signal?.aborted, true);
+  // The screen lets go at once; the title's shared read finishes for the viewer's cache instead
+  // of being aborted (another owner, or a return to this title, uses it).
+  binding.dispose(); assert.equal(signal?.aborted, false);
   response.resolve({id: 'one', libraryId: 'library', kind: 'movie', title: 'one', available: true, durationMs: 1000, progressMs: 0});
   await assert.rejects(read, {name: 'AbortError'});
   assert.equal(owner.requests(), 1);
@@ -383,7 +386,9 @@ test('a File info command carries its opening and exact occurrence, and a change
 });
 test('manual versions use fresh Options resume and never carry the choice into ordinary Play', async () => {
   const starts: unknown[] = [];
-  const page = {...detailPage('one'), actions: [{id: 'play', labelKey: 'title.play', enabled: true, playback: {itemId: 'one', startMs: 100}}]};
+  let changed = false;
+  const base = {...detailPage('one'), actions: [{id: 'play', labelKey: 'title.play', enabled: true, playback: {itemId: 'one', startMs: 100}}]};
+  const page = new Proxy(base, {get: (target, key) => key === 'item' && changed ? {...target.item, title: 'one (renamed)'} : Reflect.get(target, key)});
   const owner = setup(async path => path.includes('/playback-options') ? {itemId: 'one', versions: [{id: 'grouped-version', durationMs: 1000}], resume: {positionMs: 725, partIndex: 0}} : page);
   const context = {...owner.context, effects: {...owner.context.effects, play: async (target: unknown) => { starts.push(target); }}};
   const binding = createDetailBindings(context); await binding.select({libraryId: 'library', itemId: 'one'});
@@ -400,7 +405,9 @@ test('manual versions use fresh Options resume and never carry the choice into o
 test('Title More passes original genuine Options to the single chooser and starts only a fresh offered exact version', async () => {
   let captured: WatchVersionRequest | undefined, optionsReads = 0;
   const closed = deferred<void>(), starts: unknown[] = [];
-  const page = {...detailPage('one'), actions: [{id: 'play', labelKey: 'title.play', enabled: true, playback: {itemId: 'one', startMs: 100}}]};
+  let changed = false;
+  const base = {...detailPage('one'), actions: [{id: 'play', labelKey: 'title.play', enabled: true, playback: {itemId: 'one', startMs: 100}}]};
+  const page = new Proxy(base, {get: (target, key) => key === 'item' && changed ? {...target.item, title: 'one (renamed)'} : Reflect.get(target, key)});
   const owner = setup(async path => path.includes('/playback-options') ? {itemId: 'one', versions: [{id: 'first', durationMs: 1000}, {id: 'second', durationMs: 1000}], resume: {positionMs: ++optionsReads === 1 ? 0 : 700, partIndex: 0}} : page);
   const binding = createDetailBindings({...owner.context, effects: {...owner.context.effects,
     play: async target => {starts.push(target);}, chooseVersion: async request => {captured = request;await closed.promise;}}});
@@ -414,7 +421,8 @@ test('Title More passes original genuine Options to the single chooser and start
     await captured.playVersion('second', signal.signal);
     assert.deepEqual(starts, [{itemId: 'one', libraryId: 'library', startSeconds: .7, versionId: 'second'}]);
     assert.equal(optionsReads, 2);
-    await binding.select({libraryId: 'library', itemId: 'one'});
+    // The title changes on the server and the page is read again: a new page replaces the one the chooser was opened from.
+    changed = true; await binding.service.refresh();
     const replacement = binding.service.getSnapshot().data!;
     assert.notEqual(replacement, data);
     await assert.rejects(binding.chooseVersion(replacement, original, signal.signal), {name: 'AbortError'});

@@ -41,6 +41,7 @@ import {NativeWatchEpisodes} from './EpisodePanel';
 import type {MenuAction} from '../../kit/overlays/types';
 import type {NativeTitleActionsHandle} from './title-actions';
 import type {NativeSelection} from '../selection/native-selection';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 export type NativeWatchCapture = Readonly<{
   entry: ContentEntry;
@@ -338,7 +339,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
     // Details route. An unreadable detail keeps the independent File info menu.
     let detail: DetailService | undefined;
     if (entry.libraryId) {
-      const candidate = new DetailService({api: ports.api, scope: ports.scope, requestId: ports.requestId});
+      const candidate = new DetailService({queries: viewerQueriesFor(ports.api, ports.scope), api: ports.api, scope: ports.scope, requestId: ports.requestId});
       try {await candidate.select({libraryId: entry.libraryId, itemId: entry.id});}
       catch {candidate.dispose();}
       if (!current(captured)) {candidate.dispose(); return;}

@@ -21,9 +21,9 @@ import type {RefObject} from 'react';
 export type WebDetailTarget = Readonly<{itemId: string; libraryId?: string; kind?: string}>;
 
 /** Constructor is inert. Only select/openFileInfo/readVersions perform reads. */
-export function createDetailBindings(context: ScreenContext, page: {initial?: DetailSnapshot} = {}) {
+export function createDetailBindings(context: ScreenContext) {
   const life = screenLifetime(context);
-  const service = new DetailService({api: life.api, scope: context.scope, ...(page.initial ? {initial: page.initial} : {}), requestId: async () => { life.assert(); return crypto.randomUUID(); }});
+  const service = new DetailService({queries: context.queries, api: life.api, scope: context.scope, requestId: async () => { life.assert(); return crypto.randomUUID(); }});
   const options = new PlaybackOptionsClient(localV1Http(life.api));
   const versionReads = new WeakMap<PlaybackOptions, DetailProjection>();
   const recommendations = createRecommendations(context);
@@ -40,17 +40,18 @@ export function createDetailBindings(context: ScreenContext, page: {initial?: De
     life.assert();
     if (service.getSnapshot().phase !== 'ready' || service.getSnapshot().data !== data) throw new DOMException('Title revision changed', 'AbortError');
   };
-  const select = async (target: WebDetailTarget, signal?: AbortSignal) => {
+  /** `fresh`: read the title from the server even when the viewer's cache holds it, for a check that gates an action (a play permission). */
+  const select = async (target: WebDetailTarget, signal?: AbortSignal, options: Readonly<{fresh?: boolean}> = {}) => {
     life.assert(); const generation = ++intent;
     signal?.throwIfAborted();
-    // A page reacquired from the viewer's memory is already showing this title: only an
-    // in-flight command is retired, so that page is not blanked and re-read from nothing.
-    const shown = service.getSnapshot();
-    if (shown.phase === 'loading' || shown.pending.length) service.cancel();
+    // A title already in the viewer's cache is shown at once by `select`; only an in-flight command is retired.
+    if (service.getSnapshot().pending.length) service.cancel();
     recommendations.clear(); selected = undefined; embeddedFallback = undefined;
     // The title's own detail route supplies library identity for a bare /item/$itemId route; it
     // serves Reading titles too, which the timed-media item read does not (E-web-23).
-    const item = target.libraryId !== undefined ? undefined : await readTitleIdentity(life.api, target.itemId, signal);
+    // A screen that has gone says so first, whatever the shared read answered.
+    const item = target.libraryId !== undefined ? undefined
+      : await readTitleIdentity(context.queries, target.itemId, signal).catch(error => { life.assert(); throw error; });
     if (item && item.id !== target.itemId) throw new Error('Title target changed');
     const libraryId = target.libraryId ?? item!.libraryId, kind = item?.kind ?? target.kind;
     life.assert(); if (generation !== intent) return;
@@ -61,7 +62,7 @@ export function createDetailBindings(context: ScreenContext, page: {initial?: De
     related = kind === 'movie' ? 'none' : 'all';
     const cancel = () => { if (generation === intent) service.cancel(); }; signal?.addEventListener('abort', cancel, {once: true});
     try {
-      await service.select(selected, {related}); signal?.throwIfAborted();
+      await service.select(selected, {related, fresh: options.fresh === true}); signal?.throwIfAborted();
       const data = service.getSnapshot().data;
       // A hint is an optimization, never permission to drop a nonmovie's rows
       // when the actual detail disagrees with the caller's captured kind.
@@ -111,7 +112,7 @@ export function createDetailBindings(context: ScreenContext, page: {initial?: De
   };
   const commandApi = (signal?: AbortSignal) => ({request: <T,>(path: string, method?: string, body?: unknown) => life.api.request<T>(path, method, body, signal)});
   const resolveEntry = async (itemId: string, signal?: AbortSignal) => {
-    const item = await readTitleIdentity(life.api, itemId, signal);
+    const item = await readTitleIdentity(context.queries, itemId, signal); life.assert();
     return validateContentEntry({id: item.id, libraryId: item.libraryId, kind: item.kind, title: item.title, posterUrl: item.posterUrl, backdropUrl: item.backdropUrl, navigation: {view: 'item', entityId: item.id}});
   };
   /** music-plus f7 (MC-9): the album's own More like this, ranked by sound when the server has

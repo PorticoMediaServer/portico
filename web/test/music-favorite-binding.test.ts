@@ -1,6 +1,7 @@
 import {strict as assert} from 'node:assert';
 import {test} from 'node:test';
 import {createMusicFavorite, reportMusicFavoriteLoadFailure} from '../src/screens/watch/music/favorite-binding.ts';
+import {testQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 function harness() {
   const authority = {epoch: 1, serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile', viewerFence: 'viewer'};
@@ -26,6 +27,7 @@ function harness() {
       }
       return detail();
     }}};
+  context.freshness = {queries: testQueries(context.api, {serverId: 'server', viewerId: 'viewer'})};
   const runtime: any = {getSnapshot: () => snapshot};
   const owner = () => createMusicFavorite({context, runtime, authority: snapshot.authority, fence: snapshot.fence, run: snapshot.playback.playbackRun, itemId: 'song', libraryId: 'library', isCurrent: () => current});
   return {owner, requests, acks, get snapshot() {return snapshot;}, retire() {current = false;}, replace() {snapshot = {...snapshot, fence: {...snapshot.fence, sourceId: 'replacement'}};},

@@ -5,18 +5,19 @@ import {join} from 'node:path';
 import {setImmediate} from 'node:timers/promises';
 import type {ScreenContext} from '../src/screens/detail/context.ts';
 import {createPersonBindings, creditRole} from '../src/screens/detail/person-bindings.ts';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
 function setup(handler: (path: string) => Promise<unknown>) {
   let current = true, requests = 0;
-  const context = {
+  const context = withQueries({
     api: {request: <T,>(path: string) => { requests++; return handler(path) as Promise<T>; },
       requestRaw: async (path: string) => ({status: 200, headers: {}, body: await handler(path)})},
     scope: {serverId: 'server', viewerId: JSON.stringify(['local', 'account', 'profile'])}, isCurrent: () => current,
     preferences: {getSnapshot: () => ({}), subscribe: () => () => {}},
     effects: {openEntry: () => {}, reportError: () => {}},
-  } as unknown as ScreenContext;
+  }) as unknown as ScreenContext;
   return {context, requests: () => requests, retire: () => { current = false; }};
 }
 

@@ -22,6 +22,7 @@ import {nativeScreenServices} from '../native-screen-services';
 import {NativeLoadedDestinations} from '../search/loaded-destinations';
 import {NativeDestinationPicker} from '../destinations/DestinationPicker';
 import {NativeBulkMedia} from '../destinations/bulk-media';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 const leaf = (entry: SearchEntry): entry is ContentEntry => ['movie', 'episode', 'song', 'audiobook_file'].includes(entry.kind);
 const aggregate = (entry: SearchEntry): entry is ContentEntry => 'libraryId' in entry && !!entry.libraryId
@@ -213,7 +214,7 @@ export function createNativeSelection(context: NativeShellBootstrapContext, sour
     try {
       observePlayback();
       const port = context.playback.cataloguePlayback?.();
-      const item = await readCatalogueSelectionItem({api: context.api, scope: authority.scope, requestId: feedback.requestId,
+      const item = await readCatalogueSelectionItem({queries: viewerQueriesFor(context.api, authority.scope), api: context.api, scope: authority.scope, requestId: feedback.requestId,
         signal: controller.signal, isCurrent: current}, entry, {play: !!port, queue: !!port && queueControl(),
           ...(leaf(entry) ? {myList: true, favorite: true, watched: true, edit: true, delete: true, playlist: true, collection: true} : {})});
       if (!current()) throw cancelled();
@@ -299,7 +300,7 @@ export function createNativeSelection(context: NativeShellBootstrapContext, sour
     if (entries.length !== operation.target.items.length || !current()) return;
     const value = action !== 'removeMyList' && action !== 'unwatched', intent = capability === 'myList' ? 'watchlist' : capability;
     personalController = controller; personalCurrent = current;
-    const run = createCataloguePersonalSelection({api: context.api, scope: authority.scope, requestId: feedback.requestId,
+    const run = createCataloguePersonalSelection({queries: viewerQueriesFor(context.api, authority.scope), api: context.api, scope: authority.scope, requestId: feedback.requestId,
       signal: controller.signal, isCurrent: live});
     personal = run;
     personalDetach = () => run === personal && run.service.getSnapshot().busy;
@@ -338,7 +339,7 @@ export function createNativeSelection(context: NativeShellBootstrapContext, sour
       && context.navigation.getSnapshot().revision === route && keyFor(source.getSnapshot()) === captured
       && currentModel.getSnapshot().active;
     destinationController = controller;
-    destinations = new NativeLoadedDestinations({api: context.api, scope: authority.scope, requestId: feedback.requestId, viewerFence: context.authority().viewerFence,
+    destinations = new NativeLoadedDestinations({queries: viewerQueriesFor(context.api, authority.scope), api: context.api, scope: authority.scope, requestId: feedback.requestId, viewerFence: context.authority().viewerFence,
       signal: controller.signal, isCurrent: current}, selected);
     destinationKind = kind;
     stopDestinations = destinations.subscribe(emit);
@@ -361,7 +362,7 @@ export function createNativeSelection(context: NativeShellBootstrapContext, sour
     const current = () => !controller.signal.aborted && visible() && model === currentModel && token === captured
       && context.navigation.getSnapshot().revision === route && operation.current();
     bulkController = controller;
-    bulk = new NativeBulkMedia({api: context.api, scope: authority.scope, requestId: feedback.requestId, signal: controller.signal, isCurrent: current}, selected);
+    bulk = new NativeBulkMedia({queries: viewerQueriesFor(context.api, authority.scope), api: context.api, scope: authority.scope, requestId: feedback.requestId, signal: controller.signal, isCurrent: current}, selected);
     stopBulk = bulk.subscribe(emit);
     void (kind === 'edit' ? bulk.openEditor() : bulk.openDelete()).catch(error => {if (current()) feedback.reportError(error, 'detail');});
     emit();

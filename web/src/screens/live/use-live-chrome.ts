@@ -58,7 +58,7 @@ function chromeScope(context: ShellAssemblyContext) {
 }
 function chromeScreen(context: ShellAssemblyContext): ScreenContext {
   const session = context.session();
-  return {api: context.api, events: context.events, artwork: context.artwork, get identity() {return context.facts.identity;}, subscribeIdentity: listener => subscribeFacts(context, listener),
+  return {api: context.api, queries: context.freshness.queries, events: context.events, artwork: context.artwork, get identity() {return context.facts.identity;}, subscribeIdentity: listener => subscribeFacts(context, listener),
     scope: {serverId: session.viewer.serverId, viewerId: JSON.stringify([session.viewer.authority, session.viewer.accountId, session.viewer.profileId])},
     isCurrent: context.isCurrent,
     preferences: {getSnapshot: () => context.preferences?.getSnapshot() ?? context.facts.preferences, subscribe: listener => subscribePresentation(context, listener)},

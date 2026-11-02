@@ -6,6 +6,7 @@ import {HomeService} from '../src/home-service.ts';
 import type {HomeSelectionOptions, HomeSelectionPlaybackRequest} from '../src/home-selection/index.ts';
 import {routePath} from '../../contracts/src/routes.ts';
 import {homeEntrySelection} from '../src/home-selection.ts';
+import {withQueries} from './fixtures/viewer-queries.ts';
 
 const fence = 'a'.repeat(64), revision = 'b'.repeat(64);
 let sequence = 0;
@@ -26,7 +27,7 @@ function harness(entries = [entry('a'), entry('b')], request?: HomeSelectionOpti
     playback: {play: async input => {played.push(input); return {queue: header};}, enqueue: async input => {queued.push(input); return {queue: header};}, playChannel: async () => {throw new Error('Unexpected channel playback');}},
     routes: {openEntry: () => {throw new Error('Unexpected navigation');}, openCollection: () => {throw new Error('Unexpected navigation');}, openDestination: () => {throw new Error('Unexpected navigation');}}, reportError: error => errors.push(error),
   };
-  const controller = new HomeSelectionController(options);
+  const controller = new HomeSelectionController(withQueries(options));
   return {controller, options, entries, played, queued, errors, get document() {return currentDocument();}, retire() {authorityCurrent = false;}, replace(next: HomeDocument, beforeNotify?: () => void) {document = next; beforeNotify?.(); for (const listener of listeners) listener();}};
 }
 function pickAll(h: ReturnType<typeof harness>) {h.controller.registerWindow({id: 'window', row: h.document.rows[0], sectionOrder: 0}); h.controller.selectLoaded();}

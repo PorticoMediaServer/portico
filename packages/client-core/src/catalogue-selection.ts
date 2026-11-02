@@ -1,3 +1,4 @@
+import type {ViewerQueries} from './query/viewer-queries.ts';
 import {validateHomeEntry} from './home.ts';
 import {DetailService, type DetailApi, type DetailScope} from './detail.ts';
 import {MediaSelectionService, selectionItem} from './media-selection.ts';
@@ -12,7 +13,7 @@ import {selectionCapabilities} from './selection-model/capabilities.ts';
 /** The caller captures its own source continuity and principal/route authority.
  * Search/Saved fences and opaque Browse revisions remain in their own domains. */
 export type CatalogueSelectionLifetime = Readonly<{signal: AbortSignal; isCurrent(): boolean}>;
-export type CatalogueSelectionOptions = Readonly<{api: DetailApi; scope: DetailScope; requestId(): Promise<string>}> & CatalogueSelectionLifetime;
+export type CatalogueSelectionOptions = Readonly<{queries: ViewerQueries; api: DetailApi; scope: DetailScope; requestId(): Promise<string>}> & CatalogueSelectionLifetime;
 /** Actual caller execution ports, never role-derived grants. Missing means unavailable. */
 export type CatalogueSelectionPorts = Readonly<Partial<Pick<SelectionCapabilities, 'play' | 'queue' | 'myList' | 'favorite' | 'watched' | 'edit' | 'delete' | 'playlist' | 'collection'>>>;
 const unavailable = () => Object.assign(new Error('catalogue-selection-unavailable'), {code: 'catalogue-selection-unavailable'});
@@ -57,11 +58,12 @@ export async function readCatalogueSelectionItem(options: CatalogueSelectionOpti
     })});
   }
   if (!target || target.itemId !== entry.id) throw unavailable();
-  const service = new DetailService({api: capturedApi(api, lifetime), scope: Object.freeze({...scope}), requestId});
+  const service = new DetailService({queries: options.queries, api: capturedApi(api, lifetime), scope: Object.freeze({...scope}), requestId});
   const stop = () => service.dispose();
   signal.addEventListener('abort', stop, {once: true});
   try {
-    await service.select(target);requireCurrent(lifetime);
+    // The title's grants decide what the selection may do: its current ones, read from the server.
+    await service.select(target, {fresh: true});requireCurrent(lifetime);
     const state = service.getSnapshot(), data = state.data;
     if (state.phase !== 'ready' || !data) throw state.error ?? unavailable();
     if (data.item.id !== entry.id || data.item.libraryId !== target.libraryId || data.item.kind !== entry.kind) throw unavailable();
@@ -92,7 +94,7 @@ export function createCataloguePersonalSelection(options: CatalogueSelectionOpti
   const lifetime = {signal, isCurrent: () => !disposed && isCurrent()};
   requireCurrent(lifetime);
   const api = capturedApi(sourceApi, lifetime);
-  const service = new MediaSelectionService({api, scope, requestId: async () => {
+  const service = new MediaSelectionService({queries: options.queries, api, scope, requestId: async () => {
     requireCurrent(lifetime);
     const id = await requestId();
     requireCurrent(lifetime);

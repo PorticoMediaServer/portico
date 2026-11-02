@@ -7,6 +7,7 @@ import {wholeViewQuery} from '../src/screens/browse/selection-query.ts';
 import type {DetailApi} from '@core/detail.ts';
 import type {V1QueuePlayer} from '@core/playback-v1/v1-queue-player.ts';
 import type {QueueHeader} from '@core/playback-v1/types.ts';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 const pivot = {id: 'movies', labelKey: 'library.movies', entityKinds: ['movie'], defaultSort: [{field: 'title', direction: 'asc'}], supportedViews: ['grid', 'list'], browsable: true, paging: 'offset'};
 const caps = {library: {id: 'library', name: 'Movies', kind: 'movie', defaultView: 'discover'}, pivots: [pivot], resolvedPivot: pivot,
@@ -48,9 +49,9 @@ function setup(playback?: Pick<V1QueuePlayer, 'playSegments'>, readDetail: (id: 
     return await readDetail(id, signal) as T;
   }};
   const source = new BrowseController(api, {libraryId: 'library', pivot: 'movies'}, () => authority);
-  const selection = createLibraryPlaySelection({source, api, scope, principal: {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile'},
+  const selection = createLibraryPlaySelection(withQueries({source, api, scope, principal: {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile'},
     requestId: async () => {throw new Error('No mutation operation may be issued by a grant read');}, signal: navigation.signal, isCurrent: () => authority,
-    ...(personal ? {personal} : {}), playback});
+    ...(personal ? {personal} : {}), playback}));
   return {source, selection, navigation, detailReads: () => detailReads, authority: (value: boolean) => {authority = value;},
     async load() {selection.start();await source.load();await settle();}, dispose() {selection.dispose();source.dispose();}};
 }
@@ -352,9 +353,9 @@ test('Reading rows never enter the catalogue selection model or close gaps betwe
     subscribe: () => () => {}, contains: (entry: unknown) => entries.includes(entry as typeof entries[number]),
     collection: {subscribe: () => () => {}, itemAt: (index: number) => entries[index] ? {entry: entries[index]} : undefined},
   };
-  const selection = createLibraryPlaySelection({source, scope, principal: {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile'},
+  const selection = createLibraryPlaySelection(withQueries({source, scope, principal: {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile'},
     signal: new AbortController().signal, isCurrent: () => true, api: {async request<T>(): Promise<T> {reads++; throw new Error('No grant read');}},
-    requestId: async () => {throw new Error('No mutation');}});
+    requestId: async () => {throw new Error('No mutation');}}));
   try {
     const rows = await selection.registerWindow(0, 3);
     assert.deepEqual(rows.map(row => row.position), [0, 2]);

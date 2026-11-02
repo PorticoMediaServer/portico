@@ -30,8 +30,6 @@ import {useShellWidth} from '../../shell/viewport';
 import {entryCard, titlePageFacts, calendarDate, instantDate} from './model';
 import type {DetailBindings} from './bindings';
 import styles from './detail.module.css';
-import {dependsOn, titlesWithPersonalState} from '@core/freshness-hub.ts';
-import {useFreshDocument} from '../../platform/freshness';
 import {TitleProse, TitleFactsLine} from '../../kit/title/TitleParts';
 import {TitlePeople, CreditLine, CreditNames} from './People';
 import {useTitleArtworkClaim, useTitleCopyEntrance} from './title-artwork-motion';
@@ -61,7 +59,6 @@ export function DetailScreen({binding, itemId, libraryId, kind, artworkClaim}: D
 export function TitleBody({binding, compact = false, artworkClaim}: {binding: DetailBindings; compact?: boolean; artworkClaim?: SourceArtClaim}) {
   const tabPanelId = useId();
   const snapshot = useSyncExternalStore(binding.service.subscribe, binding.service.getSnapshot, binding.service.getSnapshot);
-  useFreshDocument(() => [dependsOn.libraries, ...titlesWithPersonalState(binding.service.getSnapshot().target?.libraryId), dependsOn.event('stream.resync')], refresh => binding.service.revalidate(refresh), () => binding.service.getSnapshot().phase === 'ready');
   const preferences = useSyncExternalStore(binding.context.preferences.subscribe, binding.context.preferences.getSnapshot, binding.context.preferences.getSnapshot);
   const data = snapshot.data, {tab} = useSyncExternalStore(binding.view.subscribe, binding.view.getSnapshot, binding.view.getSnapshot);
   const recommendations = useSyncExternalStore(binding.recommendations.subscribe, binding.recommendations.getSnapshot, binding.recommendations.getSnapshot);
@@ -293,7 +290,7 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
   const refreshPath = owner ? refreshMetadataPath(data.item.kind, data.item.id) : undefined;
   const refresh = () => {
     if (!refreshPath) return;
-    void binding.context.api.request(refreshPath, 'POST', {}).then(() => binding.service.revalidate()).catch(binding.context.effects.reportError);
+    void binding.context.api.request(refreshPath, 'POST', {}).then(() => binding.service.refresh()).catch(binding.context.effects.reportError);
   };
   const differentVersion = versions?.data === data && !versions.request.signal.aborted && versions.options.versions.length > 1;
   const personal = (phone && offered('watched')) || offered('favorite') || offered('rating');

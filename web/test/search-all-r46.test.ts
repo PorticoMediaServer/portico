@@ -6,6 +6,7 @@ import type {SearchGroup} from '@core/search.ts';
 import {createI18n, resolveRegion} from '@i18n';
 import {setServiceI18n} from '@core/presentation/service-text.ts';
 import {createSearchBindings} from '../src/screens/search/bindings.ts';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 /** The shell confirms the viewer's catalogue and device zone before any screen reads. */
 setServiceI18n(createI18n(resolveRegion(undefined, {locales: ['en-CA'], timeZone: 'America/Halifax'})));
@@ -44,7 +45,7 @@ function setup(handler: (path: string, method?: string, body?: unknown, signal?:
   let current = true;
   const paths: string[] = [];
   const opened: unknown[] = [];
-  const context = {
+  const context = withQueries({
     api: {
       request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => { paths.push(path); return handler(path, method, body, signal) as Promise<T>; },
       requestRaw: async () => { throw new Error('No raw transport.'); },
@@ -52,7 +53,7 @@ function setup(handler: (path: string, method?: string, body?: unknown, signal?:
     scope: {serverId: 'server', viewerId: JSON.stringify(['local', 'account', 'profile'])}, isCurrent: () => current,
     preferences: {getSnapshot: () => ({}), subscribe: () => () => {}},
     effects: {openEntry: (entry: unknown) => opened.push(entry), openSettings: () => {}, play: async () => {}, reportError: () => {}},
-  } as unknown as ScreenContext;
+  }) as unknown as ScreenContext;
   return {context, paths, opened, retire: () => { current = false; }};
 }
 async function until(check: () => boolean) {

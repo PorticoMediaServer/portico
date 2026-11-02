@@ -4,6 +4,7 @@ import type {ScreenContext} from '../src/screens/detail/context.ts';
 import {createLiveBindings} from '../src/screens/live/bindings.ts';
 import {parseLiveScreenSearch} from '../src/screens/live/route-search.ts';
 import {screenEntryDestination} from '../src/screens/browse/navigation.ts';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 
 test('Live accepts an actual channel identity without inventing its source or provenance', () => {
@@ -25,7 +26,7 @@ test('Search navigation preserves only its canonical channel tuple and keeps Per
 });
 test('a selected channel is one named, authorized guide read and never a guessed source lookup', async () => {
   const requests: URL[] = [];let wrongSource = false;
-  const context = {scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => true,
+  const context = withQueries({scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => true,
     api: {async request(path: string) {
       const url = new URL(path, 'https://example.test');requests.push(url);
       const source = {id: wrongSource ? 'other-source' : 'actual-source', name: 'Actual source', provenance: 'live-source', generation: 'generation',
@@ -34,7 +35,7 @@ test('a selected channel is one named, authorized guide read and never a guessed
         start: url.searchParams.get('start'), end: url.searchParams.get('end'), timezone: 'UTC', observedAt: new Date().toISOString(), nextCursor: '', sources: [source],
         channels: [{id: 'actual-channel', sourceId: source.id, provenance: 'live-source', generation: 'generation', name: 'Actual channel', number: '1', group: '',
           programmes: [], tuneAvailable: true, recordAvailable: false, favorite: false, hidden: false, preferenceRevision: 0}]}};
-    }}} as unknown as ScreenContext;
+    }}}) as unknown as ScreenContext;
   const owner = createLiveBindings(context, {kind: 'all', sourceId: '', timezone: 'UTC'});
   try {
     const target = {sourceId: 'actual-source', channelId: 'actual-channel', provenance: 'live-source' as const};
@@ -67,8 +68,8 @@ test('a deep link to a library channel names the collapsed Library Channels sour
 test('Live construction is inert and an authority refusal retires the bounded guide before further HTTP', async () => {
   let reads = 0;
   const denied = Object.assign(new Error('denied'), {status: 403});
-  const context = {scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => true,
-    api: {async request() {reads++;throw denied;}}} as unknown as ScreenContext;
+  const context = withQueries({scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => true,
+    api: {async request() {reads++;throw denied;}}}) as unknown as ScreenContext;
   const owner = createLiveBindings(context, {kind: 'all', sourceId: '', timezone: 'UTC'});
   assert.equal(reads, 0);
   await assert.rejects(owner.sources(), error => error === denied);
@@ -83,7 +84,7 @@ test('Live construction is inert and an authority refusal retires the bounded gu
 
 test('a source hint refreshes only bounded viewports and retires their prior directory revisions and marks', async () => {
   const calls: URL[] = [];let generation = 1;
-  const context = {scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => true,
+  const context = withQueries({scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => true,
     api: {async request(path: string) {
       const url = new URL(path, 'https://example.test');calls.push(url);
       const source = {id: 'source', name: 'Actual source', provenance: 'live-source', generation: String(generation),
@@ -98,7 +99,7 @@ test('a source hint refreshes only bounded viewports and retires their prior dir
         offset: Number(url.searchParams.get('offset')), limit: Number(url.searchParams.get('limit')), channels: [channel], sources: [source]}};
       return {...base, guide: {viewerFence: 'fence', state: 'no-guide-data', start: url.searchParams.get('start'), end: url.searchParams.get('end'),
         timezone: 'UTC', observedAt: new Date(0).toISOString(), nextCursor: '', sources: [source], channels: [channel]}};
-    }}} as unknown as ScreenContext;
+    }}}) as unknown as ScreenContext;
   const owner = createLiveBindings(context, {kind: 'live-source', sourceId: 'source', timezone: 'UTC'}), shelf = owner.onNow();
   try {
     owner.store.setViewport({firstRow: 0, lastRow: 0, start: 0, end: 1});

@@ -32,6 +32,7 @@ import {NativeBulkMedia} from '../destinations/bulk-media';
 import {nativeLibraryEntryKey, type NativeLibraryDestination} from './model';
 import type {NativeLibrarySelectionPort} from './LibraryScreen';
 import {createNativeLibraryPlaySelection} from './play-selection';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 type Producer = ReturnType<typeof createNativeLibraryPlaySelection>;
 const queryLeaves: ReadonlySet<string> = new Set(['movie', 'episode', 'song', 'audiobook_file']);
@@ -242,7 +243,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     const value = action !== 'removeMyList' && action !== 'unwatched', intent = capability === 'myList' ? 'watchlist' : capability;
     personalController = controller; personalCurrent = () => !controller.signal.aborted && owned();
     personalToken++;
-    const run = createCataloguePersonalSelection({api: context.api, scope: lifetime.scope, requestId: services.requestId, signal: controller.signal, isCurrent: live});
+    const run = createCataloguePersonalSelection({queries: viewerQueriesFor(context.api, lifetime.scope), api: context.api, scope: lifetime.scope, requestId: services.requestId, signal: controller.signal, isCurrent: live});
     personal = run;
     personalDetach = () => run === personal && run.service.getSnapshot().busy;
     run.service.setEntries(entries); run.service.begin();
@@ -282,7 +283,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     const controller = new AbortController(), live = () => !controller.signal.aborted && visible() && producer === current
       && context.navigation.getSnapshot().revision === routeRevision && model.isOperationCurrent(op);
     destinationController = controller;
-    destinations = new NativeLoadedDestinations({api: context.api, scope: lifetime.scope, requestId: services.requestId, signal: controller.signal, isCurrent: live,
+    destinations = new NativeLoadedDestinations({queries: viewerQueriesFor(context.api, lifetime.scope), api: context.api, scope: lifetime.scope, requestId: services.requestId, signal: controller.signal, isCurrent: live,
       viewerFence: context.authority().viewerFence}, pickedEntries);
     destinationKind = kind;
     stopDestinations = destinations.subscribe(emit);
@@ -304,7 +305,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     const controller = new AbortController(), live = () => !controller.signal.aborted && visible() && producer === current
       && context.navigation.getSnapshot().revision === routeRevision && model.isOperationCurrent(op);
     bulkController = controller;
-    bulk = new NativeBulkMedia({api: context.api, scope: lifetime.scope, requestId: services.requestId, signal: controller.signal, isCurrent: live}, pickedEntries);
+    bulk = new NativeBulkMedia({queries: viewerQueriesFor(context.api, lifetime.scope), api: context.api, scope: lifetime.scope, requestId: services.requestId, signal: controller.signal, isCurrent: live}, pickedEntries);
     stopBulk = bulk.subscribe(emit);
     void (kind === 'edit' ? bulk.openEditor() : bulk.openDelete()).catch(error => {if (live()) services.reportError(error, 'detail');});
     emit();

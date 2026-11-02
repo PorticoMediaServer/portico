@@ -7,6 +7,7 @@ import {routePath} from '../../packages/contracts/src/routes.ts';
 import {retryEditorRead} from '../src/shell/selection-actions.ts';
 import {editorCoreDraft, editorResultView} from '../src/shell/selection-presentation.ts';
 import {homeFixtures as f} from '../../packages/i18n/src/catalog/en-US/next/dev/home-fixtures.ts';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 const fence = 'a'.repeat(64), revision = 'b'.repeat(64);
 type Target = {kind: 'item'; contentKind: 'movie'; id: string; libraryId: string};
@@ -30,10 +31,10 @@ function editorController(request: HomeSelectionOptions['api']['request']) {
   const document: HomeDocument = {serverId: 'server', viewerFence: fence, rows: [row], spotlight: [], layout: {revision: 1, rowOrder: ['recent'], hiddenRowIds: []}, revision: {catalog: 1, viewer: 1}, generatedAt: '2026-10-22T00:00:00Z'};
   let sequence = 0;
   const unexpected = async (): Promise<never> => { throw new Error('Unexpected playback'); };
-  const controller = new HomeSelectionController({api: {request}, home: {getSnapshot: () => ({phase: 'ready', document, paging: new Set()}), subscribe: () => () => {}} as unknown as HomeService,
+  const controller = new HomeSelectionController(withQueries({api: {request}, home: {getSnapshot: () => ({phase: 'ready', document, paging: new Set()}), subscribe: () => () => {}} as unknown as HomeService,
     context: homeSelectionContext({serverId: 'server', authority: 'local', accountId: 'owner', profileId: 'profile', viewId: 'home'}, document), events: {on: () => () => {}},
     environment: {platform: 'desktop-web', isOwner: true, canEditMetadata: true}, isCurrent: () => true, requestId: async () => `00000000-0000-4000-8000-${String(++sequence).padStart(12, '0')}`,
-    playback: {play: unexpected, enqueue: unexpected, playChannel: unexpected}, routes: {openEntry: unexpected, openCollection: unexpected, openDestination: unexpected}, reportError: error => { throw error; }});
+    playback: {play: unexpected, enqueue: unexpected, playChannel: unexpected}, routes: {openEntry: unexpected, openCollection: unexpected, openDestination: unexpected}, reportError: error => { throw error; }}));
   controller.registerWindow({id: 'home:recent', row, sectionOrder: 0}); controller.selectLoaded();
   return controller;
 }
