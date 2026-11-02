@@ -871,3 +871,56 @@ func TestStatementCacheNativeAccountingClearsBindingsAndRefreshesSchema(t *testi
 		t.Fatal("accounting retained the cleared large binding")
 	}
 }
+
+func TestWriterStatementBudgetTracksMemory(t *testing.T) {
+	for _, tc := range []struct {
+		memory int64
+		want   int
+	}{{0, 4 << 20}, {256 << 20, 4 << 20}, {512 << 20, 4 << 20}, {1 << 30, 8 << 20}, {2 << 30, 16 << 20}, {64 << 30, 16 << 20}} {
+		if got := writerStatementBudgetForMemory(tc.memory); got != tc.want {
+			t.Fatalf("memory %d: writer budget %d, want %d", tc.memory, got, tc.want)
+		}
+	}
+}
+
+// The writer connection keeps a working set larger than a reader's entry
+// bound, so the derived worker's statements survive the scan's between its
+// turns; a reader connection keeps the reader bound.
+func TestWriterConnectionCachesMoreThanAReader(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	fill := func(handle *sql.DB) int {
+		t.Helper()
+		conn, err := handle.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
+		for i := range statementCacheEntries + 200 {
+			var value int
+			if err := conn.QueryRowContext(ctx, fmt.Sprintf("SELECT ? AS writer_column%d", i), i).Scan(&value); err != nil || value != i {
+				t.Fatal(err)
+			}
+		}
+		n := 0
+		if err := conn.Raw(func(raw any) error {
+			c := raw.(*observedConn)
+			c.statements.mu.Lock()
+			defer c.statements.mu.Unlock()
+			n = c.statements.lru.Len()
+			if c.statements.bytes > c.statements.budget {
+				t.Fatal("cache exceeded its byte budget")
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := fill(writerHandle(db)); n != statementCacheEntries+200 {
+		t.Fatalf("writer cache kept %d statements, want all %d", n, statementCacheEntries+200)
+	}
+	if n := fill(db); n > statementCacheEntries {
+		t.Fatalf("reader cache kept %d statements, over the reader bound %d", n, statementCacheEntries)
+	}
+}

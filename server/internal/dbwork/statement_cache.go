@@ -26,6 +26,37 @@ const statementCacheMaxBudget = 4 << 20
 const statementCacheOverhead = 8 << 10
 const statementCacheGoOverhead = 512
 
+// The writer connection runs every gated write: scan pages and analysis
+// commits, the derived worker's ~60 statements per idle turn, publication and
+// maintenance. That working set does not fit the reader bound, and on the demo
+// (2 Nov) the LRU evicted the derived worker's statements between its turns:
+// 2.5M misses with as many evictions, about 170 re-prepares a second, and an
+// idle maintenance turn that re-prepared ~40 statements while it held the
+// writer (360 ms median there, 124 ms on a fast host, under 1 ms cached). The
+// one writer connection therefore gets its own, larger bound; readers keep
+// theirs.
+const statementCacheWriterEntries = 2048
+const statementCacheWriterMaxBudget = 16 << 20
+
+func writerStatementBudgetForMemory(memory int64) int {
+	if memory <= 0 {
+		return statementCacheMaxBudget
+	}
+	return int(min(max(memory/128, int64(statementCacheMaxBudget)), int64(statementCacheWriterMaxBudget)))
+}
+
+var writerStatementBudget struct {
+	sync.Once
+	bytes int
+}
+
+func defaultWriterStatementBudget() int {
+	writerStatementBudget.Do(func() {
+		writerStatementBudget.bytes = writerStatementBudgetForMemory(hostlimits.EffectiveMemoryBytes())
+	})
+	return writerStatementBudget.bytes
+}
+
 var statementBudget struct {
 	sync.Once
 	bytes int
@@ -87,8 +118,24 @@ type statementCache struct {
 	lru     list.List
 	bytes   int
 	budget  int
-	closed  bool
+	// limit bounds the entry count; zero means statementCacheEntries.
+	limit  int
+	closed bool
 }
+
+// forWriter sizes the cache of the writer connection.
+func (s *statementCache) forWriter() {
+	s.budget = defaultWriterStatementBudget()
+	s.limit = statementCacheWriterEntries
+}
+
+func (s *statementCache) entryLimit() int {
+	if s.limit > 0 {
+		return s.limit
+	}
+	return statementCacheEntries
+}
+
 type statementEntry struct {
 	query   string
 	stmt    driver.Stmt
@@ -337,7 +384,7 @@ func (s *statementCache) lease(ctx context.Context, conn driver.Conn, query stri
 	e := &statementEntry{query: strings.Clone(query), stmt: stmt, size: retainedStatementSize(stmt, query), leased: true, retired: true}
 	// Do not replace an active entry of the same key or evict leased readers.
 	if cacheable && e.size <= s.budget && s.entries[query] == nil {
-		for s.lru.Len() >= statementCacheEntries || s.bytes+e.size > s.budget {
+		for s.lru.Len() >= s.entryLimit() || s.bytes+e.size > s.budget {
 			var victim *statementEntry
 			for p := s.lru.Back(); p != nil; p = p.Prev() {
 				if candidate := p.Value.(*statementEntry); !candidate.leased {
@@ -350,7 +397,7 @@ func (s *statementCache) lease(ctx context.Context, conn driver.Conn, query stri
 			}
 			s.remove(victim)
 		}
-		if s.lru.Len() < statementCacheEntries && s.bytes+e.size <= s.budget {
+		if s.lru.Len() < s.entryLimit() && s.bytes+e.size <= s.budget {
 			if s.entries == nil {
 				s.entries = make(map[string]*statementEntry)
 			}
