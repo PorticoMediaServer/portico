@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
 
-async function gate(tv: boolean, host: object | undefined) {
+async function gate(tv: boolean, host: object | undefined, focusedRegion?: string) {
   const destinations: unknown[][] = [];
   const guide = {setDestinations: (value: unknown[]) => destinations.push(value)};
   const layout: (() => void)[] = [];
@@ -11,7 +11,8 @@ async function gate(tv: boolean, host: object | undefined) {
   react.default = react;
   const {FocusGate} = await screenModule(new URL('../src-next/kit/focus/FocusGate.tsx', import.meta.url), {
     react, 'react-native': {TVFocusGuideView: 'TVFocusGuideView', findNodeHandle: (value: unknown) => value === host ? 42 : null},
-    './FocusRegion': {useFocusRegistry: () => ({host: (id: string) => id === 'settings.pages' ? host : undefined, subscribeTarget: () => () => {}, targetSnapshot: () => 1})},
+    './FocusRegion': {useFocusRegistry: () => ({host: (id: string) => id === 'settings.pages' ? host : undefined, subscribeTarget: () => () => {}, targetSnapshot: () => 1,
+      subscribe: () => () => {}, capture: () => focusedRegion ? {regionId: focusedRegion, childId: 'x'} : undefined})},
     '../theme': {useTheme: () => ({isTV: tv})}});
   const element = FocusGate({regionId: 'settings.pages', testID: 'gate', style: {position: 'absolute'}});
   for (const effect of layout) effect();
@@ -32,4 +33,12 @@ test('a gate whose region is not attached yet hands focus nowhere rather than gu
 test('touch has no D-pad: no gate is drawn', async () => {
   const {element} = await gate(false, {tag: 'column'});
   assert.equal(element, null);
+});
+
+test('W-14 reopened: Right from the page column reaches the first row, because the gate takes no focus while the column has it', async () => {
+  const fromColumn = await gate(true, {tag: 'column'}, 'settings.pages');
+  assert.equal(fromColumn.element.props.focusable, false, 'focus in the column: the gate is no D-pad candidate, so Right goes on to the rows');
+  const fromRows = await gate(true, {tag: 'column'}, 'settings.page.profile');
+  assert.equal(fromRows.element.props.focusable, true, 'focus in the rows: Left meets the gate and returns to the column');
+  assert.deepEqual(fromRows.destinations.at(-1), [42], 're-enabled with its destination sent again');
 });
