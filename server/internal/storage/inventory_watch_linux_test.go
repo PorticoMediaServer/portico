@@ -154,3 +154,92 @@ func TestInventoryWatcherNotifiesSourcesSharingAnInode(t *testing.T) {
 		t.Fatalf("shared inode events: %+v", events)
 	}
 }
+
+// A folder created under a watched one is watched from then on, so a file
+// added inside it later is reported without a rescan.
+func TestInventoryWatcherWatchesFoldersCreatedLater(t *testing.T) {
+	root := t.TempDir()
+	observed, err := LocalInventoryDirectory(InventoryRequest{Root: root, RelativePath: "."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := newInventoryWatcher(WatchRequest{Roots: []WatchRoot{{SourceID: "source", Root: root, RootIdentity: RootIdentity(observed), Directories: []string{"."}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	if got := w.(watchCoverage).unwatched(); len(got) != 0 {
+		t.Fatalf("a fully listed root reported unwatched sources %v", got)
+	}
+	next := func(want string) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		for {
+			events, err := w.Next(ctx)
+			if err != nil {
+				t.Fatalf("waiting for %s: %v", want, err)
+			}
+			for _, e := range events {
+				if len(e.Unwatched) > 0 {
+					t.Fatalf("a created folder could not be watched: %+v", e)
+				}
+				if e.SourceID == "source" && e.RelativePath == want {
+					return
+				}
+			}
+		}
+	}
+	if err = os.Mkdir(filepath.Join(root, "Arrival (2016)"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	next("Arrival (2016)")
+	if err = os.WriteFile(filepath.Join(root, "Arrival (2016)", "Arrival (2016).mkv"), []byte("film"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	next(filepath.Join("Arrival (2016)", "Arrival (2016).mkv"))
+}
+
+// A folder list the server truncated, or a folder that cannot be watched,
+// leaves the source only partly covered, and the watcher says so.
+func TestInventoryWatcherReportsPartlyCoveredSources(t *testing.T) {
+	full, cut, blocked := t.TempDir(), t.TempDir(), t.TempDir()
+	request := WatchRequest{}
+	for _, r := range []struct {
+		id, root  string
+		truncated bool
+	}{{"full", full, false}, {"cut", cut, true}, {"blocked", blocked, false}} {
+		observed, err := LocalInventoryDirectory(InventoryRequest{Root: r.root, RelativePath: "."})
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Roots = append(request.Roots, WatchRoot{SourceID: r.id, Root: r.root, RootIdentity: RootIdentity(observed), Directories: []string{"."}, Truncated: r.truncated})
+	}
+	// A folder the helper may not read cannot be watched (EACCES), the same
+	// gap as one past the kernel's watch limit.
+	locked := filepath.Join(blocked, "locked")
+	if err := os.Mkdir(filepath.Join(locked), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(blocked, 0300); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(blocked, 0700) })
+	request.Roots[2].Directories = append(request.Roots[2].Directories, "locked")
+	w, err := newInventoryWatcher(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	got := w.(watchCoverage).unwatched()
+	if os.Geteuid() == 0 {
+		// root reads through the permission bits; only truncation shows.
+		if len(got) != 1 || got[0] != "cut" {
+			t.Fatalf("unwatched=%v, want [cut]", got)
+		}
+		return
+	}
+	if len(got) != 2 || got[0] != "cut" || got[1] != "blocked" {
+		t.Fatalf("unwatched=%v, want [cut blocked]", got)
+	}
+}
