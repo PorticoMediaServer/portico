@@ -7,6 +7,10 @@ on:
         type: choice
         default: all
         options: [all, windows-x64, linux-x64, linux-arm64, macos-arm64]
+      allowColdDependencies:
+        description: Permit a missing prefix cache only for an explicitly approved cold population
+        type: boolean
+        default: false
       controlsOnly:
         description: Run source/refusal controls without compiling an engine
         type: boolean
@@ -25,6 +29,10 @@ on:
         default: false
       sourceCacheOnly:
         description: Seed and verify dependency source snapshots only; no compiler or engine
+        type: boolean
+        default: false
+      cacheMigrationOnly:
+        description: Main-only verified migration of retained engine payload caches to GHCR; no compiler
         type: boolean
         default: false
       replayRunId:
@@ -65,7 +73,7 @@ jobs:
         with:
           python-version: '3.13.17'
       - name: Configure and source graph fast gate before compiler jobs
-        env: {PORTICO_NETWORK_BUILD_TOOL_CONTROL: '1'}
+        env: {PORTICO_NETWORK_BUILD_TOOL_CONTROL: '1', GH_TOKEN: '${{ github.token }}'}
         run: |
           python scripts/test-macos-dependency-cache.py
           python scripts/test-engine-prefix-cache.py
@@ -85,6 +93,7 @@ jobs:
           python scripts/test-stage-engine-release.py
           python scripts/test-ci-ffmpeg-toolchain.py
           python scripts/test-engine-rebuild-batch.py
+          python scripts/test-engine-cache-oci.py
           python scripts/test-engine-checkout.py
           python scripts/test-ffmpeg-build-tools.py
           python scripts/test-native-rust-tools.py
@@ -102,18 +111,20 @@ jobs:
         env:
           COLD_TARGET: ${{ inputs.target || 'all' }}
           REPLAY_RUN_ID: ${{ inputs.replayRunId }}
-          REUSE_WINDOWS_ARTIFACT: ${{ (inputs.reuseWindowsArtifact || inputs.replayRunId != '') }}
-          OTHER_MODES: ${{ inputs.controlsOnly || inputs.cacheControls || inputs.upstreamComparison || inputs.sourceCacheOnly }}
+          REUSE_WINDOWS_ARTIFACT: ${{ inputs.reuseWindowsArtifact }}
+          OTHER_MODES: ${{ inputs.controlsOnly || inputs.cacheControls || inputs.upstreamComparison || inputs.sourceCacheOnly || inputs.cacheMigrationOnly }}
         run: |
-          if [[ -n "$REPLAY_RUN_ID" && "$REPLAY_RUN_ID" != 41346289584 ]]; then
-            echo 'Only the explicitly pinned producer run may be replayed' >&2
+          if [[ "$REUSE_WINDOWS_ARTIFACT" == true && "$COLD_TARGET" != windows-x64 ]]; then
+            echo 'Original Windows artifact reuse requires the Windows target' >&2
             exit 2
           fi
-          if [[ "$REUSE_WINDOWS_ARTIFACT" == true && ( "$COLD_TARGET" != windows-x64 || "$OTHER_MODES" == true ) ]]; then
-            echo 'Development artifact reuse requires only the explicit Windows x64 native mode' >&2
-            exit 2
+          if [[ -n "$REPLAY_RUN_ID" || "$REUSE_WINDOWS_ARTIFACT" == true ]]; then
+            [[ "$OTHER_MODES" == false ]] || { echo 'Replay cannot enable compiler/control/cache modes' >&2; exit 2; }
+            REPLAY_RUN_ID="${REPLAY_RUN_ID:-41346289584}"
+            echo "matrix=$(python scripts/ci-ffmpeg-toolchain.py plan-replay --target "$COLD_TARGET" --run-id "$REPLAY_RUN_ID")" >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix=$(python scripts/ci-ffmpeg-toolchain.py plan --target "$COLD_TARGET")" >> "$GITHUB_OUTPUT"
           fi
-          echo "matrix=$(python scripts/ci-ffmpeg-toolchain.py plan --target "$COLD_TARGET")" >> "$GITHUB_OUTPUT"
   catalogue:
     if: github.repository == 'PorticoMediaServer/portico' && inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison
     runs-on: ubuntu-24.04
@@ -146,7 +157,7 @@ jobs:
     name: Build engine (${{ matrix.target }})
     env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
     needs: controls
-    if: ${{ !inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !(inputs.reuseWindowsArtifact || inputs.replayRunId != '') && !inputs.sourceCacheOnly }}
+    if: ${{ !inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !(inputs.reuseWindowsArtifact || inputs.replayRunId != '') && !inputs.sourceCacheOnly && !inputs.cacheMigrationOnly }}
     continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
@@ -196,30 +207,32 @@ jobs:
       - id: dependency-cache-plan
         env: {ENGINE_TARGET: '${{ matrix.target }}'}
         run: python scripts/engine-dependency-cache.py plan --target "$ENGINE_TARGET" --directory "$RUNNER_TEMP/engine-stage-cache" --output "$GITHUB_OUTPUT"
-      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
-        with:
-          path: ${{ runner.temp }}/engine-stage-cache
-          key: ${{ steps.dependency-cache-plan.outputs.key }}
-          restore-keys: |
-            ${{ steps.dependency-cache-plan.outputs.key }}-
-            ${{ steps.dependency-cache-plan.outputs.prefix }}
+      - name: Install the reviewed OCI transport
+        run: python scripts/engine-cache-tools.py install --directory "$RUNNER_TEMP/engine-cache-tools"
+      - name: Authenticate disposable OCI cache transport
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/engine-cache-tools.py login --directory "$RUNNER_TEMP/engine-cache-tools"
+      - name: Restore completed dependency checkpoints from GHCR
+        id: dependency-restore
+        if: matrix.target == 'linux-x64' || matrix.target == 'macos-arm64'
+        run: python scripts/engine-cache-oci.py restore --target "${{ matrix.target }}" --kind stages --directory "$RUNNER_TEMP/engine-stage-cache" --work "$RUNNER_TEMP/engine-cache-transport" --output "$GITHUB_OUTPUT"
+      - name: Refuse an accidental cold native-prefix rebuild
+        if: (matrix.target == 'linux-x64' || matrix.target == 'macos-arm64') && !inputs.allowColdDependencies
+        env: {CACHE_HIT: '${{ steps.dependency-restore.outputs.hit }}'}
+        run: '[[ "$CACHE_HIT" == true ]] || { echo "No compatible retained prefix; cold population requires explicit approval" >&2; exit 2; }'
       - id: dependency-cache-before
-        run: python scripts/engine-dependency-cache.py checkpoint --directory "$RUNNER_TEMP/engine-stage-cache" --output "$GITHUB_OUTPUT"
-      - id: source-download-cache
+        run: python scripts/engine-cache-oci.py fingerprint --target "${{ matrix.target }}" --kind stages --directory "$RUNNER_TEMP/engine-stage-cache" --work "$RUNNER_TEMP/engine-cache-transport" --output "$GITHUB_OUTPUT"
+      - name: Restore exact BtbN source snapshots from GHCR
         if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
-        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
-        with:
-          path: ${{ runner.temp }}/engine-download-cache
-          key: engine-downloads-v2-${{ matrix.target }}-${{ hashFiles('third_party/ffmpeg/sources.lock.json') }}
-          restore-keys: engine-downloads-v2-${{ matrix.target }}-
+        run: python scripts/engine-cache-oci.py restore --target "${{ matrix.target }}" --kind sources --directory "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-cache-transport"
       - id: source-before
         if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
-        run: python scripts/engine-download-cache.py fingerprint --store "$RUNNER_TEMP/engine-download-cache" --output "$GITHUB_OUTPUT"
+        run: python scripts/engine-cache-oci.py fingerprint --target "${{ matrix.target }}" --kind sources --directory "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-cache-transport" --output "$GITHUB_OUTPUT"
       - name: Seed exact source bytes without rebuilding dependencies
         if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
         env: {GH_TOKEN: '${{ github.token }}'}
         run: python scripts/seed-engine-download-cache.py --target "${{ matrix.target }}" --store "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-source-seed"
-      - name: Authenticate the explicit dependency cache writer
+      - name: Authenticate the explicit BuildKit cache writer
         if: matrix.target == 'windows-x64' || matrix.target == 'linux-arm64'
         env: {GH_TOKEN: '${{ github.token }}'}
         run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
@@ -242,23 +255,15 @@ jobs:
           if [[ -d "$recipe/.cache/downloads" ]]; then
             python scripts/engine-download-cache.py save --recipe "$recipe" --store "$RUNNER_TEMP/engine-download-cache"
           fi
-      - id: source-after
-        if: always() && (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64')
-        run: python scripts/engine-download-cache.py fingerprint --store "$RUNNER_TEMP/engine-download-cache" --output "$GITHUB_OUTPUT"
-      - name: Retain exact source snapshots even after a failed build
-        if: always() && (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64') && steps.source-after.outputs.sha256 != 'absent' && steps.source-after.outputs.sha256 != steps.source-before.outputs.sha256
-        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
-        with:
-          path: ${{ runner.temp }}/engine-download-cache
-          key: engine-downloads-v2-${{ matrix.target }}-${{ steps.source-after.outputs.sha256 }}
-      - id: dependency-cache-output
+      - name: Retain exact source snapshots in GHCR even after a failed build
+        if: always() && github.ref == 'refs/heads/main' && (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64')
+        run: python scripts/engine-cache-oci.py save --target "${{ matrix.target }}" --kind sources --directory "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-cache-transport" --before "${{ steps.source-before.outputs.snapshot }}"
+      - name: Retain completed stage checkpoints in GHCR even after a failed build
+        if: always() && github.ref == 'refs/heads/main' && (matrix.target == 'linux-x64' || matrix.target == 'macos-arm64')
+        run: python scripts/engine-cache-oci.py save --target "${{ matrix.target }}" --kind stages --directory "$RUNNER_TEMP/engine-stage-cache" --work "$RUNNER_TEMP/engine-cache-transport" --before "${{ steps.dependency-cache-before.outputs.snapshot }}"
+      - name: Retire OCI cache authentication
         if: always()
-        run: python scripts/engine-dependency-cache.py has-output --directory "$RUNNER_TEMP/engine-stage-cache" --output "$GITHUB_OUTPUT"
-      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
-        if: always() && steps.dependency-cache-output.outputs.present == 'true' && steps.dependency-cache-output.outputs.snapshot != steps.dependency-cache-before.outputs.snapshot
-        with:
-          path: ${{ runner.temp }}/engine-stage-cache
-          key: ${{ steps.dependency-cache-plan.outputs.key }}-${{ steps.dependency-cache-output.outputs.snapshot }}
+        run: python scripts/engine-cache-tools.py logout --directory "$RUNNER_TEMP/engine-cache-tools"
       - name: Retire dependency cache authentication
         if: always() && (matrix.target == 'windows-x64' || matrix.target == 'linux-arm64')
         run: docker logout ghcr.io
@@ -277,6 +282,8 @@ jobs:
           path: |
             ${{ runner.temp }}/engine-cold/evidence/**/*.json
             ${{ runner.temp }}/engine-cold/evidence/**/*.log
+            ${{ runner.temp }}/engine-cache-transport/*.json
+            ${{ runner.temp }}/engine-cache-tools/receipt.json
           retention-days: 14
           if-no-files-found: warn
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -289,7 +296,7 @@ jobs:
           if-no-files-found: error
   native-plan:
     needs: [controls, build]
-    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !(inputs.reuseWindowsArtifact || inputs.replayRunId != '') && !inputs.sourceCacheOnly
+    if: always() && needs.controls.result == 'success' && !inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !(inputs.reuseWindowsArtifact || inputs.replayRunId != '') && !inputs.sourceCacheOnly && !inputs.cacheMigrationOnly
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -306,7 +313,7 @@ jobs:
           ENGINE_TARGET: ${{ inputs.target || 'all' }}
           ENGINE_BUILD_RESULT: ${{ needs.build.result }}
         run: |
-          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '[.[] | .artifacts[]]' > "$RUNNER_TEMP/engine-artifact-metadata.json"
+          python scripts/ci-ffmpeg-toolchain.py artifact-pages --run-id "$GITHUB_RUN_ID" --artifacts "$RUNNER_TEMP/engine-artifact-metadata.json"
           python scripts/ci-ffmpeg-toolchain.py native-plan --target "$ENGINE_TARGET" --build-result "$ENGINE_BUILD_RESULT" --artifacts "$RUNNER_TEMP/engine-artifact-metadata.json" --work "$RUNNER_TEMP/engine-native-plan" --github-output "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
@@ -457,6 +464,7 @@ jobs:
 
   source-cache-seed-control:
     needs: controls
+    permissions: {contents: read, actions: read, packages: read}
     if: inputs.sourceCacheOnly && !(inputs.reuseWindowsArtifact || inputs.replayRunId != '') && github.repository == 'PorticoMediaServer/portico'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -471,24 +479,15 @@ jobs:
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with: {python-version: '3.13.17'}
-      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
-        with:
-          path: ${{ runner.temp }}/engine-download-cache
-          key: engine-downloads-v2-${{ matrix.target }}-${{ hashFiles('third_party/ffmpeg/sources.lock.json') }}
-          restore-keys: engine-downloads-v2-${{ matrix.target }}-
-      - id: source-before
-        run: python scripts/engine-download-cache.py fingerprint --store "$RUNNER_TEMP/engine-download-cache" --output "$GITHUB_OUTPUT"
+      - run: python scripts/engine-cache-tools.py install --directory "$RUNNER_TEMP/engine-cache-tools"
+      - env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/engine-cache-tools.py login --directory "$RUNNER_TEMP/engine-cache-tools"
+      - run: python scripts/engine-cache-oci.py restore --target "${{ matrix.target }}" --kind sources --directory "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-source-seed"
       - name: Restore only pinned corresponding-source snapshots, never binaries
         env: {GH_TOKEN: '${{ github.token }}'}
         run: python scripts/seed-engine-download-cache.py --target "${{ matrix.target }}" --store "$RUNNER_TEMP/engine-download-cache" --work "$RUNNER_TEMP/engine-source-seed"
-      - id: source-after
-        if: always()
-        run: python scripts/engine-download-cache.py fingerprint --store "$RUNNER_TEMP/engine-download-cache" --output "$GITHUB_OUTPUT"
-      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
-        if: always() && steps.source-after.outputs.sha256 != 'absent' && steps.source-after.outputs.sha256 != steps.source-before.outputs.sha256
-        with:
-          path: ${{ runner.temp }}/engine-download-cache
-          key: engine-downloads-v2-${{ matrix.target }}-${{ steps.source-after.outputs.sha256 }}
+      - if: always()
+        run: python scripts/engine-cache-tools.py logout --directory "$RUNNER_TEMP/engine-cache-tools"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -496,16 +495,20 @@ jobs:
           path: ${{ runner.temp }}/engine-source-seed/*.json
           retention-days: 14
           if-no-files-found: warn
-  windows-native-retry:
+  native-retry:
     needs: controls
     if: (inputs.reuseWindowsArtifact || inputs.replayRunId != '') && !inputs.controlsOnly && !inputs.upstreamComparison && github.repository == 'PorticoMediaServer/portico'
-    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.controls.outputs.matrix) }}
+    runs-on: ${{ matrix.nativeRunner }}
     timeout-minutes: 90
     env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
     defaults:
       run: {shell: bash}
     steps:
       - name: Preserve exact checked bytes on Windows
+        if: runner.os == 'Windows'
         run: |
           git config --global core.longpaths true
           git config --global core.autocrlf false
@@ -515,14 +518,15 @@ jobs:
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with: {python-version: '3.13.17'}
-      - run: python scripts/test-engine-checkout.py
+      - if: runner.os == 'Windows'
+        run: python scripts/test-engine-checkout.py
       - name: Verify the pinned original producer and run native gates without a compiler
         env: {GH_TOKEN: '${{ github.token }}', REPLAY_RUN_ID: '${{ inputs.replayRunId }}'}
-        run: python scripts/ci-ffmpeg-toolchain.py native-retry --target windows-x64 --work "$RUNNER_TEMP/development-native-retry"
+        run: python scripts/ci-ffmpeg-toolchain.py native-retry --target "${{ matrix.target }}" --work "$RUNNER_TEMP/development-native-retry"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: engine-development-native-retry-windows-x64-${{ github.sha }}-NOT-FOR-USE
+          name: engine-development-native-retry-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
           path: |
             ${{ runner.temp }}/development-native-retry/evidence/*.json
             ${{ runner.temp }}/development-native-retry/evidence/gates/*.json
@@ -628,3 +632,113 @@ jobs:
           name: upstream-effective-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
           path: ${{ runner.temp }}/upstream-comparison/*.json
           retention-days: 7
+
+  payload-cache-control:
+    needs: controls
+    if: inputs.cacheControls && !inputs.cacheMigrationOnly && github.repository == 'PorticoMediaServer/portico'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {target: linux-x64, runner: ubuntu-24.04}
+          - {target: linux-arm64, runner: ubuntu-24.04-arm}
+          - {target: macos-arm64, runner: macos-15}
+    runs-on: ${{ matrix.runner }}
+    permissions: {contents: read, actions: read, packages: write}
+    timeout-minutes: 15
+    env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - run: python scripts/engine-cache-tools.py install --directory "$RUNNER_TEMP/engine-cache-tools"
+      - env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/engine-cache-tools.py login --directory "$RUNNER_TEMP/engine-cache-tools"
+      - run: python scripts/control-engine-cache-oci.py --target "${{ matrix.target }}" --work "$RUNNER_TEMP/payload-cache-control"
+      - if: always()
+        run: python scripts/engine-cache-tools.py logout --directory "$RUNNER_TEMP/engine-cache-tools"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: payload-cache-control-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/payload-cache-control/*control.json
+            ${{ runner.temp }}/engine-cache-tools/receipt.json
+          retention-days: 7
+
+  cache-migration:
+    needs: controls
+    if: inputs.cacheMigrationOnly && github.ref == 'refs/heads/main' && github.repository == 'PorticoMediaServer/portico'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.controls.outputs.matrix) }}
+    runs-on: ${{ matrix.buildRunner }}
+    permissions: {contents: read, actions: write, packages: write}
+    timeout-minutes: 40
+    env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
+    defaults:
+      run: {shell: bash}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with: {python-version: '3.13.17'}
+      - if: runner.os == 'macOS'
+        run: |
+          brew install gnu-tar
+          echo "$(brew --prefix gnu-tar)/libexec/gnubin" >> "$GITHUB_PATH"
+      - id: selection
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/engine-cache-migration.py plan --target "${{ matrix.target }}" --work "$RUNNER_TEMP/cache-migration" --output "$GITHUB_OUTPUT"
+      - id: legacy
+        if: steps.selection.outputs.available == 'true'
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/${{ steps.selection.outputs.kind == 'sources' && 'engine-download-cache' || 'engine-stage-cache' }}
+          key: ${{ steps.selection.outputs.key }}
+          fail-on-cache-miss: true
+      - if: steps.selection.outputs.available == 'true'
+        run: python scripts/engine-cache-tools.py install --directory "$RUNNER_TEMP/engine-cache-tools"
+      - if: steps.selection.outputs.available == 'true'
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/engine-cache-tools.py login --directory "$RUNNER_TEMP/engine-cache-tools"
+      - name: Copy and re-read the full checkpoint before removing any Actions cache
+        if: steps.selection.outputs.available == 'true'
+        run: |
+          kind="${{ steps.selection.outputs.kind }}"
+          directory="$RUNNER_TEMP/engine-stage-cache"
+          [[ "$kind" != sources ]] || directory="$RUNNER_TEMP/engine-download-cache"
+          python scripts/engine-cache-oci.py save --target "${{ matrix.target }}" --kind "$kind" --directory "$directory" --work "$RUNNER_TEMP/cache-migration"
+      - name: Delete only engine cache entries with a verified OCI replacement
+        if: steps.selection.outputs.available == 'true'
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/engine-cache-migration.py cleanup --target "${{ matrix.target }}" --work "$RUNNER_TEMP/cache-migration" --transport "$RUNNER_TEMP/cache-migration/${{ steps.selection.outputs.kind }}-save.json"
+      - if: always()
+        run: python scripts/engine-cache-tools.py logout --directory "$RUNNER_TEMP/engine-cache-tools"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: cache-migration-${{ matrix.target }}-${{ github.sha }}-NOT-FOR-USE
+          path: |
+            ${{ runner.temp }}/cache-migration/*.json
+            ${{ runner.temp }}/engine-cache-tools/receipt.json
+          retention-days: 14
+  cache-budget:
+    needs: cache-migration
+    if: inputs.cacheMigrationOnly && github.ref == 'refs/heads/main' && github.repository == 'PorticoMediaServer/portico'
+    runs-on: ubuntu-24.04
+    permissions: {contents: read, actions: read}
+    timeout-minutes: 5
+    env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/engine-cache-migration.py budget --work "$RUNNER_TEMP/cache-budget"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: cache-budget-${{ github.sha }}-NOT-FOR-USE
+          path: ${{ runner.temp }}/cache-budget/*.json
+          retention-days: 14

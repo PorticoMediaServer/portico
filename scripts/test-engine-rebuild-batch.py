@@ -182,8 +182,12 @@ class RebuildControls(unittest.TestCase):
             self.assertEqual(keys[0]['prefix'], keys[2]['prefix'])
             self.assertNotEqual(keys[0]['prefix'], keys[3]['prefix'])
             workflow = (ROOT / '.github/workflows/ffmpeg-toolchain.yml').read_text().split('  build:\n', 1)[1].split('  native-plan:\n', 1)[0]
-            for runtime_key in ('github.run_id', 'github.run_attempt', 'github.ref'):
+            for runtime_key in ('github.run_id', 'github.run_attempt'):
                 self.assertNotIn(runtime_key, workflow)
+            # Branch identity may gate main-only cache writes; it is never a key.
+            self.assertNotIn('uses: actions/cache/save', workflow)
+            self.assertNotIn('uses: actions/cache/restore', workflow)
+            self.assertIn('engine-cache-oci.py restore', workflow)
 
     def test_checkpoint_content_changes_only_with_completed_cache_data(self):
         transport = CI['module']('engine-dependency-cache')

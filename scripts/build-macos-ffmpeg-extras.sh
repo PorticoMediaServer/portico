@@ -140,6 +140,20 @@ portico_cmake -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_
 python3 "$CWD/portico-configure-macos-shaderc.py" --prefix "$WORKSPACE" \
  --receipt "$CWD/packages/portico-shaderc-static-link.json"
 portico_clone placebo
-git submodule update --init --recursive
+# Retry only this stage's pinned gitlinks; preceding stage cache inputs stay unchanged.
+portico_placebo_status=1
+for portico_placebo_delay in 0 10 20 40 50; do
+ [[ "$portico_placebo_delay" == 0 ]] || sleep "$portico_placebo_delay"
+ if git submodule update --init --recursive; then
+  portico_placebo_status=0
+  break
+ else
+  portico_placebo_status=$?
+ fi
+done
+if [[ "$portico_placebo_status" != 0 ]]; then
+ echo 'Pinned libplacebo submodule fetch failed after five attempts' >&2
+ exit "$portico_placebo_status"
+fi
 portico_meson -Dvulkan=enabled -Dshaderc=enabled -Dglslang=disabled -Ddemos=false -Dtests=false -Dbench=false
 # Every collected native source and build command is archived with the bundle.

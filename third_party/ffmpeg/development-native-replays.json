@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "qualified": false,
+  "release": false,
+  "runs": {
+    "41395711567": {
+      "windows-x64": {
+        "engineSourceSHA": "b8b892a7a4d9fa024671229084ad87535155e205",
+        "requirementsSHA256": "1d4a072f04581b78bf1a0d8d942501c84328eb8d44f469b1ec77256ae164ea3a",
+        "sourcesLockSHA256": "0adb1838e3b653fc586fca5a85cd4550a5d8ba4fa55eb0df57adb9522037ecb7",
+        "target": "windows-x64",
+        "name": "engine-cold-windows-x64-b8b892a7a4d9fa024671229084ad87535155e205-NOT-FOR-USE",
+        "archiveSHA256": "7ef30c349a3bc1ebd408127bc10d977d6e4318243f303ae4d2df5d86b6e9ac89",
+        "createdAt": "2026-11-02T08:30:48Z",
+        "expiresAt": "2026-11-16T08:30:26Z",
+        "origin": {
+          "kind": "github-actions",
+          "repository": "PorticoMediaServer/portico",
+          "runId": 41395711567,
+          "runAttempt": 1,
+          "artifactId": 13125824278
+        }
+      },
+      "linux-arm64": {
+        "engineSourceSHA": "b8b892a7a4d9fa024671229084ad87535155e205",
+        "requirementsSHA256": "1d4a072f04581b78bf1a0d8d942501c84328eb8d44f469b1ec77256ae164ea3a",
+        "sourcesLockSHA256": "0adb1838e3b653fc586fca5a85cd4550a5d8ba4fa55eb0df57adb9522037ecb7",
+        "target": "linux-arm64",
+        "name": "engine-cold-linux-arm64-b8b892a7a4d9fa024671229084ad87535155e205-NOT-FOR-USE",
+        "archiveSHA256": "bfb15fb221fed6ff5d17eddf92c0184b2b38b5045a91e153814852ab9116678c",
+        "createdAt": "2026-11-02T06:26:04Z",
+        "expiresAt": "2026-11-16T06:25:49Z",
+        "origin": {
+          "kind": "github-actions",
+          "repository": "PorticoMediaServer/portico",
+          "runId": 41395711567,
+          "runAttempt": 1,
+          "artifactId": 13120402902
+        }
+      }
+    }
+  }
+}

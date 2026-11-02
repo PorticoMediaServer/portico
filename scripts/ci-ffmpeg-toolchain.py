@@ -82,6 +82,19 @@ def matrix(selected):
                         if selected in ('all', target)]}
 
 
+def artifact_pages(run_id, per_page=100):
+    if type(run_id) is not int or run_id <= 0 or not 1 <= per_page <= 100:
+        raise ValueError('positive exact run and bounded page size required')
+    # gh rejects --slurp together with --jq. Keep fetching and flattening
+    # separate; the same real command is exercised by the hosted control.
+    raw = subprocess.check_output(['gh', 'api', '--paginate', '--slurp',
+        f'repos/PorticoMediaServer/portico/actions/runs/{run_id}/artifacts?per_page={per_page}'])
+    pages = json.loads(raw)
+    if not isinstance(pages, list) or any(not isinstance(p, dict) or not isinstance(p.get('artifacts'), list) for p in pages):
+        raise ValueError('paginated artifact response changed')
+    return [item for page in pages for item in page['artifacts']]
+
+
 def native_matrix(selected, artifacts, source_sha, build_result, run_id):
     """Only schedule receivers whose exact-run construction artifact exists."""
     if not re.fullmatch(r'[a-f0-9]{40}', source_sha):
@@ -132,6 +145,40 @@ def check_retry_transfer(sender, pin, archive_sha):
             sender.get('bundleArchiveSHA256') != archive_sha):
         raise ValueError('pinned development construction identity or bytes changed')
     return producer
+
+
+def cohort_replay_pin(target, run_id, now=None):
+    value = json.loads((ROOT / 'third_party/ffmpeg/development-native-replays.json').read_text())
+    if value.get('schemaVersion') != 1 or value.get('qualified') is not False or value.get('release') is not False:
+        raise ValueError('development-only replay pin required')
+    pin = value['runs'].get(str(run_id), {}).get(target)
+    if pin is None: raise ValueError('target/run has no reviewed exact artifact pin')
+    origin = pin['origin']; source = pin['engineSourceSHA']
+    if (pin['target'] != target or pin['name'] != 'engine-cold-' + target + '-' + source + '-NOT-FOR-USE' or
+            not re.fullmatch('[a-f0-9]{40}', source) or not re.fullmatch('[a-f0-9]{64}', pin['archiveSHA256']) or
+            origin.get('repository') != 'PorticoMediaServer/portico' or origin.get('kind') != 'github-actions' or
+            str(origin.get('runId')) != str(run_id) or type(origin.get('artifactId')) is not int or origin['artifactId'] <= 0 or
+            type(origin.get('runAttempt')) is not int or origin['runAttempt'] <= 0):
+        raise ValueError('replay artifact locator/source changed')
+    created = datetime.fromisoformat(pin['createdAt'].replace('Z', '+00:00'))
+    expires = datetime.fromisoformat(pin['expiresAt'].replace('Z', '+00:00'))
+    if not created <= (now or datetime.now(timezone.utc)) < expires or not timedelta(0) < expires - created <= timedelta(days=14):
+        raise ValueError('replay pin expired or outside its 14-day window')
+    for name, field in (('requirements.v1.json', 'requirementsSHA256'), ('sources.lock.json', 'sourcesLockSHA256')):
+        if digest(ROOT / 'third_party/ffmpeg' / name) != pin[field]: raise ValueError('replay contract differs from reviewed pin')
+    return pin
+
+
+def replay_matrix(selected, run_id, now=None):
+    if str(run_id) == str(WINDOWS_NATIVE_RETRY['origin']['runId']):
+        if selected not in ('all', 'windows-x64'): raise ValueError('original retry is Windows-only')
+        native_retry_pin('windows-x64', replay_run_id=run_id, now=now)
+        return matrix('windows-x64')
+    pins = json.loads((ROOT / 'third_party/ffmpeg/development-native-replays.json').read_text())['runs'].get(str(run_id), {})
+    rows = [row for row in matrix(selected)['include'] if row['target'] in pins]
+    if not rows: raise ValueError('no reviewed replay targets for this run')
+    for row in rows: cohort_replay_pin(row['target'], run_id, now=now)
+    return dict(include=rows)
 
 
 def run(command, log, env=None, timeout=315 * 60):
@@ -469,7 +516,9 @@ def native_retry(target, work):
         raise ValueError('cross-run native retry is development-only')
     qualification = context()
     module('verify-native-engine').native(target, 'github-actions', os.environ)
-    pin = native_retry_pin(target, replay_run_id=os.environ.get('REPLAY_RUN_ID') or None)
+    replay = os.environ.get('REPLAY_RUN_ID')
+    pin = (cohort_replay_pin(target, replay) if replay and replay != str(WINDOWS_NATIVE_RETRY['origin']['runId'])
+           else native_retry_pin(target, replay_run_id=replay or None))
     work.mkdir(parents=True, exist_ok=False)
     evidence = work / 'evidence'; evidence.mkdir()
     receipt = dict(schemaVersion=1, kind='development-native-retry', target=target, replay=True,
@@ -510,16 +559,22 @@ def native_retry(target, work):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('phase', choices=('plan', 'native-plan', 'build', 'native', 'native-retry'))
+    parser.add_argument('phase', choices=('plan', 'plan-replay', 'artifact-pages', 'native-plan', 'build', 'native', 'native-retry'))
     parser.add_argument('--target', choices=('all', *TARGETS), default='all')
     parser.add_argument('--work', type=Path)
     parser.add_argument('--transfer', type=Path)
     parser.add_argument('--artifacts', type=Path)
     parser.add_argument('--build-result')
     parser.add_argument('--github-output', type=Path)
+    parser.add_argument('--run-id', type=int)
     args = parser.parse_args()
     if args.phase == 'plan':
         print(json.dumps(matrix(args.target)))
+    elif args.phase == 'plan-replay':
+        print(json.dumps(replay_matrix(args.target, args.run_id)))
+    elif args.phase == 'artifact-pages':
+        if not args.run_id or not args.artifacts: parser.error('exact run and artifact output required')
+        atomic(args.artifacts, artifact_pages(args.run_id))
     elif args.phase == 'native-plan':
         provenance = context()
         if not args.artifacts or not args.work or not args.github_output:
