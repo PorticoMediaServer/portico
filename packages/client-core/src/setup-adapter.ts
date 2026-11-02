@@ -198,7 +198,8 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
     async remoteCheck(remote, context) {
       const p = await pair(context.signal);
       if (!remote || !issued || issued.serverId !== p.pin.serverId) return {kind: 'remoteOk'};
-      const out = await p.api.request<{refused?: unknown; reason?: unknown; fixes?: unknown; address?: unknown}>(routePath('post_setup_remote_check'), 'POST',
+      // The setup token as bearer too: from outside, it is what a setup code admitted.
+      const out = await tokenApi(p, issued.setupToken).request<{refused?: unknown; reason?: unknown; fixes?: unknown; address?: unknown}>(routePath('post_setup_remote_check'), 'POST',
         {setupToken: issued.setupToken, remoteAccess: remote.remoteAccess, remoteSecurity: remote.remoteSecurity}, context.signal);
       await assertPaired(p);
       if (out?.refused !== true) return {kind: 'remoteOk'};

@@ -50,7 +50,10 @@ func TestSetupRemoteCheckWarnsOnlyWhenRefusedAfterSetup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = id.AdmitSetupCode(t.Context(), code, "203.0.113.9", "http://203.0.113.5:32500"); err != nil {
+	if _, err = id.AdmitSetupCode(t.Context(), code); err != nil {
+		t.Fatal(err)
+	}
+	if err = id.AdmitSetupToken(t.Context(), token, "203.0.113.9", "http://203.0.113.5:32500"); err != nil {
 		t.Fatal(err)
 	}
 	check := func(address, peer, access, security string, headers map[string]string) SetupRemoteCheck {
@@ -59,6 +62,8 @@ func TestSetupRemoteCheckWarnsOnlyWhenRefusedAfterSetup(t *testing.T) {
 		r := httptest.NewRequest("POST", address+"/v1/setup/remote-check", bytes.NewReader(raw))
 		r.RemoteAddr = peer
 		r.Header.Set("Content-Type", "application/json")
+		// From outside, the setup token a setup code issued is what admits the check.
+		r.Header.Set("Authorization", "Bearer "+token)
 		for k, v := range headers {
 			r.Header.Set(k, v)
 		}
@@ -87,7 +92,10 @@ func TestSetupRemoteCheckWarnsOnlyWhenRefusedAfterSetup(t *testing.T) {
 	if code, err = id.RotateSetupCode(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = id.AdmitSetupCode(t.Context(), code, "203.0.113.9", "https://media.example.com"); err != nil {
+	if _, err = id.AdmitSetupCode(t.Context(), code); err != nil {
+		t.Fatal(err)
+	}
+	if err = id.AdmitSetupToken(t.Context(), token, "203.0.113.9", "https://media.example.com"); err != nil {
 		t.Fatal(err)
 	}
 	proxied := map[string]string{"X-Forwarded-For": "203.0.113.9", "X-Forwarded-Proto": "https", "X-Forwarded-Host": "media.example.com"}
