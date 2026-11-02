@@ -1,11 +1,19 @@
 name: Android JVM tests
 on:
   workflow_dispatch:
+    inputs:
+      stale_server_only:
+        type: boolean
+        default: false
   workflow_call:
 permissions:
   contents: read
 jobs:
+  stale-server:
+    if: github.event_name == 'workflow_dispatch' && inputs.stale_server_only
+    uses: ./.github/workflows/e2e-stale-server.yml
   unit-and-transport:
+    if: ${{ !inputs.stale_server_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
