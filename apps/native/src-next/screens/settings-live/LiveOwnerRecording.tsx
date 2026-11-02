@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {recordingAllowed, recordingGuideRoute, recordingOwnerKey, recordingOwnerLabel, type RecordingGrant, type RecordingOwner, type RecordingOwnerChoice, type RecordingSeries} from '../../../../../packages/client-core/src/server-admin/recording-policy';
@@ -430,7 +431,7 @@ export function NewRuleSheet({controller, runtime, policy, sources, ownerCursor,
     finally {if (ownFlight.current === flight) {ownFlight.current = undefined; if (ownEpoch.current === epoch) setOwnLoading(false);}}
   };
   const allowed = effectivePolicy ? effectivePolicy.owners.filter(value => recordingAllowed(value.owner, effectivePolicy.grants)) : [];
-  const [name, setName] = useState(''), [owner, setOwner] = useState(''), [sourceId, setSourceId] = useState(''), [day, setDay] = useState(() => new Date().toISOString().slice(0, 10));
+  const [name, setName] = useState(''), [owner, setOwner] = useState(''), [sourceId, setSourceId] = useState(''), [day, setDay] = useState(() => new Date(serverNow()).toISOString().slice(0, 10));
   const [seriesPage, setSeriesPage] = useState<Readonly<{query: object; items: readonly RecordingSeries[]}>>(), [anchor, setAnchor] = useState(''), [newOnly, setNewOnly] = useState(false);
   const [before, setBefore] = useState<number | null>(null), [after, setAfter] = useState<number | null>(null), [priority, setPriority] = useState('0'), [keepKey, setKeepKey] = useState('default');
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>();
@@ -448,7 +449,7 @@ export function NewRuleSheet({controller, runtime, policy, sources, ownerCursor,
   const series=useMemo(()=>seriesPage?.query===guideQuery?seriesPage.items:[],[seriesPage,guideQuery]);
   useEffect(() => {
     if (!sheetCurrent()) return;
-    setName(''); setOwner(allowed[0] ? recordingOwnerKey(allowed[0].owner) : ''); setSourceId(effectiveSources[0]?.id ?? ''); setDay(new Date().toISOString().slice(0, 10));
+    setName(''); setOwner(allowed[0] ? recordingOwnerKey(allowed[0].owner) : ''); setSourceId(effectiveSources[0]?.id ?? ''); setDay(new Date(serverNow()).toISOString().slice(0, 10));
     setSeriesPage(undefined); setAnchor(''); setNewOnly(false); setBefore(null); setAfter(null); setPriority('0'); setKeepKey('default'); setError(undefined); setBusy(false);
   }, [sheet]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{
