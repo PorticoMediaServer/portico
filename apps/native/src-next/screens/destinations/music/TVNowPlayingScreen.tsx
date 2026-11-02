@@ -5,6 +5,7 @@ import {clockText} from '../../../../../../packages/client-core/src/presentation
 import {sameFence} from '../../../../../../packages/player-core/src';
 import {AmbientArt, Artwork, StandardBackdrop} from '../../../kit/artwork';
 import {Button} from '../../../kit/controls';
+import {requestNativeFocus} from '../../../kit/focus';
 import {Icon} from '../../../kit/Icon';
 import {Menu, SidePanel} from '../../../kit/overlays';
 import {useTheme, nativeType} from '../../../kit/theme';
@@ -67,6 +68,23 @@ function TVNowPlayingContent({occupant, queue, artwork, width, height, onAction,
   // An album in the metadata alone does not say where this queue came from.
   const fromAlbum = currentEntry && !currentEntry.hidden && currentEntry.sourceContext.kind === 'album'
     && currentEntry.sourceContext.id === currentItem?.albumId ? currentItem.album : undefined;
+  // W-9: the player is the top layer on TV; everything under it is covered and cannot hold focus,
+  // so it takes focus itself as it opens: Play/Pause, or (at the end of a track, when that is not
+  // available) the first control that is. Nothing else asks for it, and focus otherwise stayed on
+  // the covered page underneath, with nothing visible focused.
+  const previousRef = useRef<View>(null), toggleRef = useRef<View>(null), nextRef = useRef<View>(null), playlistRef = useRef<View>(null);
+  const shown = page.open && page.ready;
+  const opening = useRef({toggle: false, next: false, previous: false});
+  opening.current = {toggle: playback.playing ? p.capabilities.pause : p.capabilities.play, next: p.capabilities.next, previous: p.capabilities.previous};
+  useEffect(() => {
+    if (!shown) return;
+    const frame = requestAnimationFrame(() => {
+      const enabled = opening.current;
+      const order = [enabled.toggle && toggleRef, enabled.next && nextRef, enabled.previous && previousRef, lyricsRef, playlistRef, moreRef];
+      for (const ref of order) if (ref && ref.current && requestNativeFocus(ref.current as never)) return;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [shown]);
   const act = (action: Parameters<typeof dockCommand>[1]) => {if (page.open && page.ready && !panel && !more && commandAllowed(occupant, action)) onAction(dockCommand(occupant, action));};
   const close = () => setPanel(null);
   return <TVMusicFocus id={id} visible={page.open && !panel && !more} interactive={page.ready} entry="toggle" onClose={onClose}>
@@ -105,12 +123,12 @@ function TVNowPlayingContent({occupant, queue, artwork, width, height, onAction,
         <MusicFocusRegion enabled={page.open && page.ready && !panel && !more} id={`${id}.transport`} entry="toggle" orientation="horizontal" edges={{up: `${id}.progress`, down: actionsRegion, right: queueRegion}}
           style={{marginTop: 28, width: 500, height: 96, flexDirection: 'row', justifyContent: policy.shuffle ? 'space-between' : 'center', alignItems: 'center', gap: policy.shuffle ? 0 : 34}}>
           {policy.shuffle}
-          <Button testID={`${testID}-previous`} variant="glass" iconOnly icon="i-prev" iconSize={34} style={{height: 72, width: 72, borderRadius: 36}}
+          <Button ref={previousRef} testID={`${testID}-previous`} variant="glass" iconOnly icon="i-prev" iconSize={34} style={{height: 72, width: 72, borderRadius: 36}}
             accessibilityLabel={t('player.previous')} disabled={!p.capabilities.previous} onPress={() => act('previous')}/>
-          <Button focusId="toggle" testID={`${testID}-toggle`} variant="primary" iconOnly icon={playback.playing ? 'i-pause' : 'i-play'} iconSize={44}
+          <Button ref={toggleRef} focusId="toggle" testID={`${testID}-toggle`} variant="primary" iconOnly icon={playback.playing ? 'i-pause' : 'i-play'} iconSize={44}
             style={{height: 96, width: 96, borderRadius: 48}} accessibilityLabel={t(playback.playing ? 'action.pause' : 'action.play')}
             disabled={playback.playing ? !p.capabilities.pause : !p.capabilities.play} onPress={() => act(playback.playing ? 'pause' : 'play')}/>
-          <Button testID={`${testID}-next`} variant="glass" iconOnly icon="i-next" iconSize={34} style={{height: 72, width: 72, borderRadius: 36}}
+          <Button ref={nextRef} testID={`${testID}-next`} variant="glass" iconOnly icon="i-next" iconSize={34} style={{height: 72, width: 72, borderRadius: 36}}
             accessibilityLabel={t('player.next')} disabled={!p.capabilities.next} onPress={() => act('next')}/>
           {policy.repeat}
         </MusicFocusRegion>
@@ -118,7 +136,7 @@ function TVNowPlayingContent({occupant, queue, artwork, width, height, onAction,
           style={{marginTop: 38, flexDirection: 'row', flexWrap: 'wrap', gap: 16}}>
           {lyrics && <Button ref={lyricsRef} focusId="lyrics" testID={`${testID}-lyrics`} variant="glass" size="small" icon="i-lyrics" iconSize={28} style={{height: 64, paddingHorizontal: 26}} textStyle={{fontSize: 22 * theme.textScale}}
             onPress={() => setPanel('lyrics')}>{t('player.lyrics')}</Button>}
-          {onAddToPlaylist && <Button focusId="playlist" testID={`${testID}-playlist`} variant="glass" size="small" icon="i-listplus" iconSize={28}
+          {onAddToPlaylist && <Button ref={playlistRef} focusId="playlist" testID={`${testID}-playlist`} variant="glass" size="small" icon="i-listplus" iconSize={28}
             style={{height: 64, paddingHorizontal: 26}} textStyle={{fontSize: 22 * theme.textScale}} onPress={onAddToPlaylist}>{t('entry.addToPlaylist')}</Button>}
           {equalizer.supported && <Button ref={moreRef} focusId="more" testID={`${testID}-more`} variant="glass" iconOnly icon="i-more" iconSize={28} style={{height: 64, width: 64, borderRadius: 32}}
             accessibilityLabel={t('next.controls.more')} onPress={() => setMore(true)}/>}

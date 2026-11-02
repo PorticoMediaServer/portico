@@ -38,8 +38,10 @@ const topRoute = (stacks: NativeShellRuntime['stacks']): NativeShellRoute | unde
 /** Pages that take the whole screen, without the tab bar. */
 const immersiveRoute = (route: NativeShellRoute | undefined) => route?.kind === 'read' || route?.kind === 'channel';
 
-/** How many frames (about 200 ms) a returning page has to make its opener focusable again. */
-export const PAGE_RETURN_FRAMES = 12;
+/** How many frames (about one second) a returning page has to make its opener focusable again.
+ * W-12: a large library grid (Movies) re-enables its cards later than 200 ms after the route
+ * goes, and the earlier limit then fell back to the page's toolbar. */
+export const PAGE_RETURN_FRAMES = 60;
 
 export function NativeShell({runtime}: {runtime: NativeShellRuntime}) {
   const snapshot = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);

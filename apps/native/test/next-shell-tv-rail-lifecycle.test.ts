@@ -170,7 +170,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
       gridConfig(false);
       const late = requests.length;
       await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
-      await act(() => {for (let i = 0; i < 20; i++) flush();});
+      await act(() => {for (let i = 0; i < 70; i++) flush();});
       assert.deepEqual(requests.slice(late), ['toolbar'], 'after the wait the usual fallback applies');
       gridConfig(true);
     }

@@ -22,6 +22,15 @@ test('a covered TV layer blocks D-pad focus into everything under it, and an unc
   assert.equal(open.props.autoFocus, undefined);
 });
 
+test('W-9/W-12: an autoFocus layer remembers its last focused element, so an empty layer never takes focus itself', async () => {
+  const h = hooks();
+  const {CoveredLayer} = await screenModule(new URL('../src-next/kit/focus/CoveredLayer.tsx', import.meta.url), {
+    react: h.react, 'react-native': {TVFocusGuideView: 'TVFocusGuideView', View: 'View'}, '../theme': {useTheme: () => ({isTV: true})}});
+  const routes = h.render(() => CoveredLayer({covered: false, autoFocus: true, children: null, testID: 'routes'})) as any;
+  assert.equal(routes.props.autoFocus, true);
+  assert.equal(routes.props.focusable, true);
+});
+
 test('touch has no D-pad: the layer only hides from screen readers and touches', async () => {
   const render = await layer(false);
   const covered = render(true);

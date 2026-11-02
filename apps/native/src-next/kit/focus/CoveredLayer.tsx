@@ -9,12 +9,16 @@ import {useTheme} from '../theme';
  * escape from the screen on top into the one underneath. Screen readers skip it too.
  *
  * The element stays the same covered or not, so the page underneath keeps its state, scroll
- * and the focus it returns to. Uncovered, the container never takes focus itself: Android adds
- * it only when nothing inside can be focused, and it has no guide destinations of its own.
+ * and the focus it returns to. It has no guide destinations of its own.
+ *
+ * `autoFocus` (W-9, W-12): a layer that can be empty (the shell's route layer between routes)
+ * remembers the element last focused inside it and returns D-pad entry there. With it, a layer
+ * with nothing focusable inside never takes focus itself: without it, Android focuses the empty
+ * container, leaving no visible focus on screen.
  */
-export function CoveredLayer({covered, children, style, testID}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string}) {
+export function CoveredLayer({covered, children, style, testID, autoFocus = false}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string; autoFocus?: boolean}) {
   const {isTV} = useTheme();
   const hidden = {accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' as const : 'auto' as const};
   if (!isTV) return <View style={style} testID={testID} pointerEvents={covered ? 'none' : 'auto'} {...hidden}>{children}</View>;
-  return <TVFocusGuideView style={style} testID={testID} focusable={!covered} {...hidden}>{children}</TVFocusGuideView>;
+  return <TVFocusGuideView style={style} testID={testID} focusable={!covered} {...(autoFocus ? {autoFocus: true} : {})} {...hidden}>{children}</TVFocusGuideView>;
 }
