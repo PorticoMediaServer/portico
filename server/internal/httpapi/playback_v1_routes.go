@@ -554,7 +554,7 @@ func registerPlaybackV1Sessions(r *apikit.Registry, d Dependencies) {
 			}
 			return v, err
 		})
-	v1Route(r, apikit.Metadata{Audience: apikit.Clients, Admission: laneSecurityFence, ID: "stop_playback_session", Method: "DELETE", Path: "/v1/playback/sessions/{id}", Summary: "Stop playback; idempotent",
+	v1Route(r, apikit.Metadata{Audience: apikit.Clients, Admission: lanePlaybackStop, ID: "stop_playback_session", Method: "DELETE", Path: "/v1/playback/sessions/{id}", Summary: "Stop playback; idempotent",
 		Access: apikit.Device, Requires: apikit.ScopePlayback, Lane: apikit.Media, Cost: apikit.Constant, BodyLimit: 1 << 10, OptionalBody: true, Status: 204, Errors: []string{"invalid_request", "unauthorized", "not_found", "revision_mismatch"}},
 		func(ctx context.Context, q *http.Request, in playbackv1.StopRequest) (noBody, error) {
 			if in.ExpectedGeneration != nil {

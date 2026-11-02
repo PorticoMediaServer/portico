@@ -1,19 +1,12 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import TvFrame from '@/components/TvFrame.astro';
-import BrowserFrame from '@/components/BrowserFrame.astro';
+import Devices from '@/components/Devices.astro';
+import FinalCta from '@/components/FinalCta.astro';
 import PlatformIcon from '@/components/PlatformIcon.astro';
 import { serverPlatforms, watchPlatforms } from '@/data/platforms';
 
-const allLibraries = ['Movies', 'TV Shows', 'Anime', 'Music', 'Audiobooks'];
-const people = [
-  { name: 'Sam', role: 'Server owner', hue: 205, watching: [{ title: 'Fargo · S2 E3', progress: 64 }, { title: 'The Florida Project', progress: 22 }], libraries: allLibraries },
-  { name: 'Riley', role: 'Member', hue: 32, watching: [{ title: 'Project Hail Mary · Ch. 14', progress: 48 }, { title: 'Spirited Away', progress: 81 }], libraries: ['Movies', 'Anime', 'Audiobooks'] },
-  { name: 'Jordan', role: 'Member', hue: 160, watching: [{ title: 'The Rookie · S6 E1', progress: 35 }, { title: 'Rumours · Fleetwood Mac', progress: 57 }], libraries: ['Movies', 'TV Shows', 'Music'] }
-];
-
 const included = [
-  { title: 'Remote streaming', body: 'Watch away from home, straight from your own server.', icon: '<circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />' },
+  { title: 'Remote access, set up for you', body: 'Sign in with a Portico Account and Portico handles the connection. In the future, Portico will offer a paid relay service for those who need it.', icon: '<circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />' },
   { title: 'Downloads', body: 'Save titles to your phone or tablet and watch offline.', icon: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14" />' },
   { title: 'Live TV and DVR', body: 'Watch live channels and record from your own tuner.', icon: '<rect x="3" y="6" width="18" height="12" rx="2" /><path d="m9 2 3 4 3-4" /><circle cx="17" cy="15" r="1" />' },
   { title: 'Hardware transcoding', body: "Use the server's graphics hardware when a device needs a converted stream.", icon: '<rect x="6" y="6" width="12" height="12" rx="1.5" /><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4" />' },
@@ -30,229 +23,244 @@ const faqs = [
   },
   {
     q: "What does Portico cost?",
-    a: "Nothing. Portico has no paid tier, so the server, every app and every feature are free, with no subscription and no ads. Portico Server's source code is published under the GPL-3.0 licence."
+    a: "Nothing. The server, every app and every feature Portico has today are free, with no subscription and no ads, and they'll stay free. Later on, we plan to offer one optional paid add-on: a relay for servers that can't accept direct connections, designed so we can't see what you watch. Portico is licensed under the GPL, version 3 or later."
   },
   {
     q: "Do I need a Portico Account?",
-    a: "No. You can create a server owner that exists only on your server. A Portico Account is optional. It gives you one sign-in across Portico apps, simple invitations, and a secure connection to your server that Portico sets up for you."
+    a: "No. You can create a server owner that exists only on your server, and local accounts aren't reliant on connections to our servers. A Portico Account is optional. It gives you one sign-in across Portico apps, simple invitations, and a secure connection to your server that Portico sets up for you."
   },
   {
-    q: "Does my media go through Portico's servers?",
-    a: "No. Video, music and artwork stream directly from your server to your devices. Portico Services handle Portico Account sign-in, server membership and connection details. They never receive your media, your titles or your watch history."
-  },
-  {
-    q: "Which devices can I watch on?",
-    a: "In any modern web browser, and in the Portico apps for iPhone, iPad, Android, Apple TV, Android TV, Google TV, Fire TV, Roku, LG and Samsung."
-  },
-  {
-    q: "Can I share my server with family?",
-    a: "Yes. Give each person their own account. Each person's profile keeps its own progress, My List, history and ratings, and you choose which libraries each person can see."
+    q: "Can I share my server with family and friends?",
+    a: "Yes. Give each person their own account, at no extra cost. Each person's profile keeps its own progress, My List, history and ratings, so you can stop on one screen and finish on another. You choose which libraries each person can see."
   }
 ];
 ---
 
-<BaseLayout title="Portico" description="Portico is a media server with every feature free. Keep your movies, shows, music, audiobooks and live TV on your own computer and watch them on your TV, phone, tablet or browser.">
-  <section class="hero" aria-labelledby="hero-title">
-    <div class="hero-ambient" aria-hidden="true"></div>
-    <div class="container hero-grid">
-      <h1 id="hero-title" class="hero-title">Your own streaming service. <span class="accent-text">Free.</span></h1>
-      <div class="hero-side">
-        <p>Portico turns the movies, shows, music and audiobooks on your computer into a streaming service everyone at home can watch on a TV, phone, tablet or browser. Every feature is included: no paid tier, no subscription, no ads.</p>
-        <div class="hero-actions">
-          <a class="button button-primary" href="/download/">Get Portico</a>
-          <a class="button button-ghost" href="/features/">See features</a>
-        </div>
+<BaseLayout title="Portico" description="Portico is a free media server that brings your movies, shows, music and more to every screen, with audiobooks and eBooks built in.">
+  <section class="opening" aria-labelledby="hero-title">
+    <div class="container opening-copy">
+      <h1 id="hero-title" class="type-mega"><span class="line">Stream your media</span> <span class="line">anywhere.</span></h1>
+      <p class="opening-lede">Portico is a <strong>free</strong> media server that brings your movies, shows, music and more to every screen.</p>
+      <div class="actions actions-center">
+        <a class="button button-primary" href="/download/">Get Portico</a>
+        <a class="button button-ghost" href="#features">See features</a>
       </div>
     </div>
-    <div class="container hero-stage">
-      <TvFrame src="/media/portico-home.png" alt="Portico's Home screen with Fargo featured in Continue Watching" />
+    <div class="opening-stage">
+      <Devices />
     </div>
   </section>
 
-  <section class="section section-free" aria-labelledby="free-title">
-    <div class="container">
-      <div class="section-head">
-        <h2 id="free-title" class="display-2">Nothing to unlock.</h2>
-        <p class="lede">Features that often cost extra come with every Portico server, for everyone who uses it. There's no premium plan to upgrade to.</p>
+  <section class="band unlock" aria-labelledby="free-title">
+    <div class="container unlock-grid" id="features">
+      <div class="unlock-head">
+        <h2 id="free-title" class="type-d1">Nothing to unlock.</h2>
+        <p class="lede unlock-lede"><strong>No premium plan here.</strong> Every feature Portico has today is free for everyone and will stay that way, and we'll keep improving Portico for free. We'll only charge for something new that costs us real money to run, like relaying video, and never for a feature you already have.</p>
+        <p class="lede unlock-lede"><strong>Open source, so it stays yours.</strong> Portico Server and the Portico apps are open source under the GPL, version 3 or later. Anyone can read, build and run the code, so you can always see how it works, and keep it running your way.</p>
       </div>
-      <ul class="free-grid" role="list">
+      <ul class="unlock-list" role="list">
         {included.map((feature) => (
           <li>
-            <svg viewBox="0 0 24 24" aria-hidden="true" set:html={feature.icon} />
-            <strong>{feature.title}</strong>
-            <span>{feature.body}</span>
+            <span class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true" set:html={feature.icon} /></span>
+            <h3>{feature.title}</h3>
+            <p>{feature.body}</p>
           </li>
         ))}
       </ul>
     </div>
   </section>
 
-  <section class="section" aria-labelledby="household-title">
-    <div class="section-ambient ambient-amber" aria-hidden="true"></div>
+  <section class="band kinds" aria-labelledby="kinds-title">
     <div class="container">
-      <h2 id="household-title" class="display-2">Everyone gets their own account.</h2>
-      <div class="household-board" role="img" aria-label="Three people on one Portico server, each with their own Continue Watching row and their own library access.">
-        {people.map((person) => (
-          <div class="person-card">
-            <div class="person-head">
-              <span class="person-avatar" style={`--hue: ${person.hue}`}>{person.name[0]}</span>
-              <div><strong>{person.name}</strong><small>{person.role}</small></div>
+      <div class="band-split kinds-head">
+        <h2 id="kinds-title" class="type-d1">Not just movies.</h2>
+        <p class="lede">A true library is more than movies and shows. Portico gives all your media a first-class experience, including music, audiobooks and eBooks – right out of the box.</p>
+      </div>
+
+      <ul class="kinds-grid" role="list">
+        <li class="kind kind-movies">
+          <div class="kind-art" aria-hidden="true">
+            <div class="art-posters"><i></i><i></i><i></i></div>
+            <span class="art-chip">Collection<small>3 titles on your server</small></span>
+          </div>
+          <h3>Movies</h3>
+          <p>Your films, with collections kept together.</p>
+        </li>
+
+        <li class="kind kind-tv">
+          <div class="kind-art" aria-hidden="true">
+            <div class="art-seasons"><span>Season 1</span><span class="is-on">Season 2</span><span>Season 3</span></div>
+            <div class="art-row"><b>Episode 4</b><i style="--progress: 100%"></i></div>
+            <div class="art-row"><b>Episode 5</b><i style="--progress: 38%"></i></div>
+            <span class="art-pill">Skip intro</span>
+          </div>
+          <h3>TV shows</h3>
+          <p>Pick up the next episode and skip the intros.</p>
+        </li>
+
+        <li class="kind kind-anime">
+          <div class="kind-art" aria-hidden="true">
+            <div class="art-row art-row-dim"><b>Episode 212</b></div>
+            <div class="art-row art-row-now"><b>Episode 213</b><i style="--progress: 54%"></i></div>
+            <div class="art-row art-row-dim"><b>Episode 214</b></div>
+            <span class="art-chip">Absolute numbering</span>
+          </div>
+          <h3>Anime</h3>
+          <p>Long-running series, always in the right order.</p>
+        </li>
+
+        <li class="kind kind-music">
+          <div class="kind-art" aria-hidden="true">
+            <div class="art-lyrics">
+              <span>All the windows open</span>
+              <span class="is-on">and the evening coming in</span>
+              <span>we can stay a little longer</span>
             </div>
-            <span class="person-label">Continue Watching</span>
-            {person.watching.map((item) => (
-              <div class="person-item">
-                <span>{item.title}</span>
-                <i style={`--progress: ${item.progress}%`}></i>
+            <div class="art-mixes"><span>Ambient mix</span><span>From your listening</span></div>
+          </div>
+          <h3>Music</h3>
+          <p>Albums, personal mixes and lyrics that follow along.</p>
+        </li>
+
+        <li class="kind kind-audiobooks">
+          <div class="kind-art" aria-hidden="true">
+            <div class="art-cover"></div>
+            <div class="art-listen">
+              <small>Chapter 14 of 32</small>
+              <div class="art-scrub"><i style="--progress: 42%"></i></div>
+              <div class="art-controls">
+                <span class="art-pill">1.25×</span>
+                <span class="art-pill"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" /></svg>Sleep timer</span>
+                <span class="art-pill"><svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></svg>Chapters</span>
               </div>
-            ))}
-            <span class="person-label">Libraries</span>
-            <div class="person-libraries">
-              {allLibraries.map((library) => (
-                <span class:list={[{ 'is-off': !person.libraries.includes(library) }]}>{library}</span>
-              ))}
             </div>
           </div>
-        ))}
-      </div>
-      <div class="rule-columns">
-        <article>
-          <h3>Stop on one screen, finish on another.</h3>
-          <p>Your server keeps your place. Pick the same profile on another device connected to that server and carry on.</p>
-        </article>
-        <article>
-          <h3>Your history is yours.</h3>
-          <p>Progress, My List, history, ratings and preferences belong to your profile, not to whichever TV you used.</p>
-        </article>
-        <article>
-          <h3>You decide who sees what.</h3>
-          <p>The server owner chooses which libraries and actions each person can use, and can take access away at any time.</p>
-        </article>
-      </div>
+          <h3>Audiobooks</h3>
+          <p>Chapters, speed control and a sleep timer.</p>
+        </li>
+
+        <li class="kind kind-ebooks">
+          <div class="kind-art" aria-hidden="true">
+            <div class="art-page">
+              <span class="art-line"></span><span class="art-line"></span><span class="art-line art-line-mark"></span><span class="art-line"></span><span class="art-line art-line-short"></span>
+              <span class="art-gap"></span>
+              <span class="art-line"></span><span class="art-line"></span><span class="art-line art-line-short"></span>
+            </div>
+            <div class="art-display">
+              <span class="art-aa">Aa</span>
+              <span class="art-swatch art-swatch-light"></span><span class="art-swatch art-swatch-sepia"></span><span class="art-swatch art-swatch-dark is-on"></span>
+            </div>
+            <div class="art-comic"><i></i><i></i><i></i><i></i></div>
+          </div>
+          <h3>eBooks</h3>
+          <p>Books and comics in a reader you make your own.</p>
+        </li>
+      </ul>
     </div>
   </section>
 
-  <section class="section section-split" aria-labelledby="library-title">
-    <div class="section-ambient ambient-violet" aria-hidden="true"></div>
-    <div class="container split">
-      <div class="split-copy">
-        <h2 id="library-title" class="display-2">Your folders become a proper library.</h2>
-        <p class="lede">Add your media folders and Portico builds the library: posters, artwork and cast, with shows sorted into seasons and episodes. The original files stay where they are.</p>
-        <ul class="check-list">
-          <li>Libraries for movies, TV, anime, music and audiobooks</li>
-          <li>If a title is matched wrong, you can pick the right one</li>
-          <li>Scanning never renames or moves your files</li>
-        </ul>
-        <a class="text-link" href="/docs/media/">How to organize your media <span aria-hidden="true">→</span></a>
-      </div>
-      <BrowserFrame src="/media/portico-detail.png" alt="A Portico show page for Fargo, with its poster, details and playback actions" address="web.getportico.tv" />
-    </div>
-  </section>
-
-  <section class="section" aria-labelledby="yours-title">
-    <div class="container yours">
-      <h2 id="yours-title" class="display-2">Private, and on your own hardware.</h2>
-      <div class="yours-grid">
-        <article>
-          <h3>Your media stays off our servers.</h3>
-          <p>Streams go directly from your server to your devices. Portico Services never relay, cache or inspect them, and never see your titles, files or watch history.</p>
-        </article>
-        <article>
-          <h3>Open source.</h3>
-          <p>Portico Server's source code is published under the GPL-3.0. It runs on a computer you own, and you decide what it keeps.</p>
-        </article>
-        <article>
-          <h3>Original quality when it can.</h3>
-          <p>Portico plays the original file when the device, connection and chosen quality allow it. Otherwise the server remuxes or transcodes it.</p>
-        </article>
-        <article>
-          <h3>Live TV and DVR.</h3>
-          <p>Add your tuner or channel source and guide data, then watch live, schedule recordings and sort out conflicts on the same server.</p>
-        </article>
-      </div>
-      <div class="connection-diagram" role="img" aria-label="Portico apps connect directly to your Portico Server. Portico Services only help them find it.">
-        <div class="node">
-          <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="6" width="26" height="17" rx="2" /><path d="M11 28h10M16 23v5" /></svg>
-          <strong>Your screens</strong><span>Web, phone, TV</span>
-        </div>
-        <div class="link">
-          <span>Media, direct</span>
-          <svg viewBox="0 0 200 12" preserveAspectRatio="none" aria-hidden="true"><path d="M0 6h200" /></svg>
-        </div>
-        <div class="node node-server">
-          <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="5" width="22" height="9" rx="2" /><rect x="5" y="18" width="22" height="9" rx="2" /><path d="M9 9.5h2M9 22.5h2" /></svg>
-          <strong>Your server</strong><span>Library, accounts, playback</span>
-        </div>
-        <div class="services-note">
-          <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 6 8v7c0 6.5 4.2 11.2 10 13 5.8-1.8 10-6.5 10-13V8Z" /><path d="m11.5 16 3.2 3.2 6-6.4" /></svg>
-          <span><strong>Portico Services</strong> help your apps find and verify the server. They never carry media.</span>
-        </div>
-      </div>
-      <a class="text-link" href="/docs/remote/how-portico-connects/">How Portico connects <span aria-hidden="true">→</span></a>
-    </div>
-  </section>
-
-  <section class="section" aria-labelledby="screens-title">
+  <section class="band private" aria-labelledby="access-title">
     <div class="container">
-      <div class="section-head">
-        <h2 id="screens-title" class="display-2">Apps for the screens you already own.</h2>
+      <div class="band-split">
+        <h2 id="access-title" class="type-d1">Truly simple remote access.</h2>
+        <p class="lede">Link your server to a free Portico Account and Portico takes care of the networking. Family and friends sign in on their own devices, and your server is there, at home or away.</p>
+      </div>
+      <ul class="access-grid" role="list">
+        <li class="access-card">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></svg>
+          <h3>Network setup made easy</h3>
+          <p>Portico automatically coordinates secure connections between your server and client devices. Setup takes just a few minutes.</p>
+        </li>
+        <li class="access-card">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5.5c0 4.6 3 8 7 9.5 4-1.5 7-4.9 7-9.5V6Z" /><path d="m9 12 2.2 2.2L15.5 10" /></svg>
+          <h3>Secure by default</h3>
+          <p>Every Portico server gets a free SSL certificate, and comes with enhanced security features that help prevent automated network attacks when using remote access.</p>
+        </li>
+        <li class="access-card">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z" /><path d="M14 14h2v2h-2zM18 14h2M14 18h2v2M18 18h2v2h-2" /></svg>
+          <h3>Invites made easy</h3>
+          <p>Invite family and friends with a simple invite link or QR code. With a Portico Account, they just sign in and enjoy.</p>
+        </li>
+      </ul>
+      <div class="trust">
+        <p class="trust-lead">Portico makes it easy to handle sign-in and connections, but we never see your library, file metadata or watch history.</p>
+        <ul class="trust-points" role="list">
+          <li><strong>Optional by design.</strong> Want even more separation? Portico Services are optional: Portico Server supports local accounts, which aren't reliant on connections to our servers.</li>
+          <li><strong>Open source.</strong> Portico is licensed under the GPL, version 3 or later, so anyone can read the code and check what it does.</li>
+          <li><strong>Optional relay, coming later.</strong> For servers that can't (or would rather not) use a typical network setup, we plan to offer a paid relay, designed so we can't see what you watch. It's the only paid service planned, and standard remote access, including through Portico Services, will always be free.</li>
+        </ul>
+        <div class="private-links">
+          <a class="text-link" href="/docs/remote/how-portico-connects/">How Portico connects</a>
+          <a class="text-link" href="/privacy/">Read the privacy policy</a>
+          <a class="text-link" href="https://github.com/PorticoMediaServer/portico">View the source</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band screens" aria-labelledby="screens-title">
+    <div class="container">
+      <div class="band-split">
+        <h2 id="screens-title" class="type-d1">Apps for the screens you already own.</h2>
         <p class="lede">A web app, plus native apps for phones, tablets, TVs and streaming players. The TV apps are made for a remote, and the phone apps for touch.</p>
       </div>
-      <div class="platform-board">
-        <div class="platform-group">
+      <div class="device-wall">
+        <div class="device-group device-group-watch">
           <h3>Watch on</h3>
-          <ul class="platform-grid platform-grid-watch">
+          <ul role="list">
             {watchPlatforms.map((platform) => (
               <li><PlatformIcon name={platform.icon} /><span>{platform.name}</span></li>
             ))}
           </ul>
         </div>
-        <div class="platform-group">
+        <div class="device-group device-group-server">
           <h3>Run the server on</h3>
-          <ul class="platform-grid platform-grid-server">
+          <ul role="list">
             {serverPlatforms.map((platform) => (
               <li><PlatformIcon name={platform.icon} /><span>{platform.name}</span></li>
             ))}
           </ul>
         </div>
       </div>
-      <a class="text-link" href="/download/">See all downloads <span aria-hidden="true">→</span></a>
+      <a class="text-link" href="/download/">See all downloads</a>
     </div>
   </section>
 
-  <section class="section" aria-labelledby="steps-title">
+  <section class="band setup" aria-labelledby="steps-title">
     <div class="container">
-      <h2 id="steps-title" class="display-2">How setup works.</h2>
-      <ol class="step-cards" role="list">
-        <li class="step-blue">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="1.5" /><rect x="4" y="14" width="16" height="6" rx="1.5" /><path d="M7.5 7h1M7.5 17h1" /></svg>
-          <span class="step-number" aria-hidden="true">01</span>
+      <h2 id="steps-title" class="type-d1 band-title">How setup works.</h2>
+      <ol class="steps" role="list">
+        <li>
+          <span class="step-n" aria-hidden="true">1</span>
           <h3>Install the server</h3>
           <p>On the computer that holds your media, install Portico Server for Windows, macOS or Linux, or run it in Docker.</p>
         </li>
-        <li class="step-teal">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /><path d="m10.5 10.5 4 2.5-4 2.5Z" /></svg>
-          <span class="step-number" aria-hidden="true">02</span>
+        <li>
+          <span class="step-n" aria-hidden="true">2</span>
           <h3>Add your folders</h3>
           <p>Create a library for each kind of media. Portico scans the files and fills in artwork and details.</p>
         </li>
-        <li class="step-amber">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="15" height="11" rx="1.5" /><path d="M7 19h5M9.5 15v4" /><rect x="17" y="9" width="5" height="10" rx="1.2" /></svg>
-          <span class="step-number" aria-hidden="true">03</span>
+        <li>
+          <span class="step-n" aria-hidden="true">3</span>
           <h3>Add the people who watch</h3>
           <p>Create an account for each person, then sign in from Portico Web or a Portico app on any screen.</p>
         </li>
       </ol>
-      <a class="text-link" href="/docs/start/quick-start/">Read the quick start <span aria-hidden="true">→</span></a>
+      <a class="text-link" href="/docs/start/quick-start/">Read the quick start</a>
     </div>
   </section>
 
-  <section class="section" aria-labelledby="faq-title">
-    <div class="container faq">
-      <h2 id="faq-title" class="display-2">Common questions.</h2>
-      <div class="faq-list">
+  <section class="band questions" aria-labelledby="faq-title">
+    <div class="container questions-grid">
+      <div class="questions-head">
+        <h2 id="faq-title" class="type-d1">Common questions.</h2>
+        <p>Guides for installing Portico, adding media, remote access and backups, plus help when a connection or a file won't play.</p>
+        <a class="text-link" href="/docs/">Browse the docs</a>
+      </div>
+      <div class="questions-list">
         {faqs.map((item) => (
           <details>
-            <summary>{item.q}<span class="faq-icon" aria-hidden="true"></span></summary>
+            <summary>{item.q}<span class="questions-icon" aria-hidden="true"></span></summary>
             <p>{item.a}</p>
           </details>
         ))}
@@ -260,42 +268,5 @@ const faqs = [
     </div>
   </section>
 
-  <section class="section" aria-labelledby="docs-title">
-    <div class="container">
-      <div class="section-head">
-        <h2 id="docs-title" class="display-3">Set up and look after your server.</h2>
-        <p class="lede">Step-by-step guides for installing Portico, adding media, remote access and backups, plus help when a connection or a file won't play.</p>
-      </div>
-      <div class="docs-cards">
-        <a href="/docs/start/"><strong>Start here</strong><span>Install Portico Server and add your first library.</span></a>
-        <a href="/docs/media/"><strong>Organize media</strong><span>Name files, build libraries and fix matches.</span></a>
-        <a href="/docs/remote/"><strong>Remote access</strong><span>Watch from outside your home network.</span></a>
-        <a href="/docs/troubleshooting/"><strong>Troubleshooting</strong><span>Sort out connection, playback and library problems.</span></a>
-      </div>
-    </div>
-  </section>
-
-
-  <section class="final-cta" aria-labelledby="cta-title">
-    <div class="final-ambient" aria-hidden="true"></div>
-    <div class="container final-cta-grid">
-      <div>
-        <h2 id="cta-title" class="display-1">Start your Portico server.</h2>
-        <p class="lede">Install it on the computer that holds your media, add a library, and invite the people you watch with.</p>
-      </div>
-      <div class="final-cta-card">
-        <span class="final-cta-label">Portico Server for</span>
-        <ul class="final-cta-platforms">
-          {serverPlatforms.map((platform) => (
-            <li><a href="/download/"><PlatformIcon name={platform.icon} /><span>{platform.name}</span></a></li>
-          ))}
-        </ul>
-        <div class="hero-actions">
-          <a class="button button-primary" href="/download/">Get Portico</a>
-          <a class="button button-ghost" href="/docs/start/quick-start/">Quick start</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
+  <FinalCta id="cta-title" secondary={{ label: 'Quick start', href: '/docs/start/quick-start/' }} />
 </BaseLayout>

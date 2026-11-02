@@ -1,0 +1,19 @@
+---
+/* A product screenshot staged as a lit screen. A blurred copy of the same image sits behind it,
+   so each screen throws its own light onto the backdrop. */
+type Props = {
+  src: string;
+  alt: string;
+  eager?: boolean;
+  class?: string;
+};
+
+const { src, alt, eager = false, class: className } = Astro.props;
+---
+
+<figure class:list={['screen', className]} style={`--shot: url('${src}')`}>
+  <div class="screen-light" aria-hidden="true"></div>
+  <div class="screen-panel">
+    <img src={src} alt={alt} width="1280" height="720" loading={eager ? 'eager' : 'lazy'} fetchpriority={eager ? 'high' : undefined} decoding="async" />
+  </div>
+</figure>

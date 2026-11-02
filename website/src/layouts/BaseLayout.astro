@@ -5,6 +5,7 @@ import '@fontsource/manrope/600.css';
 import '@fontsource/manrope/700.css';
 import '@fontsource/manrope/800.css';
 import '@/styles/global.css';
+import '@/styles/site.css';
 import SiteHeader from '@/components/SiteHeader.astro';
 import SiteFooter from '@/components/SiteFooter.astro';
 
@@ -24,7 +25,7 @@ const {
   theme = 'promo'
 } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
-const fullTitle = title === 'Portico' ? 'Portico · Your media server, on every screen' : `${title} | Portico`;
+const fullTitle = title === 'Portico' ? 'Portico: Stream your media anywhere' : `${title} | Portico`;
 ---
 
 <!doctype html>
@@ -33,7 +34,7 @@ const fullTitle = title === 'Portico' ? 'Portico · Your media server, on every 
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#05080c" />
+    <meta name="theme-color" content="#071018" />
     <meta name="color-scheme" content={theme === 'docs' ? 'light dark' : 'dark'} />
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />

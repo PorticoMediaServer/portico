@@ -1,10 +1,11 @@
 {
   "name": "Portico",
   "short_name": "Portico",
+  "description": "Portico is a free media server that brings your movies, shows, music and more to every screen.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#070b10",
-  "theme_color": "#070b10",
+  "background_color": "#071018",
+  "theme_color": "#071018",
   "icons": [
     {
       "src": "/icon-192.png",
