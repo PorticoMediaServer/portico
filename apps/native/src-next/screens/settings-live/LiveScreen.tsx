@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {BackHandler, FlatList, Platform, ScrollView, Text, View, VirtualizedList, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -66,7 +67,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     ? posture.folds.find(value => value.orientation === 'vertical' && value.bounds.left > 0 && value.bounds.left < value.bounds.right && value.bounds.right <= dimensions.width) : undefined;
   const insetLeft = landscape ? Math.max(12, insets.left + 8) : compact ? 0 : theme.isTV ? 0 : 20;
   const insetRight = landscape ? Math.max(12, insets.right + 8) : compact || theme.isTV ? 0 : 20;
-  const [now, setNow] = useState(Date.now), [start, setStart] = useState(() => floorTo(Date.now(), SLOT_MS) - (theme.isTV || phoneChrome ? SLOT_MS : 0)), [measuredWidth, setMeasuredWidth] = useState(theme.isTV ? 1660 : theme.width - 40);
+  const [now, setNow] = useState(serverNow), [start, setStart] = useState(() => floorTo(serverNow(), SLOT_MS) - (theme.isTV || phoneChrome ? SLOT_MS : 0)), [measuredWidth, setMeasuredWidth] = useState(theme.isTV ? 1660 : theme.width - 40);
   // phone-app 5: phones open on the list, upright or sideways; the shell's own
   // layout classifier decides which windows are phones, and a remembered view wins.
   const view = state.view ?? (shellLayout(theme.width, dimensions.height, theme.isTV).kind === 'phone' ? 'list' : 'guide');
@@ -153,7 +154,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     && guideEnd >= channelWidth + 100 && contentWidth - paneLeft >= 300;
   const width = Math.max(0, measuredWidth - insetLeft - (twoPane ? Math.max(0, contentWidth - guideEnd) : insetRight));
   const rowHeight = theme.isTV ? 92 : view === 'list' ? 100 : landscape ? 62 : 72, rowGap = theme.isTV ? 8 : phoneChrome ? 0 : 6, px = pxPerMsFor(halfHour), end = start + Math.max(halfHour, width - channelWidth) / px;
-  useEffect(() => {void controller.loadSources(); const timer = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer);}, [controller]);
+  useEffect(() => {void controller.loadSources(); const timer = setInterval(() => setNow(serverNow()), 30000); return () => clearInterval(timer);}, [controller]);
   const features = useMemo(() => new GuideFeatureClient(controller.api, controller.lifetime.authority.serverId), [controller]);
   useEffect(() => () => features.dispose(), [features]);
   useEffect(() => {
@@ -165,7 +166,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   useEffect(() => {
     if (!selected) {setLater([]); return;}
     let live = true;
-    const raw = legacyChannel(selected.channel), at = Date.now();
+    const raw = legacyChannel(selected.channel), at = serverNow();
     void features.reminders().then(value => {if (live) setReminders(new Map(value.items.map(item => [item.airing.programme.id, item])));}, () => {});
     if (raw) void features.airings({channelId: raw.id, sourceId: raw.sourceId, kind: raw.provenance, start: new Date(at).toISOString(), end: new Date(at + 12 * 3600e3).toISOString(), limit: 8})
       .then(page => {if (live) setLater(page.groups.flatMap(group => group.airings).filter(airing => airing.programme.id !== selected.program?.id).slice(0, 4));}, () => {});

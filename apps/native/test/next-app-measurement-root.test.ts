@@ -31,7 +31,7 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
     './platform/keyboard': {KeyboardProvider: 'KeyboardProvider'},
     './kit/theme': {ThemeProvider: 'ThemeProvider', useTheme: () => ({colors: {ink: '#010203'}})},
     './shell/AppErrorBoundary': {AppErrorBoundary: 'AppErrorBoundary'}, './platform/boot-host': {reportFirstFrame},
-    './shell': {NativeShell: leaf}, './shell/RestoredShell': {RestoredShell: leaf}, './shell/settings-mount': {},
+    './platform/server-clock-store': {}, './shell': {NativeShell: leaf}, './shell/RestoredShell': {RestoredShell: leaf}, './shell/settings-mount': {},
     './screens/watch': {registerNativeWatch: (factory: unknown) => {assert.equal(factory, leaf);}, createNativeWatchBindings: leaf},
     './dev/Kit': {KitHost: leaf}, './dev/public-measurement': {NativePublicMeasurementGate: leaf},
     './dev/measurement-install': {installNativePublicMeasurement: () => {throw new Error('root-prop read must not install measurement');}},

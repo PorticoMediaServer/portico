@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {needsOfflineServerDialog, presenceLabel, sortServersByPresence, type HostedServer} from '../../../../../packages/client-core/src';
 import {presentError, type ErrorCategory} from '../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -12,7 +13,7 @@ export type DirectoryRow = Readonly<{id: string; name: string; owner?: true; sub
 
 /** The phone directory's rows: online first, then last seen, then unknown. Offline rows
  * are dimmed but remain chooseable; a malformed or absent presence renders normally. */
-export function directoryRows(servers: readonly HostedServer[], currentId?: string, nowMs = Date.now()): readonly DirectoryRow[] {
+export function directoryRows(servers: readonly HostedServer[], currentId?: string, nowMs = serverNow()): readonly DirectoryRow[] {
   return sortServersByPresence(servers).map(server => {
     const identity = {id: server.id, name: server.name, ...(server.ownedByMe === true && server.role === 'owner' ? {owner: true as const} : {})};
     if (currentId && server.id === currentId) return {...identity, subtitle: {key: 'web.chooser.current'}, offline: false};
@@ -33,7 +34,7 @@ const connectionCodes: ReadonlySet<string> = new Set(['server_unavailable', 'rou
 
 /** Which chooser state a connect attempt is in. A silent cancellation is `other`, so the
  * caller returns to the list without drawing a failure. */
-export function directoryFailure(server: HostedServer | undefined, error: unknown, nowMs = Date.now()): DirectoryFailure {
+export function directoryFailure(server: HostedServer | undefined, error: unknown, nowMs = serverNow()): DirectoryFailure {
   if (!server) return 'other';
   if (error === undefined) return 'opening';
   const presentation = presentError(error, 'sign-in');

@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {linkNativeAbortSignals} from './abort-signals';
 import {accountExpectation, nativeAccountWork} from './account-work';
 import {HttpLocalApi, transportJSON, assertFirstContactIdentity, type HostedServer, type HostedSession, type LocalSession} from '../../../../packages/client-core/src';
@@ -169,7 +170,7 @@ export class NativeServerSignIn {
       const result = await verifyOwnerResetFile(api, code, false, this.controller.signal);
       if (result.kind !== 'signed-in' || !result.resetFileOwnerSession || result.passwordChangeRequired || result.accountScoped
         || result.session.refreshToken || result.session.viewer.serverId !== server.id || result.session.viewer.role !== 'owner'
-        || result.session.installationId !== this.installation?.installationId || Date.parse(result.session.expiresAt) <= Date.now()
+        || result.session.installationId !== this.installation?.installationId || Date.parse(result.session.expiresAt) <= serverNow()
         || result.session.serverIdentity?.publicKey !== original.pin.publicKey || result.session.serverIdentity.fingerprint !== original.pin.fingerprint
         || result.snapshot.account.role !== 'owner' || result.snapshot.account.disabled || !result.snapshot.capabilities.manageServer
         || result.snapshot.account.primaryProfileId !== result.session.viewer.profileId
@@ -392,7 +393,7 @@ export class NativeServerSignIn {
   completeDirectorySecondFactor(code: string) {
     return this.run(async () => {
       const factor = this.directoryFactor;
-      if (!factor || this.api !== factor.api || this.challenge !== factor.token || Date.parse(factor.expiresAt) <= Date.now()) throw cancelled();
+      if (!factor || this.api !== factor.api || this.challenge !== factor.token || Date.parse(factor.expiresAt) <= serverNow()) throw cancelled();
       factor.assert();
       const result = await completeDirectSignInChallenge(factor.api, factor.token, code, this.controller.signal);
       try {factor.assert(); if (this.directoryFactor !== factor || this.challenge !== factor.token) throw cancelled();}
@@ -602,7 +603,7 @@ export class NativeServerSignIn {
     return this.run(async () => {
       const factor = this.memberMoveFactor;
       if (!factor || !factor.isCurrent() || this.api !== factor.api || this.challenge !== factor.token
-        || Date.parse(factor.expiresAt) <= Date.now()) throw cancelled();
+        || Date.parse(factor.expiresAt) <= serverNow()) throw cancelled();
       await factor.assertCurrent();
       if (this.memberMoveFactor !== factor || !factor.isCurrent()) throw cancelled();
       const result = await completeDirectSignInChallenge(factor.api, factor.token, code, this.controller.signal);

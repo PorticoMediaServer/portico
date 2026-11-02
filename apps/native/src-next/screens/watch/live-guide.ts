@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {sameFence, type ChannelPlaybackFence} from '../../../../../packages/player-core/src';
 import {legacyChannel, legacyChannelRow, legacyGuideSource, type LegacyGuideOptions} from '../../../../../packages/client-core/src/guide/legacy-source';
 import {parseChannelGuide, type GuideRoute} from '../../../../../packages/client-core/src/channel-guide';
@@ -109,7 +110,7 @@ export class NativeTVLiveGuide {
       if (!opening.origin) {
         const sourceId = opening.fence.sourceId;
         if (!sourceId) throw new Error('channel_source_unavailable');
-        const now = Date.now(), route: GuideRoute = {kind: opening.fence.channelKind, sourceId, timezone: opening.options.timezone, search: '',
+        const now = serverNow(), route: GuideRoute = {kind: opening.fence.channelKind, sourceId, timezone: opening.options.timezone, search: '',
           start: new Date(now).toISOString(), end: new Date(now + 3 * 3600_000).toISOString()};
         const query = new URLSearchParams({kind: route.kind, sourceId, timezone: route.timezone, search: route.search, start: route.start, end: route.end, channels: opening.fence.channelId, limit: '1', cursor: ''});
         const guide = parseChannelGuide(await api.request<unknown>(`${routePath('get_guide')}?${query}`, 'GET', undefined, signal), opening.authority.serverId, route);
@@ -145,7 +146,7 @@ export class NativeTVLiveGuide {
         const named = legacyGuideSource(api, opening.authority.serverId, {...opening.options, kind: raw.provenance, sourceId: raw.sourceId});
         // Only the five named rows and a bounded current programme window.
         try {
-          const now = Date.now(), programmes = await named.programs([raw.id], now, now + 3 * 60 * 60 * 1000, signal);
+          const now = serverNow(), programmes = await named.programs([raw.id], now, now + 3 * 60 * 60 * 1000, signal);
           return {...row, programmes: programmes[raw.id] ?? []};
         } catch (error) {if (current()) this.publish({...this.state, error});return row;}
       }));

@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../../packages/client-core/src/server-clock';
 import React, {useEffect, useMemo, useState} from 'react';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
@@ -59,13 +60,13 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   const reader = useMemo(() => createNativeOwnerDashboardReader(controller.lifetime, ports), [controller, ports]);
   useEffect(() => () => reader.dispose(), [reader]);
   const [healthWindow, setHealthWindow] = useState<OwnerHealthWindow>('1h'), [viewingPeriod, setViewingPeriod] = useState<OwnerViewingPeriod>('7d');
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => serverNow());
   const [streamMenu, setStreamMenu] = useState<OwnerStreamView>(), [stopView, setStopView] = useState<OwnerStreamView>(), [message, setMessage] = useState('');
   const [moveView, setMoveView] = useState<OwnerStreamView>();
   const [jobMenu, setJobMenu] = useState<OwnerJobView>(), [busy, setBusy] = useState(false), [actionError, setActionError] = useState<unknown>();
   const owner = state.admission === 'owner';
   const telemetry = useOwnerTelemetry(reader, healthWindow, owner), statistics = useOwnerStatistics(reader, viewingPeriod, owner);
-  useEffect(() => {const timer = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(timer);}, []);
+  useEffect(() => {const timer = setInterval(() => setNow(serverNow()), 30_000); return () => clearInterval(timer);}, []);
   const totals = state.totals ?? ownerDerivedTotals(state.sessions);
   const compact = ownerUsesCompactRows(totals);
   // Show all opens every stream in place. The first page is the controller's own read; the rest

@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {ApiError} from '../../../../packages/client-core/src';
 import {PeopleInvitationsClient, type PublicInvitation} from '../../../../packages/client-core/src/direct-account';
 import type {ProfileAPI} from '../../../../packages/client-core/src/profile-management';
@@ -53,14 +54,14 @@ export class NativeLocalInvitation<T> {
     try {
       const preview = 'shortCode' in capability ? await this.client.previewShort(capability.shortCode, this.abort.signal) : await this.client.preview(capability.code, this.abort.signal); this.assertCurrent();
       if (preview.signInMethod !== 'local') throw cancelled();
-      if (Date.parse(preview.expiresAt) <= Date.now()) throw new InvitationExpired();
+      if (Date.parse(preview.expiresAt) <= serverNow()) throw new InvitationExpired();
       this.invitation = {capability, preview}; return preview;
     } catch (error) {this.assertCurrent(); throw error;} finally {this.busy = false;}
   }
   async join(preview: PublicInvitation, username: string, password: string, name: string): Promise<T> {
     this.assertCurrent(); const invitation = this.invitation;
     if (this.busy || (!this.accepted && (!invitation || invitation.preview !== preview))) throw cancelled();
-    if (!this.accepted && Date.parse(preview.expiresAt) <= Date.now()) throw new InvitationExpired();
+    if (!this.accepted && Date.parse(preview.expiresAt) <= serverNow()) throw new InvitationExpired();
     const user = username.trim(), label = name.trim();
     if (!/^[A-Za-z0-9_.-]{3,64}$/.test(user) || !passwordStrength(password).acceptable || [...label].length > 120) throw cancelled();
     if (this.accepted && (this.accepted.preview !== preview || this.accepted.username !== user)) throw cancelled();
