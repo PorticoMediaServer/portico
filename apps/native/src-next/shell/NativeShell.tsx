@@ -99,6 +99,17 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const heldPage = useRef<{opener: FocusSnapshot; destination: string; release: () => void} | undefined>(undefined);
   /** W-12: the base page's own layer, which never holds focus itself (autoFocus) and is the last return fallback. */
   const baseLayer = useRef<View>(null);
+  /** W-9: the route pages' own layer. When the TV listening screen closes over an open route (the
+   * music player over an album), focus goes back into that page: its autoFocus layer lands on the
+   * element last focused there (album Play), not wherever Android's recovery puts it. */
+  const routeLayer = useRef<View>(null), wasListening = useRef(tvListeningPresent);
+  useEffect(() => {
+    const closed = wasListening.current && !tvListeningPresent;
+    wasListening.current = tvListeningPresent;
+    if (!theme.isTV || !closed || runtime.getSnapshot().contentVisible !== false) return;
+    const frame = requestAnimationFrame(() => {if (!runtime.retirementSignal?.aborted) requestNativeFocus(routeLayer.current as never);});
+    return () => cancelAnimationFrame(frame);
+  }, [runtime, theme.isTV, tvListeningPresent]);
   const listeningPresent = useRef(tvListeningPresent); listeningPresent.current = tvListeningPresent;
   useEffect(() => () => {railRelease.current?.(); heldPage.current?.release();}, []);
   const [remembered, setRemembered] = useState<string>(), [memoryReady, setMemoryReady] = useState(false);
@@ -362,7 +373,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     {theme.isTV ? <View style={{position: 'absolute', left: layout.left, top: layout.top, width: layout.width, height: layout.height, transformOrigin: 'top left', transform: [{scale: layout.scale}]}}>{content}</View> : content}
     {runtime.playback && <NativePlaybackLayer adapter={runtime.playback} runtime={runtime} authority={snapshot.authority} contentInset={sideWidth} onTVListeningPresenceChange={theme.isTV ? setTVListeningPresent : undefined}/>}
     {runtime.renderWatch && <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player + 1}}>{runtime.renderWatch()}</View>}
-    {theme.isTV ? runtime.renderRoutes() : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
+    {theme.isTV ? runtime.renderRoutes({listening: tvListeningPresent, hostRef: routeLayer}) : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
       importantForAccessibility={initialPlayer ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, initialTitleStyle]}>{runtime.renderRoutes()}</Animated.View>}
     {runtime.renderSelection()}
     {runtime.renderDownloads?.()}

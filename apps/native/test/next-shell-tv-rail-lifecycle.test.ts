@@ -79,7 +79,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: useShared, withTiming: (v: unknown) => v},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})}, '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'},
     '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/browse': {}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => motion},
-    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry, requestNativeFocus: () => {requests.push('base-layer'); return true;}}, './tv-focus': focusModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': shellModel,
+    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry, requestNativeFocus: () => {requests.push('layer-claim'); return true;}}, './tv-focus': focusModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': shellModel,
     './PhoneTabBar': {}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'ProfileMenu'},
     './NativePlaybackLayer': {NativePlaybackLayer: 'PlaybackLayer'}, './DesktopHeader': {},
   });
@@ -134,6 +134,16 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     await act(() => listening().props.onTVListeningPresenceChange(false));
     for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}
     assert.equal(requests.length, beforeExit + 1); assert.equal(requests.at(-1), 'card');
+    // W-9 (the music player over an album page): when the TV listening screen closes over an open route,
+    // focus is claimed back into the route layer, never left wherever Android's recovery puts it.
+    await act(async () => {snapshot = {...snapshot, contentVisible: false}; await sessionHost!.rerender();});
+    await act(() => listening().props.onTVListeningPresenceChange(true));
+    const beforeRouteClose = requests.length;
+    await act(() => listening().props.onTVListeningPresenceChange(false));
+    for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}
+    assert.deepEqual(requests.slice(beforeRouteClose), ['layer-claim'], 'focus returns into the album page under the player');
+    await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
+    for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}
     const library = {regionId: 'actual-library-region', childId: 'actual-library-card'};
     registry.configure({id: library.regionId, entry: library.childId, order: [library.childId]});
     registry.attach(library, {requestTVFocus() {requests.push('library-card'); registry.didFocus(library);}});
@@ -180,7 +190,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
       const lost = requests.length;
       await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
       await act(() => {for (let i = 0; i < 70; i++) flush();});
-      assert.deepEqual(requests.slice(lost), ['base-layer'], 'the page claims focus itself');
+      assert.deepEqual(requests.slice(lost), ['layer-claim'], 'the page claims focus itself');
       registry.configure({id: toolbar.regionId, entry: toolbar.childId, order: [toolbar.childId]});
       gridConfig(true);
     }
