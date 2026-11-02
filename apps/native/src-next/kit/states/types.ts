@@ -13,7 +13,7 @@ export type StateAction = Readonly<{
   accessibilityLabel?: string;
   disabled?: boolean;
   loading?: boolean;
-  hasTVPreferredFocus?: boolean;
+  preferredFocus?: boolean;
   accessibilityState?: PressableProps['accessibilityState'];
   ref?: React.Ref<View>;
   testID?: string;

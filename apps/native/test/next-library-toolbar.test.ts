@@ -39,7 +39,8 @@ test('the library row never draws its own Select and keeps its drawn controls ex
     assert.equal(nodes.some(node => node.props.testID === 'library-select'), false, 'the row never draws a second Select');
     assert.deepEqual(f.calls, [], 'the row never invokes the header action by itself');
     assert.equal(nodes.find(node => node.type === 'FiltersButton')?.props.open, true, 'actual draft open state reaches the control');
-    assert.equal(tree.type, width < 600 ? 'ScrollView' : 'View', width < 600 ? 'the phone keeps the scrolling strip' : 'the drawn tablet row replaces the strip');
+    // The phone strip sits in its TVRow (TV focus step 5).
+    assert.equal(([tree.props.children].flat().find((child: any) => child?.type === 'ScrollView') ?? tree).type, width < 600 ? 'ScrollView' : 'View', width < 600 ? 'the phone keeps the scrolling strip' : 'the drawn tablet row replaces the strip');
     // 'Button' stays in the filter so an unexpected row button fails this order instead
     // of escaping it; the expected shape is the drawn filters control, then sort.
     const controls = nodes.filter(node => ['Button', 'FiltersButton', 'LibrarySortMenu'].includes(node.type as string)).map(node => node.type);

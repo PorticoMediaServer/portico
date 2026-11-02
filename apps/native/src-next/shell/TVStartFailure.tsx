@@ -67,7 +67,7 @@ export function TVStartFailure({failure, wait, runtime}: {failure?: NativePlayba
     : limit ? t('next.states.streamLimitBody', {count: limit.limit})
     : playbackUserMessage(failure?.scope === 'account' ? 'owner_account_cap' : failure?.scope === 'server' ? 'owner_server_cap' : failure?.error);
   const retryable = !!wait || failure?.retryable === true && (failure.scope !== 'account' || failure.automaticRecoveryExhausted);
-  const back = {id: 'back', testID: 'native-start-back', label: t('next.states.back'), onPress: cancel, hasTVPreferredFocus: !retryable};
+  const back = {id: 'back', testID: 'native-start-back', label: t('next.states.back'), onPress: cancel, preferredFocus: !retryable};
   const seconds = wait ? Math.max(0, Math.ceil((wait.retryAt - now) / 1000)) : 0;
   return <Modal visible transparent={false} animationType="none" onRequestClose={close} supportedOrientations={['landscape']}>
     <FocusRegion id="native-start-refusal" entry={report ? 'native-start-report-cancel' : retryable ? 'native-start-retry' : 'native-start-back'} entryPolicy="entry" hold style={{flex: 1}} accessibilityViewIsModal>
@@ -75,9 +75,9 @@ export function TVStartFailure({failure, wait, runtime}: {failure?: NativePlayba
         testID="native-start-refusal" title={title} body={body} icon={wait || conversion ? 'i-clock' : failure?.scope === 'account' || failure?.scope === 'server' ? 'i-monitor' : 'i-info'}
         tone={wait || conversion || failure?.scope === 'account' || failure?.scope === 'server' ? 'warning' : 'neutral'}
         retry={wait ? {progress: Math.min(1, Math.max(0, 1 - (wait.retryAt - now) / Math.max(1, wait.retryAt - began.current))), label: t('next.states.retryIn', {seconds})} : undefined}
-        primaryAction={report ? {id: 'cancel-report', testID: 'native-start-report-cancel', label: t('action.cancel'), onPress: close, hasTVPreferredFocus: true}
-          : wait ? {id: 'retry', testID: 'native-start-retry', hasTVPreferredFocus: true, label: t('next.states.tryNow'), onPress: () => {if (current()) wait.retryNow();}}
-          : failure?.retryable && (failure.scope !== 'account' || failure.automaticRecoveryExhausted) ? {id: 'retry', testID: 'native-start-retry', hasTVPreferredFocus: true, label: t('next.states.tryAgain'), onPress: () => {if (current()) void failure.retry().catch(failed);}}
+        primaryAction={report ? {id: 'cancel-report', testID: 'native-start-report-cancel', label: t('action.cancel'), onPress: close, preferredFocus: true}
+          : wait ? {id: 'retry', testID: 'native-start-retry', preferredFocus: true, label: t('next.states.tryNow'), onPress: () => {if (current()) wait.retryNow();}}
+          : failure?.retryable && (failure.scope !== 'account' || failure.automaticRecoveryExhausted) ? {id: 'retry', testID: 'native-start-retry', preferredFocus: true, label: t('next.states.tryAgain'), onPress: () => {if (current()) void failure.retry().catch(failed);}}
           : back}
         secondaryAction={report ? {id: 'send-report', label: t('about.report.send'), onPress: send, loading: busy === 'report'}
           : wait || failure?.retryable && (failure.scope !== 'account' || failure.automaticRecoveryExhausted) ? back

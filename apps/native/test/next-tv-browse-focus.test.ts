@@ -165,7 +165,7 @@ test('artist Top songs has real vertical exits and Play entry; album geometry an
   assert.deepEqual(top.props.edges, {up: 'music-play-entity.actions', down: 'music-artist-entity.rest', right: 'music-artist-entity.albums'});
   const actionNode = all.find(node => node.type?.name === 'ActionBar'), action = actionNode.type(actionNode.props);
   assert.equal(action.type, 'FocusRegion'); assert.equal(action.props.edges.down, top.props.id);
-  const play = nodes(action).find(node => node.props.testID === 'music-play-entity'); assert.equal(play.props.hasTVPreferredFocus, true);
+  const play = nodes(action).find(node => node.props.testID === 'music-play-entity'); assert.equal(play.props.preferredFocus, true);
   assert.equal(all.find(node => node.type === 'TVShelf').props.items.length, 12);
   state = {...state, albums: []}; tree = TVArtistScreen({controller, entry, runtime, actions, openEntry() {}});
   assert.equal(nodes(tree).find(node => node.props.id === 'music-artist-entity.songs').props.edges.right, undefined);

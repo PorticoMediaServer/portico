@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import * as homeWindow from '../src-next/screens/home/home-window';
 import * as rowState from '../src-next/kit/layout/row-state';
-import * as tvScroll from '../src-next/kit/layout/tv-scroll';
 
 function nodes(value: any): any[] {
   if (Array.isArray(value)) return value.flatMap(nodes);
@@ -132,7 +131,7 @@ test('a restored shelf seeds the anchor offset once and preserves later native s
       useAnimatedScrollHandler: (fn: unknown) => fn, useSharedValue: (value: unknown) => react.useRef({value}).current},
     '../../../../../packages/i18n/src': {}, '../Icon': {}, '../theme': {useTheme: () => theme},
     '../focus': {FocusProvider: 'FocusProvider', FocusItem: 'FocusItem', useOptionalFocusRegistry: () => undefined},
-    './row-state': rowState, './tv-scroll': tvScroll, '../focus/page-boundary': {useRowPageBoundary() {}},
+    './row-state': rowState, '../focus/page-boundary': {useRowPageBoundary() {}},
     './FocusAnchor': {useFocusAnchor: () => anchor}, './MotionItem': {MotionItem: 'MotionItem'}, './types': {itemSelection: () => ({})},
   });
   const memory = {offset: 520}, props = {title: 'Shelf', items: Array.from({length: 20}, (_, id) => ({id: String(id)})),

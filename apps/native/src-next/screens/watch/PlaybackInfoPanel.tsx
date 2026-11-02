@@ -98,7 +98,7 @@ function TvComparison({context, comparison, restoreOffset}: {context: NativeWatc
       }}
       onScroll={event => {if (theme.isTV) context.rememberPanel(event.nativeEvent.contentOffset.y);}}>
       {comparison.sections.map((section, index) => <Focusable key={section.kind} ref={index === 0 ? first : undefined} focusId={`watch-info-${section.kind}`} testID={`watch-info-${section.kind}`}
-        focusKind="row" focusRadius={18} hasTVPreferredFocus={index === 0} accessibilityLabel={t(sectionLabels[section.kind])}
+        focusKind="row" focusRadius={18} preferredFocus={index === 0} accessibilityLabel={t(sectionLabels[section.kind])}
         style={({focused}) => ({borderRadius: 18, paddingVertical: 16, paddingHorizontal: 24, marginBottom: 10, backgroundColor: focused ? theme.colors.raisedHigh : 'transparent'})}>
         <View style={{flexDirection: 'row', alignItems: 'center', gap: 18, marginBottom: 8}}>
           <Text accessibilityRole="header" style={[nativeType({size: 26, weight: 800, tracking: -.015, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{t(sectionLabels[section.kind])}</Text>

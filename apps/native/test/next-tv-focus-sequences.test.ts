@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {tvFocusKit} from './helpers/tv-focus-kit.mjs';
-import {tvScrollEnabled} from '../src-next/kit/layout/tv-scroll.ts';
 
 // The walk findings W-9, W-12, W-14 and W-17 as scripted D-pad sequences through the fake native focus
 // engine, using the real focus kit. Each pins the fix that closed it on main and shows the failure it
@@ -139,24 +138,22 @@ test('W-14: Left from any Settings row returns to the page it belongs to, never 
   assert.equal(engine.focused, 'page-playback');
 });
 
-test('W-14: without the page gate, Left from a nested row control lands on the search field (the walk finding)', async () => {
-  const {engine} = await settings({gate: false, matrixTop: 120});
-  await engine.focus('page-profile');
-  await engine.focus('row-skip-intro');
-  await engine.press('left');
-  assert.equal(engine.focused, 'settings-search');
-});
-
-/** A title page: Play, a row that is still loading (skeleton slots only) and the next row's cards. */
+/** A title page: Play, a row that is still loading (skeleton slots only) and the next row's cards. With `rule`, each
+ * row is a real TVRow (step 5); without it, a bare horizontal ScrollView as before #343. */
 async function titlePage(rule: boolean) {
-  const kit = await tvFocusKit(), {e, engine, focus, Stop} = kit, n = engine.native;
-  const Row = ({id, items}: {id: string; items: string[]}) => e(n.ScrollView, {testID: id, horizontal: true, scrollEnabled: rule ? tvScrollEnabled(true, items.length > 0) : undefined, style: {height: 400}},
-    items.length ? e(focus.FocusRegion, {id, orientation: 'horizontal', style: {flexDirection: 'row', gap: 24}}, items.map(item => e(Stop, {key: item, id: item, ...card})))
-      : [0, 1, 2, 3].map(slot => e(n.View, {key: slot, style: {...card, width: card.w, height: card.h}})));
-  await engine.render(e(focus.FocusProvider, {}, e(n.View, {style: {flex: 1}},
+  const kit = await tvFocusKit(), {e, engine, focus, Stop, TVRow} = kit, n = engine.native;
+  const Row = ({id, items, disabled = false}: {id: string; items: string[]; disabled?: boolean}) => {
+    const scroller = e(n.ScrollView, {testID: id, horizontal: true, style: {height: 400}},
+      // As kit Row does: a region with no live card is disabled, so its guide is no D-pad candidate either.
+      items.length ? e(focus.FocusRegion, {id, orientation: 'horizontal', enabled: !disabled, style: {flexDirection: 'row', gap: 24}}, items.map(item => e(Stop, {key: item, id: item, disabled, ...card})))
+        : [0, 1, 2, 3].map(slot => e(n.View, {key: slot, style: {width: card.w, height: card.h}})));
+    return rule ? e(TVRow, {}, scroller) : scroller;
+  };
+  const Page = ({loading = [] as string[], inert = false}) => e(focus.FocusProvider, {}, e(n.View, {style: {flex: 1}},
     e(focus.FocusRegion, {id: 'title.actions', orientation: 'horizontal', style: {flexDirection: 'row', gap: 20, height: 120}}, e(Stop, {id: 'title-play', w: 240, h: 80}), e(Stop, {id: 'title-more', w: 240, h: 80})),
-    e(Row, {id: 'title.loading', items: []}), e(Row, {id: 'title.related', items: ['related-1', 'related-2']}))));
-  return kit;
+    e(Row, {id: 'title.loading', items: loading, disabled: inert}), e(Row, {id: 'title.related', items: ['related-1', 'related-2']})));
+  await engine.render(e(Page, {}));
+  return {...kit, Page};
 }
 
 test('W-17: Down from Play skips a row with nothing focusable in it and lands on the next real card', async () => {
@@ -167,6 +164,16 @@ test('W-17: Down from Play skips a row with nothing focusable in it and lands on
   assert.equal(ring('related-1'), true);
 });
 
+test('W-17 (step 5): TVRow counts its own focus stops: disabled cards are no stop, a row that fills becomes one', async () => {
+  const {engine, e, Page} = await titlePage(true);
+  await engine.render(e(Page, {loading: ['loaded-1', 'loaded-2'], inert: true}));
+  await engine.focus('title-play'); await engine.press('down');
+  assert.equal(engine.focused, 'related-1', 'a row of disabled cards is not a stop');
+  await engine.render(e(Page, {loading: ['loaded-1', 'loaded-2']}));
+  await engine.focus('title-play'); await engine.press('down');
+  assert.equal(engine.focused, 'loaded-1', 'once its cards are live the row is entered normally');
+});
+
 test('W-17: without the scroller rule, focus lands on the empty row itself and nothing on screen is drawn focused', async () => {
   const {engine, ring} = await titlePage(false);
   await engine.focus('title-play');
@@ -175,18 +182,4 @@ test('W-17: without the scroller rule, focus lands on the empty row itself and n
   assert.equal(ring('title-play'), false);
   await engine.press('right');
   assert.equal(engine.focused, 'title.loading', 'the arrows go nowhere');
-});
-
-test('W-14 hazard (D11): a nested row control level with the search field still reaches search through the gate', async () => {
-  // FocusFinder prefers a candidate in the source's beam for Left/Right; the 2 px full-height gate is in
-  // every row's beam, but so is the search field when the row sits at its height, and the field is nearer
-  // by weighted distance. A direct row child keeps its Left edge to the column and is safe.
-  const {engine} = await settings({matrixTop: 90});
-  await engine.focus('page-profile');
-  await engine.focus('row-skip-intro');
-  await engine.press('left');
-  assert.equal(engine.focused, 'settings-search', 'geometry decides; step 4 replaces the gate with inherited region edges');
-  await engine.focus('row-autoplay');
-  await engine.press('left');
-  assert.equal(engine.focused, 'page-profile', 'the region edge (nextFocusLeft) is not geometric');
 });

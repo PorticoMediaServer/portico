@@ -26,6 +26,7 @@ import {homeBrowseLabel} from './browse-label';
 import {homeSeeAllCardWidth, homeSeeAllQuickOrder} from './see-all-model';
 import {homeCardText} from './model';
 import {NativeHomeRowController} from './row-controller';
+import {TVRow} from '../../kit/layout/TVRow';
 
 export {homeBrowseLabel};
 
@@ -138,12 +139,12 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
       <Text numberOfLines={1} accessibilityRole="header" style={[nativeType({size: 17, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {flex: 1, color: theme.colors.text}]}>{title}</Text>
     </View>}
     {phone ? <>
-      <ScrollView horizontal testID="home-see-all-kind-row" showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: gutter, gap: 8, alignItems: 'center'}}>
+      <TVRow><ScrollView horizontal testID="home-see-all-kind-row" showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: gutter, gap: 8, alignItems: 'center'}}>
         {filterControl}{kindControls}
-      </ScrollView>
-      <ScrollView horizontal testID="home-see-all-quick-row" showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: gutter, paddingTop: 8, gap: 8, alignItems: 'center'}}>
+      </ScrollView></TVRow>
+      <TVRow><ScrollView horizontal testID="home-see-all-quick-row" showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: gutter, paddingTop: 8, gap: 8, alignItems: 'center'}}>
         {quickControls}
-      </ScrollView>
+      </ScrollView></TVRow>
       <View testID="home-see-all-count-row" style={{paddingHorizontal: gutter, paddingTop: 14, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 8}}>
         {countLabel}<View style={{flex: 1}}/>{sortControl}<ViewToggle itemProps={value => ({focusId: `view:${value}`})} value={view} onValueChange={setView}/>
       </View>

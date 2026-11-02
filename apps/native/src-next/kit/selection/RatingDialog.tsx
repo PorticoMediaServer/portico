@@ -32,7 +32,7 @@ export function RatingDialog({testID, title, value, phase, error, onRate, onRetr
         : <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.isTV ? 12 : 0}} accessibilityRole="radiogroup" accessibilityLabel={t('player.rateThis')}>
           {[1, 2, 3, 4, 5].map(stars => <Focusable key={stars} testID={id(`stars-${stars}`)} accessibilityRole="radio" accessibilityLabel={t('title.stars', {count: stars})}
             accessibilityState={{checked: value === stars * 2, disabled: phase !== 'ready'}} disabled={phase !== 'ready'}
-            hasTVPreferredFocus={theme.isTV && stars === (typeof value === 'number' && value > 0 ? Math.ceil(value / 2) : 1)}
+            preferredFocus={theme.isTV && stars === (typeof value === 'number' && value > 0 ? Math.ceil(value / 2) : 1)}
             onPress={() => onRate(stars * 2)} focusRadius={8} hitSlop={6} style={{width: theme.isTV ? 64 : 32, height: theme.isTV ? 64 : 32, alignItems: 'center', justifyContent: 'center'}}>
             <View style={{width: theme.isTV ? 28 : 22, height: theme.isTV ? 28 : 22}}>
               <Icon name="i-star" size={theme.isTV ? 28 : 22} color={theme.colors.textTertiary}/>

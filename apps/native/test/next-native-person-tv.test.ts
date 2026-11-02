@@ -63,7 +63,7 @@ test('TV person draws the ten-foot composition from the real person page', async
     assert.equal(shelf.props.isFocusable(7), false, 'an unloaded slot is only a placeholder');
     const card = shelf.props.renderItem(0, {index: 0, id: '0', onFocus: () => {}, onBlur: () => {}});
     assert.equal(card.props.testID, 'person-credit-0');
-    assert.equal(card.props.hasTVPreferredFocus, true, 'the first real credit is the page focus target');
+    assert.equal(card.props.preferredFocus, true, 'the first real credit is the page focus target');
     let poster: any; const cardHost = createFabricHookHost(() => {poster = card.type(card.props);}); await cardHost.mount();
     try {poster.props.onNavigate(); assert.deepEqual(opened, [credits[0]!.media]);} finally {await cardHost.unmount();}
     assert.equal(backHandler?.(), true);

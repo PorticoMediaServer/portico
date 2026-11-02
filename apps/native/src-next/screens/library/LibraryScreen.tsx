@@ -49,6 +49,7 @@ import {hiddenReadingLibraryOnTV, isReadingLibraryKind} from '../read/platform';
 import type {NativeEntryMenuState} from '../destinations/entry-actions';
 import type {NativeMarkAllRequest} from './mark-all';
 import {registerBack} from '../../kit/navigation/back';
+import {TVRow} from '../../kit/layout/TVRow';
 
 export type NativeLibraryActions = Readonly<{
   dispose?: () => void;
@@ -224,7 +225,7 @@ export function LibraryTabs({items, selected, enabled, disabled, regionId, leftE
   </Focusable>);
   return <FocusRegion id={regionId} entry="browse" orientation="horizontal" enabled={enabled} edges={{left: leftEdge, ...(downEdge ? {down: downEdge} : {})}}
     style={phone ? undefined : {flexDirection: 'row', gap: theme.isTV ? 32 : 28, paddingHorizontal: theme.isTV ? 0 : gutter ?? theme.gutter}}>
-    {phone ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0, flexShrink: 0}} contentContainerStyle={nativeLibraryR46.tabStrip}>{strip}</ScrollView> : strip}
+    {phone ? <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0, flexShrink: 0}} contentContainerStyle={nativeLibraryR46.tabStrip}>{strip}</ScrollView></TVRow> : strip}
   </FocusRegion>;
 }
 

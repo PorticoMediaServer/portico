@@ -8,6 +8,7 @@ import {FocusItem} from '../../kit/focus';
 import {FiltersButton, QuickToggle, SaveViewButton, type BrowseLabels} from '../../kit/browse';
 import {useTheme} from '../../kit/theme';
 import {LibrarySortMenu} from './LibrarySortMenu';
+import {TVRow} from '../../kit/layout/TVRow';
 
 /** Phone4/tablet3–4 and tv4 keep their drawn control order. Selection is an
  * actual caller action; an absent execution port never creates a dummy button.
@@ -50,5 +51,5 @@ export function LibraryToolbar({focusScope, model, labels, filterCount, filtersO
       <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{trailing}</View>
     </View>;
   }
-  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: theme.gutter, paddingTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8}}>{controls}</ScrollView>;
+  return <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: theme.gutter, paddingTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8}}>{controls}</ScrollView></TVRow>;
 }

@@ -70,7 +70,7 @@ function ActionBar({controller, entry, runtime, actions, focusId, style, onPlayl
   const label = entry.kind === 'album' ? t('music.playAlbum', {album: entry.title}) : t('music.playArtist', {artist: entry.title});
   const shuffleLabel = entry.kind === 'album' ? t('title.shuffle') : t('music.shuffleArtist', {artist: entry.title});
   const controls = <>
-    <Button ref={play} testID={`music-play-${encodeURIComponent(entry.id)}`} focusId={focusId} hasTVPreferredFocus={entryFocus} variant="primary" icon="i-play" onPress={() => run(controller.play())} accessibilityLabel={label}>{t('entry.play')}</Button>
+    <Button ref={play} testID={`music-play-${encodeURIComponent(entry.id)}`} focusId={focusId} preferredFocus={entryFocus} variant="primary" icon="i-play" onPress={() => run(controller.play())} accessibilityLabel={label}>{t('entry.play')}</Button>
     <Button testID={`music-shuffle-${encodeURIComponent(entry.id)}`} variant="glass" icon="i-shuffle" onPress={() => run(controller.play(undefined, true))} accessibilityLabel={shuffleLabel}>{t('title.shuffle')}</Button>
     <Button testID={`music-favorite-${encodeURIComponent(entry.id)}`} variant="glass" iconOnly icon={snapshot.favorite ? 'i-heart-f' : 'i-heart'} accessibilityLabel={t(snapshot.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}
       accessibilityState={{checked: snapshot.favorite}} onPress={() => run(controller.toggleFavorite())}/>
@@ -118,7 +118,7 @@ function AlbumCard({album, controller, runtime, actions, openEntry, width = 200,
   const anchor = useRef<NativeView>(null);
   const artwork = runtime.artwork(album.posterUrl);
   const entry=useMemo(()=>controller.releaseEntry(album),[album,controller]);
-  return <SquareCard onFocus={onFocus} onBlur={onBlur} width={width} focusId={focusId} hasTVPreferredFocus={preferred} title={album.title} caption={factLine(caption)} artwork={artwork} menuAnchorRef={anchor}
+  return <SquareCard onFocus={onFocus} onBlur={onBlur} width={width} focusId={focusId} preferredFocus={preferred} title={album.title} caption={factLine(caption)} artwork={artwork} menuAnchorRef={anchor}
     onNavigate={() => {if(entry&&controller.contains(entry))openEntry(entry);}} onMore={() => {if(entry)actions.menu(entry, anchor);}} moreExpanded={!!entry&&actions.isMenuOpen(entry)}/>;
 }
 

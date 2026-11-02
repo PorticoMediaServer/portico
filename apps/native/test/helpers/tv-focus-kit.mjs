@@ -25,11 +25,12 @@ export async function tvFocusKit(options = {}) {
     '@portico/design': {focusSpec}, '../useMotion': {useMotion: () => ({reduce: true, transforms: false, timing: () => ({duration: 0})})},
     './control-model': controlModel, './useFocusedMenu': {useFocusedMenu() {}}, '../overlays/OverlayPaintContext': liveOverlayPaint,
     '../focus': focus, '../dev-observation': {useNativeObservation: (_facts, ref) => ({ref, recordFocus() {}, recordDeclaredStyle() {}})}});
+  const {TVRow} = await screenModule(src('kit/layout/TVRow.tsx'), {react, '../theme': {useTheme: () => theme}, '../focus': focus});
   const e = React.createElement;
   /** A focus stop that records its own drawn ring (from Focusable's real render-prop state) and its presses. */
   const presses = [];
   const rings = new Map();
   const Stop = ({id, w = 200, h = 100, onPress, ...props}) => e(Focusable, {testID: id, focusId: id, style: {width: w, height: h}, onPress: onPress ?? (() => presses.push(id)), ...props},
     state => {rings.set(id, state.focused); return null;});
-  return {engine, React, e, focus, Focusable, Stop, presses, ring: id => rings.get(id) === true, theme};
+  return {engine, React, e, focus, Focusable, Stop, TVRow, presses, ring: id => rings.get(id) === true, theme};
 }
