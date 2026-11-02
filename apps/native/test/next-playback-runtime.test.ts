@@ -3469,3 +3469,29 @@ test('O-159 download: Try again after a watchdog stop acquires the local file ag
     assert.ok(d.engine.commands.slice(before).some(command => command.source === local.media.fileUrl), 'the engine is given the file again');
   } finally { dock.getSnapshot = real; offSurface(); d.runtime.dispose(); }
 });
+
+test('N1-6: Apple\'s automatic Picture in Picture (request 0) is tracked, its own stop ends it, and a press during it leaves instead of sticking', async () => {
+  const d = fixture(false, undefined, {...nativeEngineFeatures, subtitleRendering: ['text', 'vobsub']}, true); richSubtitleResponses(d);
+  try {
+    await d.start('movie-1'); d.engine.position = 37; d.engine.externalReady = true; d.engine.emit('progress'); await settle();
+    const lease = (d.runtime as any).coordinator.getSnapshot();
+    const fact = (state: string, requestId: number) => ({lease, requestId, binding: d.engine.lastCommand.binding, state});
+    const press = async () => {const pending = d.runtime.requestPictureInPicture(d.runtime.getSnapshot().fence!, versionLifetime()); await settle(); d.engine.emit('progress'); await settle(); return pending;};
+    assert.equal(d.runtime.admitPictureInPicture(fact('stopped', 0)), false, 'no window: a stray stop is refused');
+    assert.equal(d.runtime.admitPictureInPicture(fact('started', 0)), true, 'the OS started it by itself');
+    assert.equal(d.runtime.getSnapshot().pictureInPicture?.active, true);
+    assert.equal(d.runtime.getSnapshot().pictureInPicture?.state, 'started');
+    assert.equal(d.runtime.admitPictureInPicture(fact('stopped', 0)), true, 'its own stop');
+    assert.equal(d.runtime.getSnapshot().pictureInPicture?.active, false);
+    // Again, then the viewer presses Picture in Picture while the automatic window is up.
+    assert.equal(d.runtime.admitPictureInPicture(fact('started', 0)), true);
+    assert.equal(await press(), true, 'the press asks the window to come back');
+    const leave = d.runtime.getSnapshot().pictureInPicture!.request;
+    assert.equal(d.runtime.admitPictureInPicture(fact('stopped', leave)), true, 'native answers the press with its number');
+    assert.equal(d.runtime.getSnapshot().pictureInPicture?.active, false);
+    assert.equal(await press(), true, 'later presses still work');
+    assert.equal(d.runtime.admitPictureInPicture(fact('started', 0)), false, 'an automatic start never acknowledges a pending explicit request');
+    assert.equal(d.runtime.admitPictureInPicture(fact('started', d.runtime.getSnapshot().pictureInPicture!.request)), true);
+    assert.equal(d.runtime.getSnapshot().pictureInPicture?.active, true);
+  } finally {d.runtime.dispose();}
+});

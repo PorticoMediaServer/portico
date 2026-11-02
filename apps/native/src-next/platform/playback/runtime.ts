@@ -1888,6 +1888,13 @@ export class NativePlaybackRuntime {
     // serve is a true no-op: nothing is issued, published or handed to native, so a
     // starting attempt is never retagged by its counter.
     if (!this.pictureRequestAllowed()) return false;
+    // N1-6: a press while the OS's own window is up only asks it to come back. Nothing needs
+    // preparing (a re-plan would retire the window's attempt and strand the answer), so the
+    // press is its leaving request at once, for this fence only.
+    if (this.pictureAttempt?.request === 0 && this.pictureAttempt.state === 'active') {
+      if (!this.matches(fence) || lifetime.signal.aborted || !lifetime.isCurrent() || this.pictureRequests >= Number.MAX_SAFE_INTEGER) return false;
+      this.pictureRequests++; this.pictureLeave = this.pictureRequests; this.publish(); return true;
+    }
     const pending = this.prepareExternalPresentation(fence, lifetime), epoch = this.externalEpoch;
     const binding = await pending, ready = this.snapshot.externalPresentationBinding;
     if (!binding || !ready || !this.active() || epoch !== this.externalEpoch || lifetime.signal.aborted || !lifetime.isCurrent()
@@ -1928,6 +1935,15 @@ export class NativePlaybackRuntime {
       // attempt is only ended by its own request.
       if (attempt?.state === 'active') return false;
       if (requested === 0 ? this.pictureAttempt !== undefined || this.pictureRequests > 0 : attempt?.request !== requested) return false;
+    } else if (requested === 0 && (state === 'started' ? !attempt : attempt?.request === 0 && attempt.state === 'active')) {
+      // N1-6 (ENGINE-CONTRACT: "0 for an automatic OS start"): Apple starts Picture in Picture by
+      // itself when the app leaves with video playing. That window is an attempt of its own,
+      // fenced by the presentation that is ready now; it never acknowledges an explicit request,
+      // and only its own stop or restore (also 0) ends it. A later press is then its leaving
+      // request, exactly as for an explicit window.
+      const ready = this.snapshot.externalPresentationBinding;
+      if (!ready || !sameBindingFact(raw.binding, ready) || state === 'started' && this.pictureBinding && !sameNativePresentation(this.pictureBinding, ready)) return false;
+      if (state === 'started') {this.pictureBinding = ready; this.pictureAttempt = Object.freeze({request: 0, state: 'active'}); this.pictureLeave = undefined;}
     } else {
       // Started, restore and stopped must name this attempt (or the later request
       // that asks to come back from an active one), carry its own complete
@@ -1940,7 +1956,7 @@ export class NativePlaybackRuntime {
       if (state === 'started' ? attempt.state !== 'pending' || requested !== attempt.request : attempt.state !== 'active') return false;
     }
     this.pictureState = state;
-    if (state === 'started' && attempt) this.pictureAttempt = Object.freeze({request: attempt.request, state: 'active'});
+    if (state === 'started' && attempt && attempt.request !== 0) this.pictureAttempt = Object.freeze({request: attempt.request, state: 'active'});
     // Its own terminal only: the attempt and the request that may end it both retire.
     if (state === 'stopped' || state === 'unavailable') {this.pictureAttempt = undefined; this.pictureLeave = undefined;}
     this.publish();
