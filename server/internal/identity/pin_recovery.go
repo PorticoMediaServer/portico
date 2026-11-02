@@ -62,7 +62,11 @@ func (s *Service) Hosted() bool {
 }
 
 // PINReset clears or replaces a profile PIN for an account manager's current
-// session. A selected child profile has viewing authority only.
+// session. A selected child profile has viewing authority only. A remembered
+// main profile that has not entered its PIN within the management window is not
+// a manager either (profile_pin_manage), because the PIN this route replaces is
+// the very proof that window exists to require; an account-scoped recovery
+// sign-in never remembered a profile, so the "Forgot PIN" path still works.
 //
 // Resetting bumps pin_revision, which retires every remembered device trust and
 // every viewing family for the profile through the existing family hook.
@@ -89,6 +93,11 @@ func (s *Service) PINReset(ctx context.Context, bearer, profile, pin string) (Di
 	defer gated2.Rollback()
 	c, e := s.directCallerTx(ctx, tx, bearer, true)
 	if e != nil {
+		return DirectSnapshot{}, e
+	}
+	// A remembered main profile's management powers wait for its PIN (the same
+	// gate profileManagerTx applies), so it cannot replace that PIN unproven.
+	if e = s.requireManagePINTx(ctx, tx, c.familyID); e != nil {
 		return DirectSnapshot{}, e
 	}
 	var deleted int
