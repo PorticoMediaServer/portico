@@ -92,6 +92,8 @@ function Stage({view, controller, form, setForm, name, mode, library, setLibrary
       return <Message icon={kind === 'services' ? 'i-clock' : 'i-warn'} heading={kind !== 'services'} text={setupErrorMessage(view.error)}
         actions={<>{view.retryable && <Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>}{startOver(!view.retryable)}{back}</>}/>;
     }
+    case 'code':
+      return <SetupCode key={view.invalid ? 'invalid' : 'asked'} invalid={view.invalid} onSubmit={controller.submitCode} back={back}/>;
     case 'unknown':
       return <Message icon="i-warn" heading text={setupNewerMessage()} actions={<Button variant="primary" size="hero" onClick={controller.retry}>{t('action.tryAgain')}</Button>}/>;
     case 'form': case 'starting':
@@ -101,6 +103,20 @@ function Stage({view, controller, form, setForm, name, mode, library, setLibrary
     case 'library': case 'done':
       return <Loading/>;
   }
+}
+
+/** From outside the server's network: the setup code from its log (auth.html 1e panels 1–2). */
+function SetupCode({invalid, onSubmit, back}: {invalid: boolean; onSubmit: (code: string) => void; back: ReactNode}) {
+  const [code, setCode] = useState('');
+  return <AuthStage legal={false} contentClassName={styles.content}>
+    <h1 className={styles.one}>{t('web.setup.codeTitle')}</h1>
+    <p className={styles.quiet}>{t('web.setup.codeHint')}</p>
+    <form className={styles.field} onSubmit={event => {event.preventDefault();if (code.trim()) onSubmit(code);}}>
+      <TextField variant="auth" label={t('web.setup.codeLabel')} value={code} autoFocus autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false}
+        error={invalid ? t('web.setup.codeInvalid') : undefined} onChange={event => setCode(event.target.value)}/>
+      <div className={styles.btnRow}><Button type="submit" variant="primary" size="hero" disabled={!code.trim()}>{t('accounts.signIn.continue')}</Button>{back}</div>
+    </form>
+  </AuthStage>;
 }
 
 /** Start over (auth.html 1e panels 3–4). Where the setup was approved it asks first, since that approval is cancelled. */
