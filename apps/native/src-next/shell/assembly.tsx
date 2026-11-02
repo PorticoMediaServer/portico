@@ -485,7 +485,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     },
     homeMenuRow: id => [...windows.values()].find(window => [...window.memberWindows.values()].includes(id))?.row,
     renderSelection: () => <><HomeSelectionBars runtime={runtime} controller={controller} queryActions={queryActions} ownerTag={ownerTag} reportError={reportError}/><HomeSelectionOverlays queryActions={queryActions} anchorRef={currentMenuCapture()?.anchorRef} controller={controller} runtime={runtime} ownerTag={ownerTag} reportError={reportError}/><NativeScreenFeedbackHost service={feedback} bottomOffset={84}/></>,
-    renderRoutes: () => {
+    renderRoutes: options => {
       const route = context.navigation.getSnapshot().route;
       // Instantiate the current module before asking it for retained native views.
       // A native stack draws each page in its own screen; here it only needs every module to exist.
@@ -497,11 +497,12 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
       </> : null;
       return runtime && context.current() ? <View pointerEvents="box-none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
         {Platform.isTV && <NativeTVReceiver context={context} runtime={runtime}/>}
-        {/* The expanded player covers the route pages on TV: nothing under it may take D-pad focus.
+        {/* The expanded player, or the TV listening screen (W-9: the music player over an album page),
+            covers the route pages on TV: nothing under it may take D-pad focus.
             Overlays and music navigation stay above, reachable from the player. Touch has no D-pad.
             W-9/W-12: with no route open the layer is covered too, so the empty container can never
             hold focus over the page (Back then left focus on it, with nothing visible focused). */}
-        {Platform.isTV ? <CoveredLayer covered={runtime.getSnapshot().mediaExpanded === true || route.kind === 'shell'} autoFocus style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}} testID="native-shell-routes">{pages}</CoveredLayer> : pages}
+        {Platform.isTV ? <CoveredLayer covered={runtime.getSnapshot().mediaExpanded === true || options?.listening === true || route.kind === 'shell'} autoFocus hostRef={options?.hostRef} style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}} testID="native-shell-routes">{pages}</CoveredLayer> : pages}
         {musicNavigation.render()}
         {(routes.renderOverlays(runtime) ?? []).map((node, index) => <React.Fragment key={index}>{node}</React.Fragment>)}
       </View> : null;

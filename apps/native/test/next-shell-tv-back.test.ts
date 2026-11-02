@@ -169,6 +169,12 @@ test('actual assembly sends Back to topmost Home menu before player, then TV pag
   const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
   const pages = (tree: any) => nodes(tree).find(node => node.props?.testID === 'native-shell-routes');
   assert.equal(pages(routes)?.props.covered, false, 'route pages take focus while the player is not expanded');
+  // W-9 (music player over an album): the TV listening screen covers the route pages even without the dock's
+  // expanded flag, and the shell can claim focus back into them when it closes.
+  const host = {current: null};
+  const listening = pages(bindings.renderRoutes({listening: true, hostRef: host}));
+  assert.equal(listening?.props.covered, true, 'the TV listening screen blocks D-pad focus into the album page under it');
+  assert.equal(listening?.props.hostRef, host, 'the shell holds the route layer to return focus into it');
   expanded = true;
   const covered = pages(bindings.renderRoutes());
   assert.equal(covered?.props.covered, true, 'the expanded player blocks D-pad focus into the route pages under it');

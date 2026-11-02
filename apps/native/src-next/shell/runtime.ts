@@ -93,7 +93,9 @@ export interface NativeShellRuntime {
   setHomeWindow: (row: HomeRow, sectionOrder: number, first: number, last: number, visible: boolean, physicalIds?: readonly string[], retainedIds?: readonly string[], visibleIds?: readonly string[]) => void;
   homeMenuRow?: (windowId: string) => HomeRow | undefined;
   renderSelection: () => ReactNode;
-  renderRoutes: () => ReactNode;
+  /** `listening`: the TV listening screen is up (W-9). It covers the route pages like the expanded
+   * player does, even before or without the dock's own expanded flag. */
+  renderRoutes: (options?: Readonly<{listening?: boolean; hostRef?: React.Ref<import('react-native').View>}>) => ReactNode;
   stacks?: NativeTouchStacksPort;
   /** Persistent watch chrome above the one native picture surface. */
   renderWatch?: () => ReactNode;
