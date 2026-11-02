@@ -1,7 +1,7 @@
 import {homeLayout} from './layout';
 import {Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
-import {heroSpec} from '@design';
+import {generatedCoverTint, heroSpec} from '@design';
 import {HomeService, type HomeSnapshot} from '@core/home-service.ts';
 import type {HomeChannel, HomeDocument, HomeReason, HomeRow, HomeSeeAll, HomeSpotlight} from '@core/home.ts';
 import type {ContentEntry} from '@core/library-content.ts';
@@ -12,7 +12,7 @@ import {homeChannelSelection, homeEntryCapabilities} from '@core/home-selection.
 import {homeCollectionCaption} from '@core/presentation/home-spotlight.ts';
 import {channelMonograms, programmeFactParts, type TimeEnvironment} from '@portico/client-core/kit-model';
 import {useFreshness, useRecovering} from '../../platform/freshness';
-import {Artwork, AmbientArt, GeneratedArt} from '../../kit/artwork';
+import {Artwork, AmbientArt, GeneratedArt, GeneratedCover} from '../../kit/artwork';
 import {Hero, HeroFacts, type HeroCandidate, type LayoutPlatform} from '../../kit/layout';
 import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
@@ -273,7 +273,9 @@ function VisibleCard({entry, row, rowIndex, index, platform, layout, artwork, ef
   const ranked = row.id === 'community_watching' && !!row.period;
   const props = {model: ranked ? {...model, caption: []} : model, visible: interest.visible, arrivalDurationMs: 240, watched: entry.watched, isNew: entry.new, style: {width: '100%'},
     artwork: artwork.foreground(source, width * devicePixelRatio, wide ? 16 / 9 : square ? 1 : 2 / 3, {order: rowIndex * 1000 + index, group: row.id}),
-    fallback: <GeneratedArt glyph={Array.from((entry.displayTitle ?? entry.title).trim())[0] ?? ''} />,
+    // FX-S1: a title without artwork draws the generated cover with its title (mock.html "No artwork",
+    // as browse cards and the native W-1 cover do), never a bare initial.
+    fallback: <GeneratedCover title={entry.displayTitle ?? entry.title} glyph={Array.from((entry.displayTitle ?? entry.title).trim())[0] ?? ''} tint={generatedCoverTint(entry.displayTitle ?? entry.title)} />,
     onNavigate: () => effects.openEntry(entry),
     onPlay: target ? () => { void effects.play(entry, resume).catch(effects.reportError); } : undefined,
     selection: selection.card(row, entry),
