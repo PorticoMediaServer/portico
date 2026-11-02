@@ -68,6 +68,8 @@ export type LiveChromePort = Readonly<{
   miniGuide: readonly LiveChromeGuideChannel[];
   skipBackSeconds: number;
   skipForwardSeconds: number;
+  /** When a recording takes this tuner (owner setting "Stop watching"), on this device's clock (LT-8). */
+  tunerDeadlineMs?: number;
   /** Rechecks the runtime's active fence, authority and this channel's source generation. */
   isCurrent(): boolean;
   /** The refreshed real DVR model owns the visible scheduled/recording/cancelled state. */

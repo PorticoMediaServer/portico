@@ -7,6 +7,7 @@ import {Icon, type IconName} from '../../kit/Icon';
 import {liveRailDragHeld, liveRailDragSeek, liveBehindLabel, liveNextLine, liveRail, liveRecordLabel, liveSeekSeconds, liveTimeRange, liveRailValueText} from './live-chrome-model';
 import type {LiveChromeDrag, LiveChromePort} from './live-chrome-types';
 import styles from './live-chrome.module.css';
+import {tunerHandover, tunerHandoverLines, tunerHandoverNow, tunerHandoverTick} from '@core/live-handover.ts';
 
 const t = defaultI18n.t;
 const time = (ms: number) => new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {hour: 'numeric', minute: '2-digit', timeZone: defaultI18n.region.timeZone ?? undefined}).format(ms);
@@ -113,8 +114,19 @@ export function LiveChrome({port, playing, onCollapse, onStop, onPlayPause, onSk
     if (index < 0) return;
     event.preventDefault();rows[Math.max(0, Math.min(rows.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))]?.focus();
   };
+  // LT-8: before a recording takes this tuner, a quiet line names the time, then counts down the
+  // last minute. The server's own stop stays authoritative; nothing stops the channel here.
+  const deadline = port.tunerDeadlineMs, [clock, setClock] = useState(tunerHandoverNow);
+  useEffect(() => {
+    const wait = tunerHandoverTick(deadline, clock);
+    if (wait === undefined) return;
+    const timer = setTimeout(() => setClock(tunerHandoverNow()), wait);
+    return () => clearTimeout(timer);
+  }, [deadline, clock]);
+  const handover = tunerHandover(deadline, clock), handoverLines = handover && tunerHandoverLines(handover, t, at => defaultI18n.time(at));
   return <div className={styles.live} data-live-chrome>
     <div className={styles.shade} aria-hidden="true"/>
+    {handoverLines && <div className={styles.handover} role="status" aria-live="polite"><strong>{handoverLines[0]}</strong><span>{handoverLines[1]}</span></div>}
     <header className={styles.top}>
       <LiveControl icon="i-down" label={t('player.minimize')} onClick={onCollapse}/>
       {channel.mark && <ChannelMark className={styles.mark} mark={{sourceId: channel.sourceId, id: channel.id, ...channel.mark}} size={48}/>}

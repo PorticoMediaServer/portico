@@ -266,6 +266,7 @@ export function useLiveChromePort(context: ShellAssemblyContext | undefined, run
       mediaOriginMs: origin, seekStartMs: origin + timeline.start * 1000, seekEndMs: origin + timeline.end * 1000, liveEdgeMs: origin + timeline.edge * 1000,
       positionMs: origin + position * 1000, behindSeconds: timeline.behind, atLive: timeline.behind <= 2},
     ...(down ? {down} : {}), ...(up ? {up} : {}), miniGuide, skipBackSeconds: skips.back, skipForwardSeconds: skips.forward,
+    ...(linear.media.reservationRequiredAtMs !== undefined ? {tunerDeadlineMs: linear.media.reservationRequiredAtMs} : {}),
     isCurrent, record, goLive,
     tune: async direction => { const row = direction === -1 ? down : up; if (row) await tuneTarget(guideRowTarget(row)); },
     tuneTo: tuneTarget,

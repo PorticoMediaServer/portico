@@ -28,6 +28,16 @@ export function tunerHandover(reservationRequiredAtMs: number | undefined, nowMs
   return Object.freeze({kind: 'countdown' as const, secondsLeft: Math.max(0, Math.ceil(left / 1000))});
 }
 
+/** The clock the deadline is on: `parseChannelSession` moves the server's deadline onto this
+ * device's clock with the server's own `nowMs`, so the countdown reads the device clock. */
+export const tunerHandoverNow = (): number => Date.now();
+/** How often a banner must redraw: every second inside the countdown, otherwise when it starts. */
+export function tunerHandoverTick(reservationRequiredAtMs: number | undefined, nowMs: number): number | undefined {
+  if (reservationRequiredAtMs === undefined || !Number.isFinite(reservationRequiredAtMs) || reservationRequiredAtMs <= nowMs) return undefined;
+  const left = reservationRequiredAtMs - nowMs;
+  // Before the countdown the line names a fixed time, so it only changes when the last minute starts.
+  return left > COUNTDOWN_MS ? left - COUNTDOWN_MS : left % 1000 || 1000;
+}
 /** Whether the channel's tuner has gone to a recording: the deadline has passed or the server says so. */
 export function tunerHandedOver(media: Readonly<{reservationRequiredAtMs?: number; errorCode?: string}> | undefined, nowMs: number): boolean {
   if (!media) return false;
