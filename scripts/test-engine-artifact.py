@@ -96,6 +96,50 @@ def fixture(root):
     return {'schemaVersion': 1, 'maximumRetentionDays': 14, 'engines': {'windows-x64': pin}}, archive_path
 
 
+def native_linux_fixture(bundle):
+    """Use the native producer's layout: ledger sources outside recipe/.cache."""
+    source = bundle / 'corresponding-source.tar.xz'
+    with tarfile.open(source) as archive:
+        entries = {m.name: archive.extractfile(m).read() for m in archive if m.isfile()}
+    sha = lambda data: hashlib.sha256(data).hexdigest()
+    runner = 'provenance/scripts/build-linux-ffmpeg-deps.py'
+    entries[runner] = b'native dependency builder fixture\n'
+    entries['provenance/ffmpeg-source.tar.xz'] = b'prepared source fixture'
+    ledger = []
+    for stem, command in [('10-library', 'a' * 64), ('20-required', 'b' * 64)]:
+        script = 'scripts.d/' + stem + '.sh'
+        name = stem + '_' + command + '.tar.xz'
+        data = entries.pop('recipe/.cache/downloads/' + name)
+        entries['provenance/linux-dependencies/sources/' + name] = data
+        ledger.append(dict(script=script, scriptSHA256=sha(entries['recipe/' + script]),
+            downloadRecipeSHA256=command, sourceArchive=name, sourceArchiveSHA256=sha(data),
+            compilerImage='compiler@sha256:' + 'c' * 64, runnerSHA256=sha(entries[runner]),
+            licenses={'COPYING': 'd' * 64}))
+    entries['recipe/scripts.d/99-setup.sh'] = b'setup only\n'
+    entries['recipe/Dockerfile'] += b'RUN --mount=src=scripts.d/99-setup.sh,dst=/stage.sh run_stage /stage.sh\n'
+    inputs = dict(files={'Dockerfile': sha(entries['recipe/Dockerfile'])},
+        sourceArchiveSHA256=sha(entries['provenance/ffmpeg-source.tar.xz']),
+        compilerImage=ledger[0]['compilerImage'])
+    for name, value, archived in [('linux-build-inputs.json', inputs, 'provenance/'),
+            ('dependency-inputs.json', ledger, 'provenance/linux-dependencies/')]:
+        data = json.dumps(value).encode()
+        (bundle / name).write_bytes(data)
+        entries[archived + name] = data
+    (bundle / 'source-build-receipt.json').unlink()
+    write_source_entries(bundle, entries, 'linux-x64')
+    return entries
+
+
+def write_source_entries(bundle, entries, target):
+    with tarfile.open(bundle / 'corresponding-source.tar.xz', 'w:xz') as archive:
+        for name, data in entries.items():
+            member = tarfile.TarInfo(name); member.size = len(data)
+            archive.addfile(member, io.BytesIO(data))
+    files = {p.relative_to(bundle).as_posix(): M['digest'](p) for p in bundle.rglob('*')
+             if p.is_file() and p.name != 'toolchain-manifest.json'}
+    (bundle / 'toolchain-manifest.json').write_text(json.dumps(dict(target=target, files=files)))
+
+
 class EngineIntake(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -303,6 +347,59 @@ class EngineIntake(unittest.TestCase):
                 M['verify_source'](source, 'windows-x64', dict(proof, **{field: value}))
         with self.assertRaisesRegex(ValueError, 'sealed source build receipt'):
             M['verify_source'](source, 'windows-x64')
+
+    def test_native_linux_layout_needs_no_windows_receipt_and_keeps_custody(self):
+        bundle = self.root / 'input/bundle'
+        entries = native_linux_fixture(bundle)
+        self.assertFalse((bundle / 'source-build-receipt.json').exists())
+        M['verify_bundle_source'](bundle, 'linux-x64', '1' * 40)
+        source = 'provenance/linux-dependencies/sources/20-required_' + 'b' * 64 + '.tar.xz'
+        changed = dict(entries); changed[source] += b'tampered'
+        write_source_entries(bundle, changed, 'linux-x64')
+        with self.assertRaisesRegex(ValueError, 'dependency source identity mismatch'):
+            M['verify_bundle_source'](bundle, 'linux-x64')
+        changed.pop(source)
+        with self.assertRaisesRegex(ValueError, 'dependency source identity mismatch'):
+            write_source_entries(bundle, changed, 'linux-x64')
+            M['verify_bundle_source'](bundle, 'linux-x64')
+
+    def test_native_linux_omitted_stage_cannot_rewrite_manifest_bound_graph(self):
+        bundle = self.root / 'input/bundle'
+        entries = native_linux_fixture(bundle)
+        entries['recipe/Dockerfile'] = b'\n'.join(line for line in entries['recipe/Dockerfile'].split(b'\n')
+                                                 if b'20-required' not in line)
+        entries.pop('provenance/linux-dependencies/sources/20-required_' + 'b' * 64 + '.tar.xz')
+        write_source_entries(bundle, entries, 'linux-x64')
+        with self.assertRaisesRegex(ValueError, 'source/graph identity mismatch'):
+            M['verify_bundle_source'](bundle, 'linux-x64')
+
+    def test_native_linux_requires_sealed_ledger_and_identical_archived_copies(self):
+        bundle = self.root / 'input/bundle'
+        entries = native_linux_fixture(bundle)
+        for name in ('linux-build-inputs.json', 'dependency-inputs.json'):
+            path = bundle / name; data = path.read_bytes(); path.write_bytes(data + b'\n')
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'manifest-sealed source input'):
+                M['verify_bundle_source'](bundle, 'linux-x64')
+            path.write_bytes(data)
+        entries['provenance/linux-dependencies/dependency-inputs.json'] = b'[]'
+        write_source_entries(bundle, entries, 'linux-x64')
+        with self.assertRaisesRegex(ValueError, 'archived inputs differ'):
+            M['verify_bundle_source'](bundle, 'linux-x64')
+
+    def test_linux_arm_uses_btbn_snapshots_and_windows_still_requires_its_receipt(self):
+        bundle = self.root / 'input/bundle'
+        M['verify_bundle_source'](bundle, 'windows-x64', '1' * 40)
+        (bundle / 'source-build-receipt.json').unlink()
+        with self.assertRaisesRegex(ValueError, 'manifest-sealed source input'):
+            M['verify_bundle_source'](bundle, 'windows-x64', '1' * 40)
+        with tarfile.open(bundle / 'corresponding-source.tar.xz') as archive:
+            entries = {m.name: archive.extractfile(m).read() for m in archive if m.isfile()}
+        write_source_entries(bundle, entries, 'linux-arm64')
+        M['verify_bundle_source'](bundle, 'linux-arm64', '1' * 40)
+        entries.pop('recipe/.cache/downloads/20-required_' + 'b' * 64 + '.tar.xz')
+        write_source_entries(bundle, entries, 'linux-arm64')
+        with self.assertRaisesRegex(ValueError, 'missing exact dependency source snapshot'):
+            M['verify_bundle_source'](bundle, 'linux-arm64')
 
     def test_no_engine_means_explicit_block_and_no_native_jobs(self):
         actual = json.loads((ROOT / 'third_party/ffmpeg/artifacts.lock.json').read_text())

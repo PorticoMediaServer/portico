@@ -544,8 +544,7 @@ def native_retry(target, work):
                 digest(bundle / 'sources.lock.json') != pin['sourcesLockSHA256']):
             raise ValueError('pinned development manifest/source/contracts changed')
         # Complete corresponding-source custody remains mandatory on reuse.
-        intake.verify_source(bundle / 'corresponding-source.tar.xz', target,
-                             json.loads((bundle / 'source-build-receipt.json').read_text()))
+        intake.verify_bundle_source(bundle, target, pin['engineSourceSHA'])
         os.environ.pop('GH_TOKEN', None)  # Compiled media tools do not need API credentials.
         module('verify-native-engine').verify(target, bundle, evidence / 'gates', 'github-actions')
         receipt['nativeEngineChecks'] = True

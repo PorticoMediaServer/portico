@@ -211,12 +211,72 @@ def verify_windows_sources(files, source_scripts, dockerfile):
         raise ValueError('missing Windows dependency source inventory')
 
 
-def verify_source(path, target, build_receipt=None):
+def verify_native_linux_sources(hashes, dockerfile, provenance):
+    """Check native Linux's existing manifest-bound inputs, not a Windows receipt."""
+    required = {'linux-build-inputs.json', 'dependency-inputs.json'}
+    if not isinstance(provenance, dict) or set(provenance) != required:
+        raise ValueError('missing manifest-sealed native Linux source inputs')
+    for name, data in provenance.items():
+        archived = ('provenance/' if name == 'linux-build-inputs.json' else
+                    'provenance/linux-dependencies/') + name
+        if hashes.get(archived) != hashlib.sha256(data).hexdigest():
+            raise ValueError('native Linux archived inputs differ: ' + name)
+    inputs = json.loads(provenance['linux-build-inputs.json'])
+    ledger = json.loads(provenance['dependency-inputs.json'])
+    if (not isinstance(ledger, list) or not ledger or
+            not re.fullmatch(r'[a-f0-9]{64}', str(inputs.get('files', {}).get('Dockerfile'))) or
+            not re.fullmatch(r'[a-f0-9]{64}', str(inputs.get('sourceArchiveSHA256'))) or
+            hashes.get('recipe/Dockerfile') != inputs.get('files', {}).get('Dockerfile') or
+            not any(name.startswith('provenance/') and name.count('/') == 1 and
+                    sha == inputs.get('sourceArchiveSHA256') for name, sha in hashes.items())):
+        raise ValueError('native Linux source/graph identity mismatch')
+    # The graph is bound by linux-build-inputs.json in the externally pinned
+    # manifest. Never execute recipes from an artifact to validate it.
+    records = {}
+    for record in ledger:
+        script = safe_name('recipe/' + record['script'])
+        if script in records or not script.startswith('recipe/scripts.d/') or not script.endswith('.sh'):
+            raise ValueError('invalid native Linux dependency recipe')
+        records[script] = record
+    selected = set()
+    for line in dockerfile.splitlines():
+        if not line.startswith('RUN '):
+            continue
+        scripts = re.findall(r'--mount=src=(scripts\.d/[^,\s]+),dst=/stage\.sh(?:\s|$)', line)
+        sources = re.findall(r'--mount=src=(\.cache/downloads/[^,\s]+),dst=/cache\.tar\.xz(?:\s|$)', line)
+        if ('--mount=src=scripts.d/' in line and len(scripts) != 1) or (sources and not scripts):
+            raise ValueError('unsupported native Linux dependency source mount')
+        for script in scripts:
+            name = safe_name('recipe/' + script)
+            if name not in hashes:
+                raise ValueError('missing native Linux dependency recipe: ' + name)
+            if not sources and name not in records:
+                continue  # The native builder does not compile setup-only stages.
+            record = records.get(name)
+            if not record or len(sources) != 1 or name in selected:
+                raise ValueError('missing/duplicate native Linux dependency source record: ' + name)
+            archive = safe_name(record['sourceArchive'])
+            expected = PurePosixPath(script).stem + '_' + record['downloadRecipeSHA256'] + '.tar.xz'
+            if (archive != expected or sources[0] != '.cache/downloads/' + archive or
+                    not re.fullmatch(r'.+_[a-f0-9]{64}\.tar\.xz', archive) or
+                    hashes.get(name) != record.get('scriptSHA256') or
+                    hashes.get('provenance/linux-dependencies/sources/' + archive) != record.get('sourceArchiveSHA256') or
+                    record.get('compilerImage') != inputs.get('compilerImage') or
+                    hashes.get('provenance/scripts/build-linux-ffmpeg-deps.py') != record.get('runnerSHA256') or
+                    not record.get('licenses')):
+                raise ValueError('native Linux dependency source identity mismatch: ' + name)
+            selected.add(name)
+    if not selected or selected != set(records):
+        raise ValueError('native Linux dependency ledger differs from selected graph')
+
+
+def verify_source(path, target, build_receipt=None, linux_provenance=None):
     # Inventory only: corresponding source may contain ordinary internal
     # symlinks, but no escaping links, devices or unbounded expansion.
     names, files, source_scripts, total = set(), set(), set(), 0
     dockerfile = ''
     recipe_tree, configure_scripts, dockerfile_sha = {}, {}, None
+    native_hashes = {}
     with tarfile.open(path) as archive:
         for member in archive:
             name = safe_name(member.name)
@@ -253,6 +313,14 @@ def verify_source(path, target, build_receipt=None):
                     recipe_tree[name.removeprefix('recipe/')] = {'kind': 'symlink', 'target': member.linkname, 'mode': member.mode & 0o777}
                 elif member.islnk():
                     raise ValueError('hard-linked recipe inputs are not supported')
+            if target == 'linux-x64' and member.isfile() and (
+                    name.startswith(('recipe/scripts.d/', 'provenance/linux-dependencies/sources/')) or
+                    name in {'recipe/Dockerfile', 'provenance/linux-build-inputs.json',
+                             'provenance/linux-dependencies/dependency-inputs.json',
+                             'provenance/scripts/build-linux-ffmpeg-deps.py'} or
+                    (name.startswith('provenance/') and name.count('/') == 1)):
+                native_hashes[name] = (hashlib.sha256(data).hexdigest() if data is not None else
+                                      hashlib.file_digest(archive.extractfile(member), 'sha256').hexdigest())
             if member.isfile() and name == 'recipe/Dockerfile':
                 dockerfile = data.decode('utf-8')
             if member.isfile() and recipe_script:
@@ -279,9 +347,44 @@ def verify_source(path, target, build_receipt=None):
         # Corresponding source must cover every actual generated build mount,
         # with the exact command-hash snapshot, rather than a filename prefix.
         verify_windows_sources(files, source_scripts, dockerfile)
-    elif ('recipe/build-ffmpeg' not in names or
+    elif target == 'linux-x64':
+        verify_native_linux_sources(native_hashes, dockerfile, linux_provenance)
+    elif target == 'linux-arm64':
+        # BtbN ARM keeps the same exact command-hash snapshots as Windows,
+        # without the Windows-only assembly sidecar. The entire source archive
+        # is bound by the externally pinned product's manifest and transfer.
+        verify_windows_sources(files, source_scripts, dockerfile)
+    elif target.startswith('macos-') and ('recipe/build-ffmpeg' not in names or
           not any(name.startswith('recipe/packages/') and name.endswith(('.tar.gz', '.tar.xz', '.tar.bz2')) for name in names)):
         raise ValueError('missing Mac recipe/dependency sources')
+    elif not target.startswith('macos-'):
+        raise ValueError('unsupported corresponding-source target')
+
+
+def verify_bundle_source(bundle, target, engine_source_sha=None):
+    """Dispatch by producer layout after checking its manifest-bound records."""
+    manifest = json.loads((bundle / 'toolchain-manifest.json').read_text())
+    if manifest.get('target') != target:
+        raise ValueError('source manifest target mismatch')
+
+    def sealed(name):
+        path = bundle / name
+        if (path.is_symlink() or not path.is_file() or path.stat().st_size > 16 * 1024**2 or
+                digest(path) != manifest['files'].get(name)):
+            raise ValueError('missing or changed manifest-sealed source input: ' + name)
+        return path.read_bytes()
+
+    source = bundle / 'corresponding-source.tar.xz'
+    if source.is_symlink() or digest(source) != manifest['files'].get(source.name):
+        raise ValueError('corresponding source manifest digest mismatch')
+    build_receipt, linux_provenance = None, None
+    if target.startswith('windows'):
+        build_receipt = json.loads(sealed('source-build-receipt.json'))
+        if engine_source_sha is not None and build_receipt.get('engineSourceSHA') != engine_source_sha:
+            raise ValueError('source build receipt differs from pinned engine source')
+    elif target == 'linux-x64':
+        linux_provenance = {name: sealed(name) for name in ('linux-build-inputs.json', 'dependency-inputs.json')}
+    verify_source(source, target, build_receipt, linux_provenance)
 
 
 def verify_bundle(envelope, pin):
@@ -303,15 +406,7 @@ def verify_bundle(envelope, pin):
     subprocess.run([sys.executable, str(ROOT / 'scripts/verify-ffmpeg-manifest.py'), str(bundle)], check=True)
     if digest(bundle / 'corresponding-source.tar.xz') != pin['sourceArchiveSHA256']:
         raise ValueError('corresponding source digest mismatch')
-    build_receipt = None
-    if pin['target'].startswith('windows'):
-        name = 'source-build-receipt.json'
-        if name not in manifest['files']:
-            raise ValueError('missing manifest-sealed source build receipt')
-        build_receipt = json.loads((bundle / name).read_text())
-        if build_receipt.get('engineSourceSHA') != pin['engineSourceSHA']:
-            raise ValueError('source build receipt differs from pinned engine source')
-    verify_source(bundle / 'corresponding-source.tar.xz', pin['target'], build_receipt)
+    verify_bundle_source(bundle, pin['target'], pin['engineSourceSHA'])
     licenses = {p.relative_to(bundle).as_posix(): digest(p) for p in sorted((bundle / 'LICENSES').rglob('*')) if p.is_file()}
     if len(licenses) < 2 or json_digest(licenses) != pin['licensesSHA256']:
         raise ValueError('licence inventory digest mismatch')
