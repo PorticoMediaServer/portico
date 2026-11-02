@@ -24,6 +24,11 @@ const (
 	// again). It is retired on the server alone: nothing is sent to Portico Services,
 	// then or later, because the server may next be set up for local sign-in.
 	EventAbandon Event = "abandon"
+	// EventStartOver ends any unfinished setup, whoever started it and wherever, and
+	// returns the server to open (finding #2: "switch or start over"). An approved or
+	// installed claim is cancelled at Portico Services by the server's own deny-only
+	// assertion first; an unapproved one ends on the server alone, as Abandon.
+	EventStartOver Event = "start_over"
 	// EventHostedApproved and EventHostedDenied are the Portico Account's decision.
 	EventHostedApproved Event = "hosted_approved"
 	EventHostedDenied   Event = "hosted_denied"
@@ -46,7 +51,7 @@ const (
 )
 
 // Events lists every event.
-var Events = []Event{EventStart, EventInitializeHosted, EventInitializeLocal, EventRequestApproval, EventAbandon,
+var Events = []Event{EventStart, EventInitializeHosted, EventInitializeLocal, EventRequestApproval, EventAbandon, EventStartOver,
 	EventHostedApproved, EventHostedDenied, EventWindowPassed, EventDeliveryProgress, EventDeliveryTransient,
 	EventDeliveryStopped, EventDeliveryRefused, EventRetry, EventInstalled, EventExchange, EventAdmissionWindowPassed}
 
@@ -82,6 +87,9 @@ var table = map[Event][]edge{
 	// S8: Start again. A Portico Account setup never falls back to local (Justin,
 	// 31 Oct); it ends and setup begins afresh with its free choice of kind.
 	EventAbandon: {{Started, Open}, {AwaitingApproval, Open}, {Expired, Open}},
+	// Start over: every unfinished phase. Only a set-up server refuses (S20).
+	EventStartOver: {{Open, Open}, {Started, Open}, {AwaitingApproval, Open}, {Expired, Open}, {Approved, Open},
+		{Finishing, Open}, {Exhausted, Open}, {Installed, Open}, {InstalledLapsed, Open}},
 	// S9, S10
 	EventHostedApproved: {{AwaitingApproval, Approved}},
 	EventHostedDenied:   {{AwaitingApproval, Started}},

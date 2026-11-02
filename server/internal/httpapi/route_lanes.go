@@ -879,6 +879,7 @@ var routeLanes = map[string]string{
 	"POST /v1/setup/browser":                                                      "default",
 	"POST /v1/setup/resume":                                                       "default",
 	"POST /v1/setup/retry":                                                        "auth",
+	"POST /v1/setup/start-over":                                                   "default",
 	"POST /v1/shows/{id}/metadata/refresh":                                        "browsing",
 	"POST /v1/shows/{id}/metadata/screen/retry":                                   "default",
 	"POST /v1/shows/{id}/metadata/screen/search":                                  "default",

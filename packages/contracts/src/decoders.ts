@@ -781,6 +781,7 @@ export function decodePostSetupAccountCompleteResponse(input: unknown): types.Po
 export function decodePostSetupApprovalResponse(input: unknown): types.PostSetupApprovalResponse { return decode("PostSetupApprovalResponse", input) as types.PostSetupApprovalResponse; }
 export function decodePostSetupResumeResponse(input: unknown): types.PostSetupResumeResponse { return decode("PostSetupResumeResponse", input) as types.PostSetupResumeResponse; }
 export function decodePostSetupRetryResponse(input: unknown): types.PostSetupRetryResponse { return decode("PostSetupRetryResponse", input) as types.PostSetupRetryResponse; }
+export function decodePostSetupStartOverResponse(input: unknown): types.PostSetupStartOverResponse { return decode("PostSetupStartOverResponse", input) as types.PostSetupStartOverResponse; }
 export function decodePostShowsIdMetadataScreenRetryResponse(input: unknown): types.PostShowsIdMetadataScreenRetryResponse { return decode("PostShowsIdMetadataScreenRetryResponse", input) as types.PostShowsIdMetadataScreenRetryResponse; }
 export function decodePostShowsIdMetadataScreenSearchResponse(input: unknown): types.PostShowsIdMetadataScreenSearchResponse { return decode("PostShowsIdMetadataScreenSearchResponse", input) as types.PostShowsIdMetadataScreenSearchResponse; }
 export function decodePostShowsIdMetadataTvdbRetryResponse(input: unknown): types.PostShowsIdMetadataTvdbRetryResponse { return decode("PostShowsIdMetadataTvdbRetryResponse", input) as types.PostShowsIdMetadataTvdbRetryResponse; }

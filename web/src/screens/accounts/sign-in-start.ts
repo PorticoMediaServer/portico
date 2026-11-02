@@ -28,6 +28,10 @@ export async function initializeAccountSignIn(entry: Entry, ports: Readonly<{
     if (!ports.isCurrent()) return;
     const state = entry.getSnapshot();
     if (state.phase === 'profiles' && state.snapshot && !state.snapshot.twoStepSetupRequired || state.phase === 'ready') return;
+    // The saved server's address now proves a different server (it was reset or replaced): its own
+    // identity page decides (try again, another server, forget). Inspecting the address again would
+    // retire that page and refuse the new server for owning a saved address.
+    if (state.identityFailure || (state.error as {code?: unknown} | undefined)?.code === 'identity_mismatch') return;
     if (state.snapshot) ports.username(state.snapshot.account.username);
     // A restored restricted grant has no live password. Re-enter the drawn
     // sign-in on its actual proved/saved origin; never enroll on restoration.

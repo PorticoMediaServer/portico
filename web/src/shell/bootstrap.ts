@@ -23,12 +23,13 @@ import {routePath} from '../../../packages/contracts/src/routes.ts';
 import {browserViewerStorage} from '../platform/viewer-selection-storage';
 import {browserServerDisplay} from '../platform/server-display';
 import {motionTier} from '../platform/motion-tier';
+import {RouteError} from '@core/route-identity.ts';
 import {negotiateServer,parseServerSignIn,signInLabelKey} from '@core/sign-in.ts';
 import {defaultI18n} from '@i18n';
 import {lastKnownShell, rememberShell} from './last-known';
 import {browserAppSessionActions,signOutBrowserPorticoAccount,type BrowserAppSessionActions} from '../platform/app-sessions';
 import {mountBrowserUserMutations, browserConnectionEnvironment, restoreBrowserConnection, trackBrowserConnection, forgetBrowserConnection} from '../platform/server-connections';
-import {displayableTransportCode, launchFailure, retryDelayMs, serverIsStarting} from './connection-retry';
+import {displayableTransportCode, launchFailure, retryDelayMs, savedSignInUnusable, serverIsStarting} from './connection-retry';
 import {bootRecoveryDeadline, bootRecoveryDelay, documentStartedAt} from './boot-state';
 import {browserEventStream, browserFeedEnvironment} from '../platform/event-feed';
 import {freshnessFor, type FreshnessRuntime} from '../platform/freshness';
@@ -148,7 +149,7 @@ export async function readShellIdentity(api: HttpLocalApi, session: LocalSession
       throw error;
     }),
   ]);
-  if (system.id !== session.viewer.serverId) throw new Error('The server identity changed.');
+  if (system.id !== session.viewer.serverId) throw new RouteError('identity_mismatch', 'The server identity changed.');
   negotiateServer(system);
   return {libraries: libraries ?? [], ...(libraries ? {} : {librariesUnavailable: true as const}), direct: profile, profile: shellAccount(profile, session.viewer.profileId), system, guide, liveAvailable: !!guide?.sources.length};
 }
@@ -187,7 +188,7 @@ export class ShellBootstrap {
   constructor(private readonly assemble: ShellAssembler, private readonly environment: {
     /** Override the document launch epoch in deterministic hosts/tests. */
     startedAt?: number;
-    selected: Pick<typeof browserViewerStorage, 'read'>;
+    selected: Pick<typeof browserViewerStorage, 'read'> & Partial<Pick<typeof browserViewerStorage, 'clearIfFamily'>>;
     restore: typeof restoreBrowserConnection;
     actions?: () => BrowserAppSessionActions;
   } = {selected: browserViewerStorage, restore: restoreBrowserConnection}) {
@@ -241,6 +242,15 @@ export class ShellBootstrap {
       if (serverIsStarting(error)) {this.waitAfterFailure(error, 'starting');return;}
       const category = this.transportError === error ? launchFailure(error, globalThis.navigator?.onLine) : 'other';
       if (category !== 'other') { this.waitAfterFailure(error, category); return; }
+      // A saved sign-in from a server that was reset or replaced, or one the server ended or now
+      // refuses, is not a broken page: sign-in comes next. Only an ended family is removed; the
+      // others stay saved for the sign-in page's own choices (try again, another server, forget).
+      const unusable = savedSignInUnusable(error), family = this.launch?.family;
+      if (unusable) {
+        this.clearWait(); this.fence(); this.publish({phase: 'signed-out'});
+        if (unusable === 'ended' && family) void this.environment.selected.clearIfFamily?.(family)?.catch(() => {});
+        return;
+      }
       this.clearWait(); this.fence(); this.publish({phase: 'error', error});
     }).finally(() => { if (this.running === task) this.running = undefined; });
     this.running = task; return task;

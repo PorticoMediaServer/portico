@@ -35017,6 +35017,31 @@ export const routes = [
   },
   {
     "audience": "Clients",
+    "id": "post_setup_start_over",
+    "method": "POST",
+    "path": "/v1/setup/start-over",
+    "summary": "End any unfinished first-run setup and start again from this address",
+    "access": "public",
+    "requires": "session",
+    "lane": "security",
+    "cost": "constant",
+    "bodyLimit": 4096,
+    "errors": [
+      "unauthorized",
+      "invalid_request",
+      "rate_limited",
+      "setup_already_complete",
+      "setup_source_not_local",
+      "portico_services_unavailable",
+      "internal",
+      "database_busy",
+      "writer_capacity"
+    ],
+    "status": 200,
+    "admission": "default"
+  },
+  {
+    "audience": "Clients",
     "id": "post_shows_id_metadata_screen_retry",
     "method": "POST",
     "path": "/v1/shows/{id}/metadata/screen/retry",
