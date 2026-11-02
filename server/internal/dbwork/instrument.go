@@ -330,7 +330,11 @@ func (d observedDriver) Open(name string) (driver.Conn, error) {
 		releaseReaderScope(readers)
 		return nil, err
 	}
-	return &observedConn{inner: inner, readers: readers, plannerGeneration: generation, role: role}, nil
+	conn := &observedConn{inner: inner, readers: readers, plannerGeneration: generation, role: role}
+	if role == roleWriter {
+		conn.statements.forWriter()
+	}
+	return conn, nil
 }
 
 type observedConn struct {
