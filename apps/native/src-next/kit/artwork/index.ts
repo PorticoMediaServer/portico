@@ -1,7 +1,7 @@
 export {Artwork, ArtworkArrivalContext, MediaArt, BookSpine} from './Artwork';
 export type {MediaArtProps, MediaArtKind} from './Artwork';
 export {AmbientArt, ColourBackdrop, StandardBackdrop} from './Surfaces';
-export {GeneratedArt, GeneratedCover} from './Generated';
+export {GeneratedArt, GeneratedCover, GeneratedCoverClearance} from './Generated';
 export type {GeneratedArtProps} from './Generated';
 export {CircleArt, ArtistCircle, PersonCircle} from './Circles';
 export type {ArtistCircleProps} from './Circles';

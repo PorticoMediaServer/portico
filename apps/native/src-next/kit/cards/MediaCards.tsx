@@ -1,9 +1,9 @@
-import React, {type ReactNode} from 'react';
+import React, {useState, type ReactNode} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import Svg, {Text as SvgText} from 'react-native-svg';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model/index';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
-import {MediaArt, CircleArt, PersonCircle, type ArtworkProps, type ArtworkSource, type CircleArtProps, type PersonCircleProps} from '../artwork/index';
+import {MediaArt, CircleArt, PersonCircle, GeneratedCoverClearance, type ArtworkProps, type ArtworkSource, type CircleArtProps, type PersonCircleProps} from '../artwork/index';
 import {Focusable} from '../controls/Focusable';
 import {SelectionCircle} from '../selection/index';
 import {useTheme} from '../theme';
@@ -42,23 +42,32 @@ function Overlays({props, hovered, height, holding = false, playSize = 40, cente
   </View>;
 }
 
-function Marks({progress, watched, isNew}: Media) {
+function Marks({progress, watched, isNew, onNewBadge}: Media & {onNewBadge?: (bottom: number) => void}) {
   const t = useTheme(), inset = t.spec.card.badge.inset[t.platform];
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-    {isNew && <View style={{position: 'absolute', left: inset, top: inset}}><Badge kind="new">{defaultI18n.t('next.kit.new')}</Badge></View>}
+    {isNew && <View onLayout={event => onNewBadge?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{position: 'absolute', left: inset, top: inset}}><Badge kind="new">{defaultI18n.t('next.kit.new')}</Badge></View>}
     {watched && <View accessibilityLabel={defaultI18n.t('card.watched')} style={{position: 'absolute', right: inset, top: inset}}><Badge kind="watched" /></View>}
     <Progress value={progress} style={{position: 'absolute', left: 0, right: 0, bottom: 0}} />
   </View>;
 }
 
+/** Where a card's New badge ends, for a generated cover beneath it (W-1); a small gap below the badge. */
+function useBadgeClearance(isNew: boolean | undefined) {
+  const t = useTheme(), [bottom, setBottom] = useState(0);
+  return [isNew && bottom > 0 ? bottom + t.spec.card.badge.inset[t.platform] / 2 : 0, setBottom] as const;
+}
+
 function Portrait({kind = 'poster', next, titleLines = 1, ...props}: PosterCardProps & {kind?: 'poster' | 'book' | 'periodical' | 'newspaper'; next?: boolean}) {
   const t = useTheme(), width = props.width ?? t.spec.card.width.poster[t.platform], height = width / (kind === 'periodical' || kind === 'newspaper' ? 3 / 4 : 2 / 3);
+  const [clearance, setBadgeBottom] = useBadgeClearance(props.isNew);
   const Frame = props.frame ?? CardFrame;
   return <Frame {...props} width={width} overlay={state => <Overlays props={props} hovered={state.hovered} holding={state.holding} height={height} />}>
     {state => <>
       <ArtFrame height={height} focused={state.focused} hovered={state.hovered} holding={state.holding} selected={props.selection?.selected || next}>
-        <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} source={props.artwork} fallback={props.artworkFallback} kind={kind} width={width} height={height} />
-        <Marks {...props} />
+        <GeneratedCoverClearance.Provider value={clearance}>
+          <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} source={props.artwork} fallback={props.artworkFallback} kind={kind} width={width} height={height} />
+        </GeneratedCoverClearance.Provider>
+        <Marks {...props} onNewBadge={setBadgeBottom} />
       </ArtFrame>
       <Caption {...props} selected={props.selection?.selected} focused={state.focused} tvRestingSecondary lines={titleLines} />
     </>}
