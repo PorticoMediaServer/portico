@@ -38,6 +38,9 @@ const topRoute = (stacks: NativeShellRuntime['stacks']): NativeShellRoute | unde
 /** Pages that take the whole screen, without the tab bar. */
 const immersiveRoute = (route: NativeShellRoute | undefined) => route?.kind === 'read' || route?.kind === 'channel';
 
+/** How many frames (about 200 ms) a returning page has to make its opener focusable again. */
+export const PAGE_RETURN_FRAMES = 12;
+
 export function NativeShell({runtime}: {runtime: NativeShellRuntime}) {
   const snapshot = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   // Permission/profile/server changes cannot reuse component state, focus, selections or images.
@@ -153,11 +156,20 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     };
     if (pageHold || !heldPage.current) return;
     const held = heldPage.current; heldPage.current = undefined; held.release();
-    const frame = requestAnimationFrame(() => {
+    // W-12: the page re-enables its cards as it becomes visible again (a library grid's cards are
+    // disabled while covered), which can land a frame or two after the route has gone. Wait for
+    // the exact card it was opened from; only then fall back to its row, region or neighbours,
+    // which would otherwise drop focus on the page's toolbar.
+    let frame = 0;
+    const attempt = (tries: number) => {
       if (!current()) return;
       const now = runtime.getSnapshot();
-      if (canReturnToPage(held.destination, now, listeningPresent.current, registry.hasRetainedFocus())) registry.restore(held.opener);
-    });
+      if (!canReturnToPage(held.destination, now, listeningPresent.current, registry.hasRetainedFocus())) return;
+      if (registry.focus(held.opener)) return;
+      if (tries < PAGE_RETURN_FRAMES) {frame = requestAnimationFrame(() => attempt(tries + 1)); return;}
+      registry.restore(held.opener);
+    };
+    frame = requestAnimationFrame(() => attempt(1));
     return () => cancelAnimationFrame(frame);
   }, [current, pageHold, registry, runtime, theme.isTV]);
   useEffect(() => {

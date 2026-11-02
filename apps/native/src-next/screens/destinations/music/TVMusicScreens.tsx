@@ -180,6 +180,9 @@ export function TVAlbumScreen({controller, entry, runtime, actions, openEntry, o
 }
 
 /** tv-more8/9: the artist page, its circle cut from up to four covers, and the server's release lists. */
+/** W-12: the artist page an album was opened from returns to that album's card on Back, not Play.
+ * Keyed by the page's controller, which the route cache keeps for the return. */
+const artistReturn = new WeakMap<NativeTVMusicController, string>();
 export function TVArtistScreen({controller, entry, runtime, actions, openEntry, selection}: {selection?: NativeSelection; controller: NativeTVMusicController; entry: ContentEntry; runtime: NativeShellRuntime; actions: Actions; openEntry: (entry: ContentEntry) => void}) {
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot), playback = usePlayback(runtime), theme = useTheme();
   const playingId = playback?.playback.itemId;
@@ -191,6 +194,10 @@ export function TVArtistScreen({controller, entry, runtime, actions, openEntry, 
   const releases = artistReleaseGroups(snapshot.albums);
   const albums = releases.find(group => group.id === 'albums')?.entries ?? [];
   const otherReleases = releases.filter(group => group.id !== 'albums');
+  const [returning] = useState(() => {const id = artistReturn.get(controller); artistReturn.delete(controller); return id;});
+  const drawn = [...albums.map(album => `music-artist-album-${album.id}`), ...otherReleases.flatMap(group => group.entries.map(album => `music-release-${album.id}`))];
+  const returnTo = returning && drawn.includes(returning) ? returning : undefined;
+  const openFrom = (focusId: string) => (value: ContentEntry) => {artistReturn.set(controller, focusId); openEntry(value);};
   const allSongs = snapshot.allSongs;
   const detailFacts: readonly DetailRow[] = [
     ...(artist.country ? [{id: 'country', label: t('title.country'), value: artist.country}] : []),
@@ -210,7 +217,7 @@ export function TVArtistScreen({controller, entry, runtime, actions, openEntry, 
           {facts.map((fact, index) => <Text key={`${fact}-${index}`} style={[browseType(theme, 24, index === 0 ? 700 : 400), {color: index === 0 ? theme.colors.text : theme.colors.textSecondary}]}>{fact}</Text>)}
         </View>
         {/* The TV artist page opens on Play (Justin's audit ruling 31). */}
-        <ActionBar controller={controller} entry={entry} runtime={runtime} actions={actions} focusId={`music-play-${entry.id}`} style={{position: 'absolute', left: 200, top: 420}}
+        <ActionBar controller={controller} entry={entry} runtime={runtime} actions={actions} focusId={`music-play-${entry.id}`} entryFocus={!returnTo} style={{position: 'absolute', left: 200, top: 420}}
           down={`music-artist-${entry.id}.${snapshot.songs.length ? 'songs' : albums.length ? 'albums' : 'rest'}`}/>
         <SectionHeading title={t('music.topSongs')} left={200} top={612}/>
         {/* Top songs keeps explicit exits to Play, the available albums and the next section. */}
@@ -225,7 +232,7 @@ export function TVArtistScreen({controller, entry, runtime, actions, openEntry, 
         <FocusRegion id={`music-artist-${entry.id}.albums`} entry={albums[0] ? `music-artist-album-${albums[0].id}` : undefined}
           order={albums.map(album => `music-artist-album-${album.id}`)} edges={{left: snapshot.songs.length ? `music-artist-${entry.id}.songs` : `music-play-${entry.id}.actions`, up: `music-play-${entry.id}.actions`, down: `music-artist-${entry.id}.rest`}}
           style={{position: 'absolute', left: 1240, top: 672, width: 584, flexDirection: 'row', flexWrap: 'wrap', gap: 32, zIndex: 2}}>
-          {albums.map(album => <AlbumCard key={album.id} album={album} controller={controller} runtime={runtime} actions={actions} openEntry={openEntry} width={240} focusId={`music-artist-album-${album.id}`}
+          {albums.map(album => <AlbumCard key={album.id} album={album} controller={controller} runtime={runtime} actions={actions} openEntry={openFrom(`music-artist-album-${album.id}`)} preferred={returnTo === `music-artist-album-${album.id}`} width={240} focusId={`music-artist-album-${album.id}`}
             onFocus={()=>{controller.focusRelease(album,snapshot.releases);if(album===albums.at(-1)||album===albums.at(-2))void controller.nextReleases(snapshot.releases);}} onBlur={()=>controller.blurRelease(album,snapshot.releases)} caption={album.year === undefined ? '' : defaultI18n.number(album.year, {useGrouping: false})}/>)}
         </FocusRegion>
       </View>
@@ -234,7 +241,7 @@ export function TVArtistScreen({controller, entry, runtime, actions, openEntry, 
         {otherReleases.map(group => <View key={group.id}>
           <SectionHeading title={t(group.label)}/>
           <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 32, marginTop: 18}}>
-            {group.entries.map(album => <AlbumCard key={album.id} album={album} controller={controller} runtime={runtime} actions={actions} openEntry={openEntry} width={240} focusId={`music-release-${album.id}`} onFocus={()=>{controller.focusRelease(album,snapshot.releases);if(album===group.entries.at(-1))void controller.nextReleases(snapshot.releases);}} onBlur={()=>controller.blurRelease(album,snapshot.releases)} caption={album.year === undefined ? '' : defaultI18n.number(album.year, {useGrouping: false})}/>)}
+            {group.entries.map(album => <AlbumCard key={album.id} album={album} controller={controller} runtime={runtime} actions={actions} openEntry={openFrom(`music-release-${album.id}`)} preferred={returnTo === `music-release-${album.id}`} width={240} focusId={`music-release-${album.id}`} onFocus={()=>{controller.focusRelease(album,snapshot.releases);if(album===group.entries.at(-1))void controller.nextReleases(snapshot.releases);}} onBlur={()=>controller.blurRelease(album,snapshot.releases)} caption={album.year === undefined ? '' : defaultI18n.number(album.year, {useGrouping: false})}/>)}
           </View>
         </View>)}
         <View>
