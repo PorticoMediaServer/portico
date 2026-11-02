@@ -4,7 +4,9 @@ import {useDockClearance} from '../kit/dock/DockClearance';
 import type {ErrorContext} from '../../../../packages/client-core/src/presentation/errors';
 import type {NativeShellBootstrapContext} from '../shell/bootstrap';
 import {ToastHost} from '../kit/overlays';
-import {StateView} from '../kit/states';
+import {StateLayout, StateView} from '../kit/states';
+import type {StateContentProps} from '../kit/states/types';
+import {useTheme} from '../kit/theme';
 import {NativeScreenServices} from './screen-services';
 
 type Owner = Pick<NativeShellBootstrapContext, 'authority' | 'current' | 'subscribeAuthority' | 'navigation'>;
@@ -35,4 +37,15 @@ export function NativeScreenFeedbackHost({service, bottomOffset}: {service: Nati
 
 export function nativeScreenError(service: NativeScreenServices, context: ErrorContext) {
   return (error: unknown, retry: () => void) => <StateView variant="centered" {...service.error(error, retry, context)}/>;
+}
+
+/** A screen's whole-page load failure (states.html 13, phone-detail.html): the standard backdrop, the state drawn below
+ * the screen's own Back row and clear of the status bar, as the title page's removed and restricted states are. TV keeps
+ * its side backdrop with the state centred. Inline places (a panel, a plate) keep nativeScreenError. */
+export function nativeScreenErrorPage(service: NativeScreenServices, context: ErrorContext) {
+  return (error: unknown, retry: () => void) => <ScreenErrorPage {...service.error(error, retry, context)}/>;
+}
+function ScreenErrorPage(props: StateContentProps) {
+  const theme = useTheme();
+  return <StateLayout {...props} testID={props.testID ?? 'screen-error-page'} contentTop={theme.isTV ? undefined : 250} backdropHeight={theme.isTV ? undefined : 420}/>;
 }
