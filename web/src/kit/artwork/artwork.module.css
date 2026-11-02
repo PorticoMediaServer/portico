@@ -64,8 +64,8 @@
 .coverGlyph { position: absolute; right: -6cqw; bottom: -27cqw; font-size: 104cqw; font-weight: 800; letter-spacing: -.06em; line-height: 1; color: rgba(237,245,250,.085); pointer-events: none; }
 .coverCopy { position: absolute; inset: 0; padding: 12cqw 11cqw 11cqw 13cqw; display: flex; flex-direction: column; }
 .coverCopy::before { content: ''; flex: none; width: 9cqw; height: 1.2cqw; border-radius: 1cqw; background: rgba(237,245,250,.55); margin-bottom: 6.5cqw; }
-.coverCopy b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; font-size: var(--cover-font, 12.6cqw); line-height: 1.03; font-weight: 800; letter-spacing: -.04em; text-wrap: balance; text-shadow: 0 1px 14px rgba(7,16,24,.4); }
-.coverCopy small { margin-top: auto; font-size: clamp(8px, 6.8cqw, 22px); line-height: 1.25; font-weight: 700; color: var(--color-text-secondary); letter-spacing: 0; }
+.coverCopy b { flex: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--cover-lines, 5); line-clamp: var(--cover-lines, 5); overflow: hidden; font-size: var(--cover-font, 12.6cqw); line-height: 1.03; font-weight: 800; letter-spacing: -.04em; text-wrap: balance; text-shadow: 0 1px 14px rgba(7,16,24,.4); }
+.coverCopy small { flex: none; margin-top: auto; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: clamp(8px, 6.8cqw, 22px); line-height: 1.25; font-weight: 700; color: var(--color-text-secondary); letter-spacing: 0; }
 /* Phone G1 occupies y7..31; reserve that measured edge only for visible selection. */
 @media (width < 600px) { .selectionClearance .coverCopy { padding-top: max(12cqw, 31px); } }
 @container (max-width: 80px) { .coverCopy small, .coverCopy::before { display: none; } .coverCopy { padding-top: 11cqw; } }
