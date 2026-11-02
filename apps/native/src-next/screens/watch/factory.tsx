@@ -40,6 +40,7 @@ import {NativeWatchHost, type NativeWatchHostBindings, type NativeWatchHostConte
 import {NativeWatchEpisodes} from './EpisodePanel';
 import type {MenuAction} from '../../kit/overlays/types';
 import type {NativeTitleActionsHandle} from './title-actions';
+import type {NativeSelection} from '../selection/native-selection';
 
 export type NativeWatchCapture = Readonly<{
   entry: ContentEntry;
@@ -123,7 +124,8 @@ export type NativeWatchFactoryPorts = Readonly<{
     myList?: (entry: ContentEntry) => NativeTitleScreenProps['myList'];
     download?: NativeTitleScreenProps['download'];
     menu?: NativeTitleScreenProps['menu'];
-    selection?: NativeTitleScreenProps['selection'];
+    /** The title page's own multi-select over the episodes and More like this rows it draws. */
+    createSelection?: (controller: NativeTitleController, key: string) => NativeSelection;
   }>;
 }>;
 const titleKey = (entry: ContentEntry) => JSON.stringify([entry.libraryId, entry.kind, entry.id]);
@@ -135,7 +137,18 @@ const sameOptionalFence = (a: PlaybackFence | undefined, b: PlaybackFence | unde
 
 /** Explicit descriptors and disposal for the genuine assembly; importing never registers a route. */
 export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
-  const controllers = new Map<string, NativeTitleController>(), controllerSubscriptions = new Map<string, () => void>(), requests = new Map<AbortController, () => boolean>();
+  const controllers = new Map<string, NativeTitleController>(), controllerSubscriptions = new Map<string, () => void>(), requests = new Map<AbortController, () => boolean>(), selections = new Map<string, NativeSelection>();
+  /** The opening's own selection owner, created once with its title controller and
+   * released with it. Only this page's cards can start or join its selection. */
+  const selectionFor = (key: string, controller: NativeTitleController): NativeSelection | undefined => {
+    const held = selections.get(key);
+    if (held) return held;
+    const created = ports.title.createSelection?.(controller, key);
+    if (!created) return undefined;
+    selections.set(key, created);
+    return created;
+  };
+  const releaseSelection = (key: string) => {const held = selections.get(key); if (!held) return; selections.delete(key); held.dispose();};
   const options = new PlaybackOptionsClient(localV1Http(ports.api)), controls = new NativeWatchControls(ports.isTV, undefined, nativeFullWindowOrientation, ports.title.reportError);
   // A refusal after the request was issued (iOS geometry) clears that exact owner and is
   // reported like any other playback-surface failure; a superseded owner is ignored.
@@ -480,15 +493,21 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
             if (!runtime.playOn || !ports.playback.getSnapshot().capabilities.cast) return;
             runtime.playOn.open(anchorRef);
           } : undefined;
+      const selection = selectionFor(key, controller);
       return <NativeTitleScreen authority={ports.authority} {...ports.title} search={search} removeContinue={removeContinue} onPlayOn={onPlayOn} key={key} controller={controller} text={runtime.text} artwork={runtime.artwork} ambient={runtime.ambient}
+        selection={selection ? entry => selection.item(entry) : undefined} selectionBar={selection?.render()}
         back={() => {ports.navigation.back(ports.authority);}} more={(entry, anchorRef) => {
           const owner = controller!;
+          // DESIGN: Select is in every card's hold-OK menu. This card's own entry is the
+          // title page's selection over this episode or related title; the hero (the show
+          // itself) is not one of its cards and offers none.
+          const card = selection?.item(entry);
           void menu(entry, () => {
             const state = owner.getSnapshot();
             return controllers.get(key) === owner && !state.retired && (titleKey(state.entry) === titleKey(entry)
               || state.episodes.some(item => titleKey(item) === titleKey(entry))
               || state.detail?.data?.related?.rows.some(row => row.entries.some(item => titleKey(item) === titleKey(entry))) === true);
-          }, anchorRef).catch(ports.title.reportError);
+          }, anchorRef, card?.onEnter).catch(ports.title.reportError);
         }}
         myList={ports.title.myList?.(route.entry)} download={ports.title.download}/>;
     },
@@ -505,16 +524,18 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
     const key = `watch:${titleKey(entry)}`;
     let controller = controllers.get(key);
     if (!controller) controller = createTitleController(key, entry, true);
-    const owner = controller;
+    const owner = controller, selection = selectionFor(key, owner);
     return <NativeTitleScreen authority={ports.authority} {...ports.title} key={`${key}:${sections}`} controller={owner} text={host.runtime.text} artwork={host.runtime.artwork} ambient={host.runtime.ambient}
+      selection={selection ? entry => selection.item(entry) : undefined} selectionBar={selection?.render()}
       watch={{source, playback: ports.playback, width: pane.width, sections}} back={() => {ports.navigation.back(ports.authority);}}
       myList={ports.title.myList?.(entry)} download={ports.title.download} more={(member, anchorRef) => {
+        const card = selection?.item(member);
         void menu(member, () => {
           const state = owner.getSnapshot(), active = ports.playback.getSnapshot();
           return !state.retired && !active.retired && active.dock.local?.expanded === true && !!active.entry && titleKey(active.entry) === titleKey(entry)
             && (titleKey(state.entry) === titleKey(member) || state.episodes.some(value => titleKey(value) === titleKey(member))
             || state.detail?.data?.related?.rows.some(row => row.entries.some(value => titleKey(value) === titleKey(member))) === true);
-        }, anchorRef).catch(ports.title.reportError);
+        }, anchorRef, card?.onEnter).catch(ports.title.reportError);
       }}/>;
   };
   const episodeList = (host: NativeWatchHostContext, pane: boolean) => {
@@ -565,10 +586,10 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
     setPresentation,
     renderWatch: (props: Omit<NativeWatchChromeProps, 'controls' | 'playback' | 'source'>) => alive() ? <Watch {...props}/> : null,
     renderPictureSlot: (props: Omit<NativeWatchPictureProps, 'outlet' | 'authority'>) => alive() ? <NativeWatchPicture {...props} authority={ports.authority} outlet={ports.watch}/> : null,
-    releaseTitle: (entry: ContentEntry) => {const key = titleKey(entry); controllerSubscriptions.get(key)?.(); controllerSubscriptions.delete(key); controllers.get(key)?.dispose(); controllers.delete(key); starts.invalidate();},
+    releaseTitle: (entry: ContentEntry) => {const key = titleKey(entry); controllerSubscriptions.get(key)?.(); controllerSubscriptions.delete(key); releaseSelection(key); controllers.get(key)?.dispose(); controllers.delete(key); starts.invalidate();},
     /** Actual playback lifetime end only; never a dock/fold/full-window change. */
-    releaseWatchBody: (entry: ContentEntry) => {const key = `watch:${titleKey(entry)}`; controllerSubscriptions.get(key)?.(); controllerSubscriptions.delete(key); controllers.get(key)?.dispose(); controllers.delete(key); starts.invalidate();},
-    dispose: () => {if (disposed) return; disposed = true; for (const destination of destinations) destination.dispose(); destinations.clear(); starts.dispose(); for (const off of controllerSubscriptions.values()) off(); controllerSubscriptions.clear(); offPlayback(); offAuthority(); offRoute(); for (const request of requests.keys()) request.abort(); requests.clear(); for (const controller of controllers.values()) controller.dispose(); controllers.clear(); offFullWindow?.(); controls.dispose();},
+    releaseWatchBody: (entry: ContentEntry) => {const key = `watch:${titleKey(entry)}`; controllerSubscriptions.get(key)?.(); controllerSubscriptions.delete(key); releaseSelection(key); controllers.get(key)?.dispose(); controllers.delete(key); starts.invalidate();},
+    dispose: () => {if (disposed) return; disposed = true; for (const destination of destinations) destination.dispose(); destinations.clear(); starts.dispose(); for (const off of controllerSubscriptions.values()) off(); controllerSubscriptions.clear(); offPlayback(); offAuthority(); offRoute(); for (const request of requests.keys()) request.abort(); requests.clear(); for (const key of [...selections.keys()]) releaseSelection(key); for (const controller of controllers.values()) controller.dispose(); controllers.clear(); offFullWindow?.(); controls.dispose();},
   });
   function Watch(props: Omit<NativeWatchChromeProps, 'controls' | 'playback' | 'source'>) {
     const source = useSyncExternalStore(ports.playback.subscribe, ports.playback.getSnapshot);

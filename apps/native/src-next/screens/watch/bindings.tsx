@@ -10,6 +10,7 @@ import {askNativeDownload} from '../downloads/request';
 import {createMusicPlaylistPicker} from '../destinations/music/MusicPlaylistPicker';
 import {nativeDownloadRequest} from './download-request';
 import {createNativeTitleActions} from './title-actions';
+import {createNativeTitleSelection} from './title-selection';
 
 /** One real authority-local composition, borrowed by handheld and TV entry.
  * It owns Title/File info overlays; shared feedback is mounted by assembly. */
@@ -30,6 +31,9 @@ export function createNativeWatchBindings(context: NativeShellBootstrapContext):
         if (context.current()) context.navigation.open({kind: 'collection', libraryId: collection.libraryId, collectionId: collection.id, title: collection.name}, authority);},
       renderError: nativeScreenError(common, 'detail'), renderPageError: nativeScreenErrorPage(common, 'detail'), reportError: (error: unknown) => common.reportError(error, 'detail'),
       menu: {subscribe: presenters.subscribe, getSnapshot: presenters.getMenuEntry},
+      // DESIGN: Select is in every card's hold-OK menu. The title page's own cards (its
+      // episodes and More like this rows) select through this page's real selection owner.
+      createSelection: (controller, key) => createNativeTitleSelection(context, controller, key),
     },
     playlistPicker: playlist, titleActions,
     notice: common.notice, manageFile: presenters.manageFile, openFileInfo: presenters.openFileInfo, reopenFileInfo: presenters.reopenFileInfo, openMenu: presenters.openMenu, openDiscTitles: presenters.openDiscTitles,
