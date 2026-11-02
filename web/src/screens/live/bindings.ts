@@ -52,7 +52,10 @@ export function createLiveBindings(context: ScreenContext, options: LegacyGuideO
       const params = new URLSearchParams({...route, includeServerHidden: String(options.includeServerHidden === true), channels: target.channelId, limit: '1'});
       const value = parseChannelGuide(await api.request(routePath('get_guide') + '?' + params, 'GET', undefined, life.signal(signal)), context.scope.serverId, route);
       life.assert();signal?.throwIfAborted();
-      return value.channels.find(channel => channel.id === target.channelId && channel.sourceId === target.sourceId && channel.provenance === target.provenance);
+      // A library row's address names the collapsed Library Channels source (`library`); the
+      // channel itself keeps its own source id (LT-2).
+      return value.channels.find(channel => channel.id === target.channelId && channel.provenance === target.provenance
+        && (channel.sourceId === target.sourceId || target.sourceId === 'library' && channel.provenance === 'library-channel'));
     },
     /** The viewer's favorite for one drawn row, retaining its existing profile hidden
      * preference at that row's revision. The caller re-reads the guide afterwards; nothing is patched locally. */

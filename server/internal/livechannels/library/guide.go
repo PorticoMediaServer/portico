@@ -18,6 +18,14 @@ import (
 )
 
 // Guide uses the same consumer DTO/window model, but never shares a tuner source.
+
+// librarySummarySourceID is the one source the directory's summaries publish for
+// every library channel (directory.go collapses them). Clients that pick that
+// source send it back, so it selects every library channel the viewer may see,
+// exactly as the directory's own filter does (LT-2). A channel's own config id
+// still selects that one channel.
+const librarySummarySourceID = "library"
+
 func (s *Store) Guide(ctx context.Context, a Authority, q livechannels.GuideQuery, key []byte) (livechannels.Guide, error) {
 	out := livechannels.Guide{Sources: []livechannels.GuideSource{}, Channels: []livechannels.Channel{}, Timezone: q.Timezone, Start: q.Start.UTC().Format(time.RFC3339), End: q.End.UTC().Format(time.RFC3339), ObservedAt: s.now().UTC().Format(time.RFC3339)}
 	if q.Kind != livechannels.LibraryChannel || q.Start.IsZero() || !q.End.After(q.Start) || (!q.Compact && q.End.Sub(q.Start) > 24*time.Hour || q.End.Sub(q.Start) > 14*24*time.Hour) || q.Limit < 1 || q.Limit > 50 || len(q.ChannelIDs) > 50 || len(q.Group) > 120 || len(q.Search) > 120 || len(key) < 32 {
@@ -97,7 +105,7 @@ func (s *Store) Guide(ctx context.Context, a Authority, q livechannels.GuideQuer
 			if e != nil {
 				return e
 			}
-			if (len(selected) > 0 && !selected[c.Config.ID]) || (q.Group != "" && q.Group != "Library Channels") || !scope.permits(c.Config) || (q.SourceID != "" && q.SourceID != c.Config.ID) || (q.Search != "" && !strings.Contains(strings.ToLower(c.Config.Name), strings.ToLower(q.Search))) {
+			if (len(selected) > 0 && !selected[c.Config.ID]) || (q.Group != "" && q.Group != "Library Channels") || !scope.permits(c.Config) || (q.SourceID != "" && q.SourceID != librarySummarySourceID && q.SourceID != c.Config.ID) || (q.Search != "" && !strings.Contains(strings.ToLower(c.Config.Name), strings.ToLower(q.Search))) {
 				continue
 			}
 			ch := livechannels.Channel{ID: c.Config.ID, SourceID: c.Config.ID, Provenance: livechannels.LibraryChannel, TuneUnavailableReason: "delivery-unavailable", RecordUnavailableReason: "not-recordable", Name: c.Config.Name, Number: fmt.Sprint(c.Config.Position + 1), Group: "Library Channels", Generation: c.Generation, Programmes: []livechannels.Programme{}}
