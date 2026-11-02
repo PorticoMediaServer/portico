@@ -8,7 +8,7 @@ function text(value: unknown, max = 256): string | undefined {
   if (typeof value !== 'string' || !value || value.length > max || /[\x00-\x1f\x7f]/.test(value)) invalid();
   return value;
 }
-export type LibraryScreenSearch = Readonly<{view?: ContentView; entityId?: string; category?: string; pivot?: string; section?: 'mixes'; unmatched?: boolean; query?: BrowseNode; sort?: readonly BrowseSortSelection[]; q?: string}>;
+export type LibraryScreenSearch = Readonly<{view?: ContentView; entityId?: string; category?: string; pivot?: string; tab?: string; section?: 'mixes'; unmatched?: boolean; query?: BrowseNode; sort?: readonly BrowseSortSelection[]; q?: string}>;
 export type HomeRowScreenSearch = Readonly<{query?: BrowseNode; sort?: readonly BrowseSortSelection[]}>;
 /** A See all page owns only the toolbar's scoped filters and order; its row and
  * vocabulary come from the route's own row, never from the address. */
@@ -40,10 +40,24 @@ function queryAndSort(raw: Record<string, unknown>): {query?: BrowseNode; sort?:
 export function parseLibraryScreenSearch(raw: Record<string, unknown>): LibraryScreenSearch {
   const view = raw.view === undefined ? undefined : views.find(view => view === raw.view);
   if (raw.view !== undefined && !view) invalid();
-  const entityId = text(raw.entityId), category = text(raw.category), pivot = text(raw.pivot, 64), q = text(raw.q, 512);
+  const entityId = text(raw.entityId), category = text(raw.category), pivot = text(raw.pivot, 64), tab = text(raw.tab, 64), q = text(raw.q, 512);
   const {query, sort} = queryAndSort(raw);
   const unmatched = raw.unmatched === true || undefined;
   const section = raw.section === 'mixes' && view === 'discover' ? 'mixes' as const : undefined;
-  return {...(view ? {view} : {}), ...(entityId ? {entityId} : {}), ...(category ? {category} : {}), ...(pivot ? {pivot} : {}), ...(unmatched ? {unmatched: true} : {}),
+  return {...(view ? {view} : {}), ...(entityId ? {entityId} : {}), ...(category ? {category} : {}), ...(pivot ? {pivot} : {}), ...(tab ? {tab} : {}), ...(unmatched ? {unmatched: true} : {}),
     ...(section ? {section} : {}), ...(query ? {query} : {}), ...(sort ? {sort} : {}), ...(q ? {q} : {})};
+}
+/** The drawn tab an address opens. Two tabs can read one pivot (Shows and Recently aired), so the
+ * address names the tab itself whenever it is not the first on its pivot (LB-2). */
+type TabShape = Readonly<{id: string; pivot?: string; shows: string}>;
+export function selectedLibraryTab<T extends TabShape>(tabs: readonly T[], search: LibraryScreenSearch, defaultView: string): T | undefined {
+  if (search.unmatched) return tabs.find(tab => tab.shows === 'unmatched');
+  const named = search.tab ? tabs.find(tab => tab.id === search.tab && (!search.pivot || tab.pivot === search.pivot)) : undefined;
+  return named ?? tabs.find(tab => search.pivot ? tab.pivot === search.pivot : tab.id === (search.view ?? defaultView)) ?? tabs[0];
+}
+/** The address of a browse tab: its pivot, and its id only when another tab reads that pivot first.
+ * The tab's own opening order is its default, so the address carries no sort. */
+export function libraryTabAddress<T extends TabShape>(tabs: readonly T[], tab: T): LibraryScreenSearch {
+  return {view: tab.id === 'discover' ? 'discover' : 'browse', ...(tab.pivot ? {pivot: tab.pivot} : {}),
+    ...(tab.pivot && tabs.find(other => other.pivot === tab.pivot) !== tab ? {tab: tab.id} : {})};
 }
