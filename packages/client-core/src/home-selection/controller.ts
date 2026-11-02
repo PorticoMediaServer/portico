@@ -415,6 +415,8 @@ export class HomeSelectionController {
     const target: SelectionTarget = {mode: 'explicit', context: this.state.context, items: [{key, item: member.item}], displayItems: [{key, item: member.item}]};
     this.closeMenu();
     if (action === 'details') {if (member.collection) await this.options.routes.openCollection(member.collection); else if (member.entry) await this.options.routes.openEntry(member.entry); else throw selectionExecutionError('details-unavailable'); return;}
+    // One title's own editor: it depends only on that title and the owner, not on the Home selection staying put.
+    if (action === 'editMetadata' && member.entry && this.options.routes.editEntry && await this.options.routes.editEntry(member.entry)) return;
     this.held.set(key, member);
     if (action === 'addToPlaylist' || action === 'addToCollection') return this.startPicker(action === 'addToPlaylist' ? 'playlist' : 'collection', target, true);
     if (action === 'editMetadata') return this.startEditor(target, true); if (action === 'delete') return this.startDelete(target, true);
