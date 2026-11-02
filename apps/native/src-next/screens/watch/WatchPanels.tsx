@@ -278,7 +278,11 @@ export function NativeWatchPanels({context, options, playback, names, copy, repo
     {lines.map((line, index) => <Text key={index} style={[nativeType({size: theme.isTV ? 19 : 12.5, weight: theme.isTV ? 700 : 500, tracking: 0, lineHeight: theme.isTV ? 28.5 : 18.75}, theme.textScale),
       {marginTop: theme.isTV ? (index ? 6 : 0) : (index ? 0 : 10), color: theme.isTV ? theme.colors.textSecondary : theme.colors.textTertiary}]}>{line}</Text>)}
   </View>;
-  const styleSummary = style ? style.fields.map(field => field.values.find(value => value.value === field.current)?.label).filter(Boolean).join(' · ') : undefined;
+  // tv-player.html #p4: the row names the style by its size and background ("Medium · Translucent");
+  // every field is in the style panel itself. Five values never fit beside the label (W-16).
+  const summaryFields = style ? style.fields.filter(field => field.key === 'playback.subtitleSize' || field.key === 'playback.subtitleBackground') : [];
+  const styleSummary = style ? (summaryFields.length ? summaryFields : style.fields.slice(0, 2))
+    .map(field => field.values.find(value => value.value === field.current)?.label).filter(Boolean).join(' · ') : undefined;
   // tv-player 4 draws the chapter in force as the Chapters row's own value.
   const chapterInForce = ready?.chapters.length ? (() => {
     const position = source.playback.positionSeconds * 1000;
@@ -440,9 +444,12 @@ export function NativeWatchPanels({context, options, playback, names, copy, repo
       style={({focused}) => ({minHeight: theme.isTV ? 60 : 44, paddingHorizontal: theme.isTV ? 20 : 12, flexDirection: 'row', alignItems: 'center', gap: 12,
         borderRadius: theme.isTV ? open ? 0 : 14 : 0, ...(theme.isTV && open ? {borderTopLeftRadius: 14, borderTopRightRadius: 14} : {}),
         backgroundColor: theme.isTV && open ? 'rgba(237,245,250,.05)' : focused ? '#edf5fa29' : undefined})}>
-      {!theme.isTV && <Icon name={icon} size={18}/>}<Text style={[nativeType({size: theme.isTV ? 24 : 15, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text, flex: 1}]}>{labels[panel as keyof typeof labels]}</Text>
-      {value && <Text style={[nativeType({size: theme.isTV ? 22 : 14, weight: theme.isTV && open ? 700 : 500, tracking: 0, lineHeight: 'normal'}, theme.textScale),
-        {color: theme.isTV && open ? theme.colors.accentStrong : theme.isTV ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{value}</Text>}
+      {/* W-16: the label keeps its own width and the value gives way (one line, ellipsis). With
+          flex: 1 the label had a zero basis, so a long value squeezed it to nothing and its letters
+          wrapped one per line, making the row hundreds of pixels tall. */}
+      {!theme.isTV && <Icon name={icon} size={18}/>}<Text numberOfLines={1} style={[nativeType({size: theme.isTV ? 24 : 15, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text, flexGrow: 1, flexShrink: 0}]}>{labels[panel as keyof typeof labels]}</Text>
+      {value && <Text numberOfLines={1} style={[nativeType({size: theme.isTV ? 22 : 14, weight: theme.isTV && open ? 700 : 500, tracking: 0, lineHeight: 'normal'}, theme.textScale),
+        {flexShrink: 1, textAlign: 'right', color: theme.isTV && open ? theme.colors.accentStrong : theme.isTV ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{value}</Text>}
       {theme.isTV && open ? <Icon name="i-chdown" size={24} color={theme.colors.accentStrong}/> : <Icon name="i-right" size={theme.isTV ? 24 : 18}/>}
     </Focusable>;
   };
