@@ -1,0 +1,16 @@
+/* desktop-player / states.html f8: the full player, open from the press, before its first frame. */
+.player { position: fixed; inset: 0; z-index: var(--layer-dialog); background: var(--color-ink); color: var(--color-text); }
+.picture { position: absolute; inset: 0; overflow: hidden; }
+.picture > :first-child { position: absolute; inset: 0; }
+.picture img { width: 100%; height: 100%; object-fit: cover; }
+.veil { position: absolute; inset: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--color-ink) 82%, transparent), color-mix(in srgb, var(--color-ink) 45%, transparent)); }
+.bar { position: absolute; z-index: 1; top: 24px; right: 32px; }
+.copy { position: absolute; z-index: 1; left: clamp(24px, 7vw, 100px); right: 24px; bottom: clamp(48px, 14vh, 140px); max-width: 760px; }
+.copy h1 { margin: 0 0 10px; font-size: var(--type-display-size); line-height: var(--type-display-line); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-fixed-tracking-minus-point-045em); text-wrap: balance; }
+.copy p { margin: 0 0 20px; font-size: var(--type-body-size); line-height: var(--type-body-line); color: var(--color-text-secondary); }
+.loading { display: inline-flex; align-items: center; gap: 12px; font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-title-weight); }
+.ring { width: 22px; height: 22px; border: 3px solid color-mix(in srgb, var(--color-text) 22%, transparent); border-top-color: var(--color-text); border-radius: 50%; animation: starting-turn .9s linear infinite; }
+@keyframes starting-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ring { animation: none; } }
+:global([data-reduce-motion='true']) .ring { animation: none; }
+@media (max-width: 599px) { .bar { top: 16px; right: 16px; } .copy { bottom: 40px; } }
