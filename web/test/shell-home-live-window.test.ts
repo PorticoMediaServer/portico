@@ -30,6 +30,7 @@ const loader = registerHooks({load(url, context, next) {
   const leaves: Record<string, string[]> = {'layout': ['Hero','HeroFacts','Shelf'], 'artwork': ['Artwork','AmbientArt','ColourBackdrop','GeneratedArt'], 'cards': ['CollectionBanner','LiveCard','PosterCard','RankedCard','SquareCard','WideCard'], 'controls': ['Button','Select','Switch','TextField'], 'states': ['HomeSkeleton','StateLayout','Skeleton'], 'selection': ['SelectionCircle']};
   for (const [area, names] of Object.entries(leaves)) if (url.endsWith(`/kit/${area}/index.ts`)) return module(names.map(name=>`export const ${name}=${JSON.stringify(name)};`).join(''));
   if (url.endsWith('/shell/SelectionSurfaces.tsx')) return module("export const SelectionSurfaces='SelectionSurfaces',SelectionPhoneBar='SelectionPhoneBar';");
+  if (url.endsWith('/shell/entry-metadata.tsx')) return module('export const createEntryMetadataEffect=()=>async()=>{};export const retireEntryMetadata=()=>{};');
   if (url.endsWith('.tsx')) {
     let source = transformTsx(url);
     if (url.endsWith('/screens/home/Home.tsx') || url.endsWith('/screens/browse/PagedShelf.tsx')) source = source.replace(/from (['"])react\1/g, `from ${JSON.stringify(hooks)}`);
