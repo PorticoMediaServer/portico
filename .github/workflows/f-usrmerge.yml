@@ -1,0 +1,41 @@
+name: F Debian usr-merged sandbox reproduction
+on:
+  push:
+    branches: [rebuild/F-usrmerge-sandbox-r1]
+permissions:
+  contents: read
+jobs:
+  debian:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Build focused integration test
+        working-directory: server
+        run: CGO_ENABLED=0 go test -c -o "$RUNNER_TEMP/usrmerge.test" ./internal/mediaexec
+      - name: Reproduce old mounts and verify both job types on Debian 13
+        run: |
+          mkdir -p "$RUNNER_TEMP/usrmerge-reports"
+          set -o pipefail
+          docker run --rm --privileged \
+            -v "$RUNNER_TEMP/usrmerge.test:/usrmerge.test:ro" \
+            debian:13-slim sh -ec '
+              apt-get update -qq
+              DEBIAN_FRONTEND=noninteractive apt-get install -y -qq bubblewrap ffmpeg >/dev/null
+              cat /etc/os-release
+              readlink /lib64
+              readlink -f /lib64/ld-linux-x86-64.so.2
+              PORTICO_TEST_USRMERGE=1 /usrmerge.test -test.v -test.run "^TestUsrMerged" -test.timeout=3m
+            ' 2>&1 | tee "$RUNNER_TEMP/usrmerge-reports/debian13.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: usrmerge-debian13
+          path: ${{ runner.temp }}/usrmerge-reports
+          retention-days: 7
