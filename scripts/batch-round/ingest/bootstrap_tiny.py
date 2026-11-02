@@ -59,6 +59,9 @@ class Client:
         request = urllib.request.Request(self.base + path, data=data, method=method)
         request.add_header('Accept', 'application/json')
         request.add_header('X-Portico-Installation-Id', self.installation)
+        # Scripted sign-ins name themselves, so a "New device signed in" notice says what they are.
+        request.add_header('X-Portico-Device-Name', 'Portico ingest bootstrap')
+        request.add_header('X-Portico-Device-Platform', 'script')
         if self.origin:
             request.add_header('Origin', self.origin)
         if data is not None:

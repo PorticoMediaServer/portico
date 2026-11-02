@@ -60,7 +60,8 @@ func init() {
 			return DirectSignIn{}, err
 		}
 		defer gated.Rollback()
-		out, err := s.directSignInTx(ctx, gated.Tx(), c, true)
+		// A test sign-in, not a person's device: no "New device signed in" notice.
+		out, err := s.directSignInTx(withTestSignIn(ctx), gated.Tx(), c, true)
 		if err != nil {
 			return out, err
 		}

@@ -129,7 +129,8 @@ class API:
         self.installation = installation or str(uuid.uuid4())
         self.timings = []
     def call(self, method, path, body=None, expected=(200,), headers=None, raw=False):
-        hs = {'X-Portico-Installation-Id': self.installation}
+        # Scripted sign-ins name themselves, so a "New device signed in" notice says what they are.
+        hs = {'X-Portico-Installation-Id': self.installation, 'X-Portico-Device-Name': 'Portico E2E fixture', 'X-Portico-Device-Platform': 'script'}
         if self.token:
             hs['Authorization'] = 'Bearer '+self.token
         if body is not None:

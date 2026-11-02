@@ -330,6 +330,9 @@ class Client:
             request.add_header('Origin', self.origin)
         if self.installation:
             request.add_header('X-Portico-Installation-Id', self.installation)
+            # Scripted sign-ins name themselves, so a "New device signed in" notice says what they are.
+            request.add_header('X-Portico-Device-Name', 'Portico scale provisioner')
+            request.add_header('X-Portico-Device-Platform', 'script')
         if data is not None:
             request.add_header('Content-Type', 'application/json')
         if self.token:

@@ -16,3 +16,13 @@ test('server notifications cannot promote a viewer into the management route', (
   assert.equal(notificationDestination(action, [], false), undefined);
   assert.deepEqual(notificationDestination(action, [], true), {view: 'dashboard'});
 });
+
+test('J-32: "New device signed in" opens this account\'s security and devices, and the admin copy opens the server\'s people', () => {
+  assert.deepEqual(notificationDestination({kind: 'navigate', label: 'Review security', target: {view: 'settings-security'}}, [], false),
+    {view: 'settings', scope: 'account', section: 'profile', row: 'profile.password'});
+  assert.deepEqual(notificationDestination({kind: 'command', label: 'Review device', command: 'review-device', arguments: {deviceId: 'd1'}}, [], false),
+    {view: 'settings', scope: 'account', section: 'profile', row: 'profile.devices'});
+  assert.equal(notificationDestination({kind: 'command', label: 'Review device', command: 'review-device', arguments: {}}, [], false), undefined, 'no device, no destination');
+  assert.deepEqual(notificationDestination({kind: 'navigate', label: 'Review devices', target: {view: 'admin-devices'}}, [], true), {view: 'settings', scope: 'server', section: 'people'});
+  assert.equal(notificationDestination({kind: 'navigate', label: 'Review devices', target: {view: 'admin-devices'}}, [], false), undefined, 'only someone who manages the server');
+});
