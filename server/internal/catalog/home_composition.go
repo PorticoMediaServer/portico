@@ -325,6 +325,19 @@ func (s *Service) homeAudioSource(r HomeRequest, booksOnly bool) (homeSource, er
  WHERE ` + visible + ` AND ` + kind + ` GROUP BY parent.id`
 	bound := append([]any{r.Profile, r.Profile, idsJSON(r.Libraries)}, args...)
 	if !booksOnly {
+		// An album part-way through (W2-A5): songs keep no position, so the
+		// continuation base above never names one.
+		music := []string{}
+		for _, library := range libraries {
+			if library.Kind == "music" {
+				music = append(music, library.ID)
+			}
+		}
+		if len(music) > 0 {
+			albums, albumArgs := homeAlbumContinuation(r, music, nil)
+			source = `SELECT id,max(ord) AS ord FROM (` + source + ` UNION ALL SELECT pid(album.public_id) AS id,'1:'||chosen.ord AS ord FROM (` + albums + `) chosen JOIN catalog_entities album ON album.id=chosen.album) GROUP BY id`
+			bound = append(bound, albumArgs...)
+		}
 		// Reuse each library's existing bounded Recently Added shelf. The
 		// old union grouped the complete audio library before taking a page.
 		values := [][2]string{}
@@ -620,11 +633,27 @@ func (s *Service) homeAudioResume(r HomeRequest, entries []ContentEntry) ([]Home
 	}
 	restriction, args := r.Viewer.itemVisibilitySQL("candidate.entity")
 	base := homeContinueBase("continue_listening")
-	rows, err := s.read().Query(`SELECT pid(parent.public_id),candidate.id FROM (`+base+`) candidate
+	bound := append([]any{r.Profile, r.Profile, idsJSON(r.Libraries), idsJSON(ids)}, args...)
+	// An album part-way through resumes at its current song (W2-A5), in the
+	// same statement: songs keep no position, so the base never names one.
+	albums := []string{}
+	for _, e := range entries {
+		if e.Kind == "album" {
+			albums = append(albums, e.ID)
+		}
+	}
+	songs := ``
+	if len(albums) > 0 {
+		continuation, continuationArgs := homeAlbumContinuation(r, r.Libraries, albums)
+		songs = ` UNION ALL SELECT pid(album.public_id),pid(target.public_id),chosen.ord FROM (` + continuation + `) chosen
+ JOIN catalog_entities album ON album.id=chosen.album JOIN catalog_entities target ON target.id=chosen.target`
+		bound = append(bound, continuationArgs...)
+	}
+	rows, err := s.read().Query(`SELECT pid(parent.public_id),candidate.id,candidate.ord FROM (`+base+`) candidate
  CROSS JOIN catalog_entities i ON i.public_id=pid_blob(candidate.id)
  LEFT JOIN catalog_book_files bf ON bf.entity_id=i.id LEFT JOIN catalog_songs sg ON sg.entity_id=i.id
  JOIN catalog_entities parent ON parent.id=CASE i.kind WHEN 9 THEN bf.book_id WHEN 7 THEN sg.album_id END
- WHERE parent.public_id IN(SELECT pid_blob(value) FROM json_each(?)) AND `+restriction+` ORDER BY candidate.ord DESC,candidate.id DESC`, append([]any{r.Profile, r.Profile, idsJSON(r.Libraries), idsJSON(ids)}, args...)...)
+ WHERE parent.public_id IN(SELECT pid_blob(value) FROM json_each(?)) AND `+restriction+songs+` ORDER BY 3 DESC,2 DESC`, bound...)
 	if err != nil {
 		return nil, err
 	}
@@ -632,8 +661,8 @@ func (s *Service) homeAudioResume(r HomeRequest, entries []ContentEntry) ([]Home
 	parentFiles := map[string]string{}
 	files := []string{}
 	for rows.Next() {
-		var parent, file string
-		if err = rows.Scan(&parent, &file); err != nil {
+		var parent, file, ord string
+		if err = rows.Scan(&parent, &file, &ord); err != nil {
 			break
 		}
 		if parentFiles[parent] == "" {
@@ -663,7 +692,8 @@ func (s *Service) homeAudioResume(r HomeRequest, entries []ContentEntry) ([]Home
 		parent := fileParents[target.ID]
 		out = append(out, HomeResume{EntryID: parent, Target: target})
 		position := 0.0
-		if target.ProgressSeconds != nil {
+		// A song resumes from its start; it keeps no mid-track position (W2-A5).
+		if target.ProgressSeconds != nil && target.Kind != "song" {
 			position = *target.ProgressSeconds
 		}
 		resumes[parent] = resume{target.ID, position}
