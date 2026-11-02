@@ -51,9 +51,12 @@ def ops(u):
 WEIGHTS = ['browse']*30 + ['detail']*25 + ['search']*10 + ['options']*20 + ['read']*15 if out['catalogue']['readable'] else ['browse']*35 + ['detail']*30 + ['search']*10 + ['options']*25
 def call(u, op):
     req = ops(u)[op]; t = time.monotonic()
-    try: _, h = u.call(req[0], req[1], req[2], expected=range(100, 600)); s = u.timings[-1]['status']
-    except Exception as err: s = 'timeout' if 'timed out' in str(err) else 'error'
-    return op, round((time.monotonic()-t)*1000, 1), s
+    try:
+        body, h = u.call(req[0], req[1], req[2], expected=range(100, 600)); s = u.timings[-1]['status']; ms = round((time.monotonic()-t)*1000, 1)
+        if s >= 300: s = f"{s}:{(body or {}).get('error', {}).get('code')}"
+        elif op == 'read': u.call('DELETE', '/v1/reading/sessions/'+body['sessionId'], expected=range(100, 600))
+    except Exception as err: s, ms = ('timeout' if 'timed out' in str(err) else 'error'), round((time.monotonic()-t)*1000, 1)
+    return op, ms, s
 for op in [k for k in ['browse', 'detail', 'search', 'options', 'read'] if ops(a)[k]]:  # helper processes per request, idle server
     h0 = diag()['storageHelpers']['admitted']; [call(a, op) for _ in range(5)]; out['helpers'][op] = (diag()['storageHelpers']['admitted']-h0)/5
 users = []
@@ -74,7 +77,7 @@ def phase(n, label):
            'gate': {k: d1['writeGate'].get(k, 0)-(0 if k == 'maxHeldMillis' else d0['writeGate'].get(k, 0)) for k in ('maxHeldMillis', 'queueWaitMillis', 'heldMillis', 'acquired')}, 'poolWaitMs': d1['pool']['waitMillis']-d0['pool']['waitMillis'], 'snapWaitMs': d1['readSnapshots']['waitMillis']-d0['readSnapshots']['waitMillis'], 'bgActive': d1['storageHelpers']['backgroundActive']+d1['storageHelpers']['scanProbeActive'], 'ops': {}}
     for op in set(r[0] for r in rows):
         ms = sorted(r[1] for r in rows if r[0] == op); st = [r[2] for r in rows if r[0] == op]; q = lambda f: ms[min(len(ms)-1, int(f*len(ms)))]
-        res['ops'][op] = {'n': len(ms), 'p50': q(.5), 'p95': q(.95), 'p99': q(.99), 'max': ms[-1], '503': st.count(503), 'non2xx': sum(1 for s in st if not (isinstance(s, int) and s < 300)), 'statuses': sorted(set(map(str, st)))}
+        res['ops'][op] = {'n': len(ms), 'p50': q(.5), 'p95': q(.95), 'p99': q(.99), 'max': ms[-1], '503': sum(1 for s in st if str(s).startswith('503')), 'non2xx': sum(1 for s in st if not (isinstance(s, int) and s < 300)), 'statuses': sorted(set(map(str, st)))}
     out['phases'].append(res); print(json.dumps(res), flush=True); (D/'load.json').write_text(json.dumps(out, indent=1))
 try:
     for n in map(int, A.users.split(',')): phase(n, 'idle')
