@@ -26,6 +26,7 @@ import {PosterCard} from '../../kit/cards';
 import type {NativeGenreBrowseDestination} from './genre-browse';
 import {GenreFilters} from './GenreFilters';
 import {StandardBackdrop} from '../../kit/artwork';
+import {TVRow} from '../../kit/layout/TVRow';
 
 const label = (value: {id: string; labelKey?: string}, t: NativeShellRuntime['text']['t']) => {
   const key = browseNameId(value.id, value.labelKey, defaultI18n.has);
@@ -92,11 +93,11 @@ function GenreGrid({focusScope, destination, runtime, actions, owner, labels, op
   };
   useEffect(() => {if (source.queryRevision > 0) grid.current?.scrollToOffset(destination.getMemory().offset);}, [destination, source.queryRevision]);
   return <>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0}} contentContainerStyle={{paddingHorizontal: 20, paddingTop: 10, gap: 8}}>
+    <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0}} contentContainerStyle={{paddingHorizontal: 20, paddingTop: 10, gap: 8}}>
       <FiltersButton count={model.applied.length} open={filtersOpen} onPress={openFilters}/>
       <LibrarySortMenu focusScope={focusScope} sorts={model.sorts} value={model.sort} label={labels.sort} translate={t} onValueChange={onSort}
         onReshuffle={() => onSort({...source.sort!, seed: Math.floor(Math.random() * 4294967296)})}/>
-    </ScrollView>
+    </ScrollView></TVRow>
     <Text style={[browseType(theme, 13, 600), {color: theme.colors.textTertiary, paddingHorizontal: 20, paddingVertical: 10}]}>
       {state.total === undefined ? null : t(state.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: state.total, pivot: searchGenreBrowsePivot})}
     </Text>

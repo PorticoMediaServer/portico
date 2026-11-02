@@ -40,7 +40,7 @@ export function NativeVersionChooser({value, choose, close, paintPermit}: {paint
             {marginTop: theme.isTV ? 2 : 3, color: theme.isTV && !focused ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{row.id === destination?.pendingRowId ? t('next.browse.native.markAllPreparing') : row.detail}</Text>}
         </>;
         return <Focusable key={row.id} ref={index === entry ? first : undefined} focusId={`watch-version-${row.id}`} testID={`watch-version-${row.id}`}
-          focusKind="row" focusRadius={theme.isTV ? 12 : 0} accessibilityRole="button" hasTVPreferredFocus={theme.isTV && interactive && index === entry}
+          focusKind="row" focusRadius={theme.isTV ? 12 : 0} accessibilityRole="button" preferredFocus={theme.isTV && interactive && index === entry}
           onPress={() => {if (!value.busy) choose(row.id);}} style={theme.isTV ? ({focused}) => rowStyle(focused) : rowStyle(false)}>
           {theme.isTV ? ({focused}) => rowContent(focused) : rowContent(false)}
         </Focusable>;

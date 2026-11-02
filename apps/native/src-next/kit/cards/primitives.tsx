@@ -11,12 +11,14 @@ import {Icon, type IconName} from '../Icon';
 import {SelectionHoldFeedback} from '../selection/index';
 import {nativeType, useTheme, type Theme} from '../theme';
 import {useMotion} from '../useMotion';
-import {useFocusTarget, useFocusWaiting} from '../focus';
+import {useCovered, useFocusTarget, useFocusWaiting} from '../focus';
 import {activateCard, cardAccessibilityLabel, cardProgress, holdCard, type CardActions} from './model';
 
 export const alpha = (color: string, opacity: number) => `${color}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`;
 
-export type CardNativeProps = Omit<PressableProps, 'children' | 'style' | 'onPress' | 'onLongPress' | 'onFocus' | 'onBlur' | 'onPressIn' | 'onPressOut' | 'onHoverIn' | 'onHoverOut'> & {
+export type CardNativeProps = Omit<PressableProps, 'children' | 'style' | 'onPress' | 'onLongPress' | 'onFocus' | 'onBlur' | 'onPressIn' | 'onPressOut' | 'onHoverIn' | 'onHoverOut' | 'hasTVPreferredFocus'> & {
+  /** TV: take focus once when this becomes true (TV-FOCUS-REVIEW step 4). */
+  preferredFocus?: boolean;
   focusId?: string;
   title: string;
   /** The caller's authored title allowance, shared by square, circle and mosaic cards. */
@@ -56,10 +58,10 @@ export type CardFrameSurfaceProps = CardNativeProps & (CardActions | ReadOnlyCar
 export type CardFrameProps = CardFrameSurfaceProps & {children: (state: Interaction) => ReactNode; overlay?: (state: Interaction) => ReactNode};
 
 /** One root TV focus target. Images and secondary affordances never register Menu. */
-export function CardFrame({children, overlay, frame: _frame, title, titleMargin: _titleMargin, caption, detail, accessibilityDetails = [], watched, isNew, playing, progress, primaryAction, onNavigate, onPlay, onMore, selection, width, style, onFocus, onBlur, disabled, accessibilityLabel, testID, focusId, focusable, moreExpanded, pressableStyle, menuAnchorRef, ...native}: CardFrameProps) {
-  const theme = useTheme(), motion = useMotion();
+export function CardFrame({children, overlay, frame: _frame, title, titleMargin: _titleMargin, caption, detail, accessibilityDetails = [], watched, isNew, playing, progress, primaryAction, onNavigate, onPlay, onMore, selection, width, style, onFocus, onBlur, disabled, accessibilityLabel, testID, focusId, focusable, moreExpanded, pressableStyle, menuAnchorRef, preferredFocus = false, ...native}: CardFrameProps) {
+  const theme = useTheme(), motion = useMotion(), covered = useCovered();
   const eligible = !disabled && focusable !== false;
-  const {waiting, ...binding} = useFocusTarget({focusId, testID, disabled: !eligible, ref: menuAnchorRef});
+  const {waiting, ...binding} = useFocusTarget({focusId, testID, disabled: !eligible, ref: menuAnchorRef, preferred: theme.isTV && preferredFocus, preferredBlocked: covered});
   const [focused, setFocused] = useState(false), [hovered, setHovered] = useState(false), [pressed, setPressed] = useState(false);
   const owner = useRef({}), menuRegistration = useRef<(() => void) | undefined>(undefined), tvHeld = useRef(false), scale = useSharedValue(1);
   const actions = {primaryAction, onNavigate, onPlay, onMore, selection} as CardActions;
@@ -202,7 +204,7 @@ export function CardAction({name, label, onPress, size = 40, style, color, testI
 
 /** Composite-only inputs never reach a native view (in particular authenticated image sources). */
 function nativePressableProps(props: Record<string, unknown>): PressableProps {
-  const names = new Set(['accessible', 'accessibilityHint', 'accessibilityValue', 'accessibilityLiveRegion', 'accessibilityElementsHidden', 'importantForAccessibility', 'accessibilityLanguage', 'accessibilityLabelledBy', 'accessibilityIgnoresInvertColors', 'accessibilityViewIsModal', 'nativeID', 'collapsable', 'hitSlop', 'pressRetentionOffset', 'delayLongPress', 'unstable_pressDelay', 'android_disableSound', 'android_ripple', 'focusable', 'hasTVPreferredFocus', 'nextFocusDown', 'nextFocusForward', 'nextFocusLeft', 'nextFocusRight', 'nextFocusUp', 'tvParallaxProperties', 'onLayout', 'onAccessibilityEscape', 'onMagicTap', 'onAccessibilityTap', 'onTouchStart', 'onTouchEnd', 'onTouchCancel']);
+  const names = new Set(['accessible', 'accessibilityHint', 'accessibilityValue', 'accessibilityLiveRegion', 'accessibilityElementsHidden', 'importantForAccessibility', 'accessibilityLanguage', 'accessibilityLabelledBy', 'accessibilityIgnoresInvertColors', 'accessibilityViewIsModal', 'nativeID', 'collapsable', 'hitSlop', 'pressRetentionOffset', 'delayLongPress', 'unstable_pressDelay', 'android_disableSound', 'android_ripple', 'focusable', 'nextFocusDown', 'nextFocusForward', 'nextFocusLeft', 'nextFocusRight', 'nextFocusUp', 'tvParallaxProperties', 'onLayout', 'onAccessibilityEscape', 'onMagicTap', 'onAccessibilityTap', 'onTouchStart', 'onTouchEnd', 'onTouchCancel']);
   return Object.fromEntries(Object.entries(props).filter(([name]) => names.has(name))) as PressableProps;
 }
 

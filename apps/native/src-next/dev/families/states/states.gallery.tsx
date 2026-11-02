@@ -76,7 +76,7 @@ function Connection({detailsInitially = false, owner = false, testID}: {detailsI
           <Icon name="i-right" size={20} color={theme.colors.textTertiary} />
         </View>
       </Focusable>}
-      primaryAction={{id: 'retry', label: t('next.states.tryNow'), icon: 'i-retry', onPress: () => setTrying(value => !value), hasTVPreferredFocus: theme.isTV}}
+      primaryAction={{id: 'retry', label: t('next.states.tryNow'), icon: 'i-retry', onPress: () => setTrying(value => !value), preferredFocus: theme.isTV}}
       secondaryAction={{id: 'servers', label: t('next.states.switchServer'), icon: theme.isTV ? 'i-server' : undefined, onPress: () => setServers(true)}}
       detailsAction={theme.isTV ? {id: 'details', label: t('next.states.details'), onPress: () => setDetails(true), ref: opener} : undefined}
       help={t(theme.isTV ? 'next.states.native.tvConnectionHelp' : 'next.states.native.phoneConnectionHelp')} />}
@@ -92,7 +92,7 @@ function PageFailure() {
   const theme = useTheme();
   const [retrying, setRetrying] = useState(false);
   return <Canvas>{retrying ? <HomeSkeleton elapsedMs={1000} /> : <StateLayout testID={`${prefix}.state`} icon="i-warn" tone="warning" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} contentTop={theme.isTV ? undefined : 250}
-    primaryAction={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => setRetrying(true), hasTVPreferredFocus: theme.isTV}}
+    primaryAction={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => setRetrying(true), preferredFocus: theme.isTV}}
     secondaryAction={{id: 'home', label: t('next.states.goHome'), onPress: () => setRetrying(true)}} />}</Canvas>;
 }
 
@@ -102,7 +102,7 @@ function Crash() {
   const [loading, setLoading] = useState(false);
   return <Canvas>{loading ? <HomeSkeleton elapsedMs={0} /> : <StateLayout testID={`${prefix}.state`} icon="i-warn" tone="error" title={t('next.states.crashed')} body={t('next.states.native.phoneCrashBody')}
     contentTop={theme.isTV ? undefined : 250} backdropHeight={460}
-    primaryAction={{id: 'retry', label: t('next.states.tryAgain'), icon: 'i-retry', onPress: () => setLoading(true), hasTVPreferredFocus: theme.isTV}}
+    primaryAction={{id: 'retry', label: t('next.states.tryAgain'), icon: 'i-retry', onPress: () => setLoading(true), preferredFocus: theme.isTV}}
     secondaryAction={{id: 'details', label: t('next.states.copyDetails'), icon: 'i-copy', onPress: () => evidenceActions().copyDetails([
       [t('next.states.when'), fixture.since], [t('next.states.app'), fixture.appVersion], [t('next.states.where'), t('next.states.native.homeLoading')],
     ].map(([label, value]) => `${label}: ${value}`).join('\n'))}} />}</Canvas>;
@@ -117,7 +117,7 @@ function Empty({kind = 'saved', testID}: {testID?: string; kind?: 'saved' | 'mem
   if (kind === 'search' && !theme.isTV) return <Canvas><View style={{position: 'absolute', left: 20, right: 20, top: 130}}><StateView testID={`${prefix}.state`} variant="search" title={title} body={body} /></View></Canvas>;
   return <Canvas>{home ? <HomeSkeleton elapsedMs={1000} /> : theme.isTV ? <View style={{position: 'absolute', left: 510, top: 220, width: 900}}>
     <StateView testID={`${prefix}.view`} variant="centered" icon={kind === 'saved' ? 'i-bookmark' : kind === 'recordings' ? 'i-rec' : 'i-clock'} title={title} body={body}
-      primaryAction={kind === 'member' || kind === 'downloads' ? undefined : {id: 'browse', label: t('next.states.goHome'), onPress: () => setHome(true), hasTVPreferredFocus: theme.isTV}} style={{paddingHorizontal: 0}} />
+      primaryAction={kind === 'member' || kind === 'downloads' ? undefined : {id: 'browse', label: t('next.states.goHome'), onPress: () => setHome(true), preferredFocus: theme.isTV}} style={{paddingHorizontal: 0}} />
   </View> : <StateLayout testID={`${prefix}.state`} title={title} body={body} icon={kind === 'saved' ? 'i-bookmark' : kind === 'recordings' ? 'i-rec' : kind === 'downloads' ? 'i-dl' : 'i-clock'} contentTop={kind === 'saved' ? 178 : kind === 'member' ? 286 : kind === 'downloads' ? 154 : 250} backdropShape={kind === 'downloads' ? 'none' : undefined} detailsPresentation={kind === 'member' ? 'link' : undefined}
     primaryAction={kind === 'recordings' ? {id: 'guide', label: t('next.states.openGuide'), icon: 'i-guide', onPress: () => setHome(true)} : undefined}
     detailsAction={kind === 'member' ? {id: 'switch', label: t('next.states.switchServer'), icon: 'i-server', onPress: () => setHome(true)} : undefined} />}</Canvas>;
@@ -155,7 +155,7 @@ function LoadingHome({early = false, slow = false, testID}: {early?: boolean; sl
   return <Canvas>{selected !== undefined ? <TitleSkeleton testID={`${prefix}.title`} elapsedMs={1000} pressed={{title: selected === 0 ? model.title : second.title, art: {foreground: selected === 0 ? homeArt : secondContinueArt}}} playAction={{id: 'play', label: t('action.back'), onPress: () => setSelected(undefined)}} /> : <HomeSkeleton elapsedMs={early ? 0 : slow ? 9000 : 1000}
     pressed={theme.isTV ? pressed : undefined}
     rowTitle={theme.isTV ? t('home.row.continueWatching') : undefined}
-    renderArrived={early ? undefined : index => index === 0 ? <WideCard testID={`${prefix}.continue.last-of-us`} title={model.title} caption={theme.isTV ? model.caption : [...model.caption.filter(part => part.id === 'episode-label'), ...model.detail]} artwork={wideArt} artworkProps={{arrivalDurationMs: 240, visible: true, position: theme.isTV ? {x: .2, y: .3} : undefined}} width={theme.isTV ? 400 : 262} progress={.22} onNavigate={() => setSelected(0)} onFocus={() => setActive(0)} hasTVPreferredFocus={theme.isTV} />
+    renderArrived={early ? undefined : index => index === 0 ? <WideCard testID={`${prefix}.continue.last-of-us`} title={model.title} caption={theme.isTV ? model.caption : [...model.caption.filter(part => part.id === 'episode-label'), ...model.detail]} artwork={wideArt} artworkProps={{arrivalDurationMs: 240, visible: true, position: theme.isTV ? {x: .2, y: .3} : undefined}} width={theme.isTV ? 400 : 262} progress={.22} onNavigate={() => setSelected(0)} onFocus={() => setActive(0)} preferredFocus={theme.isTV} />
       : index === 1 && theme.isTV ? <WideCard testID={`${prefix}.continue.inside-out`} title={second.title} caption={second.caption} artwork={secondContinueArt} artworkProps={{arrivalDurationMs: 240, visible: true, style: {opacity: .4}}} width={400} progress={.09} onNavigate={() => setSelected(1)} onFocus={() => setActive(1)} /> : undefined}
     slowNotice={<Banner variant="quiet" tone="warning" topInset={theme.isTV ? 90 : 104} message={<Text><Text style={{fontFamily: fontFamilies[700], color: theme.colors.text}}>{t('next.states.stillLoading')}</Text>{' '}{t('next.states.slowConnection', {server: fixture.server})}</Text>} />} />}</Canvas>;
 }
@@ -165,9 +165,9 @@ function LoadingTitle({early = false, testID}: {early?: boolean; testID?: string
   const theme = useTheme();
   const [tab, setTab] = useState(theme.isTV ? 'more' : 'episodes'), [playing, setPlaying] = useState(false);
   return <Canvas>{playing ? <StateView testID={`${prefix}.view`} title={t('next.states.playbackStopped')} body={t('next.states.droppedBody', {position: fixture.position})}
-    primaryAction={{id: 'back', label: t('action.back'), onPress: () => setPlaying(false), hasTVPreferredFocus: theme.isTV}} /> : <TitleSkeleton testID={`${prefix}.title`} elapsedMs={early ? 0 : 1000}
+    primaryAction={{id: 'back', label: t('action.back'), onPress: () => setPlaying(false), preferredFocus: theme.isTV}} /> : <TitleSkeleton testID={`${prefix}.title`} elapsedMs={early ? 0 : 1000}
     pressed={{title: theme.isTV ? fixture.movie : fixture.phoneTitle, art: {foreground: theme.isTV ? movieArt : titleArt, position: {x: .44, y: .2}}}}
-    playAction={{id: 'play', label: t('action.play'), icon: 'i-play', onPress: () => setPlaying(true), hasTVPreferredFocus: theme.isTV}}
+    playAction={{id: 'play', label: t('action.play'), icon: 'i-play', onPress: () => setPlaying(true), preferredFocus: theme.isTV}}
     tabs={<Tabs testID={`${prefix}.tabs`} value={tab} onValueChange={setTab} items={[...(!theme.isTV ? [{value: 'episodes', label: t('title.episodes')}] : []), {value: 'more', label: t('next.states.moreLikeThis')}, {value: 'details', label: t('title.details')}]}
       style={{marginHorizontal: -theme.gutter}} />}
   />}</Canvas>;
@@ -182,7 +182,7 @@ function LoadingGrid({early = false, distant = false, testID}: {early?: boolean;
     if (!item || early) return undefined;
     const model = cardText({id: item.id, kind: 'movie', title: item.title, year: item.year}, 'ordinary', {t});
     return <PosterCard testID={`${prefix}.movie.${item.id}`} title={model.title} caption={model.caption} artwork={asset(item.path)} artworkProps={{arrivalDurationMs: 240, visible: true, style: index === 1 ? {opacity: .4} : undefined}} width={theme.isTV ? 200 : (390 - 32 - 20) / 3}
-      hasTVPreferredFocus={theme.isTV && index === 0} onNavigate={() => setSelected(item.title)} />;
+      preferredFocus={theme.isTV && index === 0} onNavigate={() => setSelected(item.title)} />;
   };
   return <Canvas>{selected ? <TitleSkeleton testID={`${prefix}.title`} elapsedMs={1000} pressed={{title: selected}} playAction={{id: 'play', label: t('action.back'), onPress: () => setSelected(undefined)}} /> : <>
     <View style={{position: 'absolute', left: theme.isTV ? 200 : 16, top: theme.isTV ? 262 : 250, height: theme.isTV ? 818 : 510, width: theme.isTV ? 1624 : 358, overflow: 'hidden'}}>
@@ -230,7 +230,7 @@ function PlayerFailure({detailsInitially = false, owner = false, testID}: {detai
     <StateLayout testID={`${prefix}.state`} variant="player" frozenPicture={<Artwork source={theme.isTV ? asset('pool/tv/severance--bd.jpg') : titleArt} brightness={.36} saturation={.9} zoom={1.06} />}
       title={t('next.states.playbackStopped')} body={<StateSentence messageId={theme.isTV ? 'next.states.native.tvStoppedBody' : 'next.states.droppedBody'} values={{position: theme.isTV ? fixture.tvPosition : fixture.position}} />}
       icon={theme.isTV ? 'i-warn' : 'i-wifioff'} tone="warning" contentStyle={{transform: [{translateY: theme.isTV ? -54 : -23}]}}
-      primaryAction={{id: 'retry', label: t('next.states.tryAgain'), icon: 'i-retry', onPress: () => setTrying(value => !value), hasTVPreferredFocus: theme.isTV}}
+      primaryAction={{id: 'retry', label: t('next.states.tryAgain'), icon: 'i-retry', onPress: () => setTrying(value => !value), preferredFocus: theme.isTV}}
       secondaryAction={theme.isTV ? undefined : {id: 'close', label: t('action.close'), onPress: () => setClosed(true)}}
       detailsAction={owner ? {id: 'details', label: t('next.states.details'), ref: opener, onPress: () => setDetails(true), accessibilityState: {expanded: details}} : undefined}
       retry={trying ? {progress: null, label: t('next.states.retrying')} : undefined} />
@@ -258,7 +258,7 @@ function RecordingPanel() {
   const [guide, setGuide] = useState(false);
   return guide ? <LoadingGrid testID={`${prefix}.recovery`} /> : <Canvas><View style={{position: 'absolute', left: 200, top: 210, width: 800}}><StateView testID={`${prefix}.view`} variant="panel" icon="i-rec" tone="accent"
     title={t('recordings.noneScheduled')} body={t('recordings.noneScheduledBody')}
-    primaryAction={{id: 'guide', label: t('next.states.openGuide'), onPress: () => setGuide(true), hasTVPreferredFocus: true}} /></View></Canvas>;
+    primaryAction={{id: 'guide', label: t('next.states.openGuide'), onPress: () => setGuide(true), preferredFocus: true}} /></View></Canvas>;
 }
 
 /** Root binds authenticated, version-selected handles in memory before opening this DEV case. */
@@ -274,7 +274,7 @@ function RealAmbientLoadingTitle() {
   return <Canvas><View testID={`states-real-artwork-${status}`} style={{flex: 1}}>
     {playing ? <StateView testID={`${prefix}.view`} title={handle.title} primaryAction={{id: 'back', label: t('action.back'), onPress: () => setPlaying(false)}} /> : <TitleSkeleton testID={`${prefix}.title`} elapsedMs={1000}
       pressed={{title: handle.title, art: {source: handle.ambient, foreground: handle.foreground, onStatusChange: setStatus}}}
-      playAction={{id: 'play', label: t('action.play'), onPress: () => setPlaying(true), hasTVPreferredFocus: theme.isTV}} />}
+      playAction={{id: 'play', label: t('action.play'), onPress: () => setPlaying(true), preferredFocus: theme.isTV}} />}
   </View></Canvas>;
 }
 

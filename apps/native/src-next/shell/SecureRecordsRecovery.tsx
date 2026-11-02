@@ -26,7 +26,7 @@ export function SecureRecordsRecovery({opening}: {opening: OriginalRoot}) {
   return <>
     <StateLayout testID="native-secure-records-recovery" title={t('signIn.reset.title')} body={t('signIn.reset.body')} tone="warning"
       beforeActions={busy || reopen ? <Text accessibilityLiveRegion="polite" style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t(reopen ? 'signIn.reset.reopen' : 'signIn.reset.working')}</Text> : undefined}
-      primaryAction={!busy && !reopen && canResetSecureRecords() ? {id: 'reset', label: t('signIn.reset.action'), disabled: !recovery, onPress: () => recovery?.open(), hasTVPreferredFocus: theme.isTV} : undefined}
+      primaryAction={!busy && !reopen && canResetSecureRecords() ? {id: 'reset', label: t('signIn.reset.action'), disabled: !recovery, onPress: () => recovery?.open(), preferredFocus: theme.isTV} : undefined}
       secondaryAction={!busy && !reopen ? {id: 'retry', label: t('action.tryAgain'), disabled: !recovery, onPress: () => recovery?.retry()} : undefined}/>
     <Dialog open={state.phase === 'confirming' || busy} testID="native-secure-records-confirm" title={t('signIn.reset.confirmTitle')}
       description={t('signIn.reset.consequence')} onOpenChange={open => {if (!open) recovery?.cancel();}}

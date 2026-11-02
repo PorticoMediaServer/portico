@@ -83,7 +83,7 @@ function TVOfflineList({rows, busy, activeId, retryIn, retryProgress, current, o
           </View>
           {row.owner && <Text style={[nativeType({size: 20, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale),
             {color: theme.colors.textSecondary, backgroundColor: 'rgba(7, 16, 24, 0.6)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8}]}>{t('accounts.settings.owner')}</Text>}
-          <Button focusId={`retry:${row.id}`} size="compact" icon="i-retry" iconSize={28} hasTVPreferredFocus={index === 0} disabled={busy} loading={busy && activeId === row.id || undefined}
+          <Button focusId={`retry:${row.id}`} size="compact" icon="i-retry" iconSize={28} preferredFocus={index === 0} disabled={busy} loading={busy && activeId === row.id || undefined}
             style={{height: 64, paddingHorizontal: 28}} textStyle={{fontSize: 24 * theme.textScale}}
             onPress={() => {if (current() && !busy) onRetry(row.id);}}>{t('web.chooser.tryAgain')}</Button>
         </View>;})}

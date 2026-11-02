@@ -9,7 +9,7 @@ import {browseType} from '../../../kit/browse/presentation';
 import {FocusRegion} from '../../../kit/focus';
 import {MenuRow, SidePanel} from '../../../kit/overlays';
 import type {NativeMusicMixRow, NativeMusicMixesCaller, NativeMusicMixesPort} from './mixes';
-import {tvScrollEnabled} from '../../../kit/layout/tv-scroll';
+import {TVRow} from '../../../kit/layout/TVRow';
 
 const t = defaultI18n.t;
 /** music-plus 15: three covers fanned at the top right, each a little smaller than the card's
@@ -101,11 +101,11 @@ export function MusicMixesRow({port, artwork, reportError, title = t('music.mixe
       .finally(() => {if (opening.caller.lifetime.isCurrent()) setBusy(false);});
   };
   // W-17: the tiles are disabled until the route's caller is captured and whenever the row is not active.
-  const cards = <ScrollView horizontal scrollEnabled={tvScrollEnabled(theme.isTV, active && !!caller)} showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: marginHorizontal ?? (theme.isTV ? 96 : 16), paddingVertical: theme.isTV ? 16 : 0}}>
+  const cards = <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: marginHorizontal ?? (theme.isTV ? 96 : 16), paddingVertical: theme.isTV ? 16 : 0}}>
     {snapshot.rows.map(row => <MusicMixTile key={row.id} row={row} artwork={artwork} width={theme.isTV ? 200 : theme.platform === 'tablet' ? 210 : 186}
       disabled={!active || !caller} onFocus={() => onCardFocus?.(`music-mix:${row.id}`)} onPlay={() => play(row)}
       onMenu={ref => {if (caller?.lifetime.isCurrent()) setMenu({row, caller, ref, scope: focus?.id ?? focusScope});}}/>)}
-  </ScrollView>;
+  </ScrollView></TVRow>;
   const headingButton = onOpen && <Focusable disabled={!active} focusId="music-mixes-open" testID="music-mixes-open" accessibilityRole="button" accessibilityLabel={title} onPress={onOpen}
     style={{marginHorizontal: marginHorizontal ?? (theme.isTV ? 96 : 16), marginBottom: 12, flexDirection: 'row', alignItems: 'baseline', gap: 16}}>
     <Text style={[heading, {color: theme.colors.text}]}>{title}</Text>

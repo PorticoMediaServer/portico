@@ -102,3 +102,20 @@ test('TV focus step 3: Back has one listener; any other BackHandler subscription
   write('src-next/kit/navigation/back.ts', "import {BackHandler} from 'react-native';\nexport const subscription = BackHandler.addEventListener('hardwareBackPress', () => false);");
   assert.deepEqual(auditBoundary({appRoot: root}).violations, [], 'the dispatcher itself owns the one subscription');
 }));
+
+test('TV focus step 4: native hasTVPreferredFocus is a boundary violation anywhere in src-next', () => fixture((root, write) => {
+  write('src-next/App.ts', "export const props = {hasTVPreferredFocus: true};");
+  assert.match(auditBoundary({appRoot: root}).violations.join('\n'), /use preferredFocus on a kit focus target/);
+  write('src-next/App.ts', "export const props = {preferredFocus: true};");
+  assert.deepEqual(auditBoundary({appRoot: root}).violations, []);
+}));
+
+test('TV focus step 5: a literal horizontal scroller must sit directly in a TVRow', () => fixture((root, write) => {
+  write('tsconfig.json', JSON.stringify({compilerOptions: {jsx: 'react-jsx', moduleResolution: 'bundler', module: 'esnext'}}));
+  write('src-next/App.tsx', "export const row = <ScrollView horizontal><Card/></ScrollView>;\nexport const list = <FlatList horizontal data={[]}/>;");
+  const violations = auditBoundary({appRoot: root}).violations.join('\n');
+  assert.match(violations, /App\.tsx:1: wrap a horizontal scroller in <TVRow>/);
+  assert.match(violations, /App\.tsx:2: wrap a horizontal scroller in <TVRow>/);
+  write('src-next/App.tsx', "export const row = <TVRow><ScrollView horizontal><Card/></ScrollView></TVRow>;\nexport const column = <ScrollView/>;\nexport const maybe = <ScrollView horizontal={wide}/>;");
+  assert.deepEqual(auditBoundary({appRoot: root}).violations, []);
+}));

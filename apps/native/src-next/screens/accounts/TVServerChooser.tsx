@@ -51,7 +51,7 @@ function Chooser({snapshot, busy, error, owner, onSelect, onSignOut, onRefresh, 
   useDestinationEntryFocus({visible: !busy, intent: 'enter', revision: entryRevision},
     preferred ? {regionId: 'accounts.chooser.rows', childId: `server:${preferred}`} : {regionId: 'accounts.chooser.actions', childId: 'refresh'});
   const row = (value: PhoneServerRow, connected = false) => <View key={value.id} style={{flexDirection: 'row', alignItems: 'center', gap: 40, padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.lineSoft}}>
-    <Focusable focusId={`server:${value.id}`} disabled={busy || connected} accessibilityRole="button" hasTVPreferredFocus={!connected && value.id === preferred} accessibilityLabel={value.name} accessibilityState={{selected: connected}}
+    <Focusable focusId={`server:${value.id}`} disabled={busy || connected} accessibilityRole="button" preferredFocus={!connected && value.id === preferred} accessibilityLabel={value.name} accessibilityState={{selected: connected}}
       onPress={() => onSelect(value)} focusKind="row" focusRadius={12} style={{flex: 1, minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 16}}>
       <Icon name="i-server" size={28} color={theme.colors.accentStrong}/>
       <View style={{flex: 1, gap: 6}}>
@@ -84,7 +84,7 @@ function Chooser({snapshot, busy, error, owner, onSelect, onSignOut, onRefresh, 
       </FocusRegion>
       {certificates}
       <FocusRegion id="accounts.chooser.actions" entry="refresh" order={['refresh', 'add']} edges={serverOrder.length ? {up: 'accounts.chooser.rows'} : undefined} enabled={!busy} style={{flexDirection: 'row', flexWrap: 'wrap', gap: 16}}>
-        <Button focusId="refresh" variant="glass" hasTVPreferredFocus={!preferred} icon="i-refresh" disabled={busy} onPress={onRefresh} nextFocusDown={addHandle}>{t('accounts.servers.refresh')}</Button>
+        <Button focusId="refresh" variant="glass" preferredFocus={!preferred} icon="i-refresh" disabled={busy} onPress={onRefresh} nextFocusDown={addHandle}>{t('accounts.servers.refresh')}</Button>
         <Button ref={bindAdd} focusId="add" variant="glass" disabled={busy} onPress={onAdd}>{t('accounts.signIn.local')}</Button>
       </FocusRegion>
       {footer}

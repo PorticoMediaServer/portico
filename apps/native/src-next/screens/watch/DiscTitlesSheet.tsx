@@ -54,7 +54,7 @@ export function NativeDiscTitlesSheet({controller, subject, close, renderError, 
           backgroundColor: theme.isTV && focused ? '#edf5fa29' : 'transparent'});
       return <Focusable key={row.id} ref={entry ? first : undefined} focusId={`watch-disc-title-${row.id}`} testID={`watch-disc-title-${row.id}`}
         focusKind="row" focusRadius={theme.isTV ? 12 : 0} accessibilityRole="button" accessibilityState={{selected: active, busy: state.phase === 'writing' && state.writingTitleId === row.id}}
-        hasTVPreferredFocus={theme.isTV && interactive && entry} disabled={state.phase === 'writing'}
+        preferredFocus={theme.isTV && interactive && entry} disabled={state.phase === 'writing'}
         onPress={() => {if (drawn) void controller.choose(row.id, drawn);}}
         style={theme.isTV ? ({focused}) => rowStyle(focused) : rowStyle(false)}>
         <View style={{flex: 1, minWidth: 0}}>

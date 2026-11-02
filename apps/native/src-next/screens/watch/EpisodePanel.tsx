@@ -14,7 +14,7 @@ import {useTheme} from '../../kit/theme';
 import {NativeSeasonsSheet} from './SeasonsSheet';
 import type {NativeTitleController, NativeTitlePageLease} from './title-controller';
 import {Quiet} from '../../kit/states';
-import {tvScrollEnabled} from '../../kit/layout/tv-scroll';
+import {TVRow} from '../../kit/layout/TVRow';
 
 /** collections 37/38: the episode list inside the player (sideways) and the season
  * sheet the upright tab shares. Only the workspace's own seasons and episodes are
@@ -122,14 +122,14 @@ export function NativeWatchEpisodes({controller, currentId, playing, text, artwo
           <Button ref={seasonOpener} testID="watch-episodes-seasons" focusId="watch-episodes-seasons" variant="glass" trailingIcon="i-chdown" onPress={openSeasons}>{seasonLabel}</Button>
         </View>
         {/* Room above and below for the focused tile's 1.08 scale and ring inside the clipping scroll. */}
-        <ScrollView ref={scroll} horizontal scrollEnabled={tvScrollEnabled(theme.isTV, episodes.length > 0)} showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 96, paddingVertical: 28, gap: 28}} scrollEventThrottle={32}
+        <TVRow><ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 96, paddingVertical: 28, gap: 28}} scrollEventThrottle={32}
           onScroll={event => {
             const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
             if (contentSize.width - contentOffset.x - layoutMeasurement.width < layoutMeasurement.width) void controller.moreEpisodes().catch(() => {});
           }}>
           {loading && !episodes.length && <Text style={[theme.type.body, {color: theme.colors.textTertiary}]}>{t('next.states.loading')}</Text>}
           {episodes.map(tile)}
-        </ScrollView>
+        </ScrollView></TVRow>
       </View>
       <NativeSeasonsSheet open={!!seasonsSheet} returnFocusRef={seasonOpener} onOpenChange={value => {if (value) openSeasons(); else closeSeasons();}} seasons={seasons}
         total={data?.seasonTotalCount ?? seasons.length} selectedId={selected}

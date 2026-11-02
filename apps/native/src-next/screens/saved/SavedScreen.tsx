@@ -29,6 +29,7 @@ import {openNativeSavedDownload} from '../downloads/playback';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import type {NativeEntryMenuState} from '../destinations/entry-actions';
 import {registerBack} from '../../kit/navigation/back';
+import {TVRow} from '../../kit/layout/TVRow';
 
 const t = defaultI18n.t;
 const content = (entry: SavedEntry): entry is ContentEntry => entry.kind !== 'playlist' && entry.kind !== 'playlist_entry' && entry.kind !== 'reading_group';
@@ -210,10 +211,10 @@ export function SavedScreen({destination, runtime, device, actions, selection, o
             {myListCount !== undefined && <Text style={[browseType(theme, 13, 600), {color: theme.colors.textTertiary, marginLeft: 8}]}>{t('count.titles', {count: myListCount})}</Text>}
           </View>
         </View>
-        {!!filterOptions.length && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: theme.gutter, paddingTop: 10, gap: 8}}>
+        {!!filterOptions.length && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: theme.gutter, paddingTop: 10, gap: 8}}>
           {filterOptions.map(option => <Chip key={`${option.field}:${option.id}`} variant="quick" selected={posterProjection?.query.category === option.id} count={option.count}
             onPress={() => applyMyList({filter: option.id as SavedListFilter})}>{option.label}</Chip>)}
-        </ScrollView>}
+        </ScrollView></TVRow>}
         {!posterProjection || snapshot.phase !== 'ready' && snapshot.phase !== 'loading' ? ((snapshot.phase === 'idle' || snapshot.phase === 'loading') ? <SavedLoading columns={myListColumns}/> : null)
           : !posterEntries.length && !squareEntries.length ? <StateView variant="inline" title={t('web.saved.empty.watchlist')} body={t('web.saved.empty.watchlistBody')}/>
           : listMode ? <View style={{marginTop: 8}}>{posterEntries.map(entry => <SavedMyListRow key={entry.id} entry={entry} runtime={runtime} actions={actions} selection={admitted ? selection?.item(entry) : undefined}/>)}</View>
@@ -223,29 +224,29 @@ export function SavedScreen({destination, runtime, device, actions, selection, o
             </View>)}
           </View>}
         {snapshot.myList.phase === 'loading' && !!posterEntries.length && <View style={{marginHorizontal: theme.gutter, marginTop: 12}}><SavedTail width={gridWidth ? gridWidth / myListColumns - 10 : 118}/></View>}
-        {!!squareEntries.length && <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={64}
+        {!!squareEntries.length && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={64}
           onScroll={event => {const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
             const section = squareProjection?.sections.find(value => value.nextCursor);
             if (section && savedNearEnd(contentOffset.x, layoutMeasurement.width, contentSize.width, 144)) nextMyListPage('squares', squareProjection!, section.id);}}
           contentContainerStyle={{paddingHorizontal: theme.gutter, paddingTop: 12, gap: 12}}>
           {squareEntries.map(entry => <SavedMyListCard key={entry.id} entry={entry} runtime={runtime} actions={actions} width={132} selection={admitted ? selection?.item(entry) : undefined}/>)}
           {snapshot.myListSquares.phase === 'loading' && <SavedTail width={132} square/>}
-        </ScrollView>}
+        </ScrollView></TVRow>}
       </View> : <SavedSection first>
         <SavedRowHeading testID="saved-my-list" title={t('saved.tab.watchlist')} detail={summary ? t('next.selection.titles', {count: summary.myList.posters + summary.myList.squares}) : undefined} onPress={() => actions.openView({view: 'watchlist'})}/>
         {(snapshot.phase === 'idle' || snapshot.phase === 'loading') && !items.length && <SavedLoading kind="shelf"/>}
-        {!!items.length && <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={64}
+        {!!items.length && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={64}
           onScroll={event => {const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent; const section = posterProjection?.sections.find(value => value.nextCursor);
             if (section && savedNearEnd(contentOffset.x, layoutMeasurement.width, contentSize.width, theme.spec.shelf.gap[theme.platform] + 118)) nextMyListPage('posters', posterProjection!, section.id);}} contentContainerStyle={track}>
           {items.map(entry => <SavedMyListCard key={entry.id} entry={entry} runtime={runtime} actions={actions} selection={admitted ? selection?.item(entry) : undefined}/>)}
           {snapshot.myList.phase === 'loading' && <SavedTail width={118}/>}
-        </ScrollView>}
+        </ScrollView></TVRow>}
       </SavedSection>}
       {!tablet && deviceState.supported && <SavedSection>
         <SavedRowHeading testID="saved-downloads" title={t('downloads.title')} detail={t(onThisPhone, {size: defaultI18n.bytes(deviceState.usedBytes)})} onPress={showDownloads}/>
-        {!!localGroups.length && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={track}>
+        {!!localGroups.length && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={track}>
           {localGroups.map(group => <SavedDownloadCard key={group.key} group={group} device={device} copy={downloadsCopy} onOpen={() => openNativeSavedDownload(device, group, showDownloads, report)}/>)}
-        </ScrollView>}
+        </ScrollView></TVRow>}
       </SavedSection>}
       {!tablet && <View style={{marginHorizontal: 16, marginTop: 24, borderRadius: 14, backgroundColor: theme.colors.raised, overflow: 'hidden'}}>
         {rows.map((row, index) => <SavedLink key={row.id} testID={`saved-view-${row.id}`} label={t(row.label)} icon={row.icon} value={row.count === undefined ? undefined : defaultI18n.number(row.count)} separator={index > 0} onPress={() => actions.openView(row.view)}/>)}

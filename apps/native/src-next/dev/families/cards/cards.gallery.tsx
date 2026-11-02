@@ -36,7 +36,7 @@ type Scenario = {id: string; platform?: 'read' | 'handheld'; render: (props: Car
 function Specimen({scenario}: {scenario: Scenario}) {
   const t = useTheme(), [active, setActive] = useState(!!scenario.selected), [selected, setSelected] = useState(!!scenario.selected), [event, setEvent] = useState<string>();
   const props: CardProps = {
-    title: fixture('next.cards.fixture.collection'), testID: `card-${scenario.id}`, hasTVPreferredFocus: t.isTV,
+    title: fixture('next.cards.fixture.collection'), testID: `card-${scenario.id}`, preferredFocus: t.isTV,
     onNavigate: () => setEvent(fixture('next.cards.fixture.actionNavigate')),
     onPlay: () => setEvent(fixture('next.cards.fixture.actionPlay')),
     onMore: () => setEvent(fixture('next.cards.fixture.actionMore')),

@@ -123,7 +123,7 @@ function MiniGuideSurface(props: NativeMiniGuideProps & {open: boolean; onExited
             {rows.map((row, index) => {
               const bar = progress(row), next = row.next, at = next ? clock(next.start, locale, props.timezone) : undefined, disabled = !props.open || props.busy || !tuneable(row);
               return <Focusable key={rowKey(row)} ref={index === entry ? first : undefined} focusId={`tv-mini-guide-${rowKey(row)}`} testID={`tv-mini-guide-${rowKey(row)}`}
-                focusKind="row" focusRadius={16} hasTVPreferredFocus={props.open && index === entry} disabled={disabled} accessibilityRole="button"
+                focusKind="row" focusRadius={16} preferredFocus={props.open && index === entry} disabled={disabled} accessibilityRole="button"
                 accessibilityLabel={[row.channel.name, row.channel.number, row.watching ? t('next.live.watching') : undefined,
                   row.now?.title ?? t('guide.noInformation'), next && at ? t('next.live.nextAt', {time: at}) : undefined, next?.title].filter(Boolean).join(', ')}
                 accessibilityState={{selected: row.watching}}

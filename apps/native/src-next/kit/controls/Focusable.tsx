@@ -11,7 +11,9 @@ import {useCovered, useFocusTarget} from '../focus';
 import {useNativeObservation} from '../dev-observation';
 
 export type ControlState = PressableStateCallbackType & {focused: boolean; hovered: boolean};
-export type FocusableProps = Omit<PressableProps, 'children'> & {
+export type FocusableProps = Omit<PressableProps, 'children' | 'hasTVPreferredFocus'> & {
+  /** TV: take focus once when this becomes true (TV-FOCUS-REVIEW step 4). Never while the control is covered. */
+  preferredFocus?: boolean;
   children?: React.ReactNode | ((state: ControlState) => React.ReactNode);
   focusId?: string;
   /** TV read-only/pending choices remain focus stops while commands are disabled. */
@@ -56,7 +58,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(PressableStyleAdapter
 
 /** The platform moves focus; this primitive only draws it and owns its Menu registration. */
 export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
-  children, style, disabled, focusable, focusableWhenDisabled, onPress, onAccessibilityAction, onAccessibilityTap, onMagicTap, focusId, testID, focusKind = 'button', focusRadius = 10,
+  children, style, disabled, focusable, focusableWhenDisabled, preferredFocus = false, onPress, onAccessibilityAction, onAccessibilityTap, onMagicTap, focusId, testID, focusKind = 'button', focusRadius = 10,
   focusInset = false, focusTreatment = 'default', focusScale: focusedScale, pressDurationMs, pressScale, onFocus, onBlur, onHoverIn, onHoverOut, onPressIn, onPressOut, onLongPress,
   onLongPressAction, longPressAccessibilityAction, accessibilityActions, accessibilityState, ...props
 }, ref) {
@@ -64,7 +66,8 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
   const motion = useMotion(), paint = useOverlayPaintMode();
   const retainDisabledFocus = isTV && focusableWhenDisabled === true && paint.interactive;
   const nativeDisabled = !paint.interactive || disabled && !retainDisabledFocus;
-  const {waiting, ...binding} = useFocusTarget({focusId, testID, disabled: nativeDisabled || focusable === false, ref});
+  const covered = useCovered(), inert = !paint.interactive || covered;
+  const {waiting, ...binding} = useFocusTarget({focusId, testID, disabled: nativeDisabled || focusable === false, ref, preferred: isTV && preferredFocus, preferredBlocked: inert});
   const accessibilityRole = props.accessibilityRole ?? (onPress ? 'button' : undefined);
   const observation = useNativeObservation<View>({kind: 'view', semanticId: binding.testID, role: accessibilityRole,
     flattenedStyle: typeof __DEV__ !== 'undefined' && __DEV__ && typeof style !== 'function' ? StyleSheet.flatten(style) : undefined,
@@ -75,7 +78,7 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
   // ring on screen is always the control that answers. Blur is still recorded so no stale ring returns.
   // The ring is derived from native focus alone: every native focus and blur is recorded, and the ring shows only
   // while native focus is here, on a live (interactive, uncovered) control. It can never show where focus is not.
-  const covered = useCovered(), inert = !paint.interactive || covered, focused = nativeFocused && !inert;
+  const focused = nativeFocused && !inert;
   const [hovered, setHovered] = useState(false);
   const scale = useSharedValue(1);
   const halo = useSharedValue(0);

@@ -71,7 +71,7 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
   const empty = state.phase === 'ready' && state.totalCount === 0, failed = !!error && !state.totalCount;
   const controls = <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 18 : 10, marginTop: tv ? 30 : compact ? 18 : 16,
     ...(compact ? {paddingHorizontal: 20} : {})}}>
-    <Button testID="collection-play-all" focusId="collection-play-all" hasTVPreferredFocus={tv} icon="i-play" onPress={props.onPlay}
+    <Button testID="collection-play-all" focusId="collection-play-all" preferredFocus={tv} icon="i-play" onPress={props.onPlay}
       size={tv ? 'hero' : undefined} style={compact ? {flex: 1, height: 48} : undefined}>{t('next.cards.playAll')}</Button>
     <Button testID="collection-shuffle" focusId="collection-shuffle" variant="glass" icon="i-shuffle" onPress={props.onShuffle}
       size={tv ? 'hero' : undefined} iconOnly={compact} accessibilityLabel={t('title.shuffle')}

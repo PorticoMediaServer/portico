@@ -14,7 +14,7 @@ export function NativeStillWatchingCard({item, onConfirm, onReplay, onClose}: Re
   const theme = useTheme(), t = defaultI18n.t;
   const code = item.episode ? t('next.kit.episodeCode', {season: item.episode.seasonNumber, episode: item.episode.number}) : undefined;
   const button = (id: string, variant: 'primary' | 'glass', label: string, onPress: () => void, icon?: 'i-restart') => <Button key={id} focusId={`watch-still-${id}`}
-    testID={`watch-still-${id}`} variant={variant} size="compact" hasTVPreferredFocus={false} {...(icon ? {icon, iconSize: 17} : {})}
+    testID={`watch-still-${id}`} variant={variant} size="compact" preferredFocus={false} {...(icon ? {icon, iconSize: 17} : {})}
     style={{height: 40, paddingHorizontal: 15, borderRadius: 10}} textStyle={{fontSize: 14.5, fontWeight: '700'}} onPress={onPress}>{label}</Button>;
   return <View testID="watch-still-watching" accessibilityRole="alert" accessibilityLabel={t('player.post.stillWatching')}
     style={{width: 400, maxWidth: '92%', padding: 20, borderRadius: 18, boxShadow: 'inset 0 0 0 1px rgba(237,245,250,.12), 0 24px 60px -20px rgba(0,0,0,.9)'}}>

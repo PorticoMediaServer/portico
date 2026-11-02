@@ -68,7 +68,7 @@ function DestinationPicker({kind, ...props}: DestinationPickerProps & {kind: 'pl
     </View>
     {added !== undefined ? <SelectionText size={isTV ? 20 : 12.5} weight={700} style={{color: colors.accentStrong}}>{selectionText('next.selection.native.addedIndicator', {count: added})}</SelectionText> : item.alreadyIn !== undefined && item.alreadyIn > 0 ? <SelectionText size={isTV ? 20 : 12.5} weight={700} style={{color: isTV && active ? 'rgba(7,16,24,.66)' : colors.accentStrong}}>{selectionText('next.selection.native.alreadyIn', {count: item.alreadyIn})}</SelectionText> : null}
   </View>;
-  const row = (item: PickerEntry) => <Focusable testID={controlID(props.testID, 'destination', kind, item.id)} ref={item.id === preferredId ? entryRef : undefined} hasTVPreferredFocus={isTV && !failed.length && item.id === preferredId} accessibilityRole="button" accessibilityLabel={item.title} focusRadius={isTV ? 16 : 10} focusKind="row"
+  const row = (item: PickerEntry) => <Focusable testID={controlID(props.testID, 'destination', kind, item.id)} ref={item.id === preferredId ? entryRef : undefined} preferredFocus={isTV && !failed.length && item.id === preferredId} accessibilityRole="button" accessibilityLabel={item.title} focusRadius={isTV ? 16 : 10} focusKind="row"
     disabled={props.pending || props.loading || !item.canAdd} onPress={() => {if (item.canAdd && !props.pending && !props.loading) props.onAdd(item.id);}} onFocus={() => {focused.current = true;}} onBlur={() => {focused.current = false;}} style={styles.entry}>
     {state => rowContent(item, state.focused || state.hovered || state.pressed)}
   </Focusable>;
