@@ -113,14 +113,14 @@ class RebuildControls(unittest.TestCase):
         text = (ROOT / 'scripts/build-ffmpeg.sh').read_text()
         for name, boundary in (('compile_options', ' --source "$SOURCE" '),
                                ('normalize_options', ' "$WORK/corresponding-source.tar.xz" ')):
-            line = next(line for line in text.splitlines() if boundary in line and 'python3 ' in line)
+            line = next(line for line in text.splitlines() if boundary in line and 'python3 ' in line and name + '[@]' in line)
             expression = line.split(boundary)[1]
             script = ('set -eu\ncapture() { printf "%s\\n" "$#"; printf "<%s>\\n" "$@"; }\n'
                 + name + '=()\ncapture ' + expression + '\n' + name + '=("with space" --flag)\ncapture ' + expression)
             result = subprocess.run(['/bin/bash', '-c', script], text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.splitlines(), ['0', '<>', '2', '<with space>', '<--flag>'])
-        print('Native system Bash empty-array proof: ' + platform.system(), flush=True)
+        print('Native system Bash empty-array proof: ' + platform.system() + ': ' + subprocess.check_output(['/bin/bash', '--version'], text=True).splitlines()[0], flush=True)
 
     def test_native_rerun_keeps_original_attempt_and_rejects_future_cross_run_cross_source(self):
         self.assertEqual(CI['native_retry_pin']('windows-x64', replay_run_id='41346289584')['origin']['runId'], 41346289584)
