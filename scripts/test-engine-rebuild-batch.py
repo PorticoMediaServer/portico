@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Regression controls for exact source reuse, replay and four-target planning."""
 import hashlib
+import io
+import tarfile
 import json
 import os
 from pathlib import Path
@@ -34,6 +36,27 @@ class RebuildControls(unittest.TestCase):
         for context in ('release', 'qualified', ''):
             with patch.dict(os.environ, PORTICO_ENGINE_BUILD_CONTEXT=context), self.assertRaises(ValueError):
                 CACHE['sync']('restore', Path('/must-not-exist'), Path('/must-not-exist'))
+
+    def test_retained_source_seed_extracts_only_command_named_regular_snapshots(self):
+        seed = runpy.run_path(str(ROOT / 'scripts/seed-engine-download-cache.py'))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            name = 'recipe/.cache/downloads/50-library_' + 'a' * 64 + '.tar.xz'
+            for mode in ('valid', 'link', 'duplicate', 'escape'):
+                source = root / (mode + '.tar.xz')
+                with tarfile.open(source, 'w:xz') as out:
+                    member = tarfile.TarInfo(name if mode != 'escape' else 'recipe/.cache/downloads/../escape')
+                    if mode == 'link': member.type = tarfile.SYMTYPE; member.linkname = '/outside'
+                    else: member.size = 7
+                    out.addfile(member, None if mode == 'link' else io.BytesIO(b'snapshot'[:7]))
+                    if mode == 'duplicate': out.addfile(member, io.BytesIO(b'snapshot'[:7]))
+                    ignored = tarfile.TarInfo('recipe/bin/never-execute'); ignored.size = 3
+                    out.addfile(ignored, io.BytesIO(b'bin'))
+                if mode == 'valid':
+                    self.assertEqual(seed['snapshots'](source, root / mode), 1)
+                    self.assertFalse((root / mode / 'bin').exists())
+                else:
+                    with self.assertRaises(ValueError): seed['snapshots'](source, root / mode)
 
     def test_native_rerun_keeps_original_attempt_and_rejects_future_cross_run_cross_source(self):
         qualifier = dict(engineSourceSHA='a' * 40, runId=17, runAttempt=2, context='github-actions')

@@ -130,7 +130,7 @@ class ColdToolchain(unittest.TestCase):
                 self.assertEqual(cold.native('linux-x64', transfer, root / 'evidence'), 1)
             report = json.loads((root / 'evidence/cold-native.json').read_text())
             self.assertFalse(report['nativeEngineChecks'])
-            self.assertIn('exact-run/target/hash mismatch', report['failure'])
+            self.assertIn('exact-run/target/producer-attempt mismatch', report['failure'])
 
     def test_oversized_compiler_log_keeps_first_and_terminal_diagnostics(self):
         with tempfile.TemporaryDirectory() as temporary:
