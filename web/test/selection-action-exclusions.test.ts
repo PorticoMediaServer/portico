@@ -63,7 +63,7 @@ test('metadata preview exclusion refuses before requests; small previews retain 
   const descriptorQuery = wholeViewQuery(descriptor as never);
   const target = {mode: 'query', selector: descriptorQuery.selector, total: count, sourceTotal: count, summary: {count, types: [{kind: 'movie', count}], every, library: {kind: 'single', libraryId: 'lib'}, unavailableActions}, refinement: {kind: null, excludedItems: []}, expected: {catalogRevision: revision}};
   const requests: any[] = [];const stop = new Error('captured-preview-query');
-  const producer = createQuerySelectionEditor({api: {request: async (...args: any[]) => {requests.push(args);throw stop;}}, serverId: 's', viewerFence: () => 'f'.repeat(64), requestId: async () => 'request', isCurrent: () => true} as never);
+  const producer = createQuerySelectionEditor({api: {request: async (...args: any[]) => {requests.push(args);throw stop;}}, serverId: 's', requestId: async () => 'request', isCurrent: () => true} as never);
   await assert.rejects(producer.preview({target} as never), /query-editor-unavailable/);assert.equal(requests.length, 0);
   const small = {...target, total: 200, sourceTotal: 200, summary: {...target.summary, count: 200, types: [{kind: 'movie', count: 200}], unavailableActions: undefined}};
   await assert.rejects(producer.preview({target: small} as never), error => error === stop);

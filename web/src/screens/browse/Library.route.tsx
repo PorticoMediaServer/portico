@@ -286,7 +286,6 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     () => setLinkToast({id: crypto.randomUUID(), icon: 'i-check', message: t('next.overlays.linkCopied')}),
     () => setLinkToast({id: crypto.randomUUID(), icon: 'i-warn', tone: 'warning', message: t('next.overlays.copyLinkFailed')}));};
   const runtime = captured.binding.playback?.runtime;
-  const metadataFence = useMemo(() => () => captured.context.viewerFence, [captured.context]);
   // Frame 7's Recently played mark belongs to the queue session this snapshot actually
   // describes: the current entry is the queue's own currentEntryId, and the published
   // presentation must be that same session and generation, still playing and not
@@ -363,7 +362,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       ...(context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local' ? {deletion: {api, serverId: context.scope.serverId, viewerId: context.scope.viewerId,
         requestId: async () => randomId(), signal, isCurrent: current}, editor: {
         api, events: context.events, requestId: async () => randomId(), serverId: context.scope.serverId, viewerId: context.scope.viewerId,
-        artwork: context.artwork, viewerFence: () => captured.context.viewerFence, signal, isCurrent: current,
+        artwork: context.artwork, signal, isCurrent: current,
       }} : {}),
       actions: {api, events: context.events, requestId: async () => randomId(),
         signal, isCurrent: current, reportError: context.effects.reportError},
@@ -532,7 +531,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     : browse ? <LibraryScreen {...bindings}/> : <LibraryDiscoveryScreen service={resources.service} route={contentRoute} musicMixes={musicMixes} mixesTarget={search.section === 'mixes'} reportError={context.effects.reportError} header={<LibraryIdentity {...header}/>} empty={empty}
       appearance={appearanceBase} preferences={appearance} reducedMotion={appearance.reducedMotion} artwork={context.artwork} env={bindings.env}
       actions={discoveryActions} nowPlayingAlbumId={nowPlayingAlbumId} onSeeAll={section => {if (!resources.life.current() || resources.service.getSnapshot().phase !== 'ready' || !discoverySections(resources.service.getSnapshot()).includes(section)) return;const target = section.seeAll;if (target) navigate({pivot: target.pivot, query: target.query, sort: target.sort});}}
-      selectionInput={context.identity && (context.identity.viewer.authority === 'local' || context.identity.viewer.authority === 'hosted') ? {context: resources.screen, playback: runtime, metadataFence,
+      selectionInput={context.identity && (context.identity.viewer.authority === 'local' || context.identity.viewer.authority === 'hosted') ? {context: resources.screen, playback: runtime,
         principal: {serverId: context.identity.viewer.serverId, authority: context.identity.viewer.authority, accountId: context.identity.viewer.accountId, profileId: context.identity.viewer.profileId}} : undefined}/>}
     {saving && <SaveView context={context} definition={saving} onClose={() => setSaving(undefined)}/>}</>;
 }
