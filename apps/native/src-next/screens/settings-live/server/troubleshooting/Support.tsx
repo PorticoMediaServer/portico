@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../../../packages/client-core/src/server-clock';
 import {linkNativeAbortSignals} from '../../../../platform/abort-signals';
 import type {SupportExport} from '../../../../../../../packages/client-core/src/console';
 import {encodedRoutePath} from '../../../../../../../packages/contracts/src/routes';
@@ -77,7 +78,7 @@ export function NativeSupport({group}:{group:Group}){
     const linked=linkNativeAbortSignals([read.signal,group.signal]),signal=linked.signal;
     const owns=()=>current()&&scope.flight===flight&&scope.download===read&&!signal.aborted&&source.getSnapshot().export===ready&&source.canDownload(ready.id);
     const off=source.subscribe(()=>{if(!owns())read.abort();});
-    const expiry=setTimeout(()=>read.abort(),Math.min(2147483647,Math.max(0,ready.expiresAt-Date.now())));
+    const expiry=setTimeout(()=>read.abort(),Math.min(2147483647,Math.max(0,ready.expiresAt-serverNow())));
     try{if(!owns())return;const bundle=await group.download(ready,signal,owns);if(!owns())return;await savePort('support',bundle,signal,owns);}catch(error){group.failure(error);if(owns())setError(true);}finally{linked.dispose();off();clearTimeout(expiry);read.abort();if(scope.download===read)scope.download=undefined;if(scope.flight===flight){scope.flight=undefined;if(current())setBusy(false);}}
   };
   const pending=state.pendingExport,parts=pending?.components??draft.parts,paths=pending?.includePaths??draft.paths,window=pending?WINDOWS.find(value=>value.ms===pending.windowMs)?.value??'':draft.window,ready=state.export,skipped=skippedParts();

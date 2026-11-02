@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {HttpLocalApi} from '../../../../packages/client-core/src';
 import {routePath} from '../../../../packages/contracts/src/routes';
 import type {RouteConnection} from '../../../../packages/client-core/src/route-connection';
@@ -29,7 +30,7 @@ const usable = (entry: Pending, now: number) => Number.isFinite(expiry(entry.rec
 /** The only reader and writer of the queue. Every write drops expired entries and applies the cap. */
 async function change(update: (pending: Pending[]) => Pending[]): Promise<Pending[]> {
   return store().change(KEY, raw => {
-    const now = Date.now();
+    const now = serverNow();
     const next = update(read(raw).filter(entry => usable(entry, now))).filter(entry => usable(entry, now)).slice(-REVOCATION_QUEUE_CAP);
     return {record: next.length ? next : null, value: next};
   });
@@ -47,7 +48,7 @@ export async function revokeOverLiveRoute(record: RememberedServer, live: RouteC
   const api = new HttpLocalApi(record.logicalOrigin, record.session.accessToken, nativeNetworkFetch);
   api.useRoutes(live);
   try {
-    if (Date.parse(record.session.expiresAt) <= Date.now() + 5000 && record.session.refreshToken) {
+    if (Date.parse(record.session.expiresAt) <= serverNow() + 5000 && record.session.refreshToken) {
       const renewed = await refreshStoredSession({env, api, family: {sessionFamilyId: record.session.sessionFamilyId, serverId: record.pin.serverId}, signal});
       api.setAccessToken(renewed.accessToken);
     }

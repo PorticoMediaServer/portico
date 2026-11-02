@@ -36,6 +36,7 @@ const {NativePlaybackRuntime} = await sourceModule(new URL('../src-next/platform
   '../../../../../packages/client-core/src/playback-v1/quality': {qualityOptionRequest: unused}, '../../../../../packages/client-core/src/subtitles': {SubtitleService: unused},
   '../../../../../packages/client-core/src/subtitle-originals': {forcedChoiceOf: unused, parseSubtitleLines: unused}, './forced-image': {forcedImageLinesPath: unused},
   '../../../../../packages/client-core/src/presentation/service-text': {serviceText},
+  '../../../../../packages/client-core/src/server-clock': {serverNow: () => Date.now()},
   '../../../../../packages/player-core/src': {PlaybackDock: unused, PlayerSessionChoices: unused, activeSegment: unused, skipsAutomatically: unused,
     skipTarget: unused, parseQueueSnapshot: unused, playbackFence: unused, sameFence: unused, sameScope: unused},
   './NativePlaybackCoordinator': {NativePlaybackCoordinator}, './external-presentation': external,
