@@ -203,7 +203,16 @@ type Operation=Page&{history:readonly Page[];fence?:SearchData};
 const sameReadQuery=(left:SearchQuery|null,right:SearchQuery)=>!!left&&JSON.stringify({...left,record:undefined})===JSON.stringify({...right,record:undefined});
 export class SearchService{
  private api:LibraryContentApi;private scope:ContentScope;private readonly pageSize:number;private readonly timeoutMs:number;private generation=0;private disposed=false;private controller?:AbortController;private pending?:Promise<void>;private key='';private operation?:Operation;private displayedOperation?:Operation;private revalidations=new Set<AbortController>();private listeners=new Set<()=>void>();private state:SearchSnapshot;
- constructor(options:{api:LibraryContentApi;scope:ContentScope;pageSize?:number;timeoutMs?:number}){this.api=options.api;this.scope=bound(options.scope);this.pageSize=options.pageSize??40;this.timeoutMs=options.timeoutMs??15000;if(!Number.isInteger(this.pageSize)||this.pageSize<1||this.pageSize>40||!Number.isFinite(this.timeoutMs)||this.timeoutMs<1||this.timeoutMs>60000)throw new Error('Invalid search bounds.');this.state=this.empty();}
+ constructor(options:{api:LibraryContentApi;scope:ContentScope;pageSize?:number;timeoutMs?:number;initial?:SearchSnapshot}){this.api=options.api;this.scope=bound(options.scope);this.pageSize=options.pageSize??40;this.timeoutMs=options.timeoutMs??15000;if(!Number.isInteger(this.pageSize)||this.pageSize<1||this.pageSize>40||!Number.isFinite(this.timeoutMs)||this.timeoutMs<1||this.timeoutMs>60000)throw new Error('Invalid search bounds.');this.state=this.seeded(options.initial)??this.empty();}
+ /** The results this viewer last saw for this exact query, kept beside the viewer so a
+  * return draws them at once and reads the query again in place. Only a ready page from
+  * this same server and viewer is adopted; anything else is a first search. */
+ private seeded(initial?:SearchSnapshot):SearchSnapshot|undefined{
+  if(!initial||initial.phase!=='ready'||!initial.data||!initial.query||initial.scope.serverId!==this.scope.serverId||initial.scope.viewerId!==this.scope.viewerId)return undefined;
+  const operation:Operation={query:initial.query,cursor:initial.pagination.cursor,history:[]};
+  this.operation=operation;this.displayedOperation=operation;
+  return Object.freeze({...initial,generation:this.generation,error:null});
+ }
  getSnapshot=():SearchSnapshot=>this.state;
  subscribe=(listener:()=>void):(()=>void)=>{this.listeners.add(listener);return()=>this.listeners.delete(listener);};
  private empty():SearchSnapshot{return Object.freeze({generation:this.generation,scope:this.scope,query:null,phase:'idle',data:null,groups:Object.freeze([]),pagination:Object.freeze({cursor:null,canPrevious:false}),error:null});}

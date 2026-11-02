@@ -10,6 +10,9 @@ export {withLibraryScope} from '@core/browse-session.ts';
 export type BrowseMember = Readonly<{membershipId: string; entry: ContentEntry}>;
 
 export type BrowseSource = Readonly<{libraryId: string; pivot: string; base?: readonly BrowseNode[]; predicates?: readonly BrowseNode[]; homeRowId?: string; sort?: BrowseSortSelection; sorts?: readonly BrowseSortSelection[]}>;
+/** The page a browse opening showed, kept beside the viewer so a return draws it at once. */
+export type BrowsePageSeed = Readonly<{state: BrowseState; entries: readonly Readonly<{index: number; item: BrowseMember}>[];
+  total?: number; positionIndex?: Record<string, number>}>;
 export type BrowseState = Readonly<{phase: 'loading' | 'ready' | 'error'; capabilities?: BrowseCapabilities; predicates: readonly BrowseNode[]; sort?: BrowseSortSelection; error?: unknown;
   /** Actual opaque page token, absent until this applied query has replied. */
   revision?: string; queryRevision: number}>;
@@ -35,7 +38,7 @@ export class BrowseController {
   private sorts: readonly BrowseSortSelection[] = [];
   /** The applied query's page source; replaced, never reused, when the query changes. */
   private session?: BrowseSession<BrowseMember>;
-  constructor(private api: LibraryContentApi, source: BrowseSource, private isCurrent: () => boolean) {
+  constructor(private api: LibraryContentApi, source: BrowseSource, private isCurrent: () => boolean, initial?: BrowsePageSeed) {
     this.source = Object.freeze({...source,
       ...(source.base ? {base: Object.freeze(source.base.map(captureNode))} : {}),
       ...(source.predicates ? {predicates: Object.freeze(source.predicates.map(captureNode))} : {}),
@@ -44,6 +47,33 @@ export class BrowseController {
     this.state = Object.freeze({phase: 'loading', predicates: this.source.predicates ?? Object.freeze([]), queryRevision: 0});
     this.collection = createWindowedCollection({pageSize: 60, maxResidentPages: 6, maxConcurrent: 1, prefetchPages: 1,
       keyOf: (item: BrowseMember) => item.membershipId, fetchPage: async () => { throw browseSessionClosed(); }});
+    // A return to the same opening draws the list it had at once, and reads it again in place.
+    if (initial && this.acceptsPage(initial)) this.restore(initial);
+  }
+  /** Whether a kept page belongs to this exact opening: its library, applied query and sort. */
+  private acceptsPage(page: BrowsePageSeed): boolean {
+    const state = page.state;
+    return state.phase === 'ready' && typeof state.revision === 'string' && !!state.revision && !!state.capabilities && !!state.sort
+      && page.entries.length > 0 && (state.capabilities.library.id === this.source.libraryId || this.source.libraryId === '*')
+      && JSON.stringify(state.predicates) === JSON.stringify(this.source.predicates ?? [])
+      && (!this.source.sort || JSON.stringify(this.source.sort) === JSON.stringify(state.sort));
+  }
+  private restore(page: BrowsePageSeed): void {
+    this.state = Object.freeze({...page.state});
+    this.sorts = this.source.sorts ?? (page.state.sort ? [page.state.sort] : []);
+    const session = this.makeSession(page.state.capabilities!, page.state.predicates, page.state.sort!, this.epoch,
+      {revision: page.state.revision, entries: page.entries.map(entry => entry.item.entry)});
+    this.session = session;
+    this.collection.seed(page.entries, {total: page.total, positionIndex: page.positionIndex, fetchPage: session.fetchPage});
+  }
+  /** The page this opening shows, for the viewer's memory (nothing until a list has arrived). */
+  pageSeed(): BrowsePageSeed | undefined {
+    if (!this.current() || this.state.phase !== 'ready' || !this.state.revision || !this.session) return undefined;
+    const entries = this.collection.residentEntries();
+    if (!entries.length) return undefined;
+    const snapshot = this.collection.getSnapshot();
+    return Object.freeze({state: this.state, entries, ...(snapshot.total === undefined ? {} : {total: snapshot.total}),
+      ...(snapshot.positionIndex ? {positionIndex: snapshot.positionIndex} : {})});
   }
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
@@ -86,6 +116,9 @@ export class BrowseController {
   }
   async load() {
     if (!this.current()) return;
+    // A page restored from the viewer's memory is already showing: read it again without
+    // clearing it. Only a first opening starts from nothing.
+    if (this.state.phase === 'ready' && this.state.revision && this.session) {await this.refreshShown(); return;}
     const epoch = ++this.epoch;
     this.session?.retire();
     this.session = undefined;
@@ -145,9 +178,17 @@ export class BrowseController {
     this.session = undefined;
     this.publish({...next, revision: undefined, queryRevision: this.state.queryRevision + 1});
     if (!this.current() || epoch !== this.epoch) return;
-    const session = new BrowseSession<BrowseMember>({query: this.sessionQuery(caps, predicates, sort),
+    const session = this.makeSession(caps, predicates, sort, epoch);
+    this.session = session;
+    this.collection.invalidate(session.fetchPage);
+    this.collection.ensureRange(0, 0);
+  }
+  private makeSession(caps: BrowseCapabilities, predicates: readonly BrowseNode[], sort: BrowseSortSelection, epoch: number,
+    initial?: Readonly<{revision?: string; entries: readonly ContentEntry[]}>): BrowseSession<BrowseMember> {
+    return new BrowseSession<BrowseMember>({query: this.sessionQuery(caps, predicates, sort),
       request: (path, method, body, signal) => this.api.request(path, method, body, signal),
       ...(this.api.requestRaw ? {requestRaw: this.api.requestRaw.bind(this.api)} : {}),
+      ...(initial ? {initial} : {}),
       current: () => this.current() && epoch === this.epoch,
       item: (entry, page, index) => Object.freeze({membershipId: browseMembershipId(page, index)!, entry}),
       onRevision: revision => this.publish({revision}),
@@ -158,9 +199,28 @@ export class BrowseController {
         if (!this.staleRetried && this.state.revision === undefined && this.current() && epoch === this.epoch) {this.staleRetried = true; this.reset({}, true); return;}
         this.publish({revision: undefined, error});
       }});
-    this.session = session;
-    this.collection.invalidate(session.fetchPage);
-    this.collection.ensureRange(0, 0);
+  }
+  /** A shown page, read again in place: refreshed capabilities, then the visible pages
+   * under a fresh session. The list on screen stays until every visible page arrives; a
+   * failed, timed-out or superseded read leaves it exactly as it was. */
+  private async refreshShown(): Promise<void> {
+    const shown = this.state, previous = this.session;
+    if (!shown.capabilities || !shown.sort || !previous) return;
+    const epoch = ++this.epoch;
+    try {
+      const caps = parseBrowseCapabilities(await this.api.request(browseCapabilitiesPath(this.source.libraryId, this.source.pivot), 'GET', undefined, this.life.signal));
+      if (!this.current() || epoch !== this.epoch) return;
+      const pivot = caps.resolvedPivot ?? caps.pivots.find(value => value.id === this.source.pivot);
+      this.sorts = this.source.sorts ?? (this.source.sort ? [this.source.sort] : pivot?.defaultSort ?? []);
+      const sort = this.sorts.find(value => JSON.stringify(value) === JSON.stringify(shown.sort)) ?? this.sorts[0];
+      if (!pivot?.browsable || !sort || caps.queryLimits.maximumLimit < 60 || !this.current() || epoch !== this.epoch) return;
+      const entries = this.collection.residentEntries().map(entry => entry.item.entry);
+      const session = this.makeSession(caps, shown.predicates, sort, epoch, {entries});
+      if (!this.current() || epoch !== this.epoch) {session.retire(); return;}
+      this.session = session; previous.retire();
+      this.publish({capabilities: caps, sort, error: undefined});
+      await this.collection.revalidate({fetchPage: session.fetchPage});
+    } catch { /* the page stays: a re-read that failed is never a blank list */ }
   }
   async facets(field: string, query: string, predicates: readonly BrowseNode[], signal: AbortSignal) {
     const {capabilities: caps, sort} = this.state;

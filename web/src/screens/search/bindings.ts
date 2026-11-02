@@ -1,7 +1,7 @@
 import {serverNow} from '@core/server-clock.ts';
 import {forwardIdentity} from '../detail/context';
 import {entryStartDisplay} from '../../platform/playback/subject';
-import {SearchService, readSearchHistory, clearSearchHistory, deleteSearchHistoryEntry, type SearchEntry, type SearchGroup, type SearchQuery} from '@core/search.ts';
+import {SearchService, readSearchHistory, clearSearchHistory, deleteSearchHistoryEntry, type SearchEntry, type SearchGroup, type SearchQuery, type SearchSnapshot} from '@core/search.ts';
 import {serviceI18n} from '@core/presentation/service-text.ts';
 import {guideWindow, parseChannelGuide, type GuideChannel} from '@core/channel-guide.ts';
 import {nowNext, type GuideProgram} from '@core/guide/index.ts';
@@ -65,15 +65,17 @@ function liveCard(channel: GuideChannel, now: number, timezone: string): SearchL
 const NO_LIVE_CARDS: ReadonlyMap<string, SearchLiveCard> = new Map();
 
 /** One session is retained by the parent while Search is off screen; never browser storage. */
-export function createSearchBindings(context: ScreenContext) {
+export function createSearchBindings(context: ScreenContext, page: {initial?: SearchSnapshot} = {}) {
   const life = screenLifetime(context);
-  const service = new SearchService({api: life.api, scope: context.scope});
+  const service = new SearchService({api: life.api, scope: context.scope, ...(page.initial ? {initial: page.initial} : {})});
   const results = createSearchRows(service, life.current);
   const genres = new SearchGenresController({api: life.api, signal: life.signal(), isCurrent: life.current, slot: 'backdrop', limit: 8});
   const onNow = new SearchOnNowController({api: life.api, serverId: context.scope.serverId,
     timezone: serviceI18n().region.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
     isCurrent: life.current, signal: life.signal(), limit: 4});
-  let text = '', group: SearchGroup | undefined;
+  // A page this entry had before starts on the query it showed, so the screen's own submit
+  // effect finds the same query already drawn and only revalidates it.
+  let text = page.initial?.query?.q ?? '', group: SearchGroup | undefined = page.initial?.query?.group;
   let resultKey = '';
   let summary: Readonly<{key: string; groups: readonly Pick<SearchGroupResult, 'id' | 'status' | 'totalCount' | 'totalCountExact'>[]}> | undefined;
   const visible = new Set<SearchEntry>();
@@ -146,7 +148,7 @@ export function createSearchBindings(context: ScreenContext) {
       for (const result of state.groups) for (const entry of result.items) visible.add(entry);
     } finally { syncLive(); }
   });
-  let selectionAttempt = 0, readingOffered = false;
+  let selectionAttempt = 0, readingOffered = page.initial?.data?.capabilities.groups.some(value => value.id === 'reading' && value.available) ?? false;
   const select = async (q: string, options: Omit<SearchQuery, 'q'> = {}) => {
     life.assert(); const attempt = ++selectionAttempt; text = q; group = options.group;
     if (q.trim()) { genres.cancel(); onNow.cancel(); }

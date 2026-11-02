@@ -122,3 +122,94 @@ test('another viewer’s or another route’s page is never adopted', async () =
   assert.equal(wrongTitle.getSnapshot().phase, 'idle', 'a page for one title is not another title’s first paint');
   wrongTitle.dispose();
 });
+
+// ── The siblings: the browse grid and the search results (J-15) ──────────────
+
+const browsePivot = {id: 'movies', labelKey: 'library.movies', entityKinds: ['movie'], defaultSort: [{field: 'title', direction: 'asc'}], supportedViews: ['grid', 'list'], browsable: true, paging: 'offset'};
+const browseCaps = {library: {id: 'lib', name: 'Movies', kind: 'movie', defaultView: 'discover'}, pivots: [browsePivot], resolvedPivot: browsePivot,
+  fields: [], sorts: [{id: 'title', labelKey: 'sort.title', directions: ['asc', 'desc'], defaultDirection: 'asc', applicableKinds: ['movie']}], quickFilters: [],
+  queryLimits: {maximumDepth: 5, maximumClauses: 40, maximumBytes: 65536, maximumSorts: 3, defaultLimit: 60, maximumLimit: 100, cursorTtlMs: 1800000}};
+const browsePage = (start: number, total = 50_000, revision = 'revision-one') => ({pivot: 'movies', applied: {query: null, sort: [{field: 'title', direction: 'asc'}], seek: null},
+  entries: Array.from({length: Math.min(60, total - start)}, (_, n) => ({id: `movie-${start + n}`, kind: 'movie', title: `Movie ${start + n}`, libraryId: 'lib', navigation: {view: 'item'}})),
+  pageInfo: {start, total, totalIsLowerBound: false, revision, hasMore: start + 60 < total, nextCursor: ''}, positionIndex: [{key: 'Z', index: 49_980}]});
+const browseApi = (reply: (path: string, body?: unknown) => unknown) => ({request: async <T,>(path: string, _method?: string, body?: unknown) => (path.includes('capabilities') ? browseCaps : reply(path, body)) as T});
+const settle = async () => {for (let n = 0; n < 10; n++) await new Promise(resolve => setTimeout(resolve, 0));};
+const browseSource = {libraryId: 'lib', pivot: 'movies'};
+
+test('Back draws the browse grid the opening showed, at its positions and total, before its fresh read answers', async () => {
+  const {BrowseController} = await import('../src/screens/browse/controller.ts');
+  const first = new BrowseController(browseApi((_path, body) => browsePage((body as {range: {start: number}}).range.start)) as never, browseSource, () => true);
+  await first.load(); await settle();
+  assert.equal(first.collection.itemAt(0)?.entry.id, 'movie-0');
+  const seed = first.pageSeed()!;
+  assert.ok(seed, 'a shown list is kept as a page');
+  first.dispose();
+  // Back: a brand-new controller restored from the same page, whose server now never answers.
+  const second = new BrowseController(browseApi(() => new Promise(() => {})) as never, browseSource, () => true, seed);
+  assert.equal(second.getSnapshot().phase, 'ready', 'the grid is already there to draw');
+  assert.equal(second.getSnapshot().revision, 'revision-one');
+  assert.equal(second.collection.getSnapshot().total, 50_000);
+  assert.equal(second.collection.itemAt(0)?.entry.id, 'movie-0');
+  assert.equal(second.collection.itemAt(59)?.entry.id, 'movie-59');
+  assert.equal(second.contains(seed.entries[0]!.item.entry), true, 'the restored cards still act on their own list');
+  // The screen's mount read runs in place; nothing the person sees is cleared.
+  void second.load();
+  await settle();
+  assert.equal(second.collection.itemAt(0)?.entry.id, 'movie-0');
+  assert.equal(second.collection.getSnapshot().status, 'ready');
+  assert.equal(second.getSnapshot().phase, 'ready');
+  second.dispose();
+});
+
+test('a browse re-read that fails or times out keeps the grid it showed', async () => {
+  const {BrowseController} = await import('../src/screens/browse/controller.ts');
+  const first = new BrowseController(browseApi((_path, body) => browsePage((body as {range: {start: number}}).range.start)) as never, browseSource, () => true);
+  await first.load(); await settle();
+  const seed = first.pageSeed()!; first.dispose();
+  const failing: readonly (() => Promise<unknown>)[] = [async () => {throw new Error('offline');}, async () => new Promise(() => {})];
+  for (const fail of failing) {
+    const held = new BrowseController({request: async <T,>(path: string) => path.includes('capabilities') ? (await fail()) as T : browsePage(0) as T} as never, browseSource, () => true, seed);
+    void held.load(); await settle();
+    assert.equal(held.collection.itemAt(0)?.entry.id, 'movie-0', 'the list on screen is never blanked by a failed read');
+    assert.equal(held.collection.getSnapshot().total, 50_000);
+    held.dispose();
+  }
+});
+
+test('another query’s browse page is never adopted', async () => {
+  const {BrowseController} = await import('../src/screens/browse/controller.ts');
+  const first = new BrowseController(browseApi((_path, body) => browsePage((body as {range: {start: number}}).range.start)) as never, browseSource, () => true);
+  await first.load(); await settle();
+  const seed = first.pageSeed()!; first.dispose();
+  const predicate = {variant: 'predicate' as const, field: 'watched', operator: 'equals' as const, value: false};
+  const other = new BrowseController(browseApi(() => new Promise(() => {})) as never, {libraryId: 'lib', pivot: 'movies', predicates: [predicate]}, () => true, seed);
+  assert.equal(other.getSnapshot().phase, 'loading', 'a page for one query is not another query’s first paint');
+  assert.equal(other.collection.itemAt(0), undefined);
+  other.dispose();
+});
+
+test('Back draws the search results the entry last showed, then revalidates them in place', async () => {
+  const {SearchService} = await import('@core/search.ts');
+  const page = {q: 'harbor', capabilities: {groups: []}};
+  const snapshot = {generation: 0, scope: {serverId: 'server', viewerId: 'hosted/account/profile'}, query: {q: 'harbor'}, phase: 'ready', data: page,
+    groups: [], pagination: {cursor: null, canPrevious: false}, error: null} as never;
+  const service = new SearchService({api: {request: async () => new Promise(() => {})} as never, scope: {serverId: 'server', viewerId: 'hosted/account/profile'}, timeoutMs: 5, initial: snapshot});
+  assert.equal(service.getSnapshot().phase, 'ready', 'the results are already there to draw');
+  assert.equal(service.getSnapshot().data, page);
+  await service.revalidate();
+  assert.equal(service.getSnapshot().data, page, 'a re-read that never answers keeps the shown results');
+  service.dispose();
+  const other = new SearchService({api: {request: async () => new Promise(() => {})} as never, scope: {serverId: 'server', viewerId: 'someone/else'}, initial: snapshot});
+  assert.equal(other.getSnapshot().phase, 'idle', 'another viewer’s results are never adopted');
+  other.dispose();
+});
+
+test('the browse and Discover pages are keyed by server, viewer and the exact route query', async () => {
+  const {browsePageKey, browseDiscoverKey} = await import('../src/screens/browse/useBrowseLease.ts');
+  const scope = {serverId: 'server', viewerId: 'hosted/account/profile'};
+  const key = browsePageKey({scope}, '{"libraryId":"lib","pivot":"movies"}');
+  assert.notEqual(key, browsePageKey({scope: {...scope, viewerId: 'someone/else'}}, '{"libraryId":"lib","pivot":"movies"}'), 'another viewer keeps its own page');
+  assert.notEqual(key, browsePageKey({scope: {...scope, serverId: 'other'}}, '{"libraryId":"lib","pivot":"movies"}'), 'another server keeps its own page');
+  assert.notEqual(key, browsePageKey({scope}, '{"libraryId":"lib","pivot":"shows"}'), 'another query keeps its own page');
+  assert.notEqual(browseDiscoverKey({scope}, '{"libraryId":"lib","pivot":"movies"}'), key);
+});

@@ -6,6 +6,8 @@ import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
 import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from '../browse/screen-context';
+import {usePageMemory} from '../../platform/freshness';
+import type {SearchSnapshot} from '@core/search.ts';
 import type {ScreenContext} from '../detail/context';
 import {DetailLoading} from '../detail/Loading';
 import {createSearchBindings, type SearchBindings} from './bindings';
@@ -45,8 +47,9 @@ function useSearchOpening(captured: ProtectedLibraryScreen, location: SearchLoca
 
 /** Constructors, subscriptions and terminal resources belong to a committed
  * original context/runtime. Query/group updates never recreate this session. */
-function useSearchLease(context: ScreenContext | undefined, captured: ProtectedLibraryScreen) {
+function useSearchLease(context: ScreenContext | undefined, captured: ProtectedLibraryScreen, entryKey: string) {
   const assembly = captured.context, runtime = captured.binding.playback?.runtime;
+  const pages = usePageMemory();
   const [published, publish] = useState<SearchLease>();
   useLayoutEffect(() => {
     if (!context?.isCurrent()) return;
@@ -54,7 +57,13 @@ function useSearchLease(context: ScreenContext | undefined, captured: ProtectedL
     if (viewer.authority !== 'local' && viewer.authority !== 'hosted') return;
     let live = true;
     const current = () => live && context.isCurrent(), original: ScreenContext = forwardIdentity(context, {isCurrent: current});
-    const binding = createSearchBindings(original);
+    // Back to this history entry draws the results it last showed at once, then runs that
+    // query again in place (the screen's own freshness read revalidates the shown page).
+    const pageKey = JSON.stringify(['search-page', context.scope.serverId, context.scope.viewerId, entryKey]);
+    const binding = createSearchBindings(original, {initial: pages.recall<SearchSnapshot>(pageKey)});
+    const remember = () => {const snapshot = binding.service.getSnapshot(); if (snapshot.phase === 'ready' && snapshot.data && snapshot.query) pages.remember(pageKey, snapshot);};
+    remember();
+    const offRemember = binding.service.subscribe(remember);
     const selection = createSearchSelection(original, binding.results,
       {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId},
       runtime);
@@ -72,15 +81,18 @@ function useSearchLease(context: ScreenContext | undefined, captured: ProtectedL
       const bound = value.bind(target);methods.set(property, {original: value, bound});return bound;
     }});
     publish({context, assembly, runtime, binding: {...binding, service: screenService}, selection, current});
-    return () => {live = false;selection.dispose();binding.dispose();};
-  }, [context, assembly, runtime]);
+    return () => {offRemember();live = false;selection.dispose();binding.dispose();};
+  }, [context, assembly, runtime, entryKey, pages]);
   return context && published && published.context === context && published.assembly === assembly && published.runtime === runtime
     && published.current() ? published : undefined;
 }
 
 function OpenSearch({captured, opening}: {captured: ProtectedLibraryScreen; opening: SearchOpening}) {
   const context = useCommittedLibraryScreenContext(captured, opening.id, () => opening.accepts(router.state.location));
-  const owned = useSearchLease(context, captured);
+  // The history entry is the page's identity: Back returns to this same entry, and its own
+  // last query is what it shows again. The index survives the linked-query echo's replace.
+  const entryKey = String(opening.location.state.__TSR_index ?? opening.location.state.__TSR_key ?? opening.location.href);
+  const owned = useSearchLease(context, captured, entryKey);
   return owned ? <SearchSession owned={owned} opening={opening}/> : <DetailLoading/>;
 }
 function SearchSession({owned, opening}: {owned: SearchLease; opening: SearchOpening}) {
