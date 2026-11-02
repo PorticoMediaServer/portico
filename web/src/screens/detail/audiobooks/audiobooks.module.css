@@ -7,7 +7,11 @@
 .disc { position:relative; width:150px; height:150px; margin:0 auto; border-radius:50%; overflow:hidden; display:grid; place-items:center; box-shadow:0 30px 60px -20px color-mix(in srgb,var(--color-shadow) 90%,transparent); }
 .disc > :first-child { position:absolute; inset:0; filter:blur(18px) saturate(1.5) brightness(.6); }
 .disc b { position:relative; font-size:var(--type-audiobook-disc-glyph-size); font-weight:var(--type-audiobook-disc-glyph-weight); letter-spacing:var(--type-audiobook-disc-glyph-tracking); width:auto; height:auto; }
-.eyebrow { display:block; margin:18px auto 4px; padding:0; border:0; background:none; color:var(--color-accent-strong); font:var(--type-audiobook-detail-eyebrow-weight) var(--type-audiobook-detail-eyebrow-size)/var(--type-audiobook-detail-eyebrow-line) var(--font); }
+/* phone-app 13 (the phone album page): 20px between the square cover and the title. The gap lives
+   on the copy so a book with a series line and one without start at the same place under the cover. */
+.page[data-layout='phone'] .copy { margin-top:20px; }
+.eyebrow { display:block; margin:0 auto 4px; padding:0; border:0; background:none; color:var(--color-accent-strong); font:var(--type-audiobook-detail-eyebrow-weight) var(--type-audiobook-detail-eyebrow-size)/var(--type-audiobook-detail-eyebrow-line) var(--font); }
+.eyebrowLine { margin:0 0 4px; }
 .hero h1 { margin:0 0 4px; font-size:var(--type-audiobook-detail-title-size); line-height:var(--type-audiobook-detail-title-line); font-weight:var(--type-audiobook-detail-title-weight); letter-spacing:var(--type-audiobook-detail-title-tracking); }
 .author { padding:0; border:0; background:none; font:var(--type-audiobook-detail-author-weight) var(--type-audiobook-detail-author-size)/var(--type-audiobook-detail-author-line) var(--font); color:var(--color-accent-strong); }
 .meta { display:flex; flex-wrap:wrap; justify-content:center; margin-top:8px; font-size:var(--type-audiobook-detail-meta-size); gap:6px 12px; color:var(--color-text-secondary); }
