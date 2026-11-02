@@ -4,6 +4,7 @@ package reading
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"io"
 	"io/fs"
@@ -78,10 +79,12 @@ func (i readerAtInfo) Sys() any           { return nil }
 // dictionary/read limits, counted against MaxEntries and MaxExpanded, and solid,
 // encrypted or multi-volume archives are refused whole.
 // RAR3-era containers may select the separate PPM allocator inside the first
-// Read (decode29_ppm), whose heap is not governed by MaxDictionarySize. Only the
-// RAR5 signature is admitted; a legacy RAR4 container is refused before the
-// parser runs rather than promising a bound the option does not provide.
-func preflightRAR(ra io.ReaderAt) error {
+// Read (decode29_ppm), whose heap is not governed by MaxDictionarySize. A RAR5
+// signature is admitted; a legacy RAR4 container is admitted only when every
+// file in it is stored (preflightRAR4), so no RAR4 decoder ever runs. Anything
+// else is refused before the parser runs rather than promising a bound the
+// option does not provide.
+func preflightRAR(ra io.ReaderAt, size int64) error {
 	var head [8]byte
 	if _, err := ra.ReadAt(head[:], 0); err != nil {
 		return archiveFailure(err)
@@ -89,8 +92,92 @@ func preflightRAR(ra io.ReaderAt) error {
 	if head[0] != 'R' || head[1] != 'a' || head[2] != 'r' || head[3] != '!' || head[4] != 0x1a || head[5] != 0x07 {
 		return ErrInvalid
 	}
-	if head[6] != 0x01 || head[7] != 0x00 {
-		return archiveFormatError("cbr")
+	if head[6] == 0x01 && head[7] == 0x00 {
+		return nil
+	}
+	if head[6] == 0x00 {
+		return preflightRAR4(ra, size)
+	}
+	return archiveFormatError("cbr")
+}
+
+// RAR4 block types and flags (RARLAB technote, RAR 2.9/3.x/4.x).
+const (
+	rar4MainHead, rar4FileHead, rar4EndHead      = 0x73, 0x74, 0x7b
+	rar4MainVolume, rar4MainSolid, rar4MainCrypt = 0x0001, 0x0008, 0x0080
+	rar4FileSplit, rar4FileCrypt, rar4FileSolid  = 0x0003, 0x0004, 0x0010
+	rar4FileLarge, rar4LongBlock                 = 0x0100, 0x8000
+	rar4MethodStore                              = 0x30
+)
+
+// preflightRAR4 walks a legacy archive's block headers without decoding
+// anything and admits it only when it is one plain volume whose files are all
+// stored (method 0x30): not encrypted, not solid, not split. Comic pages are
+// already-compressed images, so stored CBRs are common, and reading one is a
+// bounded copy. A compressed RAR4 member is refused as an unsupported format.
+func preflightRAR4(ra io.ReaderAt, size int64) error {
+	at, files := int64(7), 0
+	for blocks := 0; at < size; blocks++ {
+		if blocks > MaxEntries+16 {
+			return ErrLimit
+		}
+		var h [32]byte
+		n, err := ra.ReadAt(h[:], at)
+		if n < 7 {
+			if err == nil || errors.Is(err, io.EOF) {
+				return ErrInvalid
+			}
+			return archiveFailure(err)
+		}
+		kind, flags, headSize := h[2], binary.LittleEndian.Uint16(h[3:5]), int64(binary.LittleEndian.Uint16(h[5:7]))
+		if headSize < 7 {
+			return ErrInvalid
+		}
+		next := at + headSize
+		switch kind {
+		case rar4MainHead:
+			if flags&(rar4MainVolume|rar4MainSolid|rar4MainCrypt) != 0 {
+				return archiveFormatError("cbr")
+			}
+		case rar4FileHead:
+			if headSize < 32 || n < 32 {
+				return ErrInvalid
+			}
+			// A file block carries its data (LONG_BLOCK), as every RAR writer sets it; the pinned
+			// decoder reads the data size only then, so a header without it is refused cleanly here.
+			if flags&rar4LongBlock == 0 || flags&(rar4FileSplit|rar4FileCrypt|rar4FileSolid) != 0 || h[25] != rar4MethodStore {
+				return archiveFormatError("cbr")
+			}
+			packed := int64(binary.LittleEndian.Uint32(h[7:11]))
+			if flags&rar4FileLarge != 0 {
+				var high [4]byte
+				if _, err := ra.ReadAt(high[:], at+32); err != nil {
+					return archiveFailure(err)
+				}
+				packed |= int64(binary.LittleEndian.Uint32(high[:])) << 32
+			}
+			files++
+			next += packed
+		case rar4EndHead:
+			if files == 0 {
+				return ErrInvalid
+			}
+			return nil
+		default:
+			if flags&rar4LongBlock != 0 {
+				if n < 11 {
+					return ErrInvalid
+				}
+				next += int64(binary.LittleEndian.Uint32(h[7:11]))
+			}
+		}
+		if next <= at || next > size {
+			return ErrInvalid
+		}
+		at = next
+	}
+	if files == 0 {
+		return ErrInvalid
 	}
 	return nil
 }
@@ -99,7 +186,7 @@ func openRAR(ctx context.Context, ra io.ReaderAt, size int64) (memberArchive, er
 	if size < 22 || size > MaxSource {
 		return nil, ErrLimit
 	}
-	if err := preflightRAR(ra); err != nil {
+	if err := preflightRAR(ra, size); err != nil {
 		return nil, err
 	}
 	reader, err := rardecode.NewReader(&contextReader{ctx: ctx, r: io.NewSectionReader(ra, 0, size)},

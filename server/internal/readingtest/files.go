@@ -144,6 +144,44 @@ func rarFileBlock(name string, payload []byte) []byte {
 	return rarBlock(rarBlockFile, 0, fields, payload)
 }
 
+// CBR4 is a legacy RAR4 (2.9/3.x/4.x block format) comic whose pages are
+// stored, as many real CBRs are; OPS-2's walk fixture is this shape. method is
+// the RAR4 compression method byte for every member (0x30 stored, 0x33 normal)
+// and flags are added to each file header (0x10 solid, 0x04 encrypted), so a
+// test can build the variants the server refuses. Compressed members carry the
+// raw page bytes: the server must refuse them from the headers alone.
+func CBR4(method byte, fileFlags uint16) []byte {
+	var b bytes.Buffer
+	b.WriteString("Rar!\x1a\x07\x00")
+	b.Write(rar4Block(0x73, 0, make([]byte, 6), nil))
+	for _, member := range comicMembers() {
+		fields := binary.LittleEndian.AppendUint32(nil, uint32(len(member.data)))
+		fields = binary.LittleEndian.AppendUint32(fields, uint32(len(member.data)))
+		fields = append(fields, 3) // host OS: Unix
+		fields = binary.LittleEndian.AppendUint32(fields, crc32.ChecksumIEEE(member.data))
+		fields = binary.LittleEndian.AppendUint32(fields, 0x5a210000) // DOS time
+		fields = append(fields, 20, method)
+		fields = binary.LittleEndian.AppendUint16(fields, uint16(len(member.name)))
+		fields = binary.LittleEndian.AppendUint32(fields, 0o100644<<16)
+		fields = append(fields, member.name...)
+		b.Write(rar4Block(0x74, 0x8000|fileFlags, fields, member.data))
+	}
+	b.Write(rar4Block(0x7b, 0x4000, nil, nil))
+	return b.Bytes()
+}
+
+// rar4Block writes one RAR4 block: CRC16 (low half of the header's CRC32), type,
+// flags, header size, then fields; a file block's packed size is its first field.
+func rar4Block(kind byte, flags uint16, fields, data []byte) []byte {
+	header := []byte{kind}
+	header = binary.LittleEndian.AppendUint16(header, flags)
+	header = binary.LittleEndian.AppendUint16(header, uint16(7+len(fields)))
+	header = append(header, fields...)
+	out := binary.LittleEndian.AppendUint16(nil, uint16(crc32.ChecksumIEEE(header)))
+	out = append(out, header...)
+	return append(out, data...)
+}
+
 // CB7 is a genuine 7z container whose members use the copy (stored) coder, so
 // the server's bounded 7z worker decodes the same pages without compression.
 // Admission and reading need the portico_cb7 build tag.
