@@ -14,6 +14,8 @@ export type NativeAppleActivityOwner = Readonly<{
   /** The Home document this viewer already reads; the index never makes a read of its own. */
   home: () => HomeDocument | undefined;
   subscribeHome: (listener: () => void) => () => void;
+  /** My List, through the one named read (client-core `readWatchlist`). */
+  readSaved: (signal: AbortSignal) => Promise<readonly ContentEntry[]>;
   /** The title the player holds now, if any. */
   playing: () => ContentEntry | undefined;
   subscribePlayback: (listener: () => void) => () => void;
@@ -40,21 +42,35 @@ export function activityTitle(entry: ContentEntry): Title | undefined {
  * Handoff activity; Home's Continue Watching is Siri's title list ("Play … in Portico", "Resume")
  * and Spotlight's results; everything is cleared when this viewer's runtime retires (sign-out,
  * profile switch). Continuing any of them opens `portico://item|play/{id}` (N5-1's intake), which
- * is resolved against whoever is signed in then. My List isn't indexed yet: it has no read here,
- * and the index must not add one. */
+ * is resolved against whoever is signed in then. My List is read once at the start and again
+ * whenever Home's document moves (which follows the viewer's own changes). */
 export function bindAppleActivity(owner: NativeAppleActivityOwner, port: NativeAppleActivityPort, reportError: (error: unknown) => void): () => void {
-  let live = true, indexed: string | undefined, advertised: string | undefined;
+  let live = true, indexed: string | undefined, advertised: string | undefined, saved: readonly Title[] = [], document: HomeDocument | undefined;
+  let reading: AbortController | undefined;
   const guarded = (run: () => void) => {if (!live || !owner.current()) return; try {run();} catch (error) {reportError(error);}};
+  const titles = (entries: readonly ContentEntry[]) => entries.flatMap(entry => {const title = activityTitle(entry); return title ? [title] : [];}).slice(0, 50);
   const index = () => guarded(() => {
-    const document = owner.home();
-    if (!document) return;
-    const row = continueRow(document.rows);
-    const continueWatching = (row?.entries ?? []).flatMap(entry => {const title = activityTitle(entry); return title ? [title] : [];}).slice(0, 50);
-    const key = JSON.stringify(continueWatching);
+    const home = owner.home();
+    if (!home) return;
+    const continueWatching = titles(continueRow(home.rows)?.entries ?? []);
+    const key = JSON.stringify([continueWatching, saved]);
     if (key === indexed) return;
     indexed = key;
-    port.indexTitles({continueWatching, saved: []});
+    port.indexTitles({continueWatching, saved});
   });
+  const readSaved = () => {
+    reading?.abort();
+    const controller = reading = new AbortController();
+    void owner.readSaved(controller.signal).then(entries => {
+      if (controller.signal.aborted || !live || !owner.current()) return;
+      saved = titles(entries); index();
+    }, error => {if (!controller.signal.aborted && live && owner.current()) reportError(error);});
+  };
+  const homeChanged = () => {
+    const next = owner.home();
+    if (next && next !== document) {const first = !document; document = next; if (!first && live && owner.current()) readSaved();}
+    index();
+  };
   const advertise = () => guarded(() => {
     const entry = owner.playing(), title = entry && activityTitle(entry);
     const key = title ? JSON.stringify(title) : undefined;
@@ -62,11 +78,12 @@ export function bindAppleActivity(owner: NativeAppleActivityOwner, port: NativeA
     advertised = key;
     port.setCurrent(title ?? null);
   });
-  const offHome = owner.subscribeHome(index), offPlayback = owner.subscribePlayback(advertise);
-  index(); advertise();
+  const offHome = owner.subscribeHome(homeChanged), offPlayback = owner.subscribePlayback(advertise);
+  if (owner.current()) readSaved();
+  homeChanged(); advertise();
   return () => {
     if (!live) return;
-    live = false; offHome(); offPlayback();
+    live = false; offHome(); offPlayback(); reading?.abort();
     try {port.clear();} catch (error) {reportError(error);}
   };
 }

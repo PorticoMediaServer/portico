@@ -9,10 +9,13 @@ const row = (id: string, entries: unknown[], children?: unknown[]) => ({id, entr
 function rig(over: Partial<NativeAppleActivityOwner> = {}) {
   const calls: unknown[][] = [], home = new Set<() => void>(), playback = new Set<() => void>();
   let document: any = {rows: [row('new_on_server', [movie]), row('continue', [episode, movie])]}, playing: any;
+  let saved: any[] = [], reads = 0;
   const owner: NativeAppleActivityOwner = {current: () => true, home: () => document, subscribeHome: l => {home.add(l); return () => home.delete(l);},
+    readSaved: async () => {reads++; return saved;},
     playing: () => playing, subscribePlayback: l => {playback.add(l); return () => playback.delete(l);}, ...over};
   const dispose = bindAppleActivity(owner, {setCurrent: t => calls.push(['setCurrent', t]), indexTitles: l => calls.push(['index', l]), clear: () => calls.push(['clear'])}, error => {throw error;});
-  return {calls, dispose, setHome: (next: unknown) => {document = next; home.forEach(l => l());}, play: (next: unknown) => {playing = next; playback.forEach(l => l());}, home, playback};
+  return {calls, dispose, setHome: (next: unknown) => {document = next; home.forEach(l => l());}, play: (next: unknown) => {playing = next; playback.forEach(l => l());}, home, playback,
+    setSaved: (next: any[]) => {saved = next;}, reads: () => reads};
 }
 
 test('N2-2: Home\'s Continue Watching becomes Siri\'s title list and Spotlight\'s results, named by the show for an episode', () => {
@@ -52,4 +55,13 @@ test('a retired viewer publishes nothing', () => {
 test('an id the native side would refuse is left out', () => {
   assert.equal(activityTitle({id: 'bad id', kind: 'movie', title: 'X'} as never), undefined);
   assert.equal(activityTitle({id: 'ok', kind: 'movie', title: ''} as never), undefined);
+});
+
+test('My List is read through readWatchlist and indexed beside Continue Watching, and read again when Home moves', async () => {
+  const {calls, setSaved, setHome, reads} = rig();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(reads(), 1);
+  setSaved([movie]); setHome({rows: [row('continue', [episode])]}); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(reads(), 2, 'Home moved: My List is read again');
+  assert.deepEqual(calls.at(-1), ['index', {continueWatching: [{itemId: 'ep1', title: 'Slow Horses', subtitle: 'Failure\'s Contagious'}], saved: [{itemId: 'm1', title: 'Heat'}]}]);
 });

@@ -62,6 +62,7 @@ import {NativeReadOrder, NativeShellFreshness, nativeQueuedRefresh} from './fres
 import {retainNativeDownloadsDevice} from '../screens/downloads/device';
 import {bindNativeTopShelf} from '../platform/top-shelf';
 import {bindNativeAppleActivity} from '../platform/apple-activity';
+import {readWatchlist} from '../../../../packages/client-core/src/saved';
 
 export type NativeRememberedProfile = Readonly<{
   /** True while this device opens the profile that is open now without asking. */
@@ -629,8 +630,11 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       playbackKey: () => {const fence = context.playback.getSnapshot().fence; return !fence ? undefined : fence.kind === 'channel' ? `channel:${fence.channelId}` : `item:${fence.itemId}`;}},
     error => nativeScreenServices(context).reportError(error));
     if (retireTopShelf) cleanups.push(retireTopShelf);
+    // The same Saved scope the Saved pages read with (destinations/lifetime.ts).
+    const savedScope = Object.freeze({serverId: authority.serverId, viewerId: JSON.stringify([session.viewer.authority, authority.accountId, authority.profileId])});
     const retireAppleActivity = bindNativeAppleActivity({current,
       home: () => context.home.getSnapshot().document, subscribeHome: context.home.subscribe,
+      readSaved: signal => readWatchlist(local, savedScope, signal),
       playing: () => {const state = context.playback.getSnapshot(), entry = state.entry;
         return state.fence && state.fence.kind !== 'channel' && entry && ['movie', 'episode', 'extra'].includes(entry.kind) ? entry : undefined;},
       subscribePlayback: context.playback.subscribe}, error => nativeScreenServices(context).reportError(error));
