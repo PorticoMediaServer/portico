@@ -11,6 +11,7 @@ import type {GuideChannel} from '@core/channel-guide.ts';
 import {dependsOn, type FreshDocument} from '@core/freshness-hub.ts';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {homeChannelSelection, homeEntryCapabilities} from '@core/home-selection.ts';
+import {homeContinuationCard} from '@core/presentation/home-continuation.ts';
 import {homeCollectionCaption} from '@core/presentation/home-spotlight.ts';
 import {channelMonograms, programmeFactParts, type TimeEnvironment} from '@portico/client-core/kit-model';
 import {useFreshness, useRecovering} from '../../platform/freshness';
@@ -277,11 +278,10 @@ function VisibleCard({entry, row, rowIndex, index, platform, layout, artwork, ef
   const scale = cardScale(appearance), width = (wide ? layout.wide : square ? layout.square : layout.poster) * scale;
   const resume = row.resumes?.find(value => value.entryId === entry.id)?.target ?? entry;
   const target = homePlaybackTarget(entry, resume);
-  // A continuing Listen next card draws the bar under its art and the time left where the
-  // author/artist line otherwise sits (mock.html#home); both parts come from the shared card text.
-  const continued = square && row.id === 'listen_next' ? homeCardModel(resume, true, {t, locale: time.locale}) : undefined;
-  const left = continued?.detail.find(part => part.id === 'remaining');
-  const model = continued && left ? {...continued, caption: [left], detail: []} : homeCardModel(wide ? resume : entry, wide, {t, locale: time.locale});
+  // A continuing listen or book draws the bar under its art and its continuation where the
+  // author/artist line otherwise sits (HM-4: Continue Listening and Continue your books alike).
+  const ordinary = homeCardModel(wide ? resume : entry, wide, {t, locale: time.locale});
+  const model = square ? homeContinuationCard(row.id, ordinary, homeCardModel(resume, true, {t, locale: time.locale})) : ordinary, continuing = model !== ordinary;
   const source = wide ? entry.backdropUrl ?? entry.posterUrl : entry.posterUrl;
   // The drawn ranked card carries the number and the title only (mock.html#home).
   const ranked = row.id === 'community_watching' && !!row.period;
@@ -295,7 +295,7 @@ function VisibleCard({entry, row, rowIndex, index, platform, layout, artwork, ef
     selection: selection.card(row, entry),
     onMore: selection.moreAvailable(entry) ? (anchor: HTMLButtonElement) => effects.openMore(row, entry, anchor) : undefined,
     moreExpanded: selection.moreExpanded(row, entry)};
-  return <div ref={interest.ref} className={ranked ? styles.scaledRanked : undefined} style={ranked ? {'--home-card-scale': scale} as CSSProperties : undefined}>{ranked ? <RankedCard {...props} rank={row.start + index + 1} /> : wide ? <WideCard {...props} /> : square ? <SquareCard {...props} progressPlacement={left ? 'below' : 'edge'} variant={entry.kind === 'book' || entry.kind === 'audiobook_file' ? 'audiobook' : 'music'} /> : <PosterCard {...props} />}</div>;
+  return <div ref={interest.ref} className={ranked ? styles.scaledRanked : undefined} style={ranked ? {'--home-card-scale': scale} as CSSProperties : undefined}>{ranked ? <RankedCard {...props} rank={row.start + index + 1} /> : wide ? <WideCard {...props} /> : square ? <SquareCard {...props} progressPlacement={continuing ? 'below' : 'edge'} variant={entry.kind === 'book' || entry.kind === 'audiobook_file' ? 'audiobook' : 'music'} /> : <PosterCard {...props} />}</div>;
 }
 
 function VisibleLive({item, mark, nowMs, order, row, artwork, effects, time, selection, appearance}: HomePresentation & {item: HomeChannel; mark: Parameters<typeof LiveCard>[0]['channel']['mark']; nowMs: number; order: number; row: HomeRow}) {

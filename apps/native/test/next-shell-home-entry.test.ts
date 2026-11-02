@@ -1,3 +1,4 @@
+import {homeContinuationCard} from '../../../packages/client-core/src/presentation/home-continuation';
 // @fabric-react
 import * as homeWindow from '../src-next/screens/home/home-window';
 import {homeActionDiagnostics} from '../src-next/platform/home-action-diagnostics.ts';
@@ -72,7 +73,8 @@ async function fixture() {
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
     react, 'react-native': native, 'react-native-reanimated': {default: {ScrollView: 'ScrollView'}, runOnJS: (fn: unknown) => fn, useAnimatedScrollHandler: (fn: unknown) => fn, useSharedValue: (value: unknown) => react.useRef({value}).current},
     '@portico/design': {heroSpec},
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/home-spotlight': homePresentation,
+    '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard},
+    '../../../../../packages/client-core/src/presentation/home-spotlight': homePresentation,
     '../../../../../packages/client-core/src/home-selection': homeCapabilities, '../../../../../packages/client-core/src/presentation/server-text': serverText,
     '../../../../../packages/client-core/src/presentation/errors': {presentError},
     '../../../../../packages/client-core/src/presentation/kit-model': {}, '../../platform/ArtworkPipeline': {}, '../../kit/artwork': {ArtworkArrivalContext: React.createContext(undefined)},
