@@ -541,8 +541,9 @@
 .kind-tv { --kind: #1e5b52; }
 .kind-anime { --kind: #4b4f8f; }
 .kind-music { --kind: #6a3f73; }
-.kind-audiobooks { --kind: #8c4a32; grid-column: span 6; }
-.kind-ebooks { --kind: #796120; grid-column: span 6; }
+.kind-live { --kind: #1f7a8c; grid-column: span 4; }
+.kind-audiobooks { --kind: #8c4a32; grid-column: span 4; }
+.kind-ebooks { --kind: #796120; grid-column: span 4; }
 
 .kind h3 {
   margin: auto 0 8px;
@@ -738,6 +739,42 @@
 
 .art-mixes span + span {
   background: linear-gradient(135deg, rgba(232, 146, 159, 0.3), rgba(133, 77, 115, 0.35));
+}
+
+/* Live TV: a small channel guide. */
+.art-channel {
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.art-channel b {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.art-channel em {
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(241, 121, 121, 0.2);
+  color: #f9b1b1;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.art-recording {
+  justify-self: end;
+  margin-top: 2px;
+}
+
+.art-recording i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f17979;
+  box-shadow: 0 0 0 3px rgba(241, 121, 121, 0.25);
 }
 
 /* Audiobooks: chapter, speed and sleep timer. */
@@ -1813,8 +1850,15 @@ details[open] .questions-icon {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .kind {
+  .kind,
+  .kind-live,
+  .kind-audiobooks,
+  .kind-ebooks {
     grid-column: span 6;
+  }
+
+  .kind:last-child {
+    grid-column: 1 / -1;
   }
 }
 
@@ -2216,5 +2260,59 @@ details[open] .questions-icon {
 
   .steps h3 {
     margin-top: 4px;
+  }
+}
+
+/* Open phone menu. A blurred header around a blurred panel made the panel see-through
+   (the docs header is always blurred), so the open menu drops the blur and is solid. */
+@media (max-width: 960px) {
+  .site-header:has(.header-navigation[data-open]) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .header-navigation[data-open] {
+    background: var(--bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Light documentation keeps the open menu light, so the wordmark, links and buttons stay legible. */
+@media (max-width: 960px) and (prefers-color-scheme: light) {
+  .theme-docs .site-header:has(.header-navigation[data-open]),
+  .theme-docs .header-navigation[data-open] {
+    background: #ffffff;
+  }
+
+  .theme-docs .header-navigation[data-open] {
+    border-bottom-color: var(--d-line);
+    box-shadow: 0 24px 48px -24px rgba(16, 22, 28, 0.25);
+  }
+
+  .theme-docs .header-navigation nav a {
+    border-bottom-color: var(--d-line);
+  }
+
+  .theme-docs .header-navigation nav a[aria-current='page']::after {
+    background: var(--d-accent);
+  }
+
+}
+
+/* App-style buttons have no border; on light documentation the secondary button needs one. */
+@media (prefers-color-scheme: light) {
+  .theme-docs .site-header-docs .header-open {
+    border: 1px solid #cfd6de;
+  }
+
+  .theme-docs .site-header-docs .button-primary {
+    background: var(--d-text);
+    color: #ffffff;
+  }
+
+  .theme-docs .site-header-docs .button-primary:hover {
+    background: #000000;
   }
 }
