@@ -33,7 +33,7 @@ jobs:
     - name: Install locked test dependencies
       run: 'npm ci
 
-        npm --prefix apps/native ci
+        npm --prefix apps/native ci --legacy-peer-deps --workspaces=false
 
         '
     - name: Record only method/path of unexpected requests
