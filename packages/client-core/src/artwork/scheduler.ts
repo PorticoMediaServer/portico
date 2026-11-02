@@ -19,7 +19,9 @@
  *   only high-priority work (the hero backdrop) may use; high priority is a
  *   separate lane that always goes first.
  * - A retryable failure is retried after the server's Retry-After or the
- *   backoff (5 s, 15 s, 45 s by default), whichever is longer. A retry wait
+ *   backoff (1.5 s, then 5 s, 15 s, 45 s by default), whichever is longer: the
+ *   first retry comes quickly because a card shows only its placeholder until
+ *   then (J-25). A retry wait
  *   never holds a slot (no head-of-line blocking). Callers keep waiting on the
  *   same promise, so a card simply fills in later.
  * - After retries run out the key is remembered as failed for a cooldown.
@@ -186,7 +188,7 @@ export class ArtworkScheduler<V> {
     this.isPinned = options.isPinned;
     this.isLargeKey = options.isLargeKey;
     this.maxLargeEntries = Math.max(1, options.maxLargeEntries ?? 4);
-    this.backoffMs = options.backoffMs ?? [5000, 15000, 45000];
+    this.backoffMs = options.backoffMs ?? [1500, 5000, 15000, 45000];
     this.failedCooldownMs = options.failedCooldownMs ?? 60000;
     this.timeoutMs = options.timeoutMs ?? 8000;
     this.now = options.now ?? Date.now;
