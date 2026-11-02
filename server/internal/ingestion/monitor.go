@@ -5,11 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"github.com/PorticoMediaServer/portico/server/internal/worker"
+	"path/filepath"
 	"sort"
 	"time"
 )
@@ -170,7 +170,8 @@ func (s *Service) runMonitor(ctx context.Context) {
 				due, known := fallback[id]
 				if !known {
 					fallback[id] = now.Add(interval)
-					_, _ = s.QueueContext(ctx, source.library, id, nil)
+					// Startup owes only a bounded presence check. A new process or
+					// moved disk must not silently enqueue content re-analysis.
 				} else if !now.Before(due) {
 					add(id, ".", now)
 					fallback[id] = now.Add(interval)

@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/entityid"
 	"github.com/PorticoMediaServer/portico/server/internal/requestinput"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -218,7 +218,11 @@ func (s *Service) CheckSource(ctx context.Context, library, id string, authorize
 	health := "ready"
 	if checkErr != nil {
 		health = "offline"
-	} else if storage.RootIdentity(observed) == "" || source.RootIdentity != "" && !storage.SameRoot(source.RootIdentity, storage.RootIdentity(observed)) {
+	} else if storage.RootIdentity(observed) == "" {
+		health = "offline"
+	}
+	if source.Health == "root_changed" && !source.IdentityConfirmed {
+		// A readable root is not proof that genuinely different media was accepted.
 		health = "root_changed"
 	}
 	if ctx.Err() != nil {
