@@ -2717,7 +2717,6 @@ export * from './metadata-settings.ts';
 
 export {parseFreshnessChange, subscribeFreshness, type FreshnessCounters, type FreshnessChange, type CatalogueFailure} from './freshness.ts';
 export * from './freshness-hub.ts';
-export * from './freshness-pool.ts';
 export * from './freshness-actions.ts';
 export * from './event-feed.ts';
 export * from './home-service.ts';

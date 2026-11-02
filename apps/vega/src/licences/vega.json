@@ -294,6 +294,18 @@
    "text": 4
   },
   {
+   "id": "npm:@tanstack/query-core@5.104.5",
+   "name": "@tanstack/query-core",
+   "version": "5.104.5",
+   "licence": "MIT",
+   "group": "packages",
+   "url": "https://tanstack.com/query",
+   "text": 4,
+   "copyright": [
+    "Copyright (c) 2021-present Tanner Linsley"
+   ]
+  },
+  {
    "id": "npm:abort-controller@3.0.0",
    "name": "abort-controller",
    "version": "3.0.0",
@@ -765,8 +777,8 @@
  "inputs": {
   "apps/native/assets/OFL-Manrope.txt": "58172e0c0fac2cda8a37b348164bb55e44b0e69051e557e92b1d3f6910141f7b",
   "apps/native/licences/assets.json": "c342339c3d04dcc847df15902fe6e4fc3c8c9c69dab0380191dc9df67cf9a006",
-  "apps/native/licences/js-vega.txt": "e43acc411edd36195c0699a1dc9b5731526da255b37846833b28f6f146e6ce70",
-  "apps/vega/package-lock.json": "d01962c7f79b1bfe1aaf5e1e6ceded4972f941a6bdda8f5f9c1c0867580fbddd",
+  "apps/native/licences/js-vega.txt": "7cf5eeb37ac6a6fa006bfa37e0108f67d6b2e3492681b19b9740de9c341db851",
+  "apps/vega/package-lock.json": "006d16d1fd74f76f95c0ced2c3732848b3d72288c2f2b8e1310c11abe61c1888",
   "LICENSE": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
   "packages/design/LICENSE-LUCIDE": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
  }

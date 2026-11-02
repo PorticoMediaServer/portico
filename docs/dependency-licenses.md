@@ -166,6 +166,7 @@ components are described in [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 | `@rolldown/pluginutils` | 1.0.0-rc.3 | MIT |
 | `@rolldown/pluginutils` | 1.0.1 | MIT |
 | `@tanstack/history` | 1.162.4 | MIT |
+| `@tanstack/query-core` | 5.104.5 | MIT |
 | `@tanstack/react-router` | 1.170.36 | MIT |
 | `@tanstack/react-store` | 0.11.1 | MIT |
 | `@tanstack/router-core` | 1.171.30 | MIT |

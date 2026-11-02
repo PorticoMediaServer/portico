@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventsClient} from '../src/playback-v1/events.ts';
 import {FreshnessHub, dependsOn, listedTitlesWithPersonalState, readsPersonalState, titleWithPersonalState, titlesWithPersonalState} from '../src/freshness-hub.ts';
-import {DocumentPool, serviceDocument} from '../src/freshness-pool.ts';
 
 /** A clock the test moves by hand; timers fire in order as it advances. */
 function clock() {
@@ -216,99 +215,6 @@ test('the feed is the source: events move dependencies, a resync makes everythin
   assert.equal(heard, 1);
   off();
   hub.dispose();
-});
-
-test('the last known document is shown at once and read again only if it moved while away', async () => {
-  const c = clock(), hub = new FreshnessHub(c.env), pool = new DocumentPool(hub, {max: 2});
-  let made = 0, disposed = 0, quiet = 0;
-  const make = () => {
-    made++;
-    const listeners = new Set<() => void>();
-    let phase = 'ready';
-    const service = {
-      getSnapshot: () => ({phase}), subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; },
-      revalidate: async () => { quiet++; }, dispose: () => { disposed++; }, set: (p: string) => { phase = p; for (const l of [...listeners]) l(); },
-    };
-    return serviceDocument(service, [dependsOn.content('films')]);
-  };
-  const first = pool.acquire('library:films', make);
-  assert.equal(first.created, true);
-  first.setOpen(true);
-  first.memo.place = 'row 40';
-  first.release();
-  // Back to the same screen: the same service, with what it had, and no read.
-  const again = pool.acquire('library:films', make);
-  assert.equal(again.created, false);
-  assert.equal(again.service, first.service);
-  assert.equal(again.memo.place, 'row 40');
-  again.setOpen(true);
-  await c.advance(60_000);
-  assert.deepEqual([made, quiet], [1, 0]);
-  again.release();
-  // Something moved while the screen was closed: shown at once, then read once, quietly.
-  hub.accept(library('films', '2'));
-  await c.advance(60_000);
-  assert.equal(quiet, 0);
-  const third = pool.acquire('library:films', make);
-  third.setOpen(true);
-  await c.advance(1000);
-  assert.equal(quiet, 1);
-  third.release();
-  // The pool is bounded: the least recently used document nobody is showing goes first.
-  pool.acquire('a', make).release(); pool.acquire('b', make).release();
-  assert.equal(pool.size, 2);
-  assert.equal(disposed, 1);
-  pool.dispose();
-  assert.equal(disposed, 3);
-});
-
-test('a first load that failed with nothing to show is tried again by itself', async () => {
-  const c = clock(), hub = new FreshnessHub({...c.env, backoffMs: [2000, 4000]});
-  const pool = new DocumentPool(hub);
-  let retries = 0, up = false;
-  const listeners = new Set<() => void>();
-  let snapshot: {phase: string; error?: unknown} = {phase: 'loading'};
-  const set = (next: {phase: string; error?: unknown}) => { snapshot = next; for (const l of [...listeners]) l(); };
-  const service = {
-    getSnapshot: () => snapshot, subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; },
-    revalidate: async () => {},
-    retry: async () => { retries++; set({phase: 'loading'}); set(up ? {phase: 'ready'} : {phase: 'error', error: Object.assign(new Error('down'), {status: 503})}); },
-  };
-  const held = pool.acquire('home', () => serviceDocument(service, [dependsOn.libraries]));
-  held.setOpen(true);
-  set({phase: 'error', error: Object.assign(new Error('down'), {status: 503})});
-  await c.advance(1000);
-  assert.equal(retries, 1);
-  await c.advance(2000);
-  assert.equal(retries, 2);
-  up = true;
-  await c.advance(4000);
-  assert.equal(retries, 3);
-  assert.equal(snapshot.phase, 'ready');
-  await c.advance(120_000);
-  assert.equal(retries, 3);
-});
-
-test('a hint that arrives while the first load is still on its way is answered once there is something to show', async () => {
-  const c = clock(), hub = new FreshnessHub(c.env), pool = new DocumentPool(hub);
-  let quiet = 0, retries = 0;
-  const listeners = new Set<() => void>();
-  let snapshot: {phase: string} = {phase: 'loading'};
-  const service = {
-    getSnapshot: () => snapshot, subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; },
-    revalidate: async () => { quiet++; }, retry: async () => { retries++; },
-  };
-  const held = pool.acquire('library', () => serviceDocument(service, [dependsOn.content('films')]));
-  held.setOpen(true);
-  hub.accept(library('films', '2'));
-  await c.advance(5000);
-  assert.deepEqual([quiet, retries], [0, 0], 'nothing to keep yet, and a load in flight is not retried');
-  assert.equal(held.document.getState().stale, true, 'the hint is still owed');
-  snapshot = {phase: 'ready'};
-  for (const l of [...listeners]) l();
-  await c.advance(1000);
-  assert.equal(quiet, 1);
-  assert.equal(held.document.getState().stale, false);
 });
 
 test('History observations refresh history dependencies without moving personal membership', async () => {

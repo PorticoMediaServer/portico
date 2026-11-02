@@ -105,6 +105,18 @@
    "text": 2
   },
   {
+   "id": "npm:@tanstack/query-core@5.104.5",
+   "name": "@tanstack/query-core",
+   "version": "5.104.5",
+   "licence": "MIT",
+   "group": "packages",
+   "url": "https://tanstack.com/query",
+   "text": 2,
+   "copyright": [
+    "Copyright (c) 2021-present Tanner Linsley"
+   ]
+  },
+  {
    "id": "npm:abort-controller@3.0.0",
    "name": "abort-controller",
    "version": "3.0.0",
@@ -710,9 +722,9 @@
   "apps/native/assets/OFL-Manrope.txt": "58172e0c0fac2cda8a37b348164bb55e44b0e69051e557e92b1d3f6910141f7b",
   "apps/native/ios/Podfile.lock": "ad84dfaf578e6fbad684d1df0845d98f61601be2c28d84d71de8cc777af0deec",
   "apps/native/licences/assets.json": "c342339c3d04dcc847df15902fe6e4fc3c8c9c69dab0380191dc9df67cf9a006",
-  "apps/native/licences/js-ios.txt": "5a1242313e25ec3eccb817f5f27fd8e4be6f6649135e6c23d26e3c83e5e4489b",
+  "apps/native/licences/js-ios.txt": "732323d1c53c215e1d701efa1f189714495842dc6fd21b156ee672ce99f4e5e2",
   "apps/native/licences/native-npm.json": "1ff9df1da7e45d202989911471fdee98917cfd573be5c1f7ac84ab3cc95d826a",
-  "apps/native/package-lock.json": "e0d58fe9affc7a639c839bce2af2315b2c51adac9db0682c0c06f4f95ce3c949",
+  "apps/native/package-lock.json": "f46ef2ae844d7fc50db35bd24f092057021d775d9023be65cfc9e1d3c26e6e55",
   "apps/native/tvos/Podfile.lock": "ee61f31ec69ce6616fedc3a8d93edf3660181e7d13183592bc95e74bc1e3cba8",
   "LICENSE": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
   "packages/design/LICENSE-LUCIDE": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",

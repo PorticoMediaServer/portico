@@ -19,6 +19,17 @@ class EngineeringRuleTests(unittest.TestCase):
                       'repeat(task, {everyMs: 1000, backoff})']:
             self.assertEqual(self.found(fixed), {}, fixed)
 
+    def test_client_data_patterns(self):
+        self.assertEqual(self.found('if (data.scope.viewerFence !== this.state.data.scope.viewerFence) throw x;'), {'fence-compare': {'web/src/x.ts': 1}})
+        self.assertEqual(self.found('if (fence === held.fence) return;'), {'fence-compare': {'web/src/x.ts': 1}})
+        self.assertEqual(self.found('const pages = usePageMemory(); const kept = pages.recall(key);'), {'page-memory': {'web/src/x.ts': 2}})
+        self.assertEqual(self.found('export function useBrowseLease(context) {'), {'lease-layer': {'web/src/x.ts': 1}})
+        for fixed in ['useQuery({queryKey: queryKeys.itemDetail(id, "none"), queryFn, meta: {dependencies}})',
+                      'if (next.personal.revision < held.personal.revision) return;',
+                      'const lease = acquireLease();',
+                      'queries.moved(dependsOn.personalTitle(library, id));']:
+            self.assertEqual(self.found(fixed), {}, fixed)
+
     def test_the_homes_of_the_helpers_are_exempt(self):
         self.assertEqual(self.found('a.accessToken === b.accessToken', 'packages/client-core/src/session-authority.ts'), {})
         self.assertEqual(self.found("'retry-after'", 'packages/client-core/src/timer.ts'), {})

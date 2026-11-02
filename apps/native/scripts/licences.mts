@@ -303,8 +303,21 @@ function podspecInfo(file: string): {licence?: string; url?: string} {
   };
 }
 
-function podText(name: string): string | undefined {
-  return folderLicence(path.join(root, PODS_DIR, name));
+/** Texts the list being regenerated already holds, by component id (which pins name and version). */
+let recorded = new Map<string, string>();
+function recordedTexts(client: Client): Map<string, string> {
+  const file = path.join(root, OUTPUTS[client]);
+  if (!existsSync(file)) return new Map();
+  const data = JSON.parse(readFileSync(file, 'utf8')) as LicenceData;
+  // The copyright lines were split off the text when it was recorded: put them back in front, so they are split off the same way.
+  return new Map(data.components.flatMap(c => typeof c.text === 'number' && data.texts[c.text]
+    ? [[c.id, [...(c.copyright?.length ? [c.copyright.join('\n')] : []), data.texts[c.text]!].join('\n\n')] as const] : []));
+}
+
+/** A pod's text from Pods/ (a Mac after `pod install`); elsewhere, the text a Mac run already
+ * recorded for this exact pod and version, so regenerating on Linux never loses it. */
+function podText(name: string, id: string): string | undefined {
+  return folderLicence(path.join(root, PODS_DIR, name)) ?? recorded.get(id);
 }
 
 function nativeLibraryComponents(read: (rel: string) => string, group: 'android' | 'apple'): CollectedComponent[] {
@@ -316,8 +329,9 @@ function nativeLibraryComponents(read: (rel: string) => string, group: 'android'
     const podspec = sources.get(pod.name)?.podspec;
     if (!podspec || !podspec.includes('react-native/third-party-podspecs/')) continue;
     const info = podspecInfo(path.join(root, 'apps/native/ios', podspec));
-    const text = podText(pod.name);
-    out.push({id: `${group === 'android' ? 'rn-native' : 'pod'}:${pod.name}@${pod.version}`, name: pod.name, version: pod.version, licence: info.licence ?? 'See text', group, ...(info.url ? {url: info.url} : {}), ...(text ? {text} : {textPending: true})});
+    const id = `${group === 'android' ? 'rn-native' : 'pod'}:${pod.name}@${pod.version}`;
+    const text = podText(pod.name, id);
+    out.push({id, name: pod.name, version: pod.version, licence: info.licence ?? 'See text', group, ...(info.url ? {url: info.url} : {}), ...(text ? {text} : {textPending: true})});
   }
   return out;
 }
@@ -353,13 +367,13 @@ function podComponents(read: (rel: string) => string, inJs: Set<string>): Collec
     }
     if (name === 'hermes-engine') {
       const rn = JSON.parse(readFileSync(path.join(root, 'apps/native/node_modules/react-native/package.json'), 'utf8'));
-      const text = podText(name);
+      const text = podText(name, `pod:${name}@${version}`);
       out.push({id: `pod:${name}@${version}`, name: 'Hermes', version, licence: rn.license ?? 'MIT', group: 'apple', url: 'https://hermesengine.dev', ...only2, ...(text ? {text} : {textPending: true})});
       continue;
     }
     const trunk = TRUNK_LICENCES[name];
     if (!trunk) throw new Error(`licences: pod ${name} comes from ${located ?? 'the CocoaPods trunk'}; add its licence to TRUNK_LICENCES in apps/native/scripts/licences.mts`);
-    const text = podText(name);
+    const text = podText(name, `pod:${name}@${version}`);
     out.push({id: `pod:${name}@${version}`, name, version, licence: trunk.licence, group: 'apple', url: trunk.url, ...only2, ...(text ? {text} : {textPending: true})});
   }
   return out;
@@ -418,6 +432,7 @@ function appleNativeScope(components: CollectedComponent[], read: (rel: string) 
 
 export function generate(client: Client): LicenceData {
   const {inputs, read} = reader();
+  recorded = recordedTexts(client);
   const sources: LicenceSource[] = [{id: 'portico-apps', url: APPS_SOURCE}, ...(client === 'vega' ? [] : [{id: 'media-engine' as const, url: ENGINE_SOURCE}])];
   const npm = npmComponents(client, read);
   const native = client === 'vega' ? [] : nativeNpm(client, new Set(npm.map(c => c.name)), read);
