@@ -61,7 +61,7 @@ async function mount(snapshot: any, landing: any, text = defaultI18n) {
   });
   const tree = host.render(() => view.SearchScreen({
     destination: {subscribe: () => () => {}, getSnapshot: () => snapshot, refreshHistory: async () => {}, clearHistory: async () => calls.push('clear'), setText: () => {},
-      selectGroup: () => {}, commit: async () => {}, useRecent: () => calls.push('recent'), next: async () => {}, retry: async () => {}},
+      selectGroup: (group: string) => calls.push(`group:${group}`), commit: async () => {}, useRecent: () => calls.push('recent'), next: async () => {}, retry: async () => {}},
     runtime: {artwork: (path: string) => ({uri: path, cacheKey: path}), text, reportError: () => {}, error: () => ({title: 'error'}),
       registerScrollToTop: () => () => {}},
     explore: {subscribe: () => () => {}, getSnapshot: () => landing, load: async () => {}, openGenre: (genre: any) => calls.push(genre.id)},
@@ -152,6 +152,23 @@ test('typed no matches keeps state 17a four backdrop tiles, filtering missing ar
     rendered.find(node => node.props.testID === `search-genre-${backdrops[index]!.id}`)!.props.onPress();
   }
   assert.deepEqual(calls, backdrops.slice(0, 4).map(genre => genre.id), 'each tile keeps its actual producer entry action');
+});
+
+test('a selected type with no matches keeps the chip row and offers everything, not the no-match page (SR-7)', async () => {
+  // DECISIONS.md:160: the row keeps every type once one is selected, because the answer covers that group alone.
+  const groups = [group('movies', [])];
+  const snapshot = {text: 'casablanca', group: 'movies', search: {...idle, phase: 'ready', groups, data: {groups, capabilities}, query: {q: 'casablanca'}},
+    groups, recent: [], clearing: false};
+  const {tree, calls} = await mount(snapshot, {phase: 'ready', genres: [], backdropGenres: [], initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'});
+  const chips = nodes(tree).filter(node => node.type === 'Chip');
+  assert.ok(chips.some(chip => label(chip) === 'All'), 'All stays drawn');
+  assert.equal(chips.find(chip => label(chip) === 'Movies')?.props.selected, true);
+  assert.equal(nodes(tree).some(node => node.props.testID === 'search-no-matches'), false);
+  const none = nodes(tree).find(node => node.props.testID === 'search-none-in')!;
+  assert.equal(none.props.title, defaultI18n.t('web.search.nothingIn', {group: defaultI18n.t(searchGroupLabel('movies'))}));
+  assert.equal(none.props.primaryAction.label, defaultI18n.t('web.search.everything'));
+  none.props.primaryAction.onPress();
+  assert.deepEqual(calls, ['group:all']);
 });
 
 test('phone Search draws the frame 8 results: counted type chips, the 178px top result and per-type row shapes', async () => {

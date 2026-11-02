@@ -47,6 +47,9 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
   const groups = useMemo(() => orderedSearchGroups(state.groups), [state.groups]);
   const typed = state.text.trim().length > 0;
   const empty = typed && state.search.phase === 'ready' && state.groups.every(group => group.status === 'success' && group.totalCount === 0);
+  // SR-7 (DECISIONS.md:160): nothing in one selected type keeps the chip row and offers All;
+  // only a query that matched nothing anywhere draws the no-match page.
+  const emptyAll = empty && state.group === 'all', emptyIn = empty && state.group !== 'all' ? state.group : undefined;
   const loading = state.search.phase === 'loading' && !state.groups.length;
   const top = state.group === 'all' ? topSearchResult(state.text, state.groups) : undefined;
   const run = useCallback((work: Promise<void>) => {void work.catch(runtime.reportError);}, [runtime]);
@@ -78,7 +81,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
   const available = SEARCH_CHIPS.filter(chip => chip.id === 'all' || state.search.data?.capabilities.groups.some(group => group.id === chip.id && group.available))
     // One chip is selected: the answer covers that group alone, so the drawn row keeps its other types.
     .filter(chip => chip.id === 'all' || state.group !== 'all' || !state.groups.some(group => group.id === chip.id && group.status === 'success' && group.totalCount === 0));
-  const chips = typed && !empty && !problem && state.search.data && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, paddingHorizontal: 20, paddingTop: 12}}>
+  const chips = typed && !emptyAll && !problem && state.search.data && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, paddingHorizontal: 20, paddingTop: 12}}>
     {available.map(chip => {
       const group = state.groups.find(value => value.id === chip.id);
       const count = chip.id === 'all' ? state.groups.every(value => value.totalCountExact) ? state.groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined : group?.totalCountExact ? group.totalCount : undefined;
@@ -107,14 +110,14 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
       <Icon name="i-clock" size={19} color={theme.colors.textTertiary}/><Text numberOfLines={1} style={[browseType(theme, 15.5, 600), {color: theme.colors.textSecondary, flex: 1}]}>{recent.q}</Text>
     </Focusable>)}
   </>;
-  const genreTiles = landing.phase === 'ready' ? nativeSearchGenreTiles(empty ? landing.backdropGenres ?? [] : landing.genres, empty ? 'phone-empty' : 'phone') : [];
+  const genreTiles = landing.phase === 'ready' ? nativeSearchGenreTiles(emptyAll ? landing.backdropGenres ?? [] : landing.genres, emptyAll ? 'phone-empty' : 'phone') : [];
   const genres = !genreTiles.length && landing.phase !== 'error' ? null : <>
-    {!!genreTiles.length && <SectionHeading title={t(empty ? landing.emptyHeading : landing.initialHeading)}/>}
+    {!!genreTiles.length && <SectionHeading title={t(emptyAll ? landing.emptyHeading : landing.initialHeading)}/>}
     {/* The genre shelf is optional: its failure is a quiet note, never the page's "Search couldn't finish" (P2-74 E-mobile-28). */}
     {landing.phase === 'error' && <View style={{paddingHorizontal: 16, paddingTop: 8}}><Banner placement="inline" variant="notice" tone="warning" icon="i-alert" message={t('next.search.genresUnavailable')}
       action={{label: t('next.states.tryAgain'), onPress: () => run(explore.load())}}/></View>}
     <View style={{paddingHorizontal: 16, paddingTop: 4, flexDirection: 'row', flexWrap: 'wrap', gap: 10}}>
-      {genreTiles.map(genre => <SearchGenre key={genre.id} genre={genre} empty={empty} runtime={runtime} width={(surface - 42) / 2} onPress={() => explore.openGenre(genre)}/>)}
+      {genreTiles.map(genre => <SearchGenre key={genre.id} genre={genre} empty={emptyAll} runtime={runtime} width={(surface - 42) / 2} onPress={() => explore.openGenre(genre)}/>)}
     </View>
   </>;
   const error = state.search.error && <StateView {...runtime.error(state.search.error, () => run(destination.retry()), 'search')}/>;
@@ -127,8 +130,10 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
     {state.group === 'all' || empty || !typed ? <ScrollView ref={scroll} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom: 28}}>
       {problem && <StateView variant="search" title={problem} style={{margin: 20}}/>}
       {error}
-      {empty && <StateView testID="search-no-matches" variant="search" title={t('next.states.noMatches', {query: state.text.trim()})} body={t('next.states.noMatchesBody')} style={{paddingTop: 26, marginHorizontal: 20}}/>}
-      {(!typed || empty) && (empty ? <>{genres}{history}</> : <>{history}{genres}</>)}
+      {emptyAll && <StateView testID="search-no-matches" variant="search" title={t('next.states.noMatches', {query: state.text.trim()})} body={t('next.states.noMatchesBody')} style={{paddingTop: 26, marginHorizontal: 20}}/>}
+      {emptyIn && <StateView testID="search-none-in" variant="search" title={t('web.search.nothingIn', {group: t(searchGroupLabel(emptyIn))})}
+        primaryAction={{id: 'everything', label: t('web.search.everything'), onPress: () => destination.selectGroup('all')}} style={{paddingTop: 26, marginHorizontal: 20}}/>}
+      {(!typed || emptyAll) && (emptyAll ? <>{genres}{history}</> : <>{history}{genres}</>)}
       {!wideSearch && top && <SearchTopResult entry={top.entry} group={top.group} runtime={runtime} actions={actions} selection={selection?.item(top.entry, top.group)} width={surface - 32}/>}
       {wideSearch ? groups.filter(group => group.items.length).map(group => <View key={group.id}>
         <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 8, marginHorizontal: 20, marginTop: 22, marginBottom: 10}}>
