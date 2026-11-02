@@ -23,13 +23,16 @@ export type SetupError = Readonly<{code: string; retryable: boolean; retryAfterM
 /** How far the server has gone with this person's attempt, which decides what Back may do:
  * `none` nothing to abandon; `unapproved` Back sends S8 abandon; `committed` the server won't take it, so Back shows its phase. */
 export type SetupHold = 'none' | 'unapproved' | 'committed';
+export type SetupLockoutFix = 'address' | 'standard';
+/** Why the address would be refused: Remote access leaves it out, plain HTTP from outside, or an address not in Custom addresses. */
+export type SetupLockoutReason = 'access' | 'http' | 'name';
 
 export type SetupView =
   | Readonly<{kind: 'connecting'}>
   | Readonly<{kind: 'refused'; reason: SetupRefusal}>
   | Readonly<{kind: 'busy_elsewhere'; retryAt?: number; polls: number}>
   | Readonly<{kind: 'form'; mode: SetupFormMode; name: string; earlierExpired?: true}>
-  | Readonly<{kind: 'starting'; mode: SetupKind; name: string; navigate: boolean; step: 'start' | 'initialize' | 'approval' | 'adopt'}>
+  | Readonly<{kind: 'starting'; mode: SetupKind; name: string; navigate: boolean; step: 'start' | 'check' | 'initialize' | 'approval' | 'adopt'}>
   | Readonly<{kind: 'awaiting_approval'; name: string; serverPhase: 'started' | 'awaiting_approval'; approvalUrl?: string; expiresAt?: string; polls: number;
       /** The Portico Account declined the last request: one line says so; Continue and Back are as ever. */ declined?: true}>
   | Readonly<{kind: 'finishing'; slow: boolean; polls: number}>
@@ -37,6 +40,9 @@ export type SetupView =
   | Readonly<{kind: 'admitting'}>
   | Readonly<{kind: 'renewing'}>
   | Readonly<{kind: 'starting_over'; name: string}>
+  /** The lockout warning (auth.html 1e panel 5): the address in use would be refused once setup is complete, for `reason`.
+   * `fixes` are only those that would let it in; `resume` is the start, about to initialize. */
+  | Readonly<{kind: 'lockout'; reason: SetupLockoutReason; fixes: readonly SetupLockoutFix[]; address?: string; resume: Extract<SetupView, {kind: 'starting'}>}>
   /** From outside the server's network the server asks for the setup code from its log (auth.html 1e panels 1–2);
    * `resume` is the start it interrupted, which runs again with the code. */
   | Readonly<{kind: 'code'; name: string; invalid: boolean; resume: Extract<SetupView, {kind: 'starting'}> | Readonly<{kind: 'starting_over'; name: string}>}>
@@ -57,6 +63,9 @@ export type SetupEffect =
   | Readonly<{kind: 'approve-in-app'}>
   | Readonly<{kind: 'abandon'}>
   | Readonly<{kind: 'start-over'; code?: string}>
+  | Readonly<{kind: 'remote-check'}>
+  /** Applied to the controller's own Remote choices before initialize; no port. */
+  | Readonly<{kind: 'remote-fix'; fix: SetupLockoutFix; address?: string}>
   | Readonly<{kind: 'retry-delivery'}>
   | Readonly<{kind: 'exchange'}>
   | Readonly<{kind: 'renew'}>
@@ -68,7 +77,7 @@ export type SetupEffect =
   | Readonly<{kind: 'cancel-pending'}>;
 export type SetupEffectKind = SetupEffect['kind'];
 /** Effects whose failure comes back as `effectFailed`. */
-export type SetupEffectName = 'start' | 'initialize' | 'request-approval' | 'approve-in-app' | 'abandon' | 'start-over' | 'retry-delivery' | 'exchange' | 'renew' | 'adopt-owner' | 'add-library';
+export type SetupEffectName = 'start' | 'remote-check' | 'initialize' | 'request-approval' | 'approve-in-app' | 'abandon' | 'start-over' | 'retry-delivery' | 'exchange' | 'renew' | 'adopt-owner' | 'add-library';
 
 export type SetupInput =
   // intents
@@ -81,6 +90,7 @@ export type SetupInput =
   /** Start over: end whatever setup is unfinished on the server and begin again here. */
   | Readonly<{kind: 'startOver'}>
   | Readonly<{kind: 'submitCode'; code: string}>
+  | Readonly<{kind: 'lockoutFix'; fix: SetupLockoutFix}>
   | Readonly<{kind: 'retry'}>
   | Readonly<{kind: 'approveInApp'}>
   | Readonly<{kind: 'addLibrary'}>
@@ -104,6 +114,8 @@ export type SetupInput =
   | Readonly<{kind: 'abandonRefused'}>
   | Readonly<{kind: 'startedOver'}>
   | Readonly<{kind: 'setupCodeRequired'}>
+  | Readonly<{kind: 'remoteOk'}>
+  | Readonly<{kind: 'remoteRefused'; reason: SetupLockoutReason; fixes: readonly SetupLockoutFix[]; address?: string}>
   | Readonly<{kind: 'setupCodeInvalid'}>
   | Readonly<{kind: 'deliveryRetried'}>
   | Readonly<{kind: 'exchangeDone'}>
@@ -189,6 +201,18 @@ function startingOver(view: Extract<SetupView, {kind: 'starting_over'}>, i: Setu
   }
 }
 
+function lockout(view: Extract<SetupView, {kind: 'lockout'}>, i: SetupInput): SetupStep {
+  switch (i.kind) {
+    case 'lockoutFix': {
+      if (!view.fixes.includes(i.fix)) return stay(view);
+      const r = view.resume, init: SetupEffect = r.mode === 'hosted' ? {kind: 'initialize-hosted', name: r.name} : {kind: 'initialize-local', name: r.name};
+      return go(r, [{kind: 'remote-fix', fix: i.fix, ...(i.fix === 'address' && view.address ? {address: view.address} : {})}, init]);
+    }
+    case 'back': return leave('none', view.resume.name);
+    default: return stay(view);
+  }
+}
+
 function code(view: Extract<SetupView, {kind: 'code'}>, i: SetupInput): SetupStep {
   switch (i.kind) {
     case 'submitCode': {
@@ -241,7 +265,13 @@ function starting(view: Extract<SetupView, {kind: 'starting'}>, i: SetupInput, n
     case 'setupCodeInvalid': return step === 'start' ? go({kind: 'code', name, invalid: true, resume: view}) : stay(view);
     case 'startDone':
       if (step !== 'start') return stay(view);
+      return go({...view, step: 'check'}, [{kind: 'remote-check'}]);
+    case 'remoteOk':
+      if (step !== 'check') return stay(view);
       return go({...view, step: 'initialize'}, [hosted ? {kind: 'initialize-hosted', name} : {kind: 'initialize-local', name}]);
+    case 'remoteRefused':
+      if (step !== 'check') return stay(view);
+      return go({kind: 'lockout', reason: i.reason, fixes: i.fixes, ...(i.address ? {address: i.address} : {}), resume: {...view, step: 'initialize'}});
     case 'initializeDone':
       if (step !== 'initialize') return stay(view);
       return hosted ? go({...view, step: 'approval'}, [{kind: 'request-approval', navigate: view.navigate}]) : go({...view, step: 'adopt'}, [{kind: 'adopt-owner'}]);
@@ -256,6 +286,8 @@ function starting(view: Extract<SetupView, {kind: 'starting'}>, i: SetupInput, n
     case 'back': return step === 'start' ? leave('none', name) : hosted ? leave('unapproved', name) : stay(view);
     case 'effectFailed': {
       if (step === 'start' && i.effect === 'start') return failedStep(i.error, name, 'none', view, [{kind: 'start'}]);
+      // The warning is advice: a check that can't run never holds setup up.
+      if (step === 'check' && i.effect === 'remote-check') return go({...view, step: 'initialize'}, [hosted ? {kind: 'initialize-hosted', name} : {kind: 'initialize-local', name}]);
       if (step === 'initialize' && i.effect === 'initialize') return failedStep(i.error, name, hosted ? 'unapproved' : 'none', view, [hosted ? {kind: 'initialize-hosted', name} : {kind: 'initialize-local', name}]);
       if (step === 'approval' && i.effect === 'request-approval') return failedStep(i.error, name, 'unapproved', view, [{kind: 'request-approval', navigate: view.navigate}]);
       if (step === 'adopt' && i.effect === 'adopt-owner') return failedStep(i.error, name, 'committed', view, [{kind: 'adopt-owner'}]);
@@ -389,6 +421,7 @@ export function stepSetup(view: SetupView, input: SetupInput, now: number): Setu
     case 'failed': return failed(view, input);
     case 'starting_over': return startingOver(view, input);
     case 'code': return code(view, input);
+    case 'lockout': return lockout(view, input);
     case 'ended':
       if (input.kind === 'startOver') return startOver(view.name);
       return input.kind === 'back' || input.kind === 'startAgain' ? leave(view.outcome === 'superseded' ? 'none' : 'unapproved', view.name) : stay(view);

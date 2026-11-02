@@ -1,6 +1,6 @@
 import {defaultI18n} from '../../../i18n/src/index.ts';
 import {NeedsNewerAppError} from '../needs-newer-app.ts';
-import type {SetupError, SetupOutcome, SetupView} from '../setup-machine.ts';
+import type {SetupError, SetupLockoutReason, SetupOutcome, SetupView} from '../setup-machine.ts';
 import {presentError} from './errors.ts';
 
 /** First-run setup's words for its states, shared by the web page and the app. */
@@ -45,4 +45,11 @@ export function setupStartOverOffer(view: Readonly<{kind: string; outcome?: stri
     case 'failed': return view.hold === 'committed' ? {offer: true, confirm: true} : {offer: false, confirm: false};
     default: return {offer: false, confirm: false};
   }
+}
+
+/** The lockout warning's reason line (auth.html 1e panel 5): why the address in use won't work once setup is complete. */
+export function setupLockoutReason(reason: SetupLockoutReason): string {
+  if (reason === 'http') return defaultI18n.t('web.setup.lockoutHttp');
+  if (reason === 'name') return defaultI18n.t('web.setup.lockoutName');
+  return defaultI18n.t('web.setup.lockoutAccess');
 }

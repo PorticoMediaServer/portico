@@ -802,6 +802,7 @@ func restrictionWriteRoutes() map[string]writeRoute {
 		"POST /v1/setup/app":                                writeExempt(reasonSignIn),
 		"POST /v1/setup/browser":                            writeExempt(reasonSignIn),
 		"POST /v1/setup/start-over":                         writeExempt(reasonSignIn),
+		"POST /v1/setup/remote-check":                       writeExempt(reasonSignIn),
 		"POST /v1/auth/portico-return/exchange":             writeExempt(reasonSignIn),
 		"POST /v1/auth/portico-return/prepare":              writeExempt(reasonSignIn),
 		"POST /v1/auth/move/password":                       writeExempt("a Waiting account's old password proves only that account's move; no catalogue lookup"),

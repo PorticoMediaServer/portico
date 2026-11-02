@@ -35,7 +35,7 @@ func TestSetupRemoteChoices(t *testing.T) {
 			}
 			var gotAccess, gotSecurity string
 			var inTx bool
-			s.SetupRemoteTx = func(ctx context.Context, tx *sql.Tx, access, security string) error {
+			s.SetupRemoteTx = func(ctx context.Context, tx *sql.Tx, access, security, _ string) error {
 				gotAccess, gotSecurity = access, security
 				// Setup's own transaction: the name it is writing is already there.
 				var name string
@@ -70,7 +70,7 @@ func TestSetupRemoteChoicesFailureFailsSetup(t *testing.T) {
 	}
 	token, _ := os.ReadFile(s.setupPath)
 	boom := errors.New("boom")
-	s.SetupRemoteTx = func(context.Context, *sql.Tx, string, string) error { return boom }
+	s.SetupRemoteTx = func(context.Context, *sql.Tx, string, string, string) error { return boom }
 	if _, e := s.SetupWithOptions(ctx, SetupOptions{RequestID: "33333333-3333-4333-8333-333333333333", SetupToken: string(token), Name: "Home"}, false); !errors.Is(e, boom) {
 		t.Fatalf("setup went on without its remote choices: %v", e)
 	}
