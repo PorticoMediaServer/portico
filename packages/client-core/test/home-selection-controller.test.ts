@@ -704,3 +704,40 @@ test('J-28: a season card with no playable next episode still opens its menu, wi
   assert.ok(ids.includes('watchlist' as never) || ids.length > 0, 'other actions stay');
   h.controller.dispose();
 });
+
+test('a Continue Watching card offers Remove, dismisses at its own revision and returns an Undo that restores it (HM-1)', async () => {
+  const calls: {path: string; method?: string; body: any}[] = [];
+  let revisionNow = 4;
+  const api: HomeSelectionOptions['api']['request'] = async (path, method, body) => {
+    calls.push({path, method, body});
+    revisionNow++;
+    return {operationId: (body as any).operationId, itemId: 'movie', serverId: 'server', libraryId: 'library', viewerFence: fence, current: {revision: revisionNow}} as never;
+  };
+  const movie: HomeEntry = {...entry('movie'), title: 'Inside Out', homeActions: {...offers({removeFromContinue: true}), state: {...offers().state, personalRevision: 4}}};
+  const plain = entry('other');
+  const h = harness([movie, plain], api);
+  let rereads = 0;
+  (h.options.home as any).revalidate = async () => {rereads++;};
+  h.controller.registerWindow({id: 'window', row: h.document.rows[0], sectionOrder: 0});
+  h.controller.openMenu('window', h.controller.key({kind: 'movie', id: 'other', libraryId: 'library'}));
+  assert.equal(h.controller.getSnapshot().menu!.groups.some(group => group.actions.some(action => action.id === 'removeFromContinueWatching')), false, 'not offered without the server grant');
+  h.controller.closeMenu();
+  h.controller.openMenu('window', h.controller.key({kind: 'movie', id: 'movie', libraryId: 'library'}));
+  assert.ok(h.controller.getSnapshot().menu!.groups.some(group => group.actions.some(action => action.id === 'removeFromContinueWatching')));
+  const outcome = await h.controller.executeMenu('removeFromContinueWatching');
+  assert.ok(outcome && outcome.kind === 'removedFromContinue');
+  assert.equal(outcome.title, 'Inside Out');
+  assert.equal(calls.length, 1);
+  assert.match(calls[0]!.path, /\/v1\/items\/movie\/personal-state$/);
+  assert.equal(calls[0]!.method, 'PUT');
+  assert.deepEqual({expectedRevision: calls[0]!.body.expectedRevision, continueDismissed: calls[0]!.body.continueDismissed}, {expectedRevision: 4, continueDismissed: true});
+  assert.equal(h.controller.getSnapshot().action.phase, 'complete');
+  assert.equal(rereads, 1, 'Home reads again after the dismissal');
+  await outcome.undo();
+  assert.equal(rereads, 2, 'and after Undo, so an emptied row comes back');
+  assert.equal(calls.length, 2);
+  assert.deepEqual({expectedRevision: calls[1]!.body.expectedRevision, continueDismissed: calls[1]!.body.continueDismissed}, {expectedRevision: 5, continueDismissed: false}, 'Undo restores at the revision the dismissal returned');
+  assert.notEqual(calls[0]!.body.operationId, calls[1]!.body.operationId);
+  assert.equal(h.errors.length, 0); h.controller.dispose();
+  await assert.rejects(outcome.undo(), /stale-home-context/, 'never after the controller retired');
+});

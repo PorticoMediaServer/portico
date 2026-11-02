@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useSyncExternalStore, type RefObject} from 'react';
+import {useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
 import {defaultI18n} from '@i18n';
 import type {BrowserQueryActionHost} from '../screens/browse/selection-action-host';
 import type {SelectionContext} from '@core/selection-model/types.ts';
@@ -8,7 +8,7 @@ import {presentError} from '@core/presentation/errors.ts';
 import {homeEntryCapabilities} from '@core/home-selection.ts';
 import {Artwork} from '../kit/artwork';
 import {Button, Select} from '../kit/controls';
-import {Banner, Dialog, Menu} from '../kit/overlays';
+import {Banner, Dialog, Menu, ToastHost, type ToastData} from '../kit/overlays';
 import {BulkEditor, DeleteMediaDialog, MixedEditExplainer, PhoneActionBar, SelectionBar} from '../kit/selection';
 import {OwnerTag, ServerAudienceTag, ServerMark, type EditorAudience} from '../kit/shell';
 import type {ShellArtwork} from './artwork';
@@ -82,7 +82,15 @@ export function SelectionSurfaces({source}: {source: SelectionRendererSource}) {
   }, [controller, source]);
   const menu = snapshot.menu;
   const rating = menu?.member.entry && homeEntryCapabilities(menu.member.entry, {platform: 'web', playbackAvailable: true, queueAvailable: true}).rating;
-  const entries = menu ? titleMenuEntries(menu.groups, {rating, onSelect: id => run(source, () => controller.executeMenu(id))}) : [];
+  // HM-1 (motion.html 3.10): Remove from Continue Watching leaves a note with Undo for 8 s.
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const entries = menu ? titleMenuEntries(menu.groups, {rating, onSelect: id => run(source, async () => {
+    const outcome = await controller.executeMenu(id);
+    if (!outcome) return;
+    const toastId = crypto.randomUUID();
+    setToast({id: toastId, durationMs: 8000, message: t('next.home.removedFromContinue', {title: outcome.title}),
+      action: {label: t('action.undo'), onAction: () => {setToast(null); run(source, outcome.undo);}}});
+  })}) : [];
   const dialogSummary = summarizeSelection(snapshot.displayMembers.map(member => member.item));
   const editor = snapshot.editor, deletion = snapshot.deletion;
   const editorResult = editor && editorResultView(editor.receipts);
@@ -93,6 +101,7 @@ export function SelectionSurfaces({source}: {source: SelectionRendererSource}) {
   const editorBusy = editor?.phase === 'loading' || editor?.phase === 'saving';
   const singleEditor = source.metadata && editor?.phase === 'ready' && editor.preview?.total === 1 && editor.preview.targets.length === 1 && snapshot.displayMembers.length === 1 && source.metadata.current(snapshot);
   return <>
+    <ToastHost toast={toast} onDismiss={id => setToast(current => current?.id === id ? null : current)} />
     {source.queryActions?.surface}
     {snapshot.selection.active && <div className={styles.bar}><SelectionBar selection={{count: summary.count, kind: summary.types.length === 1 ? summary.types[0].kind : undefined}}
       actions={actionsFor(source, snapshot)} typeCount={summary.types.length} selectAll={{kind: 'row'}}

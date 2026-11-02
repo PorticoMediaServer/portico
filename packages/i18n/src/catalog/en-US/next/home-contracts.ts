@@ -1,6 +1,7 @@
 /** Home composition copy. Registered by the next catalogue owner at integration. */
 export const homeContractsMessages = {
   'next.home.continueWatching': 'Continue Watching',
+  'next.home.removedFromContinue': 'Removed “{title}” from Continue Watching.',
   'next.home.newOnServer': 'New on your server',
   'next.home.videoKinds': 'Movies, shows and anime',
   'next.home.becauseHeading': 'Because you watched',

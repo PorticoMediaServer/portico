@@ -77,6 +77,8 @@ function menuCapabilities(kind:ContentEntryKind,actions:HomeActions|undefined,pl
     addToPlaylist:grants.playlist,addToCollection:grants.collection,
     ...(grants.download?{download:container?'container' as const:'media' as const}:{}),
     ...(actions.notInterested===true&&platform.recommendationRow===true?{notInterested:true}:{}),
+    // HM-1: the server offers this only on a Continue Watching card (live, or a title since removed).
+    ...(actions.removeFromContinue===true?{continueWatching:true}:{}),
     details:actions.details,editMetadata:grants.edit,refreshMetadata:grants.refresh,delete:grants.delete,
   });
 }

@@ -1,11 +1,11 @@
-import React, {useSyncExternalStore, type RefObject} from 'react';
+import React, {useState, useSyncExternalStore, type RefObject} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import type {HomeSelectionController} from '../../../../packages/client-core/src/home-selection/index';
 import type {SelectionKind} from '../../../../packages/client-core/src/selection-model/index';
 import {presentError} from '../../../../packages/client-core/src/presentation/errors';
 import {serverTextLabel} from '../../../../packages/client-core/src/presentation/server-text';
-import {Menu, type MenuAction, type MenuEntry} from '../kit/overlays';
+import {Menu, ToastHost, type MenuAction, type MenuEntry, type ToastMessage} from '../kit/overlays';
 import {titleMenuItems} from '../kit/overlays/title-menu';
 import {TouchMenuHeader} from '../kit/overlays/Menu';
 import {DeleteMediaDialog, MixedEditExplainer, RatingDialog} from '../kit/selection';
@@ -32,6 +32,7 @@ export function HomeSelectionOverlays({controller, runtime, ownerTag, reportErro
   queryActions?: NativeHomeQueryActions; controller: HomeSelectionController; runtime?: NativeShellRuntime; ownerTag: React.ReactNode; reportError: (error: unknown) => void; anchorRef?: RefObject<View | null>;
 }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), theme = useTheme();
+  const [toast, setToast] = useState<ToastMessage | null>(null);
   const queryState = useSyncExternalStore(queryActions?.subscribe ?? noQuerySubscribe, () => queryActions?.getSnapshot()?.getSnapshot());
   const queryAction = queryActions?.getSnapshot();
   if (!runtime) return null;
@@ -61,7 +62,12 @@ export function HomeSelectionOverlays({controller, runtime, ownerTag, reportErro
   const rowTitle = row ? serverTextLabel(defaultI18n, row.titleText, row.title) : '';
   const seeAll: MenuAction[] = row?.seeAll ? [{id: 'see-all', label: `${t('shelf.seeAll')} ${rowTitle}`, icon: 'i-grid',
     onSelect: () => {controller.closeMenu(); runtime.actions.seeAll(row.seeAll!, rowTitle);}}] : [];
-  const items: MenuEntry[] = menu ? titleMenuItems(menu.groups, {tv: theme.isTV, run: action => {void controller.executeMenu(action).catch(reportError);},
+  const items: MenuEntry[] = menu ? titleMenuItems(menu.groups, {tv: theme.isTV, run: action => {void controller.executeMenu(action).then(outcome => {
+      if (!outcome) return;
+      // HM-1 (motion.html 3.10): the card leaves; a note with Undo stays 8 s.
+      setToast({id: `${outcome.kind}:${Date.now()}`, durationMs: 8000, message: t('next.home.removedFromContinue', {title: outcome.title}),
+        action: {label: t('action.undo'), onPress: () => {void outcome.undo().catch(reportError);}}});
+    }).catch(reportError);},
     surface: select ? [select] : [], trailing: seeAll}) : [];
   const typeCounts = new Map<SelectionKind, number>();
   for (const member of members) typeCounts.set(member.item.kind, (typeCounts.get(member.item.kind) ?? 0) + 1);
@@ -77,6 +83,7 @@ export function HomeSelectionOverlays({controller, runtime, ownerTag, reportErro
     : menuEntry?.kind === 'artist' ? 'search.kind.artist' : menuEntry?.kind === 'album' ? 'search.kind.album' : undefined;
   const menuArtwork = menuEntry?.posterUrl ? runtime.artwork(menuEntry.posterUrl) : undefined;
   return <>
+    <ToastHost toast={toast} onDismiss={id => setToast(current => current?.id === id ? null : current)}/>
     <Menu testID={theme.isTV && state.menu ? tvFocusIds(runtime.getSnapshot().authority).menu(state.menu.windowId, state.menu.key) : undefined}
       open={!!state.menu} onOpenChange={open => {if (!open) controller.closeMenu();}} title={state.menu ? memberTitle(state.menu.member, runtime) : undefined}
       items={items} anchorRef={anchorRef} touchContext={!theme.isTV} width={theme.isTV ? undefined : 300} presentation={theme.isTV ? 'sideSheet' : undefined}

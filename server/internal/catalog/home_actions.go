@@ -117,12 +117,18 @@ func (s *Service) ProjectHomeActions(v Viewer, authority HomeActionAuthority, ro
 	}
 	entries := []*ContentEntry{}
 	collections := map[*HomeCollection]*ContentEntry{}
+	// HM-1: a live Continue Watching card offers the non-destructive dismissal
+	// (motion.html 3.10); the same title elsewhere on Home does not.
+	continuing := map[*ContentEntry]bool{}
 	var collect func([]HomeRow)
 	collect = func(rows []HomeRow) {
 		for i := range rows {
 			row := &rows[i]
 			for j := range row.Entries {
 				entries = append(entries, &row.Entries[j])
+				if row.ID == "continue" {
+					continuing[&row.Entries[j]] = true
+				}
 			}
 			for j := range row.Resumes {
 				entries = append(entries, &row.Resumes[j].Target)
@@ -253,6 +259,7 @@ func (s *Service) ProjectHomeActions(v Viewer, authority HomeActionAuthority, ro
 		a.MyList = authority.Personal && (leaf || containerSaves(f.kind, "watchlisted"))
 		a.Favorite = authority.Personal && (leaf || containerSaves(f.kind, "favorite"))
 		a.Watched = authority.Personal && (f.kind == "movie" || f.kind == "episode" || f.kind == "show" || f.kind == "season")
+		a.RemoveFromContinue = authority.Personal && continuing[entry] && (f.kind == "movie" || f.kind == "episode")
 		a.Played = authority.Personal && (f.kind == "song" || f.kind == "audiobook_file" || f.kind == "album" || f.kind == "book")
 		a.Rating = authority.Personal && leaf
 		a.EditMetadata = authority.Metadata && (leaf || f.kind == "show" || f.kind == "season" || f.kind == "album" || f.kind == "artist" || f.kind == "book")
