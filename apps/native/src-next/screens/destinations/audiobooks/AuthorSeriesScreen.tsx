@@ -149,7 +149,7 @@ export function AuthorSeriesScreen({controller, entry, runtime, actions, openEnt
         {facts.map((fact, index) => <Text key={fact} style={[browseType(theme, tv ? 24 : 13, index === 0 ? 700 : 400), {color: index === 0 ? theme.colors.text : theme.colors.textSecondary}]}>{fact}</Text>)}
       </View>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 18 : 10, marginTop: tv ? 26 : 18, alignSelf: tv ? 'flex-start' : 'stretch'}}>
-        <Button focusId={resumeFocusId} icon="i-play" disabled={failed || !books.length} onPress={start} accessibilityLabel={resumeLabel} hasTVPreferredFocus={tv} style={{flex: tv ? undefined : 1, minWidth: tv ? 320 : undefined}}>{resumeLabel}</Button>
+        <Button focusId={resumeFocusId} icon="i-play" disabled={failed || !books.length} onPress={start} accessibilityLabel={resumeLabel} preferredFocus={tv} style={{flex: tv ? undefined : 1, minWidth: tv ? 320 : undefined}}>{resumeLabel}</Button>
         {series && books[0] ? <Button focusId={startFocusId} variant="glass" icon="i-restart" iconOnly={!tv} onPress={() => open(books[0]!)} accessibilityLabel={t(tv ? 'action.startSeriesOver' : 'action.startOver')}>{tv ? t('action.startSeriesOver') : undefined}</Button> : null}
         {tv ? <Button focusId={moreFocusId} variant="glass" iconOnly icon="i-more" accessibilityLabel={t('card.more', {title})} onPress={() => actions.menu(entity)}/> : null}
       </View>

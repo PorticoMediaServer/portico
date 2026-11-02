@@ -9,10 +9,10 @@ import {FocusItem, FocusProvider, FocusRegion, focusTestID, useOptionalFocusRegi
 import {reconcileRowSlots, indexRowSlots, visibleRowSlots, rowNeedsPage, type RowPage} from './row-state';
 import {useRowPageBoundary} from '../focus/page-boundary';
 import {useFocusAnchor} from './FocusAnchor';
-import {tvScrollEnabled} from './tv-scroll';
 import {captionItemHeight} from './model';
 import {MotionItem} from './MotionItem';
 import {itemSelection, type LayoutItemContext, type LayoutSelection} from './types';
+import {TVRow} from './TVRow';
 
 export type RowProps<T> = {
   title: string;
@@ -99,8 +99,6 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
   // Only an opted-in predicate filters the declared entry. Without one, the entry is passed on
   // exactly as before, including an entry that the order does not contain.
   const activeEntry = !isFocusable || (focus?.entry && activeOrder.includes(focus.entry)) ? focus?.entry : undefined;
-  // W-17: a TV row with nothing focusable in it (empty, or every slot inert) must not be a focus stop itself.
-  const hasFocusable = useMemo(() => rowIndex.slots.some(slot => slot.waiting || !isFocusable || isFocusable(slot.item)), [isFocusable, rowIndex]);
   const focusedSlot = focused ? rowIndex.byFocus.get(focused) : undefined;
   const remembered = focus ? registry?.remembered(focus.id) : focused;
   const [arrowFocus, setArrowFocus] = useState<'back' | 'forward' | 'all'>();
@@ -187,7 +185,7 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
     </View>}
     <RowRegion focus={theme.isTV ? focus : undefined} order={activeOrder} entry={activeEntry}
       enabled={isFocusable && activeOrder.length === 0 ? false : undefined}>
-    <Animated.ScrollView horizontal scrollEnabled={tvScrollEnabled(theme.isTV, hasFocusable)} ref={anchor.scrollRef} style={[theme.isTV ? {marginTop: -top} : undefined, anchor.scrollStyle]} onLayout={event => setWidth(event.nativeEvent.layout.width)}
+    <TVRow><Animated.ScrollView horizontal ref={anchor.scrollRef} style={[theme.isTV ? {marginTop: -top} : undefined, anchor.scrollStyle]} onLayout={event => setWidth(event.nativeEvent.layout.width)}
       onScroll={onScroll} scrollEventThrottle={16} showsHorizontalScrollIndicator={false} onScrollBeginDrag={anchor.stop}
       contentOffset={scrollMemory ? {x: initialOffset.current, y: 0} : undefined}
       onScrollEndDrag={scrollMemory ? event => publishOffset(event.nativeEvent.contentOffset.x) : undefined}
@@ -205,7 +203,7 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
           </MotionItem>;
         })}
       </View>
-    </Animated.ScrollView>
+    </Animated.ScrollView></TVRow>
     </RowRegion>
     {!theme.isTV && hovered && width > 0 && extent > width && (['back', 'forward'] as const).map(direction => {
       const back = direction === 'back', available = back ? offset > 0 : offset + width < extent - 1;

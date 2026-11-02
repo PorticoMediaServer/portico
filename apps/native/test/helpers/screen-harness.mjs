@@ -21,6 +21,8 @@ const leaf = (source, react, native) => /(^|\/)server-clock(\.ts)?$/.test(source
     {style, testID, pointerEvents: covered ? 'none' : 'auto', accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' : 'auto'}, children)}
   // The one Back dispatcher (kit/navigation/back) forwards to the fixture's own BackHandler, gated by `active`, so a
   // fixture that drives `hardwareBackPress` keeps doing so; the scope order has its own tests.
+  // TVRow (kit/layout/TVRow) leaves its scroller as the caller wrote it; the row rule has its own engine tests.
+  : /(^|\/)TVRow$/.test(source) ? {TVRow: ({children}) => children}
   : /(^|\/)navigation\/back$/.test(source) ? {registerBack: (handler, options) => {
       const subscription = native?.BackHandler?.addEventListener('hardwareBackPress', () => (!options?.active || options.active()) && handler() === true);
       return () => subscription?.remove();

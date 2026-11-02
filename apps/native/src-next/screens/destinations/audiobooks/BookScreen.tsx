@@ -28,7 +28,7 @@ const chapterDuration = (entry: ContentEntry) => duration(entry.duration);
 export function AudiobookErrorState({error, retry, actionId, preferred, refresh}: {error: unknown; retry: () => void; actionId?: string; preferred?: boolean; refresh?: boolean}) {
   const presented = presentError(refresh ? {code: 'refresh_required'} : error, 'detail', {operation: 'load'});
   return <StateView variant="inline" title={presented.title} body={presented.body}
-    {...(presented.action === 'try-again' || presented.action === 'refresh' ? {primaryAction: {id: 'retry', testID: actionId, hasTVPreferredFocus: preferred, label: presented.actionLabel ?? t('action.tryAgain'), onPress: retry}} : {})}/>;
+    {...(presented.action === 'try-again' || presented.action === 'refresh' ? {primaryAction: {id: 'retry', testID: actionId, preferredFocus: preferred, label: presented.actionLabel ?? t('action.tryAgain'), onPress: retry}} : {})}/>;
 }
 
 function Cover({runtime, path, size, title, author}: {runtime: NativeShellRuntime; path: string | undefined; size: number; title: string; author?: string}) {
@@ -183,7 +183,7 @@ export function BookScreen({controller, entry, runtime, actions, openEntry, onBa
       </View>
       {tv ? progressRow : null}
       <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 18 : 10, marginTop: tv ? 26 : 18, alignSelf: tv ? 'flex-start' : 'stretch'}}>
-        <Button focusId={resumeFocusId} icon="i-play" onPress={onPlay} accessibilityLabel={resumeLabel} hasTVPreferredFocus={tv} style={{flex: tv ? undefined : 1, minWidth: tv ? 320 : undefined}}>{resumeLabel}</Button>
+        <Button focusId={resumeFocusId} icon="i-play" onPress={onPlay} accessibilityLabel={resumeLabel} preferredFocus={tv} style={{flex: tv ? undefined : 1, minWidth: tv ? 320 : undefined}}>{resumeLabel}</Button>
         {tv ? <Button focusId={startFocusId} variant="glass" icon="i-restart" onPress={() => {void controller.startOver().catch(error => runtime.reportError(error));}} accessibilityLabel={t('action.startOver')}>{t('action.startOver')}</Button> : null}
         {!tv ? <Button variant="glass" iconOnly icon={'i-check'} accessibilityLabel={t('title.markFinished')}
           accessibilityState={{checked: snapshot.finished}} onPress={() => {void controller.markFinished().catch(error => runtime.reportError(error));}}/> : null}

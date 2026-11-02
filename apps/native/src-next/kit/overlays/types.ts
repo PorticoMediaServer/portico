@@ -129,7 +129,9 @@ export type MenuProps = Omit<SurfaceProps, 'children' | 'headerContext'> & {
   secondaryTitle?: React.ReactNode;
   context?: React.ReactNode;
 };
-export type MenuRowProps = Omit<PressableProps, 'children'> & {
+export type MenuRowProps = Omit<PressableProps, 'children' | 'hasTVPreferredFocus'> & {
+  /** TV: take focus once when this becomes true (TV-FOCUS-REVIEW step 4). */
+  preferredFocus?: boolean;
   focusId?: string;
   label: React.ReactNode;
   icon?: IconName;

@@ -13,7 +13,7 @@ export function StartTimedOut({timedOut, runtime}: {timedOut: NativePlaybackStar
     title={t('web.player.error.startTitle')} description={t('web.player.error.startBody')}
     footer={<View style={{flexDirection: 'row', gap: 10, justifyContent: 'flex-end'}}>
       <Button variant="glass" onPress={timedOut.close}>{t('action.close')}</Button>
-      <Button ref={retry} variant="primary" hasTVPreferredFocus onPress={() => {void timedOut.retry().catch(runtime.reportError);}}>{t('action.tryAgain')}</Button>
+      <Button ref={retry} variant="primary" preferredFocus onPress={() => {void timedOut.retry().catch(runtime.reportError);}}>{t('action.tryAgain')}</Button>
     </View>}>
     {null}
   </Dialog>;

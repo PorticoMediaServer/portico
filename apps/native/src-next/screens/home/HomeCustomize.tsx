@@ -183,7 +183,7 @@ export function HomeCustomize({controller, copy, i18n, onClose, onAddView, views
         </View>}
         <Focusable ref={node => {if (node) rowRefs.current.set(row.id, node);else rowRefs.current.delete(row.id);if (lifted) picked.current = node;if (index === 0) first.current = node;}} focusId={row.id} testID={`${testID}-row-${row.id}`}
           disabled={blocked || !!state.pickedId && !lifted} focusKind="row" focusRadius={16}
-          hasTVPreferredFocus={index === 0 && !state.showConflict && !choosing} accessibilityLabel={title} accessibilityState={{selected: lifted}}
+          preferredFocus={index === 0 && !state.showConflict && !choosing} accessibilityLabel={title} accessibilityState={{selected: lifted}}
           onPress={theme.isTV ? () => pickRow(row.id) : undefined} onAccessibilityAction={event => {
             if (event.nativeEvent.actionName === 'increment' || event.nativeEvent.actionName === 'decrement') {
               if (!lifted && !controller.pick(row.id)) return;

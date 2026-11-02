@@ -59,7 +59,7 @@ export function NativePlaybackFailed({context, failure, retry, details, differen
       <Text style={[nativeType({size: 28, weight: 400, tracking: 0, lineHeight: 40.6}, theme.textScale), {marginBottom: 28, maxWidth: 900, color: theme.colors.textSecondary}]}>{body}</Text>
       {(retry || facts || differentVersion) && <FocusRegion id="watch-failed" orientation="horizontal" edges={{down: 'watch-controls'}} enabled={!detailsOpen}
         entry={retry ? 'watch-failed-retry' : differentVersion ? 'watch-failed-version' : 'watch-failed-details'} entryPolicy="entry" style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 18}}>
-        {retry && <Button focusId="watch-failed-retry" testID="watch-failed-retry" icon="i-restart" hasTVPreferredFocus disabled={detailsOpen} onPress={() => retry(failure)}>{t('next.states.tryAgain')}</Button>}
+        {retry && <Button focusId="watch-failed-retry" testID="watch-failed-retry" icon="i-restart" preferredFocus disabled={detailsOpen} onPress={() => retry(failure)}>{t('next.states.tryAgain')}</Button>}
         {differentVersion && <Button focusId="watch-failed-version" testID="watch-failed-version" variant="glass" disabled={detailsOpen} onPress={() => differentVersion(failure)}>{t('next.overlays.differentVersion')}</Button>}
         {facts && <Button ref={detailsOpener} focusId="watch-failed-details" testID="watch-failed-details" variant="glass" disabled={detailsOpen} onPress={() => {if (details?.(failure)) setDetailsFor(identityKey);}}>{t('next.states.details')}</Button>}
       </FocusRegion>}

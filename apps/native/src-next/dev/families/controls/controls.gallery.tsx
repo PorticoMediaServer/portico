@@ -137,7 +137,7 @@ export function FocusGallery() {
   const theme = useTheme();
   return <Frame title="next.controls.native.galleryTitle">
     {(['button', 'row', 'chip', 'card'] as const).map(focusKind => <Focusable key={focusKind} testID={`controls-focus-${focusKind}`}
-      focusKind={focusKind} hasTVPreferredFocus={theme.isTV && focusKind === 'button'}
+      focusKind={focusKind} preferredFocus={theme.isTV && focusKind === 'button'}
       accessibilityRole="button" accessibilityLabel={t('entry.play')} onPress={() => setCount(value => value + 1)}
       onLongPressAction={() => setCount(value => value + 10)} style={{padding: 20, backgroundColor: theme.colors.raisedHigh, borderRadius: 10}}>
       {({focused}) => <Text style={[theme.type.body, {color: focused ? theme.colors.text : theme.colors.textSecondary}]}>{t('entry.play')}</Text>}

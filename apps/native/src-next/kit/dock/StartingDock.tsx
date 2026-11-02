@@ -21,7 +21,7 @@ export function StartingDock({title, icon, artwork, reason, onStop, frame, testI
   const theme = useTheme(), t = defaultI18n.t, tv = theme.isTV;
   const artSize = tv ? 64 : 44;
   const stop = <Focusable testID={`${testID}.stop`} accessibilityRole="button" accessibilityLabel={t('next.dock.native.stopConnecting')} focusRadius={tv ? 36 : 20}
-    hasTVPreferredFocus={tv} onPress={onStop} style={tv ? s.tvButton : s.phoneButton}>
+    preferredFocus={tv} onPress={onStop} style={tv ? s.tvButton : s.phoneButton}>
     <Icon name="i-stop" size={tv ? 30 : 20}/>
   </Focusable>;
   const second = reason ?? (title ? t('next.dock.starting') : undefined);

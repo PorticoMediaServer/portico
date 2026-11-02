@@ -85,7 +85,7 @@ test('TV collection draws the name, film facts, Play all, Shuffle and the real m
     assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === defaultI18n.t('next.browse.filmCount', {count: 2})));
     assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === '1995 – 1999'));
     const play = nodes.find(node => node.props.testID === 'collection-play-all');
-    assert.equal(play.props.hasTVPreferredFocus, true); play.props.onPress(); assert.ok(calls.includes('play'));
+    assert.equal(play.props.preferredFocus, true); play.props.onPress(); assert.ok(calls.includes('play'));
     nodes.find(node => node.props.testID === 'collection-shuffle').props.onPress(); assert.ok(calls.includes('shuffle'));
     const row = nodes.find(node => node.type === 'WindowedRow');
     assert.ok(row, 'TV draws the members as one windowed row');

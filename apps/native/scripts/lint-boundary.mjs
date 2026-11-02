@@ -77,6 +77,19 @@ export function auditBoundary({appRoot, configPath = path.join(appRoot, 'tsconfi
       }
     }
     function scan(node) {
+      // TV-FOCUS-REVIEW step 5: a horizontal scroller is focusable on Android TV while it can scroll; TVRow turns that
+      // off while it holds no focus stop (W-17). Every literal horizontal scroller sits directly in a TVRow.
+      {
+        const opening = ts.isJsxElement(node) ? node.openingElement : ts.isJsxSelfClosingElement(node) ? node : undefined;
+        const tag = opening?.tagName.getText(ast);
+        const horizontal = opening?.attributes.properties.find(attribute => ts.isJsxAttribute(attribute) && attribute.name.getText(ast) === 'horizontal');
+        if (tag && /^(Animated\.)?(ScrollView|FlatList)$/.test(tag) && horizontal && (!horizontal.initializer || horizontal.initializer.getText(ast) === '{true}')
+          && !(ts.isJsxElement(node.parent) && node.parent.openingElement.tagName.getText(ast) === 'TVRow')) fail(file, node, 'wrap a horizontal scroller in <TVRow> (kit/layout/TVRow)', ast);
+      }
+      // TV-FOCUS-REVIEW step 4: preferred focus is `preferredFocus` on the kit's focus targets, asked once on both
+      // platforms; native hasTVPreferredFocus re-applies on tvOS layout changes and takes focus back (§4.4.2).
+      if ((ts.isJsxAttribute(node) || ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node)) && node.name && ts.isIdentifier(node.name) && node.name.text === 'hasTVPreferredFocus')
+        fail(file, node, 'use preferredFocus on a kit focus target, never hasTVPreferredFocus', ast);
       if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier) dependency(node.moduleSpecifier, node);
       if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference) && node.moduleReference.expression) dependency(node.moduleReference.expression, node);
       if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) dependency(node.argument.literal, node);

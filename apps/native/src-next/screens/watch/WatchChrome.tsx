@@ -500,7 +500,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
     {fence.kind === 'channel' ? channelStep(-1) : queue && icon('previous', 'i-prev', t('player.previous'), () => act(playback.previous), false, !source.capabilities.previous, bar ? 48 : theme.isTV || compact ? undefined : 46)}
     {skip(false)}
     <TVControlLabel focused={controlsEnabled && focus?.childId === 'watch-toggle'} label={t(source.playback.intent === 'playing' ? 'action.pause' : 'action.play')} primary><Button ref={toggle} testID="watch-toggle" focusId="watch-toggle" variant="primary" iconOnly icon={source.playback.intent === 'playing' ? 'i-pause' : 'i-play'}
-      accessibilityLabel={t(source.playback.intent === 'playing' ? 'action.pause' : 'action.play')} hasTVPreferredFocus={false}
+      accessibilityLabel={t(source.playback.intent === 'playing' ? 'action.pause' : 'action.play')} preferredFocus={false}
       focusable={controlsEnabled} disabled={!controlsEnabled || !source.capabilities.play && !source.capabilities.pause} onPress={() => act(playback.toggle)}
       style={{width: big, height: big, borderRadius: big / 2}} iconSize={theme.isTV ? 40 : compact && tablet ? 34 : 28}/></TVControlLabel>
     {skip(true)}
@@ -561,7 +561,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
         <Animated.View style={[{width: '100%', transformOrigin: 'left center', height: 3, borderRadius: 2, backgroundColor: theme.colors.accentStrong}, undoLineStyle]}/>
       </View>}
     </View>
-    <Button focusId="watch-skip-undo" testID="watch-skip-undo" variant={phone ? 'glass' : 'glass'} size={phone ? 'compact' : 'hero'} hasTVPreferredFocus={false} icon="i-back" iconSize={phone ? 18 : undefined}
+    <Button focusId="watch-skip-undo" testID="watch-skip-undo" variant={phone ? 'glass' : 'glass'} size={phone ? 'compact' : 'hero'} preferredFocus={false} icon="i-back" iconSize={phone ? 18 : undefined}
       style={phone ? {height: 36, paddingHorizontal: 14, borderRadius: 8} : undefined} textStyle={phone ? {fontSize: 14.5, fontWeight: '700'} : undefined}
       onPress={undoSkip}>{t('action.undo')}</Button>
     {phone && <Animated.View style={[{position: 'absolute', left: 0, bottom: 0, width: '100%', transformOrigin: 'left center', height: 2, backgroundColor: 'rgba(237,245,250,.45)'}, undoLineStyle]}/>}
@@ -570,7 +570,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
   const skipPromptNode = paintedPrompt ? <Animated.View pointerEvents={promptMotion.interactive ? 'box-none' : 'none'} accessibilityElementsHidden={!promptMotion.interactive} importantForAccessibility={promptMotion.interactive ? 'auto' : 'no-hide-descendants'} style={[{flexDirection: 'row', alignItems: 'center', gap: 22}, promptMotion.bodyStyle]}>{paintedPrompt.kind === 'credits' && sceneAfter && !phone && <View style={{paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(9,19,27,.78)'}}>
       <Text style={[nativeType({size: 22, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{t('player.post.sceneAfter')}</Text>
     </View>}
-    <Button focusId="watch-skip-action" testID="watch-skip-action" disabled={!promptMotion.interactive} focusable={promptMotion.interactive} pressDurationMs={90} pressScale={.96} variant="primary" size={phone ? 'compact' : 'hero'} hasTVPreferredFocus={false} icon="i-next" iconSize={phone ? 18 : undefined}
+    <Button focusId="watch-skip-action" testID="watch-skip-action" disabled={!promptMotion.interactive} focusable={promptMotion.interactive} pressDurationMs={90} pressScale={.96} variant="primary" size={phone ? 'compact' : 'hero'} preferredFocus={false} icon="i-next" iconSize={phone ? 18 : undefined}
       style={phone ? {height: 44, paddingHorizontal: 16, borderRadius: 10, opacity: 1} : {opacity: 1}} textStyle={phone ? {fontSize: 15, fontWeight: '700'} : undefined}
       onPress={promptMotion.interactive && prompt ? () => skipSegment(prompt) : undefined}>{t('player.skip', {kind: paintedPrompt.kind})}</Button></Animated.View> : undefined;
   const skipNodes = skipOfferNode ?? skipNoticeNode ?? skipPromptNode;
@@ -695,7 +695,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
   </Animated.View></GestureDetector>;
   return <GestureDetector gesture={minimizeSwipe}><Animated.View testID="watch-chrome" pointerEvents={initialPlayer && !initialPlayer.controlsAdmitted ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer && !initialPlayer.controlsAdmitted} importantForAccessibility={initialPlayer && !initialPlayer.controlsAdmitted ? 'no-hide-descendants' : 'auto'} style={[{width, height}, chromeMorphStyle]}>
     <FocusRegion id="watch-surface" entry="watch-picture" style={{position: 'absolute', inset: 0}}><Focusable ref={picture} focusId="watch-picture" testID="watch-picture" focusTreatment="none" accessibilityRole="button" accessibilityLabel={identity?.title ?? t('player.opt.menu')}
-      hasTVPreferredFocus={theme.isTV && !visible && !liveOverlayOpen && !promptEntry} focusable={theme.isTV && !visible && !state.panel && !liveOverlayOpen} onPress={() => {if (!controlsCurrent()) return;if (theme.isTV) controls.key(fence); else controls.toggleVisibility(fence);}} style={{position: 'absolute', inset: 0}}/></FocusRegion>
+      preferredFocus={theme.isTV && !visible && !liveOverlayOpen && !promptEntry} focusable={theme.isTV && !visible && !state.panel && !liveOverlayOpen} onPress={() => {if (!controlsCurrent()) return;if (theme.isTV) controls.key(fence); else controls.toggleVisibility(fence);}} style={{position: 'absolute', inset: 0}}/></FocusRegion>
     <Animated.View pointerEvents={visible ? 'box-none' : 'none'} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={[{position: 'absolute', inset: 0}, fade]}>
       {theme.isTV ? <>
         <Svg pointerEvents="none" width="100%" height={400} style={{position: 'absolute', top: 0, left: 0, right: 0}}><Defs>

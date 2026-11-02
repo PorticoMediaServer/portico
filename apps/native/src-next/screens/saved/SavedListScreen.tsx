@@ -21,6 +21,7 @@ import {SavedLoading, SavedTail} from './SavedLoading';
 import {savedNearEnd} from './paging';
 import type {NativeSavedSelectionPort} from './SavedScreen';
 import {StandardBackdrop} from '../../kit/artwork';
+import {TVRow} from '../../kit/layout/TVRow';
 
 const t = defaultI18n.t;
 
@@ -102,13 +103,13 @@ export function SavedListScreen({route, destination, activation, runtime, action
     <ScrollView onLayout={event => {viewport.current.height = event.nativeEvent.layout.height; next();}}
       onContentSizeChange={(_width, height) => {viewport.current.extent = height; next();}}
       onScroll={event => {viewport.current.offset = event.nativeEvent.contentOffset.y; next();}} scrollEventThrottle={64} contentContainerStyle={{paddingBottom: 28 + insets.bottom}}>
-      {route.view !== 'history' && !error && (!!sorts.length || !!filters.length) && <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      {route.view !== 'history' && !error && (!!sorts.length || !!filters.length) && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false}
         contentContainerStyle={{paddingHorizontal: gutter, paddingTop: 10, paddingBottom: 8, gap: 8}}>
         {!!sorts.length && <SavedSortMenu scope="saved-list" sorts={sorts} sort={projection?.query.sort} direction={projection?.query.direction} onChange={chooseSort}/>}
         {theme.platform !== 'phone' && selection?.start && <Chip icon="i-check" onPress={() => selection.start?.()}>{t('next.selection.select')}</Chip>}
         {filters.flatMap(filter => filter.options.map(option => <Chip key={`${filter.id}:${option.id}`} focusId={`list-filter-${option.id}`} count={option.count}
           selected={(projection?.query.category ?? 'all') === option.id} onPress={() => chooseFilter(option.id as SavedListFilter)}>{option.label}</Chip>))}
-      </ScrollView>}
+      </ScrollView></TVRow>}
       {route.view === 'history' && theme.platform !== 'phone' && !error && selection?.start && <View style={{alignItems: 'flex-start', paddingHorizontal: gutter, paddingTop: 10}}>
         <Chip icon="i-check" onPress={() => selection.start?.()}>{t('next.selection.select')}</Chip>
       </View>}
