@@ -22,7 +22,7 @@ function modules(state: {
     './restore-trace': {restoreTrace: () => ({waiting: 'start', elapsedMs: 0, marks: []})}, './boot-timing': {logBootMilestone: () => {}}, '../platform/negotiation': {negotiationRefusal: () => undefined}, '../screens/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'},
     react: {...React, default: React},
     '../platform/share-links': {nativeShareLinks: {acquire: () => () => {}, subscribe: () => () => {}, getSnapshot: () => undefined, take: () => false}},
-    '../screens/share/NativeShareLinks': {NativeShareLinks: () => null},
+    '../screens/share/NativeShareLinks': {NativeShareLinks: () => null}, '../screens/share/NativeContentLinks': {NativeContentLinks: () => null}, '../platform/content-links': {nativeContentLinks: {acquire: () => () => {}, subscribe: () => () => {}, getSnapshot: () => undefined, take: () => false}},
     'react-native': {Platform: {OS: 'ios'}, View: 'View', Text: 'Text', AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}},
     '../platform/invitation-links': {nativeInvitationLinks: {getSnapshot: () => undefined, subscribe: () => () => {}, acquire: () => () => {}}},
     '../platform/installation': {beginNativeInstallation: (signal?: AbortSignal) => {
