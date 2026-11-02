@@ -75,7 +75,7 @@ func (d Dependencies) setupRemoteCheck(ctx context.Context, r *http.Request, acc
 	if d.connectionPolicy != nil {
 		own = d.connectionPolicy.own
 	}
-	policy := remoteGatePolicy(values, d.TrustedProxies, own, false)
+	policy := remoteGatePolicy(values, d.TrustedProxies, own, nil)
 	peer, ok := networkpolicy.Peer(r)
 	if !ok {
 		return out, errors.New("no peer address")
