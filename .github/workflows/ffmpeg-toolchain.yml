@@ -1,9 +1,9 @@
-name: Cold FFmpeg toolchain
+name: FFmpeg engine toolchain
 on:
   workflow_dispatch:
     inputs:
       target:
-        description: Cold target (all includes the four supported targets)
+        description: Engine target (all includes the four supported targets)
         type: choice
         default: all
         options: [all, windows-x64, linux-x64, linux-arm64, macos-arm64]
@@ -130,7 +130,7 @@ jobs:
           path: web/src/generated/licences.json
           retention-days: 7
   build:
-    name: Cold build (${{ matrix.target }})
+    name: Build engine (${{ matrix.target }})
     env: {PORTICO_ENGINE_BUILD_CONTEXT: development}
     needs: controls
     if: '!inputs.controlsOnly && !inputs.cacheControls && !inputs.upstreamComparison && !inputs.reuseWindowsArtifact && !inputs.sourceCacheOnly'
@@ -289,7 +289,7 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
   native:
-    name: Native cold gates (${{ matrix.target }})
+    name: Native engine gates (${{ matrix.target }})
     needs: [controls, native-plan]
     if: always() && needs.controls.result == 'success' && needs.native-plan.result == 'success' && needs.native-plan.outputs.available == 'true'
     continue-on-error: ${{ matrix.optional }}

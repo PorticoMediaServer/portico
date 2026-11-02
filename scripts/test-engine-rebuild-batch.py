@@ -93,6 +93,19 @@ class RebuildControls(unittest.TestCase):
             self.assertFalse(any(name in inventory for name in ('packages/ffmpeg.done', 'prefix/bin/ffmpeg', 'prefix/lib/libavcodec.a')))
             self.assertFalse(any('FFmpeg-release-' in name or 'portico-ffmpeg-source-' in name for name in inventory))
 
+    def test_cache_report_counts_real_receipts_without_claiming_unreadable_ones_are_misses(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            work = Path(temporary); scratch = work / '.scratch'
+            receipts = scratch / 'ffmpeg-build/macos-arm64/dependency-cache-receipts'; receipts.mkdir(parents=True)
+            (receipts / 'hit.json').write_text('{"cacheHit":true}')
+            (receipts / 'miss.json').write_text('{"cacheHit":false}')
+            (receipts / 'bad.json').write_text('invalid')
+            (work / 'evidence').mkdir(); (work / 'evidence/build.log').write_bytes(b'#1 CACHED\n#2 RUN make\n#3 CACHED\n')
+            result = CI['cache_usage'](work, scratch, 'macos-arm64')
+            self.assertEqual((result['dependencyReceiptHits'], result['dependencyReceiptMisses']), (1, 1))
+            self.assertEqual(result['cachedBuildKitOperationLogLines'], 2)
+            self.assertEqual(len(result['receiptReadFailures']), 1)
+
     def test_only_four_supported_targets_and_source_cache_always_saves(self):
         self.assertEqual(set(CI['TARGETS']), {'linux-x64', 'linux-arm64', 'windows-x64', 'macos-arm64'})
         workflow = (ROOT / '.github/workflows/ffmpeg-toolchain.yml').read_text()
