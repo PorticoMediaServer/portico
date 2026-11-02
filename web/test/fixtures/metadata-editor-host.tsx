@@ -7,6 +7,7 @@ import {SelectionSurfaces, type SelectionRendererSource} from '../../src/shell/S
 import '../../src/kit/tokens.css';
 import '../../src/kit/fonts.css';
 import '../../src/bootstrap.css';
+import {withQueries} from '../../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 // Presentation-only DEV server responses. The real controller validates the preview and opens
 // the shipped renderer. No account/authentication, network mutation or playback is installed.
@@ -32,7 +33,7 @@ const options: HomeSelectionOptions = {api, events: {on: () => () => {}}, home: 
   context, environment: {platform: 'desktop-web', isOwner: true, canEditMetadata: true}, isCurrent: candidate => JSON.stringify(candidate) === JSON.stringify(context), requestId: async () => crypto.randomUUID(),
   playback: {play: async () => {throw Error('No specimen playback');}, enqueue: async () => {throw Error('No specimen queue');}, playChannel: async () => {throw Error('No specimen channel');}},
   routes: {openEntry: () => {}, openCollection: () => {}, openDestination: () => {}}, reportError: error => {throw error;}};
-const controller = new HomeSelectionController(options);
+const controller = new HomeSelectionController(withQueries(options));
 const source: SelectionRendererSource = {controller, anchor: {current: null}, artwork: {foreground: () => undefined} as unknown as SelectionRendererSource['artwork'], owner: true, editorAudience: {authority: 'owner'}, dockVisible: () => false, reportError: options.reportError,
   metadata: {api, scope: {serverId: 'server', viewerId: 'owner'}, current: snapshot => options.isCurrent(snapshot.context) && snapshot.editor?.preview?.viewerFence === fence}};
 controller.registerWindow({id: 'window', row, sectionOrder: 0});

@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {freshnessFor} from '../src/platform/freshness.ts';
-import {DetailService, type DetailProjection, type DetailSnapshot} from '@core/detail.ts';
+import {DetailService, type DetailProjection} from '@core/detail.ts';
 import {LibraryContentService, type LibraryContentSnapshot} from '@core/library-content.ts';
 import {ShowWorkspaceService, type ShowWorkspaceRoute, type ShowWorkspaceSnapshot} from '@core/show-workspace.ts';
+import {testQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
+import {queryKeys} from '@core/query/keys.ts';
 
 // J-15: a route left and opened again (browser Back and Forward, a cover, a card tapped
 // twice) must draw the page it had at once and read it again in place. The viewer's page
@@ -11,6 +13,8 @@ import {ShowWorkspaceService, type ShowWorkspaceRoute, type ShowWorkspaceSnapsho
 // command still runs against what is on screen.
 const scope = {serverId: 'server', viewerId: 'hosted/account/profile'};
 const route: ShowWorkspaceRoute = {libraryId: 'library', showId: 'show'};
+const filmPage = {item: {id: 'film', kind: 'movie', title: 'Film'}, scope: {serverId: 'server', libraryId: 'library', itemId: 'film', viewerFence: 'fence'},
+  revision: {catalog: 1, viewer: 1}, personal: {watchlisted: false, favorite: false, watched: false, rating: null, revision: 1, progressSeconds: 0, lastPlayedAt: '', status: 'current', conflicts: []}, actions: []} as unknown as DetailProjection;
 
 function showDto(entries = ['ep1', 'ep2']): any {
   return {scope: {serverId: 'server', libraryId: 'library', viewerFence: 'fence'}, revision: {catalog: 1, viewer: 1},
@@ -60,18 +64,21 @@ test('a re-read that times out keeps the page it showed, so the title never beco
   second.dispose();
 });
 
-test('a title page reacquired from its own memory keeps its detail, and a same-title read keeps it too', async () => {
-  const data = {item: {id: 'film', kind: 'movie', title: 'Film'}, scope: {serverId: 'server', libraryId: 'library', itemId: 'film', viewerFence: 'fence'},
-    revision: {catalog: 1, viewer: 1}, personal: {watchlisted: false, favorite: false, watched: false, rating: null, revision: 1, progressSeconds: 0, lastPlayedAt: '', status: 'current', conflicts: []}, actions: []} as unknown as DetailProjection;
-  const snapshot = {generation: 0, scope, target: {libraryId: 'library', itemId: 'film'}, phase: 'ready', data, error: null, pending: [], mutationError: null} as DetailSnapshot;
-  const service = new DetailService({api: {request: async () => new Promise(() => {})}, scope, requestId: async () => 'request', initial: snapshot});
-  assert.equal(service.getSnapshot().phase, 'ready');
-  assert.equal(service.getSnapshot().data, data, 'the page is already there to draw');
-  const pending = service.select({libraryId: 'library', itemId: 'film'});
-  assert.equal(service.getSnapshot().phase, 'loading');
-  assert.equal(service.getSnapshot().data, data, 'the same title keeps the page it shows while it reads');
-  await Promise.race([pending, new Promise(resolve => setTimeout(resolve, 30))]);
-  service.dispose();
+test('a title page read before is drawn from the viewer\'s cache at once, with no request, and keeps it while it reads again', async () => {
+  let reads = 0;
+  const api = {request: async () => {reads++; return new Promise(() => {});}};
+  const queries = testQueries(api, scope);
+  queries.client.setQueryData(queryKeys.itemDetail('film', 'none'), filmPage);
+  const service = new DetailService({queries, api, scope, requestId: async () => 'request'});
+  void service.select({libraryId: 'library', itemId: 'film'}, {related: 'none'});
+  assert.equal(service.getSnapshot().phase, 'ready', 'drawn on the first frame');
+  assert.equal(service.getSnapshot().data, filmPage);
+  assert.equal(reads, 0, 'nothing moved, so nothing is read');
+  void service.refresh();
+  assert.equal(service.getSnapshot().phase, 'ready', 'a read in place is not a first load');
+  assert.equal(service.getSnapshot().data, filmPage, 'the page stays while it is read again');
+  assert.equal(reads, 1);
+  service.dispose(); queries.dispose();
 });
 
 test('an album or artist page reacquired from its own memory draws its projection while it reads', async () => {
@@ -88,22 +95,20 @@ test('an album or artist page reacquired from its own memory draws its projectio
   service.dispose();
 });
 
-test('the title route keeps the page it reacquired while its own read runs', async () => {
+test('the title route draws a title read before at once: Back costs no request', async () => {
   const {createDetailBindings} = await import('../src/screens/detail/bindings.ts');
-  const data = {item: {id: 'film', kind: 'movie', title: 'Film'}, scope: {serverId: 'server', libraryId: 'library', itemId: 'film', viewerFence: 'fence'},
-    revision: {catalog: 1, viewer: 1}, personal: {watchlisted: false, favorite: false, watched: false, rating: null, revision: 1, progressSeconds: 0, lastPlayedAt: '', status: 'current', conflicts: []}, actions: []} as unknown as DetailProjection;
-  const snapshot = {generation: 0, scope, target: {libraryId: 'library', itemId: 'film'}, phase: 'ready', data, error: null, pending: [], mutationError: null} as DetailSnapshot;
   let reads = 0;
-  const context = {api: {request: async () => {reads++; return new Promise(() => {});}, requestRaw: async () => ({status: 200, headers: {}, body: {}})},
-    scope, isCurrent: () => true, preferences: {getSnapshot: () => ({}), subscribe: () => () => {}},
+  const api = {request: async () => {reads++; return new Promise(() => {});}, requestRaw: async () => ({status: 200, headers: {}, body: {}})};
+  const queries = testQueries(api, scope);
+  queries.client.setQueryData(queryKeys.itemDetail('film', 'none'), filmPage);
+  const context = {api, queries, scope, isCurrent: () => true, preferences: {getSnapshot: () => ({}), subscribe: () => () => {}},
     effects: {openEntry() {}, openSettings() {}, play: async () => {}, reportError() {}}} as never;
-  const binding = createDetailBindings(context, {initial: snapshot});
-  const pending = binding.select({libraryId: 'library', itemId: 'film'});
-  assert.equal(binding.service.getSnapshot().phase, 'loading');
-  assert.equal(binding.service.getSnapshot().data, data, 'the route does not blank the page it just reacquired');
-  assert.equal(reads, 1);
-  binding.dispose();
-  await Promise.race([pending, new Promise(resolve => setTimeout(resolve, 30))]);
+  const binding = createDetailBindings(context);
+  await binding.select({libraryId: 'library', itemId: 'film', kind: 'movie'});
+  assert.equal(binding.service.getSnapshot().phase, 'ready');
+  assert.equal(binding.service.getSnapshot().data, filmPage);
+  assert.equal(reads, 0);
+  binding.dispose(); queries.dispose();
 });
 
 test('another viewer’s or another route’s page is never adopted', async () => {
@@ -113,12 +118,13 @@ test('another viewer’s or another route’s page is never adopted', async () =
   const otherViewer = new ShowWorkspaceService({api: {request: async () => new Promise(() => {})}, scope: {...scope, viewerId: 'someone/else'}, initial: page});
   assert.equal(otherViewer.getSnapshot().phase, 'idle', 'a page belongs to the viewer who read it');
   otherViewer.dispose();
-  const detail = {generation: 0, scope, target: {libraryId: 'library', itemId: 'film'}, phase: 'ready',
-    data: {item: {id: 'film'}, scope: {libraryId: 'library'}} as never, error: null, pending: [], mutationError: null} as DetailSnapshot;
-  const mismatch = new DetailService({api: {request: async () => new Promise(() => {})}, scope: {...scope, viewerId: 'someone/else'}, requestId: async () => 'request', initial: detail});
-  assert.equal(mismatch.getSnapshot().phase, 'idle');
-  mismatch.dispose();
-  const wrongTitle = new DetailService({api: {request: async () => new Promise(() => {})}, scope, requestId: async () => 'request', initial: {...detail, target: {libraryId: 'library', itemId: 'other'}}});
-  assert.equal(wrongTitle.getSnapshot().phase, 'idle', 'a page for one title is not another title’s first paint');
-  wrongTitle.dispose();
+  // A title another viewer read is in that viewer's cache only: this viewer's starts empty.
+  const theirs = testQueries({request: async () => new Promise(() => {})}, {...scope, viewerId: 'someone/else'});
+  theirs.client.setQueryData(queryKeys.itemDetail('film', 'none'), filmPage);
+  const mine = testQueries({request: async () => new Promise(() => {})}, scope);
+  const mismatch = new DetailService({queries: mine, api: {request: async () => new Promise(() => {})}, scope, requestId: async () => 'request'});
+  void mismatch.select({libraryId: 'library', itemId: 'film'}, {related: 'none'});
+  assert.equal(mismatch.getSnapshot().phase, 'loading');
+  assert.equal(mismatch.getSnapshot().data, null);
+  mismatch.dispose(); theirs.dispose(); mine.dispose();
 });

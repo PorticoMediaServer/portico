@@ -1,3 +1,4 @@
+import type {ViewerQueries} from './query/viewer-queries.ts';
 import {DetailService,type DetailApi,type DetailScope,type PersonalIntent} from './detail.ts';
 import {validateContentEntry,type ContentEntry} from './library-content.ts';
 export type SelectionAction='watchlist'|'favorite'|'watched';
@@ -15,8 +16,8 @@ export class MediaSelectionService {
  private active=false;private busy=false;private disposed=false;private generation=0;private anchor:string|null=null;
  private listeners=new Set<()=>void>();private workers=new Map<string,DetailService>();private intent?:PersonalIntent;
  private snapshot!:MediaSelectionSnapshot;
- private options:{api:DetailApi;scope:DetailScope;requestId:()=>Promise<string>;timeoutMs?:number};
- constructor(options:{api:DetailApi;scope:DetailScope;requestId:()=>Promise<string>;timeoutMs?:number}){this.options=options;this.publish();}
+ private options:{queries:ViewerQueries;api:DetailApi;scope:DetailScope;requestId:()=>Promise<string>;timeoutMs?:number};
+ constructor(options:{queries:ViewerQueries;api:DetailApi;scope:DetailScope;requestId:()=>Promise<string>;timeoutMs?:number}){this.options=options;this.publish();}
  getSnapshot=()=>this.snapshot;
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
  private publish(){if(this.disposed)return;this.snapshot=Object.freeze({active:this.active,busy:this.busy,entries:Object.freeze([...this.entries]),selected:Object.freeze([...this.selected]),results:Object.freeze([...this.results]),canApply:this.selected.size>0&&this.entries.filter(e=>this.selected.has(mediaSelectionKey(e))).every(e=>selectionItem(e)!==null)});for(const listener of this.listeners)listener();}

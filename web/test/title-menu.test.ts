@@ -7,6 +7,7 @@ import type {ContentEntry} from '@core/library-content.ts';
 import type {ScreenContext} from '../src/screens/detail/context';
 import {titleMenuEntries} from '../src/shell/title-menu-entries';
 import {TitleMenuHost, type TitleMenuDetail, type TitleMenuOpening, type TitleMenuSubject} from '../src/shell/title-menu-host';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 const anchor = {} as HTMLElement;
 const offers = (patch: Record<string, unknown> = {}) => ({play: true, queue: true, playlist: true, collection: true, myList: true, favorite: true, watched: true, played: true, rating: true,
@@ -34,14 +35,14 @@ function harness(options: {role?: 'owner' | 'member'; read?: (entry: ContentEntr
   const state = {live: true};
   const details: Detail[] = [];
   const owner = options.role !== 'member';
-  const context = {
+  const context = withQueries({
     api: {request: async (path: string, method?: string) => { log.requests.push(`${method ?? 'GET'} ${path}`); return {}; }, requestRaw: async () => ({}), acknowledgeUserMutation: async () => {}},
     scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => state.live,
     identity: {viewer: {role: options.role ?? 'owner', authority: 'local'}},
     effects: {reportError: (error: unknown) => { log.errors.push(error); }, openEntry: (entry: unknown) => { log.opened.push(entry); }, play: async () => {},
       addToPlaylist: async (target: unknown) => { log.playlists.push(target); }, addToCollection: async (target: unknown) => { log.collections.push(target); },
       ...(owner ? {editMetadata: async (target: unknown) => { log.edits.push(target); }, deleteTitle: async (target: unknown) => { log.deletes.push(target); }} : {})},
-  } as unknown as ScreenContext;
+  }) as unknown as ScreenContext;
   const host = new TitleMenuHost(context, {detail: () => { const detail = fakeDetail(() => options.read ? options.read(current.entry) : Promise.resolve(detailData(current.entry, options.enabled ?? ['play', 'watchlist', 'favorite', 'watched', 'rating', 'add_to_playlist', 'add_to_collection', 'metadata_edit', 'delete']))); details.push(detail); return detail; }});
   const current = {entry: movie};
   const played: string[] = [], selected: string[] = [];

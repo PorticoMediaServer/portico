@@ -40,7 +40,7 @@
   "packages/client-core/src/admin/activity-summary/service.ts": 3,
   "packages/client-core/src/channel-guide.ts": 1,
   "packages/client-core/src/console.ts": 3,
-  "packages/client-core/src/detail.ts": 5,
+  "packages/client-core/src/detail.ts": 2,
   "packages/client-core/src/guide/legacy-source.ts": 2,
   "packages/client-core/src/home-selection/controller.ts": 8,
   "packages/client-core/src/home-selection/destination-picker.ts": 2,
@@ -127,7 +127,6 @@
   "web/src/platform/freshness.ts": 1,
   "web/src/screens/detail/Album.tsx": 3,
   "web/src/screens/detail/Artist.tsx": 3,
-  "web/src/screens/detail/Item.route.tsx": 3,
   "web/src/screens/detail/audiobooks/Entry.tsx": 3,
   "web/src/screens/detail/use-show-route.ts": 2
  },

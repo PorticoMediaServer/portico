@@ -41,7 +41,7 @@ export function TitleFileInfo({binding, data, surface, phone, returnFocusRef, on
   }, [binding, data]);
   // A Detail that is not ready yet has no opening; reading it again brings one.
   if (session === null) return <Dialog open onOpenChange={open => { if (!open) onClose(); }} title={t(surface === 'titles' ? 'next.overlays.discTitles' : 'next.overlays.fileInfo')} returnFocusRef={returnFocusRef}>
-    <ScreenFailure retry={() => { void binding.service.revalidate(); }} />
+    <ScreenFailure retry={() => { void binding.service.refresh(); }} />
   </Dialog>;
   return session ? <Opened session={session} binding={binding} data={data} surface={surface} phone={phone} returnFocusRef={returnFocusRef} onClose={onClose} onManage={onManage} /> : null;
 }
@@ -100,7 +100,7 @@ function Opened({session, binding, data, surface, phone, returnFocusRef, onClose
   const failed = lane?.status === 'failed' && !entries;
   // A stale opening (409) is refreshed through the Detail: the newer Detail is a new opening.
   const stale = (error: unknown) => (error as {code?: string} | undefined)?.code === 'stale_continuation';
-  const retry = () => { if (stale(lane?.error)) void binding.service.revalidate(); else read('restart'); };
+  const retry = () => { if (stale(lane?.error)) void binding.service.refresh(); else read('restart'); };
   if (surface === 'titles') {
     const owner = snapshot.surface && !!snapshot.surface.ownerDiscOccurrence;
     if (disc) return <DiscTitles open onOpenChange={close} disc={disc} file={model?.files.find(file => file.id === disc.fileId)?.display.heading.text} more={more(snapshot.disc, () => { void session.disc('next'); })} returnFocusRef={returnFocusRef} />;

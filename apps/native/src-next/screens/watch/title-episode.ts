@@ -1,5 +1,6 @@
 import {DetailService, type DetailApi, type DetailProjection, type DetailScope, type PersonalIntent} from '../../../../../packages/client-core/src/detail';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 export type NativeTitleEpisodeSnapshot = Readonly<{
   entry?: ContentEntry;
@@ -44,7 +45,7 @@ export class NativeTitleEpisodeDetails {
   open = (entry: ContentEntry): void => {
     if (!this.alive() || !entry.libraryId) return;
     this.close();
-    const service = new DetailService({api: this.options.api, scope: this.options.scope, requestId: this.options.requestId});
+    const service = new DetailService({queries: viewerQueriesFor(this.options.api, this.options.scope), api: this.options.api, scope: this.options.scope, requestId: this.options.requestId});
     this.service = service; this.entry = entry;
     this.publish({entry, phase: 'loading'});
     this.off = service.subscribe(() => {

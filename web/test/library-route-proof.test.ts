@@ -11,6 +11,7 @@ import {createReadBindings} from '../src/screens/read/bindings.ts';
 import {componentModule} from './helpers/component-harness.mjs';
 import {createRenderer} from './helpers/interaction-harness.mjs';
 import type {ShellAssemblyContext} from '../src/shell/bootstrap.ts';
+import {testQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 const viewer = {serverId: 'server', accountId: 'account', profileId: 'profile', authority: 'local' as const, role: 'owner'};
 const rows = (ids: string[]) => ({items: ids.map(id => ({id, name: id, kind: 'book'}))});
@@ -146,9 +147,10 @@ async function mounted(target: {libraryId?: string; itemId?: string}) {
   const api = new HttpLocalApi('https://unit.invalid', '', async (input: RequestInfo | URL) => {parentCalls++;const reply = parentHold ? await parentHold.promise : parentRaw;
     // The parent is read from the title's own detail route (E-web-23): the same facts in its shape.
     const parent = reply as {id?: unknown; libraryId?: unknown} | null;
-    const raw = String(input).includes('/detail') && parent && typeof parent === 'object' ? {item: parent, scope: {itemId: parent.id, libraryId: parent.libraryId}} : reply;
+    const raw = String(input).includes('/detail') && parent && typeof parent === 'object' ? {item: parent, scope: {serverId: f.session().viewer.serverId, itemId: parent.id, libraryId: parent.libraryId, viewerFence: 'fence'}, revision: {catalog: 1, viewer: 1},
+      personal: {watchlisted: false, favorite: false, watched: false, rating: null, revision: 1, progressMs: 0, lastPlayedAt: '', status: 'current', conflicts: []}, actions: []} : reply;
     return new Response(JSON.stringify(raw), {headers: {'Content-Type': 'application/json'}});});
-  const context = {api, session: f.session, isCurrent: f.current, libraryRouteProof: f.proof.source,
+  const context = {api, freshness: {queries: testQueries(api, {serverId: f.session().viewer.serverId, viewerId: 'viewer'})}, session: f.session, isCurrent: f.current, libraryRouteProof: f.proof.source,
     facts: {identity: {libraries: [{id: 'target', name: 'Before', kind: 'book'}]}, preferences: {}}, epoch: 1} as unknown as ShellAssemblyContext;
   let onNavigate: (() => void) | undefined;
   const module = await componentModule(new URL('../src/screens/browse/library-route-guard.ts', import.meta.url), {react: h.react,

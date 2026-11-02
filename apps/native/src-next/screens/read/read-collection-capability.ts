@@ -1,6 +1,7 @@
 import {DetailService} from '../../../../../packages/client-core/src/detail';
 import type {HttpLocalApi} from '../../../../../packages/client-core/src';
 import {linkNativeAbortSignals} from '../../platform/abort-signals';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 const cancelled = () => Object.assign(new Error('cancelled'), {name: 'AbortError', code: 'cancelled'});
 /** The exact Reading content kinds the producer admits: an ebook item or a
@@ -28,7 +29,7 @@ export async function nativeReadingCollectionCapability(options: NativeReadingCo
     } finally {scoped.dispose();}
   }};
   const requestId = async () => {if (!current()) throw cancelled(); const id = await options.requestId(); if (!current()) throw cancelled(); return id;};
-  const detail = new DetailService({api, scope: options.scope, requestId});
+  const detail = new DetailService({queries: viewerQueriesFor(api, options.scope), api, scope: options.scope, requestId});
   try {
     await detail.select({libraryId: options.libraryId, itemId: options.itemId});
     if (!current()) return undefined;

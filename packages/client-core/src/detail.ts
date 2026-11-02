@@ -12,6 +12,12 @@ import {parseSegmentMarkers,type SegmentMarker} from './segment-markers.ts';
 import {validateContentEntry,type ContentEntry} from './library-content.ts';
 import {validateHomeRow,type HomeRow} from './home.ts';
 import {firstOfEach,keepReadable,noteSkipped} from './tolerant.ts';
+import {QueryObserver} from '@tanstack/query-core';
+import type {ViewerQueries} from './query/viewer-queries.ts';
+import type {ViewerQueryOptions} from './query/react.ts';
+import {queryKeys} from './query/keys.ts';
+import {dependsOn, titlesWithPersonalState} from './freshness-hub.ts';
+import {linkAbortSignals} from './abort-lifetime.ts';
 export type DetailExtraType = 'trailer' | 'featurette' | 'deleted_scene' | 'behind_the_scenes' | 'interview' | 'scene' | 'short' | 'other';
 export type DetailExtra = Readonly<{ type: DetailExtraType; label: string; items: readonly ContentEntry[] }>;
 export const detailExtraTypes: readonly DetailExtraType[] = ['trailer','featurette','deleted_scene','behind_the_scenes','interview','scene','short','other'];
@@ -238,95 +244,126 @@ function errorInfo(error: unknown): DetailError {
   return Object.freeze({ code: id(e?.code) ? e.code : 'request_failed', message: error instanceof Error ? error.message : 'The detail request failed.', retryable: e?.status!==401&&e?.status!==403&&(e?.retryable===true||error instanceof TypeError||(e?.status??0)>=500||e?.status===408||e?.status===429) });
 }
 
+/** Codes that are the title's answer, not a failure to read it: the page shows them, with nothing kept. */
+const FINAL_DETAIL_CODES = ['unauthorized','forbidden','not_found','detail_scope_changed','invalid_detail'];
+const DETAIL_DEADLINE_MS = 15000;
+
+/**
+ * The title's page as the server answers it, for any owner that needs it (the page, its route
+ * guard, a card menu, a picker): one keyed document in the viewer's cache, read once however many
+ * ask, kept current by the hub. Its library is the one the server names; a caller that knows the
+ * library it expects checks it.
+ */
+export function itemDetailQuery(queries: ViewerQueries, itemId: string, related: 'all' | 'none' = 'all'): ViewerQueryOptions<DetailProjection> {
+  if (!id(itemId)) throw new Error('An item is required.');
+  if (related !== 'all' && related !== 'none') throw new Error('Invalid detail related option.');
+  const queryKey = queryKeys.itemDetail(itemId, related);
+  return {
+    queryKey,
+    queryFn: async ({signal}) => {
+      const deadline = linkAbortSignals([signal], DETAIL_DEADLINE_MS);
+      let raw: unknown;
+      try { raw = await queries.api.request<RouteResponse<'get_items_id_detail'>>(encodedRoutePath('get_items_id_detail', {id: encodeURIComponent(itemId)}) + '?related=' + related, 'GET', undefined, deadline.signal); }
+      catch (error) { if (deadline.signal.aborted && !signal.aborted) throw new Failure('timeout', 'The server took too long to respond.', true); throw error; }
+      finally { deadline.dispose(); }
+      const libraryId = obj(raw) && obj(raw.scope) && id(raw.scope.libraryId) ? raw.scope.libraryId : invalid();
+      const next = projection(raw, queries.scope, {libraryId, itemId});
+      // An answer older than what is shown (a change made here has not reached this read yet) never replaces it.
+      const held = queries.client.getQueryData<DetailProjection>(queryKey);
+      if (held && held.scope.libraryId === next.scope.libraryId && (next.revision.catalog < held.revision.catalog || next.personal.revision < held.personal.revision)) return held;
+      return next;
+    },
+    meta: {dependencies: data => {
+      const libraryId = (data as DetailProjection | undefined)?.scope.libraryId;
+      return [dependsOn.libraries, ...(libraryId ? titlesWithPersonalState(libraryId) : []), dependsOn.event('stream.resync')];
+    }},
+  };
+}
+
+/** Read a title's page through the viewer's cache: the cached page when it is current, else one shared read. */
+export function readItemDetail(queries: ViewerQueries, itemId: string, related: 'all' | 'none' = 'none'): Promise<DetailProjection> {
+  return queries.client.fetchQuery(itemDetailQuery(queries, itemId, related));
+}
+
 export class DetailService {
+  private readonly queries: ViewerQueries;
   private api: DetailApi; private bound: DetailScope; private requestId: () => Promise<string>; private timeoutMs: number;
-  private generation = 0; private readGeneration = 0; private readController?: AbortController; private mutationController?: AbortController;
+  private generation = 0; private mutationController?: AbortController;
   private listeners = new Set<() => void>(); private state: DetailSnapshot; private disposed = false;
-  private commands: Command[] = []; private running = false; private readPromise?: Promise<void>;
-  constructor(options: { api: DetailApi; scope: DetailScope; requestId: () => Promise<string>; timeoutMs?: number; initial?: DetailSnapshot }) {
-    this.api = options.api; this.bound = checkScope(options.scope); this.requestId = options.requestId; this.timeoutMs = options.timeoutMs ?? 15000;
+  private commands: Command[] = []; private running = false;
+  private related: 'all' | 'none' = 'all';
+  private observer?: QueryObserver<DetailProjection, Error>; private stopObserving?: () => void;
+  constructor(options: { queries: ViewerQueries; api: DetailApi; scope: DetailScope; requestId: () => Promise<string>; timeoutMs?: number }) {
+    this.queries = options.queries; this.api = options.api; this.bound = checkScope(options.scope); this.requestId = options.requestId; this.timeoutMs = options.timeoutMs ?? DETAIL_DEADLINE_MS;
+    if (this.bound.serverId !== this.queries.scope.serverId) throw new Error('A title is read from its own server\'s cache.');
     if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0 || this.timeoutMs > 120000) throw new Error('Invalid detail deadline.');
-    this.state = this.seeded(options.initial) ?? this.empty();
-  }
-  /** The page this viewer last had for this title, kept beside the viewer so a return
-   * (history Back, a cover, a route re-open) draws it at once and reads again in place.
-   * Only a ready page from this same server and viewer is adopted; anything else is a
-   * first visit. */
-  private seeded(initial?: DetailSnapshot): DetailSnapshot | undefined {
-    if (!initial || initial.phase !== 'ready' || !initial.data || !initial.target) return undefined;
-    if (initial.scope.serverId !== this.bound.serverId || initial.scope.viewerId !== this.bound.viewerId) return undefined;
-    if (initial.data.item.id !== initial.target.itemId || initial.data.scope.libraryId !== initial.target.libraryId) return undefined;
-    return Object.freeze({...initial, generation: this.generation, phase: 'ready', error: null, pending: Object.freeze([]), mutationError: null});
+    this.state = this.empty();
   }
   private empty(): DetailSnapshot { return Object.freeze({ generation: this.generation, scope: this.bound, target: null, phase: 'idle', data: null, error: null, pending: Object.freeze([]), mutationError: null }); }
-  private related: 'all' | 'none' = 'all';
   getSnapshot = (): DetailSnapshot => this.state;
   subscribe = (listener: () => void): (() => void) => { if (this.disposed) return () => {}; this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
-  private publish(patch: Partial<DetailSnapshot> = {}): void { if (this.disposed) return; this.state = Object.freeze({ ...this.state, ...patch, pending: Object.freeze(this.commands.map(c => Object.freeze({ intent: c.intent, phase: c.phase }))) }); for (const listener of this.listeners) listener(); }
+  private publish(patch: Partial<DetailSnapshot> = {}): void {
+    if (this.disposed) return;
+    const pending = this.commands.map(c => Object.freeze({ intent: c.intent, phase: c.phase }));
+    const next = { ...this.state, ...patch, pending: Object.freeze(pending) };
+    const same = (Object.keys(next) as (keyof DetailSnapshot)[]).every(key => key === 'pending' ? JSON.stringify(next.pending) === JSON.stringify(this.state.pending) : next[key] === this.state[key]);
+    if (same) return;
+    this.state = Object.freeze(next);
+    for (const listener of this.listeners) listener();
+  }
   private active(): void { if (this.disposed) throw new Error('Detail service is disposed.'); }
-  private fence(): void { this.generation++; this.readGeneration++; this.readController?.abort(); this.mutationController?.abort(); for (const c of this.commands) c.resolve(); this.commands = []; this.running = false; this.readPromise = undefined; }
-  /** `related: 'none'` skips the embedded recommendation rows, for a page that reads them itself. */
-  select(input: DetailTarget, options: Readonly<{related?: 'all' | 'none'}> = {}): Promise<void> {
+  /** The page's state from the cache's answer for its title. */
+  private derive(): void {
+    const target = this.state.target, result = this.observer?.getCurrentResult();
+    if (!target || !result) return;
+    let data = result.data ?? null, error = result.error ? errorInfo(result.error) : null;
+    if (data && (data.item.id !== target.itemId || data.scope.libraryId !== target.libraryId)) { data = null; error = Object.freeze({code: 'not_found', message: 'This title is not in this library.', retryable: false}); }
+    if (error && FINAL_DETAIL_CODES.includes(error.code)) data = null;
+    // A failed read of a page already shown keeps it; the hub says so quietly once the server stays out of reach.
+    if (data && error) error = null;
+    this.publish({ data, error, phase: data ? 'ready' : error ? 'error' : 'loading' });
+  }
+  private observe(target: DetailTarget): void {
+    this.stopObserving?.();
+    this.observer = new QueryObserver<DetailProjection, Error>(this.queries.client, itemDetailQuery(this.queries, target.itemId, this.related));
+    this.stopObserving = this.observer.subscribe(() => this.derive());
+  }
+  private fence(): void {
+    this.generation++; this.mutationController?.abort();
+    for (const c of this.commands) c.resolve();
+    this.commands = []; this.running = false;
+    this.stopObserving?.(); this.stopObserving = undefined; this.observer = undefined;
+  }
+  /** `related: 'none'` skips the embedded recommendation rows, for a page that reads them itself.
+   * `fresh` reads the title from the server even when the cache holds it: for a check that gates a
+   * write (its grants must be the server's current ones, not the page read when the screen opened). */
+  select(input: DetailTarget, options: Readonly<{related?: 'all' | 'none'; fresh?: boolean}> = {}): Promise<void> {
     this.active(); const target = checkTarget(input), related = options.related ?? 'all';
     if (related !== 'all' && related !== 'none') throw new Error('Invalid detail related option.');
-    if (this.state.phase === 'loading' && this.state.target?.itemId === target.itemId && this.state.target.libraryId === target.libraryId && this.related === related && this.readPromise) return this.readPromise;
-    // A return to the title already on screen keeps the page it shows while the fresh read
-    // runs, so a slow server never blanks a page it is about to redraw.
-    const retained = this.state.data && this.state.target?.itemId === target.itemId && this.state.target.libraryId === target.libraryId ? this.state.data : null;
-    this.fence(); this.related = related; this.publish({ ...this.empty(), target, ...(retained ? {phase: 'loading' as const, data: retained} : {}) }); return this.refresh();
+    const current = this.state.target;
+    if (!this.observer || !current || current.itemId !== target.itemId || current.libraryId !== target.libraryId || this.related !== related) {
+      this.fence(); this.related = related;
+      this.publish({ ...this.empty(), target, generation: this.generation });
+      this.observe(target);
+      this.derive();
+    }
+    return this.settled(options.fresh === true);
   }
+  /** Resolves once the page has an answer (the cached one, or the shared read's). Never rejects: the state says how it went. */
+  private async settled(fresh: boolean): Promise<void> {
+    const target = this.state.target; if (!target) return;
+    const options = itemDetailQuery(this.queries, target.itemId, this.related);
+    await this.queries.client.fetchQuery(fresh ? {...options, staleTime: 0} : options).catch(() => undefined);
+    this.derive();
+  }
+  /** Read the title again; what is shown stays shown while it is read. */
   refresh(): Promise<void> {
-    this.active(); if (!this.state.target) return Promise.resolve();
-    this.readController?.abort(); const controller = new AbortController(); this.readController = controller;
-    const generation = this.generation, read = ++this.readGeneration, target = this.state.target, bound = this.bound, api = this.api;
-    this.publish({ phase: 'loading', error: null });
-    const task = (async () => {
-      try {
-        const raw = await this.deadline(api.request<RouteResponse<"get_items_id_detail">>(encodedRoutePath("get_items_id_detail", {"id": encodeURIComponent(target.itemId)}) + "?related=" + this.related, 'GET', undefined, controller.signal), controller);
-        if (this.disposed || generation !== this.generation || read !== this.readGeneration) return;
-        const data = projection(raw, bound, target);
-        if (this.state.data && (data.scope.viewerFence!==this.state.data.scope.viewerFence || data.revision.catalog<this.state.data.revision.catalog)) throw new Failure('detail_scope_changed','The catalog or your access changed. Reload these details before continuing.',true);
-        if (this.state.data && data.personal.revision < this.state.data.personal.revision) { this.publish({ phase: 'ready' }); return; }
-        this.publish({ phase: 'ready', data });
-      } catch (error) {
-        if (this.disposed || generation !== this.generation || read !== this.readGeneration) return;
-        const info=errorInfo(error); this.publish({ phase: 'error', data: ['unauthorized','forbidden','not_found','detail_scope_changed','invalid_detail'].includes(info.code)?null:this.state.data, error: info });
-      }
-    })();
-    this.readPromise = task; return task;
+    this.active(); const observer = this.observer;
+    if (!this.state.target || !observer) return Promise.resolve();
+    return observer.refetch().then(() => { if (this.observer === observer) this.derive(); });
   }
   retryRead(): Promise<void> { return this.refresh(); }
   retry(): Promise<void> { return this.refresh(); }
-  /**
-   * Read the title again without touching `phase`, and show the answer in place. A failed read
-   * rejects and changes nothing. An answer that the title is gone or no longer allowed is the
-   * page's state from then on, exactly as a first load would have shown it.
-   */
-  async revalidate(context?: { signal?: AbortSignal; settle?: () => Promise<void> }): Promise<void> {
-    this.active(); const target = this.state.target;
-    if (!target || this.state.phase !== 'ready' || !this.state.data) return;
-    const controller = new AbortController(), stop = () => controller.abort();
-    context?.signal?.addEventListener('abort', stop, { once: true });
-    const generation = this.generation, read = this.readGeneration, bound = this.bound, api = this.api;
-    try {
-      const raw = await this.deadline(api.request<RouteResponse<"get_items_id_detail">>(encodedRoutePath("get_items_id_detail", {"id": encodeURIComponent(target.itemId)}) + "?related=" + this.related, 'GET', undefined, controller.signal), controller);
-      if (this.disposed || generation !== this.generation || read !== this.readGeneration) return;
-      const data = projection(raw, bound, target);
-      await context?.settle?.();
-      if (this.disposed || generation !== this.generation || read !== this.readGeneration || controller.signal.aborted || !this.state.data) return;
-      // Another viewer's answer, or one older than what is shown (a change made here has not reached this read), is not shown.
-      if (data.scope.viewerFence !== this.state.data.scope.viewerFence) { await this.refresh(); return; }
-      if (data.revision.catalog < this.state.data.revision.catalog || data.personal.revision < this.state.data.personal.revision) return;
-      // Nothing on the page changed: nothing is published, so nothing re-renders.
-      if (JSON.stringify(data) === JSON.stringify(this.state.data)) return;
-      this.publish({ data });
-    } catch (error) {
-      if (this.disposed || generation !== this.generation || read !== this.readGeneration || controller.signal.aborted) return;
-      const code = errorInfo(error).code;
-      if (['unauthorized', 'forbidden', 'not_found', 'invalid_detail'].includes(code)) { await this.refresh(); return; }
-      throw error;
-    } finally { context?.signal?.removeEventListener('abort', stop); }
-  }
   mutate(input: PersonalIntent): Promise<void> {
     this.active(); const intent = checkIntent(input), data = this.state.data;
     if (!data || (intent.action==='resolution' ? !data.personal.conflicts.some(c=>c.id===intent.value.conflictId) : !data.actions.some(a => a.id === intent.action && a.enabled))) throw new Error('This personal action is not currently available.');
@@ -353,7 +390,12 @@ export class DetailService {
     let resolve!:()=>void;const promise=new Promise<void>(r=>resolve=r);
     this.commands.push({intent,operationId:input.operationId,expectedRevision:o.baseRevision,offline:Object.freeze({...o}),phase:'queued',promise,resolve});this.publish();void this.pump();return promise;
   }
-  setScope(next: DetailScope, api: DetailApi): void { this.active(); const checked = checkScope(next); this.fence(); this.bound = checked; this.api = api; this.publish(this.empty()); }
+  /** A receipt's personal state, written into every cached page of the title that is older than it. */
+  private applyPersonal(itemId: string, personal: PersonalState): void {
+    for (const related of ['all', 'none'] as const) this.queries.client.setQueryData<DetailProjection>(queryKeys.itemDetail(itemId, related), held =>
+      !held || personal.revision < held.personal.revision ? held
+        : Object.freeze({ ...held, item: Object.freeze({ ...held.item, progressSeconds: personal.progressSeconds }), personal }));
+  }
   cancel(): void { this.active(); this.fence(); this.publish(this.empty()); }
   dispose(): void { this.fence(); this.disposed = true; this.listeners.clear(); }
   private async pump(): Promise<void> {
@@ -361,7 +403,7 @@ export class DetailService {
     const command = this.commands[0], data = this.state.data;
     if (!data) { command.phase = 'retry-required'; command.resolve(); this.publish({ mutationError: Object.freeze({ code: 'detail_required', message: 'Reload details before retrying this action.', retryable: true }) }); return; }
     this.running = true; command.phase = 'sending'; this.publish({ mutationError: null });
-    const generation = this.generation, api = this.api, bound = this.bound, controller = new AbortController(); this.mutationController = controller;
+    const generation = this.generation, api = this.api, controller = new AbortController(); this.mutationController = controller;
     try {
       if (!command.operationId) {
         const operationId = await this.deadline(this.requestId(), controller);
@@ -380,20 +422,18 @@ export class DetailService {
         if (recovered.status !== 'applied' || recovered.targetId !== data.scope.itemId || !integer(recovered.revision)) invalid();
         // The tiny receipt proves the historical outcome. A separate, validated current
         // read supplies display state; its values cannot prove or disprove that outcome.
-        const current = await this.deadline(api.request<RouteResponse<'get_items_id_detail'>>(encodedRoutePath('get_items_id_detail', {id: encodeURIComponent(data.scope.itemId)}) + '?related=' + this.related, 'GET', undefined, controller.signal), controller);
+        const next = await this.deadline(this.queries.client.fetchQuery({...itemDetailQuery(this.queries, data.scope.itemId, this.related), staleTime: 0}), controller);
         if (this.disposed || generation !== this.generation) return;
-        const next = projection(current, bound, {libraryId: data.scope.libraryId, itemId: data.scope.itemId});
-        if (next.scope.viewerFence !== data.scope.viewerFence || next.personal.revision < recovered.revision || next.revision.catalog < data.revision.catalog) invalid();
-        if (this.state.data && next.personal.revision >= this.state.data.personal.revision && next.revision.catalog >= this.state.data.revision.catalog) this.publish({data: next});
+        if (next.scope.libraryId !== data.scope.libraryId || next.personal.revision < recovered.revision) invalid();
       } else {
         const applied = receipt(raw, command.operationId, data);
-        if (this.state.data && applied.personal.revision >= this.state.data.personal.revision) this.publish({ data: Object.freeze({ ...this.state.data, item:Object.freeze({...this.state.data.item,progressSeconds:applied.personal.progressSeconds}), personal: applied.personal }) });
+        this.applyPersonal(data.scope.itemId, applied.personal);
       }
       await api.acknowledgeUserMutation?.(command.operationId);
       if (this.disposed || generation !== this.generation) return;
       this.commands.shift(); command.resolve(); this.publish({ mutationError: null });
       // What the change touched elsewhere on the page (Up Next, counts) is read in place, with no loading state.
-      if (this.state.phase === 'ready') await this.revalidate().catch(() => {}); else await this.refresh();
+      await this.refresh().catch(() => {});
     } catch (error) {
       if (this.disposed || generation !== this.generation) return;
       const info = errorInfo(error);

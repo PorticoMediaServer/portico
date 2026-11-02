@@ -10,6 +10,7 @@ import {FocusRegion} from '../../kit/focus';
 import {Icon} from '../../kit/Icon';
 import {useTheme} from '../../kit/theme';
 import {TVRow} from '../../kit/layout/TVRow';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 /** tv-player 7: a film with nothing queued ends on its own backdrop, with Replay
  * focused, a rating and the server's related titles. The episode cards stay as
@@ -31,7 +32,7 @@ export type NativeWatchPostPlayProps = Readonly<{
 
 export function NativeWatchPostPlay({entry, api, scope, requestId, current, artwork, onReplay, onClose, onOpen, reportError, compact = false}: NativeWatchPostPlayProps) {
   const theme = useTheme(), t = defaultI18n.t;
-  const service = useMemo(() => new DetailService({api, scope, requestId}), [api, scope, requestId]);
+  const service = useMemo(() => new DetailService({queries: viewerQueriesFor(api, scope), api, scope, requestId}), [api, scope, requestId]);
   const snapshot = useSyncExternalStore(service.subscribe, service.getSnapshot);
   useEffect(() => {
     if (entry.libraryId) void service.select({libraryId: entry.libraryId, itemId: entry.id}).catch(error => {if (current()) reportError(error);});

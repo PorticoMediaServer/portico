@@ -90,7 +90,7 @@ export function createShowBindings(context: ScreenContext, options: {initial?: S
       try {
         // A tile's old offer does not authorize a later start. Read the episode's
         // current actions without changing the episode panel or its expansion.
-        await listedPlayback.select({libraryId: data.scope.libraryId, itemId: entry.id}, active);
+        await listedPlayback.select({libraryId: data.scope.libraryId, itemId: entry.id}, active, {fresh: true});
         current(data); active.throwIfAborted();
         const fresh = listedPlayback.service.getSnapshot().data;
         const action = fresh?.actions.find(value => value.enabled && value.playback && value.id !== 'start_over');
@@ -130,7 +130,7 @@ export function createShowBindings(context: ScreenContext, options: {initial?: S
       const value = await getContainerState(life.api, 'show', data.show.id, life.signal(refresh?.signal)); current(data); personal = value; publish();
       const nextUp = data.nextUp;
       if (nextUp?.libraryId && nextUp.playback && primary.service.getSnapshot().target?.itemId !== nextUp.playback.itemId) await primary.select({libraryId: nextUp.libraryId, itemId: nextUp.playback.itemId}, refresh?.signal);
-      else await primary.service.revalidate(refresh);
+      // Otherwise its page is a cached document the hub already keeps current.
     },
     async setMyList(data: ShowWorkspaceData, value: boolean) {
       current(data); const before = personal; if (!before || busy) return; busy = true; publish();

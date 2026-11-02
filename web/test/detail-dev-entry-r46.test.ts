@@ -4,6 +4,7 @@ import {readFileSync, readdirSync, statSync} from 'node:fs';
 import {join} from 'node:path';
 import {registerHooks} from 'node:module';
 import {transformTsx} from './transform-tsx.mjs';
+import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 // The specimen is a .tsx module by lane path; only its data/ports are exercised here.
 registerHooks({load(url, context, next) {
@@ -20,8 +21,8 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf
 
 test('the public specimen parses through the real detail service at the drawn frame-1 facts', async () => {
   const specimen = createDetailSpecimen();
-  const service = new DetailService({api: specimen.api, scope: {serverId: specimen.serverId, viewerId: specimen.personalFence},
-    requestId: async () => crypto.randomUUID()});
+  const service = new DetailService(withQueries({api: specimen.api, scope: {serverId: specimen.serverId, viewerId: specimen.personalFence},
+    requestId: async () => crypto.randomUUID()}));
   await service.select({libraryId: 'movies', itemId: 'dune-part-two'});
   const snapshot = service.getSnapshot();
   assert.equal(snapshot.phase, 'ready');
@@ -48,8 +49,8 @@ test('the public specimen parses through the real detail service at the drawn fr
 
 test('the drawn frame-2 state carries Inside Out nine per cent in with a real resume action', async () => {
   const specimen = createDetailSpecimen('2');
-  const service = new DetailService({api: specimen.api, scope: {serverId: specimen.serverId, viewerId: specimen.personalFence},
-    requestId: async () => crypto.randomUUID()});
+  const service = new DetailService(withQueries({api: specimen.api, scope: {serverId: specimen.serverId, viewerId: specimen.personalFence},
+    requestId: async () => crypto.randomUUID()}));
   await service.select({libraryId: 'movies', itemId: 'inside-out'});
   const snapshot = service.getSnapshot();
   assert.equal(snapshot.phase, 'ready');
@@ -67,8 +68,8 @@ test('the drawn frame-2 state carries Inside Out nine per cent in with a real re
 
 test('the drawn frame-3 state carries the collection year bounds, position and full cast total', async () => {
   const specimen = createDetailSpecimen('3');
-  const service = new DetailService({api: specimen.api, scope: {serverId: specimen.serverId, viewerId: specimen.personalFence},
-    requestId: async () => crypto.randomUUID()});
+  const service = new DetailService(withQueries({api: specimen.api, scope: {serverId: specimen.serverId, viewerId: specimen.personalFence},
+    requestId: async () => crypto.randomUUID()}));
   await service.select({libraryId: 'movies', itemId: 'dune-part-two'});
   const data = service.getSnapshot().data!;
   assert.equal(data.item.progressSeconds, 0);
@@ -95,8 +96,8 @@ test('the two drawn recommendation rows keep their catalogue cards and row subti
 
 test('the drawn My List press is a real personal-state command with a canonical receipt', async () => {
   const specimen = createDetailSpecimen();
-  const service = new DetailService({api: specimen.api, scope: {serverId: specimen.serverId, viewerId: specimen.personalFence},
-    requestId: async () => crypto.randomUUID()});
+  const service = new DetailService(withQueries({api: specimen.api, scope: {serverId: specimen.serverId, viewerId: specimen.personalFence},
+    requestId: async () => crypto.randomUUID()}));
   await service.select({libraryId: 'movies', itemId: 'dune-part-two'});
   await service.mutate({action: 'watchlist', value: true});
   const data = service.getSnapshot().data!;

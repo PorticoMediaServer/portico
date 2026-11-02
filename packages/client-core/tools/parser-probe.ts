@@ -30,6 +30,8 @@ import {LibraryContentService, type ContentProjection, type ContentRoute, type C
 import {BrowseQueryBuilder, parseBrowseCapabilities, parseBrowseFacets, parseBrowseResult, type BrowseCapabilities} from '../src/browse.ts';
 import {fetchInventoryStatus} from '../src/library-inventory.ts';
 import {DetailService} from '../src/detail.ts';
+import {FreshnessHub} from '../src/freshness-hub.ts';
+import {createViewerQueries} from '../src/query/viewer-queries.ts';
 import {ShowWorkspaceService} from '../src/show-workspace.ts';
 import {readPerson} from '../src/people.ts';
 import {SavedService, type SavedProjection} from '../src/saved.ts';
@@ -346,7 +348,8 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
   }
 
   // 4. Entities.
-  const detailSvc = new DetailService({api, scope: scopeOf(), requestId});
+  // The title is read through a viewer cache, as in the apps, over the probe's own API so every read is recorded.
+  const detailSvc = new DetailService({queries: createViewerQueries({scope: scopeOf(), hub: new FreshnessHub(), api, gcTimeMs: Infinity}), api, scope: scopeOf(), requestId});
   const personIds = new Set<string>();
   const showTargets: {libraryId: string; showId: string}[] = [];
   const playable: {libraryId: string; itemId: string}[] = [];

@@ -59,18 +59,18 @@ export function createCatalogueDocumentSelection(context: ScreenContext, sourceD
       collection: {subscribe, itemAt: index => {const entry = rows()[index]; return entry ? {entry} : undefined;}},
     };
     const owner = context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local';
-    const play = createLibraryPlaySelection({source, api: life.api, scope: context.scope, principal, requestId: async () => randomId(),
+    const play = createLibraryPlaySelection({source, queries: context.queries, api: life.api, scope: context.scope, principal, requestId: async () => randomId(),
       signal: life.signal(), isCurrent: current, editor: owner, deletion: owner, destinations: true, personal: {myList: true, watched: true, favorite: true},
       playback: runtime?.cataloguePlayback(), queue: runtime?.catalogueQueue()});
     const selection = createLibrarySelection({playSelection: play, owner,
       ...(runtime ? {enqueue: play.enqueue} : {}),
-      pickers: {api: life.api, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(), signal: life.signal(), isCurrent: current,
+      pickers: {api: life.api, queries: context.queries, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(), signal: life.signal(), isCurrent: current,
         canCreateCollection: context.identity?.viewer.role === 'owner', pickerIdentity: {...principal, events: context.events}, artwork: context.artwork,
         onView: (destination, id) => {if (!current()) return;
           void router.navigate({to: '/saved', search: destination === 'playlist' ? {view: 'playlist', playlistId: id} : {view: 'resource', resourceId: id}}).catch(context.effects.reportError);}},
       ...(owner ? {editor: {api: life.api, events: context.events, requestId: async () => randomId(), serverId: context.scope.serverId, viewerId: context.scope.viewerId,
         artwork: context.artwork, signal: life.signal(), isCurrent: current},
-        deletion: {api: life.api, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(), signal: life.signal(), isCurrent: current}} : {}),
+        deletion: {api: life.api, queries: context.queries, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(), signal: life.signal(), isCurrent: current}} : {}),
       actions: {api: life.api, events: context.events, requestId: async () => randomId(), signal: life.signal(), isCurrent: current, reportError: context.effects.reportError, ...(context.effects.notify ? {notify: context.effects.notify} : {})},
       reportError: context.effects.reportError,
     });
