@@ -61,6 +61,7 @@ import {homeActionDiagnostics} from '../platform/home-action-diagnostics';
 import {NativeReadOrder, NativeShellFreshness, nativeQueuedRefresh} from './freshness';
 import {retainNativeDownloadsDevice} from '../screens/downloads/device';
 import {bindNativeTopShelf} from '../platform/top-shelf';
+import {bindNativeAppleActivity} from '../platform/apple-activity';
 
 export type NativeRememberedProfile = Readonly<{
   /** True while this device opens the profile that is open now without asking. */
@@ -628,6 +629,12 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       playbackKey: () => {const fence = context.playback.getSnapshot().fence; return !fence ? undefined : fence.kind === 'channel' ? `channel:${fence.channelId}` : `item:${fence.itemId}`;}},
     error => nativeScreenServices(context).reportError(error));
     if (retireTopShelf) cleanups.push(retireTopShelf);
+    const retireAppleActivity = bindNativeAppleActivity({current,
+      home: () => context.home.getSnapshot().document, subscribeHome: context.home.subscribe,
+      playing: () => {const state = context.playback.getSnapshot(), entry = state.entry;
+        return state.fence && state.fence.kind !== 'channel' && entry && ['movie', 'episode', 'extra'].includes(entry.kind) ? entry : undefined;},
+      subscribePlayback: context.playback.subscribe}, error => nativeScreenServices(context).reportError(error));
+    if (retireAppleActivity) cleanups.push(retireAppleActivity);
     const downloads = retainNativeDownloadsDevice(context);
     cleanups.push(downloads.dispose);
     void downloads.open().catch(error => {if (current()) bound.reportError(error);});
