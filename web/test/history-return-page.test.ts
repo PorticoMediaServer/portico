@@ -213,3 +213,59 @@ test('the browse and Discover pages are keyed by server, viewer and the exact ro
   assert.notEqual(key, browsePageKey({scope}, '{"libraryId":"lib","pivot":"shows"}'), 'another query keeps its own page');
   assert.notEqual(browseDiscoverKey({scope}, '{"libraryId":"lib","pivot":"movies"}'), key);
 });
+
+test('a kept page that fails to re-read keeps its entries and carries the failure in the state', async () => {
+  const {BrowseController} = await import('../src/screens/browse/controller.ts');
+  const first = new BrowseController(browseApi((_path, body) => browsePage((body as {range: {start: number}}).range.start)) as never, browseSource, () => true);
+  await first.load(); await settle();
+  const seed = first.pageSeed()!; first.dispose();
+  const failure = new Error('offline');
+  const held = new BrowseController({request: async <T,>(path: string) => path.includes('capabilities')
+    ? (() => {throw failure;})() as T : browsePage(0) as T} as never, browseSource, () => true, seed);
+  held.collection.ensureRange(0, 2);   // the grid is laid out before the screen's mount read
+  void held.load(); await settle();
+  assert.equal(held.collection.itemAt(0)?.entry.id, 'movie-0', 'the list stays exactly as it was');
+  assert.equal(held.getSnapshot().error, failure, 'the failure is in the state beside the page, not hidden');
+  held.dispose();
+});
+
+test('a kept page whose view moved on opens again from its first page instead of paging into nothing', async () => {
+  const {BrowseController} = await import('../src/screens/browse/controller.ts');
+  const first = new BrowseController(browseApi((_path, body) => browsePage((body as {range: {start: number}}).range.start)) as never, browseSource, () => true);
+  await first.load(); await settle();
+  const seed = first.pageSeed()!; first.dispose();
+  const reads: string[] = [];
+  const moved = new BrowseController({request: async <T,>(path: string, _method?: string, body?: unknown) => {
+    if (path.includes('capabilities')) return browseCaps as T;
+    const range = (body as {range: {start: number; revision?: string}}).range;
+    reads.push(`start ${range.start}${range.revision ? ` @${range.revision}` : ' (first page)'}`);
+    // The first page arrives under a newer revision; the next visible page still names the old one.
+    if (range.revision) throw Object.assign(new Error('changed'), {code: 'stale_continuation'});
+    return browsePage(range.start, 50_000, 'new') as T;
+  }} as never, browseSource, () => true, seed);
+  moved.collection.ensureRange(0, 119);   // the grid is laid out before the screen's mount read
+  void moved.load(); await settle();
+  assert.ok(moved.getSnapshot().queryRevision > seed.state.queryRevision, 'the view opened again from its first page');
+  assert.ok(reads.filter(read => read.includes('first page')).length >= 2, 'a fresh first page was requested after the view moved');
+  moved.dispose();
+});
+
+test('a seeded window only marks whole pages ready; a page with a gap loads normally', async () => {
+  const {createWindowedCollection} = await import('@core/collections/windowed.ts');
+  const items = ['a', 'b', 'c'];
+  const collection = createWindowedCollection<string>({pageSize: 4, maxResidentPages: 4, keyOf: value => value,
+    fetchPage: async (start, count) => ({items: items.slice(start, start + count), total: items.length})});
+  // Index 1 is missing from the same page, so that page must not be marked ready.
+  collection.seed([{index: 0, item: 'a'}, {index: 2, item: 'c'}], {total: 3});
+  assert.equal(collection.itemAt(0), undefined, 'a page with a hole is not a ready page');
+  assert.equal(collection.getSnapshot().total, 3);
+  collection.ensureRange(0, 2);
+  await settle();
+  assert.equal(collection.itemAt(0), 'a');
+  assert.equal(collection.itemAt(2), 'c');
+  collection.dispose();
+  const whole = createWindowedCollection<string>({pageSize: 2, maxResidentPages: 4, keyOf: value => value, fetchPage: async () => ({items: [], total: 0})});
+  whole.seed([{index: 0, item: 'a'}, {index: 1, item: 'b'}], {total: 3});
+  assert.deepEqual([whole.itemAt(0), whole.itemAt(1)], ['a', 'b'], 'a whole page is ready at once');
+  whole.dispose();
+});

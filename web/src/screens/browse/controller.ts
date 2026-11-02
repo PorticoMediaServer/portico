@@ -7,6 +7,14 @@ import {readReadingFacet} from '@core/browse-preparation.ts';
 import {isStaleAnswer} from '@core/freshness-actions.ts';
 
 export {withLibraryScope} from '@core/browse-session.ts';
+
+/** A browse view that ended under its query: its pages can no longer continue, so the only
+ * honest answer is a fresh first page (never a list that pages into nothing). */
+const browseViewGone = (error: unknown): boolean => {
+  const value = error as {name?: unknown; message?: unknown; code?: unknown; status?: unknown} | null;
+  return value?.message === 'browse-scope-closed' || value?.code === 'stale_continuation'
+    || isStaleAnswer(error) || typeof value?.status === 'number' && [401, 403, 404].includes(value.status);
+};
 export type BrowseMember = Readonly<{membershipId: string; entry: ContentEntry}>;
 
 export type BrowseSource = Readonly<{libraryId: string; pivot: string; base?: readonly BrowseNode[]; predicates?: readonly BrowseNode[]; homeRowId?: string; sort?: BrowseSortSelection; sorts?: readonly BrowseSortSelection[]}>;
@@ -184,7 +192,7 @@ export class BrowseController {
     this.collection.ensureRange(0, 0);
   }
   private makeSession(caps: BrowseCapabilities, predicates: readonly BrowseNode[], sort: BrowseSortSelection, epoch: number,
-    initial?: Readonly<{revision?: string; entries: readonly ContentEntry[]}>): BrowseSession<BrowseMember> {
+    initial?: Readonly<{revision?: string; entries: readonly ContentEntry[]}>, onStale?: () => void): BrowseSession<BrowseMember> {
     return new BrowseSession<BrowseMember>({query: this.sessionQuery(caps, predicates, sort),
       request: (path, method, body, signal) => this.api.request(path, method, body, signal),
       ...(this.api.requestRaw ? {requestRaw: this.api.requestRaw.bind(this.api)} : {}),
@@ -196,17 +204,20 @@ export class BrowseController {
       onWholeUnavailable: () => this.publish({}),
       onPreparationError: error => this.publish({error}),
       onStale: error => {
+        onStale?.();
         if (!this.staleRetried && this.state.revision === undefined && this.current() && epoch === this.epoch) {this.staleRetried = true; this.reset({}, true); return;}
         this.publish({revision: undefined, error});
       }});
   }
   /** A shown page, read again in place: refreshed capabilities, then the visible pages
    * under a fresh session. The list on screen stays until every visible page arrives; a
-   * failed, timed-out or superseded read leaves it exactly as it was. */
+   * failed read keeps it and says so in the state, and a view that ended under its query
+   * starts again from the first page as a first open does. */
   private async refreshShown(): Promise<void> {
     const shown = this.state, previous = this.session;
     if (!shown.capabilities || !shown.sort || !previous) return;
     const epoch = ++this.epoch;
+    let stale = false;
     try {
       const caps = parseBrowseCapabilities(await this.api.request(browseCapabilitiesPath(this.source.libraryId, this.source.pivot), 'GET', undefined, this.life.signal));
       if (!this.current() || epoch !== this.epoch) return;
@@ -215,12 +226,22 @@ export class BrowseController {
       const sort = this.sorts.find(value => JSON.stringify(value) === JSON.stringify(shown.sort)) ?? this.sorts[0];
       if (!pivot?.browsable || !sort || caps.queryLimits.maximumLimit < 60 || !this.current() || epoch !== this.epoch) return;
       const entries = this.collection.residentEntries().map(entry => entry.item.entry);
-      const session = this.makeSession(caps, shown.predicates, sort, epoch, {entries});
+      const session = this.makeSession(caps, shown.predicates, sort, epoch, {entries}, () => {stale = true;});
       if (!this.current() || epoch !== this.epoch) {session.retire(); return;}
       this.session = session; previous.retire();
       this.publish({capabilities: caps, sort, error: undefined});
       await this.collection.revalidate({fetchPage: session.fetchPage});
-    } catch { /* the page stays: a re-read that failed is never a blank list */ }
+    } catch (error) {
+      // A retired opening or a newer read owns the page now: nothing to say.
+      if (!this.current() || epoch !== this.epoch) return;
+      // The view moved on under this query: the list can no longer page, so open it again
+      // from its first page, exactly as a first visit does.
+      if (stale || browseViewGone(error)) {this.reset(); return;}
+      // The person's own cancel (Stop, Back, a replaced opening) is not a failure to show.
+      if ((error as {name?: unknown} | null)?.name === 'AbortError') return;
+      // Keep every entry that is drawn and carry the failure in the state beside it.
+      this.publish({error});
+    }
   }
   async facets(field: string, query: string, predicates: readonly BrowseNode[], signal: AbortSignal) {
     const {capabilities: caps, sort} = this.state;

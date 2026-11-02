@@ -439,15 +439,23 @@ export function createWindowedCollection<T>(options: WindowedCollectionOptions<T
       if (disposed) return;
       pending?.quiet?.resolve();
       for (const p of pending?.pages.values() ?? []) if (p.status === 'loading') p.controller.abort();
-      const pages = new Map<number, PageState<T>>();
+      // Only whole contiguous pages are seeded: a page marked ready never holds a hole a
+      // renderer would read as an item. A page with a gap is left to load normally.
+      const slots = new Map<number, T[]>();
       for (const entry of entries) {
         if (!Number.isSafeInteger(entry.index) || entry.index < 0) continue;
         const page = pageOfIndex(entry.index), at = entry.index % pageSize;
-        const held = pages.get(page);
-        const items = held?.status === 'ready' ? [...held.items] : [];
-        while (items.length < at) items.push(undefined as T);
+        const items = slots.get(page) ?? [];
         items[at] = entry.item;
-        pages.set(page, {status: 'ready', items, version: (held?.version ?? 0) + 1, used: ++tick});
+        slots.set(page, items);
+      }
+      const pages = new Map<number, PageState<T>>();
+      for (const [page, items] of slots) {
+        if (!items.length) continue;
+        let whole = true;
+        for (let at = 0; at < items.length; at++) if (!(at in items)) {whole = false; break;}
+        if (!whole) continue;
+        pages.set(page, {status: 'ready', items, version: 1, used: ++tick});
       }
       current = {id: nextId++, fetchPage: options.fetchPage ?? current.fetchPage, pages, total: options.total ?? entries.length,
         totalIsLowerBound: options.totalIsLowerBound ?? false, positionIndex: options.positionIndex ? {...options.positionIndex} : undefined, lastError: undefined, gate: 0};
