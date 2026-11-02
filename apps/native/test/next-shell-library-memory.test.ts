@@ -36,7 +36,7 @@ test('a real screen-owned Library destination is remembered and a late initial r
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: number) => React.useRef({value}).current, withTiming: (value: unknown) => value},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 44, bottom: 34})}, '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'},
     '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})},
-    '../kit/focus': {useFocusRegistry: () => registry}, './tv-focus': focusModel, './model': shellModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'},
+    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': focusModel, './model': shellModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'},
     './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './TVRail': {}, './TVProfileMenu': {}, './NativePlaybackLayer': {}, './DesktopHeader': {},
   });
   let root: any, tree: any;
