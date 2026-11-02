@@ -59,10 +59,10 @@ function fixture(options: {
       const body = String(init.body), asked = JSON.parse(body);
       assert.deepEqual(Object.keys(asked).sort(), ['baseUrl', 'nonce']);
       requests.push({url: String(input), method: init.method!, body});
-      const who = options.server ?? SERVER, version = options.version ?? '2', now = Date.now();
+      const who = options.server ?? SERVER, version = options.version ?? '2';
       const payload = Buffer.from(JSON.stringify({kind: 'portico.route-proof', version, baseUrl: asked.baseUrl,
         nonce: options.differentNonce ? 'wrong' : asked.nonce, serverId: who.serverId, publicKey: who.publicKey,
-        fingerprint: who.fingerprint, issuedAt: new Date(now).toISOString(), expiresAt: new Date(now + 15000).toISOString(),
+        fingerprint: who.fingerprint,
         ...(version === '2' && options.bindings !== undefined ? {tlsCertificateFingerprints: options.bindings} : {})}));
       const signature = sign(null, payload, (options.invalidSignature ? DIFFERENT : who).privateKey);
       const response = new Response(JSON.stringify({payload: bytes(payload), signature: bytes(signature)}), {headers: {'Content-Type': 'application/json'}});

@@ -82,6 +82,12 @@ Refused addresses only lists names that point at your server, so scanner noise s
 
 Access tokens work like passwords: anyone who has a valid one can do whatever it allows. Refresh is tied to a device record and installation ID, but individual requests don't prove the request came from that device. The server checks revocation and current permissions.
 
+### Server identity and clocks
+
+- Before an app sends any credential, the server proves its identity: the app sends a fresh random nonce, and the server signs that nonce, the address asked for and its own identity with its identity key. The app checks the signature against the identity it expects and that the nonce is its own. A proof copied from another connection names someone else's nonce and is refused.
+- The proof carries no times, and apps never judge anything against their own clock. A phone, TV or computer whose date is wrong still connects, signs in and plays. Expiry is decided by the server, on the server's clock: apps read the server's time from its responses, try, and renew when the server says a credential has expired.
+- Keep the server's own clock right. Its expiries (sign-ins, setup codes, invitations, downloads) run on it.
+
 ### What's stored, and how
 
 - The database, settings and backups aren't encrypted at rest.

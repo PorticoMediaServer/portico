@@ -10,7 +10,7 @@ export type RouteSnapshot = Readonly<{phase:'idle'|'probing'|'ready'|'offline'|'
  * ranks and filters candidates before any request. */
 export type RememberedNetworkPolicy = Readonly<ServerNetworkPolicy & {observedAt:string}>;
 export type RouteMemory = Readonly<{current?:VerifiedRoutes;previous?:VerifiedRoutes;paired:readonly string[];lastGood?:string;policy?:RememberedNetworkPolicy}>;
-const probeFailureCodes = ['invalid_address','invalid_identity','invalid_response','identity_mismatch','invalid_signature','invalid_routes','route_stale','clocks_disagree','insecure_context','authentication_required','access_denied','rate_limited','route_unavailable','certificate_unverified','certificate_untrusted','secure_connection_required','cancelled'] as const;
+const probeFailureCodes = ['invalid_address','invalid_identity','invalid_response','identity_mismatch','invalid_signature','invalid_routes','route_stale','insecure_context','authentication_required','access_denied','rate_limited','route_unavailable','certificate_unverified','certificate_untrusted','secure_connection_required','cancelled'] as const;
 const probeFailureNames = ['RouteError','Error','TypeError','SyntaxError','ReferenceError','RangeError','AbortError'] as const;
 /** Diagnostic categories only: never the error, message, stack, address or proof. */
 export type RouteProbeFailure = Readonly<{code:typeof probeFailureCodes[number]|'other';name:typeof probeFailureNames[number]|'unknown'}>;

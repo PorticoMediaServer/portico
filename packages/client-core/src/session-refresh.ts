@@ -1,3 +1,4 @@
+import {serverNow} from './server-clock.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath} from "../../contracts/src/route-paths.ts";
 /**
@@ -35,7 +36,9 @@ export type RefresherSnapshot = Readonly<{
 
 export type LocalSessionRefresherOptions = Readonly<{
   env: ConnectionEnvironment;
-  api: Pick<HttpLocalApi, 'request' | 'setAccessToken' | 'setAuthRecovery'> & Partial<Pick<HttpLocalApi, 'setUserMutationSession'>>;
+  api: Pick<HttpLocalApi, 'request' | 'setAccessToken' | 'setAuthRecovery'> & Partial<Pick<HttpLocalApi, 'setUserMutationSession' | 'serverNow'>>;
+  /** The server's clock, for its expiries (`server-clock.ts`). `now` stays this device's clock, for the refresher's own waits. */
+  serverNow?: () => number;
   /** The selected session (the viewer's copy is enough: the store supplies the refresh credential). */
   session: LocalSession;
   /** A renewed access token is in use: update the viewer snapshot (`ViewerService.rotate`) and the viewer record. */
@@ -112,6 +115,8 @@ export class LocalSessionRefresher implements AuthRecovery {
   private state: RefresherSnapshot;
   private listeners = new Set<() => void>();
   private now: () => number;
+  /** No client-clock requirements: the server's expiries are judged on the server's clock, never this device's. */
+  private serverNow: () => number;
   private setTimer: (fn: () => void, ms: number) => unknown;
   private clearTimer: (timer: unknown) => void;
 
@@ -120,6 +125,7 @@ export class LocalSessionRefresher implements AuthRecovery {
     this.session = options.session;
     options.api.setUserMutationSession?.(options.session);
     this.now = options.now ?? Date.now;
+    this.serverNow = options.serverNow ?? (options.api.serverNow ? () => options.api.serverNow!() : options.now ?? (() => serverNow()));
     this.setTimer = options.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
     this.clearTimer = options.clearTimer ?? (t => clearTimeout(t as ReturnType<typeof setTimeout>));
     this.state = Object.freeze({phase: 'active', expiresAt: this.session.expiresAt, failures: 0});
@@ -136,7 +142,7 @@ export class LocalSessionRefresher implements AuthRecovery {
   current(): LocalSession { return this.session; }
   private get done() { return this.state.phase === 'ended' || this.state.phase === 'stopped'; }
   private get lead() { return this.o.leadMs ?? 120_000; }
-  private expiresIn() { return Date.parse(this.session.expiresAt) - this.now(); }
+  private expiresIn() { return Date.parse(this.session.expiresAt) - this.serverNow(); }
   private proactiveSuppressed(): boolean {
     const marker = this.noProgress, session = this.session;
     return !!marker && this.expiresIn() > 0 && marker.serverId === session.viewer.serverId
@@ -316,7 +322,7 @@ export class LocalSessionRefresher implements AuthRecovery {
       api: this.o.api,
       family: {sessionFamilyId: this.session.sessionFamilyId, serverId: this.session.viewer.serverId},
       rejected,
-      now: this.now,
+      now: this.serverNow,
       // A proactive run renews inside the lead window; the store answers without a request when another context already did.
       minValidMs: Math.max(REFRESH_MIN_VALID_MS, this.lead),
     }).then(next => { this.adopt(next, previous, rejected === undefined); return next; }, (e: unknown) => { this.failed(e); throw e; });
@@ -334,7 +340,7 @@ export class LocalSessionRefresher implements AuthRecovery {
     const later = Date.parse(next.expiresAt) > Date.parse(previous.expiresAt)
       || Date.parse(next.authorizationHorizon) > Date.parse(previous.authorizationHorizon);
     if (!sameFamily || later) this.noProgress = undefined;
-    else if (this.noProgress || proactive && Date.parse(next.expiresAt) - this.now() <= this.lead
+    else if (this.noProgress || proactive && Date.parse(next.expiresAt) - this.serverNow() <= this.lead
       && Date.parse(next.expiresAt) <= Date.parse(previous.expiresAt)) {
       this.noProgress = Object.freeze({serverId: next.viewer.serverId, familyId: next.sessionFamilyId,
         expiresAt: next.expiresAt, horizon: next.authorizationHorizon});

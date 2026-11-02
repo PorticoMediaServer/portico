@@ -1,3 +1,4 @@
+import {serverNow} from './server-clock.ts';
 import {throwIfAborted} from './abort-lifetime.ts';
 import type {RouteResponse as HostedRouteResponse} from "../../contracts/src/hosted/routes.ts";
 import {routeBody} from "../../contracts/src/routes.ts";
@@ -146,7 +147,7 @@ async function restoreStoredSession(env:ConnectionEnvironment,source:((record:Re
  const pin=await serverPin(record.pin.serverId,record.pin.publicKey,record.pin.fingerprint,env.crypto??webRouteCrypto);check();
  if(record.session.serverIdentity){const actual=await serverPin(pin.serverId,record.session.serverIdentity.publicKey,record.session.serverIdentity.fingerprint,env.crypto);check();if(!sameServerPin(pin,actual))throw new RouteError('identity_mismatch','Saved credentials and server identity disagree.');}
  const memory:RouteMemory={paired:record.routes.paired,lastGood:record.routes.lastGood,...(record.routes.policy?{policy:record.routes.policy}:{})};let current:VerifiedRoutes|undefined,previous:VerifiedRoutes|undefined;
- if(record.hosted){for(const field of ['current','previous'] as const){const signed=record.routes[field];if(signed){const verified=await verifyRoutes(signed,record.hosted.key,{accountId:record.hosted.accountId,serverId:pin.serverId,pin,allowExpiredHint:true},env.crypto);check();if(field==='current')current=verified;else previous=verified;}}}
+ if(record.hosted){for(const field of ['current','previous'] as const){const signed=record.routes[field];if(signed){const verified=await verifyRoutes(signed,record.hosted.key,{accountId:record.hosted.accountId,serverId:pin.serverId,pin},env.crypto);check();if(field==='current')current=verified;else previous=verified;}}}
  const freshSource=source?.(record),hosted=record.hosted;
  const connection=new RouteConnection({pin,logicalOrigin:record.logicalOrigin,memory:{...memory,current,previous},fetcher:env.fetcher,crypto:env.crypto,discover:env.discover,onProbeFailure:env.onProbeFailure,policy:env.policy,readConnection:env.readConnection,fresh:freshSource&&hosted?async signal=>{const next=await currentDocument(freshSource,env,pin,hosted.key,signal);hosted.key=next.key;return next.routes;}:undefined});
  try{
@@ -155,7 +156,7 @@ async function restoreStoredSession(env:ConnectionEnvironment,source:((record:Re
   followSelection(selected,record);
   const api=new HttpLocalApi(record.logicalOrigin,'',env.fetcher);api.useRoutes(connection);api.setAccessToken(record.session.accessToken);let renewedNow=false;
   // A sign-in saved more than a few minutes ago has an expired access token: renew it first.
-  if(record.session.refreshToken&&(record.pendingRefresh||Date.parse(record.session.expiresAt)-Date.now()<REFRESH_MIN_VALID_MS)){
+  if(record.session.refreshToken&&(record.pendingRefresh||Date.parse(record.session.expiresAt)-api.serverNow()<REFRESH_MIN_VALID_MS)){
    bindSessionRoute(record.session.accessToken,connection);
    const renewed=await refreshStoredSession({env,api,family:{sessionFamilyId:record.session.sessionFamilyId,serverId:record.pin.serverId},signal});check();
    record.session=renewed;record.pendingRefresh=undefined;api.setAccessToken(renewed.accessToken);renewedNow=true;
@@ -250,7 +251,7 @@ export async function connectTrustedProfileServer(env:ConnectionEnvironment,scop
  const pin=await serverPin(record.pin.serverId,record.pin.publicKey,record.pin.fingerprint,env.crypto);
  const memory:RouteMemory={paired:record.routes.paired,lastGood:record.routes.lastGood,...(record.routes.policy?{policy:record.routes.policy}:{})};
  let current:VerifiedRoutes|undefined,previous:VerifiedRoutes|undefined;
- if(record.hosted)for(const field of ['current','previous']as const){const signed=record.routes[field];if(signed){const v=await verifyRoutes(signed,record.hosted.key,{accountId:scope.accountId,serverId:scope.serverId,pin,allowExpiredHint:true},env.crypto);if(field==='current')current=v;else previous=v;}}
+ if(record.hosted)for(const field of ['current','previous']as const){const signed=record.routes[field];if(signed){const v=await verifyRoutes(signed,record.hosted.key,{accountId:scope.accountId,serverId:scope.serverId,pin},env.crypto);if(field==='current')current=v;else previous=v;}}
  const connection=new RouteConnection({pin,logicalOrigin:record.logicalOrigin,memory:{...memory,current,previous},fetcher:env.fetcher,crypto:env.crypto,discover:env.discover,onProbeFailure:env.onProbeFailure,policy:env.policy,readConnection:env.readConnection});
  try{await connection.resolve(signal);const selected=await env.storage.read();if(!sameSelection(selected,record)||signal.aborted)throw new RouteError('cancelled','The saved server selection changed.');const api=new HttpLocalApi(record.logicalOrigin,'',env.fetcher);api.useRoutes(connection);return api;}catch(e){connection.dispose();throw e;}
 }
@@ -279,10 +280,11 @@ export class SessionRefreshError extends ApiError {
 export type RefreshStoredOptions=Readonly<{
  env:ConnectionEnvironment;
  /** The selected server's transport (routed); only its `request` is used. */
- api:Pick<HttpLocalApi,'request'>;
+ api:Pick<HttpLocalApi,'request'>&Partial<Pick<HttpLocalApi,'serverNow'>>;
  family:Readonly<{sessionFamilyId:string;serverId:string}>;
  /** The access token a server just refused: refresh even if the stored one still looks fresh. */
  rejected?:string;
+ /** The server's clock (`server-clock.ts`), never this device's: every instant here is the server's. */
  now?:()=>number;
  minValidMs?:number;
  timeoutMs?:number;
@@ -299,7 +301,8 @@ export type RefreshStoredOptions=Readonly<{
  */
 export function refreshStoredSession(o:RefreshStoredOptions):Promise<LocalSession>{
  const check=()=>checkRestoreCancellation(o.signal);
- const now=o.now??Date.now,minValid=o.minValidMs??REFRESH_MIN_VALID_MS;
+ // No client-clock requirements: expiries and the horizon are judged on the server's clock.
+ const now=o.now??(o.api.serverNow?()=>o.api.serverNow!():()=>serverNow()),minValid=o.minValidMs??REFRESH_MIN_VALID_MS;
  const same=(r:RememberedServer|undefined)=>!!r&&r.session.sessionFamilyId===o.family.sessionFamilyId&&r.pin.serverId===o.family.serverId;
  return credentialLock()('portico.session-refresh:'+o.family.serverId,async()=>{
   // A receipt plus one successor rotation, never an unbounded chain or a nested credential lock.

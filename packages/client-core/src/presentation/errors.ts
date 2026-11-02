@@ -1,5 +1,4 @@
 import {playbackUserMessage} from '../playback-messages.ts';
-import {RouteError} from '../route-identity.ts';
 import {defaultI18n, type I18n, type MessageId} from '../../../i18n/src/index.ts';
 
 /**
@@ -215,11 +214,6 @@ export function presentError(error: unknown, context: ErrorContext = 'generic', 
   const label = (action: ErrorAction) => (actionLabelIds[action] ? i18n.t(actionLabelIds[action]!) : undefined);
   if (category === 'cancelled') return Object.freeze({category, title, body: '', action: 'none', messageId: 'error.cancelled', silent: true, code: f.code || undefined});
   if (f.code === 'transport_unavailable') return Object.freeze({category: 'unavailable', title, body: i18n.t('error.transportUnavailable'), action: 'none', messageId: 'error.transportUnavailable', silent: false, code: f.code});
-  // Only the local proof refusal establishes this claim. Do not unwrap a failed route
-  // race or trust an API payload with the same code, and never turn it into a network retry.
-  if (error instanceof RouteError && f.code === 'clocks_disagree') {
-    return Object.freeze({category: 'unknown', title, body: i18n.t('error.clocksDisagree'), action: 'try-again', actionLabel: label('try-again'), messageId: 'error.clocksDisagree', silent: false, code: f.code});
-  }
   if (context === 'playback') {
     // Playback keeps its own reviewed mapping (codes → copy, allowlisted safe server strings).
     const body = playbackUserMessage(error);
