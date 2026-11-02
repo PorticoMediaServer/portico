@@ -580,7 +580,7 @@ function HomeCard({runtime, row, entry, rank, context, width, rowIndex, visible,
   const play = offers.playable && target?.playback ? () => {homeActionDiagnostics.action('home-card', 'primary-play'); if (current()) runtime.actions.play(entry, target.playback!);} : undefined;
   const actions = play && (theme.isTV || row.kind === 'continue') ? {primaryAction: 'play' as const, onPlay: play, onNavigate: navigate}
     : {primaryAction: 'navigate' as const, onNavigate: navigate, ...(play ? {onPlay: play} : {})};
-  const props: CardProps = {...cardText, ...actions, width, visible, onFocus: context.onFocus, onBlur: context.onBlur, selection: context.selection, hasTVPreferredFocus: preferred, testID: context.testID,
+  const props: CardProps = {...cardText, ...actions, width, visible, onFocus: context.onFocus, onBlur: context.onBlur, selection: context.selection, preferredFocus: preferred, testID: context.testID,
     ...(medium ? {titleTextStyle: mediumCardType.title, captionTextStyle: mediumCardType.caption, titleMargin: 9} : {}),
     menuAnchorRef: anchor, moreExpanded: runtime.selection(row.id).isMenuOpen?.(entry.id),
     accessibilityState: {expanded: !!runtime.selection(row.id).isMenuOpen?.(entry.id)},

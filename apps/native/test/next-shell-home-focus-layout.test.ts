@@ -66,13 +66,13 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
     assert.equal(nativeRegion.props.style.gap, createTheme({isTV: true, width: 1920}).spec.hero.actions.gap.tv);
     assert.equal(nativeRegion.props.orientation, 'horizontal');
     assert.deepEqual(nativeRegion.props.order, ['play', 'my-list', 'details']);
-    assert.equal(actions[0].props.hasTVPreferredFocus, undefined, 'entry is requested once after guide and target attach');
+    assert.equal(actions[0].props.preferredFocus, undefined, 'entry is requested once after guide and target attach');
     const renderedRow = descendants(tree).find(node => node.type === 'Row');
     assert.equal(descendants(renderedRow.props.renderItem({entry}, {index: 0})).find(node => node.props.preferred !== undefined).props.preferred, false);
     actions[0].props.onFocus();
     tree = render();
     actions = descendants(descendants(tree).find(node => node.type === 'Hero').props.renderActions(candidate)).filter(node => node.type === 'Button');
-    assert.equal(actions[0].props.hasTVPreferredFocus, undefined, 'late content cannot reissue preferred focus after entry');
+    assert.equal(actions[0].props.preferredFocus, undefined, 'late content cannot reissue preferred focus after entry');
     rowBox(tree).props.onLayout({nativeEvent: {layout: {y: 820, height: 300}}});
     descendants(tree).find(node => node.type === 'Row').props.onItemFocus({entry});
     frames.shift()!(0); // Focus may see the old, expanded hero box.

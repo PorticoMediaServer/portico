@@ -41,7 +41,7 @@ function FileInfoSurface({value, presenters}: {value: NativeWatchOverlay; presen
   const interactive = useTVPanelInteractive();
   React.useEffect(() => {if (theme.isTV && interactive) done.current?.requestTVFocus?.();}, [theme.isTV, interactive]);
   useOverlayLifecycle(theme.isTV, true, presenters.close, undefined, value.anchorRef, 0, 'watch-file-info');
-  const action = <Button ref={done} testID="watch-file-info-done" variant={theme.isTV ? 'primary' : 'glass'} size={theme.isTV ? 'hero' : 'small'} hasTVPreferredFocus={interactive} onPress={presenters.close}>{t('next.overlays.done')}</Button>;
+  const action = <Button ref={done} testID="watch-file-info-done" variant={theme.isTV ? 'primary' : 'glass'} size={theme.isTV ? 'hero' : 'small'} preferredFocus={interactive} onPress={presenters.close}>{t('next.overlays.done')}</Button>;
   if (theme.isTV) {
     const canvas = shellLayout(window.width, window.height, true);
     return <Modal transparent visible animationType="none" onRequestClose={presenters.close} statusBarTranslucent navigationBarTranslucent>

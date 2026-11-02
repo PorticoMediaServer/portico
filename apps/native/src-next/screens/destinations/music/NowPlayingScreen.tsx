@@ -40,6 +40,7 @@ import {NowPlayingLyrics, type NowPlayingLyricsProps} from './NowPlayingLyrics';
 import {ListeningQueuePaint, ListeningLyricsPaint} from './ListeningPanePaint';
 import {useTVPanelPresence} from '../../../kit/overlays/TVPanelMotion';
 import {registerBack} from '../../../kit/navigation/back';
+import {TVRow} from '../../../kit/layout/TVRow';
 
 const t = defaultI18n.t;
 const equalizerCopy = (): NativeEqualizerCopy => ({title: t('next.media.eq.title'), back: t('action.back'), thisDevice: t('device.thisDevice'),
@@ -405,7 +406,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     {book && wide ? <View style={{width: '100%', maxWidth: 600, gap: 8, marginTop: 18}}>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
         <Text style={[browseType(theme, 14, 700), {width: 124, color: theme.colors.text}]}>{t('player.opt.speed')}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flex: 1, minWidth: 0, borderRadius: 12, backgroundColor: 'rgba(237,245,250,.08)'}} contentContainerStyle={{padding: 3, gap: 2}}>
+        <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flex: 1, minWidth: 0, borderRadius: 12, backgroundColor: 'rgba(237,245,250,.08)'}} contentContainerStyle={{padding: 3, gap: 2}}>
           {(bookFacts?.rate.supported ?? []).map(rate => <Focusable key={rate} accessibilityRole="radio" accessibilityLabel={`${rate}×`}
             accessibilityState={{checked: (bookFacts?.rate.effective ?? bookFacts?.rate.selected) === rate}}
             onPress={() => {if (bookReader?.current() && (!paintPermit || paintPermit.current())) audiobook?.setRate(playback.fence, rate);}}
@@ -413,13 +414,13 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
               backgroundColor: (bookFacts?.rate.effective ?? bookFacts?.rate.selected) === rate ? 'rgba(64,159,212,.24)' : 'transparent'}}>
             <Text style={[browseType(theme, 13.5, 700), {color: theme.colors.text}]}>{rate}×</Text>
           </Focusable>)}
-        </ScrollView>
+        </ScrollView></TVRow>
       </View>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
         <View style={{width: 124}}><Text style={[browseType(theme, 14, 700), {color: theme.colors.text}]}>{t('player.opt.sleepTimer')}</Text>
           {sleepMinutes === null ? null : <Text style={[browseType(theme, 12, 600), {color: theme.colors.textTertiary, marginTop: 2}]}>{t('player.opt.minutes', {count: sleepMinutes})}</Text>}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flex: 1, minWidth: 0, borderRadius: 12, backgroundColor: 'rgba(237,245,250,.08)'}} contentContainerStyle={{padding: 3, gap: 2}}>
+        <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flex: 1, minWidth: 0, borderRadius: 12, backgroundColor: 'rgba(237,245,250,.08)'}} contentContainerStyle={{padding: 3, gap: 2}}>
           {[null, 15, 30, 45, 60, 90].map(minutes => <Focusable key={minutes ?? 'off'} disabled={!bookReader || !audiobook?.setSleepTimer}
             accessibilityRole="radio" accessibilityState={{checked: sleepMinutes === minutes}}
             onPress={() => {if (bookReader?.current() && (!paintPermit || paintPermit.current())) void audiobook?.setSleepTimer?.(playback.fence, minutes).catch(reportBookError);}}
@@ -427,7 +428,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
               backgroundColor: sleepMinutes === minutes ? 'rgba(64,159,212,.24)' : 'transparent'}}>
             <Text style={[browseType(theme, 13.5, 700), {color: theme.colors.text}]}>{minutes === null ? t('player.opt.off') : t('player.opt.minutes', {count: minutes})}</Text>
           </Focusable>)}
-        </ScrollView>
+        </ScrollView></TVRow>
       </View>
     </View> : null}
     <View style={{width: book && !wide ? '100%' : undefined, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: book && !wide ? 8 : 10, marginTop: book ? 18 : 26, marginBottom: 24}}>

@@ -106,7 +106,7 @@ export function NowPlayingCard({occupant, onAction, expanded = false, onExpanded
 
   const playAction = p.finished ? 'replay' : playback.playing ? 'pause' : 'play';
   const playLabel = p.finished ? t('player.post.replay') : t(playback.playing ? 'action.pause' : 'action.play');
-  const control = (type: DockAction, icon: IconName, label: string, primary = false) => <Focusable key={primary ? 'transport' : type} testID={controlID(testID, primary ? 'transport' : type)} ref={primary ? pause : undefined} hasTVPreferredFocus={primary}
+  const control = (type: DockAction, icon: IconName, label: string, primary = false) => <Focusable key={primary ? 'transport' : type} testID={controlID(testID, primary ? 'transport' : type)} ref={primary ? pause : undefined} preferredFocus={primary}
     focusRadius={primary ? 44 : 36} accessibilityRole="button" accessibilityLabel={label} disabled={!visible || !commandAllowed(occupant, type)} onPress={() => act(type)} onLongPressAction={fold}
     style={[s.tvButton, primary && s.tvPrimary, {backgroundColor: primary ? theme.colors.text : alpha(theme.colors.text, .12), opacity: commandAllowed(occupant, type) ? 1 : .32}]}>
     <Icon name={icon} size={primary ? 40 : type === 'stop' ? 26 : 30} color={primary ? theme.colors.ink : theme.colors.text}/>

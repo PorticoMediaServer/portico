@@ -40,7 +40,7 @@ export function NativeUpNextCard({item, artwork, countdown, countdownTotal, scen
   const still = compact ? {width: 112, height: 63} : {width: 256, height: 144};
   // tv-player 5 draws the card's own buttons smaller than the player's: 64 high, 22px.
   const button = (id: string, variant: 'primary' | 'glass', icon: 'i-play' | 'i-next' | 'i-replay' | undefined, label: string, onPress: () => void) => <Button key={id} focusId={`watch-up-next-${id}`} testID={`watch-up-next-${id}`}
-    variant={variant} size={compact ? 'compact' : 'hero'} hasTVPreferredFocus={false} {...(icon ? {icon} : {})}
+    variant={variant} size={compact ? 'compact' : 'hero'} preferredFocus={false} {...(icon ? {icon} : {})}
     style={compact ? {height: 40, paddingHorizontal: 15, borderRadius: 10} : {height: 64, paddingHorizontal: 28}}
     textStyle={compact ? {fontSize: 14.5, fontWeight: '700'} : {fontSize: 22, fontWeight: '700'}} onPress={onPress}>{label}</Button>;
   // tv-player 5 draws the card as glass over the picture: a 24px backdrop blur with its own tint.

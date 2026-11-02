@@ -47,7 +47,7 @@ export function ServerIdentityFailure({failure, onRetry, onChoose, onForget, onE
         <Text style={[nativeType({size: tv ? 28 : 15, lineHeight: tv ? 40.6 : 22.5, weight: 400, tracking: 0}, theme.textScale),
           {color: theme.colors.textSecondary, maxWidth: tv ? 900 : undefined, textAlign: tv ? 'left' : 'center', marginBottom: tv ? 40 : 24}]}>{t(failure.changed ? 'connection.identity.changedBody' : 'portico.failure.identity.body')}</Text>
         <View style={{alignSelf: 'stretch', flexDirection: tv ? 'row' : 'column', gap: tv ? 28 : 10}}>
-          <Button disabled={busy} icon="i-retry" iconSize={tv ? 28 : undefined} hasTVPreferredFocus onPress={onRetry} style={tv ? undefined : {height: 48, borderRadius: 11}}>{t('action.tryAgain')}</Button>
+          <Button disabled={busy} icon="i-retry" iconSize={tv ? 28 : undefined} preferredFocus onPress={onRetry} style={tv ? undefined : {height: 48, borderRadius: 11}}>{t('action.tryAgain')}</Button>
           <Button disabled={busy} variant="glass" icon={tv ? 'i-server' : undefined} iconSize={tv ? 28 : undefined} onPress={onChoose} style={tv ? undefined : {height: 48, borderRadius: 11}}>{t('portico.landing.chooseAnother')}</Button>
           {failure.changed && <Button ref={opener} disabled={busy} variant={tv ? 'glass' : 'text'} onPress={() => setConfirm(true)} style={tv ? undefined : {height: 36, marginTop: 4}}>{t('connection.identity.forget', {server: name})}</Button>}
         </View>
@@ -69,7 +69,7 @@ export function ServerIdentityFailure({failure, onRetry, onChoose, onForget, onE
         {/* Frame 4 draws Forget first and Cancel as the starting focus. The red verb
             leads the footer, so the confirmation's safe focus is declared here too,
             not only by the delayed native request. */}
-        <Button focusId="cancel" ref={cancel} variant="glass" hasTVPreferredFocus disabled={busy} onPress={() => setConfirm(false)}>{t('action.cancel')}</Button>
+        <Button focusId="cancel" ref={cancel} variant="glass" preferredFocus disabled={busy} onPress={() => setConfirm(false)}>{t('action.cancel')}</Button>
       </View>}><View/></Dialog>
   </View>;
   return <OverlaysProvider><View testID="server-identity-failure" style={{flex: 1, backgroundColor: theme.colors.ink, overflow: 'hidden'}}>

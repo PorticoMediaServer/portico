@@ -45,7 +45,7 @@ for (const scale of [1, .5, 2]) test(`actual TV chooser uses one760px panel/one 
   const panel = nodes.find(node => node.props.testID === 'watch-versions-tv'); assert.equal(panel.props.style.width, 760);
   assert.deepEqual(nodes.filter(node => node.type === 'Stop').map(node => node.props.stopColor), ['#132836', '#0d1c27', '#0b1822']);
   const rows = nodes.filter(node => /^watch-version-v/.test(node.props.testID ?? ''));
-  assert.equal(rows.filter(node => node.props.hasTVPreferredFocus).length, 1); assert.equal(rows.find(node => node.props.hasTVPreferredFocus).props.testID, 'watch-version-v2');
+  assert.equal(rows.filter(node => node.props.preferredFocus).length, 1); assert.equal(rows.find(node => node.props.preferredFocus).props.testID, 'watch-version-v2');
   assert.equal(nodes.some(node => node.props.testID === 'watch-versions-done'), false);
   assert.equal(nodes.some(node => node.type === 'Surface'), false);
 });

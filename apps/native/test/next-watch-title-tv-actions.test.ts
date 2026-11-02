@@ -121,6 +121,6 @@ test('a TV title with nothing to play still opens on a control: More takes the p
   try {
     const nodes = descendants(tree);
     assert.equal(nodes.some(node => node.props.focusId === 'watch-title-play'), false);
-    assert.equal(nodes.find(node => node.props.focusId === 'watch-title-more').props.hasTVPreferredFocus, true);
+    assert.equal(nodes.find(node => node.props.focusId === 'watch-title-more').props.preferredFocus, true);
   } finally {await host.unmount();}
 });

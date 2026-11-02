@@ -106,7 +106,7 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
         contentContainerStyle={{paddingHorizontal: theme.isTV ? 0 : 8}}
         renderItem={({item: option, index}) => <Focusable ref={index === initialIndex ? selectedRow : undefined}
           disabled={blocked || option.disabled} focusKind={theme.isTV ? 'button' : 'row'} focusRadius={theme.isTV ? 14 : 9} focusInset={!theme.isTV}
-          hasTVPreferredFocus={theme.isTV && index === initialIndex} accessibilityRole="radio" accessibilityState={{checked: option.value === current}}
+          preferredFocus={theme.isTV && index === initialIndex} accessibilityRole="radio" accessibilityState={{checked: option.value === current}}
           accessibilityLabel={typeof option.label === 'string' ? option.label : undefined}
           accessibilityHint={rich && typeof option.description === 'string' ? option.description : undefined}
           accessibilityValue={option.isDefault ? {text: defaultI18n.t('next.kit.default')} : undefined}

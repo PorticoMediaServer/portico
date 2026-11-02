@@ -56,7 +56,7 @@ test('TV episodes draw the season side list, the next-up tile and its focus band
     assert.equal(shelf.props.focus.entry, 'e2');
     assert.equal(shelf.props.focus.edges.left, 'tv.episodes.seasons');
     assert.equal(rows[0].props.nextFocusRight, undefined, 'the shared native guide owns the boundary');
-    assert.ok(tiles.every((tile: any) => tile.props.nextFocusLeft === undefined && !tile.props.hasTVPreferredFocus));
+    assert.ok(tiles.every((tile: any) => tile.props.nextFocusLeft === undefined && !tile.props.preferredFocus));
     const band = nodes.find(node => node.type === FocusBand);
     const bandTree = FocusBand(band.props), bandNodes = descendants(bandTree);
     assert.ok(bandNodes.some(node => node.type === 'Text' && node.props.children === 'Bit by a Dead Bee'));

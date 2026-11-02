@@ -116,7 +116,7 @@ function PreviewGallery() {
     <View style={{position: 'absolute', left: 0, right: 0, top: 588}}><Row testID="dev.layout.preview.continue" title={t('home.row.continueWatching')} items={heroes.slice(1)} getKey={item => item.id} itemWidth={400} itemHeight={225}
       selection={state.selection} onItemFocus={setEntry} onRepeatingChange={setRepeating} renderItem={(item, context) => {
         const model = cardText(item.subject, 'continuation', {t});
-        return <WideCard {...cardContext(context)} title={model.title} caption={model.caption} detail={model.detail} progress={model.progress} artwork={item.art} width={400} primaryAction="play" onPlay={() => Alert.alert(t('action.play'), item.title)} onMore={() => state.more(item)} hasTVPreferredFocus={context.index === 0} />;
+        return <WideCard {...cardContext(context)} title={model.title} caption={model.caption} detail={model.detail} progress={model.progress} artwork={item.art} width={400} primaryAction="play" onPlay={() => Alert.alert(t('action.play'), item.title)} onMore={() => state.more(item)} preferredFocus={context.index === 0} />;
       }} /></View>
   </Stage>;
 }

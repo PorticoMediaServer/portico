@@ -14,7 +14,7 @@ import {useMotion} from '../useMotion';
 import {Artwork} from './Artwork';
 import {mixColour} from './model';
 import type {ArtworkSource} from './types';
-import {tvScrollEnabled} from '../layout/tv-scroll';
+import {TVRow} from '../layout/TVRow';
 
 export type ProfileFaceProps = Readonly<{
   initial: string;
@@ -133,8 +133,6 @@ export function ProfilePicker({profiles, onSelect, onAdd, onManage, selectedId, 
   const faceSize = layout === 'tv' ? 216 : phone ? 90 : 160;
   const retainsDisabledFocus = (profile: ProfileOption, forwarded: ReturnType<NonNullable<typeof profileProps>> | undefined) =>
     nativeScope ? !profile.unavailableReason && (focusBusy || forwarded?.focusableWhenDisabled === true) : forwarded?.focusableWhenDisabled === true;
-  // W-17: a disabled or unavailable tile is not a focus stop (unless it retains focus), and Add is always one.
-  const hasFocusable = !!onAdd || profiles.some(profile => !(profile.disabled || profile.unavailableReason) || retainsDisabledFocus(profile, profileProps?.(profile)));
   // J-30 (auth.html 13b/13c): faces are centred at any count; on phone a short last row (or just two profiles)
   // sits in the middle like the rows above it, never against the left edge.
   // Tiles keep their own height: stretched in the iPad row they grew to the window's height and pushed the heading off the top (P2-74 E-mobile-15).
@@ -146,7 +144,7 @@ export function ProfilePicker({profiles, onSelect, onAdd, onManage, selectedId, 
       accessibilityRole="button" accessibilityLabel={profile.name} accessibilityHint={profileBadge(profile)}
       accessibilityState={{...forwarded?.accessibilityState, selected: selectedId === profile.id}}
       disabled={profile.disabled || Boolean(profile.unavailableReason)} focusTreatment="none"
-      hasTVPreferredFocus={!nativeScope && profile.id === preferredProfileId}
+      preferredFocus={!nativeScope && profile.id === preferredProfileId}
       onFocus={event => {forwarded?.onFocus?.(event); onFocusChange?.(profile.id);}}
       onBlur={event => {forwarded?.onBlur?.(event); onFocusChange?.(undefined);}}
       onPress={() => onSelect(profile.id)} style={state => [{width: phone ? '33.333333%' : layout === 'tv' ? 236 : 168, paddingHorizontal: phone ? 4 : 0}, typeof forwarded?.style === 'function' ? forwarded.style(state) : forwarded?.style]}>
@@ -160,9 +158,9 @@ export function ProfilePicker({profiles, onSelect, onAdd, onManage, selectedId, 
   const body = <View style={[{alignItems: phone ? 'stretch' : 'center'}, style]}>
     {showTitle ? <Text accessibilityRole="header" style={{fontFamily: fontFamilies[800], fontSize: (layout === 'tv' ? 72 : phone ? 32 : 64) * theme.textScale, letterSpacing: (layout === 'tv' ? 72 : phone ? 32 : 64) * (phone ? -0.04 : -0.045) * theme.textScale, color: theme.colors.text, marginBottom: description ? 6 : layout === 'tv' ? 80 : phone ? 30 : 56}}>{title ?? defaultI18n.t('auth.whosWatching')}</Text> : null}
     {description ? <Text style={{...theme.type.body, color: theme.colors.textSecondary, marginBottom: 30}}>{description}</Text> : null}
-    {phone ? tiles : <ScrollView horizontal scrollEnabled={tvScrollEnabled(theme.isTV, hasFocusable)} showsHorizontalScrollIndicator={false}
+    {phone ? tiles : <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false}
       // TV: the focused face's glow (blur 70, 30 down) needs about 100 of room; the scroller clips at its padding, so it is widened by the same amount and the faces stay put.
-      style={layout === 'tv' ? {margin: -82} : {flexGrow: 0}} contentContainerStyle={{padding: layout === 'tv' ? 100 : 18}}>{tiles}</ScrollView>}
+      style={layout === 'tv' ? {margin: -82} : {flexGrow: 0}} contentContainerStyle={{padding: layout === 'tv' ? 100 : 18}}>{tiles}</ScrollView></TVRow>}
     {onManage ? <Button testID={controlID(testID, 'manage')} variant="glass" size="hero" icon="i-edit" onPress={onManage} style={{alignSelf: phone ? 'flex-start' : 'center', marginTop: 56}}>{defaultI18n.t('next.artwork.native.manageProfiles')}</Button> : null}
   </View>;
   return nativeScope ? <ProfileEntryRegion scope={nativeScope} entry={entry} order={offered.map(profile => profile.id)}>{body}</ProfileEntryRegion> : body;
