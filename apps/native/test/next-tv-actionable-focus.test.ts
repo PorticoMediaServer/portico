@@ -119,7 +119,7 @@ async function rowComposition(b: Awaited<ReturnType<typeof bindings>>) {
     '../../../../../packages/i18n/src': {defaultI18n}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme}, '../focus': b.focus, './model': layoutModel, './row-state': rowState,
     '../focus/page-boundary': page, './FocusAnchor': {useFocusAnchor: () => ({anchor() {}, repeating: false, offset: {value: 0}, scrollRef: {current: null}, stop() {}, move() {}})},
     './MotionItem': {MotionItem: 'MotionItem'}, './types': layoutTypes});
-  const shelf = await screenModule(new URL('../src-next/tv/layout/TVShelf.tsx', import.meta.url), {react: b.react, '../../kit/layout/Row': row});
+  const shelf = await screenModule(new URL('../src-next/tv/layout/TVShelf.tsx', import.meta.url), {react: b.react, 'react-native': b.native, '../../kit/theme': {useTheme: () => b.theme}, '../../kit/layout/Row': row});
   const people = await screenModule(new URL('../src-next/screens/watch/TitlePeople.tsx', import.meta.url), {'../../kit/states': {SkeletonBlock: 'SkeletonBlock'}, '../../kit/focus': b.focus, '../../../../../packages/i18n/src': {defaultI18n}, react: b.react, 'react-native': b.native,
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', PersonCircle: 'PersonCircle'}, '../../tv/layout/TVShelf': shelf, '../../tv/layout/TVArtFocus': {TVArtFocus: 'TVArtFocus'},
     '../../kit/controls': {Focusable: b.Focusable}, '../../kit/theme': {useTheme: () => b.theme, nativeType, fontFamilies}});
@@ -131,7 +131,8 @@ for (const [name, actionable] of [['leading', [false, true, true]], ['interleave
     const b = await bindings(), c = await rowComposition(b); let tree: any; const commands: string[] = [];
     const credits = actionable.map((active, index) => ({id: `credit-${index}`, name: `Name ${index}`, role: 'Actor', ...(active ? {personId: `person-${index}`} : {})}));
     let people: any; const peopleDriver = createFabricHookHost(() => {people = c.people.TitlePeople({credits, artwork: () => undefined, onPerson: (id: string) => commands.push(id), focus: {id: 'cast', edges: {left: 'rail', right: 'next'}}});}); await peopleDriver.mount();
-    const shelf = people.type(people.props), wrapper = shelf.type({...shelf.props, initialViewportWidth: 1920}), row = wrapper.props.children;
+    // TVShelf draws its Row inside the W-11 focus bleed.
+    const bled = people.type(people.props), shelf = [bled.props.children].flat(Infinity).find((child: any) => typeof child?.type === 'function'), wrapper = shelf.type({...shelf.props, initialViewportWidth: 1920}), row = wrapper.props.children;
     const driver = createFabricHookHost(() => {tree = row.type(row.props);}); await driver.mount();
     const regionNode = nodes(tree).find(node => node.type?.name === 'RowRegion'), declared = regionNode.type(regionNode.props);
     const guide = await b.region(() => declared.props), rail = {nativeTag: 900, requestTVFocus() {}}, next = {nativeTag: 901, requestTVFocus() {}};
