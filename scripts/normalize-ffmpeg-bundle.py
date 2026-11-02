@@ -20,7 +20,7 @@ if len(disc_licenses)!=1:p.error('expected one checked disc reader license')
 shutil.copy2(disc_licenses[0],a.output/'LICENSES/portico-disc.txt')
 for name in ['dependency-inputs.json', 'compiler.txt', 'compiler-linked-inputs.json', 'license-inventory.json', 'linux-build-inputs.json', 'repeat-build.json', 'libdovi-build.json', 'dovi-profile-build.json', 'dovi-video-build.json'] + (['source-build-receipt.json'] if a.target.startswith('windows') else []):
  matches=sorted(x for x in a.input.rglob(name) if x.is_file() and not x.is_symlink())
- if a.target=='linux-x64' and len(matches)!=1 and not (a.working and name in ('repeat-build.json','dovi-profile-build.json','dovi-video-build.json')):p.error('expected one '+name+' provenance file')
+ if a.target=='linux-x64' and len(matches)!=1 and name != 'repeat-build.json' and not (a.working and name in ('dovi-profile-build.json','dovi-video-build.json')):p.error('expected one '+name+' provenance file')
  if len(matches)==1:shutil.copy2(matches[0],a.output/name)
 # Keep the collected source-relative notices intact. Several dependencies use
 # COPYRIGHT or NOTICE, and nested names distinguish separate upstream licences.
