@@ -1,6 +1,7 @@
 import React, {useEffect, useRef} from 'react';
 import {Text, View} from 'react-native';
 import {useTVKeyEvent} from '../../platform/tv-keys';
+import {claimTVPlayPause} from '../../platform/tv-play-pause';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, Focusable} from '../../kit/controls';
 import {FocusProvider, FocusRegion} from '../../kit/focus';
@@ -28,6 +29,8 @@ function VerificationForm(props: TVVerificationFormProps) {
   const theme = useTheme(), t = defaultI18n.t, id = `tv.auth.${props.kind}.factor`, submitted = useRef<string | undefined>(undefined);
   useEffect(() => {if (!props.code) submitted.current = undefined;}, [props.code]);
   const remove = () => {if (!props.busy) {submitted.current = undefined; props.onCodeChange(props.code.slice(0, -1));}};
+  // F-PROFILE-30: Play/Pause deletes a digit here, so playback never takes it.
+  useEffect(claimTVPlayPause, []);
   useTVKeyEvent(event => {
     if (!props.recovery && !props.busy && event.key === 'playPause' && event.phase === 'press') remove();
   });
