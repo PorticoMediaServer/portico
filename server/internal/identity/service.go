@@ -107,6 +107,8 @@ type Envelope struct {
 }
 type Service struct {
 	profilePurgeWake *worker.Signal
+	// gate is the remote gate's live "still unset?" answer (setup_gate.go).
+	gate *setupGate
 	// lastSecurityPrune is time.Now().Unix() at the last opportunistic prune
 	// of the per-source security tables. Every read and write of it happens
 	// inside a security-fence write transaction, which the write gate
@@ -201,6 +203,9 @@ func New(db *sql.DB, state string) (*Service, error) {
 		return nil, err
 	}
 	if err := s.initSetupHashKey(state); err != nil {
+		return nil, err
+	}
+	if err := s.initSetupGate(); err != nil {
 		return nil, err
 	}
 	var pendingSetup bool

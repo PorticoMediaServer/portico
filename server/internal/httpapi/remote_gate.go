@@ -21,7 +21,7 @@ import (
 // Home networks and trusted proxies are the same lists the locality decision
 // reads; the listed names are the owner's custom addresses, the external
 // address and, while it is switched on, the custom-certificate domain.
-func remoteGatePolicy(v operations.Settings, envProxies []netip.Prefix, own func() []netip.Addr, unconfigured bool) *remotegate.Policy {
+func remoteGatePolicy(v operations.Settings, envProxies []netip.Prefix, own func() []netip.Addr, unconfigured func() bool) *remotegate.Policy {
 	settings := remotegate.Settings{Security: v.RemoteSecurity, Access: v.RemoteAccess, Own: own, Unconfigured: unconfigured}
 	for _, raw := range v.LANNetworks {
 		if p, ok := operations.ParseNetwork(raw); ok {
@@ -123,7 +123,7 @@ func (d Dependencies) refusedAddresses(ctx context.Context) (RefusedAddresses, e
 	if err != nil {
 		return out, connectionPolicyError(err)
 	}
-	policy := remoteGatePolicy(document.Effective, d.TrustedProxies, nil, false)
+	policy := remoteGatePolicy(document.Effective, d.TrustedProxies, nil, nil)
 	out.RemoteSecurity = policy.Security()
 	if d.RemoteGate == nil || policy.Security() != remotegate.SecurityEnhanced {
 		return out, nil

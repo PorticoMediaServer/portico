@@ -889,7 +889,7 @@ func New(d Dependencies) http.Handler {
 	}
 	d.connectionPolicy = &connectionPolicyCache{gate: d.RemoteGate, envProxies: d.TrustedProxies}
 	if d.Identity != nil {
-		d.connectionPolicy.unconfigured = d.Identity.SetupRequired
+		d.connectionPolicy.unconfigured = d.Identity.Unconfigured
 	}
 	if d.Networking != nil {
 		networking := d.Networking
