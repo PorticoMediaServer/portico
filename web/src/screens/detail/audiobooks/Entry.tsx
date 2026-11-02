@@ -6,6 +6,7 @@ import {ApiError} from '@core/index.ts';
 import type {ContentEntry, ContentProjection} from '@core/library-content.ts';
 import type {RelationPage} from '@core/relation-rows.ts';
 import {Menu, MenuItem} from '../../../kit/overlays';
+import {OwnerMetadataGroup} from '../OwnerMetadataGroup';
 import {Artwork, AmbientArt} from '../../../kit/artwork';
 import {Button, Chip} from '../../../kit/controls';
 import {Icon} from '../../../kit/Icon';
@@ -162,7 +163,7 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
   };
   const localOwner = binding.context.identity?.viewer.authority === 'local' && binding.context.identity.viewer.role === 'owner';
   const effects = binding.context.effects;
-  const hasLeafActions = !!(effects.addToPlaylist || effects.addToCollection || localOwner && effects.deleteTitle);
+  const hasLeafActions = !!(effects.addToPlaylist || effects.addToCollection || localOwner && (effects.deleteTitle || effects.editMetadata));
   const invoke = (effect: typeof effects.addToPlaylist) => run(() => {
     binding.current(page);
     if (!more || more.page !== page || !effect || more.entry.available === false || more.entry.missing || !binding.service.getSnapshot().appended.some(section => section.entries.includes(more.entry))) return;
@@ -256,7 +257,12 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
     {more?.page === page && <Menu open onOpenChange={value => {if (!value) setMore(undefined);}} title={more.entry.title} anchorRef={{current: more.anchor}}>
       {effects.addToPlaylist && <MenuItem onSelect={() => invoke(effects.addToPlaylist)}>{t('entry.addToPlaylist')}</MenuItem>}
       {effects.addToCollection && <MenuItem onSelect={() => invoke(effects.addToCollection)}>{t('entry.addToCollection')}</MenuItem>}
-      {localOwner && effects.deleteTitle && <MenuItem onSelect={() => invoke(effects.deleteTitle)}>{t('entry.delete')}</MenuItem>}
+      {/* The drawn menus keep the owner's rows under their own heading, Delete last (tablet.html frame 7). */}
+      {localOwner && <OwnerMetadataGroup separated={!!(effects.addToPlaylist || effects.addToCollection)} context={binding.context} anchor={() => more.anchor}
+        guard={() => {binding.current(page); if (!binding.service.getSnapshot().appended.some(section => section.entries.includes(more.entry))) throw new DOMException('Audiobook page changed', 'AbortError');}}
+        target={more.entry.kind === 'audiobook_file' ? {libraryId: page.scope.libraryId, itemId: more.entry.id, kind: 'audiobook_file', title: more.entry.title} : undefined}>
+        {effects.deleteTitle && <MenuItem icon="i-trash" destructive onSelect={() => invoke(effects.deleteTitle)}>{t('entry.delete')}</MenuItem>}
+      </OwnerMetadataGroup>}
     </Menu>}
     {!book && phone && <section><div className={styles.sectionHead}><h2>{t('next.controls.details')}</h2></div><dl className={styles.details}>{entity.narrators?.length ? <><dt>{t('filter.field.narrator')}</dt><dd>{serviceI18n().list(entity.narrators)}</dd></> : null}{entity.duration !== undefined && <><dt>{t('next.kit.length')}</dt><dd>{duration(entity.duration)}</dd></>}</dl></section>}
   </article>;
