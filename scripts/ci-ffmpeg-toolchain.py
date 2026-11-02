@@ -110,10 +110,12 @@ def native_matrix(selected, artifacts, source_sha, build_result, run_id):
             'nativeEngineChecks': False, 'qualified': False, 'release': False}
 
 
-def native_retry_pin(target, now=None):
+def native_retry_pin(target, now=None, replay_run_id=None):
     pin = json.loads(json.dumps(WINDOWS_NATIVE_RETRY))
     if target != pin['target']:
         raise ValueError('only the explicitly pinned Windows development artifact may be retried')
+    if replay_run_id is not None and str(replay_run_id) != str(pin['origin']['runId']):
+        raise ValueError('replay run differs from the exact artifact pin')
     created = datetime.fromisoformat(pin['createdAt'].replace('Z', '+00:00'))
     expires = datetime.fromisoformat(pin['expiresAt'].replace('Z', '+00:00'))
     if not created <= (now or datetime.now(timezone.utc)) < expires or not timedelta(0) < expires - created <= timedelta(days=14):
@@ -467,10 +469,10 @@ def native_retry(target, work):
         raise ValueError('cross-run native retry is development-only')
     qualification = context()
     module('verify-native-engine').native(target, 'github-actions', os.environ)
-    pin = native_retry_pin(target)
+    pin = native_retry_pin(target, replay_run_id=os.environ.get('REPLAY_RUN_ID') or None)
     work.mkdir(parents=True, exist_ok=False)
     evidence = work / 'evidence'; evidence.mkdir()
-    receipt = dict(schemaVersion=1, kind='development-native-retry', target=target,
+    receipt = dict(schemaVersion=1, kind='development-native-retry', target=target, replay=True,
         qualifier=qualification, inputArtifact=pin, qualified=False, release=False,
         readyForPublication=False, nativeEngineChecks=False)
     try:

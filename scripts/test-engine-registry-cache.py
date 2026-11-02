@@ -237,6 +237,7 @@ RUN configure-final
             commands.append(' ' * indent + 'docker buildx --builder ffbuilder build \\\n' + pad +
                             '--cache-from=type=local,src=.cache/"${' + variable + '/:/_}" \\\n' + pad +
                             '--cache-to=type=local,mode=max,dest=.cache/"${' + variable + '/:/_}" \\\n' + pad + '--load .\n')
+        self.write('download.sh', 'tar -I "xz -T1" -cpf "$TGT.tmp" .\n')
         self.write('makeimage.sh', ''.join(commands) + './download.sh\n')
         cache.configure_makeimage(self.recipe, ROOT / 'engine-registry-cache.py', 'linux-arm64')
         text = (self.recipe / 'makeimage.sh').read_text()

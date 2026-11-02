@@ -157,6 +157,7 @@ def download_sources(recipe, execute, update=lambda _: None):
     store = os.environ.get('PORTICO_ENGINE_DOWNLOAD_CACHE')
     download_cache = __import__('runpy').run_path(str(ROOT / 'scripts/engine-download-cache.py'))
     if store: download_cache['sync']('restore', recipe, Path(store))
+    download_cache['configure_download'](recipe)
     for script, archive in inputs.source_pairs(recipe, require_files=False).items():
         try:
             execute(script)
@@ -257,6 +258,7 @@ def main():
         for patch in ('btbn-gnu-ncurses-mirror.patch', 'btbn-verified-source.patch'):
             run(patch, ['git', 'apply', ROOT / 'third_party/ffmpeg/patches' / patch], recipe)
         run('system-error', ['bash', ROOT / 'scripts/patch-btbn-winarm64-system-error.sh', recipe / 'build.sh'])
+        env['SOURCE_DATE_EPOCH'] = str(lock['sourceDateEpoch'])
         env['PORTICO_DISC_SOURCE_COMMIT'] = lock['discHelper']['sourceCommit']
         prepared = next((source_work / 'source').glob('patched-source*'))
         run('configure', [sys.executable, ROOT / 'scripts/configure-ffmpeg-recipe.py', recipe, prepared, a.target])

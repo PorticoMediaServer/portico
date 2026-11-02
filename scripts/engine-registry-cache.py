@@ -115,6 +115,7 @@ def stage_key(recipe, name, deps, compiler_id, results):
 
 def configure_makeimage(recipe, helper, target):
     """Replace the six pinned local-cache hooks, preserving the Docker graph."""
+    __import__('runpy').run_path(str(Path(__file__).with_name('engine-download-cache.py')))['configure_download'](recipe)
     path = recipe / 'makeimage.sh'
     text = path.read_text()
     # Reset by caller from pinned Git on every run; never silently double patch.
