@@ -502,7 +502,7 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
             width={viewportWidth - theme.gutter - (theme.isTV ? 96 : theme.gutter)} visible={shown} current={current} onFocus={() => onRowFocus(row, row.collection!.collection.id)}/></View></FocusItem></HomeRegion>
           : <Row title={title} subtitle={rowSubtitle} items={presentation.cards} getKey={homeCardKey} getFocusId={homeCardFocusId} focus={theme.isTV ? regionMap.rows.get(row.id) : undefined} initialViewportWidth={viewportWidth} scrollMemory={scrollMemory} testID={theme.isTV ? ids.row(row.id) : undefined} itemWidth={width} itemHeight={height} captionHeight={row.artworkShape === 'landscape' ? 0 : theme.isTV ? 80 : row.artworkShape === 'square' ? 54 : 48}
             gutter={medium ? mediumGutter : theme.gutter} rightGutter={medium ? mediumGutter : theme.isTV ? 96 : theme.gutter} gap={medium ? 14 : undefined} headingStyle={medium ? mediumHeadingStyle : undefined} selection={runtime.selection(row.id)} paging={paging} onVisibleRange={range} onVisibleKeys={visibleKeys}
-            onSeeAll={row.seeAll ? () => guarded(() => runtime.actions.seeAll(row.seeAll!)) : undefined} onRepeatingChange={setRepeating}
+            onSeeAll={row.seeAll ? () => guarded(() => runtime.actions.seeAll(row.seeAll!, title)) : undefined} onRepeatingChange={setRepeating}
             onItemFocus={item => onRowFocus(row, item.entry.id)} renderItem={(item, context) => <View style={theme.fontScale > 1 || theme.textScale > 1 ? {width, minHeight: height} : {width, height}}><LoadingPaint ready={!context.waiting} immediate={!context.waiting} skeleton={<View style={{backgroundColor: theme.colors.ink}}><SkeletonBlock width={width} height={height}/></View>}><HomeCard runtime={runtime} row={row} entry={item.entry} rank={item.rank} context={context}
               width={width} rowIndex={rowIndex} visible={shown} preferred={false} medium={medium}
               current={current}/></LoadingPaint></View>}/>}
@@ -615,10 +615,11 @@ function HomeLiveRow({row, runtime, visible, itemWidth, onRange, onVisibleKeys, 
   const rowSubtitle = subtitle && theme.layoutMode === 'phone' && theme.platform === 'phone'
     ? <Text numberOfLines={1} style={[homeRowSubtitle(theme), {color: theme.colors.textTertiary, includeFontPadding: false}]}>{subtitle}</Text>
     : undefined;
-  return <Row title={serverTextLabel(labels, row.titleText, row.title)} subtitle={rowSubtitle} items={live.channels} getKey={homeChannelKey} getFocusId={homeChannelFocusId} focus={focus} initialViewportWidth={viewportWidth} scrollMemory={scrollMemory}
+  const title = serverTextLabel(labels, row.titleText, row.title);
+  return <Row title={title} subtitle={rowSubtitle} items={live.channels} getKey={homeChannelKey} getFocusId={homeChannelFocusId} focus={focus} initialViewportWidth={viewportWidth} scrollMemory={scrollMemory}
     itemWidth={itemWidth} itemHeight={theme.isTV ? 225 : theme.layoutMode === 'desktop' ? theme.spec.card.live.height.web : theme.spec.card.live.height.phone} selection={runtime.selection(row.id)} onVisibleRange={onRange} onVisibleKeys={onVisibleKeys} onItemFocus={onItemFocus}
     gutter={medium ? mediumGutter : undefined} rightGutter={medium ? mediumGutter : undefined} gap={medium ? 14 : undefined} headingStyle={medium ? mediumHeadingStyle : undefined}
-    onSeeAll={row.seeAll ? () => {if (current()) runtime.actions.seeAll(row.seeAll!);} : undefined}
+    onSeeAll={row.seeAll ? () => {if (current()) runtime.actions.seeAll(row.seeAll!, title);} : undefined}
     renderItem={(item: HomeChannel, context) => <HomeChannelCard rowId={row.id} item={item} context={context} runtime={runtime} current={current} visible={visible} observed={observed} width={itemWidth}/>}/>;
 }
 

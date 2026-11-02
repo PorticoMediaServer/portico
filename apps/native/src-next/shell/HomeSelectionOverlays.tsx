@@ -58,8 +58,9 @@ export function HomeSelectionOverlays({controller, runtime, ownerTag, reportErro
   // tv-focus F-HOME-46..49: headings are not TV focus stops. See all is
   // the last action of the actual row member's Hold OK menu.
   const row = theme.isTV && menu ? runtime.homeMenuRow?.(menu.windowId) : undefined;
-  const seeAll: MenuAction[] = row?.seeAll ? [{id: 'see-all', label: `${t('shelf.seeAll')} ${serverTextLabel(defaultI18n, row.titleText, row.title)}`, icon: 'i-grid',
-    onSelect: () => {controller.closeMenu(); runtime.actions.seeAll(row.seeAll!);}}] : [];
+  const rowTitle = row ? serverTextLabel(defaultI18n, row.titleText, row.title) : '';
+  const seeAll: MenuAction[] = row?.seeAll ? [{id: 'see-all', label: `${t('shelf.seeAll')} ${rowTitle}`, icon: 'i-grid',
+    onSelect: () => {controller.closeMenu(); runtime.actions.seeAll(row.seeAll!, rowTitle);}}] : [];
   const items: MenuEntry[] = menu ? titleMenuItems(menu.groups, {tv: theme.isTV, run: action => {void controller.executeMenu(action).catch(reportError);},
     surface: select ? [select] : [], trailing: seeAll}) : [];
   const typeCounts = new Map<SelectionKind, number>();

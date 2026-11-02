@@ -25,7 +25,8 @@ export type NativeShellRoute = Readonly<
   | {kind: 'settings-page'; scope: 'account'; page: 'reading'}
   | {kind: 'channel'; sourceId: string; channelId: string; guide?: import('../platform/playback/types').NativeChannelGuideOrigin;
       tune?: Readonly<{fence: import('../../../../packages/player-core/src').ChannelPlaybackFence; sourceGeneration: string}>}
-  | {kind: 'home-see-all'; destination: HomeSeeAll}
+  /** Only a server row's own page. Every other See all opens its real page (homeSeeAllRoute). */
+  | {kind: 'home-see-all'; destination: Extract<HomeSeeAll, {type: 'row'}>}
   | {kind: 'home-customize'}
   | {kind: 'profiles'; profileId?: string}
   | {kind: 'servers'; initialPanel?: 'consent-kind'}
@@ -76,6 +77,20 @@ export const nativeEntryRoute = (entry: ContentEntry): NativeShellRoute => {
     : entry.kind === 'book' ? Object.freeze({kind: 'book', entry})
       : entry.kind === 'author' || entry.kind === 'book_series' ? Object.freeze({kind: 'audiobook', entry}) : titleRoute(entry, continueOffer(entry));
 };
+/** N4-1: See all goes where the server's destination names, as web's seeAllDestination does:
+ * a row to its own page, On now to the Live TV guide, a saved view to its Saved page, a
+ * collection to its page and a library query to that library. `title` is the row's heading,
+ * shown on a collection page until it loads. */
+export function homeSeeAllRoute(destination: HomeSeeAll, title: string): NativeShellRoute {
+  switch (destination.type) {
+    case 'row': return Object.freeze({kind: 'home-see-all', destination});
+    case 'guide': return Object.freeze({kind: 'shell', destination: {kind: 'live'}} as const);
+    case 'saved_view': return Object.freeze({kind: 'saved-view', view: Object.freeze({view: 'resource', resourceId: destination.resourceId} as const)});
+    case 'collection': return Object.freeze({kind: 'collection', libraryId: destination.libraryId, collectionId: destination.resourceId, title});
+    case 'library': return Object.freeze({kind: 'shell', destination: {kind: 'library', libraryId: destination.libraryId,
+      definition: Object.freeze({libraryId: destination.libraryId, pivot: destination.pivot, query: destination.query ?? null, sort: destination.sort, presentation: 'grid'})}} as const);
+  }
+}
 export const channelRoute = (item: HomeChannel): NativeShellRoute => Object.freeze({kind: 'channel', sourceId: item.source.id, channelId: item.channel.id});
 
 export type NativeRouteSnapshot = Readonly<{authority: ShellAuthority; route: NativeShellRoute; destination: ShellDestination; revision: number}>;
