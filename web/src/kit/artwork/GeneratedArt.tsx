@@ -21,8 +21,8 @@ export type GeneratedCoverProps = ArtStyleProps & Readonly<{
   selectionClearance?: boolean;
 }>;
 export function GeneratedCover({title, author, tint, glyph, fontScale = 12.6, titleClassName, selectionClearance = false, className, style, width, height}: GeneratedCoverProps) {
-  return <span role="img" aria-label={title} className={artClass(styles.generatedCover, selectionClearance && styles.selectionClearance, className)} style={artSize({width, height, style: {'--art-first': tint.first, '--art-second': tint.second, '--cover-font': `${fontScale}cqw`, ...style} as CSSProperties})}>
+  return <span role="img" aria-label={title} data-generated-cover="" className={artClass(styles.generatedCover, selectionClearance && styles.selectionClearance, className)} style={artSize({width, height, style: {'--art-first': tint.first, '--art-second': tint.second, '--cover-font': `${fontScale}cqw`, ...style} as CSSProperties})}>
     <span className={styles.coverGlyph} aria-hidden="true">{glyph}</span>
-    <span className={styles.coverCopy} aria-hidden="true"><b className={titleClassName}>{title}</b>{author && <small>{author}</small>}</span>
+    <span className={styles.coverCopy} data-cover-copy="" aria-hidden="true"><b className={titleClassName}>{title}</b>{author && <small>{author}</small>}</span>
   </span>;
 }
