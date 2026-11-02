@@ -123,9 +123,9 @@ export class BrowserRegisteredSignIn {
     this.attemptId = undefined;
     if (!record || record.version !== 1 || record.kind !== 'registered' || !record.pending) throw invalid();
     const saved = {...record, pending: record.pending}, url = new URL(captured.href), expires = Date.parse(saved.expiresAt), now = serverNow();
-    // createdAt and expires are both the signing Server's clock (server-clock.ts), never this
-    // device's: the signed prepare still bounds itself, and this record never accepts an expiry
-    // the Server has already reached.
+    // `expires` is the signing Server's instant, judged on the Server's clock (server-clock.ts).
+    // `createdAt` is this device's own stamp, judged only against this device's clock by the
+    // same-tab return window; the two are never compared with each other.
     if (!Number.isSafeInteger(saved.pending.createdAt) || saved.pending.createdAt < 0 ||
       !registeredSignInExpiryWithinLifetime(expires, saved.pending.createdAt, now) ||
       url.origin !== this.ports.pageOrigin() || url.origin !== saved.origin || saved.pending.registrationOrigin !== saved.origin || saved.pending.purpose !== 'sign-in' ||

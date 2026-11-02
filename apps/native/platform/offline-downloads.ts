@@ -1,5 +1,6 @@
 import {stepNativeSelectionActionDownloads, type NativeSelectionActionDownloadIntent} from '../src-next/screens/library/selection-action-downloads';
 import type {NativeOfflinePublicationLease} from './offline-reading-authority';
+import {serverNow} from '../../../packages/client-core/src/server-clock';
 import {publicationUTF8, openOfflineReadingSession, publicationBinding, nativePublicationReadsAvailable, type OfflineReadingSession, type PublicationBinding} from './offline-reading';
 import {decodeGetReadingSessionsSessionIdProgressResponse, decodePutReadingSessionsSessionIdProgressResponse} from '../../../packages/contracts/src';
 import {parseReadingOfflineRefresh, readingOfflineRefreshLimit, readingOfflineRefreshPath} from '../../../packages/client-core/src/reading-offline-refresh';
@@ -1351,7 +1352,9 @@ export class OfflineDownloads {
   /** The time a receipt's expiry is judged by (B-14.21, receipt-clock.ts): never earlier than the
    * latest time this device has trusted. The floor is written when it moves by more than a minute. */
   private receiptNow(): number {
-    const {nowMs, floorMs} = receiptTime({floorMs: this.stored.clockFloor}, Date.now());
+    // No client-clock requirements: the server's time as this device knows it (its offset is kept
+    // across restarts), never the bare device clock; the floor still stops a clock turned back.
+    const {nowMs, floorMs} = receiptTime({floorMs: this.stored.clockFloor}, serverNow());
     if (floorMs - this.stored.clockFloor > 60_000) { this.stored.clockFloor = floorMs; void this.persist(); }
     return nowMs;
   }
