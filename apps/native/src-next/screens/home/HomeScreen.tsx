@@ -30,7 +30,8 @@ import {tvFocusIds, tvHomeRegionMap} from '../../shell/tv-focus';
 import {NativeHomePaging} from '../../shell/home-paging';
 import {tvHomeRows} from './tv-presentation';
 import {homeMixesFocusRow as mixesFocusRow, homeSpotlightFocusActions, homeStartModel, resolveTVHomeStart} from './home-start';
-import {CollectionBanner, LiveCard, PosterCard, RankedCard, SquareCard, WideCard, type CardProps} from '../../kit/cards';
+import {CollectionBanner, LiveCard, PosterCard, RankedCard, ReadResumeCard, ResumeCard, SquareCard, WideCard, type CardProps} from '../../kit/cards';
+import {continueBookFacts} from '../../../../../packages/client-core/src/presentation/continue-books';
 import {Hero, FocusPreviewHero, Row, type HeroCandidate} from '../../kit/layout';
 import {useFocusAnchor} from '../../kit/layout/FocusAnchor';
 import type {ArtworkRenderContext, LayoutItemContext} from '../../kit/layout/types';
@@ -242,12 +243,15 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
   const rowModels = rows.map(row => {
     const presentation = homeRowPresentation(row), wide = row.artworkShape === 'landscape', square = row.artworkShape === 'square';
     const ranked = presentation.cards.some(card => card.rank !== undefined);
-    const drawnWidth = ranked ? theme.isTV ? 318 : desktop ? theme.spec.shelf.rank.width : 186
+    // Continue your books draws the Read lane's resume card (tablet-read.html frame 11) at the
+    // sizes the Reading library uses for its own Continue row.
+    const books = row.id === 'continue_books';
+    const drawnWidth = books ? theme.platform === 'tablet' ? 392 : 296 : ranked ? theme.isTV ? 318 : desktop ? theme.spec.shelf.rank.width : 186
       : wide ? medium ? mediumCardWidth(true, tabletMedium) : desktop ? 262 : theme.spec.card.width.wide[theme.platform]
       : square ? desktop ? 150 : theme.spec.card.width.square[theme.platform] : medium ? mediumCardWidth(false, tabletMedium) : desktop ? 150 : theme.spec.card.width.poster[theme.platform];
     const width = cardScale === 1 ? drawnWidth : Math.round(drawnWidth * cardScale);
     const posterWidth = ranked ? Math.round((theme.isTV ? 214 : desktop ? theme.spec.shelf.rank.posterWidth : 116) * cardScale) : width;
-    const height = wide ? width * 9 / 16 : square ? width + (theme.isTV ? 80 : 54) : posterWidth * 1.5 + (theme.isTV ? 80 : 48);
+    const height = books ? Math.round((theme.platform === 'tablet' ? 176 : 150) * cardScale) : wide ? width * 9 / 16 : square ? width + (theme.isTV ? 80 : 54) : posterWidth * 1.5 + (theme.isTV ? 80 : 48);
     const cardHeight = row.live ? theme.isTV ? 225 : desktop ? theme.spec.card.live.height.web : theme.spec.card.live.height.phone : height;
     const top = theme.isTV ? Math.ceil(cardHeight * (theme.spec.focus.scale.card.tv - 1) / 2 + (theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv) * theme.spec.focus.scale.card.tv) : theme.spec.shelf.phonePaddingTop;
     const estimatedHeight = row.collection ? theme.isTV ? 360 : 236 : (theme.type.rowHeading.lineHeight ?? (theme.type.rowHeading.fontSize ?? 24) * 1.4)
@@ -501,7 +505,7 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
         {row.live ? <HomeLiveRow row={row} runtime={runtime} visible={shown} itemWidth={theme.isTV ? 400 : desktop ? theme.spec.card.live.width.web : theme.spec.card.live.width.phone} onRange={range} onVisibleKeys={visibleKeys} onItemFocus={item => onRowFocus(row, JSON.stringify([item.channel.sourceId, item.channel.id]))} current={current} focus={theme.isTV ? regionMap.rows.get(row.id) : undefined} viewportWidth={viewportWidth} tabletMedium={tabletMedium} scrollMemory={scrollMemory}/>
           : row.collection ? <HomeRegion focus={theme.isTV ? {...regionMap.rows.get(row.id)!, orientation: 'horizontal', order: [ids.collection(row.collection)]} : undefined}><FocusItem focusId={ids.collection(row.collection)}><View style={{paddingHorizontal: theme.gutter}}><HomeCollectionCard row={row} runtime={runtime}
             width={viewportWidth - theme.gutter - (theme.isTV ? 96 : theme.gutter)} visible={shown} current={current} onFocus={() => onRowFocus(row, row.collection!.collection.id)}/></View></FocusItem></HomeRegion>
-          : <Row title={title} subtitle={rowSubtitle} items={presentation.cards} getKey={homeCardKey} getFocusId={homeCardFocusId} focus={theme.isTV ? regionMap.rows.get(row.id) : undefined} initialViewportWidth={viewportWidth} scrollMemory={scrollMemory} testID={theme.isTV ? ids.row(row.id) : undefined} itemWidth={width} itemHeight={height} captionHeight={row.artworkShape === 'landscape' ? 0 : theme.isTV ? 80 : row.artworkShape === 'square' ? 54 : 48}
+          : <Row title={title} subtitle={rowSubtitle} items={presentation.cards} getKey={homeCardKey} getFocusId={homeCardFocusId} focus={theme.isTV ? regionMap.rows.get(row.id) : undefined} initialViewportWidth={viewportWidth} scrollMemory={scrollMemory} testID={theme.isTV ? ids.row(row.id) : undefined} itemWidth={width} itemHeight={height} captionHeight={row.artworkShape === 'landscape' || row.id === 'continue_books' ? 0 : theme.isTV ? 80 : row.artworkShape === 'square' ? 54 : 48}
             gutter={medium ? mediumGutter : theme.gutter} rightGutter={medium ? mediumGutter : theme.isTV ? 96 : theme.gutter} gap={medium ? 14 : undefined} headingStyle={medium ? mediumHeadingStyle : undefined} selection={runtime.selection(row.id)} paging={paging} onVisibleRange={range} onVisibleKeys={visibleKeys}
             onSeeAll={row.seeAll ? () => guarded(() => runtime.actions.seeAll(row.seeAll!, title)) : undefined} onRepeatingChange={setRepeating}
             onItemFocus={item => onRowFocus(row, item.entry.id)} renderItem={(item, context) => <View style={theme.fontScale > 1 || theme.textScale > 1 ? {width, minHeight: height} : {width, height}}><LoadingPaint ready={!context.waiting} immediate={!context.waiting} skeleton={<View style={{backgroundColor: theme.colors.ink}}><SkeletonBlock width={width} height={height}/></View>}><HomeCard runtime={runtime} row={row} entry={item.entry} rank={item.rank} context={context}
@@ -591,6 +595,20 @@ function HomeCard({runtime, row, entry, rank, context, width, rowIndex, visible,
     accessibilityState: {expanded: !!runtime.selection(row.id).isMenuOpen?.(entry.id)},
     onMore: () => {if (current()) runtime.actions.more(entry, row.id, anchor);}};
   const art = runtime.artwork(row.artworkShape === 'landscape' ? entry.backdropUrl ?? entry.posterUrl : entry.posterUrl);
+  if (row.id === 'continue_books') {
+    // Continue your books (Q24): the Read lane's resume card. A book, comic or magazine opens
+    // through the Reading entry; an audiobook resumes. Tapping is the action, so no play button.
+    // An audiobook's chapter and time left follow the shared Home continuation rule (HM-4).
+    const facts = continueBookFacts(entry, runtime.text.t, homeCardText(resume, true, runtime.text)), author = entry.author ?? (facts.reading ? undefined : entry.subtitle);
+    const card = {title: entry.displayTitle ?? entry.title, caption: author ? [{id: 'author', text: author, role: 'identity' as const}] : [],
+      detail: [...(facts.where ? [{id: 'where', text: facts.where, role: 'context' as const}] : []), ...(facts.left ? [{id: 'left', text: facts.left, role: 'context' as const}] : [])],
+      progress: facts.progress, width, height: Math.round((theme.platform === 'tablet' ? 176 : 150) * (width / (theme.platform === 'tablet' ? 392 : 296))),
+      visible, onFocus: context.onFocus, onBlur: context.onBlur, selection: context.selection, testID: context.testID, artwork: art,
+      primaryAction: 'navigate' as const, onNavigate: !facts.reading && play ? play : navigate,
+      menuAnchorRef: anchor, moreExpanded: runtime.selection(row.id).isMenuOpen?.(entry.id), onMore: () => {if (current()) runtime.actions.more(entry, row.id, anchor);},
+      artworkFallback: generatedPoster(entry.title, width)};
+    return facts.reading ? <ReadResumeCard {...card} kind={facts.shape === 'magazine' ? 'periodical' : facts.shape === 'newspaper' ? 'newspaper' : 'book'}/> : <ResumeCard {...card}/>;
+  }
   // BOOT-014: Home card art fades in over the approved 240 ms.
   return <ArtworkPlacementContext.Provider value={{row: rowIndex + 1, column: context.index, group: row.id}}><ArtworkArrivalContext.Provider value={240}>
     {rank ? <RankedCard {...props} rank={rank} artwork={art} isNew={entry.new} watched={entry.watched}/>

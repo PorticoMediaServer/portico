@@ -40,6 +40,7 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
       '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
       '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard},
     '../../../../../packages/client-core/src/presentation/home-spotlight': {homeRowPresentation: () => ({cards: [{entry}], title: 'Continue'}), homeSpotlightModels: () => [], homeTitleFactParts: () => []},
+      '../../../../../packages/client-core/src/presentation/continue-books': {continueBookFacts: () => ({reading: false, shape: 'audiobook'})},
       '../../../../../packages/client-core/src/home-selection': {homeEntryCapabilities: () => ({playable: true, details: true, watchlisted: false})},
       '../../../../../packages/client-core/src/presentation/errors': {presentError},
       '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_: unknown, text: string) => text},
