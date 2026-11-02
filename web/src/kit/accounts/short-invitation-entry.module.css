@@ -1,5 +1,5 @@
 /* Root ruling 10: auth12 shell geometry with auth4's labeled fields and actions. */
-.stage .content { width: 480px; margin-left: 64px; padding: 100px 0; }
+.stage .content { width: 480px; margin-left: var(--auth-left, 64px); padding: 100px 0; }
 .lede { font-size: 17px; line-height: 1.5; color: var(--color-text-secondary); margin: 0 0 28px; }
 .form { display: flex; flex-direction: column; }
 .form > [data-variant="auth"] { margin-bottom: 16px; }
