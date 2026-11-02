@@ -15,6 +15,7 @@ import {loadNativeCoverPages, type NativeCoverPage} from './read-cover-pages';
 import type {ReadingManifest, ReadingPage} from '../../../../../packages/client-core/src';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeReadOwnerEditLease, NativeReadVersion} from './read-book-model';
+import {TVRow} from '../../kit/layout/TVRow';
 
 const {t} = defaultI18n;
 const cancelled = () => Object.assign(new Error('cancelled'), {name: 'AbortError', code: 'cancelled'});
@@ -338,7 +339,7 @@ export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, ma
         <Text style={[browseType(theme, 13, 500), {color: theme.colors.textSecondary}]}>{t('next.reader.pageCount', {count: coverOpening.pageCount})}</Text>
         {coverPages?.opening === coverOpening && coverPages.phase === 'failed' ? <Text style={[browseType(theme, 12, 500), {color: theme.colors.record}]}>{t('error.unknown')}</Text> : null}
         <LoadingBoundary ready={!(coverPages?.opening === coverOpening && coverPages.phase === 'loading')} immediate={coverPages?.opening === coverOpening && coverPages.phase === 'ready'} skeleton={<SkeletonBlock width="100%" height={132}/>}>
-        {coverPages?.opening === coverOpening && coverPages.phase === 'ready' && coverPages.pages.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        {coverPages?.opening === coverOpening && coverPages.phase === 'ready' && coverPages.pages.length ? <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{gap: 8, paddingRight: 4}}>
           {coverPages.pages.map(page => {
             const selected = pageInput.value.trim() === String(page.index + 1);
@@ -350,7 +351,7 @@ export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, ma
               <Text style={[browseType(theme, 11.5, 600), {color: selected ? theme.colors.text : theme.colors.textSecondary, textAlign: 'center'}]}>{t('next.reader.page')} {page.index + 1}</Text>
             </Focusable>;
           })}
-        </ScrollView> : null}
+        </ScrollView></TVRow> : null}
         </LoadingBoundary>
         <TextField value={pageInput.value} onChangeText={setPage} editable={!coverBusy} keyboardType="number-pad"
           accessibilityLabel={t('next.reader.page')} maxLength={4}/>

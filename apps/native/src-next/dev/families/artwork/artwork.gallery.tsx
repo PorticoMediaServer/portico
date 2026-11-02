@@ -77,7 +77,7 @@ function CircleCases() {
   const real = suppliedEvidence();
   const [chosen, setChosen] = useState(3);
   return <View style={{gap: 28}}><View style={{flexDirection: 'row', flexWrap: theme.isTV ? 'nowrap' : 'wrap', width: theme.isTV ? 1580 : undefined, gap: theme.isTV ? 100 : 28}}>
-    {[1, 2, 3, 4].map(count => <Focusable testID={`dev.artwork.circles.album-count-${count}`} key={count} accessibilityRole="button" accessibilityLabel={t('next.kit.albums', {count})} focusKind="card" focusRadius={size / 2} hasTVPreferredFocus={theme.isTV && count === 3} onPress={() => setChosen(count)} style={{width: size, height: size}}><ArtistCircle covers={albums.slice(0, count)} size={size}/></Focusable>)}
+    {[1, 2, 3, 4].map(count => <Focusable testID={`dev.artwork.circles.album-count-${count}`} key={count} accessibilityRole="button" accessibilityLabel={t('next.kit.albums', {count})} focusKind="card" focusRadius={size / 2} preferredFocus={theme.isTV && count === 3} onPress={() => setChosen(count)} style={{width: size, height: size}}><ArtistCircle covers={albums.slice(0, count)} size={size}/></Focusable>)}
   </View><Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('next.kit.albums', {count: chosen})}</Text><View style={{flexDirection: 'row', gap: 28}}>
     <ArtistCircle covers={[]} initials="TK" size={96}/>
     <PersonCircle initials="JK" size={size} covers={albums.slice(0, 2)} ambientCovers={real?.ambient ? [real.ambient] : undefined} palette={palette}/>

@@ -47,7 +47,7 @@ export function TitleSkeleton({elapsedMs, pressed, shell, tabs, playAction, slow
         </>}
       </>}
       {tv && <View style={{flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 44}}>
-        {playAction && <StateActionButton testID={testID} action={{...playAction, icon: playAction.icon ?? 'i-play', hasTVPreferredFocus: playAction.hasTVPreferredFocus ?? true}} variant="primary" size="hero" />}
+        {playAction && <StateActionButton testID={testID} action={{...playAction, icon: playAction.icon ?? 'i-play', preferredFocus: playAction.preferredFocus ?? true}} variant="primary" size="hero" />}
         {show && <><SkeletonBlock width={200} height={72} radius={14} shine /><SkeletonBlock width={72} height={72} radius={14} /><SkeletonBlock width={72} height={72} radius={14} /></>}
       </View>}
     </View>

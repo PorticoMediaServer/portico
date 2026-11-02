@@ -158,7 +158,7 @@ test('nested static styles and both native ref forms reach the same sole Pressab
   for (const ref of [React.createRef(), (value: unknown) => {callbacks.push(value);}]) {
     const press = () => {}, layout = () => {};
     const control = await mount(Focusable, {ref, style: [{height: 72}, [false, {paddingHorizontal: 28, flex: 1}]],
-      onPress: press, onLayout: layout, hasTVPreferredFocus: true, nextFocusDown: 12, focusRadius: 14,
+      onPress: press, onLayout: layout, preferredFocus: true, nextFocusDown: 12, focusRadius: 14,
       tvParallaxProperties: {shiftDistanceX: 4}, accessibilityLabel: 'Actual native control', accessibilityState: {selected: true}});
     try {
       const node = control.native(), style = nativeStyle(node);
@@ -169,7 +169,8 @@ test('nested static styles and both native ref forms reach the same sole Pressab
       node.props.ref(null);
       assert.equal(typeof ref === 'function' ? callbacks.at(-1) : ref.current, null);
       assert.equal(node.props.onPress, press); assert.equal(node.props.onLayout, layout);
-      assert.equal(node.props.hasTVPreferredFocus, true); assert.equal(node.props.nextFocusDown, 12);
+      // TV focus step 4: preferred focus is asked once by the kit; the native prop (re-applied by tvOS on layout) never reaches the host.
+      assert.equal(node.props.preferredFocus, undefined); assert.equal(node.props.hasTVPreferredFocus, undefined); assert.equal(node.props.nextFocusDown, 12);
       assert.deepEqual(node.props.tvParallaxProperties, {shiftDistanceX: 4, enabled: false});
       assert.equal(node.props.accessibilityLabel, 'Actual native control'); assert.equal(node.props.accessibilityState.selected, true);
       assert.equal('pressableStyleInput' in node.props, false, 'the adapter prop must not leak to the native host');

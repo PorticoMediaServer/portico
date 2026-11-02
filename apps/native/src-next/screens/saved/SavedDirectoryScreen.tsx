@@ -25,6 +25,7 @@ import {savedNearEnd} from './paging';
 import {savedItemCount, savedLibraryName, personalMosaic, savedTitleCount, savedViewCount, savedVisibility} from './presentation';
 import type {NativeSavedViewSummaries} from './state';
 import type {NativeSavedDirectoryCommands, SavedDirectoryCommandLease} from './directory-commands';
+import {TVRow} from '../../kit/layout/TVRow';
 
 const noSummarySubscribe = (_listener: () => void) => () => {};
 const noSummaryRevision = () => 0;
@@ -186,7 +187,7 @@ export function SavedDirectoryScreen({route, destination, activation, runtime, l
     <ScrollView onLayout={event => {viewport.current.height = event.nativeEvent.layout.height; next();}}
       onContentSizeChange={(_width, height) => {viewport.current.extent = height; next();}}
       onScroll={event => {viewport.current.offset = event.nativeEvent.contentOffset.y; next();}} scrollEventThrottle={64} contentContainerStyle={{paddingBottom: 28 + insets.bottom}}>
-      {route.view === 'playlists' && !error && (!!filters.length || !!sorts.length) && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: theme.gutter, paddingTop: 10, paddingBottom: 10, gap: 8}}>
+      {route.view === 'playlists' && !error && (!!filters.length || !!sorts.length) && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: theme.gutter, paddingTop: 10, paddingBottom: 10, gap: 8}}>
         {!!sorts.length && <SavedSortMenu scope="saved-directory" sorts={sorts} sort={saved?.projection?.query.sort} direction={saved?.projection?.query.direction}
           onChange={(sort, direction) => {
             if (!activation.getSnapshot().visible || destination.getSnapshot().saved?.projection !== saved?.projection) return;
@@ -197,7 +198,7 @@ export function SavedDirectoryScreen({route, destination, activation, runtime, l
           selected={(saved?.projection?.query.category ?? 'all') === option.id} count={option.count} onPress={() => {void destination.select({view: 'playlists', filter: option.id as PlaylistListFilter,
             ...(saved?.projection?.query.sort ? {sort: saved.projection.query.sort, direction: saved.projection.query.direction as 'asc' | 'desc'} : {})}).catch(runtime.reportError);}}>
           {option.label}</Chip>))}
-      </ScrollView>}
+      </ScrollView></TVRow>}
       {route.view === 'views' && <Text style={[browseType(theme, 13, 400, 0, 19.5), {color: theme.colors.textTertiary, marginHorizontal: theme.gutter, marginTop: 12, marginBottom: 4}]}>{t('next.saved.viewsHelp')}</Text>}
       {problem !== '' && <View style={{paddingHorizontal: theme.gutter, paddingTop: 10}}><Banner variant="notice" tone="error" placement="inline" message={problem} action={{label: t('action.dismiss'), onPress: () => setProblem('')}}/></View>}
       {error && !loading ? <StateView variant="inline" {...runtime.error(error, retry)}/> : loading ? <SavedLoading kind="directory"/>

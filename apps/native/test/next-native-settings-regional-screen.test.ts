@@ -63,7 +63,7 @@ async function fixture(isTV = false) {
     '../../../../../packages/client-core/src/recommendation-feedback': {resetRecommendations: () => {throw Error('unexpected_mutation');}},
     '../../../../../packages/design/src/next-icons': {nextIcons},
     '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
-    '../../kit/focus': {FocusGate: 'FocusGate', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => focus.region ? {regionId: focus.region, childId: 'control'} : undefined, focus: (address: unknown) => {focus.calls.push(address); return true;}, entryAddress: () => undefined, subscribe: () => () => {}, getSnapshot: () => 0})},
+    '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => focus.region ? {regionId: focus.region, childId: 'control'} : undefined, focus: (address: unknown) => {focus.calls.push(address); return true;}, entryAddress: () => undefined, subscribe: () => () => {}, getSnapshot: () => 0})},
     '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/shell': {SettingsSheet: 'SettingsSheet', SettingsRow: 'SettingsRow', SettingsSearchResults: 'SettingsSearchResults', LanguageList: 'LanguageList', ShortcutTiles: 'ShortcutTiles'},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfileFace: 'ProfileFace'},
@@ -152,10 +152,11 @@ test('TV page column has an explicit Up crossing to Search and legible direction
 
 test('W-14: on TV, Left from any page content lands on its page in the column, and Back returns there from a custom page\'s own panel', async () => {
   const f = await fixture(true), tree = f.render();
-  const gate = nodes(tree).find(node => node.type === 'FocusGate');
-  assert.ok(gate, 'a focus gate sits between the page column and the content');
-  assert.equal(gate.props.regionId, 'settings.pages', 'it hands focus to the page column, never Search settings or the rail');
-  assert.equal(gate.props.style.position, 'absolute', 'it takes no space in the layout');
+  // TV focus step 4 (D11): no geometric gate. The rows region declares Left to the page column, and every nested
+  // oriented region inherits it, so geometry never decides.
+  assert.equal(nodes(tree).some(node => node.type === 'FocusGate'), false);
+  const column = nodes(tree).find(node => node.type === 'FocusRegion' && node.props.id === 'settings.pages');
+  assert.equal(column.props.edges.right, 'settings.rows.profile', 'Right from the column enters the page rows (whose own Left edge is the column; next-tv-focus-sequences D11)');
   // "Profile & account" draws its own panels, outside the generic rows region.
   f.focus.region = 'settings.panel.profiles';
   const back = f.focus.back.at(-1);

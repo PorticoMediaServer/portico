@@ -63,7 +63,7 @@ export function MusicSignalSheet({view, onClose, contextTitle, returnFocusRef}: 
       </View>
       <View style={{flex: 1}}/>
       <Focusable focusId="music-signal-done" testID="music-signal-done" accessibilityRole="button" accessibilityLabel={t('action.done')}
-        hasTVPreferredFocus={tv} onPress={onClose} style={{paddingHorizontal: tv ? 26 : 14, paddingVertical: tv ? 12 : 8, borderRadius: 10, backgroundColor: theme.colors.text}}>
+        preferredFocus={tv} onPress={onClose} style={{paddingHorizontal: tv ? 26 : 14, paddingVertical: tv ? 12 : 8, borderRadius: 10, backgroundColor: theme.colors.text}}>
         <Text style={[nativeType({size: tv ? 21 : 13.5, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.ink}]}>{t('action.done')}</Text>
       </Focusable>
     </View>
@@ -88,7 +88,7 @@ function TVMusicSignalSheet({view, onClose, contextTitle, returnFocusRef}: {view
         <Text style={[nativeType({size: 22, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{t('player.queueNowPlaying')}</Text>
       </View> : undefined}
       style={{boxShadow: [{offsetX: -40, offsetY: 0, blurRadius: 80, spreadDistance: -20, color: 'rgba(0,0,0,.75)'}]}}
-      footer={<View style={{gap: 22}}><Button ref={done} focusId="done" testID="music-signal-done" hasTVPreferredFocus onPress={onClose} style={{alignSelf: 'flex-start'}}>{t('action.done')}</Button>
+      footer={<View style={{gap: 22}}><Button ref={done} focusId="done" testID="music-signal-done" preferredFocus onPress={onClose} style={{alignSelf: 'flex-start'}}>{t('action.done')}</Button>
         <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}><View style={{paddingHorizontal: 10, height: 32, borderRadius: 7, borderWidth: 1.5, borderColor: 'rgba(237,245,250,.3)', justifyContent: 'center'}}>
           <Text style={[nativeType({size: 16, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{t('action.back')}</Text>
         </View><Text style={[nativeType({size: 18, weight: 400, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{t('next.states.close')}</Text></View>

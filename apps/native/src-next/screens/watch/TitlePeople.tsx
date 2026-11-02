@@ -10,6 +10,7 @@ import {SkeletonBlock} from '../../kit/states';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {RowProps} from '../../kit/layout/Row';
 import {fontFamilies, nativeType, useTheme} from '../../kit/theme';
+import {TVRow} from '../../kit/layout/TVRow';
 
 export type TitlePeopleProps = Readonly<{
   credits: readonly DetailCredit[];
@@ -74,5 +75,5 @@ export function TitlePeople({credits, artwork, onPerson, focus, paging}: TitlePe
         accessibilityRole="button" accessibilityLabel={credit.name} onPress={() => onPerson!(credit.personId!)} onFocus={onFocus} onBlur={onBlur}>{face}</Focusable>
         : <View key={credit.id}>{face}</View>;
   };
-  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 12, alignItems: 'flex-start'}}>{credits.map(credit => render(credit))}</ScrollView>;
+  return <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 12, alignItems: 'flex-start'}}>{credits.map(credit => render(credit))}</ScrollView></TVRow>;
 }

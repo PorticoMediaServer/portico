@@ -36,15 +36,17 @@ test('reading shelf keeps a bounded native window, starts ten cards early and dr
   const data = Array.from({length: 500}, (_, id) => ({id: String(id)})); let more = 0;
   const memory = {offset: 3200}, props = {items: data, getKey: (item: any) => item.id, renderItem: () => null,
     width: 142, height: 279, artHeight: 213, gap: 14, gutter: 32, onNext: () => {more++;}, scrollMemory: memory};
-  let tree = r.render(ReadingShelf, props); assert.equal(tree.type, 'FlatList'); assert.equal(tree.props.data, data);
+  // The shelf's list sits in its TVRow (TV focus step 5).
+  const list = (node: any) => node.type === 'FlatList' ? node : [node.props.children].flat()[0];
+  let tree = list(r.render(ReadingShelf, props)); assert.equal(tree.type, 'FlatList'); assert.equal(tree.props.data, data);
   assert.equal(tree.props.initialNumToRender, 4); assert.equal(tree.props.windowSize, 5);
-  tree.props.onLayout({nativeEvent: {layout: {width: 390}}}); tree = r.render(ReadingShelf, props);
+  tree.props.onLayout({nativeEvent: {layout: {width: 390}}}); tree = list(r.render(ReadingShelf, props));
   assert.equal(tree.props.onEndReachedThreshold, 10 * (142 + 14) / 390);
   assert.deepEqual(tree.props.getItemLayout(data, 20), {length: 156, offset: 3152, index: 20});
   assert.deepEqual(tree.props.contentOffset, {x: 3200, y: 0});
   tree.props.onScroll({nativeEvent: {contentOffset: {x: 3333}}}); assert.equal(memory.offset, 3333);
   tree.props.onEndReached(); assert.equal(more, 1);
-  tree = r.render(ReadingShelf, {...props, pending: true}); assert.equal(tree.props.onEndReached, undefined);
+  tree = list(r.render(ReadingShelf, {...props, pending: true})); assert.equal(tree.props.onEndReached, undefined);
   assert.equal(named(tree.props.ListFooterComponent, 'SkeletonBlock').props.height, 213);
 });
 

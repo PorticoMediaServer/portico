@@ -462,7 +462,7 @@ test('real state galleries request initial TV focus only on TV, preserving the n
     state.theme = createTheme({isTV, width: isTV ? 1920 : 390});
     for (const id of ['states-connection', 'states-page-failure']) {
       const gallery = await mount(stateGalleries.find(value => value.id === id)!.render, {});
-      try {assert.equal(find(gallery.tree, StateLayout).props.primaryAction.hasTVPreferredFocus, isTV);}
+      try {assert.equal(find(gallery.tree, StateLayout).props.primaryAction.preferredFocus, isTV);}
       finally {await gallery.host.unmount();}
     }
   }

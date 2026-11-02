@@ -67,7 +67,7 @@ export function NativeLicencesScreen({onBack, current}: {onBack: () => void; cur
           </>;
           return item.heading ? <View style={{paddingVertical: 18}}>{content}</View> :
             <Focusable testID={`license-${encodeURIComponent(item.id)}`} accessibilityRole={item.componentId ? 'button' : 'text'} accessibilityLabel={[item.title, item.body].filter(Boolean).join(', ')}
-              hasTVPreferredFocus={theme.isTV && item.id === first} onPress={item.componentId ? () => {if (current()) setSelected(item.componentId);} : undefined}
+              preferredFocus={theme.isTV && item.id === first} onPress={item.componentId ? () => {if (current()) setSelected(item.componentId);} : undefined}
               style={({focused}) => ({paddingHorizontal: 18, paddingVertical: 16, borderRadius: 14, backgroundColor: focused ? theme.colors.raisedHigh : theme.colors.raised, marginBottom: 6})}>{content}</Focusable>;
         }}/>} 
   </View>;

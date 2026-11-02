@@ -9,6 +9,7 @@ import {Button, Focusable} from '../../kit/controls';
 import {FocusRegion} from '../../kit/focus';
 import {Icon} from '../../kit/Icon';
 import {useTheme} from '../../kit/theme';
+import {TVRow} from '../../kit/layout/TVRow';
 
 /** tv-player 7: a film with nothing queued ends on its own backdrop, with Replay
  * focused, a rating and the server's related titles. The episode cards stay as
@@ -74,7 +75,7 @@ export function NativeWatchPostPlay({entry, api, scope, requestId, current, artw
       </View>
       {compact && ratingRow}
       <View style={{flexDirection: 'row', alignItems: 'center', gap: compact ? 10 : 18}}>
-        <Button focusId="watch-post-replay" testID="watch-post-replay" variant="primary" size={compact ? 'compact' : 'hero'} hasTVPreferredFocus={!compact} icon="i-replay"
+        <Button focusId="watch-post-replay" testID="watch-post-replay" variant="primary" size={compact ? 'compact' : 'hero'} preferredFocus={!compact} icon="i-replay"
           style={compact ? {height: 40, paddingHorizontal: 15, borderRadius: 10} : undefined} textStyle={compact ? {fontSize: 14.5, fontWeight: '700'} : undefined} onPress={onReplay}>{t('player.post.replay')}</Button>
         <Button focusId="watch-post-close" testID="watch-post-close" variant="glass" size={compact ? 'compact' : 'hero'}
           style={compact ? {height: 40, paddingHorizontal: 15, borderRadius: 10} : undefined} textStyle={compact ? {fontSize: 14.5, fontWeight: '700'} : undefined} onPress={onClose}>{t('player.post.close')}</Button>
@@ -83,7 +84,7 @@ export function NativeWatchPostPlay({entry, api, scope, requestId, current, artw
     </FocusRegion>
     {related.length > 0 && <View style={compact ? {position: 'absolute', right: 60, width: 370, top: 0, bottom: 0, justifyContent: 'center'} : {position: 'absolute', left: 96, right: 96, top: 578}}>
       <Text style={{fontFamily: 'Manrope-ExtraBold', fontSize: compact ? 15 : 30, fontWeight: compact ? '700' : '800', marginBottom: compact ? 10 : 18, color: theme.colors.text}}>{t('player.moreLike', {title: entry.displayTitle ?? entry.title})}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <FocusRegion id="watch-post-related" orientation="horizontal" entry={`watch-post-related-${related[0]!.id}`} edges={{up: 'watch-post'}} style={{flexDirection: 'row', gap: compact ? 10 : 28}}>
           {related.map(row => <Focusable key={row.id} focusId={`watch-post-related-${row.id}`} testID={`watch-post-related-${row.id}`} accessibilityRole="button" accessibilityLabel={row.title}
             onPress={() => {if (current()) onOpen(row);}} style={{width: compact ? 85 : 184}}>
@@ -96,7 +97,7 @@ export function NativeWatchPostPlay({entry, api, scope, requestId, current, artw
             </>}
           </Focusable>)}
         </FocusRegion>
-      </ScrollView>
+      </ScrollView></TVRow>
     </View>}
   </View>;
 }

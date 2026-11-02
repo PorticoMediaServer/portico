@@ -106,7 +106,7 @@ function DialogCase() {
   const [open, setOpen] = useState(true);
   const [removed, setRemoved] = useState(false);
   return <Scene><Button ref={opener} variant="glass" onPress={() => {setRemoved(false); setOpen(true);}}>{t('next.overlays.native.dialog')}</Button>
-    <Dialog open={open} onOpenChange={setOpen} title={t('confirm.removeDownload.title')} description={t('confirm.removeDownload.body', {title: film.name})} initialFocusRef={cancel} returnFocusRef={opener} footer={<View style={{flexDirection: 'row', gap: 10}}><Button ref={cancel} variant="glass" hasTVPreferredFocus onPress={() => setOpen(false)}>{t('action.cancel')}</Button><Button variant="text" style={{backgroundColor: `${theme.colors.record}24`}} textStyle={{color: theme.colors.record}} onPress={() => {setRemoved(true); setOpen(false);}}>{t('downloads.removeFromDevice')}</Button></View>} testID="overlays-dialog"><View/></Dialog>
+    <Dialog open={open} onOpenChange={setOpen} title={t('confirm.removeDownload.title')} description={t('confirm.removeDownload.body', {title: film.name})} initialFocusRef={cancel} returnFocusRef={opener} footer={<View style={{flexDirection: 'row', gap: 10}}><Button ref={cancel} variant="glass" preferredFocus onPress={() => setOpen(false)}>{t('action.cancel')}</Button><Button variant="text" style={{backgroundColor: `${theme.colors.record}24`}} textStyle={{color: theme.colors.record}} onPress={() => {setRemoved(true); setOpen(false);}}>{t('downloads.removeFromDevice')}</Button></View>} testID="overlays-dialog"><View/></Dialog>
     <ToastHost toast={removed ? {id: 'removed', message: t('downloads.removeFromDevice'), action: {label: t('action.undo'), onPress: () => setRemoved(false)}} : null} onDismiss={() => setRemoved(false)}/>
   </Scene>;
 }
