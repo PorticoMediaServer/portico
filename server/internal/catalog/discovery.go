@@ -388,7 +388,10 @@ func (s *Service) DiscoverWithRestrictions(library, profile string, restrictions
 		}
 		out.Sections = append(out.Sections, DiscoverySection{ID: mode, Title: title, TitleText: ServerText{Code: map[string]string{"continue_watching": "home.row.continueWatching", "continue_listening": "home.row.continueListening"}[mode], Fallback: title}, Items: entries, Total: len(entries)})
 	}
-	for _, spec := range []homeRowSpec{{ID: "recommended", Title: "Recommended for you"}, {ID: "trending_now", Title: "Trending now"}, {ID: "recent_" + library, Title: "Recently added", LibraryID: library}} {
+	// The mock-ups' order (phone-app.html, Discover): Continue, Recently
+	// added, Recommended for you; the personal rows follow Recommended and
+	// Trending comes last.
+	for _, spec := range []homeRowSpec{{ID: "recent_" + library, Title: "Recently added", LibraryID: library}, {ID: "recommended", Title: "Recommended for you"}, {ID: "trending_now", Title: "Trending now"}} {
 		src, e := s.homeEngineSource(r, spec)
 		if e != nil {
 			return out, e
