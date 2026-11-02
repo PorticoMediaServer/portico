@@ -68,7 +68,7 @@ jobs:
         if: steps.app.outputs.cache-hit != 'true'
         working-directory: apps/native/android
         env: {PORTICO_DEV_SIGN_IN: '1'}
-        run: ./gradlew --no-daemon :app:assembleGoogleDebug -PreactNativeArchitectures=x86_64 -PporticoEmbeddedJs=true
+        run: ./gradlew --no-daemon :app:assembleGoogleDebug :app:assembleFiretvDebug -PreactNativeArchitectures=x86_64 -PporticoEmbeddedJs=true
       - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
         if: steps.app.outputs.cache-hit != 'true'
         with:
@@ -78,5 +78,11 @@ jobs:
         with:
           name: e2e-android-apk-${{ github.sha }}
           path: apps/native/android/app/build/outputs/apk/google/debug/app-google-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: e2e-firetv-apk-${{ github.sha }}
+          path: apps/native/android/app/build/outputs/apk/firetv/debug/app-firetv-debug.apk
           if-no-files-found: error
           retention-days: 14
