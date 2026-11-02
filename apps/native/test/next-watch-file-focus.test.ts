@@ -11,6 +11,8 @@ import {durationText} from '../../../packages/client-core/src/presentation/kit-m
 import {nativeFileInfoFile, nativeSplitCandidates} from '../src-next/screens/watch/file-info.ts';
 import {fakeSession, groupRow, groupsPage, memberRow, membersPage, ownerSurface} from './helpers/file-info-windows.ts';
 import {shellLayout} from '../src-next/shell/model.ts';
+import * as titleMenu from '../src-next/kit/overlays/title-menu.ts';
+import {nativeWatchMenuGroups} from '../src-next/screens/watch/menu-model.ts';
 import * as registry from '../src-next/kit/focus/registry.ts';
 import * as hostRefs from '../src-next/kit/focus/useHostRef.ts';
 const react = {...React, default: React}, theme = {isTV: true, colors: {}, type: {body: {}, caption: {}, captionStrong: {}, bodyStrong: {}}};
@@ -30,7 +32,7 @@ const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/wa
   './file-info': {nativeFileInfoFile, nativeSplitCandidates}, '../../shell/model': {shellLayout}, '../../kit/controls': controls, '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/states': {StateView: 'StateView'},
   '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog', Menu: 'Menu'}, '../../kit/overlays/Menu': {TouchMenuHeader: 'TouchMenuHeader'},
   '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'TVPanelTransition', TVPanelSlide: 'TVPanelSlide', TVPanelScrim: 'TVPanelScrim', useTVPanelPresence: (value: unknown) => ({value, open: value !== undefined, exited() {}}), useTVPanelInteractive: () => true},
-  './DiscTitlesSheet': {NativeDiscTitlesSheet: 'DiscTitlesSheet'},
+  './DiscTitlesSheet': {NativeDiscTitlesSheet: 'DiscTitlesSheet'}, '../../kit/overlays/title-menu': titleMenu, './menu-model': {nativeWatchMenuGroups},
   './VersionChooser': {NativeVersionChooser: 'VersionChooser'}, '../../kit/overlays/surface': {FocusBoundary: 'FocusBoundary', PanelBackground: 'PanelBackground'}, '../../kit/overlays/OverlayHost': {useOverlayLifecycle() {}}, '../../kit/theme': themed,
 });
 const contexts: {current: unknown}[] = [];

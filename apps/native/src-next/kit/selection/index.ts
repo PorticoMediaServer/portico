@@ -6,5 +6,6 @@ export {BulkEditor} from './BulkEditor';
 export {PlaylistPicker, CollectionPicker, type DestinationPickerProps} from './Picker';
 export {DeleteMediaDialog} from './DeleteMediaDialog';
 export {MixedEditExplainer} from './MixedEditExplainer';
+export {RatingDialog, type RatingDialogProps} from './RatingDialog';
 export type {SelectionAction, SelectionActionOffer, SelectionBarProps, SelectionSurfaceProps, SelectionOutcome, PickerEntry, PickerProps, PickerResult, PickerFailure, BulkResultView, BulkListValue, BulkFieldValue, BulkFieldChange, BulkChanges, BulkEditorProps, MixedEditExplainerProps, DeleteMediaDialogProps} from './types';
 export {bulkReceiptView, pickerResultSucceeded} from './presentation';

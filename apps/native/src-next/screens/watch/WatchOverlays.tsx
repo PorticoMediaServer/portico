@@ -10,7 +10,11 @@ import {shellLayout} from '../../shell/model';
 import {Button, TextField} from '../../kit/controls';
 import {Artwork} from '../../kit/artwork';
 import {StateView} from '../../kit/states';
-import {BottomSheet, Dialog, Menu, type MenuEntry} from '../../kit/overlays';
+import {BottomSheet, Dialog, Menu, type MenuAction} from '../../kit/overlays';
+import {titleMenuItems} from '../../kit/overlays/title-menu';
+import type {IconName} from '../../kit/Icon';
+import type {EntryActionId} from '../../../../../packages/client-core/src/presentation/entry-actions';
+import {nativeWatchMenuGroups} from './menu-model';
 import {TouchMenuHeader} from '../../kit/overlays/Menu';
 import {FocusBoundary, PanelBackground} from '../../kit/overlays/surface';
 import {TVPanelTransition, TVPanelSlide, TVPanelScrim, useTVPanelPresence, useTVPanelInteractive} from '../../kit/overlays/TVPanelMotion';
@@ -113,42 +117,40 @@ export function NativeWatchOverlays({presenters, runtime, common}: {presenters: 
   if (value.phase !== 'menu' && value.phase !== 'file-pending' && value.phase !== 'versions-pending') return <ManageSurface value={value} presenters={presenters} common={common}/>;
   if (value.phase === 'file-pending' || value.phase === 'versions-pending') return null;
   const entry = value.capture.entry, art = runtime.artwork(entry.posterUrl), subject = named(entry);
-  const detail = value.detail, personal = detail?.personal, tv = Platform.isTV;
-  const personalRows = detail?.actions ?? [];
-  const playable = !!value.actions?.entry?.play && personalRows.some(action => action.enabled && action.playback && action.id !== 'start_over');
-  const allows = (id: string) => personalRows.some(action => action.id === id && action.enabled);
-  const resuming = (personal?.progressSeconds ?? entry.progressSeconds ?? 0) > 0;
-  const watched = personal?.watched ?? entry.watched ?? false, show = entry.kind === 'show';
+  const tv = Platform.isTV, menu = value.actions?.entry;
   const kindKey = entry.kind === 'movie' ? 'search.kind.movie' : entry.kind === 'show' ? 'search.kind.show' : entry.kind === 'artist' ? 'search.kind.artist' : entry.kind === 'album' ? 'search.kind.album' : undefined;
-  const items: MenuEntry[] = [];
-  if (playable) items.push({id: 'play', label: t(resuming ? 'entry.resume' : 'entry.play'), icon: 'i-play', onSelect: () => presenters.playEntry(value)});
+  // Title rows come from the one shared model and renderer (also Home's More menu); this menu
+  // adds only what belongs to a screen's own surface: Start radio, Play a different version…,
+  // File info, Select, Disc titles and the caller's extras (select.html 17 and 23, tablet.html 9).
   const together = tv ? presenters.togetherActions(value) : undefined;
-  if (together?.watch) items.push({id: 'watch-with-group', label: t('entry.watchWithGroup'), icon: 'i-people', onSelect: () => {void presenters.togetherEntry(value, true).catch(runtime.reportError);}});
-  if (together?.queue) items.push({id: 'add-to-group-queue', label: t('entry.addToGroupQueue'), icon: 'i-queue', onSelect: () => {void presenters.togetherEntry(value, false).catch(runtime.reportError);}});
-  // music-plus (MC-9): Start radio sits straight after Play for a song, album or artist.
-  if (value.actions?.entry?.startRadio) items.push({id: 'start-radio', label: t('music.startRadio'), icon: 'i-pulse', onSelect: () => presenters.startRadio(value)});
-  if (tv && value.actions?.entry?.enqueue) {
-    items.push({id: 'play-next', label: t('entry.playNext'), icon: 'i-pnext', onSelect: () => {void presenters.enqueue(value, 'next');}});
-    items.push({id: 'add-to-queue', label: t('entry.addToQueue'), icon: 'i-queue', onSelect: () => {void presenters.enqueue(value, 'end');}});
-  }
-  if (personal && allows('watchlist')) items.push({id: 'watchlist', label: t(personal.watchlisted ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist'),
-    icon: personal.watchlisted ? 'i-check' : 'i-plus', selected: personal.watchlisted, disabled: value.busy,
-    onSelect: () => {void presenters.personal(value, {action: 'watchlist', value: !personal.watchlisted});}});
-  if (personal && allows('favorite')) items.push({id: 'favorite', label: t(personal.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites'),
-    icon: personal.favorite ? 'i-heart-f' : 'i-heart', selected: personal.favorite, disabled: value.busy,
-    onSelect: () => {void presenters.personal(value, {action: 'favorite', value: !personal.favorite});}});
-  if (personal && allows('watched')) items.push({id: 'watched', label: t(show ? watched ? 'entry.markShowUnwatched' : 'entry.markShowWatched' : watched ? 'entry.markUnwatched' : 'entry.markWatched'),
-    icon: 'i-check', selected: watched, disabled: value.busy, onSelect: () => {void presenters.personal(value, {action: 'watched', value: !watched});}});
-  if (value.actions?.entry?.addToPlaylist) items.push({id: 'add-to-playlist', label: t('next.overlays.playlist'), icon: 'i-list-plus', onSelect: () => presenters.addToPlaylist(value)});
-  if (items.length) items.push({id: 'title-separator', separator: true});
-  if (value.actions?.differentVersion) items.push({id: 'different-version', label: t('next.overlays.differentVersion'), icon: 'i-film', onSelect: () => {void presenters.differentVersion(value);}});
-  items.push({id: 'file-info', label: t('next.overlays.fileInfo'), icon: 'i-info', onSelect: () => {void presenters.fileInfo(value);}});
-  if (tv && value.actions?.entry?.goToArtist) items.push({id: 'go-to-artist', label: t('next.watch.goToArtist'), icon: 'i-person', onSelect: () => presenters.goToArtist(value)});
-  if (value.actions?.select) items.push({id: 'select', label: t('next.selection.select'), icon: 'i-check', onSelect: () => presenters.selectEntry(value)});
-  if (value.actions?.discTitles) items.push({id: 'disc-titles', label: t('next.overlays.discTitles'), icon: 'i-layers', onSelect: () => {value.actions!.discTitles!();}});
-  if (value.actions?.entry?.details) items.push({id: 'details', label: t('title.details'), icon: 'i-page', onSelect: () => presenters.showDetails(value)});
-  for (const action of value.actions?.extraActions ?? []) items.push({...action, disabled: value.busy || action.disabled,
-    onSelect: () => presenters.extraEntry(value, action.id)});
+  const groups = nativeWatchMenuGroups({entry, detail: value.detail, menu, together});
+  const row = (id: string, label: string, icon: IconName, onSelect: () => void, extra?: Partial<MenuAction>): MenuAction => ({id, label, icon, onSelect, ...extra});
+  const select = value.actions?.select ? row('select', t('next.selection.select'), 'i-check', () => presenters.selectEntry(value)) : undefined;
+  const version = value.actions?.differentVersion ? row('different-version', t('next.overlays.differentVersion'), 'i-film', () => {void presenters.differentVersion(value);}) : undefined;
+  const fileInfo = row('file-info', t('next.overlays.fileInfo'), 'i-info', () => {void presenters.fileInfo(value);});
+  const season = tv && menu?.goToSeason ? row('go-to-season', t('next.overlays.native.goToSeason'), 'i-list', () => presenters.goToSeason(value)) : undefined;
+  const artist = tv && menu?.goToArtist ? row('go-to-artist', t('next.watch.goToArtist'), 'i-person', () => presenters.goToArtist(value)) : undefined;
+  const discs = value.actions?.discTitles ? row('disc-titles', t('next.overlays.discTitles'), 'i-layers', () => {value.actions!.discTitles!();}) : undefined;
+  const radio = menu?.startRadio ? row('start-radio', t('music.startRadio'), 'i-pulse', () => presenters.startRadio(value)) : undefined;
+  const run = (id: EntryActionId) => {
+    switch (id) {
+      case 'play': case 'resume': return presenters.playEntry(value);
+      case 'playFromStart': return presenters.startOver(value);
+      case 'playNext': case 'addToQueue': void presenters.enqueue(value, id === 'playNext' ? 'next' : 'end'); return;
+      case 'watchWithGroup': case 'addToGroupQueue': void presenters.togetherEntry(value, id === 'watchWithGroup').catch(runtime.reportError); return;
+      case 'watchlist': void presenters.personal(value, {action: 'watchlist', value: !value.detail?.personal.watchlisted}); return;
+      case 'favorite': void presenters.personal(value, {action: 'favorite', value: !value.detail?.personal.favorite}); return;
+      case 'watched': void presenters.personal(value, {action: 'watched', value: !(value.detail?.personal.watched ?? entry.watched ?? false)}); return;
+      case 'rate': case 'addToCollection': case 'download': case 'editMetadata': case 'refreshMetadata': return presenters.titleAction(value, id);
+      case 'delete': return presenters.titleAction(value, 'deleteTitle');
+      case 'addToPlaylist': return presenters.addToPlaylist(value);
+      case 'details': return presenters.showDetails(value);
+      default: return;
+    }
+  };
+  const extras = (value.actions?.extraActions ?? []).map(action => ({...action, disabled: value.busy || action.disabled, onSelect: () => presenters.extraEntry(value, action.id)}));
+  const surface = (tv ? [version, fileInfo, artist, select, discs] : [version, select, fileInfo, discs]).filter((item): item is MenuAction => !!item);
+  const items = titleMenuItems(groups, {tv, run, busy: value.busy, afterPlay: radio ? [radio] : undefined, related: season ? [season] : undefined, surface, trailing: extras});
   // tv-detail.html frame 7 and playback-info.html frame 17 draw the side sheet's
   // small context line above the title, from the entry's own facts only.
   const series = tv && entry.kind === 'episode' ? entry.show?.name : undefined;
