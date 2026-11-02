@@ -17,7 +17,7 @@ function environment(options:{wrongProof?:boolean;key?:unknown;abort?:AbortContr
    if(options.abort)options.abort.abort();return json(options.key??{keyId:'route_key',publicKey:pin.publicKey});
   }
   assert.equal(url,'https://server.example/v1/networking/identity-proof');
-  const q=JSON.parse(String(init?.body));return json(signed({kind:'portico.route-proof',version:'1',...pin,...q,...(options.wrongProof?{nonce:'wrong'}:{}),issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()}));
+  const q=JSON.parse(String(init?.body));return json(signed({kind:'portico.route-proof',version:'1',...pin,...q,...(options.wrongProof?{nonce:'wrong'}:{})}));
  }};
  return {env,calls,writes:()=>writes};
 }

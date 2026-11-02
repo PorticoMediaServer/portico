@@ -42,17 +42,17 @@ test('old cache owner cannot write over a newer selection of the same family',as
 });
 test('restore rechecks durable selection after proof, before sending a bearer',async()=>{
  const store=storage(),initial=await ready(),proof=deferred<void>();let requested=false,me=0;
- try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/networking/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q,issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()})),{headers:{'Content-Type':'application/json'}});}me++;return new Response(JSON.stringify({viewer:session().viewer}),{headers:{'Content-Type':'application/json'}});};const restored=restoreNativeSession({storage:store,fetcher});const rejection=assert.rejects(restored);await until(()=>requested);await store.change(()=>undefined);proof.resolve();await rejection;assert.equal(me,0);}finally{initial.connection.dispose();}
+ try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/networking/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}me++;return new Response(JSON.stringify({viewer:session().viewer}),{headers:{'Content-Type':'application/json'}});};const restored=restoreNativeSession({storage:store,fetcher});const rejection=assert.rejects(restored);await until(()=>requested);await store.change(()=>undefined);proof.resolve();await rejection;assert.equal(me,0);}finally{initial.connection.dispose();}
 });
 test('R-17: a same-family rotation during restore is adopted, not reported as a changed selection',async()=>{
  const store=storage(),initial=await ready(),proof=deferred<void>();let requested=false;const bearers:string[]=[];
- try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/networking/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q,issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()})),{headers:{'Content-Type':'application/json'}});}bearers.push(new Headers(init?.headers).get('Authorization')??'');return new Response(JSON.stringify({viewer:session().viewer}),{headers:{'Content-Type':'application/json'}});};
+ try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/networking/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}bearers.push(new Headers(init?.headers).get('Authorization')??'');return new Response(JSON.stringify({viewer:session().viewer}),{headers:{'Content-Type':'application/json'}});};
   const restored=restoreNativeSession({storage:store,fetcher});await until(()=>requested);await rememberRotatedSession({storage:store},session('token_two','2'));proof.resolve();
   const result=await restored;try{assert.equal(result?.session.accessToken,'token_two');assert.equal(result?.session.tokenGeneration,'2');assert.deepEqual(bearers,['Bearer token_two']);}finally{result?.api.getRouteConnection()?.dispose();}}finally{initial.connection.dispose();}
 });
 test('R-17: a conflicting token at the same generation during restore still cancels it',async()=>{
  const store=storage(),initial=await ready(),proof=deferred<void>();let requested=false,me=0;
- try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/networking/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q,issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()})),{headers:{'Content-Type':'application/json'}});}me++;return new Response(JSON.stringify({viewer:session().viewer}),{headers:{'Content-Type':'application/json'}});};
+ try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/networking/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}me++;return new Response(JSON.stringify({viewer:session().viewer}),{headers:{'Content-Type':'application/json'}});};
   const restored=restoreNativeSession({storage:store,fetcher});const rejection=assert.rejects(restored,{code:'cancelled'});await until(()=>requested);await store.change(current=>current&&{...current,session:{...current.session,accessToken:'token_two',tokenGeneration:'1'}});proof.resolve();await rejection;assert.equal(me,0);}finally{initial.connection.dispose();}
 });
 test('renewal projection keeps generation monotonic and retains exactly the routed family',async()=>{
@@ -173,7 +173,7 @@ test('restore renews an access token the server no longer accepts instead of los
   const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
   const fetcher:typeof fetch=async(input,init)=>{
    const url=String(input);
-   if(url.endsWith('/v1/networking/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q,issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()}));}
+   if(url.endsWith('/v1/networking/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));}
    if(url.endsWith('/v1/auth/refresh')){refreshes++;return json(200,renewed);}
    const bearer=new Headers(init?.headers).get('authorization')??'';bearers.push(bearer);
    // The server restarted: the old access token is refused although it has not expired.
@@ -216,7 +216,7 @@ async function restoreAgainst(t:import('node:test').TestContext,meAnswer:(bearer
  const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
  const fetcher:typeof fetch=async(input,init)=>{
   const url=String(input);
-  if(url.endsWith('/v1/networking/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q,issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()}));}
+  if(url.endsWith('/v1/networking/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));}
   if(url.endsWith('/v1/auth/refresh')){calls.refresh++;return json(200,renewed);}
   calls.me++;const status=meAnswer(new Headers(init?.headers).get('authorization')??'');
   return status===200?json(200,{viewer:saved.viewer}):json(status,{error:{code:'x'}});
@@ -244,7 +244,7 @@ test('restore, Try again and the background refresher at once send one refresh a
  const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
  const fetcher:typeof fetch=async(input,init)=>{
   const url=String(input);
-  if(url.endsWith('/v1/networking/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q,issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()}));}
+  if(url.endsWith('/v1/networking/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));}
   if(url.endsWith('/v1/auth/refresh')){
    // Slow enough that all three callers are waiting on a renewal at the same time.
    refreshes++;await new Promise(r=>setTimeout(r,150));
@@ -305,7 +305,7 @@ async function accountRestoreCase(answer:(snapshot:ReturnType<typeof accountRest
   const path=new URL(String(input)).pathname;
   if(path==='/v1/networking/identity-proof'){
    calls.proof++;assert.equal(new Headers(init?.headers).has('Authorization'),false);
-   const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q,issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()}));
+   const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));
   }
   assert.equal(new Headers(init?.headers).get('Authorization'),'Bearer '+saved.accessToken);
   if(path==='/v1/direct'){calls.account++;const out=answer(accountRestoreSnapshot());return json(out.status,out.body);}
@@ -359,7 +359,7 @@ test('account-only restoration rotates once within account scope and refuses an 
   const fetcher:typeof fetch=async(input,init)=>{
    const path=new URL(String(input)).pathname;
    if(path==='/v1/networking/identity-proof'){
-    const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q,issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()}));
+    const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));
    }
    if(path==='/v1/auth/refresh'){calls.refresh++;return mode==='revoked'?json(401,{error:{code:'unauthorized'}}):json(200,renewed);}
    if(path==='/v1/direct'){
@@ -395,7 +395,7 @@ async function roleRestoreCase(from: string, to: string, nearExpiry = false) {
  const json=(value:unknown)=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
  const fetcher:typeof fetch=async(input,init)=>{
   if(String(input).endsWith('/v1/networking/identity-proof')){
-   const q=JSON.parse(String(init?.body));return json(signed({kind:'portico.route-proof',version:'1',...pin,...q,issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+29000).toISOString()}));
+   const q=JSON.parse(String(init?.body));return json(signed({kind:'portico.route-proof',version:'1',...pin,...q}));
   }
   if(String(input).endsWith('/v1/auth/refresh')){
    refreshes++;return json({...session('role_after','2'),refreshToken:'refresh_'+'b'.repeat(24),viewer:{...saved.viewer,role:to}});
