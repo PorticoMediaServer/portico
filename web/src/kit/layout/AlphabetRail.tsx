@@ -1,13 +1,31 @@
-import {useRef, useState, type CSSProperties} from 'react';
+import {useLayoutEffect, useRef, useState, type CSSProperties} from 'react';
 import {defaultI18n} from '@i18n';
-import {alphabetKeys, railBand, railIndexAt, type PositionAnchor, type VisibleRange} from './geometry';
+import {alphabetKeys, railBand, railIndexAt, railPitch, type PositionAnchor, type VisibleRange} from './geometry';
 import styles from './layout.module.css';
 
 export type AlphabetRailProps = {anchors: readonly PositionAnchor[]; visibleRange: VisibleRange; onJump: (anchor: PositionAnchor) => void; platform?: 'desktop' | 'phone'; className?: string; style?: CSSProperties};
 export function AlphabetRail({anchors, visibleRange, onJump, platform = 'desktop', className, style}: AlphabetRailProps) {
   const keys = alphabetKeys(anchors), band = railBand(keys, anchors, visibleRange), available = new Map(anchors.map(anchor => [anchor.key, anchor]));
   const [bubble, setBubble] = useState<string | null>(null), dragging = useRef(false), root = useRef<HTMLElement>(null), buttons = useRef<(HTMLButtonElement | null)[]>([]);
-  const itemHeight = platform === 'phone' ? Math.max(514, keys.length * 17) / keys.length : 21;
+  // J-4: desktop-browse draws 21px rows for # and A–Z. A library that also files titles under other
+  // letters (Cyrillic, Greek, Arabic…) appends those keys, so the column tightens to stay in the
+  // window instead of running its last letters off the bottom edge.
+  const [desktopPitch, setDesktopPitch] = useState(21);
+  useLayoutEffect(() => {
+    if (platform === 'phone') return;
+    const fit = () => {
+      const element = root.current;
+      if (!element) return;
+      const top = element.getBoundingClientRect().top + window.scrollY;
+      const room = Math.max(0, window.innerHeight - top - 12);
+      const next = railPitch(room, keys.length);
+      setDesktopPitch(current => Math.abs(current - next) < .01 ? current : next);
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [platform, keys.length]);
+  const itemHeight = platform === 'phone' ? Math.max(514, keys.length * 17) / keys.length : desktopPitch;
   const jump = (key: string | undefined) => { const anchor = key === undefined ? undefined : available.get(key); if (anchor) { setBubble(anchor.key); onJump(anchor); } };
   const point = (y: number) => keys[railIndexAt(y, buttons.current.map(button => button?.getBoundingClientRect()))];
   return <nav ref={root} className={[styles.alphabet, className].filter(Boolean).join(' ')} style={style} data-platform={platform} aria-label={defaultI18n.t('next.layout.jumpToTitle')}
