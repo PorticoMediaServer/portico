@@ -182,6 +182,17 @@ func TestRouteProofCertificateBindingAndCompatibility(t *testing.T) {
 			if proof.Version != tc.version || proof.Nonce != nonce || proof.BaseURL != "https://media.example.com" {
 				t.Fatal("proof changed identity challenge or version")
 			}
+			// No client-clock requirements: the client's nonce makes the proof current, so it
+			// carries no times for a client to hold against its own clock.
+			var fields map[string]any
+			if err := json.Unmarshal(raw, &fields); err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range []string{"issuedAt", "expiresAt", "notBefore", "notAfter", "serverTime"} {
+				if _, ok := fields[name]; ok {
+					t.Fatalf("proof carries %q; it must carry only the nonce and the server's identity", name)
+				}
+			}
 			if tc.bound {
 				if !reflect.DeepEqual(proof.TLSCertificateFingerprints, []string{want}) {
 					t.Fatal("signed binding does not name configured certificate")

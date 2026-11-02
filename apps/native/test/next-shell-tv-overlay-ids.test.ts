@@ -22,17 +22,25 @@ test('actual Home overlays export fenced native rating controls and append genui
     setRatingValue: (value: number) => calls.push(value), submitRating: async () => {calls.push('submit-rating');}};
   const runtime = {getSnapshot: () => ({authority, account: {viewerRole: 'owner'}}), homeMenuRow: () => row,
     actions: {seeAll: (destination: unknown) => calls.push(destination)}};
+  const theme = () => ({isTV: layoutMode === 'tv', layoutMode, type: {}, colors: {}});
+  // The real shared rating surface and the real shared title-menu rows, which Home's overlays now compose.
+  const {RatingDialog} = await screenModule(new URL('../src-next/kit/selection/RatingDialog.tsx', import.meta.url), {
+    react: h.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
+    '../controls/Button': {Button: 'Button'}, '../controls/Focusable': {Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'}, '../overlays': {Dialog: 'Dialog'}, '../theme': {useTheme: theme},
+  });
+  const {titleMenuItems} = await screenModule(new URL('../src-next/kit/overlays/title-menu.ts', import.meta.url), {react: h.react, '../../../../../packages/i18n/src': {defaultI18n}});
   const {HomeSelectionOverlays} = await screenModule(new URL('../src-next/shell/HomeSelectionOverlays.tsx', import.meta.url), {
     react: h.react, 'react-native': {Text: 'Text', View: 'View', StyleSheet: {create: (styles: object) => styles}}, '../../../../packages/i18n/src': {defaultI18n},
     '../../../../packages/client-core/src/presentation/errors': {}, '../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_: unknown, text: unknown, fallback: string) => text ?? fallback},
-    '../kit/shell': {ServerMark: 'ServerMark'}, '../kit/overlays': {Menu: 'Menu', Dialog: 'Dialog'}, '../kit/selection': {DeleteMediaDialog: 'Delete', MixedEditExplainer: 'Mixed'},
+    '../kit/shell': {ServerMark: 'ServerMark'}, '../kit/overlays': {Menu: 'Menu'}, '../kit/overlays/title-menu': {titleMenuItems}, '../kit/selection': {DeleteMediaDialog: 'Delete', MixedEditExplainer: 'Mixed', RatingDialog},
     '../kit/overlays/Menu': {TouchMenuHeader: 'TouchMenuHeader'},
     '../kit/controls/Button': {Button: 'Button'}, '../kit/controls/Focusable': {Focusable: 'Focusable'}, '../kit/artwork': {}, '../kit/Icon': {Icon: 'Icon'},
-    '../kit/theme': {useTheme: () => ({isTV: layoutMode === 'tv', layoutMode, type: {}, colors: {}})}, '../platform/haptics': {selectionHaptic: async () => {calls.push('selection-haptic');}}, './selection-display': {memberTitle: () => 'Actual title'},
+    '../kit/theme': {useTheme: theme}, '../platform/haptics': {selectionHaptic: async () => {calls.push('selection-haptic');}}, './selection-display': {memberTitle: () => 'Actual title'},
     './HomeDestinationPicker': {HomeDestinationPicker: 'Picker'}, './HomeBulkEditor': {HomeBulkEditor: 'Editor'}, './tv-focus': {tvFocusIds},
   });
   const render = () => h.render(() => HomeSelectionOverlays({controller, runtime, ownerTag, reportError: (error: unknown) => {throw error;}}));
-  const tree = render(), ids = tvFocusIds(authority), rating = nodes(tree).filter(node => node.type === 'Focusable');
+  const expand = (tree: any) => {const shared = nodes(tree).find(node => node.type === RatingDialog); return shared ? [tree, h.render(() => RatingDialog(shared.props))] : [tree];};
+  const tree = expand(render()), ids = tvFocusIds(authority), rating = nodes(tree).filter(node => node.type === 'Focusable');
   assert.deepEqual(rating.map(node => node.props.testID), [1, 2, 3, 4, 5].map(value => `${ids.surface('rating')}-stars-${value}`));
   assert.equal(nodes(tree).find(node => node.type === 'Dialog').props.testID, ids.surface('rating'));
   rating[2].props.onPress();

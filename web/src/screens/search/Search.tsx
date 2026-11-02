@@ -1,15 +1,16 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useScreenIdentity} from '../detail/context';
 import {generatedCoverTint} from '@design';
 import {useCardInteractionAdmission} from '../../kit/cards/use-interaction-admission';
 import type {SearchSelection} from './selection';
 import {SelectionCircle} from '../../kit/selection';
 import {t, locale} from '../detail/text';
-import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent} from 'react';
+import {createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
 import {searchQueryProblem, type SearchEntry, type SearchGroup, type SearchGroupResult, type SearchHistoryPage} from '@core/search.ts';
 import {SEARCH_CHIPS, searchGroupLabel, topSearchResult} from '@core/presentation/search-model.ts';
 import {Button, Chip, TextField} from '../../kit/controls';
-import {useSelectionRangePreview, PosterCard, SquareCard, CircleCard, EpisodeTile, GenreTile, LiveCard, CoverCard} from '../../kit/cards';
+import {useSelectionRangePreview, type CardSelection, PosterCard, SquareCard, CircleCard, EpisodeTile, GenreTile, LiveCard, CoverCard} from '../../kit/cards';
 import {Artwork} from '../../kit/artwork';
 import {WindowedGrid} from '../../kit/layout';
 import {Skeleton} from '../../kit/states';
@@ -31,6 +32,7 @@ import {runScreenCommand} from '../detail/context';
 import {useLoadingClock} from '../detail/Loading';
 import {ScreenProblem} from '../detail/ScreenProblem';
 import {useShellWidth} from '../../shell/viewport';
+import {useTitleMenu, type TitleMenuSubject} from '../../shell/title-menu';
 import {RecentSearches} from './RecentSearches';
 import {nowNext} from '@core/guide/index.ts';
 import {channelTint, type FactPart} from '@portico/client-core/kit-model';
@@ -62,6 +64,7 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
   const compact = useShellWidth() < 600;
   const {service, context} = binding, initial = binding.session();
   useScreenIdentity(context);
+  const titleMenu = useTitleMenu(context);
   const snapshot = useSyncExternalStore(binding.results.subscribe, binding.results.getSnapshot, binding.results.getSnapshot);
   useFreshDocument([dependsOn.libraries, ...titlesWithPersonalState(), dependsOn.settings('preferences'), dependsOn.event('stream.resync')], refresh => service.revalidate(refresh), () => service.getSnapshot().phase === 'ready');
   const preferences = useSyncExternalStore(context.preferences.subscribe, context.preferences.getSnapshot, context.preferences.getSnapshot);
@@ -72,7 +75,7 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
   // retained one cannot write into a successor.
   const activeLease = useRef<HistoryLease | undefined>(undefined), historyPage = useRef<SearchHistoryPage | undefined>(undefined);
   const recent = historyView?.page ? historyView.page.entries.slice(0, 8).map(item => item.q) : [];
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => serverNow());
   const genres = useSyncExternalStore(binding.genres.subscribe, binding.genres.getSnapshot, binding.genres.getSnapshot);
   const onNow = useSyncExternalStore(binding.onNow.subscribe, binding.onNow.getSnapshot, binding.onNow.getSnapshot);
   const input = useRef<HTMLInputElement>(null), results = useRef<HTMLDivElement>(null), committed = useRef('');
@@ -127,7 +130,7 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
   }, [binding, context.identity?.liveAvailable, text]);
   useEffect(() => {
     if (text.trim()) return;
-    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    const timer = setInterval(() => setNow(serverNow()), 30_000);
     return () => clearInterval(timer);
   }, [text]);
   const commit = () => { if (remember && text.trim() && !problem && committed.current !== text.trim()) { committed.current = text.trim(); submit(true); } };
@@ -227,7 +230,7 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
         programme={onNowProgramme(card, now)} onNavigate={() => onOpenLive?.(card.channel.sourceId)} />)}</div>
     </section>}
   </div>;
-  return <div className={styles.search} style={{'--search-card-scale': size, '--search-columns': Math.max(1, Math.round(7 / size))} as React.CSSProperties}>
+  return <SearchTitleMenu.Provider value={titleMenu.open}><div className={styles.search} style={{'--search-card-scale': size, '--search-columns': Math.max(1, Math.round(7 / size))} as React.CSSProperties}>
     {/* Phone-app 7 draws the Search title only before typing; frame 4's Cancel belongs to the
         results state, so it is absent on the empty one. */}
     {compact && !text.trim() && <h1 className={styles.phoneSearchTitle}>{t('web.search.title')}</h1>}
@@ -272,7 +275,7 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
               albumArt={entry.kind === 'artist' ? artistAlbumArt(entry, groups) : undefined} />} />;
         })}
     </div>
-  </div>;
+  </div>{titleMenu.menu}</SearchTitleMenu.Provider>;
 }
 
 function SearchLoading() {
@@ -280,6 +283,8 @@ function SearchLoading() {
   return <div className={styles.skeleton} role="status" aria-label={t('next.states.loading')}>{elapsed >= 300 && Array.from({length: 7}, (_, index) => <Skeleton className={styles.skeletonBlock} sheen={index === 2} key={index} />)}{elapsed >= 8000 && <Banner variant="quiet">{t('next.states.stillLoading')}</Banner>}</div>;
 }
 
+/** The one title menu this Search screen hosts; each result card opens it at its own ⋯. */
+export const SearchTitleMenu = createContext<((anchor: HTMLElement, subject: TitleMenuSubject) => void) | undefined>(undefined);
 const noSelectionSubscription = () => () => {};
 const noSelectionSnapshot = () => 0;
 export function SearchResult({entry, binding, selection, selectionVisible = true, position = 0, onCommit, albumArt}: {entry: SearchEntry; binding: SearchBindings; selection?: SearchSelection; selectionVisible?: boolean; position?: number; onCommit: () => void; albumArt?: string}) {
@@ -291,6 +296,7 @@ export function SearchResult({entry, binding, selection, selectionVisible = true
   const range = useSelectionRangePreview(picked);
   const {context} = binding, open = () => runScreenCommand(context, () => { binding.open(entry); onCommit(); });
   const liveCards = useSyncExternalStore(binding.live.subscribe, binding.live.getSnapshot, binding.live.getSnapshot);
+  const openMenu = useContext(SearchTitleMenu), more = useResultMore(binding, entry, picked, openMenu, onCommit);
   const art = context.artwork.foreground(entry.posterUrl, 380, 2 / 3);
   if (entry.kind === 'channel') {
     const live = liveCards.get(entry.id);
@@ -301,9 +307,9 @@ export function SearchResult({entry, binding, selection, selectionVisible = true
   if (!('libraryId' in entry)) return <CircleCard context="search" model={{title: entry.title, caption: entry.subtitle ? [{id: 'caption', text: entry.subtitle, role: 'context'}] : []}} covers={art ? [art] : []}
     initials={entry.title.split(/\s+/).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join('')} onNavigate={open} />;
   const model = entryCard(entry, {t, locale: locale()}, 'search'), playable = entry.available === true && !!entry.playback;
-  const props = {model, selection: picked, context: 'search' as const, watched: entry.watched, isNew: entry.new, onNavigate: open,
+  const props = {model, selection: picked, context: 'search' as const, watched: entry.watched, isNew: entry.new, onNavigate: open, onMore: more,
     onPlay: playable ? () => { void binding.play(entry).then(onCommit).catch(context.effects.reportError); } : undefined};
-  if (entry.kind === 'song') return <div ref={interactionRoot} className={styles.songSelection} data-selected={picked?.checked || undefined} data-preview={picked?.preview || undefined} {...range}>{picked && <SelectionCircle variant="row" selected={picked.checked} selecting={picked.active} accessibilityLabel={t('next.selection.select')} onClick={event => {event.preventDefault(); picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'});}}/>}<button className={styles.song} type="button" onClick={event => {if (picked?.active) picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'}); else if (playable) void binding.play(entry).then(onCommit).catch(context.effects.reportError); else open();}}><Artwork source={context.artwork.foreground(entry.posterUrl, 88, 1)} alt="" /><span><b>{entry.displayTitle ?? entry.title}</b><small>{entry.artist?.name}{entry.album?.name && <span>{entry.album.name}</span>}</small></span><span>{clockText(entry.duration)}</span></button></div>;
+  if (entry.kind === 'song') return <div ref={interactionRoot} className={styles.songSelection} data-selected={picked?.checked || undefined} data-preview={picked?.preview || undefined} {...range}>{picked && <SelectionCircle variant="row" selected={picked.checked} selecting={picked.active} accessibilityLabel={t('next.selection.select')} onClick={event => {event.preventDefault(); picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'});}}/>}<button className={styles.song} type="button" onClick={event => {if (picked?.active) picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'}); else if (playable) void binding.play(entry).then(onCommit).catch(context.effects.reportError); else open();}}><Artwork source={context.artwork.foreground(entry.posterUrl, 88, 1)} alt="" /><span><b>{entry.displayTitle ?? entry.title}</b><small>{entry.artist?.name}{entry.album?.name && <span>{entry.album.name}</span>}</small></span><span>{clockText(entry.duration)}</span></button>{more && <Button className={styles.songMore} variant="icon" size="small" icon="i-more" iconOnly aria-haspopup="menu" aria-label={t('next.browse.moreFor', {title: entry.displayTitle ?? entry.title})} onClick={event => more(event.currentTarget)} />}</div>;
   if (entry.kind === 'episode') return <EpisodeTile {...props} length={durationText(entry.duration, t)} artwork={context.artwork.foreground(entry.stillUrl ?? entry.backdropUrl, 632, 16 / 9)} artworkKind={entry.stillUrl ? 'still' : 'backdrop'} description={entry.overview} />;
   if (entry.kind === 'artist') {
     const cover = entry.posterUrl ? art : albumArt ? context.artwork.foreground(albumArt, 380, 1) : undefined;
@@ -319,6 +325,21 @@ export function SearchResult({entry, binding, selection, selectionVisible = true
   return <PosterCard {...props} artwork={art} progressPlacement="inset" />;
 }
 
+/** A result card's ⋯ (FX-S4): the one title menu, opened for this exact result of the answer on screen. Play is the
+ * result's own fenced play and Select its own card selection; a person or channel has neither a title nor a menu. */
+function useResultMore(binding: SearchBindings, entry: SearchEntry, picked: CardSelection | undefined,
+  openMenu: ((anchor: HTMLElement, subject: TitleMenuSubject) => void) | undefined, onCommit: () => void) {
+  const {context} = binding;
+  const more = useCallback((anchor: HTMLElement) => {
+    if (!openMenu || !('libraryId' in entry)) return;
+    const playable = entry.available === true && !!entry.playback;
+    openMenu(anchor, {entry, title: entry.displayTitle ?? entry.title, current: () => binding.showing(entry),
+      ...(playable ? {onPlay: () => { void binding.play(entry).then(onCommit).catch(context.effects.reportError); }} : {}),
+      ...(picked ? {select: () => picked.onToggle({range: false, source: 'pointer'})} : {})});
+  }, [binding, context, entry, picked, openMenu, onCommit]);
+  return openMenu && 'libraryId' in entry ? more : undefined;
+}
+
 /** Desktop-search frame 3: a full-width Songs answer is the Music library's list, with
  * the entry's own artist, album, plays and length. Selection keeps the same row model. */
 export function SongTableRow({entry, binding, selection, position = 0, onCommit}: {entry: SearchEntry; binding: SearchBindings; selection?: SearchSelection; position?: number; onCommit: () => void}) {
@@ -330,6 +351,7 @@ export function SongTableRow({entry, binding, selection, position = 0, onCommit}
   useEffect(() => {if (selection && song) return selection.register(song, position);}, [selection, song, position, epoch]);
   const interactionRoot = useRef<HTMLDivElement>(null);
   const picked = useCardInteractionAdmission(song ? selection?.card(song) : undefined, interactionRoot), range = useSelectionRangePreview(picked);
+  const more = useResultMore(binding, entry, picked, useContext(SearchTitleMenu), onCommit);
   if (!song) return null;
   const {context} = binding, open = () => runScreenCommand(context, () => { binding.open(song); onCommit(); });
   const playable = song.available === true && !!song.playback, title = song.displayTitle ?? song.title;
@@ -351,6 +373,7 @@ export function SongTableRow({entry, binding, selection, position = 0, onCommit}
     <span className={styles.songAlbum}>{song.album?.name}</span>
     <span className={styles.songPlays}>{song.plays === undefined ? undefined : defaultI18n.number(song.plays)}</span>
     <span className={styles.songLength}>{clockText(song.duration)}</span>
+    {more && <Button className={styles.songMore} variant="icon" size="small" icon="i-more" iconOnly aria-haspopup="menu" aria-label={t('next.browse.moreFor', {title})} onClick={event => more(event.currentTarget)} />}
   </div>;
 }
 

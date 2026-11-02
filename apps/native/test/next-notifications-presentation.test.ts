@@ -17,7 +17,7 @@ const i18n = {t: (key: string) => key, has: () => true, number: String, relative
 const shellType = (fontSize: number, weight = 600) => ({fontSize, fontWeight: String(weight)});
 
 test('notification sections use a count slot, intra-section separators and the approved server outline', async () => {
-  const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, 
+  const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./notification-route': await import('../src-next/screens/notifications/notification-route.ts'), '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, 
     react, 'react-native': native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../../../../../packages/i18n/src': {defaultI18n: i18n},
     '../../../../../packages/client-core/src/notifications': {noticeWords: (notice: any) => ({title: notice.id, body: 'Notice'})},
@@ -90,7 +90,7 @@ test('Tabs draws the count as a distinct pill while retaining tab semantics and 
   const {Tabs, Segmented} = await screenModule(new URL('../src-next/kit/controls/Tabs.tsx', import.meta.url), {
     react, 'react-native': native,
     '@portico/design': {tabsSpec: {gap: {phone: 34}, paddingTop: {phone: 16}, paddingBottom: {phone: 14}, underline: {phone: 3}}},
-    '../focus': {focusTestID: (...parts: string[]) => parts.join(':')}, '../theme': {useTheme: () => ({...theme, fontScale})},
+    '../focus': {useCovered: () => false, focusTestID: (...parts: string[]) => parts.join(':')}, '../theme': {useTheme: () => ({...theme, fontScale})},
     './Focusable': {Focusable: 'Focusable'}, './control-model': {colorAlpha: () => 'transparent', enabledChoice: (items: any[]) => items[0]?.value, minimumHitSlop: () => 0},
     './useControlValue': {useControlValue: (value: unknown, initial: unknown, change: unknown) => [value ?? initial, change]},
   });

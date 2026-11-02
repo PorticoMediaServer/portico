@@ -33,9 +33,9 @@ async function fixture(isTV: boolean) {
   const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {
     '../overlays/OverlayPaintContext': liveOverlayPaint,
     react, 'react-native': native, 'react-native-reanimated': reanimated, '@portico/design': design, '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': themeModule,
-    '../useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './control-model': controlModel, './useFocusedMenu': {useFocusedMenu() {}}, '../focus': focusModule,
+    '../useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './control-model': controlModel, './useFocusedMenu': {useFocusedMenu() {}}, '../focus': {...focusModule, useCovered: () => false},
   });
-  const shared = {'../overlays/OverlayPaintContext': liveOverlayPaint, react, 'react-native': native, '@portico/design': design, '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': themeModule, '../focus': focusModule,
+  const shared = {'../overlays/OverlayPaintContext': liveOverlayPaint, react, 'react-native': native, '@portico/design': design, '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': themeModule, '../focus': {...focusModule, useCovered: () => false},
     '../Icon': {Icon: 'Icon'}, './Focusable': {Focusable}, './control-model': controlModel, './useControlValue': {useControlValue}};
   const {Chip} = await screenModule(new URL('../src-next/kit/controls/Chip.tsx', import.meta.url), shared);
   const {Segmented} = await screenModule(new URL('../src-next/kit/controls/Tabs.tsx', import.meta.url), shared);
@@ -44,7 +44,7 @@ async function fixture(isTV: boolean) {
   const {FilterBuilder} = await screenModule(new URL('../src-next/kit/browse/Filters.tsx', import.meta.url), {
     '@react-native-masked-view/masked-view': {default: 'MaskedView'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
     react, 'react-native': native, '../../../../../packages/i18n/src': {defaultI18n}, '../controls': {Button, Chip, Segmented, TextField, Focusable},
-    '../Icon': {Icon: 'Icon'}, '../overlays': {Popover: 'Popover'}, '../focus': focusModule, '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': themeModule, './presentation': presentation,
+    '../Icon': {Icon: 'Icon'}, '../overlays': {Popover: 'Popover'}, '../focus': {...focusModule, useCovered: () => false}, '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': themeModule, './presentation': presentation,
   });
   return {FilterBuilder, ...focusModule};
 }

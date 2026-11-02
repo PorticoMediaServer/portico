@@ -62,7 +62,9 @@ test('setup refuses noncanonical proof JSON, extra fields and base64 transport c
 
 test('setup rejects expired, extended, future and old-parent signed attempts', async () => {
   const f = await fixture();
-  for (const changed of [{expiresAt: '2030-01-02T03:04:06Z'}, {expiresAt: '2030-01-02T03:20:00Z'}, {issuedAt: '2030-01-02T03:06:00Z'}, {issuedAt: '2030-01-02T03:00:00Z'}]) {
+  for (const changed of [{expiresAt: '2030-01-02T03:04:06Z'}, {expiresAt: '2030-01-02T03:20:00Z'}, {issuedAt: '2030-01-02T03:00:00Z'}]) {
     await assert.rejects(verifySetupClaimStart(signed(f.claim), signed({...f.start, ...changed}), f.expected, now));
   }
+  // No client-clock requirements: a stamp ahead of the clock it is read against is the issuer's, not a reason to refuse.
+  await verifySetupClaimStart(signed(f.claim), signed({...f.start, issuedAt: '2030-01-02T03:06:00Z'}), f.expected, now);
 });

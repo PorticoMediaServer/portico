@@ -1,4 +1,5 @@
 import {useNativeStackHosted, useNativeStackPlacement} from '../../kit/navigation/stack-slot';
+import {CoveredLayer} from '../../kit/focus/CoveredLayer';
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {AppState, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -140,7 +141,7 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
     onBack={onBack} onSettings={onOpenSettings} onSearchAll={onSearchAll} contentsTarget={target.contentsTarget} onGuestState={onGuestState} activeCurrent={binding?.activeCurrent}/>);
   if (!resident) return null;
   const failed = snapshot.phase === 'failed' || snapshot.phase === 'retired';
-  return place(<View pointerEvents={active ? 'auto' : 'none'} accessibilityElementsHidden={!active} importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
+  return place(<CoveredLayer covered={!active}
     style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink, opacity: active || stacked ? 1 : 0}}>
     {failed ? <StateView variant="centered" title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t('next.states.pageFailedBody')}
       primaryAction={{id: 'retry', label: defaultI18n.t('next.states.tryAgain'), disabled: !active || snapshot.phase === 'retired' || !!snapshot.session || !context.current(), onPress: retryOriginal}}/>
@@ -150,5 +151,5 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
         focusRadius={dimensions.width >= 700 ? 22 : 19} onPress={() => {if (callbacks.current.active) onBack();}}
         style={{height: dimensions.width >= 700 ? 44 : 38, width: dimensions.width >= 700 ? 44 : 38, paddingHorizontal: 0}}/>
     </View>
-  </View>);
+  </CoveredLayer>);
 }

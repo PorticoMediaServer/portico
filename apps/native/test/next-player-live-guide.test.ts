@@ -88,7 +88,17 @@ test('Home/direct starts read exactly the accepted current channel before bounde
   } finally {f.dispose();}
 });
 
-for (const invalid of ['identity', 'generation', 'viewer', 'denied', 'hidden']) test(`Home current-channel ${invalid} mismatch never authorizes a lineup`, async () => {
+// The guide document's viewer fence is the live authority's own; the sources directory hashes it with
+// the library and restriction fences, so on a real server they never match. The channel is matched by
+// id, source, provenance and generation instead (fence sweep after W-5).
+test('Home current channel opens its lineup when the guide and sources documents carry different viewer fences', async () => {
+  const f = await fixture({origin: false, invalid: 'viewer'});try {
+    await settle();assert.notEqual(f.guide.getSnapshot().phase, 'unavailable');assert.ok(f.guide.getSnapshot().rows.length > 0);
+    assert.equal(f.guide.captureSource().origin.row.native.id, fence.channelId);
+  } finally {f.dispose();}
+});
+
+for (const invalid of ['identity', 'generation', 'denied', 'hidden']) test(`Home current-channel ${invalid} mismatch never authorizes a lineup`, async () => {
   const f = await fixture({origin: false, invalid});try {
     await settle();assert.equal(f.guide.getSnapshot().phase, 'unavailable');assert.equal(f.guide.getSnapshot().rows.length, 0);assert.ok(f.guide.getSnapshot().error);
     assert.equal(f.requests.some(row => row.path.startsWith('/neighbor')), false);

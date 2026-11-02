@@ -1,6 +1,17 @@
 import {readFile} from 'node:fs/promises';
 import {compileFunction} from 'node:vm';
 import {parseSync, transformSync} from 'rolldown/utils';
+import * as serverClock from '../../../../packages/client-core/src/server-clock.ts';
+
+// Pure leaves a screen gets for real (or as a faithful double) unless a fixture supplies its own.
+// - The server clock has no platform dependency: the real module, whether a screen imports it by
+//   its packages/ path or a client-core file by its own './server-clock.ts' (tests that fake time
+//   supply their own).
+// - The covered-screen layer (kit/focus/CoveredLayer) behaves as on touch: a View hidden from
+//   touches and screen readers while covered.
+const leaf = (source, react) => /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
+  : /(^|\/)kit\/focus\/CoveredLayer$/.test(source) ? {CoveredLayer: ({covered, children, style, testID}) => react.createElement('View',
+    {style, testID, pointerEvents: covered ? 'none' : 'auto', accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' : 'auto'}, children)} : undefined;
 
 // Exercises a screen's exported pure helpers without a renderer or a server,
 // mirroring portico-server/web/test/helpers/component-harness.mjs. Only pure
@@ -22,7 +33,7 @@ export async function screenModule(file, modules) {
     const namespace = `__screenModuleImport${declaration.start}`;
     const missing = declaration.specifiers.length ? `${namespace} == null`
       : `!Object.hasOwn(modules, ${source}) || ${namespace} == null`;
-    const required = `const ${namespace} = modules[${source}]; if (${missing}) throw new Error(${JSON.stringify(`screenModule(${file.pathname}): no namespace for `)} + ${source});`;
+    const required = `const ${namespace} = modules[${source}] ?? __leaf(${source}, modules.react?.default ?? modules.react); if (${missing}) throw new Error(${JSON.stringify(`screenModule(${file.pathname}): no namespace for `)} + ${source});`;
     const bindings = declaration.specifiers.map(specifier => {
       const value = specifier.type === 'ImportNamespaceSpecifier' ? namespace
         : `${namespace}[${JSON.stringify(specifier.type === 'ImportDefaultSpecifier' ? 'default' : specifier.imported.name ?? specifier.imported.value)}]`;
@@ -37,7 +48,7 @@ export async function screenModule(file, modules) {
       return alias ? `const ${alias} = ${local};` : '';
     }).join('\n'))
     .replaceAll('import.meta.env', '({DEV:false})');
-  return compileFunction((/const React\s*=/.test(code) ? '' : 'const React = modules.react.default;\n') + code + '\nreturn {' + exported.join(',') + '};', ['modules'], {filename: file.pathname})(modules);
+  return compileFunction((/const React\s*=/.test(code) ? '' : 'const React = modules.react.default;\n') + code + '\nreturn {' + exported.join(',') + '};', ['modules', '__leaf'], {filename: file.pathname})(modules, leaf);
 }
 
 // P2-73: the touch shell's native stack. Off a stack host, retained pages render in

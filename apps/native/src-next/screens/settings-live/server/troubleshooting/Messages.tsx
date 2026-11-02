@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../../../packages/client-core/src/server-clock';
 import {Menu} from '../../../../kit/overlays';
 import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {AppState, Text, View} from 'react-native';
@@ -58,11 +59,11 @@ export function NativeMessages({ports, runtime}: {ports: NativeSettingsLivePorts
 export function Messages({group, forms, runtime}: {group: Group; forms: StorageForms; runtime: NativeShellRuntime}) {
   const {source} = group, state = useSyncExternalStore(source.subscribe,source.getSnapshot,source.getSnapshot), failure = useSyncExternalStore(group.subscribeFailure,group.getFailure,group.getFailure), theme = useTheme(), t = runtime.text.t as typeof defaultI18n.t;
   const form = forms.forms.logs, logs = useFormState<LogsDraft, LogSettings>(form), saved = logs.status, draft = logs.draft, saveState = useStorageSet(forms);
-  const [now,setNow] = useState(Date.now), [filter, setFilter] = useState<Readonly<{kind: 'level' | 'category'}>>();
+  const [now,setNow] = useState(serverNow), [filter, setFilter] = useState<Readonly<{kind: 'level' | 'category'}>>();
   const filterRef = useRef(filter);
   const openFilter = (kind: 'level' | 'category') => {if (!group.current() || filterRef.current) return; const next = {kind}; filterRef.current = next; setFilter(next);};
   const closeFilter = () => {if (!filter || filterRef.current !== filter) return; filterRef.current = undefined; setFilter(undefined);};
-  useEffect(() => {void source.load();const timer = setInterval(() => {if (group.current()) setNow(Date.now());},30000);return () => clearInterval(timer);},[source,group]);
+  useEffect(() => {void source.load();const timer = setInterval(() => {if (group.current()) setNow(serverNow());},30000);return () => clearInterval(timer);},[source,group]);
   const until = state.settings?.debugWindowUntil, recording = !!until && Date.parse(until) > now;
   const detail = () => {if (!group.current() || source.getSnapshot().changing) return;group.clearFailure();const minutes = saved?.logDetailMinutes;void source.detail(!recording, minutes !== undefined && LOG_DETAIL_MINUTES.includes(minutes) ? minutes : undefined).catch(error => {if (group.current()) group.failure(error);});};
   return <View style={{marginTop:14,gap:12}} testID="server-troubleshooting-messages">

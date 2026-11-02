@@ -36,6 +36,7 @@ import {nativeHomeSelectionScope} from '../src-next/shell/selection-scope';
 import {NativeShellNavigation, nativeRailDestination, nativeEntryRoute, titleRoute} from '../src-next/shell/routes';
 import {homeRegistrationLimit, planHomeWindows, planHomeWindowsReport} from '../src-next/shell/home-windows';
 import * as rowState from '../src-next/kit/layout/row-state';
+import * as tvScroll from '../src-next/kit/layout/tv-scroll.ts';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'};
@@ -60,7 +61,7 @@ for (const tv of [false, true]) test(`actual ${tv ? 'TV' : 'phone'} Home/Row eff
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme},
     '../focus': {FocusProvider: 'FocusProvider', FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', focusTestID: () => 'native-card', useOptionalFocusRegistry: () => registry},
-    '../focus/page-boundary': {useRowPageBoundary() {}}, './model': layoutModel, './row-state': rowState, './FocusAnchor': {useFocusAnchor}, './MotionItem': {MotionItem: 'MotionItem'}, './types': {itemSelection: () => undefined},
+    '../focus/page-boundary': {useRowPageBoundary() {}}, './model': layoutModel, './row-state': rowState, './tv-scroll': tvScroll, './FocusAnchor': {useFocusAnchor}, './MotionItem': {MotionItem: 'MotionItem'}, './types': {itemSelection: () => undefined},
   });
   const recovery = await screenModule(new URL('../src-next/screens/home/useTvHomeRecovery.ts', import.meta.url), {
     react, 'react-native': native, '../../../../../packages/client-core/src/presentation/errors': errorPresentation, '../../shell/model': shellModel,

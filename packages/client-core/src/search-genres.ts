@@ -7,6 +7,7 @@ import {unreadableServerResponse} from './server-messages.ts';
 import {ApiError, errorFieldPath, retryAfterSecondsFrom} from './index.ts';
 import {refuseUnknownVariant} from './tolerant.ts';
 import {readPreparation, type PreparationRequestPort, type PreparationResponse, type PreparationRuntime} from './read-preparation.ts';
+import {serverNow} from './server-clock.ts';
 
 export type SearchGenreArt = Readonly<{kind: 'item' | 'show'; id: string; path: string}>;
 export type SearchGenre = Readonly<{
@@ -282,7 +283,7 @@ async function executeGenreRead(api: SearchGenreApi, descriptor: SearchGenreRequ
       },
       retainOnReady: !descriptor.preview, signal: controller.signal, isCurrent,
       runtime, onPreparing: (pending, response) => onPreparing?.(Object.freeze({variant: 'preparing' as const, kind: 'genre-preparing', state: 'preparing', ...pending}), response),
-      errorFromResponse: errorFromResponse ?? (response => genreError(response, runtime?.now?.() ?? Date.now())),
+      errorFromResponse: errorFromResponse ?? (response => genreError(response, runtime?.now?.() ?? serverNow())),
     });
     try { current(signal, isCurrent); } catch (error) { releaseQuietly('genre result release', () => result.release()); throw error; }
     const page = result.value;

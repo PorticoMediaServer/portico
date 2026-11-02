@@ -9,7 +9,7 @@ import {AmbientArt, Artwork} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {Lockup, layoutType, platformType} from '../../kit/layout';
 import {EpisodeTile} from '../../kit/cards';
-import {Menu, MenuItem, MenuSeparator, Popover} from '../../kit/overlays';
+import {Menu, MenuItem, Popover} from '../../kit/overlays';
 import {OwnerTag, ServerMark} from '../../kit/shell';
 import {StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
@@ -33,12 +33,19 @@ import {GenreNames} from './GenreNames';
 import type {ContainerState} from '@core/container-state.ts';
 import {SeasonMenu} from './SeasonMenu';
 import {showPrimary} from './show-primary';
+import {OwnerMetadataGroup} from './OwnerMetadataGroup';
 
 export type ShowScreenProps = {binding: ShowBindings; selection?: CatalogueDocumentSelection; target: ShowWorkspaceRoute};
 export function ShowScreen({binding, target, selection}: ShowScreenProps) {
   const key = JSON.stringify(target);
   useEffect(() => { const route: ShowWorkspaceRoute = JSON.parse(key), request = new AbortController(); void binding.select(route, request.signal).catch(error => { if (!request.signal.aborted) binding.context.effects.reportError(error); }); return () => { request.abort(); binding.cancel(); }; }, [binding, key]);
   return <ShowBody binding={binding} selection={selection} />;
+}
+
+/** Owner rows act only for the show page they were opened on, while this profile still manages the server. */
+function manageGuard(binding: ShowBindings, data: ShowWorkspaceData) {
+  binding.current(data);
+  if (!binding.canManage()) throw new DOMException('Show management changed', 'AbortError');
 }
 
 /** Root §14: complete-season actions; the display editor remains show-scoped. */
@@ -57,7 +64,10 @@ export function SeasonOptions({binding, data, label}: {binding: ShowBindings; da
     <Menu presentation="anchored" open={open} onOpenChange={setOpen} title={t('next.detail.seasonOptions', {season: label})} trigger={<Button ref={anchor} variant="icon" size="small" icon="i-more" iconOnly aria-label={t('next.detail.seasonOptions', {season: label})} />}>
       <MenuItem onSelect={() => runScreenCommand(binding.context, () => binding.playSeason(data))}>{t('next.detail.playSeason')}</MenuItem>
       <MenuItem disabled={!state} onSelect={() => runScreenCommand(binding.context, () => { if (!state) return; return binding.setSeasonWatched(data, state, !complete); })}>{t(complete ? 'next.detail.markSeasonUnwatched' : 'next.detail.markSeasonWatched')}</MenuItem>
-      {owner && <><MenuSeparator /><MenuItem onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); if (!binding.canManage()) throw new DOMException('Show management changed', 'AbortError'); setDisplay(true); })}>{t('next.detail.episodeDisplay')}</MenuItem></>}
+      {owner && <OwnerMetadataGroup separated context={binding.context} anchor={() => anchor.current} guard={() => manageGuard(binding, data)}
+        target={data.selected.seasonId ? {entityKind: 'season', entityId: data.selected.seasonId, libraryId: data.scope.libraryId, title: label} : undefined}>
+        <MenuItem onSelect={() => runScreenCommand(binding.context, () => { manageGuard(binding, data); setDisplay(true); })}>{t('next.detail.episodeDisplay')}</MenuItem>
+      </OwnerMetadataGroup>}
     </Menu>
     {owner && <Popover open={display} onOpenChange={setDisplay} anchorRef={anchor} returnFocusRef={anchor} width={540} className={styles.settingsMenu} title={t('title.showSettings')}><ShowSettingsMenu binding={binding} data={data} /></Popover>}
   </>;
@@ -75,14 +85,18 @@ export function seasonMenuDescription(season: WorkspaceSeason): ReactNode {
 }
 
 /** Show-level commands must not target the next episode's detail binding. */
-function ShowMore({binding, data, personal, busy}: {binding: ShowBindings; data: ShowWorkspaceData; personal?: ContainerState; busy: boolean}) {
+function ShowMore({binding, data, personal, busy, watchedInMenu = false}: {binding: ShowBindings; data: ShowWorkspaceData; personal?: ContainerState; busy: boolean; watchedInMenu?: boolean}) {
   const [open, setOpen] = useState(false), [settings, setSettings] = useState(false), anchor = useRef<HTMLButtonElement>(null), owner = binding.canManage();
   useEffect(() => { setOpen(false); setSettings(false); }, [data]);
   if (!personal && !owner) return null;
   return <>
     <Menu open={open} onOpenChange={setOpen} title={data.show.title} trigger={<Button ref={anchor} icon="i-more" iconOnly aria-label={t('next.controls.more')} />}>
+      {personal && watchedInMenu && <MenuItem icon="i-check" disabled={busy} selected={personal.watched} onSelect={() => runScreenCommand(binding.context, () => binding.setWatched(data, !personal.watched))}>{t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')}</MenuItem>}
       {personal && <MenuItem icon="i-heart" disabled={busy} selected={personal.favorite} onSelect={() => runScreenCommand(binding.context, () => binding.setFavorite(data, !personal.favorite))}>{t(personal.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}</MenuItem>}
-      {owner && <>{personal && <MenuSeparator />}<MenuItem onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); if (!binding.canManage()) throw new DOMException('Show management changed', 'AbortError'); setSettings(true); })}>{t('title.showSettings')}</MenuItem></>}
+      {owner && <OwnerMetadataGroup separated={!!personal} context={binding.context} anchor={() => anchor.current} guard={() => manageGuard(binding, data)}
+        target={{entityKind: 'show', entityId: data.show.id, libraryId: data.scope.libraryId, title: data.show.title}}>
+        <MenuItem onSelect={() => runScreenCommand(binding.context, () => { manageGuard(binding, data); setSettings(true); })}>{t('title.showSettings')}</MenuItem>
+      </OwnerMetadataGroup>}
     </Menu>
     {owner && <Popover open={settings} onOpenChange={setSettings} anchorRef={anchor} returnFocusRef={anchor} width={540} className={styles.settingsMenu} title={t('title.showSettings')}><ShowSettingsMenu binding={binding} data={data} /></Popover>}
   </>;
@@ -125,6 +139,9 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
   };
   const episodes = data.episodes.sections[0]?.entries ?? [], art = binding.context.artwork;
   const offer = showPrimary(data, primary), code = offer ? episodeCode(offer.next, t) : undefined;
+  // Phone width draws the mock-up's three controls (phone-web.html #w2: Play S1 E1, My List, More): the
+  // watched toggle moves into More so the episode code in Play is never cut off.
+  const threeControls = width < 600;
   const primaryLabel = offer ? code ? t(offer.resume ? 'title.resumeEpisode' : 'title.playEpisode', {code}) : t(offer.resume ? 'next.controls.resume' : 'next.controls.play') : undefined;
   const playPrimary = () => runScreenCommand(binding.context, () => { binding.current(data); if (offer) return binding.primary.play(offer.detail, offer.action.id); });
   // J-23: the next-up episode exists but its file can't be reached: a disabled Play with the reason, never nothing.
@@ -133,8 +150,8 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
     {offer && (offer.resume ? <ResumeButton progress={offer.progress} onClick={playPrimary}>{primaryLabel}</ResumeButton> : <Button variant="primary" icon="i-play" onClick={playPrimary}>{primaryLabel}</Button>)}
     {!offer && nextUnplayable && <Button variant="primary" icon="i-play" disabled aria-describedby={`${show.id}-unplayable`}>{t('next.controls.play')}</Button>}
     {personal && <Button disabled={busy} icon={personal.watchlisted ? 'i-check' : 'i-plus'} aria-pressed={personal.watchlisted} onClick={() => { void binding.setMyList(data, !personal.watchlisted).catch(binding.context.effects.reportError); }}>{t('next.controls.myList')}</Button>}
-    {personal && <Button disabled={busy} icon="i-check" iconOnly aria-label={t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')} aria-pressed={personal.watched} onClick={() => { void binding.setWatched(data, !personal.watched).catch(binding.context.effects.reportError); }} />}
-    <ShowMore binding={binding} data={data} personal={personal} busy={busy} />
+    {personal && !threeControls && <Button disabled={busy} icon="i-check" iconOnly aria-label={t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')} aria-pressed={personal.watched} onClick={() => { void binding.setWatched(data, !personal.watched).catch(binding.context.effects.reportError); }} />}
+    <ShowMore binding={binding} data={data} personal={personal} busy={busy} watchedInMenu={threeControls} />
   </div>;
   const unplayableNote = !offer && nextUnplayable ? <p id={`${show.id}-unplayable`} className={detail.unplayable}>{t('title.fileUnavailable')}</p> : null;
   // The pinned bar carries the drawn Resume Sx Ey and My List controls once the hero is gone.

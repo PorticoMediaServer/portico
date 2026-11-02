@@ -30,7 +30,8 @@ export function TVTitleBackdrop({source, foreground, browsing}: {source?: Ambien
 
 export function TVTitleCompactHeader({title, browsing, children}: {title: string; browsing: boolean; children: ReactNode}) {
   const theme = useTheme(), fade = useBrowseOpacity(browsing);
-  return <Animated.View pointerEvents="none" accessibilityElementsHidden={!browsing} importantForAccessibility={browsing ? 'auto' : 'no-hide-descendants'}
+  // W-17: while browsing, its tabs are the strip's real stops, so the header lets their presses through.
+  return <Animated.View pointerEvents={browsing ? 'box-none' : 'none'} accessibilityElementsHidden={!browsing} importantForAccessibility={browsing ? 'auto' : 'no-hide-descendants'}
     testID="watch-title-compact" style={[{position: 'absolute', left: 200, right: 96, top: 66, zIndex: 4}, fade]}>
     <Text numberOfLines={1} accessibilityRole="header" style={[nativeType({size: 62, weight: 800, lineHeight: 62, tracking: -.035}, theme.textScale),
       {color: theme.colors.text, textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30, textShadowColor: '#07101899'}]}>{title}</Text>

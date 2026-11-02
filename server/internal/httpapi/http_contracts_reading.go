@@ -33,7 +33,7 @@ func registerReadingHTTPContracts(registry *apikit.Registry) error {
 	if err := registerReadingSeriesHTTPContract(registry); err != nil {
 		return err
 	}
-	errors := []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "revision_required", "revision_mismatch", "request_in_progress", "body_too_large", "internal"}
+	errors := []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "revision_required", "revision_mismatch", "request_in_progress", "body_too_large", "comic_archive_unsupported", "internal"}
 	metadata := func(id, method, path, summary string, scope apikit.Scope) apikit.Metadata {
 		return apikit.Metadata{Audience: apikit.Clients, ID: id, Method: method, Path: path, Summary: summary, Access: apikit.Device, Requires: scope, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, Status: 200, Errors: errors}
 	}

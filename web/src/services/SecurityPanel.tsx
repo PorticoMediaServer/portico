@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {Fragment, useLayoutEffect, useEffect, useMemo, useRef, useState} from 'react';
 import {goTo} from '../platform/hosted-navigation';
 import type {DeletionPreview, IdentityProvider, SecurityIntent, SecurityPurpose, SecurityResult, SecurityState} from '@core/hosted-security.ts';
@@ -203,7 +204,7 @@ function SecurityTask({account, provider, identity, state, task, onClose, onSecu
   const resend = async () => {
     // This rendered handler owns this challenge. It never discovers another one
     // from a mutable service or successor dialog after an await.
-    if (task !== 'email_change' || !confirm || !result?.expiresAt || Date.parse(result.expiresAt) <= Date.now() || result.resendsRemaining === 0 || !flight || !current() || flight.pending) return;
+    if (task !== 'email_change' || !confirm || !result?.expiresAt || Date.parse(result.expiresAt) <= serverNow() || result.resendsRemaining === 0 || !flight || !current() || flight.pending) return;
     const signal = flight.controller.signal, originalExpiry = result.expiresAt;
     const requestId = resendOperation.current ??= crypto.randomUUID();
     flight.pending = true; setBusy(true); setError(undefined);
@@ -220,7 +221,7 @@ function SecurityTask({account, provider, identity, state, task, onClose, onSecu
     } catch (value) { if (current()) setError(value); }
     finally { flight.pending = false; if (current()) setBusy(false); }
   };
-  const ready = confirm ? code.length === 6 : (provider ? Date.parse(provider.proof.expiresAt) > Date.now() : Boolean(password) && (!state.mfaEnabled || Boolean(factor.trim()))) && (task === 'password_set_or_change' ? passwordStrength(value).acceptable : task !== 'email_change' || /^\S+@\S+\.\S+$/.test(value.trim()));
+  const ready = confirm ? code.length === 6 : (provider ? Date.parse(provider.proof.expiresAt) > serverNow() : Boolean(password) && (!state.mfaEnabled || Boolean(factor.trim()))) && (task === 'password_set_or_change' ? passwordStrength(value).acceptable : task !== 'email_change' || /^\S+@\S+\.\S+$/.test(value.trim()));
   const commitLabel = t(confirm ? 'web.hostedSecurity.confirm' : task === 'password_set_or_change' ? provider ? 'account.setPassword' : 'account.changePasswordTitle' : task === 'email_change' ? 'services.security.sendCode' : task === 'mfa_disable' ? 'web.hostedSecurity.turnOff' : 'action.continue');
   const commitAction = task === 'mfa_disable' && !confirm ? <ServicesDangerAction disabled={!current() || !ready} loading={busy} onClick={() => void submit()}>{commitLabel}</ServicesDangerAction>
     : <Button size="small" variant="primary" disabled={!current() || !ready} loading={busy} onClick={() => void submit()}>{commitLabel}</Button>;

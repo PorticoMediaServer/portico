@@ -47,7 +47,7 @@ function createComposition(context: NativeShellBootstrapContext) {
       render: (route, runtime) => {
         lifetime.assert();
         if (route.kind !== 'shell' || route.destination.kind !== 'settings') throw new Error('native_settings_route_mismatch');
-        return <NativeSettingsScreen ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>;
+        return <NativeSettingsScreen ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard} initialPage={route.destination.page}/>;
       },
       dispose,
     } satisfies NativeRouteRenderer,

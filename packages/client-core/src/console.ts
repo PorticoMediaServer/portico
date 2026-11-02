@@ -13,6 +13,7 @@ import {parseTelemetryReading,parseTelemetrySample,parseTranscodeCapacity,type T
 import {parseAttention} from './attention.ts';
 import {parsePlaybackHistory,type PlaybackHistoryPeriod} from './playback-history.ts';
 import {firstOfEach,keepReadable,noteSkipped} from './tolerant.ts';
+import {serverNow} from './server-clock.ts';
 export type ConsoleAPI={awaitUserMutationsReady?():Promise<void>;getUserMutationScope?():UserMutationScope|undefined;getUserMutationCoordinator?():UserMutationCoordinator|undefined;acknowledgeUserMutation?(intentId:string):Promise<void>;request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>;requestConsole?<T>(path:string,method:string,body:unknown,signal:AbortSignal):Promise<T>};
 export type ConsoleScope={serverId:string;viewerId:string};
 export type Page<T>={items:T[];nextCursor:string};
@@ -141,7 +142,7 @@ export class ConsoleClient {
  getDraft<T>(key:string):T|undefined{return this.drafts.get(key) as T|undefined;}
  hasDrafts(){return this.drafts.size>0||this.hasUnconfirmed();}
  hasUnconfirmed(){if(this.disposed||this.denied)return false;const scope=this.api.getUserMutationScope?.();return this.intents.size>0||!!this.api.getUserMutationCoordinator?.()?.snapshot().some(entry=>scope&&sameUserMutationScope(entry.scope,scope)&&(entry.path===routePath('change_console_settings')||entry.path===routePath('patch_preferences')));}
- takeRecoveredExport(){const value=this.recoveredExport;this.recoveredExport=undefined;return value&&value.expiresAt>Date.now()?value:undefined;}
+ takeRecoveredExport(){const value=this.recoveredExport;this.recoveredExport=undefined;return value&&value.expiresAt>serverNow()?value:undefined;}
  onReconciled(fn:()=>void){this.reconciled.add(fn);return()=>{this.reconciled.delete(fn);};}
  private async restoreIntent(path:string,method:string,parse:(v:unknown)=>unknown,recoverConfirmed=false){
   const coordinator=this.api.getUserMutationCoordinator?.();if(!coordinator||!userMutationRoute(path,method))return;

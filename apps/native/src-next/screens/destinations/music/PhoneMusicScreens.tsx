@@ -5,7 +5,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import {cardText} from '../../../../../../packages/client-core/src/presentation/kit-model';
-import {AmbientArt, Artwork, ArtistCircle, StandardBackdrop} from '../../../kit/artwork';
+import {AmbientArt, Artwork, ArtistCircle, StandardBackdrop, missingArt} from '../../../kit/artwork';
 import {Button, Chip, Focusable} from '../../../kit/controls';
 import {CircleCard, SquareCard} from '../../../kit/cards';
 import {Icon} from '../../../kit/Icon';
@@ -206,7 +206,7 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
       <MusicScrollView onNearEnd={()=>{void controller.nextSongs(snapshot.songPage);}} contentContainerStyle={{paddingTop: 70, paddingBottom: 100}} showsVerticalScrollIndicator={false}>
         <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: 36, paddingHorizontal: 32}}>
           <View style={{width: 260, height: 260, borderRadius: 12, overflow: 'hidden', backgroundColor: theme.colors.raised, shadowColor: theme.colors.shadow, shadowOffset: {width: 0, height: 30}, shadowOpacity: .9, shadowRadius: 30}}>
-            {art ? <Artwork source={art} width={260} height={260} priority/> : null}
+            <Artwork source={art} width={260} height={260} priority fallback={art ? undefined : missingArt({title: entry.displayTitle ?? entry.title, author: entry.artist?.name, shape: 'square', width: 260, height: 260})}/>
           </View>
           <View style={{flex: 1, minWidth: 0}}>
             <Text style={[browseType(theme, 14.5, 600), {color: theme.colors.textSecondary, marginBottom: 8}]}>{t('next.browse.native.album')}</Text>
@@ -262,7 +262,7 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
       <View style={{alignItems: 'center', paddingHorizontal: 20}}>
         <View style={{width: phoneMusicGeometry.albumCover, height: phoneMusicGeometry.albumCover, borderRadius: phoneMusicGeometry.albumCoverRadius, overflow: 'hidden', backgroundColor: theme.colors.raised,
           shadowColor: theme.colors.shadow, shadowOffset: {width: 0, height: 30}, shadowOpacity: .9, shadowRadius: 30}}>
-          {art ? <Artwork source={art} width={phoneMusicGeometry.albumCover} height={phoneMusicGeometry.albumCover} priority/> : null}
+          <Artwork source={art} width={phoneMusicGeometry.albumCover} height={phoneMusicGeometry.albumCover} priority fallback={art ? undefined : missingArt({title, author: entry.artist?.name, shape: 'square', width: phoneMusicGeometry.albumCover, height: phoneMusicGeometry.albumCover})}/>
         </View>
         <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, phoneMusicGeometry.albumTitle, 800, -.035), {color: theme.colors.text, textAlign: 'center', marginTop: 20}]}>{title}</Text>
         {entry.artist?.name ? <Text numberOfLines={1} style={[browseType(theme, phoneMusicGeometry.albumArtist, 700), {color: theme.colors.accentStrong, marginTop: 4}]}>{entry.artist.name}</Text> : null}

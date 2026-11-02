@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {membershipEndingIdentity, membershipEndingWasShown, recordMembershipEndingShown, type MembershipEndingNotice} from '@core/membership-ending.ts';
 import {accountIdentity, sameAccount, type AccountIdentity, type ServicesAccount} from './session';
@@ -10,7 +11,7 @@ export function useMembershipEnding(account: ServicesAccount, identity: AccountI
   const opening = useMemo(() => ({notice, event, shownHere: false, accountId,
     current: () => {
       const session = account.service.getSnapshot().session;
-      return Boolean(sourceCurrent() && session?.familyId && sameAccount(accountIdentity(session), {accountId, familyId}) && notice && Date.parse(notice.expiresAt) > Date.now());
+      return Boolean(sourceCurrent() && session?.familyId && sameAccount(accountIdentity(session), {accountId, familyId}) && notice && Date.parse(notice.expiresAt) > serverNow());
     },
   }), [notice, event, account, accountId, familyId, sourceCurrent]);
   type Flight = {live: boolean; abort: AbortController; confirm?: (shown: boolean) => void};
@@ -25,7 +26,7 @@ export function useMembershipEnding(account: ServicesAccount, identity: AccountI
         void navigator.locks.request('portico.services.ending-shown.v1:' + opening.accountId, {signal: flight.abort.signal}, async () => {
           if (!live() || !opening.notice) return;
           const store = window.localStorage;
-          if (membershipEndingWasShown(store, opening.accountId, opening.notice, Date.now())) return;
+          if (membershipEndingWasShown(store, opening.accountId, opening.notice, serverNow())) return;
           // Keep the cross-tab lock until the layout below confirms DOM mount,
           // or cleanup explicitly releases an opening that never mounted.
           await new Promise<boolean>(resolve => {flight.confirm = resolve; setVisible({opening, flight});});
@@ -35,7 +36,7 @@ export function useMembershipEnding(account: ServicesAccount, identity: AccountI
     let timer: ReturnType<typeof setTimeout> | undefined;
     const deadline = () => {
       if (!flight.live || active.current !== flight || !opening.notice) return;
-      const remaining = Date.parse(opening.notice.expiresAt) - Date.now();
+      const remaining = Date.parse(opening.notice.expiresAt) - serverNow();
       if (remaining <= 0) {setVisible(undefined); flight.confirm?.(false); flight.confirm = undefined;}
       else timer = setTimeout(deadline, Math.min(2147483647, remaining));
     };
@@ -47,7 +48,7 @@ export function useMembershipEnding(account: ServicesAccount, identity: AccountI
     if (visible?.opening !== opening || visible.flight !== flight || !flight?.live || !flight.confirm) return;
     const confirm = flight.confirm; flight.confirm = undefined;
     let recorded = false;
-    try {if (mount.current?.isConnected && opening.current() && opening.notice) recorded = recordMembershipEndingShown(window.localStorage, opening.accountId, opening.notice, Date.now());}
+    try {if (mount.current?.isConnected && opening.current() && opening.notice) recorded = recordMembershipEndingShown(window.localStorage, opening.accountId, opening.notice, serverNow());}
     catch { /* A failed or malformed durable store suppresses repetition. */ }
     if (recorded) opening.shownHere = true;
     else setVisible(undefined);

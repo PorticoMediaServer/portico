@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {forwardIdentity} from '../detail/context';
 import {subscribeFacts} from '../../shell/fact-source';
 import {subscribePresentation, useShellFacts} from '../../shell/fact-hooks';
@@ -139,12 +140,12 @@ export function useLiveChromePort(context: ShellAssemblyContext | undefined, run
         up.push(next);anchor = next;
       }
       const rows = [down, row, ...up].filter((item): item is GuideChannelRow => !!item);
-      const programs = await source.programs(rows.map(item => item.id), Date.now(), Date.now() + 1, abort.signal);
+      const programs = await source.programs(rows.map(item => item.id), serverNow(), serverNow() + 1, abort.signal);
       if (!admitted()) return;
       const programmes = new Map<string, GuideProgramme>();
       for (const item of rows) {
         const raw = legacyChannel(item); if (!raw) continue;
-        const page = programs[item.id]?.find(programme => programme.start <= Date.now() && Date.now() < programme.end);
+        const page = programs[item.id]?.find(programme => programme.start <= serverNow() && serverNow() < programme.end);
         const rawProgramme = page ? legacyProgramme(page) : undefined;
         if (rawProgramme) programmes.set(item.id, rawProgramme);
       }

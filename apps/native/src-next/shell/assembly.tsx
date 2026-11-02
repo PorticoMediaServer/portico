@@ -1,4 +1,5 @@
 import {NativeTVReceiver} from '../screens/settings-live/NativeTVReceiver';
+import {CoveredLayer} from '../kit/focus/CoveredLayer';
 import {createNativeListeningPlaylist} from './listening-playlist';
 import {createNativeListeningQueuePolicy} from './listening-queue-policy';
 import {createNativeListeningSongDetail} from './listening-song-detail';
@@ -22,7 +23,7 @@ import {nativeScreenServices, NativeScreenFeedbackHost} from '../screens/native-
 import {OwnerTag} from '../kit/shell';
 import {HomeSelectionBars} from './HomeSelectionBars';
 import {HomeSelectionOverlays} from './HomeSelectionOverlays';
-import {nativeAccountMenu, nativeMenuRouteAvailable} from './account';
+import {nativeAccountMenu, nativeAccountOpenTransition, nativeMenuRouteAvailable} from './account';
 import {libraryScanReadiness} from './library-scan';
 import {NativeDownloadSheet} from '../screens/downloads/DownloadSheet';
 import {createNativeHomeSelectionAction, nativeSelectionActionInput, type NativeHomeQueryActions, type NativeSelectionActionPresentation} from '../screens/library/selection-actions';
@@ -57,7 +58,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
   const feedback = nativeScreenServices(context);
   const scope = nativeHomeSelectionScope(session.viewer);
   let alive = true, runtime: NativeShellRuntime | undefined;
-  const tvPageBack = new Map<string, {handler: () => boolean}[]>();
+  const tvPageBack = new Map<string, {handler: () => boolean}[]>(), tvRouteBack = new Map<string, {handler: () => boolean}[]>();
   let homeTopPending = false;
   let tvRailBack: (() => boolean) | undefined;
   const listeners = new Set<() => void>(), windows = new Map<string, Window>(), spotlights = new Map<ContentEntry, {id: string; key: string; cleanup: () => void; spotlight: HomeSpotlight; index: number; context: string}>(), scroll = new Map<string, () => void>();
@@ -76,7 +77,20 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     if (homeRegistrationLimit(error)) return;
     feedback.reportError(error, 'home');
   };
+  // Forget remembered profile: the profile open now stays open; a failed clear says so, and the item stays.
+  const forgetRemembered = () => {
+    if (!alive || !context.current()) return;
+    void context.rememberedProfile?.forget().catch(error => {if (alive && context.current()) reportError(error);});
+  };
   const open = (route: NativeShellRoute) => {if (alive && context.current()) context.navigation.open(route, context.authority());};
+  /** W-9: an account destination (Switch profile, Switch server, notifications…) opened while the TV music or
+   * audiobook player is expanded folds the player away first, so the page opens on top and holds focus rather
+   * than sitting under the player. TV video has no collapsed state and is left to its own Back. */
+  const openFromAccount = (route: NativeShellRoute) => {
+    const adapter = runtime?.playback, fold = adapter && nativeAccountOpenTransition(adapter.dock, adapter.getSnapshot(), Platform.isTV);
+    if (adapter && fold) void adapter.onTransition(fold).catch(error => reportError(error));
+    open(route);
+  };
   const mutationCoordinator = context.api.getUserMutationCoordinator();
   const mutationScope = () => alive && context.current() ? context.api.getUserMutationScope() : undefined;
   const pendingChanges = mutationCoordinator ? new NativePendingChanges(new UserMutationRecoveryModel({
@@ -326,11 +340,17 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
         if (homeTop && currentHome()) {homeTopPending = false; homeTop();}
         return true;
       }
+      if (Platform.isTV) {
+        const routeBack = tvRouteBack.get(navigation.route.kind);
+        if (routeBack && [...routeBack].reverse().some(registration => registration.handler())) return true;
+      }
       return context.navigation.back(context.authority());
     }
     return true;
   });
   cleanups.push(() => back.remove());
+  // The menu offers Forget only while this device remembers the open profile, so it follows the lifecycle's marker.
+  if (context.rememberedProfile) cleanups.push(context.rememberedProfile.subscribe(publish));
   const run = (work: (signal: AbortSignal) => Promise<void>) => {
     const operation = new AbortController(); operations.add(operation);
     void work(operation.signal).catch(reportError).finally(() => operations.delete(operation));
@@ -392,7 +412,8 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
           .finally(() => {operation.dispose(); operations.delete(signal);});
   };
   return {get account() {
-    const account = nativeAccountMenu(context.account, open, Platform.isTV, nativeMenuRouteAvailable);
+    const remembered = context.rememberedProfile;
+    const account = nativeAccountMenu(context.account, openFromAccount, Platform.isTV, nativeMenuRouteAvailable, remembered?.remembered() ? forgetRemembered : undefined);
     return pendingChanges ? {...account, actions: [...account.actions, {id: 'pending-changes', label: defaultI18n.t('recovery.title'), icon: 'i-clock' as const, onPress: pendingChanges.open}]} : account;
   }, attach: value => {runtime = value;},
     renderPendingChanges: () => pendingChanges && runtime ? <PendingChanges owner={pendingChanges} runtime={runtime} openDestination={reviewDestination}/> : null,
@@ -480,16 +501,24 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     },
     homeMenuRow: id => [...windows.values()].find(window => [...window.memberWindows.values()].includes(id))?.row,
     renderSelection: () => <><HomeSelectionBars runtime={runtime} controller={controller} queryActions={queryActions} ownerTag={ownerTag} reportError={reportError}/><HomeSelectionOverlays queryActions={queryActions} anchorRef={currentMenuCapture()?.anchorRef} controller={controller} runtime={runtime} ownerTag={ownerTag} reportError={reportError}/><NativeScreenFeedbackHost service={feedback} bottomOffset={84}/></>,
-    renderRoutes: () => {
+    renderRoutes: options => {
       const route = context.navigation.getSnapshot().route;
       // Instantiate the current module before asking it for retained native views.
       // A native stack draws each page in its own screen; here it only needs every module to exist.
       if (stacks) for (const presentation of context.navigation.presentationStack()) routes.prepare(presentation.route);
       const active = route.kind === 'shell' || stacks ? null : render(route);
-      return runtime && context.current() ? <View pointerEvents="box-none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
-        {Platform.isTV && <NativeTVReceiver context={context} runtime={runtime}/>}
+      const pages = runtime ? <>
         {(routes.renderRetained(runtime) ?? []).map((node, index) => <React.Fragment key={index}>{node}</React.Fragment>)}
         {active}
+      </> : null;
+      return runtime && context.current() ? <View pointerEvents="box-none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
+        {Platform.isTV && <NativeTVReceiver context={context} runtime={runtime}/>}
+        {/* The expanded player, or the TV listening screen (W-9: the music player over an album page),
+            covers the route pages on TV: nothing under it may take D-pad focus.
+            Overlays and music navigation stay above, reachable from the player. Touch has no D-pad.
+            W-9/W-12: with no route open the layer is covered too, so the empty container can never
+            hold focus over the page (Back then left focus on it, with nothing visible focused). */}
+        {Platform.isTV ? <CoveredLayer covered={runtime.getSnapshot().mediaExpanded === true || options?.listening === true || route.kind === 'shell'} autoFocus hostRef={options?.hostRef} style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}} testID="native-shell-routes">{pages}</CoveredLayer> : pages}
         {musicNavigation.render()}
         {(routes.renderOverlays(runtime) ?? []).map((node, index) => <React.Fragment key={index}>{node}</React.Fragment>)}
       </View> : null;
@@ -522,6 +551,11 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
       if (homeTopPending && destination.kind === 'home' && currentHome()) {homeTopPending = false; handler();}
       return () => {if (scroll.get(key) === handler) scroll.delete(key);};},
     registerTVRailBack: handler => {tvRailBack = handler; return () => {if (tvRailBack === handler) tvRailBack = undefined;};},
+    registerTVRouteBack: (handler, routeKind) => {
+      const registration = {handler}, stack = tvRouteBack.get(routeKind) ?? []; stack.push(registration); tvRouteBack.set(routeKind, stack);
+      return () => {const index = stack.indexOf(registration); if (index < 0) return; stack.splice(index, 1);
+        if (!stack.length && tvRouteBack.get(routeKind) === stack) tvRouteBack.delete(routeKind);};
+    },
     registerTVPageBack: (handler, destination = {kind: 'home'}) => {
       const key = JSON.stringify(destination), registration = {handler};
       const stack = tvPageBack.get(key) ?? []; stack.push(registration); tvPageBack.set(key, stack);

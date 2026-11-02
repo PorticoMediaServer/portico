@@ -8,6 +8,7 @@ import type {EntryActionTarget} from '../../shell/entry-actions';
 import {DownloadNotice} from './DownloadNotice';
 import type {PlaybackOptions} from '@core/playback-v1/types.ts';
 import {detailActions} from '@core/presentation/detail-actions.ts';
+import {useTitleMenu} from '../../shell/title-menu';
 import {refreshMetadataPath} from '@core/presentation/entry-actions.ts';
 import {titleRecommendationRows, type ItemRecommendations} from '@core/recommendations.ts';
 import {listeningSimilarPager, recommendationRowPager, type ListeningSimilarRead, type RelationRowOwner} from '@core/relation-rows.ts';
@@ -335,7 +336,7 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
         {/* O-161: the mock-ups have no share slot; the title's ⋯ menu carries its shareable link. */}
         <MenuItem icon="i-copy" onSelect={() => { void copyLink('item', {itemId: data.item.id}, trigger.current ?? undefined).then(() => setLinkToast({id: crypto.randomUUID(), icon: 'i-check', message: t('next.overlays.linkCopied')}), () => setLinkToast({id: crypto.randomUUID(), icon: 'i-warn', tone: 'warning', message: t('next.overlays.copyLinkFailed')})); }}>{t('next.overlays.copyLink')}</MenuItem>
       </MenuGroup>
-      {ownerRows && <MenuGroup label={t(sheet ? 'next.overlays.ownerOnly' : 'next.overlays.owner')} ownerOnly>{canEditMetadata && <MenuItem onSelect={() => destination(binding.context.effects.editMetadata)}>{t('entry.editMetadata')}</MenuItem>}{refreshPath && <MenuItem icon="i-refresh" onSelect={refresh}>{t('entry.refreshMetadata')}</MenuItem>}{canDelete && <MenuItem icon="i-trash" destructive onSelect={() => destination(binding.context.effects.deleteTitle)}>{t('entry.delete')}</MenuItem>}</MenuGroup>}
+      {ownerRows && <MenuGroup label={t(sheet ? 'next.overlays.ownerOnly' : 'next.overlays.owner')} ownerOnly>{canEditMetadata && <MenuItem icon="i-edit" onSelect={() => destination(binding.context.effects.editMetadata)}>{t('entry.editMetadata')}</MenuItem>}{refreshPath && <MenuItem icon="i-refresh" onSelect={refresh}>{t('entry.refreshMetadata')}</MenuItem>}{canDelete && <MenuItem icon="i-trash" destructive onSelect={() => destination(binding.context.effects.deleteTitle)}>{t('entry.delete')}</MenuItem>}</MenuGroup>}
     </Menu>
     {downloadView && downloadView.active.data === data && (downloadView.options?.policy.allowDownloads
       ? <DownloadNotice open onOpenChange={value => { if (!value) closeDownload(); }} title={data.item.title} artwork={binding.context.artwork.foreground(data.item.posterUrl, 88, 2 / 3)} options={downloadView.options} busy={downloadView.busy}
@@ -440,11 +441,16 @@ function PagedTitleRow({first, pager, entries, ...row}: Omit<Parameters<typeof T
 
 export function TitleRow({heading, subtitle, entries, binding, guard, pagination}: {heading: ReactNode; subtitle?: ReactNode; entries: readonly ContentEntry[]; binding: Pick<DetailBindings, 'context'>; guard?: () => void; pagination?: Readonly<{cursor: string; loading: boolean; onMore: () => void}>}) {
   const width = useShellWidth(), phone = width < 1024;
+  const titleMenu = useTitleMenu(binding.context);
+  // The row's own page fence: a row that moved on never draws a menu or runs one.
+  const current = () => { try { guard?.(); } catch { return false; } return binding.context.isCurrent(); };
   const props = {focusScope: binding.context, heading, subtitle: phone ? undefined : subtitle, items: entries, getKey: (entry: ContentEntry) => entry.id, renderItem: (entry: ContentEntry) => {
-    const props = {model: entryCard(entry, env), artwork: binding.context.artwork.foreground(entry.posterUrl, 380, 2 / 3), onNavigate: () => runScreenCommand(binding.context, () => { if (binding.context.isCurrent()) { guard?.(); binding.context.effects.openEntry(entry); } }), watched: entry.watched};
+    const onPlay = titleMenu.play(entry, current);
+    const props = {model: entryCard(entry, env), artwork: binding.context.artwork.foreground(entry.posterUrl, 380, 2 / 3), onNavigate: () => runScreenCommand(binding.context, () => { if (binding.context.isCurrent()) { guard?.(); binding.context.effects.openEntry(entry); } }), watched: entry.watched,
+      onMore: (anchor: HTMLButtonElement) => titleMenu.open(anchor, {entry, title: entry.displayTitle ?? entry.title, current, ...(onPlay ? {onPlay} : {})})};
     return ['album', 'book'].includes(entry.kind) ? <SquareCard {...props} /> : <PosterCard {...props} />;
   }};
   const square = entries.every(entry => ['album', 'book'].includes(entry.kind));
-  return pagination ? <PagedShelf {...props} hasMore={!!pagination.cursor} continuation={pagination.cursor} loading={pagination.loading} onMore={pagination.onMore} cardWidth={width < 600 ? square ? 132 : 118 : 190} artworkRatio={square ? 1 : 2 / 3} /> : <Shelf {...props} />;
+  return <>{pagination ? <PagedShelf {...props} hasMore={!!pagination.cursor} continuation={pagination.cursor} loading={pagination.loading} onMore={pagination.onMore} cardWidth={width < 600 ? square ? 132 : 118 : 190} artworkRatio={square ? 1 : 2 / 3} /> : <Shelf {...props} />}{titleMenu.menu}</>;
 }
 export function ScreenFailure({retry}: {retry: () => void}) { return <StateView variant="page" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: retry}} />; }

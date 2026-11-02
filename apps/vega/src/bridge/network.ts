@@ -7,6 +7,7 @@ import {addEventListener as watchNetwork, type NetInfoState} from '@amazon-devic
 import {base64, base64Url, fromBase64, fromBase64Url, fromUtf8, isUuid, utf8} from './encoding';
 import {ModuleEvents, failure, withEvents} from './events';
 import {verifiedCredentialOrigin} from './credential-boundary';
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {randomBytes, uuid} from './random';
 import {readRecord, serialized, writeRecord} from './storage';
 
@@ -151,9 +152,9 @@ export const PorticoNetwork = withEvents({
   /** The hint is checked as on Apple, then not advertised (no discovery API): resolves false. */
   advertiseTV(value: Record<string, unknown>): Promise<boolean> {
     const expiry = typeof value?.expiresAt === 'string' ? Date.parse(value.expiresAt) : NaN;
-    const left = expiry - Date.now();
+    const left = expiry - serverNow();
     if (typeof value?.code !== 'string' || !codePattern.test(value.code) || !isUuid(value.requestId) || typeof value.issuer !== 'string' || utf8(value.issuer).length >= 240 ||
-        typeof value.publicKey !== 'string' || value.publicKey.length !== 43 || !(left > 0 && left <= 605000)) {
+        typeof value.publicKey !== 'string' || value.publicKey.length !== 43 || !(left > 0)) {
       return Promise.reject(failure('tv_discovery_invalid', 'Invalid TV discovery hint.'));
     }
     return Promise.resolve(false);

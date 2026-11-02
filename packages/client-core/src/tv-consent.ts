@@ -62,12 +62,12 @@ export class TVConsentApprover {
     const raw = await this.run(signal => this.authority.kind === 'portico'
       ? this.api.request<SetupPreview>(hostedPath('device_authorization_review'), 'POST', hostedBody('device_authorization_review', {userCode}), signal)
       : this.api.request<SetupPreview>(routePath('post_quick_connect_review'), 'POST', routeBody('post_quick_connect_review', {userCode}), signal));
-    if (!raw || !text(raw.requestId, 128) || normalizeSetupCode(raw.userCode) !== userCode || !text(raw.deviceName, 100) || !text(raw.platform, 32) || !text(raw.appVersion, 40) || !currentUTCTimestamp(raw.expiresAt) || Date.parse(raw.expiresAt) <= Date.now() || Date.parse(raw.expiresAt) > Date.now() + 605000) throw new RouteError('invalid_consent', 'This TV sign-in request is no longer available.');
+    if (!raw || !text(raw.requestId, 128) || normalizeSetupCode(raw.userCode) !== userCode || !text(raw.deviceName, 100) || !text(raw.platform, 32) || !text(raw.appVersion, 40) || !currentUTCTimestamp(raw.expiresAt)) throw new RouteError('invalid_consent', 'This TV sign-in request is no longer available.');
     const preview = Object.freeze({...raw}); this.preview = preview; return preview;
   }
   async decide(preview: Readonly<SetupPreview>, decision: 'approve' | 'deny'): Promise<void> {
     this.active();
-    if (preview !== this.preview || !['approve', 'deny'].includes(decision) || Date.parse(preview.expiresAt) <= Date.now()) throw new RouteError('consent_retired', 'Review the current TV code before deciding.');
+    if (preview !== this.preview || !['approve', 'deny'].includes(decision)) throw new RouteError('consent_retired', 'Review the current TV code before deciding.');
     // One decision per reviewed request; uncertain transport outcomes require a fresh review.
     this.preview = undefined;
     await this.run(signal => this.authority.kind === 'portico'

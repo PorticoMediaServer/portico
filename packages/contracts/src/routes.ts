@@ -17583,6 +17583,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -23845,6 +23846,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26253,6 +26255,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26365,6 +26368,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26489,6 +26493,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "search_busy",
       "database_busy"
@@ -26596,6 +26601,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26634,6 +26640,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26668,6 +26675,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -26709,6 +26717,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "search_busy",
       "database_busy"
@@ -26741,6 +26750,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -28877,6 +28887,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy"
     ],
@@ -33670,6 +33681,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "metadata_conflict",
       "source_unavailable",
@@ -34765,6 +34777,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -34793,6 +34806,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -34821,6 +34835,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -34852,6 +34867,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -34966,6 +34982,30 @@ export const routes = [
     ],
     "status": 200,
     "admission": "auth"
+  },
+  {
+    "audience": "Clients",
+    "id": "post_setup_remote_check",
+    "method": "POST",
+    "path": "/v1/setup/remote-check",
+    "summary": "Say whether this address will be refused once setup is complete",
+    "access": "public",
+    "requires": "session",
+    "lane": "security",
+    "cost": "constant",
+    "bodyLimit": 4096,
+    "errors": [
+      "unauthorized",
+      "invalid_request",
+      "rate_limited",
+      "setup_already_complete",
+      "setup_source_not_local",
+      "internal",
+      "database_busy",
+      "writer_capacity"
+    ],
+    "status": 200,
+    "admission": "default"
   },
   {
     "audience": "Clients",
@@ -37421,6 +37461,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "comic_archive_unsupported",
       "internal",
       "database_busy",
       "writer_capacity"

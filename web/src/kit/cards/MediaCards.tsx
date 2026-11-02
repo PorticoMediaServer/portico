@@ -11,8 +11,10 @@ export function CardArtwork({artwork, fallback, position, visible, arrivalDurati
   const [read, setRead] = useState<{key?: string; status: ArtworkStatus}>({status: artwork ? 'loading' : 'empty'});
   const key = artwork?.key;
   const onStatusChange = useCallback((status: ArtworkStatus) => setRead(previous => previous.key === key && previous.status === status ? previous : {key, status}), [key]);
+  // J-25: while an image loads or waits for its retry, a card with placeholder art (the generated cover)
+  // shows it instead of a blank tile; only a card without one draws the loading surface.
   const loading = !!artwork && (read.key !== key || read.status === 'loading');
-  return <Artwork source={artwork} visible={visible} arrivalDurationMs={arrivalDurationMs} alt="" position={position} onStatusChange={onStatusChange} fallback={loading ? <span className={styles.loadingArt} /> : fallback} />;
+  return <Artwork source={artwork} visible={visible} arrivalDurationMs={arrivalDurationMs} alt="" position={position} onStatusChange={onStatusChange} fallback={loading && fallback == null ? <span className={styles.loadingArt} /> : fallback} />;
 }
 
 export function PosterCard({titleLines, progressPlacement = 'edge', ...props}: MediaCardProps & {titleLines?: 1 | 2; progressPlacement?: 'edge' | 'inset'}) {

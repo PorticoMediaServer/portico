@@ -11,6 +11,7 @@ import * as registryModule from '../src-next/kit/focus/registry';
 import * as hostRef from '../src-next/kit/focus/useHostRef';
 import * as destination from '../src-next/kit/focus/destination-entry';
 import * as rowState from '../src-next/kit/layout/row-state';
+import * as tvScroll from '../src-next/kit/layout/tv-scroll.ts';
 import * as layoutTypes from '../src-next/kit/layout/types';
 import * as controlModel from '../src-next/kit/controls/control-model';
 import {useTVBusyEntryRevision} from '../src-next/tv/auth/entry-revision';
@@ -48,7 +49,7 @@ async function bindings() {
     useAnimatedStyle: (fn: () => any) => fn(), useSharedValue: (value: any) => React.useRef({value}).current, withTiming: (value: any) => value,
     useAnimatedScrollHandler: (fn: any) => fn, runOnJS: (fn: any) => fn};
   const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {react, 'react-native': native, 'react-native-reanimated': animation,
-    '@portico/design': {focusSpec}, '../theme': {useTheme: () => theme}, '../focus': focus, './control-model': controlModel,
+    '@portico/design': {focusSpec}, '../theme': {useTheme: () => theme}, '../focus': {...focus, useCovered: () => false}, './control-model': controlModel,
     '../useMotion': {useMotion: () => ({transforms: false, reduce: true, timing: () => ({})})}, './useFocusedMenu': {useFocusedMenu() {}},
     '../overlays/OverlayPaintContext': paint, '../dev-observation': {useNativeObservation: (_: any, ref: any) => ({ref, recordFocus() {}, recordDeclaredStyle() {}})}});
   const entry = await screenModule(new URL('../src-next/kit/focus/useDestinationEntryFocus.ts', import.meta.url), {react, './FocusRegion': focus, './destination-entry': destination});
@@ -116,10 +117,10 @@ async function rowComposition(b: Awaited<ReturnType<typeof bindings>>) {
     '../../platform/tv-key-adapter': {createTVKeyAdapter}, '../../platform/tv-key-source': {tvKeySource: 'native'},react: b.react, 'react-native': b.native});
   const row = await screenModule(new URL('../src-next/kit/layout/Row.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}, 'react-native-reanimated': b.animation,
-    '../../../../../packages/i18n/src': {defaultI18n}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme}, '../focus': b.focus, './model': layoutModel, './row-state': rowState,
+    '../../../../../packages/i18n/src': {defaultI18n}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme}, '../focus': b.focus, './model': layoutModel, './row-state': rowState, './tv-scroll': tvScroll,
     '../focus/page-boundary': page, './FocusAnchor': {useFocusAnchor: () => ({anchor() {}, repeating: false, offset: {value: 0}, scrollRef: {current: null}, stop() {}, move() {}})},
     './MotionItem': {MotionItem: 'MotionItem'}, './types': layoutTypes});
-  const shelf = await screenModule(new URL('../src-next/tv/layout/TVShelf.tsx', import.meta.url), {react: b.react, '../../kit/layout/Row': row});
+  const shelf = await screenModule(new URL('../src-next/tv/layout/TVShelf.tsx', import.meta.url), {react: b.react, 'react-native': b.native, '../../kit/theme': {useTheme: () => b.theme}, '../../kit/layout/Row': row});
   const people = await screenModule(new URL('../src-next/screens/watch/TitlePeople.tsx', import.meta.url), {'../../kit/states': {SkeletonBlock: 'SkeletonBlock'}, '../../kit/focus': b.focus, '../../../../../packages/i18n/src': {defaultI18n}, react: b.react, 'react-native': b.native,
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', PersonCircle: 'PersonCircle'}, '../../tv/layout/TVShelf': shelf, '../../tv/layout/TVArtFocus': {TVArtFocus: 'TVArtFocus'},
     '../../kit/controls': {Focusable: b.Focusable}, '../../kit/theme': {useTheme: () => b.theme, nativeType, fontFamilies}});
@@ -131,7 +132,8 @@ for (const [name, actionable] of [['leading', [false, true, true]], ['interleave
     const b = await bindings(), c = await rowComposition(b); let tree: any; const commands: string[] = [];
     const credits = actionable.map((active, index) => ({id: `credit-${index}`, name: `Name ${index}`, role: 'Actor', ...(active ? {personId: `person-${index}`} : {})}));
     let people: any; const peopleDriver = createFabricHookHost(() => {people = c.people.TitlePeople({credits, artwork: () => undefined, onPerson: (id: string) => commands.push(id), focus: {id: 'cast', edges: {left: 'rail', right: 'next'}}});}); await peopleDriver.mount();
-    const shelf = people.type(people.props), wrapper = shelf.type({...shelf.props, initialViewportWidth: 1920}), row = wrapper.props.children;
+    // TVShelf draws its Row inside the W-11 focus bleed.
+    const bled = people.type(people.props), shelf = [bled.props.children].flat(Infinity).find((child: any) => typeof child?.type === 'function'), wrapper = shelf.type({...shelf.props, initialViewportWidth: 1920}), row = wrapper.props.children;
     const driver = createFabricHookHost(() => {tree = row.type(row.props);}); await driver.mount();
     const regionNode = nodes(tree).find(node => node.type?.name === 'RowRegion'), declared = regionNode.type(regionNode.props);
     const guide = await b.region(() => declared.props), rail = {nativeTag: 900, requestTVFocus() {}}, next = {nativeTag: 901, requestTVFocus() {}};
@@ -199,7 +201,7 @@ async function overlayBindings(b: Awaited<ReturnType<typeof bindings>>) {
   const svg = {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', RadialGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'};
   const host = await screenModule(new URL('../src-next/kit/overlays/OverlayHost.tsx', import.meta.url), {
     react: b.react, 'react-native': native, '../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../platform/tv-menu': {captureTVMenuKey: () => () => {}},
-    './OverlayPaintContext': b.paint, '../theme': {useTheme: () => b.theme}, '../focus': {...b.focus, requestNativeFocus: registryModule.requestNativeFocus}, './geometry': geometry, './overlay-stack': stack});
+    './OverlayPaintContext': b.paint, '../theme': {useTheme: () => b.theme}, '../focus': {useCovered: () => false, ...b.focus, requestNativeFocus: registryModule.requestNativeFocus}, './geometry': geometry, './overlay-stack': stack});
   const {Button} = await screenModule(new URL('../src-next/kit/controls/Button.tsx', import.meta.url), {react: b.react, 'react-native': native,
     '@portico/design': design, '../../platform/native-blur': {glassRecipe: () => ({nativeBlur: false}), BlurView: 'Blur'}, '../Icon': {Icon: 'Icon'},
     '../theme': {useTheme: () => b.theme}, './Focusable': {Focusable: b.Focusable}, './control-model': controlModel,
@@ -317,7 +319,7 @@ test('TV Saved caller passes original grid sort/filter roots through actual Menu
     '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../../kit/controls': {Button: o.Button, Chip: 'Chip', Focusable: b.Focusable},
     '../../../kit/cards': {PosterCard: 'Poster', SquareCard: 'Square'}, '../../../kit/overlays': {...o.menu, Dialog: 'Dialog'}, '../../../kit/states': {StateView: 'State'},
     '../../../kit/focus': b.focus, '../../../kit/browse/presentation': {browseType: () => ({})}, '../../../kit/theme': {useTheme: () => b.theme},
-    '../focus': {nativeDestinationFocusIds: (authority: any) => ({savedTabs: 'tabs', savedGrid: authority.grid, savedToolbar: 'toolbar', rail: 'rail'})},
+    '../focus': {useCovered: () => false, nativeDestinationFocusIds: (authority: any) => ({savedTabs: 'tabs', savedGrid: authority.grid, savedToolbar: 'toolbar', rail: 'rail'})},
     '../../saved/SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'}, '../../saved/SavedTVTabs': {SavedTVTabs: 'Tabs'}, '../../saved/SavedTVDirectory': {SavedTVDirectory: 'Directory'}});
   let tree: any, scope = 'original.saved'; const selected: any[] = [];
   const snapshot = {phase: 'ready', entries: [], resources: [], posters: {sections: []}, squares: {sections: []}};
@@ -381,7 +383,7 @@ test('MusicMixes actual original caller scope names its panel through failed bus
     react: b.react, 'react-native': b.native, 'react-native-svg': {default: 'Svg', Defs: 'Defs', RadialGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../../kit/controls': {Focusable: b.Focusable},
     '../../../kit/focus': b.focus, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel}, '../../../kit/theme': {useTheme: () => b.theme, nativeType},
-    '../../../kit/browse/presentation': presentation});
+    '../../../kit/browse/presentation': presentation, '../../../kit/layout/tv-scroll': tvScroll});
   const row = {id: 'original-mix', name: 'Mix', tint: '#123456', artists: [], more: false, songCount: 20, covers: []};
   const snapshot = {phase: 'ready', rows: [row]}, lifetime = {isCurrent: () => true};
   let reject!: (error: Error) => void, calls = 0, tree: any, mixScope = 'original-library-scope';
@@ -428,7 +430,7 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
   const {TVNowPlayingScreen} = await screenModule(new URL('../src-next/screens/destinations/music/TVNowPlayingScreen.tsx', import.meta.url), {
     react: b.react, 'react-native': b.native, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/kit-model/text': text,
     '../../../../../../packages/player-core/src': {sameFence: (a: any, c: any) => a === c}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'Ambient', Artwork: 'Artwork'},
-    '../../../kit/controls': {Button: o.Button}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel},
+    '../../../kit/controls': {Button: o.Button}, '../../../kit/focus': {requestNativeFocus: registryModule.requestNativeFocus, useOptionalFocusRegistry: () => claimRegistry}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel},
     '../../../kit/theme': {useTheme: () => b.theme, nativeType}, '../../../kit/dock/model': dock,
     '../../../shell/model': {shellLayout: () => ({width: 1920, height: 1080, left: 0, top: 0, scale: 1})},
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {supported: true}; return () => snapshot;})()}},
@@ -441,9 +443,42 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
     presentation: {identity: {title: 'Song', subtitle: []}, durationSeconds: 100, capabilities: {play: true, pause: true, previous: false, next: true}}},
     width: 1920, height: 1080, artwork: () => undefined, onAction() {}, onQueuePlay() {}, onClose() {}, lyrics: React.createElement('Lyrics'), equalizerCopy: {}};
   const wrap = TVNowPlayingScreen(props).props.children; let tree: any, second: any;
+  // W-9: the player claims focus as it opens, a frame after it is drawn, and keeps claiming until focus is inside it.
+  let claimRegistry: any = undefined;
+  const frames: (() => void)[] = [], realFrame = globalThis.requestAnimationFrame, realCancel = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = ((callback: () => void) => frames.push(callback)) as never; globalThis.cancelAnimationFrame = (() => {}) as never;
+  t.after(() => {globalThis.requestAnimationFrame = realFrame; globalThis.cancelAnimationFrame = realCancel;});
   const source = createFabricHookHost(() => {tree = wrap.type(wrap.props);}); await source.mount();
-  const another = createFabricHookHost(() => {second = wrap.type(wrap.props);}); await another.mount();
   const button = (name: string) => nodes(tree).find(node => node.type === o.Button && node.props.testID === `now-playing-${name}`);
+  const claimed: string[] = [];
+  for (const name of ['toggle', 'next', 'previous', 'lyrics']) button(name).props.ref.current = {requestTVFocus() {claimed.push(name);}};
+  for (const frame of frames.splice(0)) frame();
+  assert.deepEqual(claimed, ['toggle'], 'the player opens with focus on Play/Pause, off the covered page underneath');
+  // At the end of a track Play is not available: the first control that is takes focus instead.
+  const ended = {...props, occupant: {...props.occupant, playback: {...props.occupant.playback, playing: false},
+    presentation: {...props.occupant.presentation, capabilities: {play: false, pause: false, previous: false, next: false}}}};
+  const endedWrap = TVNowPlayingScreen(ended).props.children; let endedTree: any;
+  const endedHost = createFabricHookHost(() => {endedTree = endedWrap.type(endedWrap.props);}); await endedHost.mount();
+  const endedClaims: string[] = [];
+  for (const name of ['toggle', 'next', 'previous', 'lyrics']) nodes(endedTree).find(node => node.type === o.Button && node.props.testID === `now-playing-${name}`).props.ref.current = {requestTVFocus() {endedClaims.push(name);}};
+  for (const frame of frames.splice(0)) frame();
+  assert.deepEqual(endedClaims, ['lyrics'], 'a disabled Play/Pause, Next and Previous are skipped');
+  await endedHost.unmount();
+  // 2eec0520: a request made before the views attach does nothing, so the claim repeats until focus is inside the player.
+  let inside = false; claimRegistry = {capture: () => inside ? {regionId: 'player.transport'} : {regionId: 'album.actions'}};
+  const retryWrap = TVNowPlayingScreen(props).props.children; let retryTree: any;
+  const retryHost = createFabricHookHost(() => {retryTree = retryWrap.type(retryWrap.props);}); await retryHost.mount();
+  const retryClaims: string[] = [];
+  nodes(retryTree).find(node => node.type === o.Button && node.props.testID === 'now-playing-toggle').props.ref.current = {requestTVFocus() {retryClaims.push('toggle');}};
+  for (let i = 0; i < 3; i++) for (const frame of frames.splice(0)) frame();
+  assert.equal(retryClaims.length, 3, 'still claiming while focus is elsewhere');
+  const regionId = nodes(retryTree).find(node => node.props?.id?.endsWith?.('.transport'))?.props.id as string;
+  claimRegistry.capture = () => ({regionId});
+  for (let i = 0; i < 3; i++) for (const frame of frames.splice(0)) frame();
+  assert.equal(retryClaims.length, 3, 'stops once focus is inside the player');
+  await retryHost.unmount(); claimRegistry = undefined; frames.length = 0;
+  const another = createFabricHookHost(() => {second = wrap.type(wrap.props);}); await another.mount();
+  frames.length = 0;
   const ref = button('more').props.ref; let restored = 0; ref.current = {nativeTag: 701, requestTVFocus() {restored++;}};
   button('more').props.onPress(); await source.rerender();
   const menu = () => nodes(tree).find(node => node.type === o.menu.Menu).props;

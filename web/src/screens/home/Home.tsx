@@ -1,7 +1,8 @@
+import {serverNow} from '@core/server-clock.ts';
 import {homeLayout} from './layout';
 import {Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
-import {heroSpec} from '@design';
+import {generatedCoverTint, heroSpec} from '@design';
 import {HomeService, type HomeSnapshot} from '@core/home-service.ts';
 import {hasHomeRowContent} from '@core/home.ts';
 import type {HomeChannel, HomeDocument, HomeReason, HomeRow, HomeSeeAll, HomeSpotlight} from '@core/home.ts';
@@ -13,7 +14,7 @@ import {homeChannelSelection, homeEntryCapabilities} from '@core/home-selection.
 import {homeCollectionCaption} from '@core/presentation/home-spotlight.ts';
 import {channelMonograms, programmeFactParts, type TimeEnvironment} from '@portico/client-core/kit-model';
 import {useFreshness, useRecovering} from '../../platform/freshness';
-import {Artwork, AmbientArt, GeneratedArt} from '../../kit/artwork';
+import {Artwork, AmbientArt, GeneratedArt, GeneratedCover} from '../../kit/artwork';
 import {Hero, HeroFacts, type HeroCandidate, type LayoutPlatform} from '../../kit/layout';
 import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
@@ -118,16 +119,16 @@ export function HomeScreen(bindings: HomeBindings) {
     return () => {if (timer !== undefined) clearTimeout(timer); globalThis.document.removeEventListener('visibilitychange', schedule);};
   }, [hub]);
   const refreshLive = useCallback(() => display.invalidate(), [display]);
-  const [now, setNow] = useState(Date.now);
+  const [now, setNow] = useState(serverNow);
   const document = snapshot.document;
   const liveSchedule = useRef<HomeLiveSchedule>({streak: 0}), liveReadAt = useRef(0);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const refresh = () => { liveReadAt.current = Date.now(); refreshLive(); };
+    const refresh = () => { liveReadAt.current = serverNow(); refreshLive(); };
     const update = () => {
       if (timer) clearTimeout(timer);
       if (globalThis.document.hidden) return;
-      const time = Date.now(); setNow(time);
+      const time = serverNow(); setNow(time);
       // An expired live row is withdrawn at once (currentHomeLive) and re-read, but at most once
       // per HOME_LIVE_MIN_MS: a server whose expiry is past or barely ahead never loops Home.
       const expired = document?.rows.some(row => row.live && !currentHomeLive(row.live, time));
@@ -136,7 +137,7 @@ export function HomeScreen(bindings: HomeBindings) {
       if (deadline !== undefined) {
         const next = homeLiveDelay(deadline, time, liveSchedule.current);
         liveSchedule.current = next.schedule;
-        timer = setTimeout(() => { setNow(Date.now()); refresh(); }, next.delayMs);
+        timer = setTimeout(() => { setNow(serverNow()); refresh(); }, next.delayMs);
       }
     };
     update(); globalThis.document.addEventListener('visibilitychange', update);
@@ -219,7 +220,7 @@ function HomeRowView(props: HomeRowProps) {
   const onRange = useCallback((first: number, last: number) => setRange(before => before[0] === first && before[1] === last ? before : [first, last]), []);
   // Intersection can run after a suspended deadline timer. Use the actual clock
   // before both registration and rendering, even when the supplied tick is old.
-  const nowMs = Date.now(), liveCurrent = !row.live || !!currentHomeLive(row.live, nowMs);
+  const nowMs = serverNow(), liveCurrent = !row.live || !!currentHomeLive(row.live, nowMs);
   useEffect(() => {
     if (!interest.visible) return;
     if (!liveCurrent) { refreshLive(); return; }
@@ -286,7 +287,9 @@ function VisibleCard({entry, row, rowIndex, index, platform, layout, artwork, ef
   const ranked = row.id === 'community_watching' && !!row.period;
   const props = {model: ranked ? {...model, caption: []} : model, visible: interest.visible, arrivalDurationMs: 240, watched: entry.watched, isNew: entry.new, style: {width: '100%'},
     artwork: artwork.foreground(source, width * devicePixelRatio, wide ? 16 / 9 : square ? 1 : 2 / 3, {order: rowIndex * 1000 + index, group: row.id}),
-    fallback: <GeneratedArt glyph={Array.from((entry.displayTitle ?? entry.title).trim())[0] ?? ''} />,
+    // FX-S1: a title without artwork draws the generated cover with its title (mock.html "No artwork",
+    // as browse cards and the native W-1 cover do), never a bare initial.
+    fallback: <GeneratedCover title={entry.displayTitle ?? entry.title} glyph={Array.from((entry.displayTitle ?? entry.title).trim())[0] ?? ''} tint={generatedCoverTint(entry.displayTitle ?? entry.title)} />,
     onNavigate: () => effects.openEntry(entry),
     onPlay: target ? () => { void effects.play(entry, resume).catch(effects.reportError); } : undefined,
     selection: selection.card(row, entry),
@@ -299,7 +302,7 @@ function VisibleLive({item, mark, nowMs, order, row, artwork, effects, time, sel
   const interest = useVisible(), width = useShellWidth(), {channel} = item;
   const programme = channel.programmes.find(item => Date.parse(item.start) <= nowMs && nowMs < Date.parse(item.end));
   const start = programme && Date.parse(programme.start), end = programme && Date.parse(programme.end);
-  const current = () => !!currentHomeLive(row.live, Date.now()) && !!selection.channel(row, item);
+  const current = () => !!currentHomeLive(row.live, serverNow()) && !!selection.channel(row, item);
   const play = () => { if (current()) void effects.playChannel(channel).catch(effects.reportError); };
   const canPlay = homeChannelSelection(item, {platform: 'web', playbackAvailable: true, queueAvailable: true}).capabilities.play;
   return <div ref={interest.ref}><LiveCard style={{width: '100%', height: (width >= 1024 ? 178 : 140) * cardScale(appearance)}} channel={{sourceId: channel.sourceId, id: channel.id, name: channel.name, number: channel.number, mark}}

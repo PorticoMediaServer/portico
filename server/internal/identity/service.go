@@ -107,6 +107,8 @@ type Envelope struct {
 }
 type Service struct {
 	profilePurgeWake *worker.Signal
+	// gate is the remote gate's live "still unset?" answer (setup_gate.go).
+	gate *setupGate
 	// lastSecurityPrune is time.Now().Unix() at the last opportunistic prune
 	// of the per-source security tables. Every read and write of it happens
 	// inside a security-fence write transaction, which the write gate
@@ -125,7 +127,9 @@ type Service struct {
 	SetupClaimReadyTx func(context.Context, *sql.Tx) (bool, error)
 	// SetupRemoteTx writes setup's Remote access and Remote security choices
 	// (O-169) in setup's own transaction; cmd/server wires the console store.
-	SetupRemoteTx func(ctx context.Context, tx *sql.Tx, access, security string) error
+	// SetupRemoteTx writes setup's Remote access and Remote security, and the one address the
+	// lockout warning's Keep allowing this address adds ("" for none), in setup's transaction.
+	SetupRemoteTx func(ctx context.Context, tx *sql.Tx, access, security, allow string) error
 	// Integration must wire this before exposing descendant v2 authority.
 	OnFamilyRevokedTx func(context.Context, *sql.Tx, FamilyState) error
 	// Runs inside the accepting owner-transfer transaction, after its guards.
@@ -201,6 +205,9 @@ func New(db *sql.DB, state string) (*Service, error) {
 		return nil, err
 	}
 	if err := s.initSetupHashKey(state); err != nil {
+		return nil, err
+	}
+	if err := s.initSetupGate(); err != nil {
 		return nil, err
 	}
 	var pendingSetup bool

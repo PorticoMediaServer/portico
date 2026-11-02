@@ -31,6 +31,9 @@ type SetupOptions struct {
 	// Remote security Enhanced.
 	RemoteAccess   string `json:"remoteAccess,omitempty"`
 	RemoteSecurity string `json:"remoteSecurity,omitempty"`
+	// AllowAddress is the address setup is reached at, added to Custom addresses when the
+	// lockout warning's Keep allowing this address was chosen.
+	AllowAddress string `json:"allowAddress,omitempty"`
 }
 
 // ErrSetupRemoteUnwired: this server has no writer for setup's remote choices.
@@ -141,7 +144,7 @@ func (s *Service) SetupWithOptions(ctx context.Context, q SetupOptions, private 
 	if s.SetupRemoteTx == nil {
 		return SetupResult{}, ErrSetupRemoteUnwired
 	}
-	if e = s.SetupRemoteTx(ctx, tx, q.RemoteAccess, q.RemoteSecurity); e != nil {
+	if e = s.SetupRemoteTx(ctx, tx, q.RemoteAccess, q.RemoteSecurity, q.AllowAddress); e != nil {
 		return SetupResult{}, e
 	}
 	kind := SignInPortico

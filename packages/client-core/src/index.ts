@@ -1,3 +1,4 @@
+import {clockOrigin, observeResponseClock, serverNow} from './server-clock.ts';
 import {linkAbortSignals, throwIfAborted} from './abort-lifetime.ts';
 import {resendableRefusal, retryWriterCapacity} from './writer-capacity.ts';
 import {parseRetryAfter} from './timer.ts';
@@ -6,6 +7,7 @@ export {releaseAll, releaseQuietly, releaseQuietlyAsync, releaseThenRethrow, set
 export * from './read-preparation.ts';
 export * from './server-links.ts';
 export * from './file-info-windows.ts';
+export * from './server-clock.ts';
 export * from './file-info-pages.ts';
 export * from './file-info-session.ts';
 export {DATABASE_BUSY, WRITER_CAPACITY, WRITER_RETRY_BUDGET_MS, resendableRefusal, retryWriterCapacity, writerRetryDelayMs} from './writer-capacity.ts';
@@ -802,6 +804,7 @@ export class HttpLocalApi {
   setAuthRecovery(auth: AuthRecovery | undefined) { this.auth = auth; }
   private async send(path: string, method: string, body: unknown, signal: AbortSignal | undefined, token: string, extra?: Readonly<Record<string, string>>, keepalive = false) {
     const ownerStart = method === 'POST' && (path === routePath('post_networking_claim_web_approval') || path === routePath('post_setup_approval'));
+    const sentAt = Date.now();
     const response = await this.fetcher(this.baseUrl + path, {
       method,
       signal,
@@ -820,8 +823,12 @@ export class HttpLocalApi {
       ...(body === undefined ? {} : { body: transportJSON(body) }),
     });
     if (token) this.sentWith.set(response, token);
+    // No client-clock requirements: every answer teaches this server's clock (server-clock.ts).
+    observeResponseClock(clockOrigin(this.baseUrl) || clockOrigin(response.url), response, sentAt);
     return response;
   }
+  /** This server's current time as best this device knows it: compare server-issued instants with this, never `Date.now()`. */
+  serverNow(): number { return serverNow(clockOrigin(this.baseUrl)); }
   /** Send with a live token; on a 401 renew once and resend (the server did not act on it). */
   private async exchange(path: string, method: string, body: unknown, signal: AbortSignal | undefined, extra?: Readonly<Record<string, string>>, singleAttempt = false): Promise<Response> {
     if (!path.startsWith(apiRoot))

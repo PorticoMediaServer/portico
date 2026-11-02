@@ -113,7 +113,9 @@ class Client:
 
     def call(self, method, path, body=None, ok=(200, 201, 202, 204), timeout=60, extra_headers=None):
         headers = {"Accept": "application/json", "Origin": self.base,
-                   "X-Portico-Installation-Id": self.installation}
+                   "X-Portico-Installation-Id": self.installation,
+                   # Scripted sign-ins name themselves, so a "New device signed in" notice says what they are.
+                   "X-Portico-Device-Name": "Portico test-library verifier", "X-Portico-Device-Platform": "script"}
         data = None
         if body is not None:
             data = json.dumps(body, separators=(",", ":")).encode()

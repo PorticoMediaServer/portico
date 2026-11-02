@@ -31,6 +31,7 @@ async function mount(context: any, options: {text?: string; remember?: boolean; 
     '../../kit/states': {Skeleton: 'Skeleton'}, '../../kit/overlays': {Banner: 'Banner'},
     '../../kit/states/SearchEmpty': {SearchEmpty: 'SearchEmpty'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../platform/freshness': {useFreshDocument() {}}, '../../shell/viewport': {useShellWidth: () => 1440},
+    '../../shell/title-menu': {useTitleMenu: () => ({open() {}, menu: null, play: () => undefined})},
     '../detail/Loading': {useLoadingClock: () => 0}, '../detail/ScreenProblem': {ScreenProblem: 'ScreenProblem'},
     './RecentSearches': {RecentSearches: 'RecentSearches'}, './TopResult': {TopResult: 'TopResult'}, './AllResultsRow': {AllResultsRow: 'AllResultsRow'},
     './window': {appendedWindow: () => ({collection: {}, set(items: any[]) { calls.push({name: 'window', args: [items]}); }, dispose() {}})},

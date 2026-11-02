@@ -260,6 +260,8 @@ func (d Dependencies) completeSetupReturnHTTP(w http.ResponseWriter, r *http.Req
 		failure(w, err)
 		return
 	}
+	// Set up: the remote gate applies from now on.
+	d.reloadConnectionPolicy(r.Context())
 	d.Hosted.MembershipChanged()
 	writeAuth(w, r, http.StatusOK, out)
 }

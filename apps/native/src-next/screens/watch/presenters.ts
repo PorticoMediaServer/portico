@@ -132,6 +132,24 @@ export class NativeWatchPresenters {
     this.close();
     void entry.play().catch(error => {if (!this.disposed && this.context.current()) this.common.reportError(error, 'detail');});
   };
+  /** Play from the beginning: the server's own start-over target, under the same fences as Play. */
+  startOver = (value: NativeWatchOverlay) => {
+    const entry = value.actions?.entry;
+    if (this.value !== value || value.phase !== 'menu' || !entry?.playFromStart || value.busy || !this.current(value.capture)) return;
+    this.close();
+    void entry.playFromStart().catch(error => {if (!this.disposed && this.context.current()) this.common.reportError(error, 'detail');});
+  };
+  /** Rate…, Add to collection…, Download…, and the owner's Edit, Refresh and Delete…: each closes the
+   * menu and runs on the executor the menu was opened with, which carries the opening's own fence. */
+  titleAction = (value: NativeWatchOverlay, id: 'rate' | 'addToCollection' | 'download' | 'editMetadata' | 'refreshMetadata' | 'deleteTitle') => {
+    const run = value.actions?.entry?.[id];
+    if (this.value !== value || value.phase !== 'menu' || !run || value.busy || !this.current(value.capture)) return;
+    this.close();
+    try {
+      const done = run();
+      if (done) void done.catch(error => {if (!this.disposed && this.context.current()) this.common.reportError(error, 'detail');});
+    } catch (error) {if (!this.disposed && this.context.current()) this.common.reportError(error, 'detail');}
+  };
   personal = async (value: NativeWatchOverlay, intent: PersonalIntent) => {
     const entry = value.actions?.entry, live = this.value;
     if (!entry || live?.phase !== 'menu' || live.busy || live !== value) return;
@@ -161,6 +179,11 @@ export class NativeWatchPresenters {
     const entry = value.actions?.entry;
     if (!entry?.goToArtist || value.busy || !this.current(value.capture)) return;
     this.close(); entry.goToArtist();
+  };
+  goToSeason = (value: NativeWatchOverlay) => {
+    const entry = value.actions?.entry;
+    if (!entry?.goToSeason || value.busy || !this.current(value.capture)) return;
+    this.close(); entry.goToSeason();
   };
   selectEntry = (value: NativeWatchOverlay) => {
     const select = value.actions?.select;

@@ -1,4 +1,5 @@
 import {useNativeStackHosted} from '../../kit/navigation/stack-slot';
+import {CoveredLayer} from '../../kit/focus/CoveredLayer';
 import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {NativeModules, View, useWindowDimensions} from 'react-native';
 import WebView from 'react-native-webview';
@@ -87,7 +88,7 @@ export function NativeReadingGuestHost({owner, active, preferences, onBack, onSe
   useLayoutEffect(() => {reader.current?.setActive(active);}, [active, state.reader]);
   useLayoutEffect(() => {reader.current?.setCrease(crease ? {left: crease.left, right: crease.right} : undefined);}, [crease, state.reader]);
   const failure = () => {if (!state.reader || reader.current !== state.reader) return; setState({failed: true}); disposeGuest.current?.();};
-  return <View pointerEvents={active ? 'auto' : 'none'} accessibilityElementsHidden={!active} importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
+  return <CoveredLayer covered={!active}
     style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink, opacity: active || stacked ? 1 : 0}}>
     {state.failed ? <StateView variant="centered" title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t('next.states.pageFailedBody')}
       primaryAction={{id: 'retry', label: defaultI18n.t('next.states.tryAgain'), disabled: !active || !owner.current(), onPress: retryOriginal}}/>
@@ -101,5 +102,5 @@ export function NativeReadingGuestHost({owner, active, preferences, onBack, onSe
         onPress={() => {if (callbacks.current.active) onBack();}}
         style={{height: dimensions.width >= 700 ? 44 : 38, width: dimensions.width >= 700 ? 44 : 38, paddingHorizontal: 0}}/>
     </View> : null}
-  </View>;
+  </CoveredLayer>;
 }

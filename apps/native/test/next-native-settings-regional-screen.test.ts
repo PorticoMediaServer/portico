@@ -25,6 +25,7 @@ const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : 
 async function fixture(isTV = false) {
   const host = hooks(), bodyHost = hooks();
   let nested = false, language = 'CA';
+  const focus = {region: undefined as string | undefined, calls: [] as unknown[], back: [] as (() => boolean)[]};
   const react: any = {...host.react};
   for (const name of Object.keys(host.react).filter(name => name.startsWith('use'))) react[name] = (...args: any[]) => {const active: any = nested ? bodyHost.react : host.react; return active[name](...args);};
   // The body's layout effects own reconciliation, not this word-for-word render.
@@ -62,7 +63,7 @@ async function fixture(isTV = false) {
     '../../../../../packages/client-core/src/recommendation-feedback': {resetRecommendations: () => {throw Error('unexpected_mutation');}},
     '../../../../../packages/design/src/next-icons': {nextIcons},
     '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
-    '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => undefined, focus: () => false, entryAddress: () => undefined, subscribe: () => () => {}, getSnapshot: () => 0})},
+    '../../kit/focus': {FocusGate: 'FocusGate', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => focus.region ? {regionId: focus.region, childId: 'control'} : undefined, focus: (address: unknown) => {focus.calls.push(address); return true;}, entryAddress: () => undefined, subscribe: () => () => {}, getSnapshot: () => 0})},
     '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/shell': {SettingsSheet: 'SettingsSheet', SettingsRow: 'SettingsRow', SettingsSearchResults: 'SettingsSearchResults', LanguageList: 'LanguageList', ShortcutTiles: 'ShortcutTiles'},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfileFace: 'ProfileFace'},
@@ -74,7 +75,7 @@ async function fixture(isTV = false) {
     '../destinations': {NativeTVKeyboard: 'NativeTVKeyboard'},
     '../destinations/useEntryFocus': {useDestinationEntryFocus: () => {}},
     './settings-actions': settingsActions,
-    './Screen': {Screen: 'Screen', useScreenEntry: () => undefined, useScreenBack: () => {}},
+    './Screen': {Screen: 'Screen', useScreenEntry: () => undefined, useScreenBack: (runtime: any, handler: () => boolean, isTV: boolean) => {if (isTV) runtime.registerTVPageBack?.(handler);}},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
     'react-native-qrcode-svg': {default: 'QRCode'},
     '../../shell/chrome': {setNativeScreenChromeHidden: () => {}},
@@ -102,12 +103,13 @@ async function fixture(isTV = false) {
   const preferences = parsePreferenceSnapshot({deviceClass: 'mobile', registryRevision: 'regional-screen', registry: {revision: 'regional-screen', fields: [{key: 'region.locale', type: 'locale', default: 'en-US', group: 'region', labelKey: 'preferences.region.locale', scopes: ['profile-server']}]} ,
     documents: ['profile-server', 'profile-device-class'].map(scope => ({scope, revision: 1, activeRevision: 1, digest: 'd'.repeat(64), values: {}})), effective: {'region.locale': 'en-US'}, effectiveSource: {'region.locale': 'default'}, clampedFields: []});
   const shellSnapshot = {profile: {id: 'profile', name: 'Example', initial: 'E', color: 'blue' as const}, account: {actions: [] as readonly unknown[]}};
-  const runtime = {text: {get t() {const prefix = language; return (key: string) => `${prefix}/${key}`;}}, reportError: (error: unknown) => {throw error;}, subscribe: () => () => {}, getSnapshot: () => shellSnapshot};
+  const runtime = {text: {get t() {const prefix = language; return (key: string) => `${prefix}/${key}`;}}, reportError: (error: unknown) => {throw error;}, subscribe: () => () => {}, getSnapshot: () => shellSnapshot,
+    registerTVPageBack: (handler: () => boolean) => {focus.back.push(handler); return () => {focus.back.splice(focus.back.indexOf(handler), 1);};}};
   const settingsRoute = {revision: 0, route: {kind: 'shell', destination: {kind: 'settings'}}};
   const props = {runtime, ports: {context: {current: () => true, account: {account: {role: 'member'}, canManage: false}, serverName: 'Example', authority: () => ({serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'}), navigation: {subscribe: () => () => {}, getSnapshot: () => settingsRoute, isCurrent: () => true}}, settingsContext: () => ({owner: false, platform: 'phone', capabilities: {localAccount: true}}), serverName: () => 'Example', renderSettingsPanel: () => null},
     controller: {subscribe: () => () => {}, getSnapshot: () => ({preferences, busy: false, saved: 0}), lifetime: {authority: {}, current: () => true}},
     devicePreferences: {subscribe: () => () => {}, read: () => undefined}};
-  return {setLanguage: (next: string) => {language = next;},
+  return {focus, setLanguage: (next: string) => {language = next;},
     render: () => {nested = false; return host.render(() => module.NativeSettingsScreen(props));},
     body: (node: any) => {nested = true; try {return bodyHost.render(() => node.type(node.props));} finally {nested = false;}}};
 }
@@ -146,4 +148,18 @@ test('TV page column has an explicit Up crossing to Search and legible direction
   const hints = nodes(nodes(tree).find(node => node.props.testID === 'settings-key-hints')).filter(node => node.type === 'Text');
   assert.equal(hints.length, 3);
   assert.ok(hints.every(node => node.props.style[0].fontSize === 20 && node.props.style[0].fontWeight === 600));
+});
+
+test('W-14: on TV, Left from any page content lands on its page in the column, and Back returns there from a custom page\'s own panel', async () => {
+  const f = await fixture(true), tree = f.render();
+  const gate = nodes(tree).find(node => node.type === 'FocusGate');
+  assert.ok(gate, 'a focus gate sits between the page column and the content');
+  assert.equal(gate.props.regionId, 'settings.pages', 'it hands focus to the page column, never Search settings or the rail');
+  assert.equal(gate.props.style.position, 'absolute', 'it takes no space in the layout');
+  // "Profile & account" draws its own panels, outside the generic rows region.
+  f.focus.region = 'settings.panel.profiles';
+  const back = f.focus.back.at(-1);
+  assert.ok(back, 'TV Settings registers its own Back step');
+  assert.equal(back!(), true);
+  assert.equal((f.focus.calls.at(-1) as {regionId: string}).regionId, 'settings.pages', 'Back from the panel returns to the page column');
 });

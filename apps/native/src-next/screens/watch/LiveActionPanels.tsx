@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useSyncExternalStore} from 'react';
 import {Text} from 'react-native';
 import {legacyChannel, legacyProgramme} from '../../../../../packages/client-core/src/guide/legacy-source';
@@ -25,7 +26,7 @@ export function NativeLiveActionPanels({actions, context, runtime}: {actions: Na
     onCreated={() => actions.seriesCreated(sheet)}/>;
   if (sheet.kind === 'details') return <Dialog key={sheet.id} open onOpenChange={value => {if (!value) close();}} restoreFocus={false}
     title={sheet.offer.programme.title} placement="side" width={640} testID="watch-live-details">
-    <ProgrammeDetails programme={sheet.offer.programme} now={Date.now()} runtime={runtime}/>
+    <ProgrammeDetails programme={sheet.offer.programme} now={serverNow()} runtime={runtime}/>
   </Dialog>;
   const items: MenuEntry[] = [
     ...(sheet.offer.channel.kind === 'live' && sheet.offer.channel.recordAvailable ? [{id: 'series', label: t('guide.recordSeries'), icon: 'i-repeatrule' as const,

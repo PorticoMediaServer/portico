@@ -93,7 +93,9 @@ export interface NativeShellRuntime {
   setHomeWindow: (row: HomeRow, sectionOrder: number, first: number, last: number, visible: boolean, physicalIds?: readonly string[], retainedIds?: readonly string[], visibleIds?: readonly string[]) => void;
   homeMenuRow?: (windowId: string) => HomeRow | undefined;
   renderSelection: () => ReactNode;
-  renderRoutes: () => ReactNode;
+  /** `listening`: the TV listening screen is up (W-9). It covers the route pages like the expanded
+   * player does, even before or without the dock's own expanded flag. */
+  renderRoutes: (options?: Readonly<{listening?: boolean; hostRef?: React.Ref<import('react-native').View>}>) => ReactNode;
   stacks?: NativeTouchStacksPort;
   /** Persistent watch chrome above the one native picture surface. */
   renderWatch?: () => ReactNode;
@@ -130,6 +132,9 @@ export interface NativeShellRuntime {
   registerTVRailBack?: (handler: () => boolean) => () => void;
   /** Destination-scoped; legacy Home callers omit destination. Other destinations may continue navigation Back when false. */
   registerTVPageBack?: (handler: () => boolean, destination?: ShellDestination) => () => void;
+  /** A pushed TV route's own Back step before the route closes (W-14: a settings route's content
+   * returns to its page column first). Newest first; true means handled. */
+  registerTVRouteBack?: (handler: () => boolean, routeKind: NativeShellRoute['kind']) => () => void;
   /** Confirmed Appearance effects. Absent until the shell binds a preference snapshot;
    * a missing effect keeps the drawn default rather than inventing a value. */
   appearanceCardSizePercent?: 85 | 100 | 125;

@@ -709,3 +709,48 @@ test('lane A bindAuthority over the lifecycle: survives nothing but the same sig
   assert.equal(binding.signal.aborted, true);
   life.dispose();
 });
+
+// ---- Remember this profile on this device (J-31) ---------------------------------------------
+
+test('a ticked pick asks the port to remember; an unticked one does not', async () => {
+  for (const ticked of [true, false]) {
+    const {life, ports} = await launched();
+    assert.equal(kind(life), 'choosingProfile');
+    life.actions.pickProfile.start('kids', ticked); await flush();
+    assert.equal(ports.selects.length, 1);
+    assert.equal(ports.selects[0].remember, ticked);
+    life.dispose();
+  }
+});
+
+test('Forget remembered profile clears the marker through the port and leaves the profile open on the same sign-in', async () => {
+  const {life, ports} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})})});
+  assert.equal(state(life, 'ready').remembered, true);
+  const generation = life.getSnapshot().generation;
+  life.actions.forgetRemembered.start(); await flush();
+  assert.ok(ports.calls.includes('clearMarker:s1'));
+  assert.equal(state(life, 'ready').remembered, false);
+  assert.equal(life.getSnapshot().generation, generation, 'the shell is not fenced or reopened');
+  assert.ok(!ports.calls.includes('fence'));
+  assert.equal(life.getSnapshot().pending, undefined);
+  assert.equal(life.actions.forgetRemembered.getSnapshot().phase, 'done');
+  life.dispose();
+});
+
+test('when the marker cannot be cleared the profile stays remembered and the action reports the failure', async () => {
+  const {life} = await launched({readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}),
+    clearMarker: async () => {throw new Error('write refused');}});
+  life.actions.forgetRemembered.start(); await flush();
+  assert.equal(life.actions.forgetRemembered.getSnapshot().phase, 'failed');
+  assert.equal(state(life, 'ready').remembered, true);
+  assert.equal(life.getSnapshot().pending, undefined);
+  life.dispose();
+});
+
+test('Forget with nothing remembered is refused and calls no port', async () => {
+  const {life, ports} = await launched();
+  life.actions.forgetRemembered.start(); await flush();
+  assert.equal(life.actions.forgetRemembered.getSnapshot().phase, 'failed');
+  assert.ok(!ports.calls.some(call => call.startsWith('clearMarker')));
+  life.dispose();
+});

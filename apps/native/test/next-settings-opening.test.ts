@@ -5,7 +5,7 @@ import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-
 
 const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.headerContent)] : [];
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.testID === id);
-async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: 'settings'}}, initialWidth = 390, role = 'owner') {
+async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: 'settings'}}, initialWidth = 390, role = 'owner', initialPage?: 'live' | 'profile') {
   const host = hooks(), pending: (() => void)[] = [], effects = new Set<{cleanup?: () => void}>();
   const useLayoutEffect = (fn: () => void | (() => void), deps: any[]) => {
     const slot = host.react.useRef(undefined);
@@ -32,7 +32,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
     '../../../../../packages/client-core/src/presentation/settings-structure': {settingsStructure: () => structure, searchSettings: () => []},
     '../../../../../packages/client-core/src/presentation/language-list': {}, '../../../../../packages/client-core/src/presentation/region-choices': {},
     '../../../../../packages/i18n/src': {defaultI18n: {number: String}}, '../../../../../packages/client-core/src/recommendation-feedback': {}, '../../../../../packages/design/src/next-icons': {nextIcons: {}},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => undefined, focus: () => true})},
+    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, '../../kit/focus': {FocusGate: 'FocusGate', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => undefined, focus: () => true})},
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/shell': {SettingsRow: 'SettingsRow', SettingsSheet: 'SettingsSheet', SettingsSearchResults: 'SettingsSearchResults', LanguageList: 'LanguageList', ShortcutTiles: 'ShortcutTiles'},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfileFace: 'ProfileFace'}, '../../kit/shell/visual': {shellType: () => ({}), alpha: (value: string) => value}, '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateView: 'StateView'}, '../../kit/states/sentence-parts': {}, '../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu'},
     '../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})}, '../destinations': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../destinations/useEntryFocus': {useDestinationEntryFocus() {}},
@@ -46,7 +46,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
     './use-tv-voice-search': {useTVVoiceSearch: () => ({})}, '../../platform/playback/passthrough-formats': {}, './NativeDynamicRangeRow': {}, '../../platform/playback/dynamic-range-matching': {}, './NativeApplePassthroughRow': {}, './NativeCapabilityRows': {}, './NativeFrameRateRow': {}, './NativePassthroughRow': {}, './NativeLossNoticesRow': {}, './NativeSafeModeRow': {},
   });
   const runtime: any = {retirementSignal: retirement.signal, text: {t: (id: string) => id}, subscribe: () => () => {}, getSnapshot: () => guarded({profile: {name: 'Profile'}, account: {actions: [{id: 'saved', label: 'Saved', onPress: () => shortcutCalls.push('saved')}]}})};
-  const props = {runtime, ports: {context, settingsContext: () => ({}), serverName: () => 'Server'}, controller: {subscribe: () => () => {}, getSnapshot: () => ({}), lifetime: {authority: {}, current: () => lifetime}}, devicePreferences: {}};
+  const props = {runtime, ports: {context, settingsContext: () => ({}), serverName: () => 'Server'}, controller: {subscribe: () => () => {}, getSnapshot: () => ({}), lifetime: {authority: {}, current: () => lifetime}}, devicePreferences: {}, ...(initialPage ? {initialPage} : {})};
   let tree: any;
   const render = () => {tree = host.render(() => NativeSettingsScreen(props)); for (const effect of pending.splice(0)) effect(); return tree;};
   render();
@@ -137,6 +137,17 @@ test('An open Settings page keeps its component ancestry and selection through p
     }
     assert.equal(f.header().props.title, 'playback'); assert.equal(f.backs(), 0);
   } finally {f.unmount();}
+});
+
+test('J-32: a notice opens Profile & account directly for any profile; a server page still needs a manager', async () => {
+  for (const role of ['owner', 'member'] as const) {
+    const f = await fixture(undefined, 390, role, 'profile');
+    try {assert.equal(f.header()?.props.title, 'profile', `${role}: Review security / Review device lands on Profile & account`);}
+    finally {f.unmount();}
+  }
+  const member = await fixture(undefined, 390, 'member', 'live');
+  try {assert.notEqual(member.header()?.props.title, 'live', 'a member is not taken to a server page');}
+  finally {member.unmount();}
 });
 
 test('A page selected in the wide pane stays pushed when the viewport becomes compact', async () => {

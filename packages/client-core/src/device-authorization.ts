@@ -5,6 +5,7 @@ import {randomId} from './random-id.ts';
 import { ApiError, HttpLocalApi, type HostedSession } from "./index.ts";
 import {hostedGate, type HostedGate, type HostedRequestKind} from './hosted-gate.ts';
 import {parseAccountSession} from './hosted-security.ts';
+import {serverNow} from './server-clock.ts';
 export type DeviceAuthorization = {
   deviceCode: string;
   userCode: string;
@@ -179,7 +180,9 @@ export class DeviceAuthorizationService {
         created.interval * 1000
       );
       this.expires = Date.parse(created.expiresAt);
-      if (!Number.isFinite(this.expires) || this.expires <= Date.now())
+      // No client-clock requirements: the code's expiry is the issuer's, so a code is never refused here for
+      // looking expired against this device's clock; the service answers expired_token when it is.
+      if (!Number.isFinite(this.expires))
         throw new Error("This activation code has expired.");
       this.update({
         phase: "waiting",
@@ -218,12 +221,12 @@ export class DeviceAuthorizationService {
     const delay = Math.max(this.interval, this.retryAt - Date.now(), gateWait > 0 ? gateWait + Math.floor(Math.random() * 1000) : 0);
     this.timer = setTimeout(
       () => void this.poll(generation),
-      Math.min(delay, Math.max(0, this.expires - Date.now()))
+      Math.min(delay, Math.max(0, this.expires - serverNow()))
     );
   }
   private async poll(generation: number) {
     if (generation !== this.generation || !this.secret) return;
-    if (Date.now() >= this.expires) {
+    if (serverNow() >= this.expires) {
       this.cancel('automatic');
       this.update({
         phase: "error",

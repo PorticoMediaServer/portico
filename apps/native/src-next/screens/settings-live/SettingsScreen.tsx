@@ -20,7 +20,7 @@ import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
 import {resetRecommendations} from '../../../../../packages/client-core/src/recommendation-feedback';
 import {nextIcons} from '../../../../../packages/design/src/next-icons';
 import {Button, Focusable, Select, Switch, TextField} from '../../kit/controls';
-import {FocusRegion, useFocusRegistry} from '../../kit/focus';
+import {FocusGate, FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {Icon, type IconName} from '../../kit/Icon';
 import {ChoiceMatrix, SettingsRow, SettingsSheet, SettingsSearchResults, LanguageList, ShortcutTiles, type LanguageOption} from '../../kit/shell';
 import {ProfileFace} from '../../kit/artwork';
@@ -84,7 +84,7 @@ export function nativeSettingsIcon(name: string): IconName {
   return Object.hasOwn(nextIcons, key) ? key as IconName : 'i-sliders';
 }
 
-export function NativeSettingsScreen({ports, controller, runtime, devicePreferences, dashboard, initialPage, initialChannelId}: {ports: NativeSettingsLivePorts; controller: NativeSettingsController; runtime: NativeShellRuntime; devicePreferences: NativeDevicePreferences; dashboard?: NativeDashboardController; initialPage?: 'live'; initialChannelId?: string}) {
+export function NativeSettingsScreen({ports, controller, runtime, devicePreferences, dashboard, initialPage, initialChannelId}: {ports: NativeSettingsLivePorts; controller: NativeSettingsController; runtime: NativeShellRuntime; devicePreferences: NativeDevicePreferences; dashboard?: NativeDashboardController; initialPage?: 'live' | 'profile'; initialChannelId?: string}) {
   const theme = useTheme(), t = runtime.text.t, registry = useFocusRegistry(), insets = useSafeAreaInsets();
   const shell = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -175,7 +175,8 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const tabletAccountClusters: readonly (readonly string[])[] = [['profile', 'privacy'], ['playback', 'reading', 'languages', 'quality', 'music'], ['appearance', 'region', 'device']];
   const tabletServerClusters: readonly (readonly string[])[] = [['general', 'dashboard', 'history'], ['libraries', 'remote-sources', 'metadata', 'segments'], ['live', 'people', 'signin', 'remote', 'integrations'], ['streaming', 'storage', 'troubleshooting']];
   const tabletDefaultPage = accountPages.some(value => value.id === 'playback') ? 'playback' : accountPages[0]?.id;
-  const [selected, setSelected] = useState(() => !theme.isTV && managesServer && initialPage ? initialPage : !theme.isTV && !compact ? tabletDefaultPage : accountPages[0]?.id), [query, setQuery] = useState(''), [pushed, setPushed] = useState(!theme.isTV && (!!initialPage || !compact));
+  // J-32: an account page (Profile & account) opens for every profile; a server page only for one that manages it.
+  const [selected, setSelected] = useState(() => !theme.isTV && initialPage && (managesServer || accountPages.some(value => value.id === initialPage)) ? initialPage : !theme.isTV && !compact ? tabletDefaultPage : accountPages[0]?.id), [query, setQuery] = useState(''), [pushed, setPushed] = useState(!theme.isTV && (!!initialPage || !compact));
   // Once the wide pane is visible, shrinking keeps that same editor on screen.
   // Explicit phone Back still returns to the hub and releases its page normally.
   useLayoutEffect(() => {if (!theme.isTV && !compact) setPushed(true);}, [compact, theme.isTV]);
@@ -243,10 +244,14 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
       return true;
     }
     if (searching) {setSearching(false); setQuery(''); setRestoreRevision(value => value + 1); return true;}
+    // W-14: Back from anywhere in the page's content (its rows, or a custom page's own panels)
+    // returns to that page in the column, never out of Settings.
+    const focused = registry.capture()?.regionId;
+    if (theme.isTV && page && focused && focused !== column && focused !== searchField && focused !== ids.rail && !focused.startsWith(keyboard)) return registry.focus({regionId: column, childId: page.id});
     if (registry.capture()?.regionId === rows && page) return registry.focus({regionId: column, childId: page.id});
     if (page && page.id !== accountPages[0]?.id) {pageState.current = {...pageState.current, selected: accountPages[0].id}; setSelected(accountPages[0].id); registry.focus({regionId: column, childId: accountPages[0].id}); return true;}
     return false;
-  }, [registry, column, rows, page, accountPages, searching, remoteSourcesPage, theme.width, viewCurrent]);
+  }, [registry, column, rows, page, accountPages, searching, remoteSourcesPage, theme.width, theme.isTV, viewCurrent, searchField, keyboard, ids]);
   const account = ports.context.account.account;
   const signedIn = account.hostedAccountId
     ? t('settings.signedInWithAccount', {server: ports.serverName()})
@@ -304,6 +309,9 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const customPage = dashboardPage || librariesPage || livePage || troubleshootingPage || storagePage || integrationsPage || generalPage || streamingPage || segmentsPage || peoplePage || signInPage || metadataPage || historyPage || remoteSourcesPage || remoteAccessPage;
   const content = <Screen style={!theme.isTV ? {paddingTop: compact ? 0 : topInset + 14} : undefined}>
     <View style={{flex: 1, flexDirection: 'row', gap: theme.isTV ? 80 : 0}}>
+      {/* W-14 (tv-focus Settings hand-off): Left from any page's content lands on the page it
+          came from in the column, never on Search settings or the rail. */}
+      {theme.isTV && !searching && <FocusGate regionId={column} testID="settings-page-gate" style={{position: 'absolute', left: 480 + 39, top: 0, bottom: 0, width: 2}}/>}
       {(!compact || !pushed) && <View style={{width: compact ? '100%' : theme.isTV ? searching ? 500 : 480 : 280}}>
         {(theme.isTV ? !searching : !compact) && <Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 30, 800), {color: theme.colors.text, marginBottom: 24, marginHorizontal: 20}]}>{t('next.shell.settings')}</Text>}
         <FocusRegion id={searchField} entry="input" edges={{left: ids.rail, down: searching ? `${keyboard}.row.0` : column}}>

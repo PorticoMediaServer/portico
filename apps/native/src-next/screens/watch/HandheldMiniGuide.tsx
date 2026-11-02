@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useEffect, useRef, useState} from 'react';
 import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -20,8 +21,8 @@ export function NativeHandheldMiniGuide({context, guide, snapshot}: {
   context: NativeWatchHostContext; guide: NativeTVLiveGuide; snapshot: NativeLiveGuideSnapshot;
 }) {
   const theme = useTheme(), t = defaultI18n.t, first = useRef<View>(null);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {const timer = setInterval(() => setNow(Date.now()), 20_000);return () => clearInterval(timer);}, []);
+  const [now, setNow] = useState(() => serverNow());
+  useEffect(() => {const timer = setInterval(() => setNow(serverNow()), 20_000);return () => clearInterval(timer);}, []);
   const close = () => {guide.close(snapshot);};
   useOverlayLifecycle(snapshot.open, true, close, first, undefined, 0, 'watch-mini-guide');
   const current = () => snapshot.open && guide.getSnapshot() === snapshot;

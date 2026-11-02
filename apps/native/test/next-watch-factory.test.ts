@@ -1,6 +1,7 @@
 import {episodeLabel} from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import test from 'node:test';
+import * as tvScroll from '../src-next/kit/layout/tv-scroll.ts';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
 import {HttpLocalApi} from '../../../packages/client-core/src/index.ts';
@@ -45,7 +46,7 @@ const seasons = await screenModule(new URL('../src-next/screens/watch/SeasonsShe
 const episodes = await screenModule(new URL('../src-next/screens/watch/EpisodePanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, ...episodeAtoms,
   '../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText}, './SeasonsSheet': seasons,
-  '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}});
+  '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, '../../kit/layout/tv-scroll': tvScroll, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}});
 const {createNativeWatchScreens} = await screenModule(new URL('../src-next/screens/watch/factory.tsx', import.meta.url), {'../share/share-actions': {shareLinkActions: () => []}, 
   react, '../../../../../packages/client-core/src/cleanup': cleanup, '../../../../../packages/client-core/src/playback-v1/options': {PlaybackOptionsClient},
   '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http},
@@ -70,7 +71,7 @@ const withOpening = {item: {id: 'episode', kind: 'episode', title: 'Actual episo
 const itemFence = {serverId: 'server', libraryId: 'library', itemId: 'episode', viewerFence: 'viewer'};
 const episodeGroups = (queryId = 'q1', window: Record<string, unknown> = {}) => ({...groupsPage(queryId, ownerSurface, [groupRow(1)], window), scope: itemFence, detail: {scope: itemFence, revision: withOpening.revision}});
 function deferred<T>() {let resolve!: (value: T) => void; const promise = new Promise<T>(done => {resolve = done;}); return {promise, resolve};}
-function fixture(hasDestination = true, readSession?: NativePlaybackAdapter['readSession']) {
+function fixture(hasDestination = true, readSession?: NativePlaybackAdapter['readSession'], extra: {titleActions?: unknown; owner?: boolean; download?: boolean; isTV?: boolean} = {}) {
   const playbackListeners = new Set<() => void>(), routeListeners = new Set<() => void>(), authorityListeners = new Set<() => void>();
   let bound = authority, revision = 3, route: any = {kind: 'title', entry: {id: 'show', libraryId: 'library', kind: 'show'}}, holdStart: Promise<void> | undefined, source = {authority, retired: false, fence: undefined as PlaybackFence | undefined, dock: {local: {expanded: true, fence: undefined as PlaybackFence | undefined}}, playback: {intent: 'playing', phase: 'ready'}, session: undefined as {itemId: string; versionId: string; role?: 'local' | 'group_member'} | undefined};
   let respond = async (_url: URL) => offered as unknown;
@@ -90,7 +91,7 @@ function fixture(hasDestination = true, readSession?: NativePlaybackAdapter['rea
     subscribeAuthority: subscribe(authorityListeners)} as unknown as NativeShellBootstrapContext, common);
   const factory = createNativeWatchScreens({api, scope: {serverId: 'server', viewerId: 'viewer'}, authority, current: () => bound,
     subscribeCurrent: subscribe(authorityListeners), navigation, playback,
-    playlistPicker: {open: (...args: unknown[]) => {playlistOpens.push(args);}, openAlbum: () => {}, render: () => null, dispose: () => {}}, watch: {register() {throw new Error('not mounted');}}, requestId: async () => 'request', isTV: false,
+    playlistPicker: {open: (...args: unknown[]) => {playlistOpens.push(args);}, openAlbum: () => {}, render: () => null, dispose: () => {}}, watch: {register() {throw new Error('not mounted');}}, requestId: async () => 'request', isTV: extra.isTV === true, ...(extra.titleActions ? {titleActions: extra.titleActions as never} : {}),
     startVersion: async (...args: unknown[]) => {starts.push(args);}, manageFile() {}, openFileInfo: (...args: unknown[]) => {fileInfos.push(args);},
     ...(hasDestination ? {
       // Record the exact opening the factory dispatched, then let the real
@@ -102,7 +103,8 @@ function fixture(hasDestination = true, readSession?: NativePlaybackAdapter['rea
       beginVersions: presenters.beginVersions,
     } : {}),
     openMenu: (...args: unknown[]) => {menus.push(args);},
-    title: {aboutLabel: 'About', navigate(entry: unknown) {navigations.push(entry);}, myList() {}, renderError() {}, reportError: (error: unknown) => {errors.push(error);}},
+    title: {aboutLabel: 'About', navigate(entry: unknown) {navigations.push(entry);}, myList() {}, renderError() {}, reportError: (error: unknown) => {errors.push(error);},
+      ...(extra.owner ? {owner: true} : {}), ...(extra.download ? {download() {}} : {})},
   });
   // The fixture's existing dispose is the one cleanup every test already calls,
   // so it retires the presenter and its services before the subscription counts.
@@ -431,4 +433,85 @@ test('the shared leaf menu opens the real playlist picker only for playable leav
     await d.screens.menu(album as never, () => true);
     assert.equal(d.menus[1][1].entry.addToPlaylist, undefined, 'a container never offers the leaf picker');
   } finally {detailProjection = null; d.screens.dispose();}
+});
+
+// FX-S3/FX-S4: the single-title actions the shared menu adds to the Watch menu.
+const grantedProjection = (ids: string[], more: Record<string, unknown> = {}) => ({
+  item: {id: 'episode', kind: 'episode', title: 'Actual episode'}, languages: {audio: [], subtitles: []},
+  scope: {serverId: 'server', libraryId: 'library', itemId: 'episode', viewerFence: 'viewer'}, revision: {catalog: 1, viewer: 1}, markers: [],
+  personal: {watchlisted: false, favorite: false, watched: false, progressSeconds: 30, revision: 1, rating: null, lastPlayedAt: '', status: 'current', conflicts: []},
+  actions: ids.map(id => ({id, enabled: true, ...(id === 'resume' ? {playback: {itemId: 'episode', startSeconds: 30}} : id === 'start_over' ? {playback: {itemId: 'episode', startSeconds: 0}} : {})})),
+  metadata: {genres: [], ratings: [], credits: [], status: 'available'}, ...more,
+});
+const offerAll = {rate: true, collection: true, edit: true, remove: true, refresh: true, download: true};
+const titleActionsDouble = (offer: Record<string, boolean> = offerAll) => {
+  const calls: [string, unknown, {signal: AbortSignal; isCurrent: () => boolean}][] = [];
+  const record = (name: string) => (target: unknown, lifetime: {signal: AbortSignal; isCurrent: () => boolean}) => {calls.push([name, target, lifetime]);};
+  return {calls, handle: {offer: () => offer, rate: record('rate'), addToCollection: record('collection'), editMetadata: record('edit'), deleteTitle: record('delete'),
+    refreshMetadata: async (...args: [unknown, {signal: AbortSignal; isCurrent: () => boolean}]) => {record('refresh')(...args);}, download: record('download'),
+    subscribe: () => () => {}, getSnapshot: () => 0, render: () => null, dispose() {}}};
+};
+const everyGrant = ['resume', 'start_over', 'watchlist', 'favorite', 'watched', 'rating', 'add_to_collection', 'metadata_edit', 'delete'];
+
+test('the Watch menu offers Rate, collection, Download and the owner group only where the title grants them, and runs each under the opening', async () => {
+  detailProjection = grantedProjection(everyGrant);
+  const double = titleActionsDouble(), d = fixture(true, undefined, {titleActions: double.handle, owner: true, download: true});
+  try {
+    await d.screens.menu(entry, () => true);
+    const menu = d.menus[0][1].entry;
+    for (const name of ['rate', 'addToCollection', 'download', 'editMetadata', 'refreshMetadata', 'deleteTitle', 'playFromStart']) assert.equal(typeof menu[name], 'function', name);
+    menu.rate(); menu.addToCollection(); menu.download(); menu.editMetadata(); await menu.refreshMetadata(); menu.deleteTitle();
+    assert.deepEqual(double.calls.map(call => call[0]), ['rate', 'collection', 'download', 'edit', 'refresh', 'delete']);
+    assert.ok(double.calls.every(call => call[1] === entry), 'each action names the menu\'s own entry');
+    const lifetime = double.calls[0][2];
+    assert.equal(lifetime.isCurrent(), true);
+    d.route();
+    assert.equal(lifetime.isCurrent(), false, 'a later route ends every title action opened from this menu');
+    menu.rate(); menu.deleteTitle();
+    assert.equal(double.calls.length, 6, 'a retained row from an ended opening acts on nothing');
+    await menu.playFromStart();
+    assert.deepEqual(d.starts.at(-1).target, {itemId: 'episode', startSeconds: 0});
+  } finally {detailProjection = null; d.screens.dispose();}
+});
+
+test('the Watch menu withholds rows its Detail does not grant, the owner group from a member, and Download on TV while keeping the owner group there', async () => {
+  const double = titleActionsDouble();
+  const open = async (grants: string[], extra: Parameters<typeof fixture>[2]) => {
+    detailProjection = grantedProjection(grants);
+    const d = fixture(true, undefined, {titleActions: double.handle, ...extra});
+    await d.screens.menu(entry, () => true);
+    return {menu: d.menus[0][1].entry, done: () => {d.menus[0][1].entry.dispose(); d.screens.dispose();}};
+  };
+  try {
+    let c = await open(['resume', 'watchlist'], {owner: true, download: true});
+    for (const name of ['rate', 'addToCollection', 'editMetadata', 'deleteTitle', 'playFromStart']) assert.equal(c.menu[name], undefined, `${name}: the Detail withholds it`);
+    assert.equal(typeof c.menu.refreshMetadata, 'function', 'Refresh needs the owner and a refreshable kind, as the web title page does');
+    assert.equal(typeof c.menu.download, 'function'); c.done();
+    c = await open(everyGrant, {download: true});
+    for (const name of ['editMetadata', 'refreshMetadata', 'deleteTitle']) assert.equal(c.menu[name], undefined, `${name}: a member has no owner group`);
+    for (const name of ['rate', 'addToCollection']) assert.equal(typeof c.menu[name], 'function', `${name}: personal organizing is for everyone`); c.done();
+    c = await open(everyGrant, {owner: true, download: true, isTV: true});
+    assert.equal(c.menu.download, undefined, 'TV has no Download (select.html 23)');
+    for (const name of ['editMetadata', 'refreshMetadata', 'deleteTitle']) assert.equal(typeof c.menu[name], 'function', `${name}: owner rows stay on TV (DESIGN/Q45)`); c.done();
+    c = await open(everyGrant, {owner: true, download: true, titleActions: titleActionsDouble({...offerAll, collection: false, edit: false, remove: false, refresh: false, download: false}).handle});
+    for (const name of ['addToCollection', 'editMetadata', 'deleteTitle', 'refreshMetadata', 'download']) assert.equal(c.menu[name], undefined, `${name}: the device offer withholds it`);
+    assert.equal(typeof c.menu.rate, 'function'); c.done();
+  } finally {detailProjection = null;}
+});
+
+test('a TV episode menu offers Go to season for the episode\'s own season, and touch does not', async () => {
+  const episode = {seasonId: 'season-2', seasonNumber: 2, showId: 'show', showTitle: 'Show', numbering: 'aired', number: 3, localIdentityStatus: 'matched', providerMatchStatus: 'matched', orderingBasis: 'aired', sourceBoundary: 'local'};
+  for (const isTV of [true, false]) {
+    detailProjection = grantedProjection(['resume'], {item: {id: 'episode', kind: 'episode', title: 'Actual episode', episode}});
+    const d = fixture(true, undefined, {isTV});
+    try {
+      await d.screens.menu(entry, () => true);
+      const menu = d.menus[0][1].entry;
+      if (!isTV) {assert.equal(menu.goToSeason, undefined); continue;}
+      menu.goToSeason();
+      assert.deepEqual(d.navigations.at(-1), {id: 'season-2', kind: 'season', title: 'Season 2', libraryId: 'library', seasonNumber: 2});
+      d.route(); d.navigations.length = 0; menu.goToSeason();
+      assert.deepEqual(d.navigations, [], 'a retained row from an ended opening goes nowhere');
+    } finally {detailProjection = null; d.screens.dispose();}
+  }
 });

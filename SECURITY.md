@@ -61,10 +61,13 @@ Refused addresses only lists names that point at your server, so scanner noise s
 
 ### First-run setup
 
+- Until setup is finished, Remote access and Remote security don't apply: the server answers from anywhere, so you can reach it to set it up. Before sign-in, it answers only what's listed above.
 - From home or the local network (the rule above), setup needs nothing more.
 - From outside, setup asks for the **setup code**. The server makes a new one each time it starts unset, and prints it to its log on a line starting `Portico setup code:` (for Docker, `docker logs portico | grep "Portico setup code"`). The server stores only a hash of the code. A code works once and is then replaced with a new one in the log. A correct code admits only the browser or app that typed it, through the setup secret it's then given, used from the same address. An address alone never admits anyone, so a neighbour behind the same shared or carrier-grade NAT address can't carry on that setup. Each address gets 10 tries every 10 minutes, and each network (a /24, or a /48 for IPv6) gets 30.
 - Browser setup accepts only same-origin requests, so another website can't do it for you.
 - Anyone who could start setup can **start over** while it's unfinished. This cancels an approval already given at Portico Services, and setup begins again at their address. Once an owner exists, start over is refused.
+- Before setup finishes, if the address you're using would be refused once Remote access and Remote security apply, setup says so. It offers only fixes that would work: keep allowing that address (it's added to Custom addresses) or switch to Standard.
+- Once setup is complete, Remote access and Remote security apply at once.
 
 ### Passwords, PINs and sign-in
 
@@ -81,6 +84,12 @@ Refused addresses only lists names that point at your server, so scanner noise s
 ### Tokens and keys
 
 Access tokens work like passwords: anyone who has a valid one can do whatever it allows. Refresh is tied to a device record and installation ID, but individual requests don't prove the request came from that device. The server checks revocation and current permissions.
+
+### Server identity and clocks
+
+- Before an app sends any credential, the server proves its identity: the app sends a fresh random nonce, and the server signs that nonce, the address asked for and its own identity with its identity key. The app checks the signature against the identity it expects and that the nonce is its own. A proof copied from another connection names someone else's nonce and is refused.
+- The proof carries no times, and apps never judge anything against their own clock. A phone, TV or computer whose date is wrong still connects, signs in and plays. Expiry is decided by the server, on the server's clock: apps read the server's time from its responses, try, and renew when the server says a credential has expired.
+- Keep the server's own clock right. Its expiries (sign-ins, setup codes, invitations, downloads) run on it.
 
 ### What's stored, and how
 

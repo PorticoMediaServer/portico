@@ -11,6 +11,10 @@ import {sameFence} from '../../../packages/player-core/src/index.ts';
 import {cardText, episodeLabel, playbackIdentity, titleFactParts} from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
+// W-17: OK on a TV tab enters its section through the registry.
+const enteredRegions: string[] = [];
+let capturedFocus: any = undefined;
+const focusRegistry = {subscribe: () => () => {}, getSnapshot: () => 0, capture: () => capturedFocus, focusRegion: (id: string) => {enteredRegions.push(id); return true;}};
 
 const {NativeTitleScreen} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), {
   './TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
@@ -19,13 +23,13 @@ const {NativeTitleScreen} = await screenModule(new URL('../src-next/screens/watc
   'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0})},
   '../../platform/native-blur': {BlurView: 'BlurView'},
   '../../tv/layout/TVShelf': {TVShelf: 'TVShelf', tvItemKey: (entry: {id: string}) => entry.id},
-  './tv-title-focus': {tvTitleRegionMap, tvTitleFocusSection}, '../../shell/tv-focus': {tvFocusIds}, '../../kit/focus': {FocusRegion: 'FocusRegion', useOptionalFocusRegistry: () => undefined},
+  './tv-title-focus': {tvTitleRegionMap, tvTitleFocusSection}, '../../shell/tv-focus': {tvFocusIds}, '../../kit/focus': {FocusRegion: 'FocusRegion', useOptionalFocusRegistry: () => focusRegistry},
   react: {...React, default: React}, 'react-native': {View: 'View', Text: 'Text', ScrollView: 'Scroll', useWindowDimensions: () => ({width: 1920, height: 1080})},
   '../../../../../packages/player-core/src': {sameFence}, '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
   '../../../../../packages/client-core/src/presentation/kit-model': {cardText, episodeLabel, playbackIdentity, titleFactParts}, '../../../../../packages/i18n/src': {defaultI18n},
   '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'Ambient', Artwork: 'Artwork'}, '../../kit/cards': {EpisodeTile: 'Episode', PosterCard: 'Poster'},
   '../../kit/Icon': {Icon: 'Icon'}, '../../kit/controls': {Button: 'Button', ResumeButton: 'Resume', Chip: 'Chip', Tabs: 'Tabs', Focusable: 'Focusable', Switch: 'Switch'}, '../../kit/layout/Hero': {HeroMetadata: 'Facts'},
-  '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable', window: null, folds: []})}, '../../shell/model': {mediumRailMetrics: {width: 84}}, '../../kit/states': {TitleSkeleton: 'Skeleton'}, './TVEpisodeBrowser': {TVEpisodeBrowser: 'TVEpisodeBrowser'}, './SeasonsSheet': {NativeSeasonsSheet: 'SeasonsSheet'}, './ShowSettingsSheet': {NativeShowSettingsSheet: 'ShowSettingsSheet'}, './TitleEpisodePlate': {NativeTitleEpisodePlate: 'EpisodePlate'}, './TitlePeople': {TitlePeople: 'TitlePeople'}, '../../kit/theme': {nativeType: () => ({}), useTheme: () => ({isTV: true, colors: {}, type: {bodyStrong: {}, body: {}, heading: {}, caption: {}}})},
+  '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable', window: null, folds: []})}, '../../shell/model': {mediumRailMetrics: {width: 84}}, '../../kit/states': {TitleSkeleton: 'Skeleton'}, './TVEpisodeBrowser': {TVEpisodeBrowser: 'TVEpisodeBrowser'}, './SeasonsSheet': {NativeSeasonsSheet: 'SeasonsSheet'}, './ShowSettingsSheet': {NativeShowSettingsSheet: 'ShowSettingsSheet'}, './TitleSeasonBar': {TitleSeasonBar: 'TitleSeasonBar'}, './TitleEpisodePlate': {NativeTitleEpisodePlate: 'EpisodePlate'}, './TitlePeople': {TitlePeople: 'TitlePeople'}, '../../kit/theme': {nativeType: () => ({}), useTheme: () => ({isTV: true, colors: {}, type: {bodyStrong: {}, body: {}, heading: {}, caption: {}}})},
 });
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : React.isValidElement(node) ? [node, ...descendants((node as any).props.children)] : [];
 
@@ -65,7 +69,7 @@ test('TV title resume, Start over, watched and Play menu bind actual current tit
   } finally {await host.unmount();}
 });
 
-test('TV Down from the hero buttons skips the strip for the first content row and Up returns to Play', async () => {
+test('TV Down from the hero buttons goes straight to the first row; the sticky header strip has the tab stops while browsing (W-17)', async () => {
   const entry = {id: 'inside-out', kind: 'movie', title: 'Inside Out'};
   const snapshot = {retired: false, entry, place: {tab: 'related', anchor: {itemId: null, offset: 0}}, episodes: [], seasons: [],
     detail: {phase: 'ready', data: {item: entry, actions: [{id: 'play', enabled: true, playback: {itemId: entry.id, startSeconds: 0}}], personal: {progressSeconds: 0},
@@ -88,8 +92,18 @@ test('TV Down from the hero buttons skips the strip for the first content row an
     assert.equal(row.props.edges.up, actions.props.id);
     assert.equal(actions.props.entry, 'watch-title-play');
     assert.deepEqual(posters().map((node: React.ReactElement<{focusId: string}>) => node.props.focusId), ['first', 'second']);
-    const strip = descendants(tree).find(node => node.props.testID === 'watch-title-tabs');
-    assert.equal(strip.props.passive, true); assert.equal(strip.props.onValueChange, undefined);
+    // W-17 (lead ruling: follow tv-detail): Down from the hero buttons goes straight into the first row, so the strip
+    // under the hero is a visible marker with no stops; the sticky header's copy has the tab stops while browsing.
+    const strips = () => descendants(tree).filter(node => node.props.testID === 'watch-title-tabs');
+    assert.deepEqual(strips().map(node => node.props.passive), [true, true], 'on the hero, neither strip takes focus: no stop between Play and the first row');
+    capturedFocus = {regionId: row.props.id, childId: 'first'};
+    await host.rerender(); await host.rerender();
+    const [hero, header] = strips();
+    assert.equal(hero.props.passive, true, 'the folded hero strip stays a marker');
+    assert.equal(header.props.passive, false, 'browsing: the sticky header strip has the tab stops Up from the first row reaches');
+    enteredRegions.length = 0; header.props.onValueChange('related');
+    assert.deepEqual(enteredRegions, [row.props.id], 'OK on More like this enters its first row');
+    capturedFocus = undefined;
     assert.ok(descendants(tree).some(node => node.type === 'Text' && node.props.children === 'About'), 'Details stays mounted below related rows');
 
   } finally {await host.unmount();}

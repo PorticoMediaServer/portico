@@ -24,3 +24,10 @@ test('maintained pending work stays explicit without pretending that a scan is r
  assert.equal(value.sources[0].deferredChanges,true);assert.equal(value.sources[0].deferredScanScope,'source');assert.equal(scanProgress(value).scanning,false);
  await assert.rejects(fetchInventoryStatus({request:async<T>()=>({serverId:'server',inventory:{libraryId:'library',revision:2,sources:[{...source,deferredChanges:'yes'}]}}) as T},'server','library',new AbortController().signal));
 });
+
+// For a library administrator the inventory objects list carries a fence with their allowed
+// libraries hashed in, and the config read does not: the two are guarded separately (fence sweep).
+test('inventory loads for a library administrator whose config and objects fences differ',async()=>{
+ const s=service(async p=>p.endsWith('inventory-config')?config():{...page(),scope:{serverId:'server',viewerFence:'admin-list-fence'}});
+ await s.refresh();assert.equal(s.getSnapshot().error,null);assert.ok(s.getSnapshot().config);assert.ok(s.getSnapshot().objects);s.dispose();
+});

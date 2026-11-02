@@ -423,6 +423,10 @@ export function parseReceiptClaims(raw: unknown): ReceiptClaims {
  * Whether a receipt still authorizes offline playback for this viewer at `now`.
  * A signature check is required as well; this is the half a client can get
  * wrong by forgetting, so it is one function.
+ *
+ * No client-clock requirements: `now` is the server's time as this device knows it
+ * (`serverNow()`, whose offset is kept across restarts for judging offline), never the bare
+ * device clock. The native floor (`receipt-clock.ts`) keeps a clock turned back from extending it.
  */
 export function receiptUsable(claims: ReceiptClaims, viewer: {authority: string; accountId: string; profileId: string; serverId: string}, now: Date, revoked: ReadonlySet<string> = new Set()): boolean {
   if (revoked.has(claims.receiptId)) return false;

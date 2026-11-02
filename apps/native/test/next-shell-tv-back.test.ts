@@ -65,7 +65,7 @@ test('actual assembly sends Back to topmost Home menu before player, then TV pag
   const bindings = createNativeShellBindings({home, session: () => ({viewer: {...authority, authority: 'local', role: 'member'}}), current: () => true,
     authority: () => authority, navigation, subscribeAuthority: navigation.subscribe, libraries: () => [{id: 'movies'}], api: {getUserMutationCoordinator: () => undefined, getUserMutationScope: () => undefined, request() {throw new Error('unexpected request');}}, events: {on: () => () => {}},
     account: {account: {role: 'member'}}, playback: {selectionPlayback: () => ({play() {throw new Error('unused playback');}, enqueue() {throw new Error('unused enqueue');}, playChannel() {throw new Error('unused channel');}}), getSnapshot: () => ({dock: {local: {expanded}}})}});
-  bindings.attach({getSnapshot: () => ({authority})});
+  bindings.attach({getSnapshot: () => ({authority, mediaExpanded: expanded})});
   const cleanup = bindings.registerTVPageBack(() => {pageCalls++; return pageConsumes;});
   bindings.setHomeWindow(home.getSnapshot().document!.rows[0], 0, 0, 0, true, ['third', 'movie', 'second']);
   const anchor = {current: {native: 'third-card'}};
@@ -154,14 +154,45 @@ test('actual assembly sends Back to topmost Home menu before player, then TV pag
   navigation.back(authority);
   assert.deepEqual(bindings.getState().railDestination, {kind: 'saved'});
   assert.equal(bindings.getState().contentVisible, true);
+  // W-9/W-12: with no route open, the empty route layer is covered, so it can never hold focus.
+  const idleLayer = (function find(node: any): any {if (Array.isArray(node)) {for (const child of node) {const hit = find(child); if (hit) return hit;} return undefined;}
+    return node?.props?.testID === 'native-shell-routes' ? node : node?.props ? find(node.props.children) : undefined;})(bindings.renderRoutes());
+  assert.equal(idleLayer?.props.covered, true, 'no route open: the route layer takes no focus');
+  assert.equal(idleLayer?.props.autoFocus, true, 'and never focuses its own empty container');
+  renderOrder.length = 0;
   navigation.open({kind: 'home-customize'}, authority);
   const routes = bindings.renderRoutes();
   assert.deepEqual(renderOrder, ['active', 'retained'], 'current module exists before its retained native views are requested');
   const flattened = (node: any): string[] => typeof node === 'string' ? [node] : Array.isArray(node) ? node.flatMap(flattened) : node?.props?.children ? flattened(node.props.children) : [];
   assert.deepEqual(routes.props.children.flatMap(flattened), ['retained', 'active', 'overlay'], 'retained views stay below the active route and module overlays above it');
+  // Focus containment: the expanded player covers the route pages, never the overlays it opens.
+  const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+  const pages = (tree: any) => nodes(tree).find(node => node.props?.testID === 'native-shell-routes');
+  assert.equal(pages(routes)?.props.covered, false, 'route pages take focus while the player is not expanded');
+  // W-9 (music player over an album): the TV listening screen covers the route pages even without the dock's
+  // expanded flag, and the shell can claim focus back into them when it closes.
+  const host = {current: null};
+  const listening = pages(bindings.renderRoutes({listening: true, hostRef: host}));
+  assert.equal(listening?.props.covered, true, 'the TV listening screen blocks D-pad focus into the album page under it');
+  assert.equal(listening?.props.hostRef, host, 'the shell holds the route layer to return focus into it');
+  expanded = true;
+  const covered = pages(bindings.renderRoutes());
+  assert.equal(covered?.props.covered, true, 'the expanded player blocks D-pad focus into the route pages under it');
+  assert.deepEqual(nodes(covered.props.children).flatMap(flattened).filter((value: string) => value === 'overlay'), [], 'module overlays stay outside the covered pages');
+  expanded = false;
   bindings.openServers?.('consent-kind');
   assert.deepEqual(navigation.getSnapshot().route, {kind: 'servers', initialPanel: 'consent-kind'}, 'Play on enters Link a TV directly');
   bindings.openServers?.();
   assert.deepEqual(navigation.getSnapshot().route, {kind: 'servers'}, 'ordinary Switch server still opens the chooser');
+  // W-14: a pushed TV route's own Back step (server settings: content to its page column) runs
+  // before the route closes; when it declines, Back closes the route as before.
+  let routeSteps = 0, consume = true;
+  const offRoute = bindings.registerTVRouteBack!(() => {routeSteps++; return consume;}, 'servers');
+  assert.equal(back(), true); assert.equal(routeSteps, 1);
+  assert.deepEqual(navigation.getSnapshot().route, {kind: 'servers'}, 'a handled step keeps the route open');
+  consume = false;
+  assert.equal(back(), true); assert.equal(routeSteps, 2);
+  assert.notDeepEqual(navigation.getSnapshot().route, {kind: 'servers'}, 'a declined step lets Back close the route');
+  offRoute();
   cleanup(); bindings.dispose(); navigation.dispose(); home.dispose();
 });

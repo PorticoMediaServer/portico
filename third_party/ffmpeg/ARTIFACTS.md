@@ -218,8 +218,11 @@ a negative control. It compiles no dependency and grants no engine acceptance.
 
 Hosted dependency caches are optional build inputs, never qualification evidence.
 The dedicated manual toolchain workflow writes BuildKit registry caches for the
-Windows and Linux ARM64 dependency graphs (mode=max), and Actions caches carrying
-content-addressed OCI prefix deltas for native Linux and macOS dependencies.
+Windows and Linux ARM64 dependency graphs (mode=max), and GHCR OCI artifacts
+carrying content-addressed prefix deltas for native Linux/macOS plus the exact
+Windows/ARM source snapshots. Production engine payloads never use Actions cache
+save/restore; only the main-only migration reads old payloads, and tiny proof
+fixtures may still use Actions caches.
 Each stage binds its source pins, checked recipe and helpers, actual compiler/SDK,
 flags and parent outputs. A rolling registry hint may supply unchanged layers;
 BuildKit still validates the operation and input digests. Prefix deltas verify
@@ -380,13 +383,13 @@ repeat evidence remains hash-sealed and checked. Compiler acceptance and complet
 Mac archive pins remain publication holds.
 
 Development BtbN runs retain the exact `.cache/downloads` snapshots in a separate
-Actions cache, including after failure. Restore checks every snapshot against its
+GHCR OCI artifact, including after failure. Restore checks every snapshot against its
 retained SHA-256 inventory; the command-hash filename still selects the snapshot.
 This preserves the original archive bytes rather than rebuilding nondeterministic
 tars. Registry stages still hash those bytes and the actual compiler/recipe inputs.
 Source download cache hits, dependency stage receipts and BuildKit logs remain in
-evidence. Actions branch scope still applies; a new branch needs an explicit cache
-seed or a first population. Weekly runner image labels do not salt the cache;
+evidence. Every branch reads the same main-produced registry payloads; branch
+names never salt their content keys. Weekly runner image labels do not salt the cache;
 actual compiler/SDK/tool hashes still do. No qualified/release path reads these
 caches. The configure/graph controls precede any compiler job, and the actual
 configure macro checks precede FFmpeg make. Failed-job reruns retain the original
@@ -437,8 +440,51 @@ excluded. A same-compiler fallback can recover unchanged stages after a pin edit
 while every individual stage still validates its exact inputs before reuse.
 Source-snapshot save keys likewise use their exact inventory hash.
 
-The first shared seed runs on main after this PR merges. Actions permits every
-branch to restore default-branch caches; topic-branch caches are not the shared
-seed. The explicit tiny proof-cache namespaces remain run-scoped to isolate their
-fixtures, and contain no engine/compiler build. Main's real engine run will
-report hits/misses rather than inferring warmth from a restore attempt.
+The initial shared seed ran on main. The main-only cacheMigrationOnly dispatch
+moves its retained Actions payloads to ghcr.io/porticomediaserver/ffmpeg-payload-cache-<target>.
+It selects the latest main entry per target, restores it on the matching runner,
+checks all source inventories or stage OCI blobs, pushes with hash-pinned ORAS,
+and re-downloads by resolved manifest digest. Only a successful full inventory/
+bytes/modes round-trip permits deleting that target's obsolete engine Actions
+entries. Unrelated CI caches are never selected. The final budget check requires
+engine Actions usage below 1 GiB even if one migration target is missing; the
+repository's fixed 10 GB budget is shared. A missing native checkpoint remains
+an explicit failed migration target and never enables a cold compiler job.
+If a source Actions entry was evicted, migration first checks GHCR, then uses
+the existing exact-id/hash source-only artifact seeder. It never re-resolves or
+rewrites the original snapshots. An evicted native prefix with no registry copy
+refuses; migration cannot recreate it and never launches a compiler.
+
+The cache-tools.lock.json pins ORAS 1.3.6 official Linux x64/ARM64 and macOS ARM64
+archives by SHA-256, verified before extraction; its Apache-2.0 licence stays
+with the tool. The tool and disposable registry credentials are outside engine
+bundles. Credentials never enter cache payloads or evidence. Production payload
+writes are main-only, with packages:write; the separately named tiny fixture
+packages exercise actual push/pull from branch controls. All readers/writers
+require the explicit development context and refuse qualified/release producers.
+
+An immutable content tag binds the target/kind, compiler namespace, dependency
+input key and checkpoint inventory. Mutable input/compiler tags are hints only:
+a reader resolves one to a digest before pulling, checks the OCI manifest's exact
+two-file inventory and both layer hashes, then validates bounded, link-free tar
+members and original stage/source receipts. Restore is atomic; individual stage
+input/output checks remain authoritative. Unchanged payloads skip save.
+Descriptor annotations requesting ORAS automatic unpacking, external blob URLs,
+named config files and subjects are refused before invoking pull; only the two
+plain files reach the bounded tar reader.
+Native Linux/Mac builds refuse a missing compatible checkpoint by default; an explicitly
+approved cold population can set allowColdDependencies=true. A cache hit still
+does not qualify or seal an engine, and final FFmpeg compilation stays fresh.
+
+The immediate libplacebo workaround retries only its exact recursive submodule
+update five times with total backoff 120 seconds, without remote-tracking updates
+or alternate URLs. Its stage body alone changes; the preceding 61 Mac stages'
+input contracts remain unchanged. Offline source preparation is tracked in
+https://github.com/PorticoMediaServer/portico/issues/319.
+
+Development native replays use only the exact reviewed run/target/artifact IDs,
+ZIP hashes, source identities, contracts and <=14-day windows recorded in
+development-native-replays.json (or the original Windows-only fixture pin).
+Original producer and current qualifier stay separate, replay=true, release=false.
+The native planner fetches paginated API JSON without combining gh --slurp and
+--jq; a hosted control runs the actual fetch and planner CLI against its real run.

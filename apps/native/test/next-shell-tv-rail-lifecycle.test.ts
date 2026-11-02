@@ -53,7 +53,11 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
   const navigations: unknown[] = [], tops: unknown[] = [], menuCapture: boolean[] = [];
   let homeDocument: any = {...authority, rows: [], spotlight: [{entry: {id: 'movie', libraryId: 'movies', kind: 'movie', title: 'Movie', playback: {itemId: 'movie'}},
     reason: {kind: 'featured', text: {fallback: 'Featured'}}}]};
-  const runtime = {home: {getSnapshot: () => ({document: homeDocument})}, playback: {}, retirementSignal: original.signal, getSnapshot: () => {
+  // W-12 (Live guide): the real pushed route, so the shell can return focus to a route it comes back to.
+  let navRoute: any = {kind: 'shell', destination: {kind: 'home'}};
+  const navListeners = new Set<() => void>(), navNotify = () => {for (const listener of [...navListeners]) listener();};
+  const navigation = {subscribe: (listener: () => void) => {navListeners.add(listener); return () => {navListeners.delete(listener);};}, getSnapshot: () => ({route: navRoute, revision: 0, authority})};
+  const runtime = {home: {getSnapshot: () => ({document: homeDocument})}, playback: {}, navigation, retirementSignal: original.signal, getSnapshot: () => {
     if (original.signal.aborted) {retiredReads++; throw new Error('retired shell accessor');}
     return snapshot;
   }, subscribe: () => () => {}, reportError(error: unknown) {throw error;},
@@ -79,7 +83,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: useShared, withTiming: (v: unknown) => v},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})}, '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'},
     '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/browse': {}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => motion},
-    '../kit/focus': {useFocusRegistry: () => registry}, './tv-focus': focusModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': shellModel,
+    '../kit/focus': {CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry, requestNativeFocus: () => {requests.push('layer-claim'); return true;}}, './tv-focus': focusModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': shellModel,
     './PhoneTabBar': {}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'ProfileMenu'},
     './NativePlaybackLayer': {NativePlaybackLayer: 'PlaybackLayer'}, './DesktopHeader': {},
   });
@@ -134,6 +138,68 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     await act(() => listening().props.onTVListeningPresenceChange(false));
     for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}
     assert.equal(requests.length, beforeExit + 1); assert.equal(requests.at(-1), 'card');
+    // W-9 (the music player over an album page): when the TV listening screen closes over an open route,
+    // focus is claimed back into the route layer, never left wherever Android's recovery puts it.
+    const beforeRouteOpen = requests.length;
+    await act(async () => {snapshot = {...snapshot, contentVisible: false}; await sessionHost!.rerender();});
+    // W-9 (2eec0520): a route opening over the page claims focus into the route layer until focus leaves the page
+    // underneath; here nothing moves it, so it stops after its half-second budget.
+    await act(() => {for (let i = 0; i < 35; i++) for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}});
+    assert.equal(requests.slice(beforeRouteOpen).filter(value => value === 'layer-claim').length, 30, 'a route opening claims focus into itself, then gives up');
+    // …and stops as soon as focus is really inside the route.
+    await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
+    await act(() => {for (let i = 0; i < 35; i++) for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}});
+    const routePlay = {regionId: 'route-artist-actions', childId: 'play'};
+    registry.configure({id: routePlay.regionId, entry: routePlay.childId, order: [routePlay.childId]});
+    registry.attach(routePlay, {requestTVFocus() {}});
+    const beforeMoved = requests.length;
+    await act(async () => {snapshot = {...snapshot, contentVisible: false}; await sessionHost!.rerender();});
+    await act(() => {for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}});
+    await act(() => {registry.didFocus(routePlay);});
+    await act(() => {for (let i = 0; i < 35; i++) for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}});
+    assert.equal(requests.slice(beforeMoved).filter(value => value === 'layer-claim').length, 1, 'one claim, then focus is inside the route and it stops');
+    await act(() => listening().props.onTVListeningPresenceChange(true));
+    const beforeRouteClose = requests.length;
+    await act(() => listening().props.onTVListeningPresenceChange(false));
+    for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}
+    assert.deepEqual(requests.slice(beforeRouteClose), ['layer-claim'], 'focus returns into the album page under the player');
+    await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
+    for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}
+    // W-12 (2eec0520: Back from Watch live left the Live guide with nothing focused): a route returned to gets back
+    // the focus it had, here the programme the user watched from.
+    {
+      const flushAll = () => {for (let i = 0; i < 70; i++) for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}};
+      const programme = {regionId: 'live-guide', childId: 'programme-2'}, playerControl = {regionId: 'channel-player', childId: 'pause'};
+      registry.configure({id: programme.regionId, entry: programme.childId, order: [programme.childId]});
+      registry.attach(programme, {requestTVFocus() {requests.push('guide-programme'); registry.didFocus(programme);}});
+      registry.configure({id: playerControl.regionId, entry: playerControl.childId, order: [playerControl.childId]});
+      registry.attach(playerControl, {requestTVFocus() {}});
+      await act(async () => {snapshot = {...snapshot, contentVisible: false}; navRoute = {kind: 'live'}; navNotify(); await sessionHost!.rerender();});
+      await act(flushAll);
+      await act(() => {registry.didFocus(programme);});
+      await act(async () => {navRoute = {kind: 'channel', sourceId: 's', channelId: 'c'}; navNotify(); await sessionHost!.rerender();});
+      await act(() => {registry.didFocus(playerControl);});
+      const beforeBack = requests.length;
+      await act(async () => {navRoute = {kind: 'live'}; navNotify(); await sessionHost!.rerender();});
+      await act(flushAll);
+      assert.deepEqual(requests.slice(beforeBack).filter(value => value !== 'layer-claim'), ['guide-programme'], 'Back from Watch live lands on the programme it came from');
+      // Watch live pressed inside a panel opened from the programme: Back still returns to the programme.
+      const panel = {regionId: 'live-programme-panel', childId: 'watch'};
+      await act(() => {registry.didFocus(programme);});
+      registry.configure({id: panel.regionId, entry: panel.childId, order: [panel.childId]});
+      registry.registerReturn(panel.regionId, registry.capture());
+      registry.attach(panel, {requestTVFocus() {}});
+      await act(() => {registry.didFocus(panel);});
+      await act(async () => {navRoute = {kind: 'channel', sourceId: 's', channelId: 'c'}; navNotify(); await sessionHost!.rerender();});
+      registry.attach(panel, null);
+      await act(() => {registry.didFocus(playerControl);});
+      const beforePanelBack = requests.length;
+      await act(async () => {navRoute = {kind: 'live'}; navNotify(); await sessionHost!.rerender();});
+      await act(flushAll);
+      assert.deepEqual(requests.slice(beforePanelBack).filter(value => value !== 'layer-claim'), ['guide-programme'], 'the panel is gone; Back lands on its programme');
+      await act(async () => {snapshot = {...snapshot, contentVisible: true}; navRoute = {kind: 'shell', destination: {kind: 'home'}}; navNotify(); await sessionHost!.rerender();});
+      await act(flushAll);
+    }
     const library = {regionId: 'actual-library-region', childId: 'actual-library-card'};
     registry.configure({id: library.regionId, entry: library.childId, order: [library.childId]});
     registry.attach(library, {requestTVFocus() {requests.push('library-card'); registry.didFocus(library);}});
@@ -144,6 +210,46 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     await act(async () => {snapshot = {...snapshot, destination: {kind: 'library', libraryId: 'movies'}, railDestination: {kind: 'library', libraryId: 'movies'},
       libraries: [{id: 'movies'}]}; await sessionHost!.rerender();});
     assert.deepEqual(rail().props.destination, {kind: 'library', libraryId: 'movies'}, 'the rail follows the actual title-highlighted page');
+    {
+      // W-12: Back from a title returns to the library card it was opened from, even when the grid
+      // re-enables its cards a frame after the route has gone, never to the toolbar above it.
+      const grid = {regionId: 'movies-grid', childId: 'blade-runner'}, toolbar = {regionId: 'movies-toolbar', childId: 'sort'};
+      const flush = () => {for (const [id, fn] of [...frames]) {frames.delete(id); fn(0);}};
+      registry.configure({id: toolbar.regionId, entry: toolbar.childId, order: [toolbar.childId]});
+      registry.attach(toolbar, {requestTVFocus() {requests.push('toolbar'); registry.didFocus(toolbar);}});
+      const gridConfig = (enabled: boolean) => registry.configure({id: grid.regionId, entry: grid.childId, order: [grid.childId], neighbors: {previous: toolbar.regionId}, enabled});
+      gridConfig(true);
+      registry.attach(grid, {requestTVFocus() {requests.push('grid-card'); registry.didFocus(grid);}});
+      await act(() => {registry.didFocus(grid);});
+      await act(async () => {snapshot = {...snapshot, contentVisible: false}; await sessionHost!.rerender();});
+      gridConfig(false);
+      const before = requests.length;
+      await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
+      await act(() => {flush(); flush();});
+      assert.deepEqual(requests.slice(before), [], 'while the grid is still re-enabling, focus waits for its card');
+      gridConfig(true);
+      await act(() => {flush();});
+      assert.deepEqual(requests.slice(before), ['grid-card'], 'Back lands on the originating card, not the toolbar');
+      // A card that never returns still falls back after the wait, as before.
+      await act(() => {registry.didFocus(grid);});
+      await act(async () => {snapshot = {...snapshot, contentVisible: false}; await sessionHost!.rerender();});
+      gridConfig(false);
+      const late = requests.length;
+      await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
+      await act(() => {for (let i = 0; i < 70; i++) flush();});
+      assert.deepEqual(requests.slice(late), ['toolbar'], 'after the wait the usual fallback applies');
+      // W-12 reopened: when nothing on the page can be restored (card, row and toolbar all unavailable), the page's
+      // own layer takes focus (landing on its first focusable item), never the shell's container with nothing visible.
+      await act(() => {registry.didFocus(grid);});
+      await act(async () => {snapshot = {...snapshot, contentVisible: false}; await sessionHost!.rerender();});
+      gridConfig(false); registry.configure({id: toolbar.regionId, entry: toolbar.childId, order: [toolbar.childId], enabled: false});
+      const lost = requests.length;
+      await act(async () => {snapshot = {...snapshot, contentVisible: true}; await sessionHost!.rerender();});
+      await act(() => {for (let i = 0; i < 70; i++) flush();});
+      assert.deepEqual(requests.slice(lost), ['layer-claim'], 'the page claims focus itself');
+      registry.configure({id: toolbar.regionId, entry: toolbar.childId, order: [toolbar.childId]});
+      gridConfig(true);
+    }
     const topsBefore = tops.length, navigationsBefore = navigations.length;
     // cb0ef443: a pushed destination hides the shell chrome. The rail is then absent,
     // so there is no retained hidden origin to act on; hiding alone navigates and
@@ -252,7 +358,7 @@ test('the real rail declares current-page entry and semantic Right return; nativ
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop', Path: 'Path'},
     'react-native-reanimated': {default: {View: 'AnimatedView', Text: 'AnimatedText'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: number) => ({value}), withTiming: (value: unknown) => value, withDelay: (_delay: unknown, value: unknown) => value},
     '../../../../packages/i18n/src': {defaultI18n}, '../kit/controls': {Focusable: 'Focusable'},
-    '../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry, focusTestID: (await import('../src-next/kit/focus/registry')).focusTestID}, './tv-focus': focusModel,
+    '../kit/focus': {CoveredLayer: 'CoveredLayer', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry, focusTestID: (await import('../src-next/kit/focus/registry')).focusTestID}, './tv-focus': focusModel,
     '../kit/artwork': {ProfileFace: 'ProfileFace'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme},
     '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './model': shellModel,
   });

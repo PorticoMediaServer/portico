@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {noteHomeRead} from '../../shell/home-read-log';
 import {liveRereadPlan, type LiveRereadMemory} from './live-expiry';
@@ -608,7 +609,7 @@ function HomeLiveRow({row, runtime, visible, itemWidth, onRange, onVisibleKeys, 
   const theme = useTheme(), live = row.live!, labels = {t: runtime.text.t, has: defaultI18n.has}, medium = theme.platform === 'tablet' && !theme.isTV, mediumGutter = tabletMedium ? 28 : 24;
   // Projection time, expiry and server-issued marks define the bounded row. No lineup scan.
   const observed = Date.parse(live.observedAt);
-  if (Date.now() >= Date.parse(live.expiresAt)) return null;
+  if (serverNow() >= Date.parse(live.expiresAt)) return null;
   // The drawn live row carries its server-authored sub-line ("Synthetic Live TV").
   const subtitle = serverTextLabel(labels, row.subtitleText);
   const rowSubtitle = subtitle && theme.layoutMode === 'phone' && theme.platform === 'phone'

@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {forwardIdentity} from '../detail/context';
 import {entryStartDisplay} from '../../platform/playback/subject';
 import {SearchService, readSearchHistory, clearSearchHistory, deleteSearchHistoryEntry, type SearchEntry, type SearchGroup, type SearchQuery} from '@core/search.ts';
@@ -126,7 +127,7 @@ export function createSearchBindings(context: ScreenContext) {
           const raw = await life.api.request<unknown>(routePath('get_guide') + '?' + query, 'GET', undefined, signal);
           if (!still()) return;
           const guide = parseChannelGuide(raw, context.scope.serverId, route);
-          const now = Date.now();
+          const now = serverNow();
           for (const channel of guide.channels) next.set(channel.id, liveCard(channel, now, timezone));
         }
       }
@@ -174,6 +175,8 @@ export function createSearchBindings(context: ScreenContext) {
     recent: (signal?: AbortSignal) => readSearchHistory(life.api, context.scope, life.signal(signal)),
     clearRecent: () => { life.assert(); return clearSearchHistory(life.api, life.signal()); },
     removeRecent: (query: string) => { life.assert(); return deleteSearchHistoryEntry(life.api, context.scope, query, life.signal()); },
+    /** This exact result is still on the answer the screen draws: a menu opened for it outlives nothing else. */
+    showing(entry: SearchEntry) { return life.current() && results.getSnapshot().phase === 'ready' && visible.has(entry); },
     open(entry: SearchEntry) {
       life.assert();
       if (results.getSnapshot().phase !== 'ready' || !visible.has(entry)) throw new DOMException('Search result changed', 'AbortError');

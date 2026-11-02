@@ -1,4 +1,5 @@
 import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {TitleSeasonBar} from './TitleSeasonBar';
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
@@ -6,7 +7,7 @@ import {cardText, episodeLabel, playbackIdentity, titleFactParts, type TextEnvir
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {AmbientArt, Artwork, type AmbientArtSource, type ArtworkSource, StandardBackdrop} from '../../kit/artwork';
 import {EpisodeTile, PosterCard, type EpisodeTileProps, type PosterCardProps} from '../../kit/cards';
-import {Button, Focusable, ResumeButton, Switch, Tabs} from '../../kit/controls';
+import {Button, Focusable, ResumeButton, Tabs} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {TVShelf, tvItemKey} from '../../tv/layout/TVShelf';
 import {FocusRegion, useOptionalFocusRegistry, type FocusRegionProps} from '../../kit/focus';
@@ -165,9 +166,13 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     // A row's focus identity, not each card or season in it, aligns the title body.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controller, tvSection?.browsing, tvSection?.anchor, motion.reduce]);
-  const myList = props.myList ?? (detail?.actions.some(action => action.id === 'watchlist' && action.enabled)
-    ? {selected: detail.personal.watchlisted, change: (value: boolean) => controller.personal({action: 'watchlist', value})} : undefined);
   const show = ['show', 'season', 'episode'].includes(snapshot.entry.kind);
+  // W-8: a show, season or episode page wears the show's hero, so its My List is the show's own
+  // (phone-detail frames 4-5, as on web); a movie keeps its own item action.
+  const myList = props.myList ?? (show
+    ? snapshot.showState ? {selected: snapshot.showState.watchlisted, change: (value: boolean) => controller.setShowMyList(value)} : undefined
+    : detail?.actions.some(action => action.id === 'watchlist' && action.enabled)
+      ? {selected: detail.personal.watchlisted, change: (value: boolean) => controller.personal({action: 'watchlist', value})} : undefined);
   const loading = show ? snapshot.workspace?.phase === 'loading' : snapshot.detail?.phase === 'loading';
   useEffect(() => {void controller.open().catch(props.reportError);}, [controller, props.reportError]);
   useEffect(() => {
@@ -201,9 +206,22 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   const selectedTab = snapshot.place.tab;
   const tabItems = [...(show ? [{value: 'episodes', label: t('title.episodes')}] : []), {value: 'related', label: t('next.controls.moreLikeThis')}, {value: 'details', label: t('title.details')}];
   const focusedSection = tvSection?.tab ?? tvTab;
-  const tabs = <Tabs testID="watch-title-tabs" passive={theme.isTV} value={theme.isTV ? focusedSection : selectedTab}
-    onValueChange={theme.isTV ? undefined : value => controller.tab(value as NativeTitleTab)} items={tabItems}
-    contentContainerStyle={{paddingHorizontal: theme.isTV ? 0 : 20, justifyContent: centered ? 'center' : undefined}}/>;
+  // W-17 (tv-detail frame captions: "Down from the buttons goes straight into the first row, with no stop on
+  // the strip"; "the strip is only a shortcut: press Up to reach it, then Left or Right to jump"). On TV the
+  // strip under the hero is a visible marker that takes no focus. The sticky header's copy, drawn once browsing
+  // folds the hero, has the real tab stops: Up from the first row reaches it (it is the nearest stop above),
+  // Left and Right move between tabs and OK enters that section. It takes focus only while it is drawn.
+  const enterSection = (tab: NativeTitleTab) => {
+    const region = tab === 'episodes' ? regions.episodes?.id : tab === 'related' ? [...regions.related.values()][0]?.id : regions.people?.id;
+    if (region) registry?.focusRegion(region);
+  };
+  const tvTabs = (marker: boolean) => <Tabs testID="watch-title-tabs" passive={marker} value={focusedSection} items={tabItems}
+    itemProps={() => ({focusKind: 'row' as const})} onValueChange={marker ? undefined : value => enterSection(value as NativeTitleTab)}
+    contentContainerStyle={{paddingHorizontal: 0, justifyContent: centered ? 'center' : undefined}}/>;
+  const tabs = theme.isTV ? tvTabs(true) : <Tabs testID="watch-title-tabs" value={selectedTab}
+    onValueChange={value => controller.tab(value as NativeTitleTab)} items={tabItems}
+    contentContainerStyle={{paddingHorizontal: 20, justifyContent: centered ? 'center' : undefined}}/>;
+  const compactTabs = theme.isTV ? tvTabs(!tvBrowsing) : tabs;
   const originalArt = (): NativeStartArtworkOffer | undefined => {
     const node = titleArt.current, decoded = readyArt.current;
     if (theme.isTV || props.watch || !artMounted.current || !node || !foreground || decoded?.cacheKey !== foreground.cacheKey || decoded.uri !== foreground.uri) return undefined;
@@ -348,7 +366,11 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   const selectedSeason = (snapshot.seasons ?? []).find(season => season.id === workspace?.selected.seasonId);
   const currentSeasonLabel = workspace?.selected.group ? workspace.groups.find(group => group.id === workspace.selected.group)?.title ?? t('title.seasons')
     : selectedSeason ? selectedSeason.title || t('title.season', {number: selectedSeason.number}) : t('title.seasons');
-  const seasonProgress = selectedSeason?.episodeCount !== undefined ? t('title.seasonProgress', {watched: selectedSeason.watchedCount ?? 0, total: selectedSeason.episodeCount}) : undefined;
+  // phone-detail ep-bar: the phone bar says how many episodes the season has (its watched
+  // progress is in the season sheet); wider screens keep the progress beside the button.
+  const seasonProgress = selectedSeason?.episodeCount === undefined ? undefined : theme.platform === 'phone'
+    ? t('count.episodes', {count: selectedSeason.episodeCount})
+    : t('title.seasonProgress', {watched: selectedSeason.watchedCount ?? 0, total: selectedSeason.episodeCount});
   const remember = (y: number) => {
     setCollapsed(old => (y > heroHeight - headerHeight) === old ? old : y > heroHeight - headerHeight);
     if (y < bodyTop.current) {controller.remember({itemId: null, offset: y}); return;}
@@ -498,18 +520,9 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
           onMoreEpisodes={() => {void controller.moreEpisodes().catch(props.reportError);}}
           onRetryEpisode={() => controller.episode.retry()} renderError={props.renderError}/>)
           : <>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
-            <Button testID="watch-seasons-open" variant="glass" size="small" trailingIcon="i-chdown" style={{flexShrink: 0}}
-              onPress={openSeasons}>{currentSeasonLabel}</Button>
-            {seasonProgress ? <Text numberOfLines={1} style={[theme.type.caption, {color: theme.colors.textTertiary, flexShrink: 1}]}>{seasonProgress}</Text> : null}
-            <View style={{flex: 1}}/>
-            {!theme.isTV && <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0}}>
-              <Text style={[theme.type.bodyStrong, {fontSize: 12.5, color: theme.colors.textSecondary}]}>{t('next.controls.hideWatched')}</Text>
-              <Switch testID="watch-hide-watched" variant={theme.platform === 'phone' ? 'episode' : 'selection'} checked={snapshot.place.hideWatched}
-                accessibilityLabel={t('next.controls.hideWatched')} onCheckedChange={value => {if (bodyLease) void controller.hideWatched(value, bodyLease).catch(props.reportError);}}/>
-            </View>}
-            {props.owner && <Button testID="watch-show-settings-open" variant="icon" icon="i-more" iconOnly accessibilityLabel={t('card.more', {title})} onPress={openSettings}/>}
-          </View>
+          <TitleSeasonBar label={currentSeasonLabel} count={seasonProgress} onSeasons={openSeasons} hideWatched={snapshot.place.hideWatched}
+            onHideWatched={value => {if (bodyLease) void controller.hideWatched(value, bodyLease).catch(props.reportError);}}
+            settings={props.owner ? {label: t('card.more', {title}), onPress: openSettings} : undefined}/>
           {(() => {
             const model = (entry: ContentEntry) => cardText({id: entry.id, kind: entry.kind, title: entry.displayTitle ?? entry.title,
               episode: episodeNumbering(entry), durationSeconds: entry.duration, positionSeconds: entry.progressSeconds}, 'in-show', text);
@@ -640,7 +653,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
         style={{backgroundColor: theme.isTV ? 'transparent' : theme.colors.ink, opacity: theme.isTV && tvBrowsing ? 0 : 1, paddingLeft: theme.isTV ? 200 : 0, paddingRight: theme.isTV ? 96 : 0}}>{tabs}</View>
       {bodyNode}
     </ScrollView>}{pinnedBar ?? header}
-    {theme.isTV && <TVTitleCompactHeader title={title} browsing={tvBrowsing}>{tabs}</TVTitleCompactHeader>}
+    {theme.isTV && <TVTitleCompactHeader title={title} browsing={tvBrowsing}>{compactTabs}</TVTitleCompactHeader>}
     {!theme.isTV && <NativeSeasonsSheet open={!!seasonsSheet} onOpenChange={value => {if (value) openSeasons(); else closeSeasons();}}
       seasons={snapshot.seasons} total={workspace?.seasonTotalCount ?? snapshot.seasons.length} selectedId={workspace?.selected.seasonId ?? null}
       onSelect={id => {const lease = seasonsSheet; closeSeasons(); if (lease) void controller.season(id, lease).catch(props.reportError);}}

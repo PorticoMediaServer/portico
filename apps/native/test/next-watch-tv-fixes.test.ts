@@ -1,5 +1,6 @@
 import {nativeSubtitleStyleKeys, nativeSubtitleStyleValue} from '../src-next/platform/playback/subtitle-style-choices.ts';
 import test from 'node:test';
+import * as tvScroll from '../src-next/kit/layout/tv-scroll.ts';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {watchHooks, descendants, flattenStyle} from './helpers/watch-hooks.mjs';
@@ -119,7 +120,7 @@ test('Episodes enters the playing row, and its season sheet returns to the actua
   const h = watchHooks();
   const {NativeWatchEpisodes} = await screenModule(new URL('../src-next/screens/watch/EpisodePanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
     react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../kit/controls': controlsAtoms, '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/theme': themed,
-    '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays/TVPanelMotion': {useTVPanelInteractive: () => true}, './SeasonsSheet': {NativeSeasonsSheet: 'Seasons'},
+    '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays/TVPanelMotion': {useTVPanelInteractive: () => true}, './SeasonsSheet': {NativeSeasonsSheet: 'Seasons'}, '../../kit/layout/tv-scroll': tvScroll,
     '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel: () => ''}, '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText: String},
   });
@@ -240,6 +241,40 @@ test('Episodes is contained by the held watch panel and an absent remembered opt
       }
     } finally {h.unmount();}
   }
+});
+
+test('W-16: an options row keeps its label beside a long value, and Subtitle style reads its size and background', async () => {
+  const h = watchHooks(), registry = createFocusRegistry();
+    const {NativeWatchPanels} = await screenModule(new URL('../src-next/screens/watch/WatchPanels.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
+      react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../../../../packages/player-core/src': playerCore,
+      '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/client-core/src/playback-v1/v1-queue-player': {queueVideoKind: () => undefined},
+      '../../../../../packages/client-core/src/subtitles': {subtitleReason: () => ''}, '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/controls': controlsAtoms,
+      '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry}, '../../kit/overlays': {Dialog: 'Dialog'}, '../../kit/overlays/TVPanelMotion': {useTVPanelInteractive: () => true},
+      '../../kit/overlays/OverlayHost': {useOverlayLifecycle() {}}, '../../kit/overlays/surface': {PanelBackground: 'PanelBackground'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': themed,
+      '../../shell/model': {sameAuthority}, './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {nativeWatchTracks: () => ({subtitlesOff: true})}, './panel-model': {nativeWatchPanelRows: () => ({})}, './subtitle-timing': {nativeWatchSubtitleTiming: () => undefined},
+    });
+  const field = (key: string, label: string, current: string, valueLabel: string) => ({key, label, current, values: [{value: current, label: valueLabel}]});
+  const style = {apply: async () => {}, fields: [field('playback.subtitleSize', 'Size', 'medium', 'Medium'), field('playback.subtitleColor', 'Colour', 'white', 'White'),
+    field('playback.subtitleBackground', 'Background', 'translucent', 'Translucent'), field('playback.subtitlePosition', 'Position', 'bottom', 'Bottom'), field('playback.subtitleFont', 'Font', 'default', 'Default')]};
+  const source: any = {fence, capabilities: {}, queue: {}, playback: {positionSeconds: 0}, effectiveRate: 1};
+  const context: any = {source, fence, panelCurrent: () => true, state: {panel: 'options', fence, panelOffset: 0}, renderer: {width: 1920, height: 1080}, layout: {}, runtime: {text: {locale: 'en-US'}, getSnapshot: () => ({})}};
+  const options = {subscribe: () => () => {}, getSnapshot: () => ({phase: 'loading'}), load: async () => {}, clear() {}};
+  try {
+    const tree = h.render(() => NativeWatchPanels({context, options, style, playback: {getSnapshot: () => source}, names: {}, copy: {}, reportError: assert.fail, renderError: assert.fail}));
+    const row = find(tree, 'watch-option-style');
+    assert.ok(row, 'TV draws Subtitle style as its own row (tv-player #p4)');
+    const texts: any[] = [];
+    const walk = (node: any) => {if (Array.isArray(node)) node.forEach(walk); else if (node?.props) {if (node.type === 'Text') texts.push(node); walk(node.props.children);}};
+    walk(row.props.children);
+    const flat = (style: any): any => Array.isArray(style) ? Object.assign({}, ...style.map(flat)) : style ?? {};
+    const [label, value] = texts;
+    assert.equal(label.props.children, 'player.opt.subtitleStyle');
+    assert.equal(flat(label.props.style).flexShrink, 0, 'the label never gives way to its value');
+    assert.equal(flat(label.props.style).flex, undefined, 'no zero flex basis on the label');
+    assert.equal(value.props.children, 'Medium · Translucent', 'size and background, as drawn');
+    assert.equal(value.props.numberOfLines, 1);
+    assert.equal(flat(value.props.style).flexShrink, 1, 'a long value shortens instead of squeezing the label');
+  } finally {h.unmount();}
 });
 
 async function chromeFixture(live = false) {

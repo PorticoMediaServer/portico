@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {defaultI18n, type MessageId} from '@i18n';
 import type {ServerInvitation} from '@core/direct-account.ts';
@@ -175,7 +176,7 @@ function InvitationTable({view, invitations, serverName, signIn, libraries, auth
       }
     }
   };
-  const now = Date.now();
+  const now = serverNow();
   const rows = (page?.value.items ?? []).map(invitation => invitationRow(invitation, libraries, now));
   const filtered = !!query.search.trim() || Object.values(query.filters).some(value => value !== 'all');
   const actionCopy = model.rowActions![0], revokeCopy = model.rowActions![1];

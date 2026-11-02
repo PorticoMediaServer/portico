@@ -68,7 +68,7 @@ test('retries after Retry-After or backoff without holding a slot, and callers k
   assert.deepEqual(h.started, ['slow', 'next'], 'the retry wait does not block the queue');
   h.finish('next'); await settle();
   h.advance(5000);
-  assert.equal(h.started.length, 2, 'server asked for 20 s, longer than the 5 s backoff');
+  assert.equal(h.started.length, 2, 'server asked for 20 s, longer than the 1.5 s first backoff');
   h.advance(15000); await settle();
   assert.deepEqual(h.started, ['slow', 'next', 'slow']);
   h.finish('slow');
@@ -80,14 +80,31 @@ test('after the retries run out the key is failed for a cooldown', async () => {
   const h = harness();
   const p = h.scheduler.load('x');
   await settle();
-  for (const wait of [5000, 15000, 45000]) { h.fail('x', {retryable: true}); await settle(); h.advance(wait); await settle(); }
+  for (const wait of [1500, 5000, 15000, 45000]) { h.fail('x', {retryable: true}); await settle(); h.advance(wait); await settle(); }
   h.fail('x', {retryable: true});
   await assert.rejects(p);
   await assert.rejects(h.scheduler.load('x'), ArtworkUnavailableError);
   h.advance(61000);
   void h.scheduler.load('x');
   await settle();
-  assert.equal(h.started.filter(k => k === 'x').length, 5);
+  assert.equal(h.started.filter(k => k === 'x').length, 6);
+});
+
+// J-25: the first retry comes after about 1.5 s, then the old 5 s, 15 s, 45 s backoff.
+test('the first retry comes after 1.5 s and the backoff after it is unchanged', async () => {
+  const h = harness();
+  void h.scheduler.load('x').catch(() => {});
+  await settle();
+  h.fail('x', {retryable: true}); await settle();
+  h.advance(1499); await settle();
+  assert.equal(h.started.filter(k => k === 'x').length, 1, 'not before 1.5 s');
+  h.advance(1); await settle();
+  assert.equal(h.started.filter(k => k === 'x').length, 2, 'retried at 1.5 s');
+  h.fail('x', {retryable: true}); await settle();
+  h.advance(4999); await settle();
+  assert.equal(h.started.filter(k => k === 'x').length, 2);
+  h.advance(1); await settle();
+  assert.equal(h.started.filter(k => k === 'x').length, 3, 'then 5 s');
 });
 
 test('an attempt nobody waits for any more does not fail the key', async () => {

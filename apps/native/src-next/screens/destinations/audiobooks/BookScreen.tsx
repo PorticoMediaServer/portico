@@ -4,7 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import {AmbientArt, Artwork, StandardBackdrop} from '../../../kit/artwork';
+import {AmbientArt, Artwork, StandardBackdrop, missingArt} from '../../../kit/artwork';
 import {Button, Focusable} from '../../../kit/controls';
 import {FocusRegion} from '../../../kit/focus';
 import {MusicScrollView, MusicWindow} from '../music/MusicWindow';
@@ -31,7 +31,7 @@ export function AudiobookErrorState({error, retry, actionId, preferred, refresh}
     {...(presented.action === 'try-again' || presented.action === 'refresh' ? {primaryAction: {id: 'retry', testID: actionId, hasTVPreferredFocus: preferred, label: presented.actionLabel ?? t('action.tryAgain'), onPress: retry}} : {})}/>;
 }
 
-function Cover({runtime, path, size}: {runtime: NativeShellRuntime; path: string | undefined; size: number}) {
+function Cover({runtime, path, size, title, author}: {runtime: NativeShellRuntime; path: string | undefined; size: number; title: string; author?: string}) {
   const source = runtime.artwork(path), ambient = runtime.ambient(path), theme = useTheme();
   // collections 41a/43: the cover sits in a glow taken from its own art. The
   // ambient variant is already blurred by the server, so no device runs a live
@@ -42,7 +42,7 @@ function Cover({runtime, path, size}: {runtime: NativeShellRuntime; path: string
     </View> : null}
     <View style={{width: size, height: size, borderRadius: 16, overflow: 'hidden', backgroundColor: theme.colors.raised,
       shadowColor: theme.colors.shadow, shadowOffset: {width: 0, height: 24}, shadowOpacity: .85, shadowRadius: 28}}>
-      {source ? <Artwork source={source} width={size} height={size} priority/> : null}
+      <Artwork source={source} width={size} height={size} priority fallback={source ? undefined : missingArt({title, author, shape: 'square', width: size, height: size})}/>
     </View>
   </View>;
 }
@@ -156,7 +156,7 @@ export function BookScreen({controller, entry, runtime, actions, openEntry, onBa
         <Text style={[browseType(theme, tv ? 22 : 13, 600), {color: theme.colors.textSecondary}]}>{t('title.resumeRemaining', {remaining})}</Text>
       </View> : null;
   const body = <>
-    <View style={tv ? {position: 'absolute', left: 200, top: 96} : undefined}><Cover runtime={runtime} path={entity.posterUrl} size={tv ? 420 : 232}/></View>
+    <View style={tv ? {position: 'absolute', left: 200, top: 96} : undefined}><Cover runtime={runtime} path={entity.posterUrl} size={tv ? 420 : 232} title={entity.title} author={entity.author}/></View>
     <View style={tv ? {position: 'absolute', left: 700, top: 96, width: 1040} : {alignItems: 'center', marginTop: 20, width: '100%'}}>
       {entity.series?.[0] || seriesEntry ? <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: tv ? 'flex-start' : 'center', flexWrap: 'wrap'}}>
         {seriesEntry && openEntry

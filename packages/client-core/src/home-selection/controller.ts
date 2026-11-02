@@ -15,6 +15,7 @@ import {fetchBulkMetadataPreview, metadataPreviewTargets, type BulkMetadataPrevi
 import {HomeSelectionDestinations} from './destinations.ts';
 import {explicitIdentities, runSelectionJobs, selectionExecutionError, selectionJobTasks, type HomeJobTask} from './execution.ts';
 import type {HomeSelectionActionState, HomeSelectionMember, HomeSelectionMenu, HomeSelectionOptions, HomeSelectionPlaybackItem, HomeSelectionSnapshot, HomeSelectionWindowInput} from './types.ts';
+import {serverNow} from '../server-clock.ts';
 
 /** Removing a window is cleanup and must never throw: a cleanup that throws reaches the app's error boundary
  * (P2-74 E-tv-30, an unmount during a Live expiry re-read). An already removed or stale window is a no-op. */
@@ -127,7 +128,7 @@ export class HomeSelectionController {
         // A changed source still goes through semantic menu reconciliation below.
         if (origin.kind === 'spotlight' ? spotlight?.[registered.start] === origin.spotlight
           : rows[origin.index] === origin.row && rows.filter(row => row.id === origin.row.id).length === 1
-            && (!origin.row.live || Number.isFinite(Date.parse(origin.row.live.expiresAt)) && Date.parse(origin.row.live.expiresAt) > Date.now())) keep.add(id);
+            && (!origin.row.live || Number.isFinite(Date.parse(origin.row.live.expiresAt)) && Date.parse(origin.row.live.expiresAt) > serverNow())) keep.add(id);
       }
     }
     const retainedMenuWindow = menu && keep.has(menu.windowId) ? menuWindow : undefined;
@@ -180,7 +181,7 @@ export class HomeSelectionController {
     let start = input.start ?? row.start;
     const put = (member: HomeSelectionMember) => members.set(this.key(member.item), member);
     if (input.channels !== undefined || row.live) {
-      if (!row.live || !(Date.parse(row.live.expiresAt) > Date.now())) return Object.freeze({ok: false as const, reason: 'stale-home-live-window' as const});
+      if (!row.live || !(Date.parse(row.live.expiresAt) > serverNow())) return Object.freeze({ok: false as const, reason: 'stale-home-live-window' as const});
       const channels = input.channels ?? row.live.channels;
       const offset = channels.length ? row.live.channels.indexOf(channels[0]) : 0;
       if (offset < 0 || channels.some((channel, index) => row.live!.channels[offset + index] !== channel) || input.start !== undefined && input.start !== row.start + offset) throw selectionExecutionError('home-window-order-mismatch');
@@ -248,7 +249,7 @@ export class HomeSelectionController {
     return ticket.target.mode === 'explicit' && ticket.target.items.every(pick => {
       if (pick.item.kind !== 'channel') return true;
       const member = this.operationMembers.get(pick.key);
-      return !!member?.channel && this.rows().some(row => row.viewerFence === ticket.context.scope.privacyFence && row.live && Number.isFinite(Date.parse(row.live.expiresAt)) && Date.parse(row.live.expiresAt) > Date.now() && row.live.channels.includes(member.channel!))
+      return !!member?.channel && this.rows().some(row => row.viewerFence === ticket.context.scope.privacyFence && row.live && Number.isFinite(Date.parse(row.live.expiresAt)) && Date.parse(row.live.expiresAt) > serverNow() && row.live.channels.includes(member.channel!))
         && selectionCapabilityNames.every(name => homeChannelSelection(member.channel!, this.platform()).capabilities[name] === pick.item.capabilities[name]);
     });
   }
@@ -399,7 +400,7 @@ export class HomeSelectionController {
     if (rows.length !== 1) return;
     const row = rows[0];
     if (source.slot === 'live') {
-      if (!row.live || !Number.isFinite(Date.parse(row.live.expiresAt)) || Date.parse(row.live.expiresAt) <= Date.now()) return;
+      if (!row.live || !Number.isFinite(Date.parse(row.live.expiresAt)) || Date.parse(row.live.expiresAt) <= serverNow()) return;
       const found = row.live.channels.flatMap((channel, index) => {const item = homeChannelSelection(channel, platform); return this.key(item) === key ? [{member: {item, channel}, row, index}] : [];});
       return found.length === 1 ? found[0] : undefined;
     }
@@ -494,7 +495,11 @@ export class HomeSelectionController {
     const members = this.members(ticket.target), entry = members.length === 1 ? members[0].entry as HomeEntry | undefined : undefined;
     const state = detail.getSnapshot(), data = state.data;
     if (this.detail !== detail || !entry?.libraryId || !entryActions(homeEntryCapabilities(entry, this.platform())).some(group => group.actions.some(action => action.id === 'rate')) || state.phase !== 'ready' || !data?.actions.some(action => action.id === 'rating' && action.enabled)) throw selectionExecutionError(state.error?.code ?? 'rating-not-offered');
-    if (data.scope.serverId !== ticket.context.scope.serverId || data.scope.viewerFence !== ticket.context.scope.privacyFence || data.scope.libraryId !== entry.libraryId || data.scope.itemId !== entry.id || data.item.kind !== entry.kind || String(data.revision.catalog) !== ticket.context.revision.catalogRevision || String(data.revision.viewer) !== ticket.context.revision.viewerRevision) throw selectionExecutionError('stale-rating-context');
+    // The item detail and the Home document are different server documents: Home's viewer fence
+    // includes the library list and its revision sums every library, while the detail's are its own
+    // library's. Neither is comparable, so the detail is matched to the card by server, library, item
+    // and kind; the detail binding guards its own fence and revision (as show-primary.ts does, W-5).
+    if (data.scope.serverId !== ticket.context.scope.serverId || data.scope.libraryId !== entry.libraryId || data.scope.itemId !== entry.id || data.item.kind !== entry.kind) throw selectionExecutionError('stale-rating-context');
     this.publish({rating: {phase: 'ready', currentValue: data.personal.rating, value: data.personal.rating, error: null}});
   }
   setRatingValue(value: number | null) {

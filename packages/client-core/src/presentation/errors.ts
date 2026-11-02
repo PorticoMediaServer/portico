@@ -1,5 +1,4 @@
 import {playbackUserMessage} from '../playback-messages.ts';
-import {RouteError} from '../route-identity.ts';
 import {defaultI18n, type I18n, type MessageId} from '../../../i18n/src/index.ts';
 
 /**
@@ -172,6 +171,8 @@ const codeBodies: Record<string, MessageId> = {
   reading_progress_pending: 'error.readingProgressPending',
   factor_setup_required: 'error.factorSetupRequired',
   queue_too_large: 'error.queueTooLarge',
+  // OPS-2: an encrypted, multi-volume, solid or compressed legacy archive; the file itself, nothing to retry.
+  comic_archive_unsupported: 'error.comicArchiveUnsupported',
   // An online-only action (match search, artwork, lyrics or subtitle search) on a library whose
   // metadata source is local only: the server's reason, and nothing to retry.
   local_metadata_only: 'error.localMetadataOnly',
@@ -204,7 +205,7 @@ const codeBodies: Record<string, MessageId> = {
   session_ended: 'error.sessionEnded',
 };
 /** Codes whose sentence says what to do instead, so the notice offers no Try again. */
-const noActionCodes = new Set(['local_metadata_only', 'credential_limit', 'access_tokens_off', 'webhook_limit', 'session_ended', 'image_too_large', 'reading_progress_pending', 'factor_setup_required']);
+const noActionCodes = new Set(['comic_archive_unsupported', 'local_metadata_only', 'credential_limit', 'access_tokens_off', 'webhook_limit', 'session_ended', 'image_too_large', 'reading_progress_pending', 'factor_setup_required']);
 
 export function presentError(error: unknown, context: ErrorContext = 'generic', options: PresentOptions = {}): PresentedError {
   const i18n = options.i18n ?? defaultI18n;
@@ -215,11 +216,6 @@ export function presentError(error: unknown, context: ErrorContext = 'generic', 
   const label = (action: ErrorAction) => (actionLabelIds[action] ? i18n.t(actionLabelIds[action]!) : undefined);
   if (category === 'cancelled') return Object.freeze({category, title, body: '', action: 'none', messageId: 'error.cancelled', silent: true, code: f.code || undefined});
   if (f.code === 'transport_unavailable') return Object.freeze({category: 'unavailable', title, body: i18n.t('error.transportUnavailable'), action: 'none', messageId: 'error.transportUnavailable', silent: false, code: f.code});
-  // Only the local proof refusal establishes this claim. Do not unwrap a failed route
-  // race or trust an API payload with the same code, and never turn it into a network retry.
-  if (error instanceof RouteError && f.code === 'clocks_disagree') {
-    return Object.freeze({category: 'unknown', title, body: i18n.t('error.clocksDisagree'), action: 'try-again', actionLabel: label('try-again'), messageId: 'error.clocksDisagree', silent: false, code: f.code});
-  }
   if (context === 'playback') {
     // Playback keeps its own reviewed mapping (codes → copy, allowlisted safe server strings).
     const body = playbackUserMessage(error);

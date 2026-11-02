@@ -20,7 +20,7 @@ async function proof(options:{origin?:string;version?:string;metadata?:string;fi
   const request=JSON.parse(String(init?.body));
   assert.deepEqual(Object.keys(request).sort(),['baseUrl','nonce']);
   const version=options.version??'2';
-  const payload=Buffer.from(JSON.stringify({kind:'portico.route-proof',version,...pin,baseUrl:request.baseUrl,nonce:request.nonce,issuedAt:new Date(at).toISOString(),expiresAt:new Date(at+30000).toISOString(),...(version==='2'?{tlsCertificateFingerprints:[leaf]}:{}),...options.fields}));
+  const payload=Buffer.from(JSON.stringify({kind:'portico.route-proof',version,...pin,baseUrl:request.baseUrl,nonce:request.nonce,...(version==='2'?{tlsCertificateFingerprints:[leaf]}:{}),...options.fields}));
   const response=new Response(JSON.stringify({payload:payload.toString('base64url'),signature:sign(null,payload,keys.privateKey).toString('base64url')}),{headers:{'Content-Type':'application/json',...options.headers}});
   if(options.metadata!==undefined)observations.set(response,options.metadata);
   return response;

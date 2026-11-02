@@ -39,6 +39,7 @@ import {NativeWatchPicture, type NativeWatchPictureProps} from './picture-slot';
 import {NativeWatchHost, type NativeWatchHostBindings, type NativeWatchHostContext} from './WatchHost';
 import {NativeWatchEpisodes} from './EpisodePanel';
 import type {MenuAction} from '../../kit/overlays/types';
+import type {NativeTitleActionsHandle} from './title-actions';
 
 export type NativeWatchCapture = Readonly<{
   entry: ContentEntry;
@@ -57,9 +58,21 @@ export type NativeWatchMenuEntry = Readonly<{
   play?: () => Promise<void>;
   enqueue?: (placement: 'next' | 'end') => Promise<void>;
   addToPlaylist?: () => void;
+  /** Play from the beginning: the server's own start-over target, for a title with progress. */
+  playFromStart?: () => Promise<void>;
+  /** The single-title actions the shared menu offers; each is present only when the title's own
+   * Detail grants it (and, for the owner's, the viewer is the owner). */
+  rate?: () => void;
+  addToCollection?: () => void;
+  download?: () => void;
+  editMetadata?: () => void;
+  refreshMetadata?: () => Promise<void>;
+  deleteTitle?: () => void;
   /** music-plus (MC-9): the server builds a radio queue from this song, album or artist. */
   startRadio?: () => Promise<void>;
   goToArtist?: () => void;
+  /** TV episodes: the season the episode belongs to (tv-detail.html, episode menu). */
+  goToSeason?: () => void;
   mutate: (intent: PersonalIntent) => Promise<void>;
   details?: () => void;
   dispose: () => void;
@@ -88,6 +101,8 @@ export type NativeWatchFactoryPorts = Readonly<{
   player?: NativeWatchHostBindings;
   /** One authority-local playlist picker, hosted by the Watch module's overlay outlet. */
   playlistPicker?: MusicPlaylistPickerHandle;
+  /** Rate, collection, owner and download actions for the title behind a menu. */
+  titleActions?: NativeTitleActionsHandle;
   requestId: () => Promise<string>;
   isTV: boolean;
   /** Bound to Android's real fenced runtime command after it lands on MAIN. */
@@ -318,6 +333,10 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
     }
     const projection = detail?.getSnapshot().data;
     const primary = projection?.actions.find(action => action.enabled && action.playback && action.id !== 'start_over')?.playback;
+    const startOver = projection?.actions.find(action => action.enabled && action.playback && action.id === 'start_over')?.playback;
+    const has = (id: string) => projection?.actions.some(action => action.id === id && action.enabled) === true;
+    const titleActions = ports.titleActions, offer = titleActions?.offer(entry);
+    const opening = () => ({signal: new AbortController().signal, isCurrent: () => current(captured)});
     const route = ports.navigation.getSnapshot().route, onTitle = route.kind === 'title' && titleKey(route.entry) === titleKey(entry);
     // The queue append is offered only for a personal session; a group/follower
     // session never gains a personal append from this screen.
@@ -342,6 +361,11 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
         const operation = new AbortController();
         await catalogue.enqueueSegments([queued], placement, {signal: operation.signal, isCurrent: () => current(captured) && ports.playback.getSnapshot().session?.role !== 'group_member'});
       }} : {}),
+      ...(ports.isTV && entry.kind === 'episode' && projection?.item.episode?.seasonId ? {goToSeason: () => {
+        const season = projection.item.episode!;
+        if (current(captured)) ports.title.navigate({id: season.seasonId!, kind: 'season', title: defaultI18n.t('title.season', {number: season.seasonNumber ?? 0}),
+          libraryId: entry.libraryId, ...(season.seasonNumber != null ? {seasonNumber: season.seasonNumber} : {}), ...(entry.show ? {show: entry.show} : {})});
+      }} : {}),
       ...(entry.kind === 'song' && entry.artist ? {goToArtist: () => {
         if (current(captured)) ports.title.navigate({id: entry.artist!.id, kind: 'artist', title: entry.artist!.name, ...(entry.libraryId ? {libraryId: entry.libraryId} : {})});
       }} : {}),
@@ -350,6 +374,18 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
         const operation = new AbortController();
         ports.playlistPicker!.open(entry.id, {signal: operation.signal, isCurrent: () => current(captured)});
       }} : {}),
+      ...(startOver ? {playFromStart: async () => {
+        const operation = new AbortController();
+        await ports.playback.start({entry, target: startOver, lifetime: {signal: operation.signal, isCurrent: () => current(captured)}});
+      }} : {}),
+      // The single-title actions of the shared menu. Each is offered only where this title's own
+      // Detail grants it; the owner's also need the viewer to be the owner (Home's rule, kept on TV: DESIGN/Q45).
+      ...(titleActions && has('rating') ? {rate: () => {if (current(captured)) titleActions.rate(entry, opening());}} : {}),
+      ...(titleActions && offer?.collection && has('add_to_collection') ? {addToCollection: () => {if (current(captured)) titleActions.addToCollection(entry, opening());}} : {}),
+      ...(titleActions && !ports.isTV && ports.title.download && offer?.download ? {download: () => {if (current(captured)) titleActions.download(entry, opening());}} : {}),
+      ...(titleActions && ports.title.owner && offer?.edit && has('metadata_edit') ? {editMetadata: () => {if (current(captured)) titleActions.editMetadata(entry, opening());}} : {}),
+      ...(titleActions && ports.title.owner && offer?.refresh ? {refreshMetadata: async () => {if (current(captured)) await titleActions.refreshMetadata(entry, opening());}} : {}),
+      ...(titleActions && ports.title.owner && offer?.remove && has('delete') ? {deleteTitle: () => {if (current(captured)) titleActions.deleteTitle(entry, opening());}} : {}),
       mutate: async (intent: PersonalIntent) => {await detail!.mutate(intent);},
       ...(onTitle ? {} : {details: () => {if (current(captured)) ports.title.navigate(entry);}}),
       dispose: () => {detail?.dispose(); detail = undefined;},

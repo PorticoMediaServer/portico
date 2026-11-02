@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {routePath} from '../../../../../packages/contracts/src/routes';
 import {parseChannelGuide, type GuideRoute} from '../../../../../packages/client-core/src/channel-guide';
 import {legacyChannel, legacyChannelRow, legacyProgramme, legacyProgram} from '../../../../../packages/client-core/src/guide/legacy-source';
@@ -53,11 +54,11 @@ export class NativeTVLiveActions {
     return !this.disposed && this.opening === opening && !opening.controller.signal.aborted && opening.source.current()
       && opening.port.current() && nativeLiveWatchPort(this.context) === opening.port && !!programme
       && programme.id === opening.projected.id && programme.startMs === opening.projected.startMs && programme.endMs === opening.projected.endMs
-      && Date.now() >= programme.startMs && Date.now() < programme.endMs;
+      && serverNow() >= programme.startMs && serverNow() < programme.endMs;
   }
   private async read(opening: NonNullable<NativeTVLiveActions['opening']>, signal: AbortSignal) {
     if (!this.current(opening) || signal.aborted) throw retired();
-    const target = opening.source.target, options = opening.source.query, now = Date.now();
+    const target = opening.source.target, options = opening.source.query, now = serverNow();
     const route: GuideRoute = {kind: target.kind, sourceId: target.sourceId, timezone: options.timezone, search: options.search ?? '',
       start: new Date(now).toISOString(), end: new Date(now + 3 * 3600_000).toISOString(),
       ...(options.group ? {group: options.group} : {}), ...(options.favorites !== undefined ? {favorites: options.favorites} : {}), ...(options.includeHidden ? {includeHidden: true} : {})};

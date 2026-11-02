@@ -1,3 +1,4 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {HttpLocalApi, throwIfAborted} from '../../../../packages/client-core/src';
 import {currentUTCTimestamp} from '../../../../packages/client-core/src/local-session';
 import {routeBytes, routeOrigin} from '../../../../packages/client-core/src/route-identity';
@@ -45,7 +46,7 @@ export class NativeSetupApproval {
     await this.sourceCurrent(); this.assertOpening();
     const session = nativeAccounts.accountCredentials().getSnapshot().session;
     if (!this.account || session?.account.id !== this.account.id || session.familyId !== this.account.family
-      || Date.parse(this.expected.expiresAt) <= Date.now()) throw invalid();
+      || Date.parse(this.expected.expiresAt) <= serverNow()) throw invalid();
   }
   private async lookup(): Promise<Claim> {
     const session = await this.access();
@@ -54,11 +55,11 @@ export class NativeSetupApproval {
     const raw = await new HttpLocalApi(hostedUrl, session.accessToken, nativeNetworkFetch)
       .request(routePath('server_claim_lookup'), 'POST', {code: this.expected.code}, this.signal);
     await this.current();
-    const value = decodeServerClaimLookupResponse(raw), expected = this.expected, now = Date.now();
+    const value = decodeServerClaimLookupResponse(raw), expected = this.expected, now = serverNow();
     if (value.code !== expected.code || value.purpose !== 'setup' || value.ownerTransactionId !== undefined
       || value.setupTransactionId !== expected.transactionId || value.serverId !== expected.serverId
       || value.name !== expected.name || value.address !== expected.origin || routeOrigin(value.address) !== expected.origin
-      || !currentUTCTimestamp(value.requestedAt) || Date.parse(value.requestedAt) > now + 60_000
+      || !currentUTCTimestamp(value.requestedAt)
       || !currentUTCTimestamp(value.expiresAt) || Date.parse(value.expiresAt) !== Date.parse(expected.expiresAt)
       || Date.parse(value.expiresAt) <= now || Date.parse(value.expiresAt) <= Date.parse(value.requestedAt)
       || value.currentOwnerUsername !== undefined || value.previousOwnerRole !== undefined || value.otherPeopleCount !== undefined) throw invalid();

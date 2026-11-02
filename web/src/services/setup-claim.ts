@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {ApiError} from '@core/index.ts';
 import {currentUTCTimestamp} from '@core/local-session.ts';
 import {routeBytes, routeOrigin} from '@core/route-identity.ts';
@@ -32,7 +33,7 @@ function setupOrigin(value: string) {
   if (!setupAddressAllowed(value)) throw invalid();
   return value;
 }
-function fresh(review: Pick<HostedSetupClaimReview, 'expiresAt'>, now = Date.now()) {
+function fresh(review: Pick<HostedSetupClaimReview, 'expiresAt'>, now = serverNow()) {
   if (!currentUTCTimestamp(review.expiresAt) || Date.parse(review.expiresAt) <= now) throw unavailable();
 }
 function captureLink(value: HostedSetupClaimLink): HostedSetupClaimLink {
@@ -77,12 +78,12 @@ async function lookup(account: ServicesAccount, request: HostedSetupClaimLink, s
     signal.throwIfAborted();
     const raw = await account.api.send(routePath('server_claim_lookup'), 'POST', {code: request.code}, signal, session.accessToken);
     signal.throwIfAborted();
-    const claim = decodeServerClaimLookupResponse(raw), now = Date.now();
+    const claim = decodeServerClaimLookupResponse(raw), now = serverNow(account.api.origin);
     if (claim.code !== request.code || claim.transitionMode !== undefined || claim.purpose !== 'setup' || claim.ownerTransactionId !== undefined || !claim.setupTransactionId || !identifier(claim.setupTransactionId) ||
         claim.status !== 'pending' && claim.status !== 'approved' || claim.name !== request.nameHint || !claim.name ||
         new TextEncoder().encode(claim.name).length > 120 || !claim.serverId.startsWith('srv_') ||
-        !currentUTCTimestamp(claim.requestedAt) || Date.parse(claim.requestedAt) > now + 60000 ||
-        !currentUTCTimestamp(claim.expiresAt) || Date.parse(claim.expiresAt) - now > SETUP_CLAIM_LIFETIME_MS ||
+        !currentUTCTimestamp(claim.requestedAt) ||
+        !currentUTCTimestamp(claim.expiresAt) || Date.parse(claim.expiresAt) - Date.parse(claim.requestedAt) > SETUP_CLAIM_LIFETIME_MS ||
         Date.parse(claim.expiresAt) <= Date.parse(claim.requestedAt) || claim.currentOwnerUsername !== undefined || claim.previousOwnerRole !== undefined) throw invalid();
     routeBytes(claim.serverId.slice(4), 32);
     setupOrigin(claim.address);

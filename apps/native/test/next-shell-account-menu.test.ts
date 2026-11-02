@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {DirectSnapshot} from '../../../packages/client-core/src/profile-management';
-import {nativeAccountMenu, nativeMenuRouteAvailable} from '../src-next/shell/account';
+import {nativeAccountMenu, nativeAccountOpenTransition, nativeMenuRouteAvailable} from '../src-next/shell/account';
 import {nativeShellRoutes} from '../src-next/shell/route-registry';
 
 const profile = {id: 'profile', name: 'Demo', primary: true, position: 0, art: 'blue' as const, revision: 1, pinRevision: 1, pinRequired: false};
@@ -49,4 +49,36 @@ test('TV Server settings has its own registered route and preserves the phone Da
       assert.equal(nativeAccountMenu({...account, account: {...account.account, role: 'member'}}, () => {}, true, nativeMenuRouteAvailable).serverAction, undefined);
     } finally {offSettings();}
   } finally {offDashboard();}
+});
+
+// W-9 (the audiobook player over Switch profile): an account destination opened while the TV music or
+// audiobook player is expanded folds it away first, so the page opens on top and holds focus.
+test('W-9: an account destination folds an expanded TV music or audiobook player away first, never video', () => {
+  const fence = {sessionId: 'session'} as never;
+  const dock = {collapse: (value: unknown) => ({kind: 'collapse', fence: value}), close: () => assert.fail('never closes')} as never;
+  const snapshot = (kind: string, expanded = true) => ({fence, dock: {local: {kind, expanded}}}) as never;
+  for (const kind of ['music', 'audiobook']) assert.deepEqual(nativeAccountOpenTransition(dock, snapshot(kind), true), {kind: 'collapse', fence}, kind);
+  for (const kind of ['video', 'live']) assert.equal(nativeAccountOpenTransition(dock, snapshot(kind), true), undefined, `${kind} keeps its own Back`);
+  assert.equal(nativeAccountOpenTransition(dock, snapshot('audiobook', false), true), undefined, 'a docked player stays docked');
+  assert.equal(nativeAccountOpenTransition(dock, snapshot('audiobook'), false), undefined, 'phones keep their own dock');
+  assert.equal(nativeAccountOpenTransition(dock, {fence: undefined, dock: {local: {kind: 'music', expanded: true}}} as never, true), undefined);
+});
+
+test('Forget remembered profile is the last avatar-menu action, offered only when this device remembers the open profile', () => {
+  const forgotten: string[] = [];
+  const forget = () => {forgotten.push('forget');};
+  for (const tv of [false, true]) {
+    const plain = nativeAccountMenu(account, () => {}, tv, () => true);
+    assert.ok(!plain.actions.some(action => action.id === 'forget-remembered'), `not offered when nothing is remembered (${tv ? 'TV' : 'phone and tablet'})`);
+    const remembered = nativeAccountMenu(account, () => {}, tv, () => true, forget);
+    assert.deepEqual(remembered.actions.slice(0, -1).map(action => action.id), plain.actions.map(action => action.id), 'the other actions are untouched');
+    const action = remembered.actions.at(-1)!;
+    assert.equal(action.id, 'forget-remembered');
+    assert.equal(action.label, 'Forget remembered profile');
+    assert.equal(action.icon, 'i-x', 'the mock-up draws the cross');
+    assert.equal(action.onPress, forget, 'it presses the device\'s own Forget');
+  }
+  assert.deepEqual(forgotten, []);
+  // It is not a route, so a screen that is not registered never hides it.
+  assert.deepEqual(nativeAccountMenu(account, () => {}, false, () => false, forget).actions.map(action => action.id), ['forget-remembered']);
 });

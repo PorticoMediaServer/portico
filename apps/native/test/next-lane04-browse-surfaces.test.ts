@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {hooks, screenModule, stackSlotFixture} from './helpers/screen-harness.mjs';
 import * as seeAllModel from '../src-next/screens/home/see-all-model.ts';
+import {nativeWatchMenuGroups} from '../src-next/screens/watch/menu-model.ts';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 const flat = (style: any): any => Array.isArray(style) ? Object.assign({}, ...style.map(flat)) : style ?? {};
@@ -99,7 +100,7 @@ test('phone See all composes the drawn header, separate controls and three-colum
 
 test('phone Notifications uses the shared transparent sheet while tablet retains its route surface', async () => {
   const h = host(); let phone = true;
-  const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {
+  const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./notification-route': await import('../src-next/screens/notifications/notification-route.ts'), 
     react: h.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34})}, '../../../../../packages/i18n/src': {defaultI18n: {}},
     '../../../../../packages/client-core/src/notifications': {}, '../../kit/controls': {Button: 'Button', Tabs: 'Tabs'}, '../../kit/Icon': {Icon: 'Icon'},
@@ -134,16 +135,18 @@ test('the shared touch entry menu composes offered Play, My List, playlist and r
     '../../../../../packages/client-core/src/presentation/kit-model/text': {}, '../../shell/model': {}, '../../kit/controls': {Button: 'Button', TextField: 'TextField'},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog', Menu: 'Menu'},
     '../../kit/overlays/Menu': {TouchMenuHeader: 'TouchMenuHeader'}, '../../kit/overlays/surface': {}, '../../kit/overlays/TVPanelMotion': {useTVPanelPresence: () => ({})},
+    '../../kit/overlays/title-menu': await screenModule(new URL('../src-next/kit/overlays/title-menu.ts', import.meta.url), {react: h.react, '../../../../../packages/i18n/src': {defaultI18n: {t}}}),
+    './menu-model': {nativeWatchMenuGroups},
     '../../kit/overlays/OverlayHost': {}, '../../kit/theme': {nativeType: type, useTheme: () => theme}, './VersionChooser': {}, './DiscTitlesSheet': {}, './FileInfoContent': {}, './file-info': {},
     '../../kit/overlays/SurfacePaintHost': {overlayPaintKey: () => 'opening', overlayPaintPermit: () => ({}), RetainedOverlay: 'RetainedOverlay'},
   });
   const render = () => nodes(h.render(() => NativeWatchOverlays({presenters, runtime: {artwork: () => undefined}, common: {}}))).find(node => node.type === 'Menu');
   const menu = render();
-  assert.deepEqual(menu.props.items.filter((item: any) => !item.separator).map((item: any) => item.id), ['play', 'watchlist', 'add-to-playlist', 'file-info', 'not-interested']);
-  for (const id of ['play', 'watchlist', 'add-to-playlist', 'not-interested']) menu.props.items.find((item: any) => item.id === id).onSelect();
+  assert.deepEqual(menu.props.items.filter((item: any) => !item.separator).map((item: any) => item.id), ['play', 'watchlist', 'addToPlaylist', 'file-info', 'not-interested']);
+  for (const id of ['play', 'watchlist', 'addToPlaylist', 'not-interested']) menu.props.items.find((item: any) => item.id === id).onSelect();
   assert.deepEqual(calls, ['play', 'watchlist', 'playlist', 'not-interested']);
   value.detail.actions[0].enabled = false; value.detail.actions[1].enabled = false; value.actions.extraActions = [];
-  assert.deepEqual(render().props.items.filter((item: any) => !item.separator).map((item: any) => item.id), ['add-to-playlist', 'file-info']);
+  assert.deepEqual(render().props.items.filter((item: any) => !item.separator).map((item: any) => item.id), ['addToPlaylist', 'file-info']);
 });
 
 test('the shared toast preserves an explicitly authored TV Undo without changing other TV notices', async () => {

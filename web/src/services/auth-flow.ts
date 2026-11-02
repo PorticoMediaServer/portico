@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {ApiError} from '@core/index.ts';
 import {CodedError} from '@core/server-messages.ts';
 import {AccountAttemptIds, MFARequiredError, type IdentityOptions, type IdentityProvider, type IdentityTransaction, type MFAChallenge, type Registration} from '@core/hosted-security.ts';
@@ -178,7 +179,7 @@ export class ServicesAuthFlow {
       const original = Object.freeze({...registration});
       const input = Object.freeze({code: code.trim(), ...(username !== undefined ? {username: username.trim().toLowerCase(), displayName: displayName?.trim()} : {})});
       const current = () => !this.disposed && !signal.aborted && this.state.mode === 'verify' && this.state.registration === registration;
-      if (username !== undefined && (!original.contactVerified || !(Date.parse(original.expiresAt) > Date.now()))) return;
+      if (username !== undefined && (!original.contactVerified || !(Date.parse(original.expiresAt) > serverNow()))) return;
       try {
         await this.account.service.authenticateIfSignedOut(inner => {
           if (!current()) throw new CodedError('account_changed', 'The registration changed.');
@@ -224,7 +225,7 @@ export class ServicesAuthFlow {
     const fresh = await this.account.client.transaction(undefined, signal);
     if (!current()) throw new CodedError('cancelled', 'The provider sign-in changed.');
     if (!fresh || fresh.transactionId !== original.transactionId || fresh.provider !== original.provider || fresh.mode !== 'login' || !fresh.needsUsername || !fresh.contactVerified
-      || !['onboarding', 'verified'].includes(fresh.status) || fresh.verifiedEmail !== original.verifiedEmail || fresh.expiresAt !== original.expiresAt || Date.parse(fresh.expiresAt) <= Date.now() || !fresh.onboardingToken) {
+      || !['onboarding', 'verified'].includes(fresh.status) || fresh.verifiedEmail !== original.verifiedEmail || fresh.expiresAt !== original.expiresAt || Date.parse(fresh.expiresAt) <= serverNow() || !fresh.onboardingToken) {
       this.transaction = undefined; this.providerRefresh = undefined;
       this.publish({mode: 'signin', provider: undefined, verifiedEmail: undefined, suggestedName: undefined});
       throw new CodedError('account_changed', 'The provider sign-in changed.');

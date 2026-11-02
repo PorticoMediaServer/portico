@@ -3,6 +3,9 @@
 import importlib.util
 from datetime import datetime, timezone
 import json
+import os
+import subprocess
+import sys
 import re
 from pathlib import Path
 import tempfile
@@ -33,6 +36,37 @@ def environment():
 
 
 class ColdToolchain(unittest.TestCase):
+    @unittest.skipUnless(os.environ.get('PORTICO_NETWORK_BUILD_TOOL_CONTROL') == '1', 'real hosted gh planner command')
+    def test_actual_gh_pagination_command_on_this_workflow_run(self):
+        rows = cold.artifact_pages(int(os.environ['GITHUB_RUN_ID']), per_page=1)
+        self.assertIsInstance(rows, list)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); artifacts = root / 'artifacts.json'; artifacts.write_text(json.dumps(rows))
+            subprocess.run([sys.executable, Path(cold.__file__), 'native-plan', '--target', 'all',
+                            '--build-result', 'failure', '--artifacts', artifacts, '--work', root / 'plan',
+                            '--github-output', root / 'outputs'], check=True, capture_output=True)
+            result = json.loads((root / 'plan/native-plan.json').read_text())
+            self.assertFalse(result['qualified']); self.assertFalse(result['release'])
+        print('Real gh artifact-pages fetch and native-plan CLI passed: ' + str(len(rows)) + ' artifacts on current run', flush=True)
+
+    def test_paginated_metadata_is_flattened_without_gh_jq(self):
+        pages = [{'artifacts': [{'id': 1}]}, {'artifacts': [{'id': 2}]}]
+        with patch.object(cold.subprocess, 'check_output', return_value=json.dumps(pages).encode()) as command:
+            self.assertEqual(cold.artifact_pages(123), [{'id': 1}, {'id': 2}])
+            self.assertIn('--paginate', command.call_args.args[0]); self.assertIn('--slurp', command.call_args.args[0])
+            self.assertNotIn('--jq', command.call_args.args[0])
+
+    def test_cohort_replays_keep_exact_pins_and_refuse_other_targets_runs(self):
+        now = datetime(2026, 11, 3, tzinfo=timezone.utc)
+        rows = cold.replay_matrix('all', 41395711567, now=now)['include']
+        self.assertEqual({r['target'] for r in rows}, {'windows-x64', 'linux-arm64'})
+        self.assertEqual(cold.cohort_replay_pin('windows-x64', 41395711567, now=now)['origin']['artifactId'], 13125824278)
+        self.assertEqual(cold.cohort_replay_pin('linux-x64', 41413306687, now=now)['origin']['artifactId'], 13131861750)
+        self.assertEqual([r['target'] for r in cold.replay_matrix('all', 41413306687, now=now)['include']], ['linux-x64'])
+        for target, run_id in (('macos-arm64', 41395711567), ('windows-x64', 1)):
+            with self.assertRaises(ValueError): cold.cohort_replay_pin(target, run_id, now=now)
+        with self.assertRaises(ValueError): cold.cohort_replay_pin('windows-x64', 41395711567, now=datetime(2026, 12, 1, tzinfo=timezone.utc))
+
     def test_development_native_retry_keeps_original_identity_and_expires(self):
         pin = cold.native_retry_pin('windows-x64', datetime(2026, 11, 2, tzinfo=timezone.utc))
         producer = dict(engineSourceSHA=pin['engineSourceSHA'], runId=41346289584,

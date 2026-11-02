@@ -192,6 +192,15 @@ func TestSessionFamilyHTTPLogoutRequestSafety(t *testing.T) {
 	if w.Code != 204 || w.Header().Get("Access-Control-Allow-Origin") != "http://127.0.0.1:11111" {
 		t.Fatal("allowed browser origin failed", w.Code)
 	}
+	// No client-clock requirements: a cross-origin page reads the server's Date to judge the
+	// server's expiries on the server's clock.
+	exposed := false
+	for _, name := range strings.Split(w.Header().Get("Access-Control-Expose-Headers"), ",") {
+		exposed = exposed || strings.EqualFold(strings.TrimSpace(name), "Date")
+	}
+	if !exposed {
+		t.Fatal("Date is not exposed to cross-origin pages")
+	}
 }
 func TestSessionFamilyHTTPLogoutContextAndFailureAreSafe(t *testing.T) {
 	d, session := logoutHTTPFixture(t)

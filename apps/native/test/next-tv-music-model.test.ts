@@ -376,7 +376,7 @@ test('the renderer keeps one page per exact route object and navigation revision
  let pickerRenders=0, pickerDisposals=0;
  const picker={render:(runtime:any)=>{pickerRenders++;return {type:'PickerOutlet',props:{runtime}};},dispose:()=>{pickerDisposals++;},openAlbum:()=>{}};
  await screenModule(new URL('../src-next/screens/destinations/music/register.tsx',import.meta.url),{
-  './selection': {createNativeMusicSelection: () => ({dispose() {}, render() {return null;}})}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'},
+  './selection': {createNativeMusicSelection: () => ({dispose() {}, render() {return null;}})}, '../../../kit/artwork': {missingArt: () => undefined, StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'},
   react:{default:React},'react-native':{Platform:{isTV:false}},
   '../../../shell/route-registry':{nativeShellRoutes:{registerRoute:(_kind:string,value:any)=>{factory=value;}}},
   '../lifetime':{nativeDestinationLifetime:()=>({scope:{serverId:'server',viewerId:'viewer'},current:()=>current})},
@@ -443,7 +443,7 @@ test('a non-TV album mounts its own picker outlet once beside the page',async()=
  }
  const picker={render:(runtime:any)=>{pickerRenders++;return {type:'PickerOutlet',props:{runtime}};},dispose:()=>{pickerDisposals++;},openAlbum:()=>{}};
  await screenModule(new URL('../src-next/screens/destinations/music/register.tsx',import.meta.url),{
-  './selection': {createNativeMusicSelection: () => ({dispose() {}, render() {return null;}})}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'},
+  './selection': {createNativeMusicSelection: () => ({dispose() {}, render() {return null;}})}, '../../../kit/artwork': {missingArt: () => undefined, StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'},
   react:{default:React},'react-native':{Platform:{isTV:false}},
   '../../../shell/route-registry':{nativeShellRoutes:{registerRoute:(_kind:string,value:any)=>{factory=value;}}},
   '../lifetime':{nativeDestinationLifetime:()=>({scope:{serverId:'server',viewerId:'viewer'},current:()=>true})},
@@ -578,7 +578,7 @@ async function phoneSurface(value:any,entry:any,tablet=false){
   '../../../../../../packages/i18n/src':{defaultI18n:{t:(key:string)=>key,number:String}},
   '../../../../../../packages/client-core/src/presentation/kit-model':{cardText:(e:any)=>({title:e.title,caption:[],detail:[]})},
   '../../../../../../packages/client-core/src/presentation/library-tabs':{artistReleaseGroups},
-  '../../../kit/artwork':{AmbientArt:'AmbientArt',Artwork:'Artwork',ArtistCircle:'ArtistCircle'},'../../../kit/controls':{Button:'Button',Chip:'Chip',Focusable:'Focusable'},
+  '../../../kit/artwork':{missingArt:()=>undefined,AmbientArt:'AmbientArt',Artwork:'Artwork',ArtistCircle:'ArtistCircle'},'../../../kit/controls':{Button:'Button',Chip:'Chip',Focusable:'Focusable'},
   '../../../kit/cards':{SquareCard:'SquareCard',CircleCard:'CircleCard'},'../../../kit/Icon':{Icon:'Icon'},'../../../kit/browse/presentation':{browseType:()=>({}),alpha:()=>''},
   '../../../kit/theme':{useTheme:()=>({platform:tablet?'tablet':'phone',colors:{}})},'./MusicErrorView':{MusicErrorView:'MusicErrorView'},'./MusicFormatBadges':{MusicFormatBadges:'MusicFormatBadges'},
   './MusicSectionControls':{MusicSectionControls:'MusicSectionControls',musicNearEnd:controls.musicNearEnd},
@@ -628,7 +628,7 @@ async function tvMusicScreens(){
   '../../../../../../packages/i18n/src':{defaultI18n:{t:(key:string,args?:unknown)=>args?`${key}:${JSON.stringify(args)}`:key,number:String}},
   '../../../../../../packages/client-core/src/presentation/kit-model':{cardText:(e:any)=>({title:e.title,caption:[],detail:[]})},
   '../../../../../../packages/client-core/src/presentation/library-tabs':{artistReleaseGroups},
-  '../../../kit/artwork':{AmbientArt:'AmbientArt',Artwork:'Artwork',ArtistCircle:'ArtistCircle'},'../../../kit/controls':{Button:'Button',Chip:'Chip',Focusable:'Focusable'},
+  '../../../kit/artwork':{missingArt:()=>undefined,AmbientArt:'AmbientArt',Artwork:'Artwork',ArtistCircle:'ArtistCircle'},'../../../kit/controls':{Button:'Button',Chip:'Chip',Focusable:'Focusable'},
   '../../../kit/cards':{SquareCard:'SquareCard'},'../../../kit/browse':{TrackRow:'TrackRow'},'../../../kit/browse/presentation':{browseType:()=>({})},
   '../../../kit/focus':{FocusItem:'FocusItem',FocusRegion:'FocusRegion'},'../../../kit/theme':{useTheme:()=>({colors:{}})},
   '../../../tv/layout/TVArtFocus':{TVArtFocus:'TVArtFocus'},'./MusicErrorView':{MusicErrorView:'MusicErrorView'},'./MusicFormatBadges':{MusicFormatBadges:'MusicFormatBadges'},

@@ -19,6 +19,7 @@ import {runScreenCommand, screenLifetime, type ScreenContext} from './context';
 import {calendarDate, entrySubject, instantDate} from './model';
 import {ScreenProblem} from './ScreenProblem';
 import {MusicEntryMenu} from './MusicEntryMenu';
+import {OwnerMetadataGroup} from './OwnerMetadataGroup';
 import {SimilarTitleRow, TitleRow} from './Detail';
 import type {ListeningSimilarRead} from '@core/relation-rows.ts';
 import type {ListeningViewerScope} from '@core/listening.ts';
@@ -173,6 +174,10 @@ export function AlbumScreen({context, libraryId, albumId, onBack}: AlbumScreenPr
       subtitle={t(recommendations.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')} binding={{context}}/>}
     {menu && <Menu open={menuCurrent()} onOpenChange={open => {if (!open) setMenu(undefined);}} anchorRef={menuAnchor} returnFocusRef={menuAnchor} title={menu.seed.title} placement="bottom-end">
       <MusicEntryMenu context={context} seed={menu.seed} signal={menu.page.life.signal()} current={menuCurrent}/>
+      <OwnerMetadataGroup separated={!!context.effects.playRadio} context={context} anchor={() => menu.anchor}
+        guard={() => {if (!menuCurrent()) throw new DOMException('Album page changed', 'AbortError');}}
+        target={menu.seed === album ? {entityKind: 'album', entityId: album.id, libraryId, title: album.title}
+          : menu.seed.kind === 'song' ? {libraryId, itemId: menu.seed.id, kind: 'song', title: menu.seed.title} : undefined}/>
     </Menu>}
   </div>;
 }

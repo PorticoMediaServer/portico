@@ -1,4 +1,5 @@
 import {routePath} from '../../../contracts/src/routes.ts';
+import {serverNow} from '../server-clock.ts';
 
 export type SecurityCounts = Readonly<{refusedConnections: number; failedSignIns: number; blockedSources: number; newRemoteDevices: number}>;
 /** One source the server refuses right now, as its /24 or /48 network; `id` is the unblock handle. */
@@ -81,7 +82,7 @@ export function securitySummaryLine(summary: SecuritySummary, words: Words): str
 }
 
 /** A blocked network's line: until when (the time alone when it's today), and the failed sign-ins behind it. */
-export function securityBlockLine(block: SecurityBlock, words: Words, now = Date.now()): string {
+export function securityBlockLine(block: SecurityBlock, words: Words, now = serverNow()): string {
   const until = new Date(block.blockedUntil), today = new Date(now);
   const sameDay = until.getFullYear() === today.getFullYear() && until.getMonth() === today.getMonth() && until.getDate() === today.getDate();
   return words.t(`${K}.children.0.until` as never, {time: sameDay ? words.time(block.blockedUntil) : words.dateTime(block.blockedUntil), count: block.failedAttempts});

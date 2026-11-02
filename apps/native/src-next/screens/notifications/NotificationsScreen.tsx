@@ -16,6 +16,7 @@ import {nativeMenuRouteAvailable} from '../../shell/account';
 import {sameAuthority, type ShellDestination} from '../../shell/model';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute} from '../../shell/routes';
+import {notificationRoute} from './notification-route';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {StandardBackdrop} from '../../kit/artwork';
 
@@ -173,26 +174,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
     ...(section.state.more ? [{kind: 'more' as const, key: `more:${section.id}`, section}] : []),
   ]);
 
-  const routeFor = (action: NotificationAction): NativeShellRoute | undefined => {
-    if (action.kind === 'command') return action.command === 'open-download' ? {kind: 'downloads'} : undefined;
-    const targetView = action.target?.view, libraryId = action.target?.libraryId, entityId = action.target?.entityId;
-    switch (targetView) {
-      case 'home': return {kind: 'shell', destination: {kind: 'home'}};
-      case 'library': return libraryId ? {kind: 'shell', destination: {kind: 'library', libraryId}} : undefined;
-      case 'live': return hasLiveTV ? {kind: 'shell', destination: {kind: 'live'}} : undefined;
-      case 'search': return {kind: 'shell', destination: {kind: 'search'}};
-      // Root33: a preparation-ready notice only points at the real Downloads
-      // surface. It never claims the file is on this device or locally playable.
-      case 'downloads': return {kind: 'downloads'};
-      case 'recordings':
-      case 'recording': return {kind: 'recordings'};
-      case 'admin-feedback': return {kind: 'server-feedback'};
-      case 'settings': return {kind: 'shell', destination: {kind: 'settings'}};
-      case 'person': return entityId ? {kind: 'person', personId: entityId} : undefined;
-      // A view this build has no real surface for stays out rather than guessing.
-      default: return undefined;
-    }
-  };
+  const routeFor = (action: NotificationAction) => notificationRoute(action, hasLiveTV);
   const routeAvailable = (targetRoute: NativeShellRoute) =>
     targetRoute.kind === 'shell' && targetRoute.destination.kind === 'home' ? true : nativeMenuRouteAvailable(targetRoute);
   const openAction = (notice: Notification, targetRoute: NativeShellRoute, viewAt: InboxView) => {

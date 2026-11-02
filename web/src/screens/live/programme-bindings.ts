@@ -1,3 +1,4 @@
+import {serverNow} from '@core/server-clock.ts';
 import {DVRClient, defaultRecordingOptions, draftRule, dvrMessage, seriesRuleConfig,
   type Recording, type RuleConfig} from '@core/dvr.ts';
 import {channelOperationId, saveChannelPreference, type GuideChannel, type GuideProgramme} from '@core/channel-guide.ts';
@@ -55,7 +56,7 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
   const rawChannel = legacyChannel(row), rawProgramme = programme ? legacyProgramme(programme) : undefined;
   const draft = rawChannel && rawProgramme ? Object.freeze({channel: rawChannel, programme: rawProgramme, series: false}) : undefined;
   const requestId = env.requestId ?? randomHex, operationId = env.operationId ?? (async () => channelOperationId(() => Promise.resolve(crypto.randomUUID())));
-  const now = env.now ?? Date.now;
+  const now = env.now ?? serverNow;
   const client = new DVRClient(life.api, context.scope.serverId, requestId);
   let closed = false, started = false, previewSerial = 0;
   let revision = rawChannel?.preferenceRevision ?? 0;

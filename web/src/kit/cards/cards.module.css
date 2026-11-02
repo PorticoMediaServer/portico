@@ -446,14 +446,28 @@
   .play, .more, .notInterestedPosition, .sessionActions { opacity:1; transform:none; }
   .card:has(.more) .watched { right:46px; }
 }
+/* A generated cover under the New badge starts its title below the badge, the badge taking the place of
+   its rule (W-1, as the native cover does). */
+.art:has(.newBadge) :global([data-cover-copy]) { padding-top:calc(8px + 22px + 7px); }
+.art:has(.newBadge) :global([data-cover-copy])::before { display:none; }
+@media (max-width:599px) { .cover .art:has(.newBadge) :global([data-cover-copy]) { padding-top:calc(6px + 20px + 6px); } }
 @media (pointer:coarse) {
   .play, .notInterested { min-width:44px; min-height:44px; }
+  /* FX-S2: the touch ⋯ sits in the top-right corner; a generated title starts below it at full width
+     (the rule stays at the top left, beside it), as the selection clearance does. */
+  .card:has(.more) :global([data-cover-copy]) { padding-top:max(12cqw, 36px); }
   /* J-28: on touch the ⋯ stays a small 28px glyph in the corner, so it doesn't crowd the poster; an invisible
      ring keeps the 44px touch target. */
   .more { width:28px; height:28px; top:4px; right:4px; }
   .more::after { content:''; position:absolute; inset:-8px; border-radius:50%; }
   .notInterestedPosition { right:60px; }
   .card:has(.more) .watched { right:60px; }
+}
+/* FX-S2: phone cards draw no Play over their art (phone-web.html Home rows, phone-read.html covers): a tap
+   opens the title, press and hold (or ⋯) its menu with Play, so the generated title is never covered.
+   Wide Continue cards keep their Play. */
+@media (pointer:coarse) and (max-width:599px) {
+  .poster .play, .square .play, .cover .play { display:none; }
 }
 @media (prefers-reduced-motion:reduce) {
   .primary, .artAligned, .art, .artAuxiliary, .play, .more, .selection, .live, .videoGenre, .musicGenre, .series, .resume, .readResume, .collectionTile, .collectionBackdrop, .sessionActions { transition:opacity 160ms linear; }

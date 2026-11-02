@@ -23,7 +23,7 @@ import {beginRestoreTrace, markRestore} from './restore-trace';
 import {noteHomeRead} from './home-read-log';
 import {trackNativeConnection} from '../platform/server-connections';
 import {NativeProfileGated, nativeProfileGated, type NativeConnected} from '../platform/session-lifecycle-native';
-import {nativeSessionLifecycle} from '../platform/native-session-lifecycle';
+import {nativeRememberedProfile, nativeSessionLifecycle} from '../platform/native-session-lifecycle';
 import {beginNativeInstallation} from '../platform/installation';
 import {NativeStopResultConsumer} from '../platform/native-stop-consumer';
 import {NativeUserMutationStore,retainNativeUserMutationSelection} from '../platform/user-mutations';
@@ -60,11 +60,21 @@ import {homeActionDiagnostics} from '../platform/home-action-diagnostics';
 import {NativeReadOrder, NativeShellFreshness, nativeQueuedRefresh} from './freshness';
 import {retainNativeDownloadsDevice} from '../screens/downloads/device';
 
+export type NativeRememberedProfile = Readonly<{
+  /** True while this device opens the profile that is open now without asking. */
+  remembered: () => boolean;
+  subscribe: (listener: () => void) => () => void;
+  /** Clears this device's marker; the open profile stays open. Rejects when the marker could not be cleared. */
+  forget: () => Promise<void>;
+}>;
+
 export type NativeShellBootstrapContext = Readonly<{
   api: HttpLocalApi;
   home: HomeService;
   events: EventsClient;
   session: () => LocalSession | undefined;
+  /** This device's "Remember this profile on this device" choice for the profile open now (the avatar menu's Forget remembered profile). */
+  rememberedProfile?: NativeRememberedProfile;
   authority: () => ShellAuthority;
   subscribeAuthority: (listener: () => void) => () => void;
   preferences: () => PreferenceSnapshot;
@@ -81,7 +91,7 @@ export type NativeShellBootstrapContext = Readonly<{
   navigation: NativeShellNavigation;
 }>;
 /** Only the integrated family/action owners supply these implementations; never fallback no-ops. */
-export type NativeShellBindings = Pick<NativeShellRuntime, 'notice' | 'actions' | 'mixes' | 'musicDiscover' | 'listeningPlaylist' | 'listeningQueuePolicy' | 'listeningSongDetail' | 'selection' | 'setHomeWindow' | 'homeMenuRow' | 'renderSelection' | 'renderRoutes' | 'stacks' | 'renderWatch' | 'libraryMenu' | 'renderDestination' | 'renderHomeEmpty' | 'renderDownloads' | 'renderPendingChanges' | 'openServers' | 'connectionFacts' | 'error' | 'reportError' | 'onDestination' | 'scrollToTop' | 'registerScrollToTop' | 'registerTVPageBack' | 'registerTVRailBack' | 'onArtworkError' | 'castControl'> & {
+export type NativeShellBindings = Pick<NativeShellRuntime, 'notice' | 'actions' | 'mixes' | 'musicDiscover' | 'listeningPlaylist' | 'listeningQueuePolicy' | 'listeningSongDetail' | 'selection' | 'setHomeWindow' | 'homeMenuRow' | 'renderSelection' | 'renderRoutes' | 'stacks' | 'renderWatch' | 'libraryMenu' | 'renderDestination' | 'renderHomeEmpty' | 'renderDownloads' | 'renderPendingChanges' | 'openServers' | 'connectionFacts' | 'error' | 'reportError' | 'onDestination' | 'scrollToTop' | 'registerScrollToTop' | 'registerTVPageBack' | 'registerTVRouteBack' | 'registerTVRailBack' | 'onArtworkError' | 'castControl'> & {
   account: NativeShellSnapshot['account'];
   getState: () => Pick<NativeShellSnapshot, 'destination' | 'railDestination' | 'contentVisible' | 'selectionActive' | 'homeObscured' | 'homeVisible'>;
   attach: (runtime: NativeShellRuntime) => void;
@@ -309,7 +319,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     navigation = new NativeShellNavigation(authority, () => authority,
       (route, origin) => nativeReadRouteAllowed(route, libraries, Platform.isTV, origin), {tabStacks: !Platform.isTV});
     const readOrder = {libraries: new NativeReadOrder(), unread: new NativeReadOrder(), guide: new NativeReadOrder(), identity: new NativeReadOrder()};
-    const contextBase: Omit<NativeShellBootstrapContext, 'playback' | 'watch'> = {api: local, home: documentService, events, session: () => current() ? session : undefined, authority: () => authority,
+    const contextBase: Omit<NativeShellBootstrapContext, 'playback' | 'watch'> = {api: local, home: documentService, events, session: () => current() ? session : undefined, rememberedProfile: nativeRememberedProfile(() => current() ? session : undefined), authority: () => authority,
       subscribeAuthority: listener => {authorityListeners.add(listener); return () => {authorityListeners.delete(listener);};},
       preferences: currentPreferences, subscribePreferences: listener => {preferenceListeners.add(listener); return () => {preferenceListeners.delete(listener);};},
       appVersion: installed.appVersion, serverName: server.name, current,

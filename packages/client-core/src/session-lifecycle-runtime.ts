@@ -58,9 +58,10 @@ const pinRejection = (error: unknown) => error instanceof ApiError && (error.cod
 
 export class SessionLifecycle implements AuthoritySource {
   readonly actions: Readonly<{
-    pickProfile: UserAction<void, [profileId: string]>;
+    pickProfile: UserAction<void, [profileId: string, remember?: boolean]>;
     submitPin: UserAction<void, [pin: string, remember: boolean]>;
     unlockManagement: UserAction<void, [pin: string]>;
+    forgetRemembered: UserAction<void, []>;
     switchServer: UserAction<void, [server: HeldSignIn['server']]>;
     signOutServer: UserAction<void, [removeDownloads: boolean]>;
     signOutPorticoAccount: UserAction<void, []>;
@@ -86,8 +87,9 @@ export class SessionLifecycle implements AuthoritySource {
     const action = <A extends readonly unknown[]>(run: (signal: AbortSignal, ...args: A) => Promise<void>) =>
       createUserAction<void, A>({run: (context, ...args) => run(context.signal, ...args), scheduler: this.scheduler});
     this.actions = Object.freeze({
-      pickProfile: action<[string]>(async (signal, profileId) => this.command({type: 'profileTapped', profileId}, signal)),
+      pickProfile: action<[string, boolean?]>(async (signal, profileId, remember) => this.command({type: 'profileTapped', profileId, ...(remember ? {remember: true} : {})}, signal)),
       submitPin: action<[string, boolean]>(async (signal, pin, remember) => this.command({type: 'pinSubmitted', pin, remember}, signal)),
+      forgetRemembered: action<[]>(async signal => this.command({type: 'forgetRemembered'}, signal)),
       unlockManagement: action<[string]>(async (signal, pin) => this.command({type: 'unlockSubmitted', pin}, signal)),
       switchServer: action<[HeldSignIn['server']]>(async (signal, server) => this.command({type: 'switchServer', server}, signal)),
       signOutServer: action<[boolean]>(async (signal, removeDownloads) => this.command({type: 'signOutServer', removeDownloads}, signal)),
@@ -173,6 +175,15 @@ export class SessionLifecycle implements AuthoritySource {
     case 'fenceShell': releaseQuietly('lifecycle fence', () => p.fenceShell()); return;
     case 'drainRevocations': releaseQuietly('lifecycle drain', () => p.drainRevocations(effect.serverId)); return;
     case 'clearMarker': await p.clearMarker(effect.serverId).catch(error => releaseQuietly('lifecycle marker', () => {throw error;})); return;
+    case 'forgetMarker': {
+      try {await p.clearMarker(effect.serverId);}
+      catch (error) {
+        if (this.current(generation) && this.snapshot.pending) await this.dispatch({type: 'actionFailed'});
+        throw error;
+      }
+      if (this.current(generation)) await this.dispatch({type: 'markerForgotten'});
+      return;
+    }
     case 'readRecords': {
       let read: RecordsRead;
       // Only the port says records are lost (it looks twice first). Any other failure to read the saved

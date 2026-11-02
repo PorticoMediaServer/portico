@@ -11,8 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/PorticoMediaServer/portico/server/internal/catalog"
+	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/operations"
+	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/remotegate"
+	"path/filepath"
 )
 
 type gateRequest struct {
@@ -356,5 +360,87 @@ func TestRefusedConnectionsReachTheSecuritySummary(t *testing.T) {
 				t.Errorf("%s %s: %d, want %d", window.name, reason, window.got[reason], n)
 			}
 		}
+	}
+}
+
+// An unconfigured server has no remote gate: outside plain HTTP is answered (setup
+// then asks for the setup code). Setup completes, the policy is rebuilt, and the gate
+// refuses the same request.
+func TestNoRemoteGateBeforeSetup(t *testing.T) {
+	root := t.TempDir()
+	db, err := persistence.Open(filepath.Join(root, "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	id, err := identity.New(db, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	operations.WireSetupRemote(id)
+	gate := remotegate.New()
+	h := New(Dependencies{DB: db, Identity: id, Catalog: catalog.New(db), RemoteGate: gate})
+	if p := gate.Policy(); p == nil || !p.Unconfigured() {
+		t.Fatalf("an unconfigured server's gate: %+v", p)
+	}
+	outside := gateRequest{url: "http://203.0.113.5:32500/v1/server", remote: "203.0.113.9:42"}
+	if _, aborted := serveGated(t, h, outside); aborted {
+		t.Fatal("refused from outside before setup")
+	}
+	token, err := id.BrowserSetupToken(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest("POST", "http://127.0.0.1:32500/v1/setup", strings.NewReader(`{"requestId":"77777777-7777-4777-8777-777777777777","setupToken":"`+token+`","username":"owner","password":"A-long-local-password","name":"Den","authMode":"local","interactive":true,"remoteAccess":"on","remoteSecurity":"enhanced"}`))
+	r.RemoteAddr = "127.0.0.1:5000"
+	r.Header.Set("Origin", "http://127.0.0.1:32500")
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 201 {
+		t.Fatalf("local setup: %d %s", w.Code, w.Body)
+	}
+	if p := gate.Policy(); p == nil || p.Unconfigured() {
+		t.Fatal("the gate still answers everything after setup")
+	}
+	if _, aborted := serveGated(t, h, outside); !aborted {
+		t.Fatal("after setup, plain HTTP from outside must be refused in Enhanced")
+	}
+}
+
+// Fail closed: an owner made by a path that never reloads the connection policy (here
+// identity directly, standing in for any path that forgets) still closes the gate on the
+// very next request.
+func TestRemoteGateClosesOnSetupWithoutAReload(t *testing.T) {
+	root := t.TempDir()
+	db, err := persistence.Open(filepath.Join(root, "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	id, err := identity.New(db, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	operations.WireSetupRemote(id)
+	gate := remotegate.New()
+	h := New(Dependencies{DB: db, Identity: id, Catalog: catalog.New(db), RemoteGate: gate})
+	outside := gateRequest{url: "http://203.0.113.5:32500/v1/server", remote: "203.0.113.9:42"}
+	if _, aborted := serveGated(t, h, outside); aborted {
+		t.Fatal("refused from outside before setup")
+	}
+	before := gate.Policy()
+	token, err := id.BrowserSetupToken(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = id.Setup(token, "owner", "A-long-local-password", "Den"); err != nil {
+		t.Fatal(err)
+	}
+	if gate.Policy() != before {
+		t.Fatal("the policy was rebuilt: this test must show the gate closing without a reload")
+	}
+	if _, aborted := serveGated(t, h, outside); !aborted {
+		t.Fatal("after setup by a path that never reloads, plain HTTP from outside must still be refused")
 	}
 }

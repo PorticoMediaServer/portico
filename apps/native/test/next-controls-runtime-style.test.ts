@@ -60,7 +60,8 @@ async function mount(component: any, initial: Record<string, any>) {
     native() {const found = elements(tree).filter(node => node.type === 'Pressable'); assert.equal(found.length, 1); return found[0]!;}};
 }
 
-async function controls(isTV = false, reduce = false, interactive = true) {
+async function controls(isTV = false, reduce = false, interactive = true, covered = false) {
+  const paintState = {interactive};
   const PropsFilter = await installedFilter();
   const theme = createTheme({isTV, width: isTV ? 1920 : 390, reduceMotion: reduce});
   const motion = {transforms: !reduce, timing: () => ({duration: reduce ? 160 : 120})};
@@ -95,10 +96,10 @@ async function controls(isTV = false, reduce = false, interactive = true) {
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': {useTheme: () => theme}, './registry': await import('../src-next/kit/focus/registry.ts'),
   });
   const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {
-    '../overlays/OverlayPaintContext': {...liveOverlayPaint, useOverlayPaintMode: () => ({...liveOverlayPaint.useOverlayPaintMode(), interactive})},
+    '../overlays/OverlayPaintContext': {...liveOverlayPaint, useOverlayPaintMode: () => ({...liveOverlayPaint.useOverlayPaintMode(), interactive: paintState.interactive})},
     react, 'react-native': native, 'react-native-reanimated': animated, '@portico/design': {focusSpec},
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': {useTheme: () => theme}, '../useMotion': {useMotion: () => motion},
-    './control-model': controlModel, './useFocusedMenu': {useFocusedMenu}, '../focus': focusModule,
+    './control-model': controlModel, './useFocusedMenu': {useFocusedMenu}, '../focus': {...focusModule, useCovered: () => covered},
   });
   const {Button} = await screenModule(new URL('../src-next/kit/controls/Button.tsx', import.meta.url), {
     react, 'react-native': native, '@portico/design': {buttonSpec}, './Focusable': {Focusable},
@@ -111,7 +112,7 @@ async function controls(isTV = false, reduce = false, interactive = true) {
     '../platform/native-blur': {BlurView: 'BlurView', phoneTabBarRecipe: () => ({paddingX: 12, paddingTop: 9, gap: 3})},
     '../kit/controls': {Focusable}, '../kit/Icon': {Icon: 'Icon'}, '../kit/theme': {useTheme: () => theme}, './model': shellModel,
   });
-  return {Focusable, Button, PhoneTabBar, handles, timings, animatedInputs, theme};
+  return {Focusable, Button, PhoneTabBar, handles, timings, animatedInputs, theme, paintState};
 }
 
 test('installed Reanimated filtering preserves the original failure boundary for a direct style callback', async () => {
@@ -319,6 +320,42 @@ test('TV opt-in disabled choices retain their native stop and ring while every c
       assert.equal(menu(), false, 'an inert focused choice never owns a context action');
     } finally {await control.host.unmount();}
   }
+});
+
+test('W-9 (2eec0520): a control under a covered layer answers no OK and draws no ring, even with native focus left on it', async () => {
+  const {Focusable, handles} = await controls(true, false, true, true);
+  const command = () => {throw new Error('A covered control answered OK');};
+  const control = await mount(Focusable, {onPress: command, onLongPress: command, onLongPressAction: command, onAccessibilityAction: command});
+  try {
+    const node = control.native();
+    for (const key of ['onPress', 'onLongPress', 'onAccessibilityAction', 'onPressIn', 'onPressOut']) assert.equal(node.props[key], undefined, key);
+    await act(() => control.native().props.onFocus({}));
+    assert.equal(handles[1]!.read().opacity, 0, 'no ring is drawn on a control the user cannot see');
+  } finally {await control.host.unmount();}
+});
+
+test('W-9 (2eec0520, anime Play): a blur while the page is not interactive still clears the ring, so it never outlives native focus', async () => {
+  const {Focusable, handles, paintState} = await controls(true);
+  const control = await mount(Focusable, {onPress() {}});
+  try {
+    await act(() => control.native().props.onFocus({}));
+    assert.equal(handles[1]!.read().opacity, 1, 'focused: ring drawn');
+    paintState.interactive = false; await control.update?.({onPress() {}});
+    await act(() => control.native().props.onBlur({}));
+    paintState.interactive = true; await control.update?.({onPress() {}});
+    assert.equal(handles[1]!.read().opacity, 0, 'native focus left during a page transition: the ring is gone too');
+  } finally {await control.host.unmount();}
+});
+
+test('W-9 (2eec0520, search after a profile switch): the ring follows native focus that arrived during a page transition', async () => {
+  const {Focusable, handles, paintState} = await controls(true, false, false);
+  const control = await mount(Focusable, {onPress() {}});
+  try {
+    await act(() => control.native().props.onFocus({}));
+    assert.equal(handles[1]!.read().opacity, 0, 'while the page is arriving, no ring');
+    paintState.interactive = true; await control.update({onPress() {}});
+    assert.equal(handles[1]!.read().opacity, 1, 'live again: the ring is where native focus is');
+  } finally {await control.host.unmount();}
 });
 
 test('inert outgoing paint dominates TV focusableWhenDisabled and ignores retained native events', async () => {

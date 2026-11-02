@@ -182,8 +182,12 @@ class RebuildControls(unittest.TestCase):
             self.assertEqual(keys[0]['prefix'], keys[2]['prefix'])
             self.assertNotEqual(keys[0]['prefix'], keys[3]['prefix'])
             workflow = (ROOT / '.github/workflows/ffmpeg-toolchain.yml').read_text().split('  build:\n', 1)[1].split('  native-plan:\n', 1)[0]
-            for runtime_key in ('github.run_id', 'github.run_attempt', 'github.ref'):
+            for runtime_key in ('github.run_id', 'github.run_attempt'):
                 self.assertNotIn(runtime_key, workflow)
+            # Branch identity may gate main-only cache writes; it is never a key.
+            self.assertNotIn('uses: actions/cache/save', workflow)
+            self.assertNotIn('uses: actions/cache/restore', workflow)
+            self.assertIn('engine-cache-oci.py restore', workflow)
 
     def test_checkpoint_content_changes_only_with_completed_cache_data(self):
         transport = CI['module']('engine-dependency-cache')
@@ -212,6 +216,55 @@ class RebuildControls(unittest.TestCase):
         self.assertIn('timeout=300 * 60', (ROOT / 'scripts/ci-ffmpeg-toolchain.py').read_text())
         for path in (ROOT / '.github/workflows').glob('*.yml'):
             self.assertNotIn('macos-15-intel', path.read_text(), str(path))
+
+    @unittest.skipUnless(platform.system() == 'Linux' and os.environ.get('GITHUB_ACTIONS') == 'true',
+                         'root/runner ownership boundary is exercised on hosted Linux')
+    def test_linux_container_returns_root_private_checkpoints_on_success_and_failure(self):
+        self.assertNotEqual(os.getuid(), 0, 'the checkpoint reader must be the unprivileged runner')
+        transport = CI['module']('engine-dependency-cache')
+        builder = CI['module']('build-linux-ffmpeg-deps')
+        lock = json.loads((ROOT / 'third_party/ffmpeg/sources.lock.json').read_text())
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, PORTICO_ENGINE_BUILD_CONTEXT='development'):
+            root = Path(temporary)
+            try:
+                for status in (0, 23):
+                    case = root / str(status); case.mkdir()
+                    work = case / 'work'; work.mkdir()
+                    cache = case / 'cache'; cache.mkdir()
+                    recipe = case / 'recipe'; recipe.mkdir()
+                    with patch.dict(os.environ, PORTICO_ENGINE_STAGE_CACHE=str(cache)), patch.object(builder, 'run') as run:
+                        builder.container(recipe, work, dict(lock['linuxSourceBuild'], sourceDateEpoch=lock['sourceDateEpoch']), [], 2)
+                    self.assertIn(str(cache) + ':/portico-stage-cache', run.call_args.args)
+                    stage = cache / 'linux-native/stages' / ('a' * 64)
+                    # Same ownership/mode as root's tempfile.mkdtemp + rename
+                    # in PrefixCache.finish; no compiler or Docker job is run.
+                    subprocess.run(['sudo', '-n', 'python3', '-c',
+                        'from pathlib import Path; import sys; p=Path(sys.argv[1]); '
+                        'p.mkdir(parents=True, mode=0o700); '
+                        '(p/"index.json").write_text("{}"); '
+                        '(p/"payload").write_bytes(b"completed stage")', str(stage)], check=True)
+                    with self.assertRaises(PermissionError): transport.checkpoint(cache)
+                    # Execute the actual generated EXIT trap as root, just as
+                    # in Docker, substituting only the disposable work mount.
+                    script = (work / 'dependencies.sh').read_text().split('cd /recipe\n', 1)[0]
+                    script = script.replace('/portico', str(work)) + '\nexit ' + str(status) + '\n'
+                    result = subprocess.run(['sudo', '-n', 'env', 'PORTICO_ENGINE_STAGE_CACHE=' + str(cache),
+                                             'bash', '-c', script])
+                    self.assertEqual(result.returncode, status)
+                    self.assertTrue(transport.checkpoint(cache)['present'])
+                    self.assertEqual(stage.stat().st_uid, os.getuid())
+                    self.assertEqual(stage.stat().st_mode & 0o777, 0o700)
+                    self.assertEqual((stage / 'payload').read_bytes(), b'completed stage')
+            finally:
+                subprocess.run(['sudo', '-n', 'chown', '-hRP', str(os.getuid()) + ':' + str(os.getgid()), str(root)], check=True)
+        print('Root-private Linux stage checkpoints readable by runner after success and exit23; bytes/modes preserved', flush=True)
+
+    def test_constructed_product_upload_survives_cache_transport_failure(self):
+        workflow = (ROOT / '.github/workflows/ffmpeg-toolchain.yml').read_text().split('  build:\n', 1)[1].split('  native-plan:\n', 1)[0]
+        build = workflow.split('      - name: Build once from pinned source, retaining custody and cold timing\n', 1)[1]
+        self.assertTrue(build.startswith('        id: engine-build\n'))
+        upload = workflow.split('          name: engine-cold-${{ matrix.target }}-', 1)[0].rsplit('      - uses:', 1)[1]
+        self.assertIn("if: ${{ !cancelled() && steps.engine-build.outcome == 'success' }}", upload)
 
 
 if __name__ == '__main__': unittest.main()

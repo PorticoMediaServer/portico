@@ -125,6 +125,20 @@ test('state actions derive semantic host IDs and preserve explicit native IDs, c
   } finally {await view.host.unmount();}
 });
 
+test('J-30: phone faces are centred at any count, so a short last row never hugs the left edge', async () => {
+  for (const count of [2, 4]) {
+    const profiles = Array.from({length: count}, (_, index) => ({id: `p${index}`, name: `Profile ${index}`, initial: String.fromCharCode(65 + index)}));
+    const picker = await mount(ProfilePicker, {profiles, onSelect() {}, layout: 'phone'});
+    try {
+      const flat = (style: any): any => Array.isArray(style) ? Object.assign({}, ...style.map(flat)) : style ?? {};
+      const walk = (node: any): any[] => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(walk) : [node, ...walk(node.props?.children)];
+      const row = walk(picker.tree).find(node => flat(node.props?.style).flexWrap === 'wrap');
+      assert.ok(row, 'the phone faces wrap in rows');
+      assert.equal(flat(row.props.style).justifyContent, 'center', `${count} profiles: rows are centred`);
+    } finally {await picker.host.unmount();}
+  }
+});
+
 test('profile hosts keep entity identity through reorder and honor explicit caller overrides', async () => {
   const selected: string[] = [];
   const profiles = [{id: 'one', name: 'Same', initial: 'A'}, {id: 'two', name: 'Same', initial: 'B', unavailableReason: 'restricted'}];

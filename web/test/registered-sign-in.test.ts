@@ -155,8 +155,8 @@ test('a later prepare in the same tab atomically supersedes another controller b
   assert.equal(results[0].status, 'rejected'); assert.equal(results[1].status, 'fulfilled');
   assert.equal(f.exposed.length, 1); assert.ok(f.saved()?.expiresAt);
 });
-for (const createdAt of [undefined, null, NaN, Infinity, 'not-a-local-timestamp', Date.now() + 120000]) {
-  test('a corrupt or future local journal time is spent without any server exchange: ' + String(createdAt), async () => {
+for (const createdAt of [undefined, null, NaN, Infinity, 'not-a-local-timestamp']) {
+  test('a corrupt local journal time is spent without any server exchange: ' + String(createdAt), async () => {
     const f = await fixture(); await f.prepare();
     f.mutate(old => ({...old, pending: {...old.pending!, createdAt: createdAt as number}}));
     await assert.rejects(f.flow.finish(f.callback), {code: 'invalid_return'});
@@ -177,7 +177,7 @@ test('a signed prepare that expires during its final private write never yields 
 /** Same real Chromium trace: the signed prepare answered while this browser's
  * clock trailed the Server, so the producer's expiry sat more than one lifetime
  * past the browser-recorded createdAt and the callback refused a genuine return. */
-test('a Server clock slightly ahead still completes the one-use return inside the bounded skew', async () => {
+test('a Server clock slightly ahead still completes the one-use return', async () => {
   for (const skew of [1, 5_000, 60_000]) {
     const f = await fixture(); f.ahead(skew); await f.prepare();
     assert.equal(f.saved()?.expiresAt, new Date(f.saved()!.pending!.createdAt + 300_000 + skew).toISOString());
@@ -187,11 +187,11 @@ test('a Server clock slightly ahead still completes the one-use return inside th
     assert.equal(f.saved(), undefined, 'the journal is still spent once');
   }
 });
-test('one millisecond past the bounded skew is refused before any server exchange', async () => {
-  const f = await fixture(); f.ahead(60_001); await f.prepare();
-  await assert.rejects(f.flow.finish(f.callback), {code: 'invalid_return'});
-  assert.equal(f.calls.includes('connect'), false); assert.equal(f.calls.includes('exchange'), false);
-  assert.equal(f.saved(), undefined);
+test('No client-clock requirements: a Server clock a year ahead of this browser still completes the return once', async () => {
+  const f = await fixture(); f.ahead(365 * 86400000); await f.prepare();
+  await f.flow.finish(f.callback);
+  assert.equal(f.calls.filter(value => value === 'exchange').length, 1);
+  assert.equal(f.saved(), undefined, 'the journal is still spent once');
 });
 test('an expiry this browser already reached is refused inside the same bounded window', async t => {
   const f = await fixture(); f.ahead(5_000); await f.prepare();
