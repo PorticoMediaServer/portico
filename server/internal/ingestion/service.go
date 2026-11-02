@@ -67,6 +67,11 @@ type Service struct {
 	listingMu      sync.Mutex
 	listings       map[string]*scanListing
 	ignoreScopes   map[string]map[string]remoteIgnoreScope
+	// reuseMu guards what a scan remembers to spare helper processes
+	// (scan_reuse.go).
+	reuseMu  sync.Mutex
+	ready    map[string]readyProof
+	accepted map[acceptedKey]acceptedAnalysis
 }
 
 func New(db *sql.DB, c *catalog.Service, p assets.Probe) *Service {

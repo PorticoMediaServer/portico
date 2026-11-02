@@ -22,6 +22,9 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 	if source.Health == "root_changed" && !source.IdentityConfirmed {
 		return catalog.ErrSourceChanged
 	}
+	if s.readyStillProven(job, *source) {
+		return nil
+	}
 	var observed storage.Snapshot
 	var err error
 	remote := s.storage.IsRemote(source.ResolvedPath)
@@ -117,7 +120,13 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 	if _, e = tx.ExecContext(ctx, `UPDATE library_sources SET health=? WHERE id=? AND health!=?`, health, source.ID, health); e != nil {
 		return e
 	}
-	return gated2.Commit()
+	if e = gated2.Commit(); e != nil {
+		return e
+	}
+	if !remote && presence != scanPresenceChecking {
+		s.rememberReady(job, *source, health)
+	}
+	return nil
 }
 func (s *Service) inventoryPage(ctx context.Context, job string, source catalog.LibrarySource) error {
 	var relative string

@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -532,12 +533,25 @@ func (s *Service) analyzeOne(parent context.Context, job string, source catalog.
 	probe.ReadGuard = func(check context.Context, _ string) error {
 		return s.analysisAllowed(check, job, source.LibraryID, policy.Revision, "probe")
 	}
+	// The peak-bitrate pass reads every packet; only a policy that already
+	// reads whole files (a deep operation) pays for it.
+	probe.PacketPeak = deep
 	// One directory recheck is shared by every projection for this file, so a
 	// folder is observed once per analysis instead of once per consumer. The
 	// projections stay separate: each still answers only its own question, and
 	// none of them is an I/O grant.
 	listed, artworkListed, musicListed := s.analysisListings(ctx, job, source)
 	artworkObserved := true
+	// The media file's own read witness is taken once per analysis: the
+	// before and after stats bracket every read of it, and each read helper
+	// re-checks containment and the root identity itself. Sidecars are still
+	// observed afresh on every read.
+	var mediaWitnessMu sync.Mutex
+	var mediaWitness *storage.ScanReadWitness
+	if !before.Directory {
+		mediaWitness = &storage.ScanReadWitness{SourceID: source.ID, Root: source.ResolvedPath, RootIdentity: source.RootIdentity,
+			RelativePath: relative, FollowSymlinks: source.FollowSymlinks, Snapshot: before}
+	}
 	readContext := func(operation string) context.Context {
 		// The original media target is the invocation, not the observation of a
 		// separately inventoried NFO, cover or subtitle candidate read below.
@@ -565,6 +579,14 @@ func (s *Service) analyzeOne(parent context.Context, job string, source catalog.
 			if err != nil || !filepath.IsLocal(rel) {
 				return storage.ScanReadWitness{}, catalog.ErrAdminQuery
 			}
+			if candidate == path {
+				mediaWitnessMu.Lock()
+				witness := mediaWitness
+				mediaWitnessMu.Unlock()
+				if witness != nil && witness.RelativePath == rel {
+					return *witness, nil
+				}
+			}
 			r := storage.InventoryRequest{Root: source.ResolvedPath, RootIdentity: source.RootIdentity, RelativePath: rel, FollowSymlinks: source.FollowSymlinks}
 			var current storage.Snapshot
 			if s.storage != nil {
@@ -579,6 +601,26 @@ func (s *Service) analyzeOne(parent context.Context, job string, source catalog.
 				RelativePath: rel, FollowSymlinks: r.FollowSymlinks, Snapshot: current}, nil
 		}
 		return storage.WithScanReadWitness(rooted, s.storage, observe)
+	}
+	accepted := acceptedKey{job: job, object: object, revision: revision, policy: policy.Revision}
+	if !remoteDisc && !descriptor && !discRequested && !before.Directory {
+		// This exact observation was published already and is waiting for
+		// the derived worker: accept it again rather than probe the file again.
+		if a, ok := s.takeAccepted(accepted); ok {
+			receipt, err := s.catalog.AcceptInventoryAnalysis(ctx, job, object, revision, policy.Revision, a.facts)
+			if err != nil {
+				if infoPublicationDeferred(err) {
+					s.keepAccepted(accepted, a.facts, a.completed)
+					return nil
+				}
+				return s.analysisOutcome(parent, job, object, revision, queuedPolicy, true, "analysis_publication_failed")
+			}
+			if receipt.State != compactcatalog.InfoInputApplied {
+				s.keepAccepted(accepted, a.facts, a.completed)
+				return nil
+			}
+			return s.finishBasicAnalysis(parent, ctx, job, object, revision, queuedPolicy, policy, source, a.completed, descriptor, deep, a.facts.SubtitleTextPending)
+		}
 	}
 	if !remoteDisc && !descriptor && !discRequested && !before.Directory && basicNeeded {
 		evidence, e := s.localRefreshEvidence(ctx, source, object, revision, relative, analyzed, done, policy)
@@ -788,11 +830,17 @@ func (s *Service) analyzeOne(parent context.Context, job string, source catalog.
 	receipt, err := s.catalog.AcceptInventoryAnalysis(ctx, job, object, revision, policy.Revision, f)
 	if err != nil {
 		if infoPublicationDeferred(err) {
+			if !descriptor && !before.Directory {
+				s.keepAccepted(accepted, f, completed)
+			}
 			return nil
 		}
 		return s.analysisOutcome(parent, job, object, revision, queuedPolicy, true, "analysis_publication_failed")
 	}
 	if receipt.State != compactcatalog.InfoInputApplied {
+		if !descriptor && !before.Directory {
+			s.keepAccepted(accepted, f, completed)
+		}
 		return nil
 	}
 	return s.finishBasicAnalysis(parent, ctx, job, object, revision, queuedPolicy, policy, source, completed, descriptor, deep, f.SubtitleTextPending)
