@@ -28,7 +28,7 @@ const (
 	claimStatusStatement = `UPDATE jobs SET status='running' WHERE id=? AND status='queued'`
 	claimTurnStatement   = `UPDATE inventory_runs SET last_turn=? WHERE job_id=?`
 	claimReadStatement   = `SELECT r.source_id,j.status,r.phase FROM inventory_runs r JOIN jobs j ON j.id=r.job_id WHERE r.job_id=?`
-	healthStatement      = `UPDATE library_sources SET health='inventory_running' WHERE id=? AND health!='inventory_running'`
+	healthStatement      = `UPDATE library_sources SET health=? WHERE id=? AND health!=?`
 	phaseStatement       = `UPDATE inventory_runs SET pause_reason='',phase='basic_running' WHERE job_id=?`
 	fenceStatement       = `SELECT r.source_id FROM inventory_runs r JOIN jobs j ON j.id=r.job_id JOIN library_sources s`
 )
