@@ -134,7 +134,8 @@
   .barTrack { grid-column: 3; }
   .personRow > b { grid-column: 4; }
   .personRow > span:nth-of-type(3) { text-align: right; }
-  .shelf { display: flex; overflow-x: auto; padding-bottom: 16px; scroll-snap-type: x proximity; }
+  .shelf { display: flex; overflow-x: auto; padding-bottom: 16px; scroll-snap-type: x proximity; scrollbar-width: none; }
+  .shelf::-webkit-scrollbar { display: none; }
   .shelf li { flex: 0 0 46%; scroll-snap-align: start; }
   .alert { flex-wrap: wrap; gap: 8px; }
   .alert > b { flex-basis: 100%; }

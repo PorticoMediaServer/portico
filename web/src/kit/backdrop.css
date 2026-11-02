@@ -18,5 +18,7 @@
     --backdrop-glows-size: 100% 560px;
   }
 }
+/* body::before paints under the body's own background, so the body never has one (only html does). */
+html body { background: transparent; }
 body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; }
 body::before, .portico-backdrop { background-color: var(--color-ink); background-image: var(--backdrop-glows); background-size: var(--backdrop-glows-size); background-repeat: no-repeat; }

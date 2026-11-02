@@ -269,7 +269,7 @@ export function SavedHistory({bindings}: {bindings: SavedViewBindings}) {
   if (!sameSavedRoute(snapshot.route, bindings.route)) return null;
   const period = bindings.route.view === 'history' ? bindings.route.period ?? '30d' : '30d';
   const empty = snapshot.error && !snapshot.entries.length ? <StateView title={t('saved.historyLoadFailed')} primary={{id: 'retry', label: t('action.tryAgain'), onPress: () => { void service.retryRead(); }}} />
-    : !snapshot.loading && !snapshot.error && !snapshot.entries.length ? <StateView title={t('web.saved.empty.history')} body={t('web.saved.empty.historyBody')} /> : null;
+    : !snapshot.loading && !snapshot.error && !snapshot.entries.length ? <StateView variant="empty" icon="i-clock" title={t('web.saved.empty.history')} body={t('web.saved.empty.historyBody')} /> : null;
   return <>
     {wash.length ? <div className={styles.wash} aria-hidden="true"><AmbientArt sources={wash} treatment="library" height={640} /></div> : null}
     <div className={styles.toolbar}>

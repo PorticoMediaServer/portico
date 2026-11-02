@@ -168,7 +168,7 @@ export function StateLayout({backdrop = {kind: 'colour'}, variant = 'page', chro
   </div>;
 }
 
-export type StateViewProps = StateContentProps & Readonly<{variant?: 'inline' | 'scan' | 'search' | 'compact' | 'page'; className?: string; style?: CSSProperties}>;
+export type StateViewProps = StateContentProps & Readonly<{variant?: 'inline' | 'scan' | 'search' | 'compact' | 'page' | 'empty'; className?: string; style?: CSSProperties}>;
 export function StateView({variant = 'inline', className, style, ...content}: StateViewProps) {
   return <div className={[styles.inline, styles[variant], className].filter(Boolean).join(' ')} style={style} role={variant === 'scan' ? 'status' : undefined}>
     {variant === 'scan' && <div className={styles.ghosts} aria-hidden="true"><span/><span/><span/></div>}

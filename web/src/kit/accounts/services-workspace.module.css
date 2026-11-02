@@ -143,7 +143,8 @@
   .heading { margin: 4px 4px; }
   .heading h2 { font-size: 30px; letter-spacing: -.04em; }
   .heading > div, .lead { display: none; }
-  .phoneTabs { display: flex; gap: 24px; padding: 0 4px; margin-top: 12px; border-bottom: 1px solid var(--color-line); overflow-x: auto; }
+  .phoneTabs { display: flex; gap: 24px; padding: 0 4px; margin-top: 12px; border-bottom: 1px solid var(--color-line); overflow-x: auto; scrollbar-width: none; }
+  .phoneTabs::-webkit-scrollbar { display: none; }
   .phoneTabs button { border: 0; background: none; color: var(--color-text-secondary); font: inherit; font-size: 15.5px; font-weight: 700; padding: 12px 0 11px; white-space: nowrap; cursor: pointer; }
   .phoneTabs button[aria-current] { color: var(--color-text); border-bottom: 2px solid var(--color-accent); }
   .group { margin-top: 14px; }
