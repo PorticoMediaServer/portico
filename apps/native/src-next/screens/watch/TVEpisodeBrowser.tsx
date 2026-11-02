@@ -14,6 +14,7 @@ import type {ArtworkSource} from '../../kit/artwork';
 import {Menu, type MenuEntry} from '../../kit/overlays';
 import {browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
+import type {CardSelection} from '../../kit/cards';
 import type {NativeTitleEpisodeSnapshot} from './title-episode';
 
 export type TVEpisodeBrowserProps = Readonly<{
@@ -27,6 +28,8 @@ export type TVEpisodeBrowserProps = Readonly<{
   open: NativeTitleEpisodeSnapshot;
   text: TextEnvironment;
   artwork: (path: string | undefined) => ArtworkSource | undefined;
+  /** The card's own selection entry: the row draws its circle and the menu offers Select. */
+  selection?: (entry: ContentEntry) => CardSelection | undefined;
   more: (entry: ContentEntry, anchor: React.RefObject<View | null>) => void;
   onSeasonFocus: () => void;
   onEpisodeFocus: (entry: ContentEntry) => void;
@@ -124,6 +127,7 @@ export function TVEpisodeBrowser(props: TVEpisodeBrowserProps) {
           const upNext = nextUp?.id === entry.id;
           // tv-detail frames 5 to 8 draw one muted label under the title and the length as a badge on the still.
           return <TVTile entry={entry} title={entry.displayTitle ?? entry.title} label={model.caption} width={384}
+            selection={props.selection?.(entry)}
             length={entry.duration === undefined ? undefined : durationText(entry.duration, t)} status={upNext ? t('player.post.upNext') : undefined}
             watched={entry.watched} progress={model.progress} artwork={props.artwork(entry.stillUrl ?? props.show.backdropUrl)} backdropFallback={!entry.stillUrl} more={props.more}
             primaryAction="play" focusId={slot.focusId} onFocus={() => {slot.onFocus(); episodeFocus(entry);}} onBlur={slot.onBlur} onPlay={() => {if (rowLive.current) props.onPlayEpisode(entry);}}/>;

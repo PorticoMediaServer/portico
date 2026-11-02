@@ -74,6 +74,8 @@ export type NativeTitleScreenProps = Readonly<{
   menu?: Readonly<{subscribe: (listener: () => void) => () => void; getSnapshot: () => ContentEntry | undefined}>;
   /** Keep the actual selection port even while inactive for accessibility. */
   selection?: (entry: ContentEntry) => EpisodeTileProps['selection'];
+  /** The page's own selection bar while a card is selected (DESIGN: Select in every card's hold-OK menu). */
+  selectionBar?: ReactNode;
   /** The upright Watch page reuses the retained real title body. Its Play/Pause
    * controls the exact existing session; it never starts another queue. */
   watch?: Readonly<{source: NativePlaybackRuntimeSnapshot; width: number; playback: Pick<NativePlaybackAdapter, 'getSnapshot' | 'toggle'>;
@@ -508,9 +510,10 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   };
   const bodyNode = (
       <View onLayout={event => {bodyTop.current = event.nativeEvent.layout.y; restore(); alignTV();}} style={{paddingLeft: theme.isTV ? 200 : 20, paddingRight: theme.isTV ? 96 : 20, paddingTop: 20, paddingBottom: theme.isTV ? Math.max(60, viewport.height - 600) : 60, gap: 20}}>
+        {props.selectionBar}
         {(theme.isTV || selectedTab === 'episodes') && workspace && (theme.isTV ? cell('episodes', <TVEpisodeBrowser focus={regions.episodes} requestedSeasonId={snapshot.workspace?.phase === 'loading' ? snapshot.workspace.route?.selectedSeasonId : undefined} seasons={snapshot.seasons} selectedSeasonId={workspace.selected.seasonId ?? null}
           episodes={episodes} nextUp={workspace.nextUp} show={{title: workspace.show.title, overview: workspace.show.overview, backdropUrl: workspace.show.backdropUrl}}
-          open={openEpisode} text={text} artwork={props.artwork} more={props.more}
+          open={openEpisode} text={text} artwork={props.artwork} more={props.more} selection={props.selection}
           onSeasonFocus={() => controller.episode.close()} onEpisodeFocus={entry => controller.episode.open(entry)}
           onSelectSeason={id => {void controller.season(id).catch(props.reportError);}}
           onPlayEpisode={entry => {void controller.play(entry).catch(props.reportError);}}
