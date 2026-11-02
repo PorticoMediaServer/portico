@@ -17,6 +17,9 @@ import (
 )
 
 func (s *Service) readySource(ctx context.Context, job string, source *catalog.LibrarySource) error {
+	if source.Health == "root_changed" && !source.IdentityConfirmed {
+		return catalog.ErrSourceChanged
+	}
 	var observed storage.Snapshot
 	var err error
 	remote := s.storage.IsRemote(source.ResolvedPath)

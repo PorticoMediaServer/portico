@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,9 +19,10 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 )
 
-// A returning source owes exactly one walk, and that walk may only ever write
-// what it can prove: a file absent from a readable parent under the source's own
-// root identity. Everything else here is about the things that must never
+// A returning source owes one bounded walk. Local reconnects preserve catalogue
+// presence; a readable parent cannot distinguish a missing mount from removal.
+// Remote adapters retain their existing absence proof. These tests also pin
+// the things that must never
 // happen — a second walk, a mark made from stale evidence, and a walk that
 // competes with a scan.
 
@@ -170,7 +170,7 @@ func (f *verificationFixture) drain(max int) int {
 	return 0
 }
 
-func TestSourceVerificationMarksOnlyProvenAbsence(t *testing.T) {
+func TestSourceVerificationLocalReconnectAssumesPresent(t *testing.T) {
 	f := newVerificationFixture(t)
 	f.object("a1", "Movies/present.mkv", true)
 	f.object("a2", "Movies/gone.mkv", false)
@@ -183,18 +183,18 @@ func TestSourceVerificationMarksOnlyProvenAbsence(t *testing.T) {
 	if state, since := f.state("a1"); state != "available" || since != "" {
 		t.Fatalf("a file that is there was changed: %q %q", state, since)
 	}
-	if state, since := f.state("a2"); state != "missing" || since == "" {
-		t.Fatalf("a file proven absent was not marked: %q %q", state, since)
+	if state, since := f.state("a2"); state != "available" || since != "" {
+		t.Fatalf("a local reconnect published per-item absence: %q %q", state, since)
 	}
 	if state, _ := f.state("a3"); state != "available" {
 		t.Fatalf("a file under an unreadable parent was marked %q", state)
 	}
-	var kind, job string
-	if err := f.db.QueryRow(`SELECT kind,job_id FROM inventory_changes WHERE object_id='a2' ORDER BY sequence DESC LIMIT 1`).Scan(&kind, &job); err != nil {
+	var changes int
+	if err := f.db.QueryRow(`SELECT count(*) FROM inventory_changes WHERE object_id='a2' AND kind='missing'`).Scan(&changes); err != nil {
 		t.Fatal(err)
 	}
-	if kind != "missing" || !strings.HasPrefix(job, "source-verify:"+f.source+":") {
-		t.Fatalf("missing evidence is %q by %q", kind, job)
+	if changes != 0 {
+		t.Fatalf("local reconnect published %d missing observations", changes)
 	}
 	pending, started, after, fence, epoch := f.row()
 	if pending != 0 || started != 0 || after != "" || fence != "" || epoch == 0 {
@@ -411,8 +411,8 @@ func TestSourceVerificationResumesAfterReopen(t *testing.T) {
 		t.Fatalf("the resumed walk started at %q", after)
 	}
 	f.drain(8)
-	if state, _ := f.state("a2"); state != "missing" {
-		t.Fatalf("the resumed walk left the absent file %q", state)
+	if state, _ := f.state("a2"); state != "available" {
+		t.Fatalf("the resumed local walk changed per-item presence to %q", state)
 	}
 	if pending, _, _, _, _ := f.row(); pending != 0 {
 		t.Fatalf("the resumed walk did not close: pending=%d", pending)
@@ -549,9 +549,8 @@ func TestSourceVerificationLargeSourceMeasurement(t *testing.T) {
 	t.Logf("source verification: %d objects, %d quanta, %s wall (%.1fus/object, %.2fms/quantum), %dms maintenance writer hold (%.2f%% of wall)",
 		objects, turns, elapsed.Round(time.Millisecond), float64(elapsed.Microseconds())/float64(objects), float64(elapsed.Microseconds())/1000/float64(max(turns, 1)), held, share)
 
-	// The other half of the cost: files that really are gone, each one its own
-	// bounded maintenance transaction through the existing single-file writer. It
-	// runs on a second source so its numbers are not mixed with the read pass.
+	// Absent local files still owe bounded stat work, but reconnect never
+	// publishes per-item absence. Measure it independently on a second source.
 	gone := min(objects, 2000)
 	other, otherRoot := f.secondLibrary("shows")
 	if err := os.MkdirAll(filepath.Join(otherRoot, "gone"), 0o755); err != nil {
@@ -581,7 +580,7 @@ func TestSourceVerificationLargeSourceMeasurement(t *testing.T) {
 	if elapsed > 0 {
 		share = 100 * float64(held) / float64(elapsed.Milliseconds())
 	}
-	t.Logf("source verification, proven missing: %d files, %d quanta, %s wall (%.2fms/file), %dms maintenance writer hold (%.2f%% of wall)",
+	t.Logf("source verification, absent local files preserved: %d files, %d quanta, %s wall (%.2fms/file), %dms maintenance writer hold (%.2f%% of wall)",
 		gone, turns, elapsed.Round(time.Millisecond), float64(elapsed.Microseconds())/1000/float64(gone), held, share)
 	loaded := userStop()
 	if idle.err != nil || loaded.err != nil {

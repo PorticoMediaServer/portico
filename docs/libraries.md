@@ -168,6 +168,17 @@ neighbours. Consult scan history for skipped entries and inaccessible folders.
 
 ## Missing files and deleting
 
+Configured paths identify local library sources. Moving the database and media
+to another machine at the same paths does not require replacement confirmation
+or a content rescan. Portico checks catalogued files in bounded stat-only
+batches and retains their analysis. Device, inode and filesystem identifiers
+are observations of the current files, not permanent library identities.
+
+An empty or unmounted root is treated as offline: catalogue presence is retained
+and recovery resumes when the files return. A readable root containing different
+media, with the catalogued files absent, needs owner attention before it is
+accepted as a replacement. Nothing is deleted by that presence check.
+
 Titles and files are separate. A file disappearing leaves its title marked
 missing; a replacement can attach to that same title. An unreachable library
 root does not mark its contents missing. Missing-title cleanup is an owner
