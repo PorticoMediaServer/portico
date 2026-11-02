@@ -154,6 +154,10 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
   const remaining = duration(progress?.remainingMs === undefined ? undefined : progress.remainingMs / 1000);
   const primaryBook = !book ? rows?.entries.find(entry => entry.bookProgress && entry.available !== false && !entry.missing) : undefined;
   const canPlay = book ? page.listening?.actions.includes('play') && !page.listening.resumeUnavailable && (!!resume || !!files?.entries.some(entry => entry.playback)) : !!primaryBook;
+  // FX-P2 (J-23's rule): a book whose files can't be reached draws a disabled Play with the reason,
+  // never no Play at all; Start over is disabled with it.
+  const unplayable = !!book && !canPlay && (entity.available === false || !!entity.missing || !!page.listening?.resumeUnavailable
+    || !!files && !files.nextCursor && files.entries.length > 0 && !files.entries.some(entry => entry.playback && entry.available !== false && !entry.missing));
   const label = book ? resume ? progress?.chapter ? t('title.resumeChapter', {chapter: t('next.kit.chapter', {number: progress.chapter.index})}) : t('entry.resume') : t('entry.play') : t('next.browse.resume', {title: primaryBook?.title ?? ''});
   const cover = entity.posterUrl ?? rows?.entries[0]?.posterUrl;
   const leafMore = (entry: ContentEntry, anchor: HTMLElement) => {
@@ -195,7 +199,8 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
       </div>
     <div className={styles.actions}>
       {canPlay && <Button className={styles.primary} variant="primary" icon="i-play" onClick={() => run(() => binding.primary(page))}>{label}</Button>}
-      {book && page.listening?.actions.includes('play') && <Button variant="glass" onClick={() => run(() => binding.primary(page, true))}>{t('action.startOver')}</Button>}
+      {unplayable && <Button className={styles.primary} variant="primary" icon="i-play" disabled aria-describedby={`${entity.id}-unplayable`}>{t('entry.play')}</Button>}
+      {book && page.listening?.actions.includes('play') && <Button variant="glass" disabled={unplayable} onClick={() => run(() => binding.primary(page, true))}>{t('action.startOver')}</Button>}
       {book && finished !== undefined && <Button className={styles.round} icon="i-check" iconOnly disabled={busy !== undefined} aria-pressed={finished} aria-label={t(finished ? 'title.markNotFinished' : 'title.markFinished')} onClick={() => {
         const op = claim(page, 'finished'); if (!op) return;
         void binding.markFinished(page).then(value => {if (owns(op)) setFinished(value.watched);}, refuse(op)).finally(() => settle(op));
@@ -208,6 +213,7 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
       {!book && !author && primaryBook && <Button className={styles.round} icon="i-retry" iconOnly aria-label={t('action.startOver')} onClick={() => open(primaryBook)}/>}
       {!onMore && !phone && <AudiobookMore binding={binding} page={page} entry={entity} variant="glass"/>}
     </div>
+    {unplayable && <p id={`${entity.id}-unplayable`} className={styles.unplayable}>{t('title.fileUnavailable')}</p>}
     {book && remaining && <div className={styles.progress}>{ratio !== undefined && <span><i style={{width: `${Math.min(1, Math.max(0, ratio)) * 100}%`}}/></span>}{t('title.resumeRemaining', {remaining})}</div>}
       </div>
     </header>
