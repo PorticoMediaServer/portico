@@ -16,7 +16,8 @@ import {Artwork as Picture} from '../../kit/artwork';
 import type {ShellArtwork} from '../../shell/artwork';
 import {SongLyricsEditor} from './SongLyricsEditor';
 import {metadataDraftValue, patchMetadataDraft, type MetadataFieldDraft} from './draft-value';
-import {compactMetadataField, metadataTabCount, type MetadataTab as Tab} from './editor-presentation';
+import {compactMetadataField, generalMetadataFields, metadataFieldMeter, metadataFieldSource, metadataTabCount, wideMetadataField, type MetadataTab as Tab} from './editor-presentation';
+import {COMMON_LANGUAGES, languageName} from '@core/presentation/language-list.ts';
 
 const t = defaultI18n.t;
 type Api = Readonly<{request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<T>; requestMetadataUpload?: <T>(path: string, body: FormData, signal?: AbortSignal) => Promise<T>}>;
@@ -144,14 +145,15 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
       {shown === 'lyrics' ? <SongLyricsEditor api={api} scope={scope} target={target} repairData={data} isCurrent={currentRepairGrant}/> : null}
       {shown === 'history' ? <History data={data} busy={state.phase !== 'ready'} onUndo={historyId => void run({action: 'undo', historyId, confirm: true})}
         onAll={locked => void run({action: locked ? 'lock_all' : 'unlock_all', confirm: true})} /> : null}
-      {shown === 'general' || shown === 'tags' ? <footer className={styles.editorFooter}>
-        <span className={styles.pending} data-changed={!!changed.length || undefined}>{t(changed.length ? 'web.metadata.pendingCount' : 'web.metadata.noChanges', {count: changed.length})}</span>
-        <div className={styles.editorActions}><Button onClick={onClose}>{t('action.cancel')}</Button>
-          <Button variant="primary" loading={state.phase === 'saving'} disabled={!changed.length || invalid || state.phase !== 'ready'} onClick={save}>
-            {t('web.metadata.saveChanges')}</Button></div>
-      </footer> : null}
     </> : null}
     </TabsParts.Content>
+    {/* Frame 6: Save stays pinned under the scrolling fields. */}
+    {data && state.phase !== 'loading' && (shown === 'general' || shown === 'tags') ? <footer className={styles.editorFooter}>
+      <span className={styles.pending} data-changed={!!changed.length || undefined}>{t(changed.length ? 'web.metadata.pendingCount' : 'web.metadata.noChanges', {count: changed.length})}</span>
+      <div className={styles.editorActions}><Button onClick={onClose}>{t('action.cancel')}</Button>
+        <Button variant="primary" loading={state.phase === 'saving'} disabled={!changed.length || invalid || state.phase !== 'ready'} onClick={save}>
+          {t('web.metadata.saveChanges')}</Button></div>
+    </footer> : null}
   </aside></TabsParts.Root>;
 }
 
@@ -197,8 +199,23 @@ function enumChoiceLabel(spec: RepairFieldSpec, value: string): string {
 function input(spec: RepairFieldSpec, value: string, set: (value: string) => void, accessibility: Readonly<{'aria-labelledby': string; 'aria-describedby': string; 'aria-invalid': boolean}>) {
   if (spec.type === 'enum' && spec.allowed) return <select {...accessibility} value={value} onChange={event => set(event.currentTarget.value)}>
     {spec.allowed.map(choice => <option key={choice} value={choice}>{enumChoiceLabel(spec, choice)}</option>)}</select>;
-  if (spec.type === 'multiline') return <textarea {...accessibility} rows={4} value={value} onChange={event => set(event.currentTarget.value)} />;
-  return <input {...accessibility} type={spec.type === 'date' ? 'date' : 'text'} inputMode={spec.type === 'integer' || spec.type === 'number' ? 'numeric' : undefined} value={value} onChange={event => set(event.currentTarget.value)} />;
+  // Frame 6: the language is chosen by name. The server takes any valid language tag,
+  // so a value set elsewhere stays one of the choices.
+  if (spec.field === 'metadataLanguage') return <select {...accessibility} value={value} data-empty={!value || undefined} onChange={event => set(event.currentTarget.value)}>
+    <option value="">{t('web.metadata.notSet')}</option>
+    {[...new Set([...(value ? [value] : []), ...COMMON_LANGUAGES])].map(code => <option key={code} value={code}>{languageName(code, key => defaultI18n.has(key) ? t(key) : undefined, defaultI18n.locale)}</option>)}</select>;
+  if (spec.type === 'multiline') return <textarea {...accessibility} rows={4} value={value} placeholder={t('web.metadata.notSet')} onChange={event => set(event.currentTarget.value)} />;
+  return <input {...accessibility} type={spec.type === 'date' ? 'date' : 'text'} inputMode={spec.type === 'integer' || spec.type === 'number' ? 'numeric' : undefined} value={value} placeholder={t('web.metadata.notSet')} onChange={event => set(event.currentTarget.value)} />;
+}
+
+/** The server names most fields in words; a few still name a catalogue entry. */
+function fieldLabel(spec: RepairFieldSpec): string {
+  return defaultI18n.has(spec.label) ? t(spec.label) : spec.label;
+}
+
+function sourceWords(source: string | undefined): string {
+  const origin = metadataFieldSource(source);
+  return !origin ? '' : origin.kind === 'edited' ? t('web.metadata.editedHere') : origin.kind === 'library' ? t('web.metadata.fromLibrary') : t('web.metadata.fromSource', {source: providerName(origin.provider)});
 }
 
 function Field({spec, field, draft, set, requiredTitle = false}: {requiredTitle?: boolean; spec: RepairFieldSpec; field?: {value: string; automaticValue: string; locked: boolean; source: string; values?: readonly string[]}; draft?: {value: string; locked: boolean}; set: (patch: Partial<MetadataFieldDraft>) => void}) {
@@ -206,23 +223,28 @@ function Field({spec, field, draft, set, requiredTitle = false}: {requiredTitle?
   const value = draft?.value ?? field?.value ?? '', locked = draft?.locked ?? field?.locked ?? false, error = fieldError(spec, value, [], requiredTitle);
   const changed = draft !== undefined && (draft.value !== (field?.value ?? '') || draft.locked !== (field?.locked ?? false));
   const numeric = spec.type === 'integer' || spec.type === 'number';
-  const hint = numeric ? spec.min !== undefined && spec.max !== undefined ? t('web.metadata.numericBounds', {min: spec.min, max: spec.max}) : spec.min !== undefined ? t('web.metadata.numericMinimum', {min: spec.min}) : spec.max !== undefined ? t('web.metadata.numericMaximum', {max: spec.max}) : '' : spec.maxLength !== undefined ? t('web.metadata.characterCount', {count: Array.from(value).length, max: spec.maxLength}) : '';
-  const source = field?.source ? ['tmdb', 'tvdb', 'anilist', 'musicbrainz'].includes(field.source) ? providerName(field.source) : field.source : '';
-  return <label className={styles.field} data-wide={spec.type === 'multiline' || spec.field === 'tagline' || undefined} data-short={compactMetadataField(spec) || undefined} data-changed={changed || undefined}>
-    <span id={id + '-label'} className={styles.fieldLabel}>{t(spec.label as Parameters<typeof t>[0])}
+  const meter = metadataFieldMeter(spec);
+  const hint = meter === 'range' ? spec.min !== undefined && spec.max !== undefined ? t('web.metadata.numericBounds', {min: spec.min, max: spec.max}) : spec.min !== undefined ? t('web.metadata.numericMinimum', {min: spec.min}) : t('web.metadata.numericMaximum', {max: spec.max!}) : meter === 'count' ? t('web.metadata.characterCount', {count: Array.from(value).length, max: spec.maxLength!}) : '';
+  const origin = sourceWords(field?.source), label = fieldLabel(spec), from = metadataFieldSource(field?.source), provider = from?.kind === 'provider' ? from.provider : undefined;
+  // An empty field with no origin says what belongs there instead, where that needs saying.
+  const said = origin || (spec.field === 'edition' && !value ? t('web.metadata.editionHint') : '');
+  return <label className={styles.field} data-wide={wideMetadataField(spec) || undefined} data-short={compactMetadataField(spec) || undefined} data-changed={changed || undefined}>
+    <span id={id + '-label'} className={styles.fieldLabel}>{label}
       {changed ? <em>{t('web.metadata.editorChanged')}</em> : null}
     </span>
     <span className={styles.fieldControl} data-invalid={!!error || undefined}>{input(spec, value, next => set({value: next}), {'aria-labelledby': id + '-label', 'aria-describedby': id + '-hint' + (error ? ' ' + id + '-error' : ''), 'aria-invalid': Boolean(error)})}
-      <button type="button" className={styles.lock} aria-pressed={locked} title={t(locked ? 'web.metadata.lockedTip' : 'web.metadata.unlockedTip')} aria-label={t(locked ? 'web.metadata.unlockField' : 'web.metadata.lockField', {label: t(spec.label as Parameters<typeof t>[0])})} onClick={() => set({locked: !locked})}>{locked ? <Icon name="i-lock" size={16}/> : <UnlockIcon size={16}/>}</button>
+      <button type="button" className={styles.lock} aria-pressed={locked} title={t(locked ? 'web.metadata.lockedTip' : 'web.metadata.unlockedTip')} aria-label={t(locked ? 'web.metadata.unlockField' : 'web.metadata.lockField', {label})} onClick={() => set({locked: !locked})}>{locked ? <Icon name="i-lock" size={16}/> : <UnlockIcon size={16}/>}</button>
     </span>
     {error ? <small id={id + '-error'} className={styles.fieldError} role="alert"><Icon name="i-warn" size={16}/>{error}</small> : null}
-    <small id={id + '-hint'}>{field?.source === 'manual' ? t('web.metadata.editedHere') : source ? t('web.metadata.fromSource', {source}) : ''}{hint ? <span className={styles.fieldBounds}>{hint}</span> : null}</small>
-    {field && field.automaticValue !== value ? <small>{field.source !== 'manual' && source ? t('web.metadata.automaticValueFrom', {source, value: field.automaticValue}) : t('web.metadata.automaticValue', {value: field.automaticValue})}<button type="button" onClick={() => set({value: field.automaticValue})}>{t('web.metadata.useIt')}</button></small> : null}
+    <small id={id + '-hint'}>{said}{hint ? <span className={styles.fieldBounds}>{hint}</span> : null}</small>
+    {field && field.automaticValue && field.automaticValue !== value ? <small className={styles.automatic}>{provider ? t('web.metadata.automaticValueFrom', {source: providerName(provider), value: field.automaticValue}) : t('web.metadata.automaticValue', {value: field.automaticValue})}<button type="button" onClick={() => set({value: field.automaticValue})}>{t('web.metadata.useIt')}</button></small> : null}
   </label>;
 }
 
 function General({data, draft, set, requiredTitle}: {data: RepairData; draft: Draft; requiredTitle: boolean; set: (field: string, patch: Partial<MetadataFieldDraft>) => void}) {
-  return <div className={styles.generalFields}><p className={styles.lockHelp}>{t('web.metadata.editorLockHelp')}</p>{data.schema.filter(spec => spec.type !== 'list' && spec.group !== 'identity').map(spec =>
+  // Frame 6: the lock line carries the lock and names Unlock in bold.
+  const [before, after = ''] = t('web.metadata.editorLockHelp', {unlock: '\u0000'}).split('\u0000');
+  return <div className={styles.generalFields}><p className={styles.lockHelp}><Icon name="i-lock" size={16}/><span>{before}<b>{t('web.metadata.unlockWord')}</b>{after}</span></p>{generalMetadataFields(data.schema).map(spec =>
     <Field requiredTitle={requiredTitle} key={spec.field} spec={spec} field={data.snapshot.fields[spec.field]} draft={draft[spec.field]} set={patch => set(spec.field, patch)} />)}</div>;
 }
 

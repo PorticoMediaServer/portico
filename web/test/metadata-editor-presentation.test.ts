@@ -35,3 +35,30 @@ test('compact fields pair numbers and dates but keep titles, language and prose 
     assert.equal(compactMetadataField({field, type}), false, field);
   }
 });
+
+test('frame 6: a field says where its value came from the way an owner would', async () => {
+  const {metadataFieldSource} = await import('../src/screens/metadata/editor-presentation.ts');
+  assert.deepEqual(metadataFieldSource('provider:tmdb'), {kind: 'provider', provider: 'tmdb'});
+  assert.deepEqual(metadataFieldSource('tvdb'), {kind: 'provider', provider: 'tvdb'});
+  assert.deepEqual(metadataFieldSource('manual'), {kind: 'edited'});
+  assert.deepEqual(metadataFieldSource('scanner'), {kind: 'library'});
+  assert.equal(metadataFieldSource('automatic'), undefined, 'an empty value has no origin to name');
+  assert.equal(metadataFieldSource(''), undefined);
+});
+
+test('frame 6: only the description counts characters, numbers give their range', async () => {
+  const {metadataFieldMeter} = await import('../src/screens/metadata/editor-presentation.ts');
+  assert.equal(metadataFieldMeter({type: 'text', maxLength: 300}), undefined);
+  assert.equal(metadataFieldMeter({type: 'date', maxLength: 10}), undefined);
+  assert.equal(metadataFieldMeter({type: 'multiline', maxLength: 20000}), 'count');
+  assert.equal(metadataFieldMeter({type: 'integer', min: 0, max: 9999}), 'range');
+  assert.equal(metadataFieldMeter({type: 'integer'}), undefined);
+});
+
+test('frame 6: General draws names, then dates and ratings, then companies, with long text last', async () => {
+  const {generalMetadataFields} = await import('../src/screens/metadata/editor-presentation.ts');
+  const spec = (field: string, type = 'text', group = 'general') => ({field, type, group}) as never;
+  const server = [spec('title'), spec('sortTitle'), spec('metadataLanguage'), spec('originalTitle'), spec('edition'), spec('tagline', 'text', 'text'), spec('description', 'multiline', 'text'),
+    spec('year', 'integer', 'numbers'), spec('releaseDate', 'date'), spec('contentRating'), spec('studio'), spec('country'), spec('tags', 'list'), spec('provider', 'text', 'identity'), spec('episodeNumber', 'integer', 'numbers')];
+  assert.deepEqual(generalMetadataFields(server).map((row: {field: string}) => row.field), ['title', 'sortTitle', 'originalTitle', 'metadataLanguage', 'year', 'releaseDate', 'contentRating', 'edition', 'studio', 'country', 'episodeNumber', 'tagline', 'description']);
+});
