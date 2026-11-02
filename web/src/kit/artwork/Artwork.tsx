@@ -1,5 +1,6 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties} from 'react';
 import {observeArtwork, type ArtworkRead} from './source';
+import {artworkIdentityParts, type ArtworkIdentity} from './identity';
 import {createArtworkDecodeLifetime, createArtworkPaintLifetime, createArtworkVisualLifetime} from './decode-lifetime';
 import {createPaintAdmission} from './visual-admission';
 import {observeVisibleArtwork} from './visible-artwork';
@@ -12,35 +13,37 @@ export function artSize({width, height, style}: {width?: number | string; height
 }
 
 type ArtworkCallbacks = Pick<ArtworkProps, 'onReady' | 'onError' | 'onStatusChange'>;
-type OriginalArtwork = {id: number; live: boolean; scope: object; source: ArtworkSource; callbacks: ArtworkCallbacks; reportedStatus?: ArtworkStatus};
+type OriginalArtwork = {id: number; live: boolean; identity: ArtworkIdentity; source: ArtworkSource; callbacks: ArtworkCallbacks; reportedStatus?: ArtworkStatus};
 type MountedArtwork = ArtworkRead & {lease?: OriginalArtwork};
 let originalArtworkSequence = 0;
 function useArtwork(source: ArtworkSource | null | undefined, visible: boolean, callbacks: ArtworkCallbacks): MountedArtwork {
-  const scheduler = source?.scheduler, key = source?.key;
   // Runtime factories mint source wrappers during render. Their exact key and
   // retention owner, rather than a fresh equivalent closure, own this lease.
-  // Custom sources still retire when their retain callback changes.
-  const retention = source?.retainScope ?? source?.retain;
-  const order = source?.request?.order, priority = source?.request?.priority, group = source?.request?.group, large = source?.request?.large;
-  const scope = useMemo(() => ({scheduler, key, retention, visible, order, priority, group, large}), [scheduler, key, retention, visible, order, priority, group, large]);
-  const original = useRef<{scope: typeof scope; source: typeof source; callbacks: ArtworkCallbacks} | undefined>(undefined);
-  if (original.current?.scope !== scope) original.current = {scope, source, callbacks};
+  // Custom sources still retire when their retain callback changes. Paint order
+  // and batching hints are not identity: a card that moves keeps its picture.
+  const {scheduler, key, retention} = artworkIdentityParts(source);
+  const identity = useMemo<ArtworkIdentity>(() => ({scheduler, key, retention, visible}), [scheduler, key, retention, visible]);
+  const original = useRef<{identity: ArtworkIdentity; source: typeof source; callbacks: ArtworkCallbacks} | undefined>(undefined);
+  if (original.current?.identity !== identity) original.current = {identity, source, callbacks};
+  // The same picture keeps its lease; only the hints a later registration reads are refreshed.
+  else if (source) original.current.source = source;
   const owner = useRef<OriginalArtwork | undefined>(undefined);
   const [read, setRead] = useState<MountedArtwork>({status: 'empty'});
   useLayoutEffect(() => {
     const captured = original.current;
-    const {scheduler, key, visible, order, priority, group, large} = scope;
-    if (captured?.scope !== scope || !scheduler || !key || !visible || !captured.source) return;
+    const {scheduler, key, visible} = identity;
+    if (captured?.identity !== identity || !scheduler || !key || !visible || !captured.source) return;
     // Capture callbacks with this original request. Later props cannot lend a
     // replacement callback or cache fact to its pending delivery/decode work.
-    const lease: OriginalArtwork = {id: ++originalArtworkSequence, live: true, scope, source: captured.source, callbacks: captured.callbacks}; owner.current = lease;
+    const lease: OriginalArtwork = {id: ++originalArtworkSequence, live: true, identity, source: captured.source, callbacks: captured.callbacks}; owner.current = lease;
+    const {order, priority, group, large} = captured.source.request ?? {};
     const stop = observeArtwork({scheduler, key, retain: captured.source.retain, request: {order, priority, group, large}}, value => {
       if (lease.live && owner.current === lease) setRead({...value, lease});
     });
     return () => {lease.live = false; if (owner.current === lease) owner.current = undefined; stop();};
-  }, [scope]);
-  const value: MountedArtwork = visible && scheduler && key
-    ? read.lease?.live && read.lease.scope === scope && owner.current === read.lease ? read : {status: 'loading'}
+  }, [identity]);
+  const value: MountedArtwork = identity.visible && identity.scheduler && identity.key
+    ? read.lease?.live && read.lease.identity === identity && owner.current === read.lease ? read : {status: 'loading'}
     : {status: 'empty'};
   // Same resource lease as before, retired in layout before a successor paints.
   useLayoutEffect(() => value.image?.retain?.(), [value.image, value.lease]);
