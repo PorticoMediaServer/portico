@@ -467,18 +467,9 @@
       "ninja": "1.11.1.4",
       "setuptools": "75.8.0"
     },
-    "intelGmpPicPatch": {
-      "path": "third_party/ffmpeg/patches/homebridge-intel-gmp-pic.patch",
-      "sha256": "52c14a17152ddf06a1658468f5d1d7cee8e277fc56effaf6696b012470b86775",
-      "target": "macos-x64",
-      "requiredChecks": [
-        "gmp-make-check",
-        "nettle-pkcs1-conv-link"
-      ]
-    },
     "extrasLock": {
       "path": "third_party/ffmpeg/macos-extras.lock.json",
-      "sha256": "dcacd53fa1002640d3dee96d7ec0f334c403e93c6c6e2540987b1894b11df507"
+      "sha256": "016751986606cb6f6dbf4c5c4ab9d17e63ef95fdb3779f2d5c7227f4e4e30403"
     }
   },
   "requiredConfigure": [
@@ -523,7 +514,14 @@
       "x265",
       "zimg",
       "zvbi",
-      "rpath"
+      "rpath",
+      "libvorbis",
+      "libwebp",
+      "openmpt",
+      "chromaprint",
+      "srt",
+      "libtheora",
+      "portico-bzip2"
     ],
     "sourcePatches": [
       {
@@ -629,6 +627,16 @@
   },
   "nativeRustTools": {
     "path": "third_party/ffmpeg/native-rust-tools.lock.json",
-    "sha256": "6c0ed580147ac5f43ff5f3cb86132fe04d8bb9f589cb5607e605bfca00d8179f"
+    "sha256": "564fb630daad34c419f63ddaf23339a349f9a7431ec7aafba8f24b9828249691"
+  },
+  "bzip2": {
+    "version": "1.0.8",
+    "source": "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+    "sha256": "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+    "scope": "Static libbz2 for all BtbN targets; Mac uses selected SDK system libbz2"
+  },
+  "autodetectPolicy": {
+    "path": "third_party/ffmpeg/autodetect.v1.json",
+    "sha256": "515bd58e6ffd784a2110465b22a13d69f846b9b42141268382206c9cc974b02b"
   }
 }

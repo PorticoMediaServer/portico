@@ -1,4 +1,5 @@
 import {useLayoutEffect, useSyncExternalStore} from 'react';
+import {presentedInPlayer} from '../platform/playback/presented';
 import type {I18n} from '@i18n';
 import {presentError} from '@core/presentation/errors.ts';
 import {ToastHost, type ToastData} from '../kit/overlays';
@@ -14,7 +15,8 @@ export class ShellFeedback {
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private publish(value: ToastData | null) { this.value = value; for (const listener of this.listeners) listener(); }
   reportError = (error: unknown) => {
-    if (this.retired || !this.isCurrent()) return;
+    // A playback start the player already explains is not repeated as a toast (J-17).
+    if (this.retired || !this.isCurrent() || presentedInPlayer(error)) return;
     const presented = presentError(error, 'home', {operation: 'action', i18n: this.i18n});
     if (!presented.silent) this.publish({id: String(++this.serial), message: presented.body, icon: 'i-warn', tone: 'error'});
   };

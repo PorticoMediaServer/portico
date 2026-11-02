@@ -55,7 +55,7 @@ def run_command(argv, **kw):
     return p.stdout
 
 
-def generate(folder):
+def generate(folder, load_seconds=180):
     folder.mkdir()
     ffmpeg = shutil.which('ffmpeg')
     base = folder / 'base.mp4'
@@ -99,7 +99,8 @@ def generate(folder):
     video('Movies/Styled (2022).mkv', ['-i', str(ass), '-map', '0', '-map', '1', '-c', 'copy', '-c:s', 'ass'])
     video('Movies/Ten Bit (2023).mkv', ['-c:v', 'libx265', '-threads', '1', '-x265-params', 'pools=1:frame-threads=1:log-level=error', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p10le', '-c:a', 'aac', '-ac', '6'])
     load=folder/'Movies/Load (2025).mp4'
-    run_command([ffmpeg,'-hide_banner','-loglevel','error','-stream_loop','-1','-i',str(base),'-t','180','-vf','scale=1280:720','-c:v','libx264','-threads','1','-preset','ultrafast','-g','48','-c:a','copy',str(load)])
+    size = '1280:720' if load_seconds == 180 else '320:180'
+    run_command([ffmpeg,'-hide_banner','-loglevel','error','-stream_loop','-1','-i',str(base),'-t',str(load_seconds),'-vf',f'scale={size}','-c:v','libx264','-threads','1','-preset','ultrafast','-g','48','-c:a','copy',str(load)])
     for disc, track, title in [(1,1,'First'), (2,1,'Second')]:
         target = folder / f'Music/Example Artist/Example Album/Disc {disc}/{track:02d} {title}.flac'
         target.parent.mkdir(parents=True, exist_ok=True)

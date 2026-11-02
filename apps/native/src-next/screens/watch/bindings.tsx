@@ -1,7 +1,7 @@
 import React from 'react';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {nativeScreenError, nativeScreenServices} from '../native-screen-services';
+import {nativeScreenError, nativeScreenErrorPage, nativeScreenServices} from '../native-screen-services';
 import {NativeWatchPresenters} from './presenters';
 import {NativeWatchOverlays} from './WatchOverlays';
 import type {NativeWatchModuleBindings} from './module';
@@ -27,7 +27,7 @@ export function createNativeWatchBindings(context: NativeShellBootstrapContext):
       download: entry => {const request = nativeDownloadRequest(entry); if (request) askNativeDownload(request);},
       openCollection: collection => {const authority = context.authority();
         if (context.current()) context.navigation.open({kind: 'collection', libraryId: collection.libraryId, collectionId: collection.id, title: collection.name}, authority);},
-      renderError: nativeScreenError(common, 'detail'), reportError: (error: unknown) => common.reportError(error, 'detail'),
+      renderError: nativeScreenError(common, 'detail'), renderPageError: nativeScreenErrorPage(common, 'detail'), reportError: (error: unknown) => common.reportError(error, 'detail'),
       menu: {subscribe: presenters.subscribe, getSnapshot: presenters.getMenuEntry},
     },
     playlistPicker: playlist,

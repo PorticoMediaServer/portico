@@ -896,6 +896,8 @@ export const webMessages = {
   'web.player.error.updateRequired': 'Update the app to play on this server.',
   'web.player.error.conversionOff': 'This title has to be converted to play in this browser, and converting is turned off on this server or for your account. The server owner can change that.',
   'web.player.error.notAvailable': 'This title isn’t available any more. Its file may have been moved or removed.',
+  'web.player.error.notReady': 'Your server couldn’t get this title ready to play. Your place is saved. Try again in a moment.',
+  'web.player.error.versionGone': 'The version you chose isn’t available any more. Play the title again to use the one that is.',
   'web.player.error.streamLimit': 'Your account is already playing as many streams as it is allowed. Stop one and try again.',
   'web.player.error.report': 'Report a problem',
   'web.player.error.turnOnConverting': 'Turn on converting',

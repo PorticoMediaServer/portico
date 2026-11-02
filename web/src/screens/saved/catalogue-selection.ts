@@ -16,7 +16,7 @@ export function savedCatalogueEntry(entry: SavedEntry): ContentEntry | undefined
 /** Only current, server-projected catalogue members participate. Playlist
  * occurrence removal and resource administration keep their separate owners. */
 export function createSavedCatalogueSelection(context: ScreenContext, runtime: SavedRuntime, route: SavedScreenRoute,
-  principal: Omit<BrowseSelectionScope, 'viewId'>, metadataFence: () => string | undefined, isRouteCurrent: () => boolean, playback?: WebShellPlaybackRuntime) {
+  principal: Omit<BrowseSelectionScope, 'viewId'>, isRouteCurrent: () => boolean, playback?: WebShellPlaybackRuntime) {
   let previous: readonly ContentEntry[] = [], membershipEpoch = 0;
   const membership = (entries: readonly ContentEntry[]) => {
     if (entries.length !== previous.length || entries.some((entry, index) => entry !== previous[index])) {
@@ -51,7 +51,7 @@ export function createSavedCatalogueSelection(context: ScreenContext, runtime: S
       return {key: JSON.stringify([savedRouteKey(route), revision, states.map(state => [state.generation, state.pagination.cursor]), membership(entries)]), revision, entries: unique(entries)};
     },
   };
-  const selection = createCatalogueDocumentSelection(context, source, principal, metadataFence, playback);
+  const selection = createCatalogueDocumentSelection(context, source, principal, playback);
   return Object.assign(selection, {
     member: (entry: ContentEntry) => {
       const document = source.getSnapshot();

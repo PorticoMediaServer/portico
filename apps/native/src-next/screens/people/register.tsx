@@ -1,7 +1,9 @@
 import {useNativeStackHosted, useNativeStackPlacement} from '../../kit/navigation/stack-slot';
 import React, {useEffect, useState, useSyncExternalStore} from 'react';
 import {View, useWindowDimensions} from 'react-native';
-import {GridSkeleton, StateView} from '../../kit/states';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {GridSkeleton} from '../../kit/states';
+import {ScreenErrorPage} from '../native-screen-services';
 import {Focusable} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {useTheme} from '../../kit/theme';
@@ -83,7 +85,7 @@ export function createNativePersonRenderer(context: NativeShellBootstrapContext)
 }
 
 function PersonHost({entry, runtime, back}: {entry: Entry; runtime: NativeShellRuntime; back: () => void}) {
-  const theme = useTheme(), dimensions = useWindowDimensions();
+  const theme = useTheme(), dimensions = useWindowDimensions(), insets = useSafeAreaInsets();
   const place = useNativeStackPlacement(entry.route), stacked = useNativeStackHosted();
   const state = useSyncExternalStore(entry.source.subscribe, entry.source.getSnapshot);
   const active = useSyncExternalStore(entry.source.activation.subscribe, entry.source.activation.getSnapshot);
@@ -98,9 +100,10 @@ function PersonHost({entry, runtime, back}: {entry: Entry; runtime: NativeShellR
     style={{position: 'absolute', inset: 0, display: active.visible || stacked ? 'flex' : 'none'}}><StandardBackdrop/>
     {state.phase === 'ready' && state.page && entry.window && entry.actions && 'role' in state.group ? <PersonScreen focusScope={entry.focusScope} page={state.page} role={state.group.role} collection={entry.window.collection}
       runtime={runtime} actions={entry.actions} selection={entry.selection} onRole={role => {void entry.source.select({role});}} onBack={back}/>
-      : state.phase === 'error' ? <StateView variant="centered" {...runtime.error(state.error, () => {void entry.source.load();})}/>
+      // W-2 sweep: the full-page state, below Back and the status bar, as a title that couldn't load.
+      : state.phase === 'error' ? <ScreenErrorPage {...runtime.error(state.error, () => {void entry.source.load();})}/>
       : <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={dimensions.height} width={dimensions.width} totalCount={9} columns={3}/>}
-    {state.phase !== 'ready' && <Focusable testID="person-pending-back" accessibilityLabel={defaultI18n.t('action.back')} onPress={back} style={{position: 'absolute', top: 20, left: 16, width: 40, height: 40, justifyContent: 'center', alignItems: 'center'}}><Icon name="i-left" size={22} color={theme.colors.text}/></Focusable>}
+    {state.phase !== 'ready' && <Focusable testID="person-pending-back" accessibilityLabel={defaultI18n.t('action.back')} onPress={back} style={{position: 'absolute', top: insets.top + 8, left: 16, width: 40, height: 40, justifyContent: 'center', alignItems: 'center'}}><Icon name="i-left" size={22} color={theme.colors.text}/></Focusable>}
   </View>);
 }
 

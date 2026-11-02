@@ -31,12 +31,15 @@ export type WebPlaybackAuthority = V1Viewer & Readonly<{epoch: string | number; 
 export type WebPlaybackStart = Readonly<{entry: ContentEntry; target: NonNullable<ContentEntry['playback']>; origin?: Readonly<{kind: 'home-row'; rowId: string}>}>;
 export type WebPlaybackVersionStart = Readonly<{itemId: string; versionId: string; context: SelectionContext; signal: AbortSignal}>;
 /** O-159: the pressed card's own facts, so an accepted start is drawn at once (the starting dock). */
-export type WebPlaybackStartDisplay = Readonly<{subject: PlaybackSubject; posterUrl?: string}>;
+export type WebPlaybackStartDisplay = Readonly<{subject: PlaybackSubject; posterUrl?: string; /** The title's backdrop, for the starting player's picture. */ backdropUrl?: string}>;
 export type WebPlaybackScreenTarget = Readonly<{libraryId: string; itemId: string; startSeconds: number; versionId?: string; storedResume?: boolean; display?: WebPlaybackStartDisplay}>;
 /** A start with no drawable dock yet: drawn from its display facts with Stop only, never "playing". */
 export type WebPlaybackStarting = Readonly<{key: string; display: WebPlaybackStartDisplay; stop: () => void; /** The server reports why it isn't ready yet. */ waiting?: 'channel_source'}>;
-/** An accepted start that never became drawable by its deadline: stopped, with Try again. */
-export type WebPlaybackStartTimedOut = Readonly<{key: string; retry: () => Promise<void>; close: () => void}>;
+/** A start that ended before it could play: an accepted start that never became drawable by
+ * its deadline, or one refused before its session existed (the item, its options or the
+ * session request failed). Drawn inside the player with the reason (`code`, absent for the
+ * deadline), the title's picture (`display`), Try again and Back. */
+export type WebPlaybackStartTimedOut = Readonly<{key: string; retry: () => Promise<void>; close: () => void; code?: string; display?: WebPlaybackStartDisplay}>;
 export type WebPlaybackScreenLifetime = Readonly<{signal: AbortSignal; isCurrent(): boolean}>;
 export type WebPlaybackSettings = Readonly<{
   audiobookPreferences?: () => AudiobookPreferences;

@@ -57,7 +57,7 @@ function useSearchLease(context: ScreenContext | undefined, captured: ProtectedL
     const binding = createSearchBindings(original);
     const selection = createSearchSelection(original, binding.results,
       {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId},
-      () => assembly.viewerFence, runtime);
+      runtime);
     selection.start();
     // The reviewed screen may replay its passive cancellation after this
     // opening retires. It must not call a terminal service or revive a query.

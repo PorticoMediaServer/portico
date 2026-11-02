@@ -119,6 +119,7 @@ meson() { printf 'meson:%s;TMPDIR=%s\\n' "$*" "$TMPDIR"; return 23; }
     def test_only_selected_sources_download_and_failures_do_not_cancel_independent_sources(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as temp:
             root = Path(temp)
+            (root / 'download.sh').write_text('tar -I "xz -T1" -cpf "$TGT.tmp" .\n')
             source = root / '.cache/downloads'
             source.mkdir(parents=True)
             selected = ['good', 'bad', 'later']

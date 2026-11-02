@@ -42,6 +42,13 @@ const menuIcons: Record<EntryActionId, IconName> = {
   editMetadata: 'i-edit', refreshMetadata: 'i-refresh', separateArtist: 'i-link', delete: 'i-trash',
 };
 const errorText = (error: unknown) => error ? presentError(error, 'home', {operation: 'action'}).body : undefined;
+/** The selection editor's words: a selection that moved on under it (stale preview, whole selection no longer
+ * available) is said as such, with its own Try again, never as a page to refresh. */
+const editorErrorText = (error: unknown) => {
+  if (!error) return undefined;
+  const presented = presentError(error, 'home', {operation: 'action'});
+  return presented.category === 'changed' ? t('next.selection.editorChanged') : presented.body;
+};
 function run(source: SelectionRendererSource, action: () => void | Promise<unknown>) {
   runSelectionCommand(action, source.reportError);
 }
@@ -112,12 +119,12 @@ export function SelectionSurfaces({source}: {source: SelectionRendererSource}) {
       onDraftChange={draft => controller.setEditorDraft(editorCoreDraft(draft))}
       onSave={draft => run(source, async () => { controller.setEditorDraft(editorCoreDraft(draft)); await controller.saveEditor(); })}
       onRetry={(failedIds, draft) => run(source, () => controller.retryEditor(editorCoreDraft(draft), failedIds))}
-      targets={targets} result={editorResult ?? undefined} busy={editorBusy} error={errorText(editor.error)}
+      targets={targets} result={editorResult ?? undefined} busy={editorBusy} error={editorErrorText(editor.error)}
       ownerTag={<ServerAudienceTag audience={source.editorAudience} layout={width < 600 ? 'phone' : 'desktop'} />} /> : editor && <Dialog open
         onOpenChange={open => { if (!open && !editorBusy) controller.closeEditor(); }} title={t('next.home.editSelection')} returnFocusRef={source.anchor} placement="right" width={600}
         dismissOnOutsidePress={!editorBusy} dismissOnBack={!editorBusy}
         footer={editor.error && <Button onClick={() => run(source, () => retryEditorRead(controller, editor.phase))}>{t('next.states.tryAgain')}</Button>}>
-        <p role={editor.error ? 'alert' : 'status'}>{errorText(editor.error) ?? t('next.selection.checking')}</p>
+        <p role={editor.error ? 'alert' : 'status'}>{editorErrorText(editor.error) ?? t('next.selection.checking')}</p>
         {editorResult && <p role="status">{t('next.selection.bulkResult', {updated: editorResult.updated, failed: editorResult.failed})}</p>}
       </Dialog>}
     {deletion && deletion.phase !== 'uncertain' && <DeleteMediaDialog open onOpenChange={open => { if (!open && deletion.phase !== 'deleting') controller.closeDelete(); }} returnFocusRef={source.anchor}

@@ -33,7 +33,7 @@ test('actual assembly sends Back to topmost Home menu before player, then TV pag
   let back: () => boolean = () => false, expanded = false, pageCalls = 0, pageConsumes = true;
   const screenServices = await screenModule(new URL('../src-next/screens/native-screen-services.tsx', import.meta.url), {
     react: h.react, 'react-native': {NativeModules: {}}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})}, '../kit/dock/DockClearance': {useDockClearance: () => 0, feedbackBottomOffset: () => 0}, './screen-services': {NativeScreenServices},
-    '../kit/overlays': {ToastHost: 'Toast'}, '../kit/states': {StateView: 'State'},
+    '../kit/overlays': {ToastHost: 'Toast'}, '../kit/states': {StateView: 'State', StateLayout: 'StateLayout'}, '../kit/theme': {useTheme: () => ({isTV: false})},
   });
   const {createNativeShellBindings} = await screenModule(new URL('../src-next/shell/assembly.tsx', import.meta.url), {
     '../screens/library/selection-actions': {}, '../screens/downloads/request': {}, '../platform/offline-downloads': {}, './selection-display': {},
@@ -45,7 +45,7 @@ test('actual assembly sends Back to topmost Home menu before player, then TV pag
     '../../../../packages/client-core/src/home-selection': homeCapabilities,
     '../../../../packages/client-core/src/presentation/errors': {presentError: () => ({silent: true})},
     '../../../../packages/client-core/src/library-management': {}, '../../../../packages/client-core/src/presentation/home-spotlight': {},
-    '../platform/home-action-diagnostics': {homeActionDiagnostics}, '../platform/haptics': {}, '../kit/overlays': {ToastHost: 'Toast'}, '../kit/states': {StateView: 'State'}, '../kit/shell': {OwnerTag: 'Owner'},
+    '../platform/home-action-diagnostics': {homeActionDiagnostics}, '../platform/haptics': {}, '../kit/overlays': {ToastHost: 'Toast'}, '../kit/states': {StateView: 'State', StateLayout: 'StateLayout'}, '../kit/theme': {useTheme: () => ({isTV: false})}, '../kit/shell': {OwnerTag: 'Owner'},
     './HomeSelectionBars': {HomeSelectionBars: 'Bars'}, './HomeSelectionOverlays': {HomeSelectionOverlays: 'Overlays'}, './account': {nativeAccountMenu() {}, nativeMenuRouteAvailable: () => true}, './library-scan': {libraryScanReadiness: () => ({ok: true})}, '../screens/downloads/DownloadSheet': {NativeDownloadSheet: 'NativeDownloadSheet'},
     '../screens/home/HomeEmpty': {NativeHomeEmpty: 'NativeHomeEmpty'},
     './model': shellModel,
