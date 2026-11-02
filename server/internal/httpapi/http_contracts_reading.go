@@ -65,6 +65,7 @@ func registerReadingHTTPContracts(registry *apikit.Registry) error {
 	// Preparation inspects bounded source bytes, including paced Remote reads.
 	m.Lane, m.Admission = apikit.Media, laneMediaBody
 	m.BodyLimit = 4096
+	m.Errors = append(m.Errors, "reading_sessions_busy")
 	if err := apikit.RegisterHTTP[ReadingSessionRequest, ReadingSessionResponse](registry, m); err != nil {
 		return err
 	}

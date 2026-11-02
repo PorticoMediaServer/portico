@@ -95,6 +95,9 @@ func readingFailure(w http.ResponseWriter, err error) {
 		policyError(w, "invalid_request")
 	case errors.Is(err, reading.ErrLimit):
 		policyError(w, "body_too_large")
+	case errors.Is(err, reading.ErrSessionsBusy):
+		w.Header().Set("Retry-After", "2")
+		policyError(w, "reading_sessions_busy")
 	case errors.Is(err, storage.ErrBusy):
 		policyError(w, "request_in_progress")
 	default:
