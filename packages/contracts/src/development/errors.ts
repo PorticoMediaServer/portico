@@ -169,6 +169,12 @@ export const errors = [
     "retry": "never"
   },
   {
+    "code": "comic_archive_unsupported",
+    "status": 422,
+    "message": "This comic's archive type isn't supported.",
+    "retry": "never"
+  },
+  {
     "code": "confirmation_mismatch",
     "status": 409,
     "message": "Type the name exactly as shown to confirm.",
