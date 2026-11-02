@@ -406,10 +406,37 @@ func TestSupervisorDeferredAgeAndEveryUserClassKeepsPriority(t *testing.T) {
 	defer block()
 	h := newSupervisorHarness(t, g)
 	results := make(chan admissionResult, len(Classes()))
+	acquired := make(chan Class)
+	holds := map[Class]chan struct{}{}
+	var usersDone sync.WaitGroup
+	t.Cleanup(func() {
+		for _, hold := range holds {
+			close(hold)
+		}
+		usersDone.Wait()
+	})
 	users := 0
 	for _, class := range Classes() {
 		if !class.Background() {
-			queueTicket(t, g, class, "user", class.String(), closedChannel(), results)
+			hold := make(chan struct{})
+			holds[class] = hold
+			ctx, cancel := context.WithCancel(WithOwner(context.Background(), "user"))
+			t.Cleanup(cancel)
+			usersDone.Add(1)
+			go func(class Class) {
+				defer usersDone.Done()
+				release, err := g.Acquire(ctx, class)
+				if err == nil {
+					select {
+					case acquired <- class:
+					case <-ctx.Done():
+					}
+					<-hold
+					release()
+				}
+				results <- admissionResult{label: class.String(), err: err}
+			}(class)
+			waitForWaiters(t, g, users+1)
 			users++
 		}
 	}
@@ -431,6 +458,17 @@ func TestSupervisorDeferredAgeAndEveryUserClassKeepsPriority(t *testing.T) {
 	block()
 	for _, class := range Classes() {
 		if !class.Background() {
+			// Observe acquisition while this writer still holds the gate. A result
+			// sent after release can race the next writer's result on the channel.
+			select {
+			case got := <-acquired:
+				if got != class {
+					t.Fatalf("admitted %s, want %s", got, class)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatalf("%s did not acquire", class)
+			}
+			holds[class] <- struct{}{}
 			expectResult(t, results, class.String())
 		}
 	}
