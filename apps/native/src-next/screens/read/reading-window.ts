@@ -90,5 +90,8 @@ export class NativeReadingWindow<T> implements WindowedCollection<T> {
   retry = (): void => {this.failure = undefined; this.requested = undefined; this.changed(); this.ensureRange(0, this.last);};
   resident = (): {pages: number; items: number} => ({pages: Math.ceil(this.value.items.length / this.pageSize), items: this.value.items.length});
   residentItems = (): readonly T[] => this.value.items;
+  residentEntries = (): readonly Readonly<{index: number; item: T}>[] => this.value.items.map((item, index) => ({index, item}));
+  // This window is its owner's own live page (read() and subscribe): there is no separate generation to seed.
+  seed = (): void => {};
   dispose = (): void => {if (!this.disposed) {this.disposed = true; this.stop?.(); this.stop = undefined; this.listeners.clear();}};
 }
