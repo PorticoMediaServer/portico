@@ -16,11 +16,14 @@ export type ReadBookHeroProps = Readonly<{
   seriesCovers?: readonly ArtworkSource[];
   titleStyle?: 'standard' | 'long' | 'sparse';
   description?: string; opening?: Readonly<{label: string; text: string}>;
-  actions: ReactNode; under?: ReactNode;
+  actions: ReactNode;
+  /** The title's ⋯ menu: it belongs on the actions row, after My List and Mark as read, not beneath it (W-4). */
+  overflow?: ReactNode;
+  under?: ReactNode;
 }>;
 
 /** desktop-read 3/3c/5; phone-read 3/3c/12; tablet-read 2/2c. */
-export function ReadBookHero({title, author, series, facts, cover, seriesCovers, periodical = false, generatedFontScale, ambient, titleStyle, description, opening, actions, under}: ReadBookHeroProps) {
+export function ReadBookHero({title, author, series, facts, cover, seriesCovers, periodical = false, generatedFontScale, ambient, titleStyle, description, opening, actions, overflow, under}: ReadBookHeroProps) {
   const generated = <GeneratedCover title={title} author={author?.name} glyph={Array.from(title.trim())[0] ?? ''} tint={generatedCoverTint(title)} fontScale={generatedFontScale} />;
   const stack = seriesCovers?.slice(0, 3);
   return <div className={styles.heroRegion}>
@@ -39,7 +42,7 @@ export function ReadBookHero({title, author, series, facts, cover, seriesCovers,
         </div>}
         {description && <p className={styles.description}>{description}</p>}
         {!description && opening && <div className={styles.opening}><span>{opening.label}</span><p>{opening.text}</p></div>}
-        <div className={styles.actions}>{actions}</div>
+        <div className={styles.actions}>{actions}{overflow}</div>
         {under && <div className={styles.under}>{under}</div>}
       </div>
     </header>
