@@ -31,18 +31,18 @@ export const homeCopy = (compact: boolean): HomeCustomizeCopy => ({
   picked: (title, position, count) => t('next.home.layoutPicked', {title, position, count}), moveHint: t('next.home.layoutMoveHint'),
 });
 
-export function HomeCustomizeEntry({service, binding}: {service: HomeService; binding: HomeCustomizationBindings}) {
+export function HomeCustomizeEntry({service, binding, inline = false}: {service: HomeService; binding: HomeCustomizationBindings; /** Under the empty Home's message: no own margin or description. */ inline?: boolean}) {
   const copy = homeCopy(useShellWidth() < 600);
   const trigger = useRef<HTMLButtonElement>(null), active = useRef<HomeCustomization | undefined>(undefined);
   const [opened, setOpened] = useState<{controller: HomeCustomization; service: HomeService; binding: HomeCustomizationBindings}>();
   const close = () => {active.current?.dispose();active.current = undefined;setOpened(undefined);};
   useEffect(() => () => {active.current?.dispose();active.current = undefined;}, [service]);
-  return <div className={styles.entry}>
+  return <div className={inline ? `${styles.entry} ${styles.inline}` : styles.entry}>
     <Button ref={trigger} variant="glass" icon="i-sliders" onClick={() => {
       if (!binding.isCurrent() || active.current) return;
       const next = new HomeCustomization(service, binding);active.current = next;setOpened({controller: next, service, binding});void next.load();
     }}>{t('home.customize.action')}</Button>
-    <p>{copy.entryDescription}</p>
+    {!inline && <p>{copy.entryDescription}</p>}
     {opened && opened.service === service && opened.binding.isCurrent() && <HomeCustomizeDialog controller={opened.controller} createSavedViews={opened.binding.createSavedViews} isCurrent={opened.binding.isCurrent} copy={copy} onClose={close} returnFocusRef={trigger}/>}
   </div>;
 }

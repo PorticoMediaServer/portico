@@ -203,8 +203,11 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
       {rows.map((row, index) => <Fragment key={row.id}><HomeRowView focusScope={service} row={row} rowIndex={index} platform={platform} layout={layout} nowMs={nowMs} refreshLive={refreshLive} onMore={() => onMore(row.id)}
         artwork={artwork} effects={effects} selection={selection} time={time} appearance={appearance} reducedMotion={appearance?.reducedMotion ?? reducedMotion} />{index === mixesAfter && mixes}</Fragment>)}
       {mixesAfter < 0 && mixes}
-      {empty && <StateView variant="page" className={styles.emptyHome} icon="i-home" title={t('next.home.emptyTitle')} body={t('next.home.emptyBody')}/>}
-      {customization && <HomeCustomizeEntry service={service} binding={customization}/>}
+      {/* J-22 review: an empty Home is one block, icon, title, sentence and Customize Home right under it. */}
+      {empty ? <div className={styles.emptyHome}>
+        <StateView variant="page" className={styles.emptyState} icon="i-home" title={t('next.home.emptyTitle')} body={t('next.home.emptyBody')}/>
+        {customization && <HomeCustomizeEntry service={service} binding={customization} inline/>}
+      </div> : customization && <HomeCustomizeEntry service={service} binding={customization}/>}
     </div>
   </div>;
 }
