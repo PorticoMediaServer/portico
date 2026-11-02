@@ -7,7 +7,7 @@ import {LibraryContentService} from '../../../packages/client-core/src/library-c
 
 const entity = {id: 'book-1', libraryId: 'books', kind: 'book', title: 'The Martian', author: 'Andy Weir', narrators: ['R. C. Bray'],
   duration: 39200, count: 17, overview: 'A stranded astronaut.', bookProgress: {bookId: 'book-1', itemId: 'file-1', partPositionMs: 530000,
-    positionMs: 530000, durationMs: 1000000, remainingMs: 470000, chapter: {index: 6, title: 'Chapter 6', startMs: 500000, endMs: 560000}}};
+    positionMs: 530000, durationMs: 1000000, remainingMs: 470000, chapter: {index: 6, number: 7, title: 'Chapter 6', startMs: 500000, endMs: 560000}}};
 const chapters = [
   {id: 'file-1:1', libraryId: 'books', kind: 'chapter', title: 'Chapter 1', duration: 100, playback: {itemId: 'file-1', startSeconds: 0}},
   {id: 'file-1:6', libraryId: 'books', kind: 'chapter', title: 'Chapter 6', duration: 100, playback: {itemId: 'file-1', startSeconds: 500}},

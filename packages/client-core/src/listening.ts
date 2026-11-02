@@ -305,14 +305,14 @@ export function audiobookResumeRewind(pauseMs:number,rewindMs=0):number{if(![0,5
 
 /** Nested book times stay explicit integer milliseconds. They never pass through
  * the top-level legacy display-duration conversion. */
-export type BookProgress=Readonly<{bookId:string;itemId:string;partPositionMs:number;positionMs?:number;durationMs?:number;remainingMs?:number;chapter?:Readonly<{index:number;title:string;startMs:number;endMs:number}>}>;
+export type BookProgress=Readonly<{bookId:string;itemId:string;partPositionMs:number;positionMs?:number;durationMs?:number;remainingMs?:number;chapter?:Readonly<{index:number;/** 1-based place in the whole book ("Chapter N"); index counts within the part. */number:number;title:string;startMs:number;endMs:number}>}>;
 export function parseBookProgress(v:unknown):BookProgress{
  if(!object(v)||!id(v.bookId)||!id(v.itemId)||!counter(v.partPositionMs))bad();
  const out:{-readonly[K in keyof BookProgress]:BookProgress[K]}={bookId:v.bookId,itemId:v.itemId,partPositionMs:v.partPositionMs};
  for(const k of ['positionMs','durationMs','remainingMs'] as const){if(v[k]!==undefined){if(!counter(v[k]))bad();out[k]=v[k];}}
  if(out.remainingMs!==undefined&&(out.durationMs===undefined||out.positionMs===undefined||out.remainingMs!==Math.max(0,out.durationMs-out.positionMs)))bad();
  if(out.durationMs!==undefined&&out.positionMs!==undefined&&out.positionMs>out.durationMs)bad();
- if(v.chapter!==undefined){const c=v.chapter;if(!object(c)||!counter(c.index)||typeof c.title!=='string'||c.title.length>2048||/[\x00-\x1f\x7f]/.test(c.title)||!counter(c.startMs)||!counter(c.endMs)||c.endMs<=c.startMs||out.partPositionMs<c.startMs||out.partPositionMs>=c.endMs)bad();out.chapter=Object.freeze({index:c.index,title:c.title,startMs:c.startMs,endMs:c.endMs});}
+ if(v.chapter!==undefined){const c=v.chapter;if(!object(c)||!counter(c.index)||!Number.isSafeInteger(c.number)||(c.number as number)<1||typeof c.title!=='string'||c.title.length>2048||/[\x00-\x1f\x7f]/.test(c.title)||!counter(c.startMs)||!counter(c.endMs)||c.endMs<=c.startMs||out.partPositionMs<c.startMs||out.partPositionMs>=c.endMs)bad();out.chapter=Object.freeze({index:c.index,number:c.number as number,title:c.title,startMs:c.startMs,endMs:c.endMs});}
  return Object.freeze(out);
 }
 export type BookTimelinePart=Readonly<{itemId:string;title:string;discNumber?:number;partNumber?:number;offsetMs?:number;durationMs?:number}>;

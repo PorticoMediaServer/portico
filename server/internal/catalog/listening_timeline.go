@@ -26,9 +26,12 @@ type BookProgress struct {
 }
 
 // Index is zero-based within ItemID and names an actual stored chapter mark.
+// Number is the chapter's 1-based place in the whole book (every visible part's
+// chapters in listening order), so "Chapter N" reads the same in every part.
 // Part numbers are never chapter numbers. All chapter times are part-relative.
 type BookProgressChapter struct {
 	Index   int    `json:"index"`
+	Number  int    `json:"number"`
 	Title   string `json:"title"`
 	StartMs int64  `json:"startMs"`
 	EndMs   int64  `json:"endMs"`
@@ -151,6 +154,9 @@ func (s *Service) bookProgressAt(viewer Viewer, book, item string, position int6
 	if err == nil {
 		chapter.StartMs = int64(math.Round(start * 1000))
 		chapter.EndMs = int64(math.Round(end * 1000))
+		if chapter.Number, err = s.bookChapterNumber(viewer, book, item, chapter.Index); err != nil {
+			return nil, err
+		}
 		out.Chapter = &chapter
 	} else if err != sql.ErrNoRows {
 		return nil, err

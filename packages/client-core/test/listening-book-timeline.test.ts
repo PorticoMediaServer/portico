@@ -4,14 +4,14 @@ import {parseBookProgress,parseBookTimeline,readBookTimeline,listeningSleepChoic
 import {validateContentEntry} from '../src/library-content.ts';
 import {validateHomeDocument,validateHomeRow} from '../src/home.ts';
 
-const progress={bookId:'book',itemId:'part',partPositionMs:15000,positionMs:75000,durationMs:150000,remainingMs:75000,chapter:{index:0,title:'Actual chapter',startMs:10000,endMs:60000}};
+const progress={bookId:'book',itemId:'part',partPositionMs:15000,positionMs:75000,durationMs:150000,remainingMs:75000,chapter:{index:0,number:3,title:'Actual chapter',startMs:10000,endMs:60000}};
 const timeline={bookId:'book',libraryId:'books',revision:{catalog:2,viewer:3},parts:[{itemId:'part',title:'Part 2',offsetMs:60000,durationMs:90000}],totalCount:2,nextCursor:'next',durationMs:150000,progress,seek:{itemId:'part',startMs:15000}};
 test('nested book progress stays in integer milliseconds while outer legacy display fields convert once',()=>{
  const entry=validateContentEntry({id:'book',kind:'book',title:'Title',durationMs:150000,progressMs:75000,bookProgress:progress});
  assert.equal(entry.duration,150);assert.equal(entry.progressSeconds,75);assert.deepEqual(entry.bookProgress,progress);assert.ok(Object.isFrozen(entry.bookProgress?.chapter));
  const part=validateContentEntry({id:'part',kind:'audiobook_file',title:'Part',bookProgress:progress});assert.deepEqual(part.bookProgress,progress);
  assert.equal(validateContentEntry({id:'another',kind:'book',title:'Other',bookProgress:progress}).bookProgress,undefined);
- for(const patch of [{partPositionMs:1.5},{positionMs:-1},{remainingMs:1},{chapter:{...progress.chapter,index:-1}},{chapter:{...progress.chapter,startMs:15001}},{chapter:{...progress.chapter,endMs:15000}}])assert.throws(()=>parseBookProgress({...progress,...patch}));
+ for(const patch of [{partPositionMs:1.5},{positionMs:-1},{remainingMs:1},{chapter:{...progress.chapter,index:-1}},{chapter:{...progress.chapter,number:0}},{chapter:{...progress.chapter,number:undefined}},{chapter:{...progress.chapter,startMs:15001}},{chapter:{...progress.chapter,endMs:15000}}])assert.throws(()=>parseBookProgress({...progress,...patch}));
  assert.deepEqual(parseBookProgress({bookId:'book',itemId:'part',partPositionMs:15}),{bookId:'book',itemId:'part',partPositionMs:15},'missing totals and chapter marks stay absent');
 });
 test('book timelines preserve exact targets, bounded pages and scope while dropping private extras',async()=>{

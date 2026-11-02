@@ -287,11 +287,20 @@ func (s *Service) BookChapters(viewer Viewer, book, cursor string, limit int) ([
 	}
 	defer rows.Close()
 	out := []BookChapter{}
+	// The page continues the book's chapter count after its cursor.
+	number := 0
+	if cursor != "" {
+		if number, err = s.bookChapterNumber(viewer, book, file, index); err != nil {
+			return nil, "", err
+		}
+	}
 	for rows.Next() {
 		var row BookChapter
 		if err = rows.Scan(&row.ID, &row.ItemID, &row.Index, &row.Title, &row.StartSeconds, &row.EndSeconds); err != nil {
 			return nil, "", err
 		}
+		number++
+		row.Number = number
 		out = append(out, row)
 	}
 	next := ""
@@ -383,4 +392,17 @@ func boolInt(value bool) int {
 		return 1
 	}
 	return 0
+}
+
+// bookChapterNumber is the 1-based place of a part's chapter in the whole book:
+// the visible chapters at or before it in listening order (disc, part, file,
+// chapter), the order BookChapters pages in. It is bounded by one book.
+func (s *Service) bookChapterNumber(viewer Viewer, book, item string, index int) (int, error) {
+	visible, args := viewer.itemVisibilitySQL("item.id")
+	var n int
+	err := s.read().QueryRow(`SELECT count(*) FROM catalog_book_chapters c JOIN catalog_book_files f ON f.entity_id=c.file_id JOIN catalog_entities item ON item.id=f.entity_id JOIN catalog_entities b ON b.id=f.book_id
+ WHERE b.public_id=pid_blob(?) AND b.retired=0 AND item.retired=0 AND `+visible+`
+ AND (COALESCE(f.disc_number,1),COALESCE(f.part_number,0),item.sort_key,item.id,c.chapter_index)<=(SELECT COALESCE(cf.disc_number,1),COALESCE(cf.part_number,0),ci.sort_key,ci.id,? FROM catalog_book_files cf JOIN catalog_entities ci ON ci.id=cf.entity_id WHERE ci.public_id=pid_blob(?))`,
+		append(append([]any{book}, args...), index, item)...).Scan(&n)
+	return n, err
 }
