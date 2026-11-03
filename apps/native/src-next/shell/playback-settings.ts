@@ -12,5 +12,6 @@ export function nativePlaybackSettings(values: PreferenceValues, installation: u
   const overrides = Object.fromEntries((['forceStereo', 'disablePassthrough', 'disableHdr'] as const).flatMap(key => typeof stored[key] === 'boolean' ? [[key, stored[key]]] : []));
   return {passthroughFormats: readPassthroughFormats(stored.passthroughFormats), matchFrameRate: stored.matchFrameRate === 'off' ? 'off' : 'auto', matchDynamicRange: stored.matchDynamicRange === 'off' ? 'off' : 'auto', engine: parseEngineSetting(stored.playerEngine), ...(Object.keys(overrides).length ? {overrides} : {}),
     videoRate: rate('playback.defaultSpeed'), audiobookRate: rate('audiobooks.defaultSpeed'),
-    skips: {intro: skip('playback.introSkip'), recap: skip('playback.recapSkip'), credits: skip('playback.creditsSkip')}, subtitles};
+    skips: {intro: skip('playback.introSkip'), recap: skip('playback.recapSkip'), credits: skip('playback.creditsSkip')}, subtitles,
+    autoPictureInPicture: stored.autoPictureInPicture !== false};
 }

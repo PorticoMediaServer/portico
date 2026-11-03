@@ -28,7 +28,7 @@ type EngineModule = NativeListeningBridge & {
   features?: unknown;
   purgeAudioCache?: () => Promise<unknown>;
 };
-type NativeSurfaceProps = ViewProps & {lease: string; pictureInPictureRequest: number; pictureInPictureBinding: NativeBinding | null};
+type NativeSurfaceProps = ViewProps & {lease: string; pictureInPictureRequest: number; pictureInPictureBinding: NativeBinding | null; autoPictureInPicture: boolean};
 let appleSurfaceView: HostComponent<NativeSurfaceProps> | undefined;
 function viewAvailable(name: string): boolean { try { return !!UIManager.hasViewManagerConfig(name); } catch { return false; } }
 function moduleConstants(module: EngineModule) { try { return module.getConstants?.() ?? module; } catch { return module; } }
@@ -102,7 +102,7 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
     const bounds = target && [target.x, target.y, target.width, target.height].every(Number.isFinite) && target.width > 0 && target.height > 0 ? target : undefined;
     const visible = !!bounds && !!state.fence && !!state.lease;
     return <SurfaceView ref={surfaceRef} lease={state.lease} pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants"
-      pictureInPictureRequest={state.pictureInPicture?.request ?? 0} pictureInPictureBinding={state.pictureInPicture?.binding ?? null}
+      pictureInPictureRequest={state.pictureInPicture?.request ?? 0} pictureInPictureBinding={state.pictureInPicture?.binding ?? null} autoPictureInPicture={state.pictureInPicture?.automatic ?? true}
       style={{position: 'absolute', left: bounds?.x ?? 0, top: bounds?.y ?? 0, width: bounds?.width ?? 0, height: bounds?.height ?? 0, display: visible ? 'flex' : 'none', opacity: visible ? 1 : 0}} />;
   }
   return {

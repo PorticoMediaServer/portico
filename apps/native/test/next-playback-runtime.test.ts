@@ -3630,3 +3630,18 @@ test('N1-6: Apple\'s automatic Picture in Picture (request 0) is tracked, its ow
     assert.equal(d.runtime.getSnapshot().pictureInPicture?.active, true);
   } finally {d.runtime.dispose();}
 });
+
+test('Settings › Device › Start Picture in Picture automatically: on unless turned off, and a change reaches the video playing now', async () => {
+  const d = fixture(false, undefined, nativeEngineFeatures, true);
+  try {
+    await d.start('movie-1'); d.engine.emit('progress'); await settle();
+    assert.equal(d.runtime.getSnapshot().pictureInPicture?.automatic, true, 'absent from this device: on');
+    const before = d.engine.commands.length;
+    d.settings({autoPictureInPicture: false}); await settle();
+    assert.equal(d.runtime.getSnapshot().pictureInPicture?.automatic, false, 'off, published to the surface');
+    assert.equal(d.runtime.getSnapshot().fence?.kind, 'queue', 'the same playback carries on');
+    assert.ok(!d.engine.commands.slice(before).some(command => command.type === 'load'), 'no restart');
+    d.settings({autoPictureInPicture: true}); await settle();
+    assert.equal(d.runtime.getSnapshot().pictureInPicture?.automatic, true);
+  } finally {d.runtime.dispose();}
+});

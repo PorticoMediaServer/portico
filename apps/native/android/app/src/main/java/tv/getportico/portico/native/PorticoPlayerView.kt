@@ -148,6 +148,8 @@ internal class PorticoPlayerView(private val reactContext: ThemedReactContext) :
   private val stage = PorticoVideoStage(reactContext)
   private var lease = ""
   private var surfaceActive = true
+  /** Settings › Device › Start Picture in Picture automatically; off, only the player's button starts it. */
+  private var autoPictureInPicture = true
   private var request = 0
   /** The retained presentation binding this view was handed for its request. */
   private var pictureBinding: Map<String, Any?>? = null
@@ -166,6 +168,13 @@ internal class PorticoPlayerView(private val reactContext: ThemedReactContext) :
   fun setSurfaceActive(value: Boolean) {
     if (surfaceActive == value) return
     surfaceActive = value
+    attach()
+  }
+
+  /** A change applies to the video playing now: the activity's automatic entry is set again at once. */
+  fun setAutoPictureInPicture(value: Boolean) {
+    if (autoPictureInPicture == value) return
+    autoPictureInPicture = value
     attach()
   }
 
@@ -229,7 +238,7 @@ internal class PorticoPlayerView(private val reactContext: ThemedReactContext) :
     stage.show(if (showing) controller?.player else null)
     stage.update(controller, showing)
     keepScreenOn = mine && controller?.paused == false
-    PorticoPictureInPicture.playerView(reactContext.currentActivity, controller, mine && surfaceActive)
+    PorticoPictureInPicture.playerView(reactContext.currentActivity, controller, mine && surfaceActive, autoPictureInPicture)
     // A device without Picture in Picture (every television) says so once per playback, so the
     // shared player never offers the button there.
     if (mine && announced != lease && reactContext.currentActivity != null) {
@@ -288,6 +297,9 @@ class PorticoPlayerManager : SimpleViewManager<FrameLayout>() {
 
   @ReactProp(name = "pictureInPictureBinding")
   fun setPictureInPictureBinding(view: FrameLayout, binding: ReadableMap?) = (view as PorticoPlayerView).setPictureInPictureBinding(binding?.toHashMap())
+
+  @ReactProp(name = "autoPictureInPicture", defaultBoolean = true)
+  fun setAutoPictureInPicture(view: FrameLayout, automatic: Boolean) = (view as PorticoPlayerView).setAutoPictureInPicture(automatic)
 }
 
 /**
@@ -329,9 +341,11 @@ internal object PorticoPictureInPicture {
     return builder.build()
   }
 
-  /** The player view says whether a film is on screen in it; that decides the automatic entry. */
-  fun playerView(activity: Activity?, controller: PorticoPlaybackController?, showing: Boolean) {
-    eligible = showing && controller != null && controller.hasVideo && controller.videoSize.width > 0 && !controller.paused
+  /** The player view says whether a film is on screen in it, and whether this device lets the OS start
+   * Picture in Picture by itself (Settings › Device); together they decide the automatic entry. Off, Android 12+
+   * gets `setAutoEnterEnabled(false)` and older versions never enter on leave; the player's button still works. */
+  fun playerView(activity: Activity?, controller: PorticoPlaybackController?, showing: Boolean, automatic: Boolean = true) {
+    eligible = automatic && showing && controller != null && controller.hasVideo && controller.videoSize.width > 0 && !controller.paused
     if (!supported(activity) || Build.VERSION.SDK_INT < 26) return
     try { params(controller, eligible)?.let { activity!!.setPictureInPictureParams(it) } } catch (_: Exception) {}
   }
