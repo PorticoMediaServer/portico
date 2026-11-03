@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {NativeSearchDestination, nativeSearchEntryKey} from '../src-next/screens/search/model.ts';
+import {viewerQueriesFor} from '../src-next/shell/freshness.ts';
 import type {LibraryContentApi} from '../../../packages/client-core/src/library-content.ts';
 import type {SearchEntry, SearchGroup} from '../../../packages/client-core/src/search.ts';
 
@@ -26,9 +27,11 @@ function result(path: string, ids: string[], nextCursor = '') {
 function setup(request: LibraryContentApi['request']) {
   let current = true, remember = true;
   const errors: unknown[] = [];
-  const destination = new NativeSearchDestination({api: {request}, scope, current: () => current,
+  const api = {request};
+  const destination = new NativeSearchDestination({api, scope, current: () => current,
     rememberHistory: () => remember, reportError: error => errors.push(error)});
-  return {destination, errors, retire: () => {current = false; destination.dispose();}, historyOff: () => {remember = false;}};
+  // Retiring a viewer ends its cache too, as the shell does on any viewer or fence change; that aborts the cache's reads.
+  return {destination, errors, retire: () => {current = false; destination.dispose(); viewerQueriesFor(api, scope).dispose();}, historyOff: () => {remember = false;}};
 }
 
 test('the actual search service appends cursor pages and keeps real result identities', async () => {
@@ -194,4 +197,30 @@ test('an arrived read error survives pause/resume until the actual retry gesture
     fail = false; await f.destination.retry();
     assert.equal(reads, 3); assert.equal(f.destination.getSnapshot().search.phase, 'ready');
   } finally {f.destination.dispose();}
+});
+
+test('a query already read is shown again from the viewer cache, and Recent searches are read again only when the server recorded one', async () => {
+  const paths: string[] = [];
+  const api = {request: async <T>(path: string): Promise<T> => {
+    paths.push(path);
+    if (path.startsWith('/v1/search/history')) return history as T;
+    const answer = result(path, ['actual-result']);
+    return {...answer, query: {...answer.query, recorded: path.includes('record=1')}} as T;
+  }};
+  const make = () => new NativeSearchDestination({api, scope, current: () => true, rememberHistory: () => true, reportError: error => {throw error;}});
+  const searches = () => paths.filter(path => path.startsWith('/v1/search?')), histories = () => paths.filter(path => path.startsWith('/v1/search/history'));
+  const first = make(), back = make();
+  try {
+    await first.refreshHistory(); assert.equal(histories().length, 1);
+    first.setText('matrix'); await first.commit();
+    assert.equal(searches().length, 1); assert.match(searches()[0], /record=1/, 'the committed search is the server\'s recording read');
+    assert.equal(histories().length, 2, 'the server recorded it, so Recent searches are read again');
+    // Back to Search: another screen asks for the same query and the same recents.
+    back.setText('matrix'); back.selectGroup('all'); await tick();
+    assert.equal(back.getSnapshot().search.phase, 'ready');
+    assert.equal(back.getSnapshot().groups[0]?.items[0]?.id, 'actual-result');
+    await back.refreshHistory();
+    assert.equal(searches().length, 1, 'no second search read'); assert.equal(histories().length, 2, 'no second recents read');
+    assert.deepEqual(back.getSnapshot().recent, history.entries);
+  } finally {first.dispose(); back.dispose(); viewerQueriesFor(api, scope).dispose();}
 });

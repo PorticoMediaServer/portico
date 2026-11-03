@@ -1,7 +1,10 @@
 import {
-  SearchService, clearSearchHistory, readSearchHistory, recordSearch, searchQueryProblem,
-  type SearchEntry, type SearchGroup, type SearchGroupResult, type SearchHistoryEntry, type SearchSnapshot,
+  SearchService, clearSearchHistory, recordSearch, searchFirstPages, searchHistoryQuery, searchQueryProblem,
+  type SearchEntry, type SearchGroup, type SearchGroupResult, type SearchHistoryEntry, type SearchHistoryPage, type SearchSnapshot,
 } from '../../../../../packages/client-core/src/search';
+import {queryKeys} from '../../../../../packages/client-core/src/query/keys';
+import type {ViewerQueries} from '../../../../../packages/client-core/src/query/viewer-queries';
+import {viewerQueriesFor} from '../../shell/freshness';
 import {searchReadingOffered, searchRequestGroups} from '../../../../../packages/client-core/src/presentation/search-model';
 import type {ContentScope, LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
 
@@ -29,9 +32,14 @@ export type NativeSearchSnapshot = Readonly<{
 }>;
 
 /** One genuine SearchService and its history for one restored viewer lifetime.
- * Search owns its response fence; a Home fence is never substituted for it. */
+ * Search owns its response fence; a Home fence is never substituted for it.
+ * First pages and Recent searches come from this viewer's cache (`['search','results',…]` and
+ * `['search','history']`, as web): a query already read is shown again with no request, a recording
+ * read fills the plain read's entry, and Recent searches are read again only when the server says it
+ * recorded one. Continuations and recording reads are the server's. */
 export class NativeSearchDestination {
   readonly service: SearchService;
+  private readonly queries: ViewerQueries;
   private readonly options: Readonly<{
     api: LibraryContentApi; scope: ContentScope; current: () => boolean;
     rememberHistory: () => boolean; reportError: (error: unknown) => void;
@@ -55,7 +63,8 @@ export class NativeSearchDestination {
 
   constructor(options: NativeSearchDestination['options']) {
     this.options = options;
-    this.service = new SearchService({api: options.api, scope: options.scope});
+    this.queries = viewerQueriesFor(options.api, options.scope);
+    this.service = new SearchService({api: options.api, scope: options.scope, firstPages: searchFirstPages(this.queries)});
     const text = options.initialQuery ?? '';
     this.state = Object.freeze({text, group: 'all', ...(text.trim() ? {problem: searchQueryProblem(text)} : {}), search: this.service.getSnapshot(), groups: [], recent: [], clearing: false});
     this.unsubscribe = this.service.subscribe(this.changed);
@@ -150,6 +159,7 @@ export class NativeSearchDestination {
     void recordSearch(this.options.api, text, group, recording.signal).then(async recorded => {
       if (this.recording !== recording) return;
       this.recording = undefined;
+      if (recorded) void this.queries.client.invalidateQueries({queryKey: queryKeys.searchHistory()});
       if (recorded && this.current() && !this.paused) await this.refreshHistory();
     }).catch(error => {if (!recording.signal.aborted && this.current()) this.options.reportError(error);});
   };
@@ -161,7 +171,7 @@ export class NativeSearchDestination {
     if (search.error?.code === 'unauthorized' || search.error?.code === 'forbidden'
       || search.data && search.data.scope.viewerFence !== read.base.scope.viewerFence) {
       // A known access/fence change retires all retained facts before the canonical All reread.
-      this.stopGroupReads(); this.service.cancel(); void this.select(false); return;
+      this.stopGroupReads(); this.service.cancel(); this.forgetFirstPages(); void this.select(false); return;
     }
     const pageError = pageIssue(search, group);
     let fulfilled: Readonly<{waitingId: string; firstItemId?: string}> | undefined;
@@ -174,7 +184,7 @@ export class NativeSearchDestination {
         if (previous && result.totalCountExact && result.totalCount < previous.items.length) {
           // The authoritative count invalidates the retained projection, but cannot identify
           // which old cards survived. Retire it and let the canonical All read answer.
-          this.stopGroupReads(); this.service.cancel(); void this.select(false); return;
+          this.stopGroupReads(); this.service.cancel(); this.forgetFirstPages(); void this.select(false); return;
         }
         const known = new Set(previous?.items.map(entry => nativeSearchEntryKey(group, entry)));
         const firstAdded = result.items.find(entry => !known.has(nativeSearchEntryKey(group, entry)));
@@ -205,7 +215,13 @@ export class NativeSearchDestination {
     const read = this.groupReads.get(group);
     return read ? read.service.retry() : this.state.group === 'all' ? this.next(group) : this.service.retry();
   };
-  retry = (): Promise<void> => this.current() && !this.paused ? this.service.retry() : Promise.resolve();
+  /** The canonical reread after an access, fence or count change, and an explicit Try again, is the
+   * server's answer, never a cached first page (`['search','results']` is every `queryKeys.searchResults`). */
+  private forgetFirstPages(): void {void this.queries.client.invalidateQueries({queryKey: ['search', 'results']}, {cancelRefetch: false});}
+  retry = (): Promise<void> => {
+    if (!this.current() || this.paused) return Promise.resolve();
+    this.forgetFirstPages(); return this.service.retry();
+  };
   /** Stop hidden work without turning a real arrived query/page into a draft. */
   pause = (): void => {
     if (!this.current() || this.paused) return;
@@ -236,7 +252,8 @@ export class NativeSearchDestination {
     if (this.paused) return;
     const controller = new AbortController(); this.history = controller;
     try {
-      const page = await readSearchHistory(this.options.api, this.options.scope, controller.signal);
+      // The cached recents unless something moved them (a recorded search, an erase, another device's hint).
+      const page = await this.queries.client.fetchQuery(searchHistoryQuery(this.queries, this.options.scope));
       if (!controller.signal.aborted && this.current() && revision === this.historyRevision) this.publish({recent: this.options.rememberHistory() ? page.entries : []});
     } catch (error) {if (!controller.signal.aborted && this.current() && revision === this.historyRevision) this.options.reportError(error);}
     finally {if (this.history === controller) this.history = undefined;}
@@ -248,6 +265,7 @@ export class NativeSearchDestination {
     this.publish({clearing: true});
     try {
       await clearSearchHistory(this.options.api, controller.signal);
+      this.queries.client.setQueryData<SearchHistoryPage>(queryKeys.searchHistory(), held => held && {...held, entries: []});
       if (!controller.signal.aborted && this.current() && revision === this.historyRevision) this.publish({recent: []});
     } catch (error) {if (!controller.signal.aborted && this.current()) this.options.reportError(error);}
     finally {if (this.history === controller) this.history = undefined; if (revision === this.historyRevision) this.publish({clearing: false});}
