@@ -85,21 +85,21 @@ test('absent native support stays absent with no local persistence or simulated 
   assert.equal(store.getSnapshot().value, undefined);
 });
 
-test('Android binding uses the genuine native read/write/reset DTO and shares the durable ack semantics', async () => {
+test('N1-2: Android exports Apple\'s equalizer methods and shares its adapter and durable ack semantics', async () => {
   const modules = NativeModules as unknown as Record<string, unknown>, previous = modules.PorticoPlaybackModule;
   let held = {enabled: false, preampDb: 0, bands: Array(10).fill(0)};
   const calls: unknown[] = [];
-  modules.PorticoPlaybackModule = {equalizer: async (value: typeof held | {reset: true} | null) => {
-    calls.push(value);
-    if (value && 'reset' in value) held = {...held, preampDb: 0, bands: Array(10).fill(0)};
-    else if (value) held = value;
-    return held;
-  }};
+  const facts = () => ({sampleRateMatching: 'smart', eqEnabled: held.enabled, eqPreampDb: held.preampDb, eqBands: held.bands});
+  modules.PorticoPlaybackModule = {
+    audioProcessing: async () => {calls.push('read'); return facts();},
+    setAudioEqualizer: async (value: typeof held) => {calls.push(value); held = value; return facts();},
+    resetAudioEqualizer: async () => {calls.push('reset'); held = {...held, preampDb: 0, bands: Array(10).fill(0)}; return facts();},
+  };
   try {
     const path = '../platform/equalizer.android.ts?native-eq';
     const {nativeEqualizer} = await import(path) as typeof import('../platform/equalizer.android');
     await nativeEqualizer.refresh(); await nativeEqualizer.update({on: true, preamp: -0.5}); await nativeEqualizer.reset();
-    assert.deepEqual(calls, [null, {enabled: true, preampDb: -0.5, bands: Array(10).fill(0)}, {reset: true}]);
+    assert.deepEqual(calls, ['read', {enabled: true, preampDb: -0.5, bands: Array(10).fill(0)}, 'reset']);
     assert.deepEqual(nativeEqualizer.getSnapshot().value, flat(true));
   } finally {
     if (previous === undefined) delete modules.PorticoPlaybackModule; else modules.PorticoPlaybackModule = previous;
