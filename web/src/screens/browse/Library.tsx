@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {useCallback, useMemo, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {useCoarsePointer} from '../../kit/theme';
 import {defaultI18n} from '@i18n';
 import type {BrowseNode, BrowseSortSelection} from '@core/browse.ts';
@@ -74,11 +74,18 @@ export const browseLabels: BrowseLabels = {
   sort: value => {const id = browseNameId(value.id, value.labelKey, defaultI18n.has);return id && defaultI18n.has(id) ? t(id) : value.labelKey;},
   quick: value => defaultI18n.has(value.labelKey) ? t(value.labelKey) : value.labelKey,
 };
-export function LibraryScreen(bindings: LibraryBindings) {
+/** A library tab's grid. Until its grid has come from the viewer's cache (`controller` absent),
+ *  the library's own header is drawn over the loading grid. */
+export function LibraryScreen(props: Omit<LibraryBindings, 'controller'> & {controller?: LibraryBindings['controller']}) {
+  const width = useShellWidth();
+  const {controller} = props;
+  if (!controller) return <div className={styles.library}><LibraryIdentity {...props}/><LoadingGrid key={props.library.id} width={width}/></div>;
+  return <LoadedLibraryScreen {...props} controller={controller}/>;
+}
+function LoadedLibraryScreen(bindings: LibraryBindings) {
   const {controller} = bindings;
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const width = useShellWidth();
-  useEffect(() => {void controller.load();}, [controller]);
   // A failed browse answer keeps the library the viewer is already in: its name, switcher
   // and tabs are known facts, and losing them would move the viewer out of context.
   if (state.phase === 'error') return <div className={styles.library}><LibraryIdentity {...bindings}/>

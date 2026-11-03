@@ -20,7 +20,10 @@ import {HomeRowScreen} from './HomeRow';
 import {useScreenAppearance} from './screen-preferences';
 import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from './screen-context';
 import {parseHomeRowScreenSearch, type HomeRowScreenSearch} from './route-search';
-import {addressedQuery, addressedQueryKey, addressedSearch, appliedSorts, type AddressedQuery} from './address-query';
+import {addressCacheKey, addressedQuery, addressedQueryKey, addressedSearch, appliedSorts, type AddressedQuery} from './address-query';
+import type {BrowseController, BrowseSource} from './controller';
+import {useBrowseController} from './browse-cache';
+import {queryKeys} from '@core/query/keys.ts';
 
 /** Best match is the row's own server order; the frame draws no other default. */
 const bestMatch: readonly BrowseSortSelection[] = [{field: groupOrderSort, direction: 'asc'}];
@@ -30,43 +33,48 @@ function LoadedHomeRow({captured, context, row}: {captured: ProtectedLibraryScre
   // Frame 47's toolbar changes are this page's real state, so its own address carries
   // them: a reload, a share and Back from a title land on the same filtered grid. The
   // row's membership and the viewer's grant stay server-owned; only the toolbar's
-  // scoped filters and order are read back from the route. The grid opens on the
-  // address's query and then follows the address, whoever moved it.
+  // scoped filters and order are read back from the route, and they pick the grid
+  // from the viewer's cache: Back to a See all already seen draws it with no request.
   const rawSearch = useSearch({from: '/home/rows/$rowId'});
   const routed = useMemo(() => parseHomeRowScreenSearch(rawSearch), [rawSearch]);
   const [choice, setChoice] = useState<Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>>();
   const [size, setSize] = useState<'small' | 'medium' | 'large'>('medium');
   const pathname = useLocation({select: location => location.pathname}), runtime = captured.binding.playback?.runtime;
-  const sourceKey = JSON.stringify({libraryId: '*', pivot: acrossPivot('homeRow'), homeRowId: row.id, base: [acrossCondition('homeRow', row.id)]});
-  const owner = useBrowseLease(context, sourceKey, pathname, () => router.state.location.pathname === pathname, runtime, addressedQuery(routed, bestMatch));
+  const owner = useBrowseLease(context, pathname, () => router.state.location.pathname === pathname, runtime);
+  const build = addressedQuery(routed, bestMatch);
+  const gridSource: BrowseSource = {libraryId: '*', pivot: acrossPivot('homeRow'), homeRowId: row.id, base: [acrossCondition('homeRow', row.id)],
+    ...(build.predicates.length ? {predicates: build.predicates} : {}), sorts: build.sorts};
+  // A test's or a guarded screen's API may have no raw reader; the grid then reads without one.
+  const raw = useMemo(() => (context.api.requestRaw as typeof context.api.requestRaw | undefined)?.bind(context.api), [context]);
+  const {controller} = useBrowseController(context.queries, queryKeys.homeRowBrowse(row.id, addressCacheKey(routed)), gridSource, raw);
   const presentation = {choice, setChoice, size, setSize};
-  return owner ? <CommittedHomeRow key={owner.id} captured={captured} context={context} row={row} owner={owner} routed={routed} presentation={presentation}/>
+  return owner && controller ? <CommittedHomeRow key={owner.id} captured={captured} context={context} row={row} owner={owner} controller={controller} routed={routed} presentation={presentation}/>
     : <GridSkeleton elapsedMs={0} window={{width, height: window.innerHeight, scrollTop: 0}} itemCount={1}/>;
 }
-function CommittedHomeRow({captured, context, row, owner, routed, presentation}: {captured: ProtectedLibraryScreen; context: ScreenContext; row: HomeRow;
-  owner: BrowseLease; presentation: {choice?: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>; setChoice: (choice: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>) => void; size: 'small' | 'medium' | 'large'; setSize: (size: 'small' | 'medium' | 'large') => void}; routed: HomeRowScreenSearch}) {
+function CommittedHomeRow({captured, context, row, owner, controller, routed, presentation}: {captured: ProtectedLibraryScreen; context: ScreenContext; row: HomeRow;
+  owner: BrowseLease; controller: BrowseController; presentation: {choice?: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>; setChoice: (choice: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>) => void; size: 'small' | 'medium' | 'large'; setSize: (size: 'small' | 'medium' | 'large') => void}; routed: HomeRowScreenSearch}) {
   const appearance = useScreenAppearance(captured.context)!, width = useShellWidth();
   const route = useMemo(() => addressedQuery(routed, bestMatch), [routed]), routeKey = useMemo(() => addressedQueryKey(route), [route]);
   const {choice, setChoice, size, setSize} = presentation;
   const href = useLocation({select: location => location.href});
   const openingCurrent = () => owner.life.current() && router.state.location.href === href;
-  const state = useSyncExternalStore(owner.controller.subscribe, owner.controller.getSnapshot, owner.controller.getSnapshot);
-  const page = useSyncExternalStore(owner.controller.collection.subscribe, owner.controller.collection.getSnapshot, owner.controller.collection.getSnapshot);
+  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
+  const page = useSyncExternalStore(controller.collection.subscribe, controller.collection.getSnapshot, controller.collection.getSnapshot);
   // The controller's real applied state, in the same vocabulary as the address.
   const controllerQuery = useMemo<AddressedQuery | undefined>(() => { /* Preserve the original ownership/invalidation keys. */ void state.queryRevision;
     if (state.phase !== 'ready') return undefined;
     try {
-      const sorts = owner.controller.query().sort ?? [];
+      const sorts = controller.query().sort ?? [];
       return {predicates: state.predicates, sorts: appliedSorts(sorts.length ? sorts : bestMatch)};
     } catch {return undefined;}
-  }, [state.phase, state.predicates, state.queryRevision, owner]);
+  }, [state.phase, state.predicates, state.queryRevision, controller]);
   const controllerKey = controllerQuery && addressedQueryKey(controllerQuery);
   // Frame #seeall draws the page's own art as a three-image wash behind the header; the
   // sources are the titles actually on this page, so nothing is drawn before they arrive.
   const ambient = useMemo(() => {
     if (appearance.showBackdrops === false || !page.total) return undefined;
     const seen = new Set<string>(), sources: AmbientArtSource[] = [];
-    for (const member of owner.controller.collection.residentItems()) {
+    for (const member of controller.collection.residentItems()) {
       const url = member.entry.posterUrl;
       if (!url || seen.has(url)) continue;
       seen.add(url);
@@ -76,24 +84,20 @@ function CommittedHomeRow({captured, context, row, owner, routed, presentation}:
       if (sources.length === 3) break;
     }
     return sources;
-  }, [owner, context.artwork, appearance.showBackdrops, page]);
+  }, [controller, context.artwork, appearance.showBackdrops, page]);
   // The toolbar writes the page's own address (a replace), so Back from a title and a reload
-  // restore the same scoped filters and order; the grid follows the address, whoever moved it.
+  // restore the same scoped filters and order; the address picks the grid, whoever moved it.
   const latest = useRef({context});
   useLayoutEffect(() => {latest.current = {context};});
-  useLayoutEffect(() => owner.controller.routeQueries(query => {
+  useLayoutEffect(() => controller.routeQueries(query => {
     const {context} = latest.current;
     if (!owner.life.current() || !context.isCurrent()) return;
     void router.navigate({to: '/home/rows/$rowId', params: {rowId: row.id}, search: addressedSearch(query, bestMatch), replace: true, resetScroll: false})
       .catch(error => {if (owner.life.current() && context.isCurrent()) context.effects.reportError(error);});
-  }), [owner, row.id]);
-  useLayoutEffect(() => {
-    if (!controllerKey || controllerKey === routeKey || !owner.life.current() || !context.isCurrent()) return;
-    try {owner.controller.follow(route);} catch (error) {context.effects.reportError(error);}
-  }, [controllerKey, routeKey, route, owner, context]);
+  }), [controller, owner, row.id]);
   const library = context.identity?.libraries.find(library => library.id === row.libraryId);
-  const browse: LibraryBrowseBindings = {menuContext: context, controller: owner.controller, library: {id: '*', name: row.title, kind: library?.kind ?? ''},
-    pivot: owner.controller.source.pivot, artwork: context.artwork,
+  const browse: LibraryBrowseBindings = {menuContext: context, controller: controller, library: {id: '*', name: row.title, kind: library?.kind ?? ''},
+    pivot: controller.source.pivot, artwork: context.artwork,
     appearance: {view: appearance.libraryView, cardWidth: (width < 600 ? 103 : 170) * (size === 'small' ? .8 : size === 'large' ? 1.2 : 1), backdrops: appearance.showBackdrops, cardSize: size},
     preferences: appearance, libraryViewOverride: choice?.defaultView === appearance.libraryView ? choice.view : undefined,
     shape: row.artworkShape === 'square' ? 'square' : 'poster',
@@ -109,8 +113,8 @@ function CommittedHomeRow({captured, context, row, owner, routed, presentation}:
     scopeLibraries: context.identity?.libraries,
     selection: {actions: member => {
       const queryRevision = state.queryRevision, revision = state.revision;
-      const current = () => openingCurrent() && controllerKey === routeKey && owner.controller.getSnapshot().queryRevision === queryRevision
-        && owner.controller.getSnapshot().revision === revision && owner.controller.contains(member.entry);
+      const current = () => openingCurrent() && controllerKey === routeKey && controller.getSnapshot().queryRevision === queryRevision
+        && controller.getSnapshot().revision === revision && controller.contains(member.entry);
       return {onOpen: () => {if (current()) context.effects.openEntry(member.entry);},
         onPlay: member.entry.playback && member.entry.libraryId && member.entry.available !== false && !member.entry.missing ? () => {
           if (!current()) return;
@@ -120,13 +124,13 @@ function CommittedHomeRow({captured, context, row, owner, routed, presentation}:
     }}};
   // Capture the rendered query and runtime now, never query a successor from a retained click.
   const playback = captured.binding.playback, queryRevision = state.queryRevision, revision = state.revision;
-  const query = controllerQuery && owner.controller.query();
+  const query = controllerQuery && controller.query();
   const play = playback && query && controllerKey === routeKey && state.phase === 'ready' && revision ? (shuffle: boolean) => {
-    const current = () => openingCurrent() && controllerKey === routeKey && owner.controller.getSnapshot().queryRevision === queryRevision
-      && owner.controller.getSnapshot().revision === revision;
+    const current = () => openingCurrent() && controllerKey === routeKey && controller.getSnapshot().queryRevision === queryRevision
+      && controller.getSnapshot().revision === revision;
     if (!current()) return;
-    const command = new AbortController(), off = owner.controller.subscribe(() => {if (!current()) command.abort();});
-    void playback.runtime.playFromQueue({query: {libraryId: '*', pivot: owner.controller.source.pivot, query: query.query, sort: query.sort}},
+    const command = new AbortController(), off = controller.subscribe(() => {if (!current()) command.abort();});
+    void playback.runtime.playFromQueue({query: {libraryId: '*', pivot: controller.source.pivot, query: query.query, sort: query.sort}},
       {signal: owner.life.signal(command.signal), isCurrent: current}, {shuffle})
       .catch(context.effects.reportError).finally(off);
   } : undefined;

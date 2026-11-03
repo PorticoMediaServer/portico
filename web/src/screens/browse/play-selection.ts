@@ -219,6 +219,8 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
     prune();
     const entries = Array.from({length: last - first + 1}, (_, offset) => ({position: first + offset, entry: source.collection.itemAt(first + offset)?.entry}))
       .flatMap(({entry, position}) => entry?.libraryId && source.contains(entry) && selectableSelectionKind(entry.kind, 'catalogue') ? [Object.freeze({entry, position})] : []);
+    // The page answered but its cards aren't in yet: register the range when they are.
+    if (!entries.length && !source.collection.itemAt(first)) {wanted = Object.freeze({first, last});return Promise.resolve(Object.freeze([]));}
     const granted = model.getSnapshot().active === true;
     if (window?.first === first && window.last === last && window.granted === granted && window.entries.length === entries.length && window.entries.every((value, index) => value.entry === entries[index].entry)) return window.promise!;
     // Picks on a window replaced before its grants were read keep their place in line for a grant.

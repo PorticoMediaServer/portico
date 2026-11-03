@@ -16,7 +16,9 @@ async function actualRouteBack(context: any, router: any, libraryId: string) {
   if (transformed.errors.length) throw new Error(JSON.stringify(transformed.errors));
   const inert: any = new Proxy(function () {}, {get: (_target, key) => key === 'then' ? undefined : inert, apply: () => undefined});
   const modules: any = new Proxy({react, '../../router': {router}, '@i18n': {defaultI18n: {t: (key: string) => key, region: {formatLocale: 'en'}}},
-    '../detail/Artist': {ArtistScreen: 'ArtistScreen'}, './reading-library': {isReadingLibrary: () => false}, '../read': {useReadLibrarySummary: () => ({libraryCounts: []})}},
+    '../detail/Artist': {ArtistScreen: 'ArtistScreen'}, './reading-library': {isReadingLibrary: () => false}, '../read': {useReadLibrarySummary: () => ({libraryCounts: []})},
+    // An artist page shows no grid: the cache hands it none.
+    './browse-cache': {useBrowseController: () => ({controller: undefined, placeholder: false})}},
     {get: (target: any, key: string) => key in target ? target[key] : inert});
   const code = transformed.code.replace(/import\s+([\s\S]*?)\s+from\s+["']([^"']+)["'];/g, (_match: string, names: string, source: string) => {
     const binding = names.trim().replace(/\bas\b/g, ':');
@@ -25,8 +27,7 @@ async function actualRouteBack(context: any, router: any, libraryId: string) {
     return comma < 0 ? `const ${binding} = modules[${JSON.stringify(source)}].default;` : `const ${binding.slice(0, comma)} = modules[${JSON.stringify(source)}].default; const ${binding.slice(comma + 1)} = modules[${JSON.stringify(source)}];`;
   }).replace(/export default [\s\S]*?;\s*$/, '');
   const {CommittedLibrary} = new Function('modules', 'const React = modules.react.default;\n' + code + '\nreturn {CommittedLibrary};')(modules);
-  const controller = {subscribe: () => () => {}, getSnapshot: () => ({queryRevision: 1}), canSaveView: () => false};
-  const resources = {controller, life: {current: () => true, api: {}, signal: () => new AbortController().signal}};
+  const resources = {life: {current: () => true, api: {}, signal: () => new AbortController().signal}};
   const frame = {context, appearance: {libraryView: 'grid'}, width: 1200, size: 'medium', tabs: [], view: 'artist'};
   const node = h.render(() => CommittedLibrary({captured: {context: {}, binding: {}}, library: {id: libraryId, kind: 'music', name: 'Music'}, search: {entityId: 'one'}, frame, resources, href: router.state.location.href}));
   const artist = all(tree(node), 'ArtistScreen')[0];

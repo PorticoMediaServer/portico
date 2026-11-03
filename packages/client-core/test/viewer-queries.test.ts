@@ -302,3 +302,17 @@ test('a live value (a grid\'s controller) is let go once: when it is replaced, l
   queries.dispose();
   assert.deepEqual(released, ['a', 'b', 'a2'], 'and every value still held when the viewer ends');
 });
+
+test('something kept current through the cache is read again when it moves, and ends with the viewer', async () => {
+  const {queries, c} = setup();
+  let reads = 0;
+  const kept = queries.keepCurrent({dependencies: [dependsOn.content('films')], revalidate: async () => { reads++; }});
+  kept.setOpen(true);
+  queries.moved([dependsOn.content('films')]);
+  await c.advance(1000);
+  assert.equal(reads, 1);
+  queries.dispose();
+  queries.moved([dependsOn.content('films')]);
+  await c.advance(1000);
+  assert.equal(reads, 1, 'nothing is read for an ended viewer');
+});

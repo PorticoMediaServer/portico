@@ -10,7 +10,7 @@ import {LibraryMetadataMenu} from '../metadata/LibraryMetadataMenu';
 import {ReadSeriesEntry} from '../read/ReadSeriesEntry';
 import {ReadPeriodicalEntry} from '../read/ReadPeriodicalEntry';
 import type {ReadingPeriodicalType} from '@portico/client-core';
-import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {ToastHost, type ToastData} from '../../kit/overlays';
 import {copyLink} from '../../shell/copy-link';
 import {useLocation, useParams, useSearch} from '@tanstack/react-router';
@@ -53,8 +53,10 @@ import {discoverySections} from './discovery-selection';
 import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from './screen-context';
 import {useScreenAppearance} from './screen-preferences';
 import {browseConjunction, libraryTabAddress, parseLibraryScreenSearch, selectedLibraryTab, type LibraryScreenSearch} from './route-search';
-import {addressedQuery, addressedQueryKey, addressedSearch, appliedSorts, libraryAddressKey} from './address-query';
-import type {BrowseQuery} from './controller';
+import {addressCacheKey, addressedSearch, appliedSorts, libraryAddressKey} from './address-query';
+import type {BrowseSource, BrowseState, BrowseController, BrowseMember} from './controller';
+import {useBrowseController} from './browse-cache';
+import {queryKeys} from '@core/query/keys.ts';
 import {SaveView} from './SaveView';
 import {FacetPage, ReadLibraryEntry, useReadLibrarySummary, authorPredicate, type FacetRequest} from '../read';
 import {isReadingLibrary} from './reading-library';
@@ -64,6 +66,9 @@ const t = defaultI18n.t;
 const noSelectionSubscribe = () => () => {};
 const noPlaybackSubscribe = () => () => {};
 const noPlaybackSnapshot = () => undefined;
+const noGridSubscribe = () => () => {};
+const noGrid: BrowseState = Object.freeze({phase: 'loading', predicates: [], queryRevision: 0});
+const noGridSnapshot = () => noGrid;
 type PeriodicalTab = Readonly<{id: 'magazines' | 'newspapers'; label: 'library.tab.magazines' | 'library.tab.newspapers'; pivot: 'magazines' | 'newspapers'; shows: 'periodicals'; publicationType: ReadingPeriodicalType}>;
 type ReadingTab = LibraryTab | PeriodicalTab;
 function readingTabs(capabilities: BrowseCapabilities | undefined, kind: string): readonly ReadingTab[] {
@@ -212,11 +217,11 @@ type ScanLease = Readonly<{context: ScreenContext; libraryId: string; life: {api
 function withLinkToast(menu: ReactNode, toast: ToastData | null, dismiss: () => void): ReactNode {
   return menu === undefined ? undefined : <>{menu}<ToastHost toast={toast} onDismiss={dismiss}/></>;
 }
-function readingLibraryMenu(resources: {life: {current: () => boolean}; controller: {canSaveView: () => boolean}}, context: ScreenContext, library: Library, onlineAttention: boolean, save: () => void, scan?: () => void, markAll?: () => void, copy?: () => void) {
+function readingLibraryMenu(resources: {life: {current: () => boolean}; controller?: {canSaveView: () => boolean}}, context: ScreenContext, library: Library, onlineAttention: boolean, save: () => void, scan?: () => void, markAll?: () => void, copy?: () => void) {
   const owner = context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local' && context.identity.capabilities?.manageServer === true;
   const unmatched = onlineAttention && context.effects.editMetadata ? () => {if (resources.life.current() && context.isCurrent()) void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {unmatched: true}}).catch(context.effects.reportError);} : undefined;
   const settings = owner ? () => {if (resources.life.current() && context.isCurrent()) void router.navigate({to: '/settings', search: {scope: 'server', section: 'libraries'}}).catch(context.effects.reportError);} : undefined;
-  const canSave = resources.life.current() && context.isCurrent() && resources.controller.canSaveView();
+  const canSave = resources.life.current() && context.isCurrent() && !!resources.controller?.canSaveView();
   if (!canSave && !unmatched && !settings && !scan && !markAll && !copy) return undefined;
   return <LibraryMenu owner={!!owner} read {...(copy ? {onCopyLink: copy} : {})} {...(markAll ? {onMarkAll: markAll} : {})} {...(canSave ? {onSaveView: save} : {})} {...(unmatched ? {onUnmatched: unmatched} : {})}
     {...(settings ? {onLibrarySettings: settings} : {})} {...(scan ? {onScan: scan} : {})}/>;
@@ -242,11 +247,14 @@ function useBoundLibraryFrame({captured, library, search, tabs: offered, musicLo
   const musicSummary = musicLookup?.library ?? musicRead.library, musicLibraries = musicLookup?.libraries ?? musicRead.libraries;
   const pivot = search.pivot ?? requested?.pivot;
   const browse = !!pivot && !search.entityId && !search.category && !search.q && view !== 'discover';
-  // The grid is this address's, without its query: a filter or a sort keeps the same controller,
-  // its Filters panel and its lease. It opens on the address's query and then follows it (LB-1).
-  const sourceKey = JSON.stringify({libraryId: library.id, pivot: pivot ?? '', defaultSorts: requested?.defaultSort ? [requested.defaultSort] : undefined});
-  const opening: BrowseQuery = {predicates: search.query ? browseConjunction(search.query) : [], sorts: search.sort ?? (requested?.defaultSort ? [requested.defaultSort] : [])};
-  return {context, appearance, width, ...presentation, onlineAttention, agentKey, setAgentFact, tabs, requested, view, musicMixes, musicSummary, musicLibraries, browse, sourceKey, opening};
+  // The grid is the address's, filters and order included (LB-1): one grid per query in the
+  // viewer's cache, so Back to it, or to an order chosen before, draws it with no request. The tab's
+  // own opening order is part of it, because two tabs can read one pivot (Shows, Recently aired).
+  const defaultSorts = requested?.defaultSort ? [requested.defaultSort] : undefined;
+  const gridKey = browse && pivot ? queryKeys.libraryBrowse(library.id, pivot, addressCacheKey(search, defaultSorts)) : undefined;
+  const gridSource: BrowseSource = {libraryId: library.id, pivot: pivot ?? '', ...(defaultSorts ? {defaultSorts} : {}),
+    ...(search.query ? {predicates: browseConjunction(search.query)} : {}), ...(search.sort ?? defaultSorts ? {sorts: search.sort ?? defaultSorts} : {})};
+  return {context, appearance, width, ...presentation, onlineAttention, agentKey, setAgentFact, tabs, requested, view, musicMixes, musicSummary, musicLibraries, browse, gridKey, gridSource};
 }
 type BoundPresentation = Readonly<{choice?: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>; setChoice: (choice: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>) => void; size: 'small' | 'medium' | 'large'; setSize: (size: 'small' | 'medium' | 'large') => void}>;
 function BoundLibrary(props: BoundLibraryProps) {
@@ -260,7 +268,7 @@ function BoundLibrary(props: BoundLibraryProps) {
 function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; presentation: BoundPresentation}) {
   const frame = useBoundLibraryFrame(props, props.context, props.presentation), {context, agentKey, setAgentFact} = frame, {library} = props;
   const href = useLocation({select: libraryAddressKey}), runtime = props.captured.binding.playback?.runtime;
-  const resources = useBrowseLease(context, frame.sourceKey, href, () => libraryAddressKey(router.state.location) === href, runtime, frame.opening);
+  const resources = useBrowseLease(context, href, () => libraryAddressKey(router.state.location) === href, runtime);
   // Publish only at commit, then sample once for this setup's original lifetime.
   const setupPorts1 = useRef({setAgentFact});
   useEffect(() => {setupPorts1.current = {setAgentFact};});
@@ -283,34 +291,26 @@ function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; pres
 }
 function CommittedLibrary({captured, library, search, readingMarkAll, frame, resources, href}: BoundLibraryProps & {frame: ReturnType<typeof useBoundLibraryFrame>; resources: BrowseLease; href: string}) {
   const {context, appearance, width, choice, setChoice, size, setSize, onlineAttention, agentKey, tabs, requested, view, musicMixes, musicSummary, musicLibraries, browse} = frame;
-  const state = useSyncExternalStore(resources.controller.subscribe, resources.controller.getSnapshot, resources.controller.getSnapshot);
+  // The grid for this address's filters and order, from the viewer's cache; the one shown before
+  // stays until a new query's first page arrives.
+  // A test's or a guarded screen's API may have no raw reader; the grid then reads without one.
+  const raw = useMemo(() => (context.api.requestRaw as typeof context.api.requestRaw | undefined)?.bind(context.api), [context]);
+  const {controller} = useBrowseController(context.queries, frame.gridKey, frame.gridSource, raw);
+  const state = useSyncExternalStore(controller?.subscribe ?? noGridSubscribe, controller?.getSnapshot ?? noGridSnapshot, controller?.getSnapshot ?? noGridSnapshot);
   // LB-1: the address owns the grid's filters and order. The toolbar writes them there (a replace
-  // that keeps the scroll), and the grid follows whatever the address holds, whether the toolbar,
-  // Back/Forward or a link put it there. Both sides are compared in one vocabulary once the grid
-  // knows its default order: the tab's own, else the pivot's.
-  const addressed = useMemo(() => { /* Preserve the original ownership/invalidation keys. */ void state.queryRevision;
-    if (!browse || state.phase !== 'ready' || !state.capabilities) return undefined;
-    const pivot = state.capabilities.resolvedPivot ?? state.capabilities.pivots.find(value => value.id === resources.controller.source.pivot);
+  // that keeps the scroll), and the address's query picks the grid, whether the toolbar,
+  // Back/Forward or a link put it there. An absent order is the tab's own, else the pivot's.
+  const routing = useRef({search, requested});
+  useLayoutEffect(() => {routing.current = {search, requested};});
+  useLayoutEffect(() => browse && controller ? controller.routeQueries(query => {
+    const {search, requested} = routing.current, caps = controller.getSnapshot().capabilities;
+    if (!caps || !resources.life.current() || !context.isCurrent()) return;
+    const pivot = caps.resolvedPivot ?? caps.pivots.find(value => value.id === controller.source.pivot);
     const defaults = appliedSorts(requested?.defaultSort ? [requested.defaultSort] : pivot?.defaultSort ?? []);
-    try {
-      const grid = {predicates: state.predicates, sorts: appliedSorts(resources.controller.query().sort ?? [])};
-      const route = addressedQuery({...(search.query ? {query: search.query} : {}), ...(search.sort ? {sort: search.sort} : {})}, defaults);
-      return {defaults, route, routeKey: addressedQueryKey(route), controllerKey: addressedQueryKey(grid)};
-    } catch {return undefined;}
-  }, [browse, state.phase, state.capabilities, state.predicates, state.queryRevision, resources, requested?.defaultSort, search.query, search.sort]);
-  const routing = useRef({search, defaults: addressed?.defaults});
-  useLayoutEffect(() => {routing.current = {search, defaults: addressed?.defaults};});
-  useLayoutEffect(() => browse ? resources.controller.routeQueries(query => {
-    const {search, defaults} = routing.current;
-    if (!defaults || !resources.life.current() || !context.isCurrent()) return;
     const {query: _query, sort: _sort, ...rest} = search;
     void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {...rest, ...addressedSearch(query, defaults)}, replace: true, resetScroll: false})
       .catch(error => {if (resources.life.current() && context.isCurrent()) context.effects.reportError(error);});
-  }) : undefined, [browse, resources, context, library.id]);
-  useLayoutEffect(() => {
-    if (!addressed || addressed.routeKey === addressed.controllerKey || !resources.life.current() || !context.isCurrent()) return;
-    try {resources.controller.follow(addressed.route);} catch (error) {context.effects.reportError(error);}
-  }, [addressed, resources, context]);
+  }) : undefined, [browse, controller, resources, context, library.id]);
   // O-161: the library's ⋯ copies its shareable address (this server's, on Hosted).
   const [linkToast, setLinkToast] = useState<ToastData | null>(null);
   const copyLibraryLink = () => {void copyLink('library', {libraryId: library.id}).then(
@@ -337,30 +337,36 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     if (!entryId || presentation.fence.entryId !== entryId) return undefined;
     return view.items.find(item => item.entryId === entryId)?.albumId;
   }, [playbackSnapshot, context]);
-  type SelectionLease = Readonly<{resources: BrowseLease; runtime: typeof runtime; queryRevision: number; current: () => boolean; playSelection: ReturnType<typeof createLibraryPlaySelection>; selection: ReturnType<typeof createLibrarySelection>}>;
+  type SelectionLease = Readonly<{resources: BrowseLease; controller: BrowseController; runtime: typeof runtime; queryRevision: number; current: () => boolean; playSelection: ReturnType<typeof createLibraryPlaySelection>; selection: ReturnType<typeof createLibrarySelection>}>;
   const [selectionLease, publishSelection] = useState<SelectionLease>();
+  // The grid reports its visible range only when it changes; a selection built afterwards (another
+  // grid, a new page revision) is given the range already on screen.
+  const visibleRange = useRef<Readonly<{first: number; last: number}>>(undefined);
   const [queryBridge] = useState(() => createSelectionActionHostBridge<BrowseSelectionContext>());
-  const [queryOwner, publishQueryOwner] = useState<Readonly<{resources: BrowseLease; actions: BrowserQueryActionHost<BrowseSelectionContext>}>>();
+  const gridName = frame.gridKey ? JSON.stringify(frame.gridKey) : null;
+  const [queryOwner, publishQueryOwner] = useState<Readonly<{resources: BrowseLease; controller?: BrowseController; actions: BrowserQueryActionHost<BrowseSelectionContext>}>>();
   useLayoutEffect(() => {
     const life = new AbortController(), signal = resources.life.signal(life.signal);
     const session = captured.context.session(), actor = session.viewer;
     const scopeKey = () => {
-      const current = captured.context.session(), viewer = current.viewer, query = resources.controller.getSnapshot();
-      return JSON.stringify([resources.routeKey, resources.sourceKey, current.sessionFamilyId, current.deviceId,
+      const current = captured.context.session(), viewer = current.viewer, query = controller?.getSnapshot() ?? noGrid;
+      return JSON.stringify([resources.routeKey, gridName, current.sessionFamilyId, current.deviceId,
         viewer.serverId, viewer.authority, viewer.accountId, viewer.profileId, viewer.role, captured.context.viewerFence,
         query.predicates, query.sort]);
     };
     const actions = createBrowserQueryActions(queryBridge, {api: {...resources.life.api, mediaUrl: context.api.mediaUrl.bind(context.api)},
       requestId: async () => randomId(), deviceId: session.deviceId ?? '', owner: actor.role === 'owner' && actor.authority === 'local',
       signal, scopeKey, isCurrent: () => resources.life.current() && context.isCurrent() && libraryAddressKey(router.state.location) === href,
-      subscribe: listener => {const a = resources.controller.subscribe(listener), b = subscribeFacts(captured.context, listener), c = router.subscribe('onResolved', listener); return () => {a();b();c();};}});
-    publishQueryOwner({resources, actions});
+      subscribe: listener => {const a = controller?.subscribe(listener), b = subscribeFacts(captured.context, listener), c = router.subscribe('onResolved', listener); return () => {a?.();b();c();};}});
+    publishQueryOwner({resources, controller, actions});
     return () => {life.abort();actions.dispose();queryBridge.dispose();};
-  }, [resources, context, captured.context, queryBridge, href]);
-  const queryActions = queryOwner?.resources === resources ? queryOwner.actions : undefined;
+  }, [resources, controller, gridName, context, captured.context, queryBridge, href]);
+  const queryActions = queryOwner?.resources === resources && queryOwner.controller === controller ? queryOwner.actions : undefined;
+  // Selection and Play selection belong to the grid shown: another query's grid gets its own.
   useLayoutEffect(() => {
+    if (!controller) {publishSelection(undefined); return;}
     const command = new AbortController(), signal = resources.life.signal(command.signal), queryRevision = state.queryRevision;
-    const current = () => !signal.aborted && resources.life.current() && resources.controller.getSnapshot().queryRevision === queryRevision;
+    const current = () => !signal.aborted && resources.life.current() && !controller.isDisposed() && controller.getSnapshot().queryRevision === queryRevision;
     const api = {async request<T>(path: string, method?: string, body?: unknown, input?: AbortSignal): Promise<T> {
       if (!current()) throw new DOMException('Browse selection retired', 'AbortError');
       const value = await resources.life.api.request<T>(path, method, body, input ? AbortSignal.any([signal, input]) : signal);
@@ -368,7 +374,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     }};
     const viewer = captured.context.session().viewer;
     if (viewer.authority !== 'local' && viewer.authority !== 'hosted') throw new DOMException('Screen authority unavailable', 'AbortError');
-    const playSelection = createLibraryPlaySelection({source: resources.controller, queries: context.queries, api, scope: context.scope,
+    const playSelection = createLibraryPlaySelection({source: controller, queries: context.queries, api, scope: context.scope,
       principal: {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId},
       requestId: async () => randomId(), signal,
       isCurrent: current,
@@ -388,8 +394,8 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
         pickerIdentity: {authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId, events: context.events}},
       ...(runtime ? {enqueue: playSelection.enqueue, enqueueQuery: playSelection.enqueueQuery} : {}),
       owner: context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local',
-      descriptor: () => resources.controller.wholeSelection(),
-      wholeSelectionUnavailable: {subscribe: resources.controller.subscribe, getSnapshot: () => resources.controller.wholeSelectionUnavailable()},
+      descriptor: () => controller.wholeSelection(),
+      wholeSelectionUnavailable: {subscribe: controller.subscribe, getSnapshot: () => controller.wholeSelectionUnavailable()},
       ...(context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local' ? {deletion: {api, queries: context.queries, serverId: context.scope.serverId, viewerId: context.scope.viewerId,
         requestId: async () => randomId(), signal, isCurrent: current}, editor: {
         api, events: context.events, requestId: async () => randomId(), serverId: context.scope.serverId, viewerId: context.scope.viewerId,
@@ -400,21 +406,26 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       reportError: context.effects.reportError,
     });
     queryBridge.attach(playSelection);
-    publishSelection({resources, runtime, queryRevision, current, playSelection, selection});
+    publishSelection({resources, controller, runtime, queryRevision, current, playSelection, selection});
     playSelection.start();
+    if (visibleRange.current) selection.registerWindow(visibleRange.current.first, visibleRange.current.last);
     return () => {command.abort();queryBridge.attach();selection.dispose?.();playSelection.dispose();};
-  }, [captured.context, context, resources, runtime, state.queryRevision, queryActions, queryBridge]);
-  const selectedLease = selectionLease?.resources === resources && selectionLease.runtime === runtime
+    // A page revision belongs to its selection model: the hub reading the grid again in place starts a new one.
+  }, [captured.context, context, resources, controller, runtime, state.queryRevision, state.revision, queryActions, queryBridge]);
+  const selectedLease = selectionLease?.resources === resources && selectionLease.controller === controller && selectionLease.runtime === runtime
     && selectionLease.queryRevision === state.queryRevision && selectionLease.current() ? selectionLease : undefined;
   const playSelection = selectedLease?.playSelection, selection = selectedLease?.selection;
+  const registerVisible = useCallback((first: number, last: number) => {visibleRange.current = {first, last};selection?.registerWindow(first, last);}, [selection]);
   /** The selection toolbar is a real surface only while the viewer has an active selection;
    * an empty one must not displace the library's own toolbar. The fact comes from the
    * selection model's own snapshot, never a local counter. */
   const selectionActive = useSyncExternalStore(playSelection?.subscribe ?? noSelectionSubscribe,
     () => playSelection?.getSnapshot().selection?.active === true, () => false);
+  // While a selection is open the grid's pages stay as they are; the hub's reading waits for it to end.
+  useLayoutEffect(() => selectionActive && controller ? controller.hold() : undefined, [selectionActive, controller]);
   const [saving, setSaving] = useState<SavedDefinition>();
   const navigate = (value: LibraryScreenSearch, id = library.id) => {if (resources.life.current() && context.isCurrent()) void router.navigate({to: '/library/$libraryId', params: {libraryId: id}, search: value}).catch(context.effects.reportError);};
-  const actions = (entry: ContentEntry, witness = () => !browse || resources.controller.contains(entry)) => {
+  const actions = (entry: ContentEntry, witness = () => !browse || !!controller?.contains(entry)) => {
     const current = () => resources.life.current() && witness();
     /** P2-74 E-web-02: a press that crossed a re-read of the list (a stale selection query
      * re-browses it) waits once for the fresh list and acts on the same title there; if the title
@@ -422,9 +433,8 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     const act = (run: (target: ContentEntry, isCurrent: () => boolean) => void | Promise<unknown>) => {
       if (!resources.life.current()) return;
       if (current()) {void Promise.resolve(run(entry, current)).catch(context.effects.reportError); return;}
-      if (!browse) return;
+      if (!browse || !controller) return;
       void (async () => {
-        const controller = resources.controller;
         await controller.settled(resources.life.signal(), 5000);
         const fresh = controller.resident(entry);
         if (!resources.life.current()) return;
@@ -492,10 +502,10 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
   const shownView = choice?.defaultView === appearance.libraryView ? choice.view : appearance.libraryView;
   const save = () => {
     // A retained menu callback can outlive its route: check the original lifetime first.
-    if (!resources.life.current() || !context.isCurrent() || resources.controller.getSnapshot().queryRevision !== state.queryRevision
-      || resources.controller.getSnapshot().revision !== state.revision || !resources.controller.canSaveView()) return;
-    const query = resources.controller.query();
-    setSaving({libraryId: library.id, pivot: resources.controller.source.pivot, query: query.query ?? null,
+    if (!controller || !resources.life.current() || !context.isCurrent() || controller.getSnapshot().queryRevision !== state.queryRevision
+      || controller.getSnapshot().revision !== state.revision || !controller.canSaveView()) return;
+    const query = controller.query();
+    setSaving({libraryId: library.id, pivot: controller.source.pivot, query: query.query ?? null,
       sort: query.sort ?? [], presentation: shownView});
   };
   const musicCounts = musicSummary?.summary.counts.map(count => ({id: count.kind, role: 'context' as const,
@@ -508,7 +518,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     // A Reading library's ⋯ draws only the rows this surface can really perform: saving the
     // current view, the owner's Unmatched entry, the owner's Library settings page, and Scan
     // from its own lease, plus the ready original-profile Mark all read action.
-    libraryMenu: withLinkToast(isReadingLibrary(library.kind) ? readingLibraryMenu(resources, context, library, onlineAttention, save, scan, readingMarkAll, copyLibraryLink)
+    libraryMenu: withLinkToast(isReadingLibrary(library.kind) ? readingLibraryMenu({life: resources.life, controller}, context, library, onlineAttention, save, scan, readingMarkAll, copyLibraryLink)
       : context.effects.editMetadata && onlineAttention ? <LibraryMetadataMenu key={agentKey} onCopyLink={copyLibraryLink} onUnmatched={() => {if (resources.life.current()) navigate({unmatched: true});}}/> : undefined, linkToast, () => setLinkToast(null)),
     onLibrary: (id: string) => navigate({}, id), onLibraries: () => {if (resources.life.current()) void router.navigate({to: '/libraries'}).catch(context.effects.reportError);},
     onPivot: (id: string) => {if (!resources.life.current()) return;const tab = tabs.find(tab => tab.id === id);if (!tab) return;
@@ -518,13 +528,13 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       navigate(libraryTabAddress(tabs, tab));}};
   const empty = <LibraryEmpty api={resources.life.api} scope={context.scope} libraryId={library.id} libraryName={library.name}
     owner={context.identity?.viewer.role === 'owner'} onActivity={() => {if (context.isCurrent()) void router.navigate({to: '/dashboard'}).catch(context.effects.reportError);}}/>;
-  const bindings: LibraryBindings = {...header, controller: resources.controller, menuContext: context,
+  const bindings = {...header, controller, menuContext: context,
     unmatchedHelp: context.effects.editMetadata ? t('metadata.attention.browseHelp') : undefined,
     env: {t, locale: defaultI18n.region.formatLocale}, reducedMotion: appearance.reducedMotion, owner: context.identity?.viewer.role === 'owner',
-    reportError: context.effects.reportError, empty, canSaveView: resources.controller.canSaveView(), onSaveView: save,
-    selection: {toolbar: selectionActive ? selection?.toolbar : undefined, actions: (member, index) => ({...actions(member.entry), selection: selection?.entry(member, index)}),
-      registerWindow: selection?.registerWindow, playSelection},
-    onAppearanceChange: change => {if (!resources.life.current()) return;if (change.view) setChoice({defaultView: appearance.libraryView, view: change.view});if (change.cardSize) setSize(change.cardSize);}};
+    reportError: context.effects.reportError, empty, canSaveView: !!controller?.canSaveView(), onSaveView: save,
+    selection: {toolbar: selectionActive ? selection?.toolbar : undefined, actions: (member: BrowseMember, index: number) => ({...actions(member.entry), selection: selection?.entry(member, index)}),
+      registerWindow: registerVisible, playSelection},
+    onAppearanceChange: (change: Parameters<LibraryBindings['onAppearanceChange']>[0]) => {if (!resources.life.current()) return;if (change.view) setChoice({defaultView: appearance.libraryView, view: change.view});if (change.cardSize) setSize(change.cardSize);}};
   const contentRoute: ContentRoute = {libraryId: library.id, view, ...(search.entityId ? {entityId: search.entityId} : {}), ...(search.category ? {category: search.category} : {}), ...(search.q ? {q: search.q} : {})};
   const unmatched = requested?.shows === 'unmatched';
   const editAttention = (entry: AttentionEntry, anchor: HTMLElement, matching = false) => {

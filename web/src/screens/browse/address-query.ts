@@ -38,3 +38,11 @@ export function libraryAddressKey(location: Readonly<{pathname: string; search: 
   const rest = Object.keys(search).filter(key => key !== 'query' && key !== 'sort' && search[key] !== undefined).sort().map(key => [key, search[key]]);
   return JSON.stringify([location.pathname, rest]);
 }
+
+/** The query part of a grid's cache key: the address's filters in the controller's normal form,
+ *  its order as written (none: the opening order), and the tab's own opening order, so the same
+ *  address read twice is one grid and two tabs on one pivot are two. */
+export function addressCacheKey(search: AddressedSearch, opens?: readonly BrowseSortSelection[]): string {
+  return JSON.stringify({predicates: search.query ? browseConjunction(search.query).map(node => parseBrowseNode(completeBrowseNode(node))) : [],
+    sort: search.sort?.length ? appliedSorts(search.sort) : null, ...(opens?.length ? {opens: appliedSorts(opens)} : {})});
+}

@@ -231,12 +231,13 @@ test('Browse and Show committed adapters keep the original services and forward 
       get identity() {return f.context.facts.identity;}, subscribeIdentity: (listener: () => void) => subscribeFacts(f.context, listener), preferences: {getSnapshot: () => preferences, subscribe: () => () => {}}, effects: {reportError() {}}}) as unknown as ScreenContext;
     const file = kind === 'browse' ? '../src/screens/browse/useBrowseLease.ts' : '../src/screens/detail/use-show-route.ts';
     const module = await componentModule(new URL(file, import.meta.url), {react: h.react, '../detail/context': {forwardIdentity, screenLifetime}, './context': {forwardIdentity},
-      './controller': {BrowseController: class {constructor() {constructed++;}dispose() {disposed++;}}},
+      // The lease owns the Discover service; the grid itself comes from the viewer's cache.
+      '@core/library-content.ts': {LibraryContentService: class {constructor() {constructed++;}dispose() {disposed++;}}},
       './show-bindings': {createShowBindings: (screen: ScreenContext) => {received = screen;constructed++;
         return {select: async () => {}, dispose() {disposed++;}, service: {getSnapshot: () => ({phase: 'idle'}), subscribe: () => () => {}}};}},
       './episode-selection': {createEpisodeSelection: () => ({start() {}, dispose() {}})}});
     const captured = {context: f.context, binding: {}};
-    const draw = () => h.render(() => kind === 'browse' ? module.useBrowseLease(context, '{}', '/library/library', () => true) : module.useShowRoute(context, captured, {libraryId: 'library', showId: 'show'}));
+    const draw = () => h.render(() => kind === 'browse' ? module.useBrowseLease(context, '/library/library', () => true) : module.useShowRoute(context, captured, {libraryId: 'library', showId: 'show'}));
     try {
       draw();const lease = draw();if (kind === 'browse') received = lease.screen;assert.ok(received);let changes = 0;const off = received!.subscribeIdentity!(() => changes++);
       f.rename();assert.equal(changes, 1);assert.strictEqual(draw(), lease);assert.equal(received!.identity?.libraries[0]?.name, 'Renamed books');assert.equal(constructed, 1);assert.equal(disposed, 0);

@@ -1,8 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {addressedQuery, addressedQueryKey, addressedSearch, libraryAddressKey} from '../src/screens/browse/address-query.ts';
+import {addressCacheKey, addressedQuery, addressedQueryKey, addressedSearch, libraryAddressKey} from '../src/screens/browse/address-query.ts';
 import {parseHomeRowScreenSearch, parseLibraryScreenSearch} from '../src/screens/browse/route-search.ts';
 import {BrowseController, type BrowseQuery} from '../src/screens/browse/controller.ts';
+import {browseGridQuery} from '../src/screens/browse/browse-cache.ts';
+import {queryKeys} from '../../packages/client-core/src/query/keys.ts';
+import {createViewerQueries} from '../../packages/client-core/src/query/viewer-queries.ts';
+import {FreshnessHub} from '../../packages/client-core/src/freshness-hub.ts';
 
 const title = [{field: 'title', direction: 'asc' as const}];
 const added = [{field: 'added', direction: 'desc' as const}];
@@ -53,7 +57,7 @@ function grid(opening: Partial<BrowseQuery> = {}) {
   return {controller, reads, shown};
 }
 
-test('Sort: Date added goes to the address, and the grid moves only when the address does', async () => {
+test('Sort: Date added and a filter go to the address, and the grid shown is left as it is', async () => {
   const {controller, reads, shown} = grid();
   try {
     await controller.load(); await settle();
@@ -66,48 +70,108 @@ test('Sort: Date added goes to the address, and the grid moves only when the add
     assert.equal(addressedQueryKey(asked[0]!), key({sort: added}));
     assert.equal(shown(), opened);
     assert.equal(controller.getSnapshot().queryRevision, revision);
-    // The replace lands: the grid follows it once, and the same address again is nothing.
-    assert.equal(controller.follow(addressedQuery({sort: added}, title)), true);
     await settle();
-    assert.equal(shown(), key({sort: added}));
-    assert.equal(reads.length, before + 1);
-    assert.equal(controller.follow(addressedQuery({sort: added}, title)), false);
-    await settle();
-    assert.equal(reads.length, before + 1);
-    // A filter on top of it is asked for the same way, with the order kept.
+    assert.equal(reads.length, before, 'the address picks the grid for the new order; this one is left as it is');
+    // A filter is asked for the same way, from the query this grid shows.
     assert.equal(controller.setQuery([drama]), true);
-    assert.equal(addressedQueryKey(asked[1]!), key({sort: added, query: drama}));
+    assert.equal(addressedQueryKey(asked[1]!), key({query: drama}));
     release();
     // Without a page owning its address (a test, a host with no route), the grid applies it itself.
     assert.equal(controller.setQuery([drama]), true);
     assert.equal(asked.length, 2);
-    assert.equal(shown(), key({sort: added, query: drama}));
-  } finally {controller.dispose();}
-});
-
-test('Back or a link to another query moves the grid to it; a query this pivot cannot run leaves it as it was', async () => {
-  const {controller, shown} = grid({sorts: added});
-  try {
-    await controller.load(); await settle();
-    controller.routeQueries(() => assert.fail('a navigation is not the toolbar'));
-    assert.equal(shown(), key({sort: added}));
-    assert.equal(controller.follow(addressedQuery({query: drama}, title)), true);
-    assert.equal(shown(), key({query: drama}));
-    assert.throws(() => controller.follow(addressedQuery({sort: [{field: 'nope', direction: 'asc'}]}, title)));
     assert.equal(shown(), key({query: drama}));
   } finally {controller.dispose();}
 });
 
-test('a grid opened from a reloaded or Back address shows that query at once (the LB-1 journey)', async () => {
-  // Movies → Sort: Date added → open a poster → Back: the library route mounts again on the
-  // address the toolbar wrote, and the new grid opens on it, with nothing to follow.
-  const address = parseLibraryScreenSearch(JSON.parse(JSON.stringify({view: 'browse', pivot: 'movies', ...addressedSearch({predicates: [drama], sorts: added}, title)})));
-  const opening = addressedQuery(address, title);
-  const {controller, reads, shown} = grid(opening);
+test('the same address is one grid, another order or another tab on the pivot is another', () => {
+  const at = (search: Parameters<typeof addressCacheKey>[0], opens?: typeof title) => addressCacheKey(search, opens);
+  assert.equal(at({query: {field: 'genre', operator: 'contains-any', value: ['Drama']} as never}), at({query: drama}));
+  assert.equal(at({query: {variant: 'group', all: [drama, nineties]} as never}), at({query: {variant: 'group', all: [drama, nineties]} as never}));
+  assert.notEqual(at({sort: added}), at({}));
+  assert.notEqual(at({}, added), at({}), 'Recently aired and Shows read one pivot in two orders');
+  // LB-1: Movies → Sort: Date added and a filter → a title → Back (or a reload): the address the
+  // toolbar wrote names the very grid the toolbar's change made.
+  const written = addressedSearch({predicates: [drama], sorts: added}, title);
+  const back = parseLibraryScreenSearch(JSON.parse(JSON.stringify({view: 'browse', pivot: 'movies', ...written})));
+  assert.equal(at(back), at(written));
+});
+
+/** A viewer cache over a fake server; each grid read is recorded with the query it asked for. */
+function cache() {
+  const reads: string[] = [];
+  let revision = 'r1', title = 'One';
+  const api = {async request<T>(path: string, _method?: string, body?: unknown) {
+    if (path.includes('capabilities')) {reads.push('capabilities'); return caps as T;}
+    reads.push(JSON.stringify((body as {sort?: unknown}).sort ?? null));
+    return {pivot: 'movies', applied: {query: null, sort: [{field: 'title', direction: 'asc'}], seek: null}, entries: [{id: 'm1', kind: 'movie', title, libraryId: 'lib', navigation: {view: 'item'}}],
+      pageInfo: {start: 0, total: 1, totalIsLowerBound: false, revision, hasMore: false, nextCursor: ''}, positionIndex: []} as T;
+  }};
+  const hub = new FreshnessHub({gatherMs: 0, settleMs: 0, settleLimitMs: 0, contentEveryMs: 0});
+  const queries = createViewerQueries({scope: {serverId: 'srv', viewerId: 'viewer'}, hub, api, gcTimeMs: Infinity});
+  const grid = async (sort?: typeof added) => {
+    const value = await queries.client.fetchQuery(browseGridQuery(queries, queryKeys.libraryBrowse('lib', 'movies', addressCacheKey(sort ? {sort} : {})),
+      {libraryId: 'lib', pivot: 'movies', ...(sort ? {sorts: sort} : {})}));
+    await settle();
+    return value;
+  };
+  return {queries, hub, reads, grid, change(next: string) {revision = next; title = 'Renamed';}};
+}
+
+test('a grid comes from the viewer cache: Back to it reads nothing, another order is its own grid, and both end with the viewer', async () => {
+  const {queries, reads, grid} = cache();
   try {
-    await controller.load(); await settle();
-    assert.equal(shown(), key(address));
-    assert.equal(controller.follow(opening), false);
-    assert.equal(reads.length, 1);
-  } finally {controller.dispose();}
+    const opened = await grid();
+    assert.deepEqual(reads, ['capabilities', JSON.stringify(title)]);
+    assert.equal(opened.collection.residentItems().length, 1);
+    // Back to the same address: the same live grid, its page already held, no request.
+    assert.equal(await grid(), opened);
+    assert.equal(reads.length, 2);
+    // Sort: Date added is another grid; the first stays cached for Back.
+    const sorted = await grid(added);
+    assert.notEqual(sorted, opened);
+    assert.equal(reads.at(-1), JSON.stringify(added));
+    assert.equal(await grid(), opened);
+    assert.equal(reads.length, 4);
+    queries.dispose();
+    assert.equal(opened.isDisposed(), true);
+    assert.equal(sorted.isDisposed(), true);
+  } finally {queries.dispose();}
+});
+
+test('a cached grid is kept current: shown, a change to a title it holds is read in place; hidden, it waits until it is shown again', async () => {
+  const {queries, hub, reads, grid, change} = cache();
+  try {
+    const opened = await grid();
+    const hide = opened.show();
+    change('r2');
+    hub.note('personal:title:m1');
+    await settle(); await settle();
+    assert.equal(reads.length, 3, 'one page read again, no capabilities');
+    assert.equal(opened.collection.residentItems()[0]!.entry.title, 'Renamed');
+    hide();
+    hub.note('personal:title:m1');
+    await settle();
+    assert.equal(reads.length, 3, 'nothing is read for a grid nobody sees');
+    const again = opened.show();
+    await settle(); await settle();
+    assert.equal(reads.length, 4, 'shown again, the change it missed is read');
+    again();
+  } finally {queries.dispose();}
+});
+
+test('while a selection is open on a cached grid, a change is held and read once the selection ends', async () => {
+  const {queries, hub, reads, grid, change} = cache();
+  try {
+    const opened = await grid();
+    const hide = opened.show(), release = opened.hold();
+    change('r2');
+    hub.note('personal:title:m1');
+    await settle(); await settle();
+    assert.equal(reads.length, 2, 'the open selection keeps its page revision');
+    release();
+    await settle(); await settle();
+    assert.equal(reads.length, 3);
+    assert.equal(opened.collection.residentItems()[0]!.entry.title, 'Renamed');
+    hide();
+  } finally {queries.dispose();}
 });
