@@ -570,6 +570,10 @@ func (a *admission) wrap(mux *http.ServeMux, next http.Handler) http.Handler {
 		// check inside a loop.
 		ctx, cost := dbwork.Measure(ctx)
 		defer func() { recordRouteCost(pattern, l.name, cost()) }()
+		// The request's read snapshots reuse one another while nothing has
+		// committed (dbwork.WithRequestSnapshot).
+		ctx, endSnapshot := dbwork.WithRequestSnapshot(ctx)
+		defer endSnapshot()
 		if !uncompressedLanes[l.name] {
 			response := withResponseDeadline(w)
 			defer response.finishResponse()
