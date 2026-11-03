@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -61,6 +62,24 @@ func TestAdministrationTimeoutIsRetryable(t *testing.T) {
 		administrationFailure(w, err)
 		if w.Code != 503 || !strings.Contains(w.Body.String(), `"code":"administration_unavailable"`) || !strings.Contains(w.Body.String(), `"retryable":true`) {
 			t.Fatalf("%d %s", w.Code, w.Body.String())
+		}
+	}
+}
+
+// A read snapshot that outlived its lifetime fails its next statement with
+// ErrTxDone. Under load that reached people as a 500 on a book open; it is a
+// timeout, and the same request can be retried.
+func TestAnExpiredTransactionIsARetryableTimeout(t *testing.T) {
+	for _, err := range []error{sql.ErrTxDone, fmt.Errorf("reading prepare: %w", sql.ErrTxDone)} {
+		w := httptest.NewRecorder()
+		failure(w, err)
+		if w.Code != 503 || !strings.Contains(w.Body.String(), `"code":"timeout"`) || !strings.Contains(w.Body.String(), `"retryable":true`) {
+			t.Fatalf("%v answered %d %s", err, w.Code, w.Body.String())
+		}
+		w = httptest.NewRecorder()
+		readingFailure(w, err)
+		if w.Code != 503 {
+			t.Fatalf("a book open whose snapshot expired answered %d", w.Code)
 		}
 	}
 }
