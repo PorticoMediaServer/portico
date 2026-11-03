@@ -305,6 +305,7 @@ func (s *Store) ChannelDirectory(ctx context.Context, a DirectoryAuthority, q Di
 				rows.Close()
 				return err
 			}
+			c.Guide = ChannelGuide(src.AvailableStart, src.AvailableEnd)
 			c.Programmes = []Programme{}
 			c.TuneUnavailableReason = "delivery-unavailable"
 			c.RecordUnavailableReason = "recording-unavailable"
@@ -683,6 +684,7 @@ func (s *Store) Airings(ctx context.Context, a DirectoryAuthority, project Airin
 			p.ChannelID = ch.ID
 			p.ApplyFacts(f)
 			ch.Programmes = []Programme{}
+			ch.Guide = ChannelGuideFull // an airing is a listing
 			batch = append(batch, v)
 			facts = append(facts, f)
 		}
@@ -778,6 +780,7 @@ func scanAiring(rows interface{ Scan(...any) error }) (Airing, error) {
 	p.ChannelID = ch.ID
 	p.ApplyFacts(f)
 	ch.Programmes = []Programme{}
+	ch.Guide = ChannelGuideFull // an airing is a listing
 	return v, e
 }
 

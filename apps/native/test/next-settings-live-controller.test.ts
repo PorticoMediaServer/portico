@@ -34,7 +34,7 @@ function authority() {
 }
 
 function guideChannel(): GuideChannel {
-  return {id: 'channel', sourceId: 'source', provenance: 'live-source', generation: 'generation', name: 'Guide test channel', number: '201', group: '', programmes: [], tuneAvailable: true, recordAvailable: true, tuneUnavailableReason: '', recordUnavailableReason: '', favorite: false, hidden: false, preferenceRevision: 7};
+  return {id: 'channel', sourceId: 'source', provenance: 'live-source', generation: 'generation', name: 'Guide test channel', number: '201', group: '', programmes: [], tuneAvailable: true, recordAvailable: true, tuneUnavailableReason: '', recordUnavailableReason: '', guide: 'full', favorite: false, hidden: false, preferenceRevision: 7};
 }
 
 test('Guide keeps view and sort per source only within its actual factory lifetime', () => {

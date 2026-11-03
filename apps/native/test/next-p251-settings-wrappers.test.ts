@@ -53,7 +53,7 @@ test('native library selection retirement prevents acknowledgement of a late val
   finally {controller.dispose();}
 });
 
-const channel: GuideChannel = {id: 'channel', sourceId: 'source', provenance: 'live-source', generation: 'generation', name: 'Channel', number: '1', group: '', programmes: [], tuneAvailable: true, recordAvailable: true, tuneUnavailableReason: '', recordUnavailableReason: '', favorite: false, hidden: false, preferenceRevision: 7};
+const channel: GuideChannel = {id: 'channel', sourceId: 'source', provenance: 'live-source', generation: 'generation', name: 'Channel', number: '1', group: '', programmes: [], tuneAvailable: true, recordAvailable: true, tuneUnavailableReason: '', recordUnavailableReason: '', guide: 'full', favorite: false, hidden: false, preferenceRevision: 7};
 test('both native channel wrappers await the original ack and refuse it after opening retirement', async () => {
   for (const retire of [false, true]) {
     let acknowledgements = 0, allocations = 0, failAck = true, finish!: (value: any) => void;

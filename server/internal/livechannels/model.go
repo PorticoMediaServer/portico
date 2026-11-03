@@ -106,24 +106,29 @@ type Preview struct {
 	Names          []string          `json:"names"`
 }
 type Channel struct {
-	Mark                    *ChannelMark `json:"mark,omitempty"`
-	LogoPath                string       `json:"logoPath,omitempty"`
-	ID                      string       `json:"id"`
-	SourceID                string       `json:"sourceId"`
-	Provenance              Provenance   `json:"provenance"`
-	Name                    string       `json:"name"`
-	Number                  string       `json:"number"`
-	Group                   string       `json:"group"`
-	Generation              string       `json:"generation"`
-	Programmes              []Programme  `json:"programmes"`
-	TuneAvailable           bool         `json:"tuneAvailable"`
-	TuneUnavailableReason   string       `json:"tuneUnavailableReason"`
-	RecordUnavailableReason string       `json:"recordUnavailableReason"`
-	RecordAvailable         bool         `json:"recordAvailable"`
-	Favorite                bool         `json:"favorite"`
-	Hidden                  bool         `json:"hidden"`
-	ServerHidden            bool         `json:"serverHidden"`
-	PreferenceRevision      int64        `json:"preferenceRevision"`
+	// Guide says whether the channel publishes a guide: "none" when its lineup row
+	// carries no published range (a channel with no listings at all), else "full".
+	// Clients draw one "No guide information" band for "none" and keep "No
+	// information" for a gap inside a channel that has listings (LT-7).
+	Guide                   ChannelGuideState `json:"guide"`
+	Mark                    *ChannelMark      `json:"mark,omitempty"`
+	LogoPath                string            `json:"logoPath,omitempty"`
+	ID                      string            `json:"id"`
+	SourceID                string            `json:"sourceId"`
+	Provenance              Provenance        `json:"provenance"`
+	Name                    string            `json:"name"`
+	Number                  string            `json:"number"`
+	Group                   string            `json:"group"`
+	Generation              string            `json:"generation"`
+	Programmes              []Programme       `json:"programmes"`
+	TuneAvailable           bool              `json:"tuneAvailable"`
+	TuneUnavailableReason   string            `json:"tuneUnavailableReason"`
+	RecordUnavailableReason string            `json:"recordUnavailableReason"`
+	RecordAvailable         bool              `json:"recordAvailable"`
+	Favorite                bool              `json:"favorite"`
+	Hidden                  bool              `json:"hidden"`
+	ServerHidden            bool              `json:"serverHidden"`
+	PreferenceRevision      int64             `json:"preferenceRevision"`
 }
 type Programme struct {
 	RecordingID    string `json:"recordingId,omitempty"`
@@ -231,4 +236,26 @@ type parsedSource struct {
 	diagnostics ImportDiagnostics
 	channels    []parsedChannel
 	programmes  []parsedProgramme
+}
+
+// ChannelGuide is a lineup row's guide state from its published range; it reads
+// the range the guide and directory queries already select, so it adds no read.
+func ChannelGuide(availableStart, availableEnd string) ChannelGuideState {
+	if availableStart == "" || availableEnd == "" {
+		return ChannelGuideNone
+	}
+	return ChannelGuideFull
+}
+
+// ChannelGuideState is "full" for a channel with published listings and "none"
+// for one with no guide at all.
+type ChannelGuideState string
+
+const (
+	ChannelGuideFull ChannelGuideState = "full"
+	ChannelGuideNone ChannelGuideState = "none"
+)
+
+func (ChannelGuideState) JSONSchema() map[string]any {
+	return map[string]any{"type": "string", "enum": []string{string(ChannelGuideFull), string(ChannelGuideNone)}}
 }

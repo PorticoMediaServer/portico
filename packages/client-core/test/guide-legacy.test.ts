@@ -21,7 +21,7 @@ test('a captured channel search reaches directory, named programmes and neighbor
 });
 
 /** Current directory, source summaries and named programme windows over the demo fixture. */
-function legacyApi(opts: {library?: boolean; failKind?: string; refreshState?: string} = {}) {
+function legacyApi(opts: {library?: boolean; failKind?: string; refreshState?: string; noGuide?: string} = {}) {
   const requests: string[] = [];
   const library = [{id: 'lc-1', name: 'Sharks', number: '900', group: ''}, {id: 'lc-2', name: 'Aardvarks', number: '901', group: ''}];
   const api = {
@@ -31,7 +31,7 @@ function legacyApi(opts: {library?: boolean; failKind?: string; refreshState?: s
       const q = new URL(path, 'http://x').searchParams;
       const sourceRows = (kind: string) => kind === 'live-source' ? demoChannels : opts.library ? library : [];
       const meta = (kind: string) => ({id: kind === 'live-source' ? 'antenna' : 'library-src', name: kind === 'live-source' ? 'Antenna' : 'Library Channels', generation: 'g1', publishedAt: new Date(NOW).toISOString(), availableStart: '', availableEnd: '', provenance: kind, refreshState: opts.refreshState ?? 'healthy'});
-      const directoryRow = (c: {id:string;name:string;number:string;group:string}, kind:string) => ({...c,sourceId:meta(kind).id,provenance:kind,generation:'g1',logoPath:'',programmes:[],tuneAvailable:true,recordAvailable:kind==='live-source',tuneUnavailableReason:'',recordUnavailableReason:kind==='live-source'?'':'not-recordable',favorite:false,hidden:false,preferenceRevision:0});
+      const directoryRow = (c: {id:string;name:string;number:string;group:string}, kind:string) => ({...c,sourceId:meta(kind).id,provenance:kind,generation:'g1',logoPath:'',programmes:[],tuneAvailable:true,recordAvailable:kind==='live-source',tuneUnavailableReason:'',recordUnavailableReason:kind==='live-source'?'':'not-recordable',guide:c.id===opts.noGuide?'none':'full',favorite:false,hidden:false,preferenceRevision:0});
       if (path.startsWith('/v1/guide/sources?')) {
         const kinds = ['live-source', ...(opts.library ? ['library-channel'] : [])];
         return {protocolVersion:'1.0',serverId:SERVER,viewerFence:'fence',revision:'r1',sources:kinds.map((kind,position)=>({...meta(kind),position,recordAvailable:kind==='live-source',guideDays:8,channelCount:sourceRows(kind).length,favoriteCount:0,groups:[],groupCounts:[],unavailableReasons:{}}))} as T;
@@ -54,7 +54,7 @@ function legacyApi(opts: {library?: boolean; failKind?: string; refreshState?: s
       const channels = slice.map(c => ({
         id: c.id, sourceId: kind === 'live-source' ? 'antenna' : 'library-src', provenance: kind, name: c.name, number: c.number, group: c.group, generation: 'g1', logoPath: '',
         programmes: (rowsOnly ? [] : demoPrograms(c.id, Date.parse(start), Date.parse(end))).map(p => ({id: p.id, channelId: c.id, title: p.title, start: new Date(p.start).toISOString(), end: new Date(p.end).toISOString(), lineage: 'provider-id', seriesId: p.seriesId ?? '', episodeId: '', newEvidence: p.flags?.new ? 'new' : 'unknown', description: `About ${p.title}`})),
-        tuneAvailable: true, recordAvailable: kind === 'live-source', tuneUnavailableReason: '', recordUnavailableReason: kind === 'live-source' ? '' : 'not-recordable', favorite: false, hidden: false, preferenceRevision: 0,
+        tuneAvailable: true, recordAvailable: kind === 'live-source', tuneUnavailableReason: '', recordUnavailableReason: kind === 'live-source' ? '' : 'not-recordable', guide: c.id === opts.noGuide ? 'none' : 'full', favorite: false, hidden: false, preferenceRevision: 0,
       }));
       return {protocolVersion: '1.0', serverId: SERVER, guide: {
         state: all.length ? 'ready' : 'no-channels', viewerFence: 'fence', start, end, timezone: q.get('timezone'), observedAt: new Date(NOW).toISOString(),
@@ -111,6 +111,19 @@ test('guide adapter: rows and programs carry their /v1/guide objects and descrip
   const forged: GuideChannelRow = {...items[0]!, native: {...native}};
   assert.equal(legacyChannel(forged), undefined);
   assert.equal(legacyProgramme({...first, native: {}}), undefined);
+});
+
+test('guide adapter: a channel with no listings reads "none" from the server, every other channel "full" (LT-7)', async () => {
+  const signal = new AbortController().signal;
+  const quiet = demoChannels[1]!.id;
+  const {api} = legacyApi({noGuide: quiet});
+  const source = legacyGuideSource(api, SERVER, {kind: 'live-source', sourceId: 'antenna', timezone: 'UTC'});
+  const page = await source.channels(0, 3, signal);
+  assert.deepEqual(page.items.map(r => [r.id, r.guide]), demoChannels.slice(0, 3).map(c => [c.id, c.id === quiet ? 'none' : 'full']));
+  const route = {kind: 'live-source', start: '2026-09-22T19:00:00Z', end: '2026-09-22T20:00:00Z', timezone: 'UTC', search: '', sourceId: ''} as const;
+  const guide = parseChannelGuide(await api.request(`/v1/guide?kind=${route.kind}&start=${route.start}&end=${route.end}&timezone=UTC`), SERVER, route);
+  assert.equal(guide.channels.find(c => c.id === quiet)?.guide, 'none');
+  assert.equal(guide.channels.find(c => c.id !== quiet)?.guide, 'full');
 });
 
 test('guide adapter preserves the authorized mark exactly and leaves absent marks absent', async () => {

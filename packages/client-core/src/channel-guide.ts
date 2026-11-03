@@ -28,6 +28,8 @@ export type GuideChannel = Readonly<{
  id: string; sourceId: string; provenance: ChannelKind; name: string; number: string; group: string;
  generation: string; logoPath?: string; mark?: GuideChannelMark; programmes: readonly GuideProgramme[]; tuneAvailable: boolean; recordAvailable: boolean;
  tuneUnavailableReason: LinearUnavailableReason; recordUnavailableReason: LinearUnavailableReason;
+ /** 'none' when the channel publishes no listings at all, so it reads "No guide information" rather than an off-air gap. */
+ guide: 'full' | 'none';
  favorite: boolean; hidden: boolean; serverHidden?: boolean; preferenceRevision: number;
 }>;
 export type GuideSource = Readonly<{id: string; name: string; generation: string; publishedAt: string; availableStart: string; availableEnd: string; provenance: ChannelKind; refreshState: string}>;
@@ -169,7 +171,7 @@ export function parseGuideChannels(value: unknown, sources: readonly GuideSource
    if (programmeIDs.has(p.id) || Date.parse(p.start) < previousEnd || route !== undefined && (Date.parse(p.end) <= Date.parse(route.start) || Date.parse(p.start) >= Date.parse(route.end)) || ++total > 10000) invalid();
    previousEnd = Date.parse(p.end); programmeIDs.add(p.id); return p;
   });
-  return {id: v.id, sourceId: v.sourceId, provenance: v.provenance, name: v.name, number: (v.number ?? '') as string, group: (v.group ?? '') as string, generation: v.generation, logoPath: logoPath as string, ...(mark ? {mark} : {}), programmes, tuneAvailable, recordAvailable, tuneUnavailableReason, recordUnavailableReason, favorite: v.favorite === true, hidden: v.hidden === true, serverHidden: v.serverHidden === true, preferenceRevision: v.preferenceRevision as number} as GuideChannel;
+  return {id: v.id, sourceId: v.sourceId, provenance: v.provenance, name: v.name, number: (v.number ?? '') as string, group: (v.group ?? '') as string, generation: v.generation, logoPath: logoPath as string, ...(mark ? {mark} : {}), programmes, tuneAvailable, recordAvailable, tuneUnavailableReason, recordUnavailableReason, guide: oneOfOr('guide', 'channel.guide', v.guide, ['full', 'none'] as const, 'full'), favorite: v.favorite === true, hidden: v.hidden === true, serverHidden: v.serverHidden === true, preferenceRevision: v.preferenceRevision as number} as GuideChannel;
  }); return channels;
 }
 export function parseChannelGuide(raw: unknown, serverId: string, route: GuideRoute): ChannelGuide {

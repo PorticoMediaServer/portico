@@ -60457,6 +60457,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -60645,6 +60652,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -60881,6 +60889,13 @@
                     "group": {
                       "type": "string"
                     },
+                    "guide": {
+                      "enum": [
+                        "full",
+                        "none"
+                      ],
+                      "type": "string"
+                    },
                     "hidden": {
                       "type": "boolean"
                     },
@@ -61069,6 +61084,7 @@
                     }
                   },
                   "required": [
+                    "guide",
                     "id",
                     "sourceId",
                     "provenance",
@@ -61199,6 +61215,13 @@
                     "group": {
                       "type": "string"
                     },
+                    "guide": {
+                      "enum": [
+                        "full",
+                        "none"
+                      ],
+                      "type": "string"
+                    },
                     "hidden": {
                       "type": "boolean"
                     },
@@ -61387,6 +61410,7 @@
                     }
                   },
                   "required": [
+                    "guide",
                     "id",
                     "sourceId",
                     "provenance",
@@ -61529,6 +61553,13 @@
                     "group": {
                       "type": "string"
                     },
+                    "guide": {
+                      "enum": [
+                        "full",
+                        "none"
+                      ],
+                      "type": "string"
+                    },
                     "hidden": {
                       "type": "boolean"
                     },
@@ -61717,6 +61748,7 @@
                     }
                   },
                   "required": [
+                    "guide",
                     "id",
                     "sourceId",
                     "provenance",
@@ -61872,6 +61904,13 @@
                               "type": "string"
                             },
                             "group": {
+                              "type": "string"
+                            },
+                            "guide": {
+                              "enum": [
+                                "full",
+                                "none"
+                              ],
                               "type": "string"
                             },
                             "hidden": {
@@ -62062,6 +62101,7 @@
                             }
                           },
                           "required": [
+                            "guide",
                             "id",
                             "sourceId",
                             "provenance",
@@ -62282,6 +62322,13 @@
                     "group": {
                       "type": "string"
                     },
+                    "guide": {
+                      "enum": [
+                        "full",
+                        "none"
+                      ],
+                      "type": "string"
+                    },
                     "hidden": {
                       "type": "boolean"
                     },
@@ -62470,6 +62517,7 @@
                     }
                   },
                   "required": [
+                    "guide",
                     "id",
                     "sourceId",
                     "provenance",
@@ -66907,6 +66955,13 @@
                                     "group": {
                                       "type": "string"
                                     },
+                                    "guide": {
+                                      "enum": [
+                                        "full",
+                                        "none"
+                                      ],
+                                      "type": "string"
+                                    },
                                     "hidden": {
                                       "type": "boolean"
                                     },
@@ -67095,6 +67150,7 @@
                                     }
                                   },
                                   "required": [
+                                    "guide",
                                     "id",
                                     "sourceId",
                                     "provenance",
@@ -73315,6 +73371,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -73503,6 +73566,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -83339,6 +83403,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -83527,6 +83598,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -89747,6 +89819,13 @@
                         "group": {
                           "type": "string"
                         },
+                        "guide": {
+                          "enum": [
+                            "full",
+                            "none"
+                          ],
+                          "type": "string"
+                        },
                         "hidden": {
                           "type": "boolean"
                         },
@@ -89935,6 +90014,7 @@
                         }
                       },
                       "required": [
+                        "guide",
                         "id",
                         "sourceId",
                         "provenance",
@@ -107555,6 +107635,13 @@
                                     "group": {
                                       "type": "string"
                                     },
+                                    "guide": {
+                                      "enum": [
+                                        "full",
+                                        "none"
+                                      ],
+                                      "type": "string"
+                                    },
                                     "hidden": {
                                       "type": "boolean"
                                     },
@@ -107743,6 +107830,7 @@
                                     }
                                   },
                                   "required": [
+                                    "guide",
                                     "id",
                                     "sourceId",
                                     "provenance",
@@ -113963,6 +114051,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -114151,6 +114246,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -120412,6 +120508,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -120600,6 +120703,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -126820,6 +126924,13 @@
                         "group": {
                           "type": "string"
                         },
+                        "guide": {
+                          "enum": [
+                            "full",
+                            "none"
+                          ],
+                          "type": "string"
+                        },
                         "hidden": {
                           "type": "boolean"
                         },
@@ -127008,6 +127119,7 @@
                         }
                       },
                       "required": [
+                        "guide",
                         "id",
                         "sourceId",
                         "provenance",
@@ -189235,6 +189347,13 @@
                                     "group": {
                                       "type": "string"
                                     },
+                                    "guide": {
+                                      "enum": [
+                                        "full",
+                                        "none"
+                                      ],
+                                      "type": "string"
+                                    },
                                     "hidden": {
                                       "type": "boolean"
                                     },
@@ -189423,6 +189542,7 @@
                                     }
                                   },
                                   "required": [
+                                    "guide",
                                     "id",
                                     "sourceId",
                                     "provenance",
@@ -195643,6 +195763,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -195831,6 +195958,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -202095,6 +202223,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -202283,6 +202418,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -208503,6 +208639,13 @@
                         "group": {
                           "type": "string"
                         },
+                        "guide": {
+                          "enum": [
+                            "full",
+                            "none"
+                          ],
+                          "type": "string"
+                        },
                         "hidden": {
                           "type": "boolean"
                         },
@@ -208691,6 +208834,7 @@
                         }
                       },
                       "required": [
+                        "guide",
                         "id",
                         "sourceId",
                         "provenance",
@@ -222160,6 +222304,13 @@
                                     "group": {
                                       "type": "string"
                                     },
+                                    "guide": {
+                                      "enum": [
+                                        "full",
+                                        "none"
+                                      ],
+                                      "type": "string"
+                                    },
                                     "hidden": {
                                       "type": "boolean"
                                     },
@@ -222348,6 +222499,7 @@
                                     }
                                   },
                                   "required": [
+                                    "guide",
                                     "id",
                                     "sourceId",
                                     "provenance",
@@ -228568,6 +228720,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -228756,6 +228915,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -284356,6 +284516,13 @@
                       "group": {
                         "type": "string"
                       },
+                      "guide": {
+                        "enum": [
+                          "full",
+                          "none"
+                        ],
+                        "type": "string"
+                      },
                       "hidden": {
                         "type": "boolean"
                       },
@@ -284544,6 +284711,7 @@
                       }
                     },
                     "required": [
+                      "guide",
                       "id",
                       "sourceId",
                       "provenance",
@@ -520358,6 +520526,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -520546,6 +520721,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -520835,6 +521011,13 @@
                                         "group": {
                                           "type": "string"
                                         },
+                                        "guide": {
+                                          "enum": [
+                                            "full",
+                                            "none"
+                                          ],
+                                          "type": "string"
+                                        },
                                         "hidden": {
                                           "type": "boolean"
                                         },
@@ -521023,6 +521206,7 @@
                                         }
                                       },
                                       "required": [
+                                        "guide",
                                         "id",
                                         "sourceId",
                                         "provenance",
@@ -521450,6 +521634,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -521638,6 +521829,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -521871,6 +522063,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -522059,6 +522258,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -522303,6 +522503,13 @@
                               "group": {
                                 "type": "string"
                               },
+                              "guide": {
+                                "enum": [
+                                  "full",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
                               "hidden": {
                                 "type": "boolean"
                               },
@@ -522491,6 +522698,7 @@
                               }
                             },
                             "required": [
+                              "guide",
                               "id",
                               "sourceId",
                               "provenance",
@@ -522834,6 +523042,13 @@
                                       "group": {
                                         "type": "string"
                                       },
+                                      "guide": {
+                                        "enum": [
+                                          "full",
+                                          "none"
+                                        ],
+                                        "type": "string"
+                                      },
                                       "hidden": {
                                         "type": "boolean"
                                       },
@@ -523022,6 +523237,7 @@
                                       }
                                     },
                                     "required": [
+                                      "guide",
                                       "id",
                                       "sourceId",
                                       "provenance",
@@ -523341,6 +523557,13 @@
                                 "group": {
                                   "type": "string"
                                 },
+                                "guide": {
+                                  "enum": [
+                                    "full",
+                                    "none"
+                                  ],
+                                  "type": "string"
+                                },
                                 "hidden": {
                                   "type": "boolean"
                                 },
@@ -523529,6 +523752,7 @@
                                 }
                               },
                               "required": [
+                                "guide",
                                 "id",
                                 "sourceId",
                                 "provenance",
@@ -529226,6 +529450,13 @@
                                               "group": {
                                                 "type": "string"
                                               },
+                                              "guide": {
+                                                "enum": [
+                                                  "full",
+                                                  "none"
+                                                ],
+                                                "type": "string"
+                                              },
                                               "hidden": {
                                                 "type": "boolean"
                                               },
@@ -529414,6 +529645,7 @@
                                               }
                                             },
                                             "required": [
+                                              "guide",
                                               "id",
                                               "sourceId",
                                               "provenance",
@@ -535634,6 +535866,13 @@
                                         "group": {
                                           "type": "string"
                                         },
+                                        "guide": {
+                                          "enum": [
+                                            "full",
+                                            "none"
+                                          ],
+                                          "type": "string"
+                                        },
                                         "hidden": {
                                           "type": "boolean"
                                         },
@@ -535822,6 +536061,7 @@
                                         }
                                       },
                                       "required": [
+                                        "guide",
                                         "id",
                                         "sourceId",
                                         "provenance",
@@ -550186,6 +550426,13 @@
                                         "group": {
                                           "type": "string"
                                         },
+                                        "guide": {
+                                          "enum": [
+                                            "full",
+                                            "none"
+                                          ],
+                                          "type": "string"
+                                        },
                                         "hidden": {
                                           "type": "boolean"
                                         },
@@ -550374,6 +550621,7 @@
                                         }
                                       },
                                       "required": [
+                                        "guide",
                                         "id",
                                         "sourceId",
                                         "provenance",
@@ -556594,6 +556842,13 @@
                                   "group": {
                                     "type": "string"
                                   },
+                                  "guide": {
+                                    "enum": [
+                                      "full",
+                                      "none"
+                                    ],
+                                    "type": "string"
+                                  },
                                   "hidden": {
                                     "type": "boolean"
                                   },
@@ -556782,6 +557037,7 @@
                                   }
                                 },
                                 "required": [
+                                  "guide",
                                   "id",
                                   "sourceId",
                                   "provenance",
@@ -595055,6 +595311,13 @@
                                               "group": {
                                                 "type": "string"
                                               },
+                                              "guide": {
+                                                "enum": [
+                                                  "full",
+                                                  "none"
+                                                ],
+                                                "type": "string"
+                                              },
                                               "hidden": {
                                                 "type": "boolean"
                                               },
@@ -595243,6 +595506,7 @@
                                               }
                                             },
                                             "required": [
+                                              "guide",
                                               "id",
                                               "sourceId",
                                               "provenance",
@@ -601463,6 +601727,13 @@
                                         "group": {
                                           "type": "string"
                                         },
+                                        "guide": {
+                                          "enum": [
+                                            "full",
+                                            "none"
+                                          ],
+                                          "type": "string"
+                                        },
                                         "hidden": {
                                           "type": "boolean"
                                         },
@@ -601651,6 +601922,7 @@
                                         }
                                       },
                                       "required": [
+                                        "guide",
                                         "id",
                                         "sourceId",
                                         "provenance",
@@ -608016,6 +608288,13 @@
                                         "group": {
                                           "type": "string"
                                         },
+                                        "guide": {
+                                          "enum": [
+                                            "full",
+                                            "none"
+                                          ],
+                                          "type": "string"
+                                        },
                                         "hidden": {
                                           "type": "boolean"
                                         },
@@ -608204,6 +608483,7 @@
                                         }
                                       },
                                       "required": [
+                                        "guide",
                                         "id",
                                         "sourceId",
                                         "provenance",
@@ -614424,6 +614704,13 @@
                                   "group": {
                                     "type": "string"
                                   },
+                                  "guide": {
+                                    "enum": [
+                                      "full",
+                                      "none"
+                                    ],
+                                    "type": "string"
+                                  },
                                   "hidden": {
                                     "type": "boolean"
                                   },
@@ -614612,6 +614899,7 @@
                                   }
                                 },
                                 "required": [
+                                  "guide",
                                   "id",
                                   "sourceId",
                                   "provenance",
@@ -742450,6 +742738,13 @@
                                               "group": {
                                                 "type": "string"
                                               },
+                                              "guide": {
+                                                "enum": [
+                                                  "full",
+                                                  "none"
+                                                ],
+                                                "type": "string"
+                                              },
                                               "hidden": {
                                                 "type": "boolean"
                                               },
@@ -742638,6 +742933,7 @@
                                               }
                                             },
                                             "required": [
+                                              "guide",
                                               "id",
                                               "sourceId",
                                               "provenance",
@@ -748858,6 +749154,13 @@
                                         "group": {
                                           "type": "string"
                                         },
+                                        "guide": {
+                                          "enum": [
+                                            "full",
+                                            "none"
+                                          ],
+                                          "type": "string"
+                                        },
                                         "hidden": {
                                           "type": "boolean"
                                         },
@@ -749046,6 +749349,7 @@
                                         }
                                       },
                                       "required": [
+                                        "guide",
                                         "id",
                                         "sourceId",
                                         "provenance",
@@ -755414,6 +755718,13 @@
                                         "group": {
                                           "type": "string"
                                         },
+                                        "guide": {
+                                          "enum": [
+                                            "full",
+                                            "none"
+                                          ],
+                                          "type": "string"
+                                        },
                                         "hidden": {
                                           "type": "boolean"
                                         },
@@ -755602,6 +755913,7 @@
                                         }
                                       },
                                       "required": [
+                                        "guide",
                                         "id",
                                         "sourceId",
                                         "provenance",
@@ -761822,6 +762134,13 @@
                                   "group": {
                                     "type": "string"
                                   },
+                                  "guide": {
+                                    "enum": [
+                                      "full",
+                                      "none"
+                                    ],
+                                    "type": "string"
+                                  },
                                   "hidden": {
                                     "type": "boolean"
                                   },
@@ -762010,6 +762329,7 @@
                                   }
                                 },
                                 "required": [
+                                  "guide",
                                   "id",
                                   "sourceId",
                                   "provenance",
