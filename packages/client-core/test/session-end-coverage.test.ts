@@ -25,3 +25,16 @@ test('fixed text for the other reasons and unknown values', () => {
   assert.equal(sessionEndMessage({reason: 'bogus'}), 'Playback was stopped on another device.');
   assert.equal(sessionEndMessage({reason: ''}), 'Playback was stopped on another device.');
 });
+
+test('a recording taking the tuner and a viewing-hours stop read the catalogue\'s sentences (W2-A11)', () => {
+  assert.equal(sessionEndMessage({reason: 'tuner_reserved'}), 'A recording needed this tuner. Watch this channel again when a tuner is free.');
+  assert.equal(sessionEndMessage({reason: 'paused_timeout'}), 'Playback stopped after a long pause.');
+  assert.equal(sessionEndMessage({reason: 'outside_allowed_hours'}), 'This account can’t be used at this time of day, so playback stopped. Try again during its allowed hours.');
+});
+
+test('no end sentence is written in code; each comes from the catalogue', async () => {
+  const {readFileSync} = await import('node:fs');
+  const source = readFileSync(new URL('../src/session-end.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /return '[A-Z]/);
+  assert.doesNotMatch(source, /\|\|'[A-Z]/);
+});

@@ -39,4 +39,11 @@ export const drawnSubtitleMessages = {
   'player.upNext.playingIn': 'Playing in {seconds}s',
   'player.ended.outsideHoursTitle': 'Viewing hours are over',
   'player.ended.outsideHours': 'This account can’t be used at this time of day, so playback stopped. Try again during its allowed hours.',
+  'player.ended.terminated': 'The server owner stopped this playback.',
+  'player.ended.transferred': 'Playback continued on another device.',
+  'player.ended.leaseExpired': 'The stream disconnected. Play again to continue.',
+  'player.ended.replaced': 'This playback was replaced by a newer one.',
+  'player.ended.restored': 'The server was restored from a backup. Play again to continue.',
+  'player.ended.pausedTimeout': 'Playback stopped after a long pause.',
+  'player.ended.other': 'Playback was stopped on another device.',
 } as const satisfies Record<string, string>;
