@@ -78,7 +78,7 @@ func (c *Catalog) Drain() {
 	c.T.Helper()
 	// Production keeps one derived worker for the open database. Recreating it
 	// for every fixture drain repeats startup read sampling, which cannot run
-	// while a deliberately retained queue capture owns the background connection.
+	// while a deliberately retained queue capture owns the background pool.
 	if c.worker == nil || c.workerDB != c.DB {
 		c.worker, c.workerDB = compactcatalog.NewWorker(c.DB), c.DB
 	}
