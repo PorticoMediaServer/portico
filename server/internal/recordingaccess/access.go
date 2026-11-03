@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"maps"
 
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 )
@@ -28,10 +29,9 @@ func (p Policy) AllowedTxContext(ctx context.Context, who identity.Principal, li
 	}
 	target := library
 	if library != "" {
-		var authority, account, profile string
-		e := tx.QueryRowContext(ctx, `SELECT authority,account_id,profile_id FROM dvr_private_libraries WHERE library_id=?`, library).Scan(&authority, &account, &profile)
+		owner, e := privateOwnerOf(ctx, tx, library)
 		if e == nil {
-			if authority != who.Authority || account != who.AccountID || profile != who.ProfileID {
+			if owner.authority != who.Authority || owner.account != who.AccountID || owner.profile != who.ProfileID {
 				return identity.ErrNotVisible // another profile's recordings
 			}
 			// P8: the profile's Recordings switch withholds its own recordings
@@ -125,4 +125,43 @@ func (p Policy) AllowedSet(ctx context.Context, db *sql.DB, who identity.Princip
 		return nil, e
 	}
 	return out, nil
+}
+
+type privateOwner struct{ authority, account, profile string }
+
+// privateOwnerOf is the profile that owns a private recordings library, or
+// sql.ErrNoRows. A request filtering every library asks this once per library,
+// so inside a request's read snapshot the whole (small) table is read once and
+// reused (dbwork.RememberForRequest); elsewhere one row is read.
+func privateOwnerOf(ctx context.Context, tx *sql.Tx, library string) (privateOwner, error) {
+	if !dbwork.RequestMemoApplies(ctx, tx) {
+		var owner privateOwner
+		err := tx.QueryRowContext(ctx, `SELECT authority,account_id,profile_id FROM dvr_private_libraries WHERE library_id=?`, library).Scan(&owner.authority, &owner.account, &owner.profile)
+		return owner, err
+	}
+	owners, err := dbwork.RememberForRequest(ctx, tx, "recordingaccess.private-owners", maps.Clone, func() (map[string]privateOwner, error) {
+		rows, err := tx.QueryContext(ctx, `SELECT library_id,authority,account_id,profile_id FROM dvr_private_libraries`)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		owners := map[string]privateOwner{}
+		for rows.Next() {
+			var id string
+			var owner privateOwner
+			if err = rows.Scan(&id, &owner.authority, &owner.account, &owner.profile); err != nil {
+				return nil, err
+			}
+			owners[id] = owner
+		}
+		return owners, rows.Err()
+	})
+	if err != nil {
+		return privateOwner{}, err
+	}
+	owner, ok := owners[library]
+	if !ok {
+		return privateOwner{}, sql.ErrNoRows
+	}
+	return owner, nil
 }
