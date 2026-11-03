@@ -466,9 +466,26 @@ internal object PorticoMpvSupport {
     line.setTypeface(face, if (italic) android.graphics.Typeface.ITALIC else android.graphics.Typeface.NORMAL)
     val (text, box) = captionColors(context, style)
     line.setTextColor(text)
-    line.setBackgroundColor(box)
-    // Without a box behind it the line needs an edge of its own to stay readable over a bright picture.
-    if (android.graphics.Color.alpha(box) < 77) line.setShadowLayer(Math.max(2f, size * 0.08f), 0f, 0f, android.graphics.Color.BLACK) else line.setShadowLayer(0f, 0f, 0f, 0)
+    val edge = captionLineEdge(style, system != null && system.hasBackgroundColor(), box, size)
+    line.setBackgroundColor(edge.box)
+    line.setShadowLayer(edge.radius, edge.dx, edge.dy, edge.color)
+  }
+
+  data class CaptionLineEdge(val box: Int, val radius: Float, val dx: Float, val dy: Float, val color: Int)
+
+  /**
+   * N1-3: the app's own caption line honours the five profile backgrounds, as mpv's renderer and
+   * Apple's overlay do. Outline and Drop shadow have no box: an even black edge all round, or one
+   * cast down and to the right. A system caption style keeps its own box. Otherwise the box is
+   * drawn, and a line with no box behind it still gets an edge to stay readable on a bright picture.
+   */
+  fun captionLineEdge(style: Map<*, *>?, systemBox: Boolean, box: Int, size: Float): CaptionLineEdge {
+    val black = 0xff000000.toInt()
+    if (!systemBox && style?.get("useSystemCaptionStyle") != true) when (style?.get("background")) {
+      "outline" -> return CaptionLineEdge(0, Math.max(2f, size * 0.06f), 0f, 0f, black)
+      "shadow" -> return CaptionLineEdge(0, Math.max(2f, size * 0.08f), Math.max(1f, size * 0.05f), Math.max(1f, size * 0.05f), black)
+    }
+    return if ((box ushr 24) < 77) CaptionLineEdge(box, Math.max(2f, size * 0.08f), 0f, 0f, black) else CaptionLineEdge(box, 0f, 0f, 0f, 0)
   }
 
   /** Text for mpv, which takes numbers in the C locale whatever the device's language. */
