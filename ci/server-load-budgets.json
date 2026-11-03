@@ -1,0 +1,3 @@
+[
+  {"users": 10, "label": "*", "p95": {"browse": 500, "detail": 500, "search": 500, "options": 500, "read": 1500}, "serverErrors": 0}
+]
