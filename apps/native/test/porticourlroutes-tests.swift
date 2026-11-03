@@ -86,6 +86,9 @@ struct URLRouteTests {
     expectRoute("https://web.getportico.tv/app/account-return#tx=tx_A&code=" + code, "portico://account-return?transactionId=tx_A&code=" + code, "https account return")
     expectRoute("https://web.getportico.tv/app/account-return#code=" + code + "&tx=tx_A", "portico://account-return?transactionId=tx_A&code=" + code, "https account return, either order")
     expectRoute("https://web.getportico.tv/app/account-return#tx=tx_A", nil, "https account return without a code")
+    // N2-1: /device is the web's own page (its #code= would be lost); the app no longer claims it.
+    expectRoute("https://web.getportico.tv/device", nil, "a device approval stays in the browser")
+    expectRoute("https://web.getportico.tv/device#code=ABCD-EFGH", nil, "a device approval with its code stays in the browser")
     expectRoute("https://web.getportico.tv/app/account-return#tx=tx_A&code=" + code + "&x=1", nil, "https account return with extra values")
     expectRoute("https://web.getportico.tv/app/account-return?x=1#tx=tx_A&code=" + code, nil, "https account return with a query")
     expectRoute("https://evil.example.com/app/account-return#tx=tx_A&code=" + code, nil, "account return on another host")
@@ -175,10 +178,10 @@ struct URLRouteTests {
       expectForwarded(text, refusedForward, "DEBUG measurement refusal strips all caller data")
     }
     expectForwarded(refusedMeasurement, refusedForward, "refusal marker is idempotent")
-    for text in ["portico://item/item-id", "portico://play/item-id", "portico://downloads", "portico://account?tab=security", "portico://device", "portico://together/join/ABCD"] {
+    for text in ["portico://item/item-id", "portico://play/item-id", "portico://downloads", "portico://account?tab=security", "portico://together/join/ABCD"] {
       expectForwarded(text, text, "existing ordinary routes are unchanged")
     }
-    for text in ["portico://unknown", "portico://item/native-layout/path", "https://fixture.invalid/native-layout"] {
+    for text in ["portico://unknown", "portico://device", "portico://item/native-layout/path", "https://fixture.invalid/native-layout"] {
       expectForwarded(text, nil, "ordinary refused URLs are not measurement requests")
     }
 

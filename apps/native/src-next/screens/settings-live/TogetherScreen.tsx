@@ -27,7 +27,9 @@ import {NativeTogetherTVRoom} from './TogetherTVRoom';
 import type {NativeTogetherMedia} from './together-media';
 import type {NativeTogetherPage} from './together-page';
 
-export function NativeTogetherScreen({controller, media, ports, runtime, page, onBack}: {page: NativeTogetherPage; controller: NativeTogetherController; media: NativeTogetherMedia; ports: Pick<NativeSettingsLivePorts, 'context'>; runtime: NativeShellRuntime; onBack?: () => void}) {
+export function NativeTogetherScreen({controller, media, ports, runtime, page, onBack, joinCode}: {page: NativeTogetherPage; controller: NativeTogetherController; media: NativeTogetherMedia; ports: Pick<NativeSettingsLivePorts, 'context'>; runtime: NativeShellRuntime; onBack?: () => void;
+  /** N2-1: a Watch Together link's code: Join with a code opens with it filled in, once for this page. */
+  joinCode?: string}) {
   const theme = useTheme(), t = runtime.text.t, phone = !theme.isTV && theme.width < 600;
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]);
@@ -82,6 +84,15 @@ export function NativeTogetherScreen({controller, media, ports, runtime, page, o
     void controller.refresh().catch(error => {if (viewCurrent(expected)) runtime.reportError(error);});
   }, [controller, runtime, view, viewCurrent]);
   const room = group && !['idle', 'left', 'joining'].includes(state.phase);
+  // N2-1: a link's code is filled into Join with a code once; the viewer still confirms their name and joins.
+  const linkCode = useRef(joinCode);
+  useEffect(() => {
+    const value = linkCode.current;
+    if (!value || room || view.form || view.pending || !viewCurrent(undefined)) return;
+    linkCode.current = undefined;
+    const next: Form = {kind: 'join', retired: false}; view.form = next; setForm(next); setCode(value.toUpperCase().slice(0, 12));
+    if (theme.isTV) {setTyping('code'); setTypingIntent('enter'); setTypingRevision(revision => revision + 1);}
+  }, [room, view, viewCurrent, theme.isTV]);
   const back = () => {
     if (!viewCurrent(form)) return;
     if (form) {closeForm(); return;}

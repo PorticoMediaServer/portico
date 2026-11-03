@@ -59,7 +59,7 @@ fun main() {
   val ordinary = listOf(
     "portico://item/item-id" to "item", "portico://play/item-id" to "play",
     "portico://account?tab=security" to "account", "portico://downloads" to "downloads",
-    "portico://device" to "device", "portico://together/join/ABCD" to "together",
+    "portico://together/join/ABCD" to "together",
     "https://web.getportico.tv/account" to "web.getportico.tv",
     "portico://account-proof?server=https://fixture.invalid" to "account-proof",
     "https://fixture.invalid/native-layout" to "fixture.invalid",

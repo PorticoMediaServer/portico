@@ -31,14 +31,14 @@ async function fixture(){
 for(const retirement of ['navigation','authority','unmount'] as const)test(`pending real channel route owns Back and original caller: ${retirement}`,async()=>{
  const f=await fixture();try{
   assert.equal(f.request().lifetime.isCurrent(),true);assert.equal(f.request().sourceId,f.route.sourceId);assert(f.back());
-  if(retirement==='unmount')await f.host.unmount();else if(retirement==='authority')f.retire();else f.navigation.open({kind:'account'},authority);
+  if(retirement==='unmount')await f.host.unmount();else if(retirement==='authority')f.retire();else f.navigation.open({kind:'notifications'},authority);
   assert.equal(f.request().lifetime.isCurrent(),false);assert.equal(f.request().lifetime.signal.aborted,true);
  }finally{await f.dispose();}
 });
 test('failed channel launch retains original Back and guarded Retry; old controls never pop or restart a successor',async()=>{
  const f=await fixture();try{
   await act(()=>{f.reject(new Error('tune failed'));});assert(nodes(f.output()).some(node=>node.type==='Error'));const back=f.back(),retry=f.retry();
-  await act(()=>retry());assert.equal(f.attempts(),2);f.navigation.open({kind:'account'},authority);const successor=f.navigation.getSnapshot();
+  await act(()=>retry());assert.equal(f.attempts(),2);f.navigation.open({kind:'notifications'},authority);const successor=f.navigation.getSnapshot();
   await act(()=>{back();retry();});assert.equal(f.navigation.getSnapshot(),successor);assert.equal(f.attempts(),2);
  }finally{await f.dispose();}
 });
@@ -79,7 +79,7 @@ for(const retirement of ['route','authority','unmount','same-id-revisit'] as con
   await act(()=>f.resolve());
   if(retirement==='authority')f.retire();else if(retirement==='unmount')await f.host.unmount();
   else if(retirement==='same-id-revisit'){f.navigation.back(authority);f.navigation.open(f.route,authority);}
-  else f.navigation.open({kind:'account'},authority);
+  else f.navigation.open({kind:'notifications'},authority);
   const original=f.navigation.getSnapshot();await act(()=>{f.accept();f.accept();});assert.equal(f.navigation.getSnapshot(),original);assert.equal(f.attempts(),1);
  }finally{await f.dispose();}
 });

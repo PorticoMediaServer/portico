@@ -18,7 +18,7 @@ test('TV direct library and title registration cannot admit Read or a removed or
 test('TV retains audiobooks and ordinary destinations without guessing from book item kind', () => {
   assert.equal(nativeReadRouteAllowed({kind: 'title', entry: {id: 'audio-title', title: 'Unit title', kind: 'book', libraryId: 'audio'}}, libraries, true), true);
   assert.equal(nativeReadRouteAllowed({kind: 'shell', destination: {kind: 'home'}}, libraries, true), true);
-  assert.equal(nativeReadRouteAllowed({kind: 'account'}, libraries, true), true);
+  assert.equal(nativeReadRouteAllowed({kind: 'notifications'}, libraries, true), true);
 });
 test('a retained Read origin cannot reappear under a registered title and can leave normally', () => {
   const title: NativeShellRoute = {kind: 'title', entry: {id: 'audio-title', title: 'Unit title', kind: 'book', libraryId: 'audio'}};
@@ -39,7 +39,7 @@ test('actual navigation admission rejects direct opens and stale Back before mut
   assert.strictEqual(navigation.getSnapshot(), first); assert.strictEqual(navigation.retainedRoutes(), retained);
   assert.equal(navigation.open({kind: 'shell', destination: {kind: 'library', libraryId: 'audio'}}, authority), true);
   assert.equal(navigation.open({kind: 'title', entry: {id: 'audio-title', title: 'Unit title', kind: 'book', libraryId: 'audio'}}, authority), true);
-  assert.equal(navigation.open({kind: 'account'}, authority), true);
+  assert.equal(navigation.open({kind: 'notifications'}, authority), true);
   published = libraries.map(library => library.id === 'audio' ? {...library, kind: 'book'} : library);
   const beforeBack = navigation.getSnapshot(), beforeHistory = navigation.retainedRoutes();
   assert.equal(navigation.back(authority), false);

@@ -4,9 +4,9 @@ import {readFileSync} from 'node:fs';
 
 const read = (name: string) => JSON.parse(readFileSync(new URL(`../public/.well-known/${name}`, import.meta.url), 'utf8'));
 
-test('O-162: the Hosted well-known files keep the existing app-link set, add /s/*, and name the Portico app and its signing key', () => {
+test('O-162, N2-1: the Hosted well-known files keep the app-link set (never /device, a web page whose #code= the app would lose), add /s/*, and name the Portico app and its signing key', () => {
   const apple = read('apple-app-site-association'), detail = apple.applinks.details[0];
-  assert.deepEqual(detail.components.map((component: {'/': string}) => component['/']), ['/account', '/device', '/join', '/together/join', '/app/account-return', '/s/*']);
+  assert.deepEqual(detail.components.map((component: {'/': string}) => component['/']), ['/account', '/join', '/together/join', '/app/account-return', '/s/*']);
   for (const id of detail.appIDs) assert.equal(id, 'WB7BUK5Z7C.tv.getportico.app');
   const android = read('assetlinks.json')[0];
   assert.deepEqual(android.relation, ['delegate_permission/common.handle_all_urls']);
