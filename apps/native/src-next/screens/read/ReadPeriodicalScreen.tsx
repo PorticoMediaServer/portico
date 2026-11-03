@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {FlatList, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {FlatList, ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {generatedCoverTint} from '@portico/design';
 import {defaultI18n, calendarDate, calendarMonth} from '../../../../../packages/i18n/src';
@@ -25,6 +25,7 @@ import {ReadingItemMenu, ReadingSelectionToolbar, useReadingActions, type Readin
 import type {NativeReadingActionOffer} from './reading-actions';
 import {periodicalDatePreview, periodicalDayRead, periodicalHeroIssue, readingItemIsRead} from './periodical-presentation';
 import {TVRow} from '../../kit/layout/TVRow';
+import {usePageWidth} from '../../kit/layout/page-inset';
 
 const {t} = defaultI18n;
 const initial = (title: string): string => title.trim().slice(0, 1).toUpperCase() || '·';
@@ -38,9 +39,9 @@ export function ReadPeriodicalScreen({controller, route, context, runtime, onBac
   controller: NativeReadPeriodical; route: PeriodicalRoute; context: NativeShellBootstrapContext; runtime: NativeShellRuntime; onBack: () => void;
 }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), theme = useTheme(), insets = useSafeAreaInsets();
-  const dimensions = useWindowDimensions(), tablet = theme.platform !== 'phone', magazine = route.publicationType === 'magazine';
+  const pageWidth = usePageWidth(), tablet = theme.platform !== 'phone', magazine = route.publicationType === 'magazine';
   const [paneWidth, setPaneWidth] = useState(0);
-  const width = Math.min(1180, paneWidth || dimensions.width), actions = useReadingActions(context, runtime, controller);
+  const width = Math.min(1180, paneWidth || pageWidth), actions = useReadingActions(context, runtime, controller);
   useLayoutEffect(() => {
     if (!controller.arm()) return;
     void controller.load().catch(runtime.reportError);

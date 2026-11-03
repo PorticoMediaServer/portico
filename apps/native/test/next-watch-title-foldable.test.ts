@@ -17,6 +17,8 @@ const theme = {isTV: false, platform: 'tablet', textScale: 1, colors: {ink: '#00
 const {NativeTitleScreen} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), {
   './TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
   '../../kit/useMotion': {useMotion: () => ({reduce: false})},
+  // N2-3: the shell draws a tablet's pushed page beside the 84 pt rail and tells it so.
+  '../../kit/layout/page-inset': {usePageInset: () => 84},
   '../../../../../packages/client-core/src/presentation/errors': {presentError},
   'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0})},
   '../../platform/native-blur': {BlurView: 'BlurView'},

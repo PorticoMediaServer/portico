@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {ScrollView, Text, View, VirtualizedList, useWindowDimensions, type ViewToken} from 'react-native';
+import {ScrollView, Text, View, VirtualizedList, type ViewToken} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {WindowedCollection} from '../../../../../packages/client-core/src/collections/windowed';
 import type {PersonCredit, PersonPage, PersonRole} from '../../../../../packages/client-core/src/people';
@@ -19,6 +19,7 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import type {createNativeEntryActions} from '../destinations/entry-actions';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {TVRow} from '../../kit/layout/TVRow';
+import {usePageWidth} from '../../kit/layout/page-inset';
 
 export type NativePersonScreenProps = Readonly<{
   focusScope: string; page: PersonPage; role: PersonRole; collection: WindowedCollection<PersonCredit>;
@@ -34,9 +35,9 @@ const creditSlotKey = (index: number) => String(index);
 export function PersonScreen({focusScope, page, role, collection, runtime, actions, selection, onRole, onBack}: NativePersonScreenProps) {
   const selectionRevision = useSyncExternalStore(selection?.subscribe ?? (() => () => {}), selection?.getSnapshot ?? (() => 0));
   useSyncExternalStore(actions.menuState.subscribe, actions.menuState.getSnapshot);
-  const theme = useTheme(), dimensions = useWindowDimensions(), insets = useSafeAreaInsets();
-  const columns = theme.platform === 'phone' ? 3 : Math.max(3, Math.floor((dimensions.width - 40) / 150));
-  const width = (dimensions.width - 32 - (columns - 1) * 10) / columns;
+  const theme = useTheme(), insets = useSafeAreaInsets(), pageWidth = usePageWidth();
+  const columns = theme.platform === 'phone' ? 3 : Math.max(3, Math.floor((pageWidth - 40) / 150));
+  const width = (pageWidth - 32 - (columns - 1) * 10) / columns;
   const [range, setRange] = useState({first: 0, last: columns * 4 - 1});
   const [expanded, setExpanded] = useState(false), [sharing, setSharing] = useState(false), shareAnchor = useRef<View>(null);
   const firstPage = collection.pageOf(range.first), lastPage = collection.pageOf(range.last);

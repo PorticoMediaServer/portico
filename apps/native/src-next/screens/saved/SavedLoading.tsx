@@ -1,14 +1,15 @@
 import React, {useEffect, useState} from 'react';
-import {Text, View, useWindowDimensions} from 'react-native';
+import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {LoadingBoundary, SkeletonBlock} from '../../kit/states';
 import {useTheme} from '../../kit/theme';
+import {usePageWidth} from '../../kit/layout/page-inset';
 
 /** One static page outline, with the same delayed paint as the rest of the app. */
 export function SavedLoading({kind = 'grid', columns = 3}: {kind?: 'grid' | 'directory' | 'resource' | 'shelf'; columns?: number}) {
-  const theme = useTheme(), window = useWindowDimensions(), [slow, setSlow] = useState(false);
+  const theme = useTheme(), pageWidth = usePageWidth(), [slow, setSlow] = useState(false);
   useEffect(() => {const timer = setTimeout(() => setSlow(true), 8000); return () => clearTimeout(timer);}, []);
-  const width = Math.max(1, (window.width - theme.gutter * 2 - (columns - 1) * 10) / columns);
+  const width = Math.max(1, (pageWidth - theme.gutter * 2 - (columns - 1) * 10) / columns);
   const outline = <View style={{paddingHorizontal: theme.gutter, paddingTop: 16, gap: 16}}>
     {kind === 'resource' && <View style={{alignItems: 'center', gap: 14, paddingTop: 32}}>
       <SkeletonBlock width={152} height={152} radius={14}/><SkeletonBlock width="65%" height={32}/><SkeletonBlock width="40%" height={14}/>
