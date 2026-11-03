@@ -691,7 +691,12 @@ func failure(w http.ResponseWriter, e error) {
 		status, code, message, retryable = 503, "server_busy", "Image processing is busy. Retry shortly.", true
 		w.Header().Set("Retry-After", "1")
 	}
-	if errors.Is(e, context.DeadlineExceeded) {
+	// database/sql rolls a transaction back the moment its context ends, so a
+	// read snapshot that outlived its lifetime under load fails its next
+	// statement with ErrTxDone rather than the deadline that ended it. That is
+	// a timeout, not a fault: it reached people as a 500 on a book open at 100
+	// simultaneous users. The failure is still logged.
+	if errors.Is(e, context.DeadlineExceeded) || errors.Is(e, sql.ErrTxDone) {
 		status, code, message, retryable = 503, "timeout", "The operation timed out. Retry shortly.", true
 	}
 	if errors.Is(e, mounts.ErrUnavailable) {
