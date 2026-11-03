@@ -3543,3 +3543,19 @@ test('N1-4: a streamed subtitle the engine cannot take up is marked unavailable,
     assert.equal(d.runtime.getSnapshot().subtitleUnavailable, undefined, 'a failure about another plan never marks this one');
   } finally {d.runtime.dispose();}
 });
+
+test('MU-6: the end of a chapter or book is the listening service timer; minutes replace it', async () => {
+  const d = fixture();
+  try {
+    await d.start('song-1', 0);
+    const fence = d.runtime.getSnapshot().fence!;
+    const listening = (d.runtime as any).queue.listening, asked: unknown[] = [];let armed: string | undefined, cleared = 0;
+    listening.setTimer = async (choice: string) => {asked.push(choice);armed = choice;};
+    listening.getSnapshot = () => ({timer: armed ? {choice: armed} : null});
+    listening.clearTimer = () => {cleared++;armed = undefined;};
+    await d.runtime.setSleepTimer(fence, 'chapter');
+    assert.deepEqual(asked, ['chapter']);assert.equal(d.runtime.sleepEnd(fence), 'chapter');
+    await d.runtime.setSleepTimer(fence, 30);
+    assert.equal(cleared, 1);assert.equal(d.runtime.sleepEnd(fence), undefined);
+  } finally { d.runtime.dispose(); }
+});

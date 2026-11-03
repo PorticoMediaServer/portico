@@ -119,7 +119,7 @@ export function watchPanelModel(runtime:WebShellPlaybackRuntime,snapshot:WebPlay
  // desktop-player f3: a search that cannot run stays visible with the server's own reason.
  const style=matched?readStyle?.(fence):undefined;
  const sleep=matched?readSleep?.(fence):undefined;
- const sleepTimer=matched&&writeSleep?Object.freeze({minutes:sleep?.minutes??0,set:(minutes:number)=>{check();writeSleep(fence,minutes);}}):undefined;
+ const sleepTimer=matched&&writeSleep?Object.freeze({minutes:sleep&&'minutes' in sleep?sleep.minutes:0,set:(minutes:number)=>{check();writeSleep(fence,minutes);}}):undefined;
  const subtitleStyle=style&&writeStyle?Object.freeze({...style,set:(patch:Readonly<{size?:SubtitlePreferences['size'];background?:SubtitlePreferences['background']}>)=>{check();writeStyle(fence,patch);}}):undefined;
  const forced=matched?readForced?.(fence):undefined;
  const subtitleForced=forced&&writeForced?Object.freeze({only:forced.only,set:(on:boolean)=>{check();writeForced(fence,on);}}):undefined;

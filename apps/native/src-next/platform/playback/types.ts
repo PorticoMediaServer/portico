@@ -37,6 +37,8 @@ import type {PolicyView} from '../../../../../packages/player-core/src/playback-
 
 /** H-11: keyed on `privacyFence ?? viewerFence` (like the shell's `authorityKey`), never the library list. */
 export type PlaybackAuthority = Readonly<{serverId: string; accountId: string; profileId: string; epoch: string; viewerFence: string; privacyFence?: string}>;
+export type NativeSleepEnd = 'item' | 'chapter' | 'book';
+export type NativeSleepChoice = number | null | NativeSleepEnd;
 export type NativePlaybackStart = Readonly<{entry: ContentEntry; target: NonNullable<ContentEntry['playback']>; origin?: Readonly<{kind: 'home-row'; rowId: string}>;
   /** Ordinary Play/Resume asks the server for its current position. */
   startIntent?: 'resume' | 'start-over' | 'explicit';
@@ -267,8 +269,11 @@ export interface NativePlaybackAdapter {
   dismissRemote?: (id: string) => Promise<void>;
   /** Brings a stopped handoff's title back to this phone at the receiver's position. */
   continueHere?: (id: string) => Promise<void>;
-  /** The viewer's sleep timer for this playback: minutes, or null to clear it. */
-  setSleepTimer?: (fence: PlaybackFence, minutes: number | null) => Promise<void>;
+  /** The viewer's sleep timer for this playback: minutes, the end of this title, chapter or
+   * book (MU-6), or null to clear it. */
+  setSleepTimer?: (fence: PlaybackFence, choice: NativeSleepChoice) => Promise<void>;
+  /** The armed end-of timer for this playback, if that is the kind of timer set. */
+  sleepEnd?: (fence: PlaybackFence) => NativeSleepEnd | undefined;
   stop: (fence: PlaybackFence) => Promise<void>;
   restoreBookmark: (expectedBookmarkFence: PlaybackFence, playExplicitly: boolean) => Promise<PlaybackFence | undefined>;
   open: (fence: PlaybackFence) => void;

@@ -3825,3 +3825,17 @@ test('PB-1, MU-2: a screen start queues the server-named container anchored on t
  assert.deepEqual((f.log.filter(request=>request.method==='POST'&&request.path==='/v1/queues').at(-1)!.body as any).segments,[{source:{items:{ids:['other','book-part']}},anchor:{itemId:'book-part'}}]);
  await assert.rejects(f.runtime.playFromScreen({libraryId:'library',itemId:'book-part',startSeconds:0,from:{items:{ids:['other']}}},context),/invalid_playback_target/);
 });
+
+test('MU-6: the end of a title, chapter or book is the listening service timer; minutes replace it',async t=>{
+ const f=setup(t);await f.runtime.play('song-one',0);await f.arrive();
+ const fence=f.runtime.getSnapshot().fence!;if(fence.kind!=='queue')throw Error('missing queue fence');
+ const listening=(f.runtime as any).stack.queue.listening;const asked:unknown[]=[];let cleared=0;let armed:string|undefined;
+ listening.setTimer=async(choice:string)=>{asked.push(choice);armed=choice;};
+ listening.getSnapshot=()=>({timer:armed?{choice:armed}:null});
+ listening.clearTimer=()=>{cleared++;armed=undefined;};
+ await f.runtime.setSleepTimer(fence,'item');
+ assert.deepEqual(asked,['item']);assert.deepEqual(f.runtime.sleepTimer(fence),{end:'item'});
+ await f.runtime.setSleepTimer(fence,15);
+ assert.equal(cleared,1,'a minutes timer replaces the end timer');assert.equal((f.runtime.sleepTimer(fence) as any).minutes,15);
+ await assert.rejects(async()=>f.runtime.setSleepTimer(fence,'forever' as never),/playback_sleep_unavailable/);
+});

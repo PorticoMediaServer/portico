@@ -6,7 +6,7 @@ import type {WebPlaybackRuntimeSnapshot} from '../../../platform/playback';
 import type {WatchBindings} from '../types';
 import {AudiobookListening} from './AudiobookListening';
 import {ListeningPanels} from './ListeningPanels';
-import {listeningSleepChoices} from './listening-owner';
+
 import type {ListeningHost} from './use-listening-owner';
 const t = defaultI18n.t;
 export function AudiobookHost({binding, snapshot, expanded, phone, host, playOn}: {binding:WatchBindings;snapshot:WebPlaybackRuntimeSnapshot;expanded:boolean;phone:boolean;host?:ListeningHost;playOn?:()=>void}) {
@@ -24,9 +24,9 @@ export function AudiobookHost({binding, snapshot, expanded, phone, host, playOn}
   const panels=<ListeningPanels host={host!} snapshot={snapshot} reportError={binding.reportError} artwork={binding.artwork}/>;
   return <>
     <AudiobookListening snapshot={snapshot} title={identity.title} subtitle={identity.subtitle.map((part,index)=><span key={`${part.id}:${index}`}>{part.text}</span>)} cover={cover} ambient={binding.artwork.ambient(p.posterUrl??p.backdropUrl)} chapters={state.chapters}
-      speedChoices={owner.speeds()} sleepChoices={owner.sleepOffered()?listeningSleepChoices:[]} sleepMinutes={owner.sleepMinutes()} skips={binding.skips} phone={phone} canPlayOn={!!playOn}
+      speedChoices={owner.speeds()} sleepChoices={owner.sleepOffered()?owner.sleepChoices():[]} sleepChoice={owner.sleepChoice()} skips={binding.skips} phone={phone} canPlayOn={!!playOn}
       onIntent={(shown,intent)=>run(()=>owner.dispatch(state,shown,intent))} onSpeed={(shown,rate)=>run(()=>owner.setSpeed(state,shown,rate))}
-      onSleep={(shown,minutes)=>run(()=>owner.setSleep(state,shown,minutes))} onChapter={(shown,row)=>run(()=>owner.chapter(state,shown,row))}
+      onSleep={(shown,choice)=>run(()=>owner.setSleep(state,shown,choice))} onChapter={(shown,row)=>run(()=>owner.chapter(state,shown,row))}
       onChapterPage={(shown,direction)=>run(()=>owner.chapterPage(state,shown,direction))} onChapterRetry={shown=>run(()=>owner.chapterPage(state,shown,'retry'))}
       onCollapse={()=>owner.close(state)} aside={panels}
       onShowPanel={owner.speeds().length||owner.sleepOffered()||owner.chaptersOffered()||playOn?(shown,panel)=>{if(panel==='play-on'){if(playOn)owner.external(state,shown,playOn);}else owner.show(state,panel,document.activeElement instanceof HTMLElement?document.activeElement:undefined);}:undefined}/>
