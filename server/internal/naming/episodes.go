@@ -191,6 +191,10 @@ func addBareEpisode(r *Reading, n int, p string, season int, strength float64) {
 		r.AbsoluteNumbers = append(r.AbsoluteNumbers, ev(n, FileName, p, strength))
 	}
 }
+// genericMusicFolder names a collection folder above the albums, never an
+// artist: Music/Album/01.flac has no artist folder.
+var genericMusicFolder = regexp.MustCompile(`(?i)^(?:music|my music|albums?|songs|audio|mp3s?|flac|itunes(?: media| music)?|media|library|various)$`)
+
 func readAudio(r *Reading, name, p string, parts []string, kind string) string {
 	title := name
 	if m := trackToken.FindStringSubmatch(name); m != nil {
@@ -221,7 +225,9 @@ func readAudio(r *Reading, name, p string, parts []string, kind string) string {
 		title, _ := folder.PreferredTitle()
 		r.Albums = append(r.Albums, ev(title, source(len(parts)-1-album), strings.Join(parts[:album+1], "/"), .8))
 		if album > 0 {
-			r.Artists = append(r.Artists, ev(clean(parts[album-1]), source(len(parts)-album), strings.Join(parts[:album], "/"), .7))
+			if artist := clean(parts[album-1]); artist != "" && !genericMusicFolder.MatchString(artist) {
+				r.Artists = append(r.Artists, ev(artist, source(len(parts)-album), strings.Join(parts[:album], "/"), .7))
+			}
 		}
 	}
 	return title

@@ -49,10 +49,13 @@ and `-cd2` indicate parts rather than two unrelated films. Inspect the Files
 list after a scan if grouping differs from what you intended.
 
 Extras are attached to their owning title: use a subfolder such as `Extras`,
-`Trailers`, `Featurettes`, `Behind the Scenes`, `Deleted Scenes`, `Interviews`,
-`Scenes` or `Shorts`, or a filename suffix such as `-trailer`, `-featurette`,
+`Trailers`, `Featurettes`, `Special Features`, `Extra Features`, `Bonus Material`,
+`Behind the Scenes`, `Deleted Scenes`, `Interviews`, `Scenes` or `Shorts`, or a
+filename suffix such as `-trailer`, `-featurette`,
 `-deleted`, `-behindthescenes`, `-interview`, `-scene`, `-short`, `-other`.
-For TV and anime, `Specials` means season zero. A top-level show called
+For TV and anime, `Specials` means season zero. Extras are a film and TV
+convention: in music, audiobook and reading libraries these folder names are
+ordinary disc, part or volume folders. A top-level show called
 `Extras` is still a show. A disc folder such as `BDMV` or `VIDEO_TS` provides
 naming evidence; it does not guarantee that every disc structure can play.
 
