@@ -1,5 +1,5 @@
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
-import {channelUnavailableMessage} from '../../../../../packages/client-core/src/presentation/live-availability';
+import {channelUnavailableMessage, liveGuideStale, liveServerWideNotice} from '../../../../../packages/client-core/src/presentation/live-availability';
 import React, {useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, Platform, ScrollView, Text, View, VirtualizedList, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -14,7 +14,7 @@ import {GuideFeatureClient, type GuideAiring, type GuideReminder} from '../../..
 import type {RecordingDraft} from '../../../../../packages/client-core/src/dvr';
 import {Button, Chip, Focusable, Segmented, Select} from '../../kit/controls';
 import {FocusItem, FocusRegion, useFocusRegistry} from '../../kit/focus';
-import {Dialog, Menu, ToastHost, type ToastMessage} from '../../kit/overlays';
+import {Banner, Dialog, Menu, ToastHost, type ToastMessage} from '../../kit/overlays';
 import {useDockClearance} from '../../kit/dock/DockClearance';
 import {Artwork, ChannelMark} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
@@ -22,7 +22,7 @@ import {GuideLoadingMarker} from './GuideLoadingMarker';
 import {StateView} from '../../kit/states';
 import {usePullRefresh} from '../../kit/states/usePullRefresh';
 import {alpha, shellType} from '../../kit/shell/visual';
-import {useTheme} from '../../kit/theme';
+import {fontFamilies, useTheme} from '../../kit/theme';
 import {useScreenReader} from '../../kit/useScreenReader';
 import {usePlatformPosture} from '../../platform/platformPosture';
 import {sameAuthority, shellLayout} from '../../shell/model';
@@ -350,6 +350,15 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   useDestinationEntryFocus({visible: theme.isTV && !managementActive && !recordingsOpen && managementReturn > 0, intent: 'restore', revision: managementReturn}, {regionId: controls, childId: 'live-owner-open'});
   const empty = !state.loading && state.sources.length === 0;
   const managesServer = managementCurrent();
+  // Spec §10 and states 2 (Banner): a stale guide and a server-wide reason are each said once, from the
+  // server's own source summaries, as on web (LT-3, LT-4 native half, W2-A10). A quiet line; no focus on TV.
+  const serverWide = liveServerWideNotice(selectedSources, managesServer), stale = liveGuideStale(selectedSources);
+  const guideNotices = serverWide || stale ? <View testID="live-guide-notices" style={{gap: 8, marginBottom: theme.isTV ? 24 : 10, paddingHorizontal: compact ? 20 : 0}}>
+    {serverWide && <Banner testID="live-server-wide" placement="inline" variant="quiet" tone="warning" icon="i-alert"
+      message={<Text><Text style={{fontFamily: fontFamilies[700], color: theme.colors.text}}>{t(serverWide.title)}</Text>{' '}{t(serverWide.body)}</Text>}
+      accessibilityLabel={`${t(serverWide.title)} ${t(serverWide.body)}`}/>}
+    {stale && <Banner testID="live-guide-stale" placement="inline" variant="quiet" tone="warning" icon="i-clock" message={t('guide.stale')}/>}
+  </View> : null;
   // The public destination must be registered by Web and admitted by the handoff's
   // exact public URL validator before a control can offer it.
   const managementUrl = useMemo(() => {
@@ -384,8 +393,11 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
       stops={{left: true, right: true}} style={style}>{children}</FocusRegion>;
   };
   const watchProgramme = selected?.channel.tuneAvailable ? <Button ref={opener} testID="live-watch" icon="i-play" onPress={() => watch(selected.channel)}>{t(onNowProgramme ? 'guide.watchLive' : 'guide.watchChannel')}</Button> : null;
+  // Spec §10: an unavailable channel says why in its sheet, where Watch would be (LT-4, as web's programme panel).
+  const sheetReason = selected && !selected.channel.tuneAvailable ? channelUnavailableMessage(selected.channel.tuneUnavailableReason ?? '') : undefined;
   const programmeBody = selected ? <View style={{gap: 20}}>
         {selected.program && <ProgrammeDetails programme={selected.program} now={now} runtime={runtime}/>}
+        {sheetReason && <Banner testID="live-sheet-reason" placement="inline" variant="quiet" tone="warning" icon="i-alert" message={t(sheetReason)}/>}
         {(theme.isTV ? showTVWatch : onNowProgramme) && programmeGroup('watch', watchProgramme)}
         {selected.channel.kind === 'live' && selected.channel.recordAvailable && selected.program && selected.program.end > now && programmeGroup('record', <>
           <Button style={{flex: 1}} ref={theme.isTV ? !showTVWatch ? opener : undefined : !selected.channel.tuneAvailable ? opener : undefined} variant="glass" testID="live-record" icon="i-rec" focusableWhenDisabled loading={recording} disabled={recording || !!selected.program.recording} onPress={() => {
@@ -464,6 +476,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
         primaryAction={managesServer ? {id: 'add-source', label: t('next.states.addTVSource'), icon: 'i-plus', disabled: theme.isTV && !managementUrl, onPress: () => openManagement('add')}
           : {id: 'home', label: t('next.states.goHome'), onPress: () => runtime.onDestination({kind: 'home'})}}
         secondaryAction={managesServer ? {id: 'discover-tuners', label: t('next.states.findTuners'), icon: 'i-search', disabled: theme.isTV && !managementUrl, onPress: () => openManagement('discover')} : undefined}/> : <>
+        {guideNotices}
         {!theme.isTV && screenReader && theme.width < 1024 && view === 'guide' && <View style={{flexDirection: 'row', gap: 12, paddingHorizontal: compact ? 20 : 0, marginBottom: 8}}>
           <Button testID="live-earlier" variant="glass" size="small" icon="i-left" disabled={!panActive} onPress={() => pan.adjust(-4 * SLOT_MS)}>{t('guide.earlier')}</Button>
           <Button testID="live-later" variant="glass" size="small" trailingIcon="i-right" disabled={!panActive} onPress={() => pan.adjust(4 * SLOT_MS)}>{t('guide.later')}</Button>
