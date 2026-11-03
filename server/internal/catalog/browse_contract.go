@@ -1,6 +1,9 @@
 package catalog
 
 import (
+	"database/sql"
+
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/requestinput"
 
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
@@ -686,7 +689,15 @@ func (s *Service) library(id string) (Library, error) {
 	if err := s.compactProjectionReady(); err != nil {
 		return lib, err
 	}
-	err := s.read().QueryRow(`SELECT id,name,kind FROM libraries WHERE id=?`, id).Scan(&lib.ID, &lib.Name, &lib.Kind)
+	read := s.read()
+	// One browse asks for its library about nine times; inside one read
+	// snapshot the row is read once (dbwork.RememberInSnapshot).
+	tx, _ := read.to.(*sql.Tx)
+	lib, err := dbwork.RememberInSnapshot(tx, "catalog.library\x00"+id, nil, func() (Library, error) {
+		var lib Library
+		err := read.QueryRow(`SELECT id,name,kind FROM libraries WHERE id=?`, id).Scan(&lib.ID, &lib.Name, &lib.Kind)
+		return lib, err
+	})
 	lib.DefaultView = DefaultLibraryView(lib.Kind)
 	return lib, err
 }
