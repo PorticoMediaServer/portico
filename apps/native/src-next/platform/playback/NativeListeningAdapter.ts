@@ -28,7 +28,7 @@ export interface NativeListeningBridge {
  retireListening(owner:string,stop:boolean):Promise<unknown>;
  /** Playback v1 (plan §9.3 C3). */
  adoptListeningSession?(context:Record<string,unknown>):Promise<unknown>;
- listeningAdvance?(owner:string,reason:string,entryId:string|null):Promise<unknown>;
+ listeningAdvance?(owner:string,reason:string,entryId:string|null,startSeconds:number|null):Promise<unknown>;
  listeningSessionUpdated?(owner:string,sessionId:string):Promise<unknown>;
 }
 // Keep the bridge capability bounds aligned with the Apple and Android producers.
@@ -149,10 +149,10 @@ export class NativeListeningV1Adapter implements NativeListeningV1Control {
   await this.bridge.listeningActionFor(active.owner,original,action,value??null);
   if(action==='pause'&&this.current===active)await this.refresh();
  }
- async advance(reason:NativeQueueAdvance,entryId?:string){
+ async advance(reason:NativeQueueAdvance,entryId?:string,startSeconds?:number){
   const active=this.current;if(!active)return;
   if(!this.bridge.listeningAdvance)throw new Error('This app version can’t move the queue from the system player.');
-  await this.refresh();if(this.current===active)await this.bridge.listeningAdvance(active.owner,reason,entryId??null);
+  await this.refresh();if(this.current===active)await this.bridge.listeningAdvance(active.owner,reason,entryId??null,reason==='entry'&&startSeconds!==undefined?startSeconds:null);
  }
  async deadlines(value:ListeningDeadlines){const active=this.current;if(!active)return;await this.refresh();if(this.current===active)await this.bridge.listeningDeadlines(active.owner,value);}
  async configure(policy:NativeListeningPolicy):Promise<boolean>{

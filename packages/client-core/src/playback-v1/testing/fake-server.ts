@@ -823,7 +823,9 @@ export class FakePlaybackServer {
         const cur = this.entryAt(q, q.current)!;
         const old = this.sessions.get(q.sessionId);
         // §18.5: the successor inherits state, quality and audio track, even after an `ended` report.
-        session = this.newSession(cur.itemId, {queue: {queueId: q.id, entryId: cur.entryId}, ...(old ? {state: old.state, quality: old.quality, audio: old.audio} : {})});
+        // A chosen entry may start at a chosen position (MU-7: a chapter in another book part).
+        const at = reason === 'entry' && typeof body.startPositionMs === 'number' ? {positionMs: body.startPositionMs} : {};
+        session = this.newSession(cur.itemId, {queue: {queueId: q.id, entryId: cur.entryId}, ...(old ? {state: old.state, quality: old.quality, audio: old.audio} : {}), ...at});
         if (old) this.end(old);
         q.sessionId = session.id;
       }

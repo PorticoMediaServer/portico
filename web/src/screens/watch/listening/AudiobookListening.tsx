@@ -36,7 +36,6 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
   const bounds = watchSeekBounds(snapshot), can = (kind: typeof p.controls[number]) => p.controls.includes(kind);
   const rows = chapters?.data?.status === 'available' ? chapters.data.chapters : [];
   const active = rows.find(chapter => p.positionSeconds >= chapter.startSeconds && p.positionSeconds < chapter.endSeconds);
-  const chapterIndex = active ? rows.indexOf(active) : -1, previous = rows[chapterIndex - 1], next = rows[chapterIndex + 1];
   const seek = (position: number) => {const seconds = watchSeek(snapshot, position);if (seconds !== null) onIntent(snapshot, {kind: 'seek', seconds});};
   return <section className={styles.frame} aria-label={t('player.nowPlayingTitle', {title})} tabIndex={-1} data-watch-audiobook data-phone={phone || undefined}>
     <AmbientArt source={ambient} className={`${ambientStyles.ambient}${phone ? ` ${ambientStyles.phone}` : ''}`}/>
@@ -51,12 +50,12 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
       <ListeningSeek className={styles.scrub} position={p.positionSeconds} duration={p.durationSeconds} bounds={bounds}
         chapters={rows} disabled={!can('seek')} phone={phone} onSeek={seek}/>
       <div className={styles.transport}>
-        <Button variant="ghost" className={styles.control} iconOnly iconSize={phone ? 28 : 24} icon="i-prev" aria-label={t('next.dock.previous')} disabled={!chapters || !previous || !can('seek')} onClick={() => {if (chapters && previous) onChapter(chapters, previous);}}/>
+        <Button variant="ghost" className={styles.control} iconOnly iconSize={phone ? 28 : 24} icon="i-prev" aria-label={t('next.dock.previousChapter')} disabled={!can('previous')} onClick={() => onIntent(snapshot, {kind: 'previous'})}/>
         <button type="button" className={styles.skip} aria-label={t('next.dock.back', {seconds: skips.back})} disabled={!can('seek') || !bounds} onClick={() => seek(p.positionSeconds - skips.back)}><Icon name="i-back" size={phone ? 38 : 34}/><span>{skips.back}</span></button>
         <Button variant="primary" className={styles.playPause} data-playback-primary iconOnly iconSize={phone ? 34 : 30} icon={p.playing ? 'i-pause' : 'i-play'} aria-label={t(p.playing ? 'next.dock.pause' : 'next.dock.play')}
           disabled={!can(p.playing ? 'pause' : 'play')} onClick={() => onIntent(snapshot, {kind: p.playing ? 'pause' : 'play'})}/>
         <button type="button" className={styles.skip} aria-label={t('next.dock.forward', {seconds: skips.forward})} disabled={!can('seek') || !bounds} onClick={() => seek(p.positionSeconds + skips.forward)}><Icon name="i-fwd" size={phone ? 38 : 34}/><span>{skips.forward}</span></button>
-        <Button variant="ghost" className={styles.control} iconOnly iconSize={phone ? 28 : 24} icon="i-next" aria-label={t('next.dock.next')} disabled={!chapters || !next || !can('seek')} onClick={() => {if (chapters && next) onChapter(chapters, next);}}/>
+        <Button variant="ghost" className={styles.control} iconOnly iconSize={phone ? 28 : 24} icon="i-next" aria-label={t('next.dock.nextChapter')} disabled={!can('next')} onClick={() => onIntent(snapshot, {kind: 'next'})}/>
       </div>
       {phone && notice && <div className={styles.notice}>{notice}</div>}
       {!phone && <div className={styles.options}>

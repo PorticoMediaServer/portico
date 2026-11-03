@@ -34,6 +34,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)action:(NSString *)action value:(nullable NSNumber *)value owner:(NSString *)owner;
 - (BOOL)actionFor:(NSDictionary *)expected action:(NSString *)action value:(nullable NSNumber *)value owner:(NSString *)owner;
 - (BOOL)advance:(NSString *)reason entry:(nullable NSString *)entryId owner:(NSString *)owner;
+/** A chosen entry starts at `startSeconds` when given (a book chapter in another part), else where the viewer left it. */
+- (BOOL)advance:(NSString *)reason entry:(nullable NSString *)entryId start:(nullable NSNumber *)startSeconds owner:(NSString *)owner;
 /** The event stream says this session changed: check at once whether the server ended it. */
 - (BOOL)sessionUpdated:(NSString *)sessionId owner:(NSString *)owner;
 - (BOOL)deadlines:(NSDictionary *)deadlines owner:(NSString *)owner;

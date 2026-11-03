@@ -174,9 +174,11 @@ export class QueueClient {
   update(id: string, revision: string, change: Readonly<{repeat?: 'off' | 'one' | 'all'; shuffle?: Readonly<{on: boolean; seed?: string}>}>, signal?: AbortSignal) {
     return this.command(id, revision, 'PATCH', encodedRoutePath("update_queue", {"id": enc(id)}), change, signal);
   }
-  /** Completion, Next, Previous or jump to an entry. Returns the next session when one starts. */
-  advance(id: string, revision: string, reason: 'completion' | 'next' | 'previous' | 'entry', entryId?: string, signal?: AbortSignal) {
-    return this.command(id, revision, 'POST', encodedRoutePath("advance_queue", {"id": enc(id)}), Object.freeze({reason, ...(entryId ? {entryId} : {})}), signal);
+  /** Completion, Next, Previous or jump to an entry (from `startSeconds` when given). Returns the
+   * next session when one starts. */
+  advance(id: string, revision: string, reason: 'completion' | 'next' | 'previous' | 'entry', entryId?: string, signal?: AbortSignal, startSeconds?: number) {
+    return this.command(id, revision, 'POST', encodedRoutePath("advance_queue", {"id": enc(id)}), Object.freeze({reason, ...(entryId ? {entryId} : {}),
+      ...(reason === 'entry' && startSeconds !== undefined ? {startPositionMs: Math.round(startSeconds * 1000)} : {})}), signal);
   }
   /** Prepares the next entry's audio before the current one ends (spec §18.2): private, frame 0
    * only, expiring after 60 s, canceled by any other queue or session command. */

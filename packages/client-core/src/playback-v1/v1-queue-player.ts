@@ -39,6 +39,7 @@ import type {AudiobookPreferences} from '../audiobook-preferences.ts';
 import {serviceText} from '../presentation/service-text.ts';
 import {playbackUserMessage} from '../playback-messages.ts';
 import {ListeningService, loadListeningSelection, type ListeningTarget} from '../listening.ts';
+import {bookChapterTarget, readBookChapters, type BookChapter} from '../book-chapters.ts';
 import type {QueueAdvanceMode, QueuePostPlay} from '../post-play.ts';
 import type {PreparedChoice} from '../prepared-media.ts';
 import type {CompletionPolicy, HeldCompletion, QueueController, QueuePlaybackView, QueuePlaybackWindow, QueuePlayerState, QueueWorkspaceService} from '../queue-controller.ts';
@@ -198,6 +199,9 @@ export class V1QueuePlayer implements QueueController {
   private qualityOverride?: QualityRequest;
   /** Queue moves run one at a time: a second Next waits for the first and moves on from there. */
   private moves: Promise<unknown> = Promise.resolve();
+  /** The playing book's chapters across its parts, read once per book (MU-7). */
+  private book?: {bookId: string; phase: 'loading' | 'ready' | 'error'; chapters: readonly BookChapter[]; attemptItem: string; abort: AbortController};
+  private unlistenBook?: () => void;
   /** Rises when the viewer leaves or starts something else: a queue move still waiting its turn is then dropped. */
   private epoch = 0;
   private readonly playback: PlaybackService;
@@ -302,6 +306,7 @@ export class V1QueuePlayer implements QueueController {
   connect() {
     this.detach = this.playback.installQueue(this);
     this.listening.connect();
+    this.unlistenBook = this.listening.subscribe(() => this.followBook());
     this.unsubscribe = this.playback.subscribe(() => this.observed());
     this.unlisten = this.events?.on('queue.updated', event => this.queueEvent(event));
     // Rereads the queue as it is now: the header and the window around its actual current entry.
@@ -457,12 +462,48 @@ export class V1QueuePlayer implements QueueController {
   }
 
   /** Resolve beyond the resident window before using the ordinary run-preserving jump. */
-  async selectEpisode(episodeId: string): Promise<void> {
+  selectEpisode(episodeId: string): Promise<void> { return this.selectQueuedItem(episodeId); }
+
+  /** Jump within this run's queue to the entry playing `itemId`, from `startSeconds` when given
+   * (else where the viewer left it). The entry may be outside the resident window. */
+  async selectQueuedItem(itemId: string, startSeconds?: number): Promise<void> {
     const header=this.header;
     if(!header)throw new PlaybackApiError(404,'not_found','never');
-    const found=await this.client.entryForItem(header.id,episodeId);
+    const found=await this.client.entryForItem(header.id,itemId);
     if(this.disposed||this.header?.id!==header.id)return;
-    await this.playEntry(header.id,found.entry.entryId,found.revision);
+    await this.playEntry(header.id,found.entry.entryId,found.revision,startSeconds);
+  }
+
+  // ── Book chapters (MU-7) ────────────────────────────────────────────
+
+  /** A book part started: read that book's chapters once, in the background. A failed read is
+   * tried again when the next part starts, never in a loop. */
+  private followBook() {
+    if (this.disposed) return;
+    const context = this.listening.getSnapshot().context;
+    if (context?.kind !== 'audiobook_file' || !context.bookId) return;
+    const held = this.book;
+    if (held?.bookId === context.bookId && (held.phase !== 'error' || held.attemptItem === context.itemId)) return;
+    held?.abort.abort();
+    const book = {bookId: context.bookId, phase: 'loading' as 'loading' | 'ready' | 'error', chapters: Object.freeze([]) as readonly BookChapter[], attemptItem: context.itemId, abort: new AbortController()};
+    this.book = book;
+    void readBookChapters((path, body, method, signal) => this.request(path, body, method, signal), book.bookId, book.abort.signal).then(read => {
+      if (this.book !== book) return;
+      book.phase = 'ready'; book.chapters = read.chapters; this.publish({});
+    }, () => {
+      if (this.book !== book) return;
+      book.phase = 'error'; this.publish({});
+    });
+  }
+
+  /** Where Previous or Next chapter goes from the playing book position: a chapter (possibly in
+   * another part), `null` when there is none that way, or `undefined` when this isn't a book
+   * part with known chapters — then Previous and Next move the queue as for any other item. */
+  chapterTarget(direction: 'previous' | 'next'): BookChapter | null | undefined {
+    const context = this.listening.getSnapshot().context, book = this.book, p = this.playback.getSnapshot();
+    if (context?.kind !== 'audiobook_file' || !context.bookId || book?.bookId !== context.bookId || book.phase !== 'ready'
+      || !p.itemId || p.itemId !== context.itemId || p.channel) return undefined;
+    return bookChapterTarget(book.chapters, p.itemId, p.positionSeconds, direction);
   }
 
   // ── Changing what is playing ────────────────────────────────────────
@@ -905,16 +946,16 @@ export class V1QueuePlayer implements QueueController {
 
   /** Queue moves run one after another: two quick presses of Next move on twice, each from the
    * queue the one before it left, instead of racing with the same revision. */
-  private advance(reason: 'completion' | 'next' | 'previous' | 'entry', entryId?: string): Promise<void> {
+  private advance(reason: 'completion' | 'next' | 'previous' | 'entry', entryId?: string, startSeconds?: number): Promise<void> {
     const epoch = this.epoch;
-    const run = () => (epoch === this.epoch ? this.advanceNow(reason, entryId) : Promise.resolve());
+    const run = () => (epoch === this.epoch ? this.advanceNow(reason, entryId, startSeconds) : Promise.resolve());
     const move = this.moves.then(run, run);
     this.moves = move.catch(() => {});
     return move;
   }
 
   /** `:advance` with the current revision; the next session starts in the same request. */
-  private async advanceNow(reason: 'completion' | 'next' | 'previous' | 'entry', entryId?: string) {
+  private async advanceNow(reason: 'completion' | 'next' | 'previous' | 'entry', entryId?: string, startSeconds?: number) {
     const header = this.header;
     if (!header) throw new Error('Load the queue first.');
     if (this.disposed) return;
@@ -924,15 +965,18 @@ export class V1QueuePlayer implements QueueController {
     const current = this.window.find(e => e.entryId === entryId);
     const intent = this.playback.beginQueueIntent(current?.itemId);
     try {
-      const r = await this.whileBuilding(() => this.client.advance(header.id, header.revision, reason, entryId));
+      const r = await this.whileBuilding(() => this.client.advance(header.id, header.revision, reason, entryId, undefined, startSeconds));
       // The queue moved on the server whether or not the viewer has since done something else.
       if (this.header?.id === r.queue.id) this.header = r.queue;
       if (generation !== this.generation) { this.abandon(r.session); return; }
       this.window = await this.client.window(r.queue.id, WINDOW_BEFORE, WINDOW_AFTER);
       if (generation !== this.generation) { this.abandon(r.session); return; }
       this.accept(r.queue);
+      // The server started the chosen entry at the chosen position; when it started nothing, the
+      // start below asks for that position itself.
+      const start = reason === 'entry' && r.queue.current?.entryId === entryId ? startSeconds : undefined;
       if (r.session) {if(reason==='completion')this.listening.acceptAutomaticTransition(r.session);await this.adopt(r.session, intent, generation);}
-      else if (r.queue.current) await this.startEntry(r.queue.id, r.queue.current.entryId, intent, undefined, generation,undefined,'playing',undefined,undefined,undefined,reason==='completion');
+      else if (r.queue.current) await this.startEntry(r.queue.id, r.queue.current.entryId, intent, start, generation,undefined,'playing',undefined,undefined,undefined,reason==='completion');
     } catch (e) {
       if (generation !== this.generation) return;
       if (e instanceof PlaybackApiError && e.status === 412) { await this.refresh().catch(() => {}); }
@@ -1077,12 +1121,13 @@ export class V1QueuePlayer implements QueueController {
     return pending;
   }
 
-  async playEntry(queueId: string, entryId: string, expectedRevision: string): Promise<void> {
+  async playEntry(queueId: string, entryId: string, expectedRevision: string, startSeconds?: number): Promise<void> {
     this.listening.interact();
     if (queueId !== this.header?.id || expectedRevision !== this.header.revision) throw new Error('Refresh the queue before selecting an item.');
+    if (startSeconds !== undefined && !(Number.isFinite(startSeconds) && startSeconds >= 0)) throw new Error('Invalid start position.');
     this.listening.cancelBoundaryTimer();
-    if (this.nativeOwns()) { await this.native!.advance('entry', entryId); return; }
-    await this.advance('entry', entryId);
+    if (this.nativeOwns()) { await this.native!.advance('entry', entryId, startSeconds); return; }
+    await this.advance('entry', entryId, startSeconds);
   }
 
   async next(queueId: string, expectedRevision: string): Promise<void> {
@@ -1509,6 +1554,8 @@ export class V1QueuePlayer implements QueueController {
     this.unlistenChanged?.();
     ++this.nativeEpoch;
     this.unsubscribe?.();
+    this.unlistenBook?.();
+    this.book?.abort.abort();
     this.unlisten?.();
     this.unlistenSessions?.();
     this.unlistenResync?.();

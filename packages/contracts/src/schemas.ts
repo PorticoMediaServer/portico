@@ -2088,6 +2088,11 @@ export const schemas = {
       },
       "reason": {
         "type": "string"
+      },
+      "startPositionMs": {
+        "maximum": 9007199254740991,
+        "minimum": -9007199254740991,
+        "type": "integer"
       }
     },
     "required": [

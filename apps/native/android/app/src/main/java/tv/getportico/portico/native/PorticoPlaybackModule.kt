@@ -190,9 +190,9 @@ class PorticoPlaybackModule(context: ReactApplicationContext) : PorticoEventModu
   fun purgeAudioCache(promise: Promise) = promise.resolve(true)
 
   @ReactMethod
-  fun listeningAdvance(owner: String?, reason: String?, entryId: String?, promise: Promise) {
+  fun listeningAdvance(owner: String?, reason: String?, entryId: String?, startSeconds: Double?, promise: Promise) {
     main.post {
-      if (!invalidated && v1(owner) && listening.advance(reason, entryId, owner!!)) promise.resolve(true)
+      if (!invalidated && v1(owner) && listening.advance(reason, entryId, owner!!, startSeconds)) promise.resolve(true)
       else promise.reject("listening_stale", "This listening owner is no longer active.")
     }
   }
