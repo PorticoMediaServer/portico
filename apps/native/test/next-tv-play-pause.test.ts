@@ -6,7 +6,7 @@ import {playbackIdentity} from '../../../packages/client-core/src/presentation/k
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 import {currentOccupant, listeningPlayPauseCommand} from '../src-next/kit/dock/model.ts';
 import type {DockPresentation} from '../src-next/kit/dock/types.ts';
-import {admitTVPlayPause, claimTVPlayPause, resetTVPlayPauseForTest, tvPlayPauseClaimed, tvPlayPauseTogglesPlayback} from '../src-next/platform/tv-play-pause.ts';
+import {admitTVPlayPause, registerTVPlayPause, resetTVPlayPauseForTest, tvPlayPauseTogglesPlayback} from '../src-next/platform/tv-play-pause.ts';
 
 const platform = Platform as {OS: string; isTV: boolean};
 
@@ -19,13 +19,21 @@ test('only Apple TV toggles from the key; Android TV leaves it to its media sess
   } finally {Object.assign(platform, before);}
 });
 
-test('a PIN pad claim holds the key until every claim is released', () => {
+test('TV focus step 6: one owner for Play/Pause — a PIN pad over the player, the player over listening, newest first', () => {
   resetTVPlayPauseForTest();
-  const one = claimTVPlayPause(), two = claimTVPlayPause();
-  assert.equal(tvPlayPauseClaimed(), true);
-  one(); assert.equal(tvPlayPauseClaimed(), true);
-  two(); assert.equal(tvPlayPauseClaimed(), false);
-  two(); assert.equal(tvPlayPauseClaimed(), false, 'a second release is harmless');
+  let playerUp = true;
+  const listening = registerTVPlayPause('shell'), player = registerTVPlayPause('surface', () => playerUp);
+  assert.deepEqual([listening.owns(), player.owns()], [false, true], 'the full player takes it over listening');
+  const pin = registerTVPlayPause('overlay');
+  assert.deepEqual([listening.owns(), player.owns(), pin.owns()], [false, false, true], 'a PIN pad over the player deletes a digit instead');
+  const second = registerTVPlayPause('overlay');
+  assert.deepEqual([pin.owns(), second.owns()], [false, true], 'the newest overlay first');
+  second.release(); pin.release();
+  playerUp = false;
+  assert.deepEqual([listening.owns(), player.owns()], [true, false], 'with the player down, listening playback owns it from any screen');
+  listening.release(); player.release();
+  assert.equal(listening.owns(), false, 'a released registration never owns');
+  resetTVPlayPauseForTest();
 });
 
 test('one press reported both as a key and as a remote command toggles once; repeated presses all pass', () => {

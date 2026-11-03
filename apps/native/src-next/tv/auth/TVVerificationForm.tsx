@@ -1,7 +1,7 @@
 import React, {useEffect, useRef} from 'react';
 import {Text, View} from 'react-native';
 import {useTVKeyEvent} from '../../platform/tv-keys';
-import {claimTVPlayPause} from '../../platform/tv-play-pause';
+import {useTVPlayPauseOwner} from '../../platform/tv-play-pause-owner';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, Focusable} from '../../kit/controls';
 import {FocusProvider, FocusRegion} from '../../kit/focus';
@@ -30,9 +30,9 @@ function VerificationForm(props: TVVerificationFormProps) {
   useEffect(() => {if (!props.code) submitted.current = undefined;}, [props.code]);
   const remove = () => {if (!props.busy) {submitted.current = undefined; props.onCodeChange(props.code.slice(0, -1));}};
   // F-PROFILE-30: Play/Pause deletes a digit here, so playback never takes it.
-  useEffect(claimTVPlayPause, []);
+  const ownsPlayPause = useTVPlayPauseOwner('overlay');
   useTVKeyEvent(event => {
-    if (!props.recovery && !props.busy && event.key === 'playPause' && event.phase === 'press') remove();
+    if (event.key === 'playPause' && event.phase === 'press' && ownsPlayPause() && !props.recovery && !props.busy) remove();
   });
   // The numeric pad owns one initial entry and retains its key through busy.
   // Preserve the separate recovery keyboard lifecycle.
