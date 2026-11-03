@@ -58,6 +58,8 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
   const [acknowledgedMove, setAcknowledgedMove] = useState<ReturnType<BrowserAccountEntry['getSnapshot']>>();
   const [memberView, setMemberView] = useState<Readonly<{mode: 'old-password' | 'code'; target: RecoveryTarget}>>();
   const pageOrigin = initialOrigin ?? import.meta.env.VITE_SERVER_URL ?? location.origin;
+  // The host's Cancel, read when an ended sign-in sends the person back (AU-5); a new arrow each render isn't a new state.
+  const cancelled = useRef(onCancel); cancelled.current = onCancel;
   useEffect(() => {
     alive.current = true;
     if (initialize && !started.current) {
@@ -74,6 +76,13 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
       : openAfterProfile(!!(state.server && state.snapshot && hasTwoStepSetup(state.server.id, state.snapshot.account.id))));
     // A setup Return decides first whether its owner opens straight into setup; only then is it a profile choice.
     else if (state.phase === 'profiles' && !state.setupPending && state.snapshot && !state.snapshot.twoStepSetupRequired) void router.navigate({to: '/profiles', replace: true});
+    // AU-5: the saved sign-in this view held ended. On a server's own page, sign-in opens for the server at this
+    // address; elsewhere the person goes back to choosing a server. Never a blank page.
+    else if (state.phase === 'welcome' && state.ended) {
+      const destination = forgetDestination(currentServedServerOrigin());
+      if (destination.to === 'sign-in') void entry.inspect(destination.origin);
+      else if (cancelled.current) cancelled.current(); else void router.navigate({to: '/servers', replace: true});
+    }
     else if (state.phase === 'two-step-setup' && state.origin) {
       form.setUsername(state.snapshot?.account.username ?? input.username);
       void entry.inspect(state.origin);
@@ -197,8 +206,8 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
   if (!failure && (initializing || busy || state.phase === 'checking' || state.phase === 'profiles' || state.phase === 'ready')) return <AuthStage legal={false}>
     <p role="status">{defaultI18n.t(state.phase === 'profiles' || state.phase === 'ready' ? 'auth.loadingProfiles' : 'status.loading')}</p>
   </AuthStage>;
-  return <AuthStage legal={false}><AuthError error={failure} />{Boolean(failure) && <>
-    <Button onClick={reauthenticate}>{defaultI18n.t('action.tryAgain')}</Button>
+  // Never an empty page: with nothing to say, Switch server is still offered.
+  return <AuthStage legal={false}><AuthError error={failure} />{Boolean(failure) && <Button onClick={reauthenticate}>{defaultI18n.t('action.tryAgain')}</Button>}
     <Button onClick={cancel}>{defaultI18n.t('settings.switchServer')}</Button>
-  </>}</AuthStage>;
+  </AuthStage>;
 }

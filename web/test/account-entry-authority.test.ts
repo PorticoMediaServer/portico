@@ -57,6 +57,7 @@ test('idle family replacement clears displayed secrets and the captured route wi
   f.entry.subscribeAuthorityRetired(() => {displayedSecret = undefined;retired++;});
   await f.save(session('successor'));await settle();
   assert.equal(displayedSecret, undefined);assert.equal(retired, 1);assert.equal(f.entry.getSnapshot().phase, 'welcome');
+  assert.equal(f.entry.getSnapshot().ended, true, 'AU-5: the held sign-in ended, so its screen moves on');
   assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'successor');assert.equal(f.disconnected, 1);assert.equal(f.hints.size, 0);f.entry.dispose();
 });
 test('same-scope token rotation updates the captured bearer without retiring an enrollment view', async () => {
