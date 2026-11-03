@@ -8,6 +8,7 @@ import {nativeDestinationLifetime} from '../src-next/screens/destinations/lifeti
 import {NativeSearchDestination} from '../src-next/screens/search/model';
 import {nativeSearchRememberHistory} from '../src-next/screens/search/navigation';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {viewerQueriesFor} from '../src-next/shell/freshness.ts';
 
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 function preference(value: boolean) {
@@ -72,14 +73,20 @@ test('Search owns the actual root object and retains only an arrived query/page 
   } finally {f.controller.dispose(); f.navigation.dispose();}
 });
 
-test('hidden Search aborts history; confirmed privacy-off and authority retirement defeat late private facts', async () => {
+test('hidden Search never publishes a late history read; confirmed privacy-off and authority retirement defeat late private facts', async () => {
   const f = await fixture(); let finish!: (value: unknown) => void;
   try {
     await f.controller.load(); assert.equal(f.controller.source.getSnapshot().recent.length, 1);
+    const reads = f.paths.length; await f.controller.load();
+    assert.equal(f.paths.length, reads, 'Recent searches already read come from the viewer\'s cache');
+    // A recorded search (or a hint) moves the recents, so the next load reads them again.
+    void viewerQueriesFor(f.context.api, {serverId: 'server'}).client.invalidateQueries({queryKey: ['search', 'history']});
     f.historyReply(() => new Promise(resolve => {finish = resolve;})); const pending = f.controller.load(); await tick();
     const signal = f.signals.at(-1)!;
     f.navigation.open({kind: 'title', entry: {kind: 'movie', id: 'actual-film', libraryId: 'movies', title: 'Stored title'}}, f.authority);
-    assert.equal(signal.aborted, true); f.privacyOff(); assert.deepEqual(f.controller.source.getSnapshot().recent, []);
+    // The read belongs to the viewer's cache: it may outlive the hidden screen (it ends with that cache, on any viewer or
+    // fence change), but the hidden screen never publishes its answer.
+    assert.equal(signal.aborted, false); f.privacyOff(); assert.deepEqual(f.controller.source.getSnapshot().recent, []);
     finish({serverId: 'server', viewerFence: 'old-fence', maxEntries: 8, entries: [{q: 'late private', updatedAt: '2026-10-23T00:00:00Z', uses: 1}]}); await pending;
     f.navigation.back(f.authority); await f.controller.load(); assert.deepEqual(f.controller.source.getSnapshot().recent, []);
     f.retire(); const count = f.paths.length; f.controller.source.setText('retired'); await f.controller.source.commit(); await f.controller.load();
