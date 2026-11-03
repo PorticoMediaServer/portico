@@ -73,7 +73,7 @@ test('Move playback announces the same readable position it submits and clamps a
   nodes(tree.props.footer).find(node => node.props?.variant === 'primary').props.onPress(); assert.equal(sent, 30_000);
 });
 
-async function guideFixture(width = 1180, screenReader = false) {
+async function guideFixture(width = 1180, screenReader = false, facts: Readonly<{source?: Record<string, unknown>; channel?: Record<string, unknown>; role?: string}> = {}) {
   const host = fixture(), viewTheme = {...theme, width};
   let activeHost = host;
   const react: any = {...host.react};
@@ -81,15 +81,15 @@ async function guideFixture(width = 1180, screenReader = false) {
   const adjustments: number[] = []; let panOptions: any;
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch'};
   const lifetime = {authority, current: () => true, signal: new AbortController().signal};
-  const source = {id: 'source', name: 'Source', guideDays: 2, groups: [], provenance: 'live-source'};
-  const channel = {id: 'channel', sourceId: 'source', kind: 'live', name: 'Channel', number: '1', favorite: false, provenance: 'live-source', hidden: false};
+  const source = {id: 'source', name: 'Source', guideDays: 2, groups: [], provenance: 'live-source', channelCount: 1, unavailableReasons: {}, refreshState: 'ready', ...facts.source};
+  const channel = {id: 'channel', sourceId: 'source', kind: 'live', name: 'Channel', number: '1', favorite: false, provenance: 'live-source', hidden: false, tuneAvailable: true, ...facts.channel};
   const programme = {id: 'programme', title: 'Programme', start: Date.now() - 60_000, end: Date.now() + 60_000};
   const data = {total: 1, version: 0}, state = {sources: [source], options: {}, revision: 0, view: 'guide', mutating: false};
   const guide = {subscribe: () => () => {}, getSnapshot: () => data, channelAt: () => channel, programsFor: () => ({programs: [programme], complete: true, failed: false}), subscribePage: () => () => {}, pageOf: () => 0};
   const controller = {subscribe: () => () => {}, getSnapshot: () => state, guide, lifetime, clearMutationError() {}};
   const shell = {authority, destination: {kind: 'live'}, contentVisible: true};
   const runtime = {text: {t}, subscribe: () => () => {}, getSnapshot: () => shell, artwork: () => undefined, error: () => ({title: 'Error'})};
-  const context = {account: {account: {role: 'owner', primaryProfileId: 'profile'}, canManage: true}, api: {baseUrl: 'https://example.invalid'}, current: () => true, authority: () => authority,
+  const context = {account: {account: {role: facts.role ?? 'owner', primaryProfileId: 'profile'}, canManage: true}, api: {baseUrl: 'https://example.invalid'}, current: () => true, authority: () => authority,
     navigation: {subscribe: () => () => {}, getSnapshot: () => ({revision: 1, destination: {kind: 'live'}}), isCurrent: () => true}};
   const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), { './tv-settings-focus': tvSettingsFocus,
     react, 'react-native': {...native, BackHandler: {}, FlatList: 'FlatList', ScrollView: 'ScrollView', VirtualizedList: 'VirtualizedList', Platform: {OS: 'web'}, useWindowDimensions: () => ({width, height: 900})},
@@ -103,15 +103,15 @@ async function guideFixture(width = 1180, screenReader = false) {
     '../../../../../packages/client-core/src/guide/directory': {GuideFeatureClient: class {}},
     '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Segmented: 'Segmented', Select: 'Select'},
     '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({})},
-    '../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu', ToastHost: 'ToastHost'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', ChannelMark: 'ChannelMark'}, '../../kit/Icon': {Icon: 'Icon'},
-    './GuideLoadingMarker': {GuideLoadingMarker: 'GuideLoadingMarker'}, '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView'}, '../../kit/shell/visual': visual, '../../kit/theme': {useTheme: () => viewTheme},
+    '../../kit/overlays': {Banner: 'Banner', Dialog: 'Dialog', Menu: 'Menu', ToastHost: 'ToastHost'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', ChannelMark: 'ChannelMark'}, '../../kit/Icon': {Icon: 'Icon'},
+    './GuideLoadingMarker': {GuideLoadingMarker: 'GuideLoadingMarker'}, '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView'}, '../../kit/shell/visual': visual, '../../kit/theme': {useTheme: () => viewTheme, fontFamilies: {700: 'Manrope-Bold'}},
     '../../kit/useScreenReader': {useScreenReader: () => screenReader}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})},
     '../../shell/model': {sameAuthority: () => true, shellLayout: () => ({kind: width < 600 ? 'phone' : 'expanded'})}, '../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})},
     './Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenBack() {}, useScreenEntry() {}}, './RecordingsScreen': {NativeRecordingsScreen: 'Recordings'},
     '../../tv/layout/guide-focus': {}, '../destinations/useTVPageBack': {useTVPageBack() {}}, '../destinations/useEntryFocus': {useDestinationEntryFocus() {}},
     './guide-presentation': {nativeGuideClock: () => () => '12:00', nativeGuideDate: () => () => 'Today', nativeGuideRegion: () => ({locale: 'en-US', hour12: false}), nativeGuideNext: () => undefined},
     './useGuideTimePan': {useGuideTimePan: (options: any) => {panOptions = options; return {active: true, position: {value: 0}, adjust: (delta: number) => adjustments.push(delta)};}},
-    '../../../../../packages/client-core/src/presentation/live-availability': {channelUnavailableMessage: () => undefined}, './guide-pan-model': {nativeGuidePanRange: () => ({first: 0, last: Number.MAX_SAFE_INTEGER})}, './LivePhonePicker': {NativeLivePhonePicker: 'Picker'}, './LiveOwnerScreen': {NativeLiveOwnerScreen: 'Owner'}, './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'},
+    '../../../../../packages/client-core/src/presentation/live-availability': await import('../../../packages/client-core/src/presentation/live-availability.ts'), './guide-pan-model': {nativeGuidePanRange: () => ({first: 0, last: Number.MAX_SAFE_INTEGER})}, './LivePhonePicker': {NativeLivePhonePicker: 'Picker'}, './LiveOwnerScreen': {NativeLiveOwnerScreen: 'Owner'}, './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'},
     '../../tv/auth': {TVManagementHandoff: 'Handoff'}, '../../tv/auth/TVHandoff': {publicTVHandoffAddress: (url: string) => ({url})}, './recording-rule-presentation': {}, './server/tv-server-reader': {nativeServerAdmission: () => 'owner'},
   });
   const render = () => host.render(() => NativeLiveScreen({controller, recordings: {}, owner: {}, ports: {context}, runtime}));
@@ -144,4 +144,23 @@ test('A docked programme keeps guide panning active and marks only its matching 
   assert.equal(paint.props.selected, true);
   const otherTree = f.renderRow({...row, props: {...row.props, selected: {channel: {...f.channel, sourceId: 'other-source'}, program: f.programme}}});
   assert.equal(find(otherTree, 'live-programme-channel-programme').props.selected, false);
+});
+
+test('the native guide says once that it is stale or that the server cannot play Live TV, and a sheet says why its channel cannot play (W2-A10)', async () => {
+  let tree = (await guideFixture()).render();
+  assert.equal(find(tree, 'live-guide-notices'), undefined, 'a healthy guide draws no notice');
+  tree = (await guideFixture(1180, false, {source: {refreshState: 'degraded'}})).render();
+  assert.equal(find(tree, 'live-guide-stale').props.message, t('guide.stale'));
+  assert.equal(find(tree, 'live-server-wide'), undefined);
+  tree = (await guideFixture(1180, false, {source: {unavailableReasons: {ffmpeg_not_configured: 1}}})).render();
+  assert.match(find(tree, 'live-server-wide').props.accessibilityLabel, new RegExp(t('web.live.serverWide.toolsBody').slice(0, 20)));
+  tree = (await guideFixture(1180, false, {source: {unavailableReasons: {ffmpeg_not_configured: 1}}, role: 'member'})).render();
+  assert.match(find(tree, 'live-server-wide').props.accessibilityLabel, new RegExp(t('web.live.serverWide.memberBody').slice(0, 20)), 'members get the plain sentence');
+  const f = await guideFixture(1180, false, {channel: {tuneAvailable: false, tuneUnavailableReason: 'source-unavailable'}}); tree = f.render();
+  const content = nodes(tree).find(node => node.props?.ref && node.props?.onLayout && node.type === 'View');
+  content.props.ref.current = {measureInWindow: (done: any) => done(0, 0, 1100)};
+  content.props.onLayout({nativeEvent: {layout: {width: 1100}}}); tree = f.render();
+  nodes(tree).find(node => node.type === 'VirtualizedList').props.renderItem({item: 0}).props.onOpen(f.channel, f.programme, null); tree = f.render();
+  assert.equal(find(tree, 'live-sheet-reason').props.message, t('web.live.reason.sourceDown'));
+  assert.equal(find(tree, 'live-watch'), undefined);
 });
