@@ -57,8 +57,8 @@ internal/catalog/facet_runtime.go	(*FacetRuntime).writeBase	WithWriteTxContext	C
 internal/catalog/file_info_separate.go	(*Service).SeparateFileInfoVersion	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	-
 internal/catalog/inventory.go	(*Service).CommitInventoryDiscRoot	Begin	ClassBackgroundMedia	-
 internal/catalog/inventory.go	(*Service).CommitInventoryNaming	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	-
-internal/catalog/inventory.go	(*Service).CommitInventoryPage	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	inventoryPagesPlan
-internal/catalog/inventory.go	(*Service).CommitInventoryPages	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	inventoryPagesPlan
+internal/catalog/inventory.go	(*Service).CommitInventoryPage	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	inventoryPagesPlanFor(len(page.Entries))
+internal/catalog/inventory.go	(*Service).CommitInventoryPages	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	inventoryPagesPlanFor(entries)
 internal/catalog/inventory.go	(*Service).commitInventoryAnalysisApplied	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	audioFilePublicationPlan
 internal/catalog/inventory_admin.go	(*Service).AssociateInventoryVersion	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	-
 internal/catalog/inventory_admin.go	(*Service).CheckSource	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	-
@@ -682,8 +682,8 @@ plan	internal/catalog/admin.go	(*Service).OrderLibraries	libraryOrderPlan
 plan	internal/catalog/entity_merge_mutations.go	MergeTitlesStepTx	entityPinDrainPlan
 plan	internal/catalog/entity_mutations.go	MutationWriteContext	titleRemovalPlan
 plan	internal/catalog/entity_mutations.go	RemoveTitleStepTx	entityPinDrainPlan
-plan	internal/catalog/inventory.go	(*Service).CommitInventoryPage	inventoryPagesPlan
-plan	internal/catalog/inventory.go	(*Service).CommitInventoryPages	inventoryPagesPlan
+plan	internal/catalog/inventory.go	(*Service).CommitInventoryPage	inventoryPagesPlanFor(len(page.Entries))
+plan	internal/catalog/inventory.go	(*Service).CommitInventoryPages	inventoryPagesPlanFor(entries)
 plan	internal/catalog/inventory.go	(*Service).commitInventoryAnalysisApplied	audioFilePublicationPlan
 plan	internal/catalog/inventory_local_refresh.go	(*Service).commitInventoryLocalRefreshApplied	audioFilePublicationPlan
 plan	internal/catalog/separate_folder_admission.go	(*Service).runSeparateFolder	dbwork.DefaultPlan(dbwork.ClassInteractive)

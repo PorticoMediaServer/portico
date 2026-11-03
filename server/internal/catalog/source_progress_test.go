@@ -254,7 +254,7 @@ func TestInventoryPageRollbackDiscardsProgressWithoutAuthorityChange(t *testing.
 	before := dbwork.AuthorityGeneration()
 	valid := InventoryPageWrite{Relative: "Sub", Cursor: "", Page: f.page(t, "Sub")}
 	invalid := InventoryPageWrite{Relative: ".", Cursor: "", Page: storage.InventoryPage{Entries: make([]storage.Snapshot, 129)}}
-	if err := f.s.CommitInventoryPages(ctx, f.job, []InventoryPageWrite{valid, invalid}); err == nil {
+	if _, err := f.s.CommitInventoryPages(ctx, f.job, []InventoryPageWrite{valid, invalid}); err == nil {
 		t.Fatal("the invalid second page committed")
 	}
 	if got := f.progress(t, f.source.ID); got != baseline {

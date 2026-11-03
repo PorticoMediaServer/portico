@@ -76,7 +76,7 @@ func observationRevision(source LibrarySource, v storage.Snapshot) (string, stri
 	return revision, string(raw), err
 }
 func (s *Service) CommitInventoryPage(ctx context.Context, job, relative, cursor string, page storage.InventoryPage) error {
-	gated, err := dbwork.Begin(dbwork.WithPlan(ctx, inventoryPagesPlan), s.db, dbwork.ClassFrom(ctx, dbwork.ClassInteractive))
+	gated, err := dbwork.Begin(dbwork.WithPlan(ctx, inventoryPagesPlanFor(len(page.Entries))), s.db, dbwork.ClassFrom(ctx, dbwork.ClassInteractive))
 	if err != nil {
 		return err
 	}
@@ -105,59 +105,77 @@ type InventoryPageWrite struct {
 	DiscRoot *storage.Snapshot
 }
 
-// inventoryPagesPlan keeps the named exception for an indivisible publication.
-// The local ingestion producer requests <=2 raw names across <=2 folders before
-// listing (one folder on platforms without the shared budget). This includes
-// managed subtitle rows and bounds empty-folder/ignore diagnostic overhead.
-// It does not prove all legal entries fit the default plan: one existing object
-// can invalidate retained relationships/Reading facts, a folder can carry 257
-// ignore diagnostics, and a single existing object may still exceed the default class budget.
-// Remote ingestion also requests real pages under the same name allowance.
-// Never slice a listed page or reject a legal write to fit these estimates.
-var inventoryPagesPlan = dbwork.WritePlan{Name: "inventory-pages", Rows: 8192, Pages: 1024, VMOps: 2_000_000, Why: "a folder page's entries publish atomically with their reading-path effects; bounding a page's fan-out is DB-001's publication redesign (writer-discipline item H)"}
+// inventoryPagesPlan is the named plan for one page transaction: its base,
+// for a page's fixed work (fence, folder rows, a folder's ignore diagnostics),
+// grown per listed entry by inventoryPagesPlanFor. Scanner M2 sizes pages by
+// their measured writer hold rather than a fixed name count, so the plan
+// follows the page instead of the page following a fixed plan. Measured on
+// mini-1 (TestInventoryPageBudget): a new object publishes ~90-125 rows
+// (triggers included) and ~7.7k-11k VM operations.
+var inventoryPagesPlan = dbwork.WritePlan{Name: "inventory-pages", Rows: 8192, Pages: 1024, VMOps: 2_000_000, Why: "a scan page publishes its folders' entries atomically with their reading-path effects; pages are sized by measured writer hold (scanner M2)"}
+
+// inventoryPagesPlanFor is inventoryPagesPlan grown for a page of entries.
+func inventoryPagesPlanFor(entries int) dbwork.WritePlan {
+	plan := inventoryPagesPlan
+	plan.Rows += 160 * int64(entries)
+	plan.VMOps += 16_000 * int64(entries)
+	plan.Pages += 8 * int64(entries)
+	return plan
+}
 
 // CommitInventoryPages publishes the pages of several folders in one
 // transaction, each exactly as CommitInventoryPage would: a page that is a
 // replay of one already published leaves nothing behind. Any page's error
 // publishes none of them, and the caller publishes them one at a time. A
 // library of one folder per title commits once per batch of folders instead
-// of once per title.
-func (s *Service) CommitInventoryPages(ctx context.Context, job string, pages []InventoryPageWrite) error {
-	gated, err := dbwork.Begin(dbwork.WithPlan(ctx, inventoryPagesPlan), s.db, dbwork.ClassFrom(ctx, dbwork.ClassInteractive))
-	if err != nil {
-		return err
+// of once per title. held is how long the transaction held the writer, from
+// admission to commit; the scanner sizes its next page from it.
+func (s *Service) CommitInventoryPages(ctx context.Context, job string, pages []InventoryPageWrite) (held time.Duration, err error) {
+	entries := 0
+	for _, p := range pages {
+		entries += len(p.Page.Entries)
 	}
+	gated, err := dbwork.Begin(dbwork.WithPlan(ctx, inventoryPagesPlanFor(entries)), s.db, dbwork.ClassFrom(ctx, dbwork.ClassInteractive))
+	if err != nil {
+		return 0, err
+	}
+	admitted := time.Now()
+	defer func() {
+		if err == nil {
+			held = time.Since(admitted)
+		}
+	}()
 	tx := gated.Tx()
 	defer gated.Rollback()
 	source, err := InventoryFenceTx(ctx, tx, job)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	for _, p := range pages {
 		if _, err = tx.ExecContext(ctx, `SAVEPOINT inventory_page`); err != nil {
-			return err
+			return 0, err
 		}
 		keep, err := s.commitInventoryPageTx(ctx, tx, job, source, p)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if !keep {
 			if _, err = tx.ExecContext(ctx, `ROLLBACK TO inventory_page`); err != nil {
-				return err
+				return 0, err
 			}
 		} else if p.DiscRoot != nil {
 			if err = s.commitInventoryDiscRootTx(ctx, tx, job, source, p.Relative, *p.DiscRoot); err != nil {
-				return err
+				return 0, err
 			}
 		}
 		if _, err = tx.ExecContext(ctx, `RELEASE inventory_page`); err != nil {
-			return err
+			return 0, err
 		}
 	}
 	if err = compactcatalog.FlushReadingPathSemanticTx(ctx, tx); err != nil {
-		return err
+		return 0, err
 	}
-	return gated.Commit()
+	return 0, gated.Commit()
 }
 
 // commitInventoryPageTx writes one folder's page. keep is false when the page

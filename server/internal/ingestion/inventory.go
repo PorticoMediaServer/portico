@@ -127,12 +127,13 @@ func (s *Service) readySource(ctx context.Context, job string, source *catalog.L
 }
 func (s *Service) inventoryPage(ctx context.Context, job string, source catalog.LibrarySource) error {
 	var relative string
+	budget := s.pageNames(job)
 	err := s.db.QueryRowContext(ctx, `SELECT relative_path FROM inventory_directories WHERE job_id=? AND state='pending' ORDER BY relative_path LIMIT 1`, job).Scan(&relative)
 	if err == nil && !s.storage.IsRemote(source.ResolvedPath) {
 		// Bound folder progress as well as raw names before listing. Anything
 		// the shared-budget path cannot take is left
 		// to the one-folder path below, which handles every failure.
-		if done, e := s.inventoryFolders(ctx, job, source, inventoryPublicationNames); e != nil || done {
+		if done, e := s.inventoryFolders(ctx, job, source, budget); e != nil || done {
 			return e
 		}
 	}
@@ -149,7 +150,7 @@ func (s *Service) inventoryPage(ctx context.Context, job string, source catalog.
 	if err != nil {
 		return err
 	}
-	err = s.readDirectoryPage(ctx, job, source, relative, inventoryPublicationNames)
+	err = s.readDirectoryPage(ctx, job, source, relative, budget)
 	if errors.Is(err, context.DeadlineExceeded) {
 		return errors.Join(storage.ErrBusy, err)
 	}
@@ -260,15 +261,19 @@ func (s *Service) inventoryFoldersBudget(ctx context.Context, job string, source
 			return false, err
 		}
 	}
-	if err = s.catalog.CommitInventoryPages(ctx, job, writes); err != nil {
+	held, err := s.catalog.CommitInventoryPages(ctx, job, writes)
+	if err != nil {
 		if ctx.Err() != nil {
 			return false, ctx.Err()
 		}
 		return false, nil
 	}
+	files := 0
 	for _, w := range writes {
 		s.noteDirectoryPage(job, w.Relative, w.Cursor, w.Page)
+		files += pageFiles(w.Page)
 	}
+	s.notePageHold(job, limit, files, held)
 	return true, nil
 }
 
@@ -369,10 +374,12 @@ func (s *Service) readDirectoryPage(ctx context.Context, job string, source cata
 	if err != nil {
 		return err
 	}
-	if err = s.catalog.CommitInventoryPages(ctx, job, []catalog.InventoryPageWrite{{Relative: relative, Cursor: cursor, Page: page, DiscRoot: discRoot}}); err != nil {
+	held, err := s.catalog.CommitInventoryPages(ctx, job, []catalog.InventoryPageWrite{{Relative: relative, Cursor: cursor, Page: page, DiscRoot: discRoot}})
+	if err != nil {
 		return err
 	}
 	s.noteDirectoryPage(job, relative, cursor, page)
+	s.notePageHold(job, limit, pageFiles(page), held)
 	if page.Unstable {
 		gated, e := dbwork.Begin(ctx, s.db, dbwork.ClassBackgroundMedia)
 		if e != nil {
