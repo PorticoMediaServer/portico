@@ -27,6 +27,10 @@ export function homeCardSubject(entry: ContentEntry): CardSubject {
 export function homeCardModel(entry: ContentEntry, continuing: boolean, env: TextEnvironment) {
   return cardText(homeCardSubject(entry), continuing ? 'continuation' : 'ordinary', env);
 }
+/** A Saved card names what the title is: "1982 · Movie", "Show · 1 season" (W2-A13). */
+export function savedCardModel(entry: ContentEntry, env: TextEnvironment) {
+  return cardText(homeCardSubject(entry), 'saved', env);
+}
 export function homeSpotlights(document: HomeDocument, env: TextEnvironment) {
   return homeSpotlightModels(document).map(slide => ({...slide, id: slide.entry.id, title: slide.entry.displayTitle ?? slide.entry.title,
     facts: homeTitleFactParts(slide.entry, env)}));

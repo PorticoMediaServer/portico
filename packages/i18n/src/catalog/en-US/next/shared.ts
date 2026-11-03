@@ -18,6 +18,7 @@ export const shared = {
   'next.kit.season': 'Season {number, number, ::group-off}',
   'next.kit.specials': 'Specials',
   'next.kit.seasons': '{count, plural, one {# season} other {# seasons}}',
+  'next.kit.kind': '{kind, select, movie {Movie} anime {Anime} other {Show}}',
   'next.kit.songs': '{count, plural, one {# song} other {# songs}}',
   'next.kit.albums': '{count, plural, one {# album} other {# albums}}',
   'next.kit.books': '{count, plural, one {# book} other {# books}}',

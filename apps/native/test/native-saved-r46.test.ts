@@ -61,7 +61,7 @@ async function savedScreen() {
     '../../kit/browse/presentation': {browseType, alpha: (color: string) => color},
     '../../kit/theme': {useTheme: () => theme},
     '../../platform/offline-downloads': {groupOfflineEntries: () => []},
-    '../home/model': {homeCardText: () => ({caption: []})},
+    '../home/model': {homeCardText: () => ({caption: []}), savedCardText: () => ({caption: []})},
     './model': {NativeSavedDestination: class {}}, './SavedDownloadCard': {SavedDownloadCard: 'SavedDownloadCard'},
     '../downloads/playback': {openNativeSavedDownload: () => {}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError},

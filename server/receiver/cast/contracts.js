@@ -4727,6 +4727,7 @@ var PorticoCastContracts = (function(exports) {
 								"type": "object"
 							},
 							"libraryId": { "type": "string" },
+							"libraryKind": { "type": "string" },
 							"media": {
 								"properties": {
 									"absoluteNumber": {
@@ -5106,6 +5107,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"missing": { "type": "boolean" },
 									"narrators": {
 										"items": { "type": "string" },
@@ -6581,6 +6583,7 @@ var PorticoCastContracts = (function(exports) {
 									"type": "object"
 								},
 								"libraryId": { "type": "string" },
+								"libraryKind": { "type": "string" },
 								"media": {
 									"properties": {
 										"absoluteNumber": {
@@ -6960,6 +6963,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"missing": { "type": "boolean" },
 										"narrators": {
 											"items": { "type": "string" },
@@ -38519,6 +38523,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -38898,6 +38903,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -40249,6 +40255,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"media": {
 															"properties": {
 																"absoluteNumber": {
@@ -40628,6 +40635,7 @@ var PorticoCastContracts = (function(exports) {
 																	"type": "object"
 																},
 																"libraryId": { "type": "string" },
+																"libraryKind": { "type": "string" },
 																"missing": { "type": "boolean" },
 																"narrators": {
 																	"items": { "type": "string" },
@@ -45718,6 +45726,7 @@ var PorticoCastContracts = (function(exports) {
 																"type": "object"
 															},
 															"libraryId": { "type": "string" },
+															"libraryKind": { "type": "string" },
 															"media": {
 																"properties": {
 																	"absoluteNumber": {
@@ -46097,6 +46106,7 @@ var PorticoCastContracts = (function(exports) {
 																		"type": "object"
 																	},
 																	"libraryId": { "type": "string" },
+																	"libraryKind": { "type": "string" },
 																	"missing": { "type": "boolean" },
 																	"narrators": {
 																		"items": { "type": "string" },
@@ -46930,6 +46940,7 @@ var PorticoCastContracts = (function(exports) {
 														"type": "object"
 													},
 													"libraryId": { "type": "string" },
+													"libraryKind": { "type": "string" },
 													"media": {
 														"properties": {
 															"absoluteNumber": {
@@ -47309,6 +47320,7 @@ var PorticoCastContracts = (function(exports) {
 																"type": "object"
 															},
 															"libraryId": { "type": "string" },
+															"libraryKind": { "type": "string" },
 															"missing": { "type": "boolean" },
 															"narrators": {
 																"items": { "type": "string" },
@@ -48428,6 +48440,7 @@ var PorticoCastContracts = (function(exports) {
 																"type": "object"
 															},
 															"libraryId": { "type": "string" },
+															"libraryKind": { "type": "string" },
 															"media": {
 																"properties": {
 																	"absoluteNumber": {
@@ -48807,6 +48820,7 @@ var PorticoCastContracts = (function(exports) {
 																		"type": "object"
 																	},
 																	"libraryId": { "type": "string" },
+																	"libraryKind": { "type": "string" },
 																	"missing": { "type": "boolean" },
 																	"narrators": {
 																		"items": { "type": "string" },
@@ -50061,6 +50075,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -50440,6 +50455,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -51270,6 +51286,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -51649,6 +51666,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -52768,6 +52786,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -53147,6 +53166,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -54269,6 +54289,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -54648,6 +54669,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -55478,6 +55500,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -55857,6 +55880,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -56839,6 +56863,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -57218,6 +57243,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -58051,6 +58077,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -58430,6 +58457,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -59549,6 +59577,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -59928,6 +59957,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -61182,6 +61212,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -61561,6 +61592,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -62391,6 +62423,7 @@ var PorticoCastContracts = (function(exports) {
 								"type": "object"
 							},
 							"libraryId": { "type": "string" },
+							"libraryKind": { "type": "string" },
 							"media": {
 								"properties": {
 									"absoluteNumber": {
@@ -62770,6 +62803,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"missing": { "type": "boolean" },
 									"narrators": {
 										"items": { "type": "string" },
@@ -63889,6 +63923,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -64268,6 +64303,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -67769,6 +67805,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"media": {
 												"properties": {
 													"absoluteNumber": {
@@ -68148,6 +68185,7 @@ var PorticoCastContracts = (function(exports) {
 														"type": "object"
 													},
 													"libraryId": { "type": "string" },
+													"libraryKind": { "type": "string" },
 													"missing": { "type": "boolean" },
 													"narrators": {
 														"items": { "type": "string" },
@@ -69499,6 +69537,7 @@ var PorticoCastContracts = (function(exports) {
 														"type": "object"
 													},
 													"libraryId": { "type": "string" },
+													"libraryKind": { "type": "string" },
 													"media": {
 														"properties": {
 															"absoluteNumber": {
@@ -69878,6 +69917,7 @@ var PorticoCastContracts = (function(exports) {
 																"type": "object"
 															},
 															"libraryId": { "type": "string" },
+															"libraryKind": { "type": "string" },
 															"missing": { "type": "boolean" },
 															"narrators": {
 																"items": { "type": "string" },
@@ -73823,6 +73863,7 @@ var PorticoCastContracts = (function(exports) {
 																"type": "object"
 															},
 															"libraryId": { "type": "string" },
+															"libraryKind": { "type": "string" },
 															"media": {
 																"properties": {
 																	"absoluteNumber": {
@@ -74202,6 +74243,7 @@ var PorticoCastContracts = (function(exports) {
 																		"type": "object"
 																	},
 																	"libraryId": { "type": "string" },
+																	"libraryKind": { "type": "string" },
 																	"missing": { "type": "boolean" },
 																	"narrators": {
 																		"items": { "type": "string" },
@@ -75035,6 +75077,7 @@ var PorticoCastContracts = (function(exports) {
 														"type": "object"
 													},
 													"libraryId": { "type": "string" },
+													"libraryKind": { "type": "string" },
 													"media": {
 														"properties": {
 															"absoluteNumber": {
@@ -75414,6 +75457,7 @@ var PorticoCastContracts = (function(exports) {
 																"type": "object"
 															},
 															"libraryId": { "type": "string" },
+															"libraryKind": { "type": "string" },
 															"missing": { "type": "boolean" },
 															"narrators": {
 																"items": { "type": "string" },
@@ -76533,6 +76577,7 @@ var PorticoCastContracts = (function(exports) {
 																"type": "object"
 															},
 															"libraryId": { "type": "string" },
+															"libraryKind": { "type": "string" },
 															"media": {
 																"properties": {
 																	"absoluteNumber": {
@@ -76912,6 +76957,7 @@ var PorticoCastContracts = (function(exports) {
 																		"type": "object"
 																	},
 																	"libraryId": { "type": "string" },
+																	"libraryKind": { "type": "string" },
 																	"missing": { "type": "boolean" },
 																	"narrators": {
 																		"items": { "type": "string" },
@@ -78166,6 +78212,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -78545,6 +78592,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -79375,6 +79423,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -79754,6 +79803,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -80873,6 +80923,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -81252,6 +81303,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -82537,6 +82589,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -82916,6 +82969,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -83749,6 +83803,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -84128,6 +84183,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -85247,6 +85303,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -85626,6 +85683,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -86880,6 +86938,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -87259,6 +87318,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -88089,6 +88149,7 @@ var PorticoCastContracts = (function(exports) {
 								"type": "object"
 							},
 							"libraryId": { "type": "string" },
+							"libraryKind": { "type": "string" },
 							"media": {
 								"properties": {
 									"absoluteNumber": {
@@ -88468,6 +88529,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"missing": { "type": "boolean" },
 									"narrators": {
 										"items": { "type": "string" },
@@ -89587,6 +89649,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -89966,6 +90029,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -91449,6 +91513,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -91828,6 +91893,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -94837,6 +94903,7 @@ var PorticoCastContracts = (function(exports) {
 							"type": "object"
 						},
 						"libraryId": { "type": "string" },
+						"libraryKind": { "type": "string" },
 						"media": {
 							"properties": {
 								"absoluteNumber": {
@@ -95216,6 +95283,7 @@ var PorticoCastContracts = (function(exports) {
 									"type": "object"
 								},
 								"libraryId": { "type": "string" },
+								"libraryKind": { "type": "string" },
 								"missing": { "type": "boolean" },
 								"narrators": {
 									"items": { "type": "string" },
@@ -96188,6 +96256,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -96567,6 +96636,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -97610,6 +97680,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -97989,6 +98060,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -99276,6 +99348,7 @@ var PorticoCastContracts = (function(exports) {
 									"type": "object"
 								},
 								"libraryId": { "type": "string" },
+								"libraryKind": { "type": "string" },
 								"media": {
 									"properties": {
 										"absoluteNumber": {
@@ -99655,6 +99728,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"missing": { "type": "boolean" },
 										"narrators": {
 											"items": { "type": "string" },
@@ -100627,6 +100701,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -101006,6 +101081,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -101980,6 +102056,7 @@ var PorticoCastContracts = (function(exports) {
 							"type": "object"
 						},
 						"libraryId": { "type": "string" },
+						"libraryKind": { "type": "string" },
 						"media": {
 							"properties": {
 								"absoluteNumber": {
@@ -102359,6 +102436,7 @@ var PorticoCastContracts = (function(exports) {
 									"type": "object"
 								},
 								"libraryId": { "type": "string" },
+								"libraryKind": { "type": "string" },
 								"missing": { "type": "boolean" },
 								"narrators": {
 									"items": { "type": "string" },
@@ -104513,6 +104591,7 @@ var PorticoCastContracts = (function(exports) {
 									"type": "object"
 								},
 								"libraryId": { "type": "string" },
+								"libraryKind": { "type": "string" },
 								"media": {
 									"properties": {
 										"absoluteNumber": {
@@ -104892,6 +104971,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"missing": { "type": "boolean" },
 										"narrators": {
 											"items": { "type": "string" },
@@ -109584,6 +109664,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -109963,6 +110044,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -110828,6 +110910,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -111207,6 +111290,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -112149,6 +112233,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -112528,6 +112613,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -115159,6 +115245,7 @@ var PorticoCastContracts = (function(exports) {
 							"type": "object"
 						},
 						"libraryId": { "type": "string" },
+						"libraryKind": { "type": "string" },
 						"media": {
 							"properties": {
 								"absoluteNumber": {
@@ -115538,6 +115625,7 @@ var PorticoCastContracts = (function(exports) {
 									"type": "object"
 								},
 								"libraryId": { "type": "string" },
+								"libraryKind": { "type": "string" },
 								"missing": { "type": "boolean" },
 								"narrators": {
 									"items": { "type": "string" },
@@ -116510,6 +116598,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -116889,6 +116978,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -121204,6 +121294,7 @@ var PorticoCastContracts = (function(exports) {
 							"type": "object"
 						},
 						"libraryId": { "type": "string" },
+						"libraryKind": { "type": "string" },
 						"media": {
 							"properties": {
 								"absoluteNumber": {
@@ -121583,6 +121674,7 @@ var PorticoCastContracts = (function(exports) {
 									"type": "object"
 								},
 								"libraryId": { "type": "string" },
+								"libraryKind": { "type": "string" },
 								"missing": { "type": "boolean" },
 								"narrators": {
 									"items": { "type": "string" },
@@ -122583,6 +122675,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -122962,6 +123055,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -124270,6 +124364,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -124649,6 +124744,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -125746,6 +125842,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -126125,6 +126222,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -127733,6 +127831,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -128112,6 +128211,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -131060,6 +131160,7 @@ var PorticoCastContracts = (function(exports) {
 																"type": "object"
 															},
 															"libraryId": { "type": "string" },
+															"libraryKind": { "type": "string" },
 															"media": {
 																"properties": {
 																	"absoluteNumber": {
@@ -131439,6 +131540,7 @@ var PorticoCastContracts = (function(exports) {
 																		"type": "object"
 																	},
 																	"libraryId": { "type": "string" },
+																	"libraryKind": { "type": "string" },
 																	"missing": { "type": "boolean" },
 																	"narrators": {
 																		"items": { "type": "string" },
@@ -132272,6 +132374,7 @@ var PorticoCastContracts = (function(exports) {
 														"type": "object"
 													},
 													"libraryId": { "type": "string" },
+													"libraryKind": { "type": "string" },
 													"media": {
 														"properties": {
 															"absoluteNumber": {
@@ -132651,6 +132754,7 @@ var PorticoCastContracts = (function(exports) {
 																"type": "object"
 															},
 															"libraryId": { "type": "string" },
+															"libraryKind": { "type": "string" },
 															"missing": { "type": "boolean" },
 															"narrators": {
 																"items": { "type": "string" },
@@ -133770,6 +133874,7 @@ var PorticoCastContracts = (function(exports) {
 																"type": "object"
 															},
 															"libraryId": { "type": "string" },
+															"libraryKind": { "type": "string" },
 															"media": {
 																"properties": {
 																	"absoluteNumber": {
@@ -134149,6 +134254,7 @@ var PorticoCastContracts = (function(exports) {
 																		"type": "object"
 																	},
 																	"libraryId": { "type": "string" },
+																	"libraryKind": { "type": "string" },
 																	"missing": { "type": "boolean" },
 																	"narrators": {
 																		"items": { "type": "string" },
@@ -135403,6 +135509,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -135782,6 +135889,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -136612,6 +136720,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -136991,6 +137100,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -138110,6 +138220,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -138489,6 +138600,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -139775,6 +139887,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -140154,6 +140267,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -140987,6 +141101,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -141366,6 +141481,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -142485,6 +142601,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"media": {
 													"properties": {
 														"absoluteNumber": {
@@ -142864,6 +142981,7 @@ var PorticoCastContracts = (function(exports) {
 															"type": "object"
 														},
 														"libraryId": { "type": "string" },
+														"libraryKind": { "type": "string" },
 														"missing": { "type": "boolean" },
 														"narrators": {
 															"items": { "type": "string" },
@@ -144118,6 +144236,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -144497,6 +144616,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -145327,6 +145447,7 @@ var PorticoCastContracts = (function(exports) {
 								"type": "object"
 							},
 							"libraryId": { "type": "string" },
+							"libraryKind": { "type": "string" },
 							"media": {
 								"properties": {
 									"absoluteNumber": {
@@ -145706,6 +145827,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"missing": { "type": "boolean" },
 									"narrators": {
 										"items": { "type": "string" },
@@ -146825,6 +146947,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -147204,6 +147327,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -151541,6 +151665,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"media": {
 										"properties": {
 											"absoluteNumber": {
@@ -151920,6 +152045,7 @@ var PorticoCastContracts = (function(exports) {
 												"type": "object"
 											},
 											"libraryId": { "type": "string" },
+											"libraryKind": { "type": "string" },
 											"missing": { "type": "boolean" },
 											"narrators": {
 												"items": { "type": "string" },
@@ -170099,6 +170225,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -170478,6 +170605,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },
@@ -171360,6 +171488,7 @@ var PorticoCastContracts = (function(exports) {
 								"type": "object"
 							},
 							"libraryId": { "type": "string" },
+							"libraryKind": { "type": "string" },
 							"media": {
 								"properties": {
 									"absoluteNumber": {
@@ -171739,6 +171868,7 @@ var PorticoCastContracts = (function(exports) {
 										"type": "object"
 									},
 									"libraryId": { "type": "string" },
+									"libraryKind": { "type": "string" },
 									"missing": { "type": "boolean" },
 									"narrators": {
 										"items": { "type": "string" },
@@ -198512,6 +198642,7 @@ var PorticoCastContracts = (function(exports) {
 											"type": "object"
 										},
 										"libraryId": { "type": "string" },
+										"libraryKind": { "type": "string" },
 										"media": {
 											"properties": {
 												"absoluteNumber": {
@@ -198891,6 +199022,7 @@ var PorticoCastContracts = (function(exports) {
 													"type": "object"
 												},
 												"libraryId": { "type": "string" },
+												"libraryKind": { "type": "string" },
 												"missing": { "type": "boolean" },
 												"narrators": {
 													"items": { "type": "string" },

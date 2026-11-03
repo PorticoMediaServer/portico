@@ -15,3 +15,12 @@ test('elsewhere a published season count stands alone, and a show without one re
   assert.deepEqual(captions('ordinary'), [defaultI18n.t('next.kit.seasons', {count: 1})]);
   assert.deepEqual(captions('ordinary', {...show, seasonCount: undefined}), ['2024']);
 });
+test('Saved names what each title is: "Show · 1 season", "Anime · 1 season", "1982 · Movie" (desktop-search Saved, W2-A13)', () => {
+  const kind = (value: 'movie' | 'show' | 'anime') => defaultI18n.t('next.kit.kind', {kind: value});
+  const seasons = defaultI18n.t('next.kit.seasons', {count: 1});
+  assert.deepEqual(captions('saved', {...show, libraryKind: 'tv'}), [kind('show'), seasons]);
+  assert.deepEqual(captions('saved', {...show, libraryKind: 'anime'}), [kind('anime'), seasons]);
+  assert.deepEqual(captions('saved', {...show, seasonCount: undefined}), [kind('show')], 'only what is known');
+  assert.deepEqual(captions('saved', {id: 'blade-runner', kind: 'movie', title: 'Blade Runner', year: 1982, libraryKind: 'anime'}), ['1982', kind('movie')], 'a film in an Anime library is a Movie');
+  assert.deepEqual([kind('show'), kind('anime'), kind('movie')], ['Show', 'Anime', 'Movie']);
+});

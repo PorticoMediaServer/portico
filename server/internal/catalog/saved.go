@@ -166,19 +166,31 @@ func (s *Service) saved(r ContentRequest, libraries []string, countsOnly bool) (
 		entityIDs = append(entityIDs, entityID)
 	}
 	rawEntityIDs, _ := json.Marshal(entityIDs)
-	publicRows, e := s.read().Query(`SELECT id,pid(public_id) FROM catalog_entities WHERE id IN(SELECT value FROM json_each(?))`, string(rawEntityIDs))
+	// The same read names each title's library kind and a show's season count, which Saved's
+	// cards draw ("Show · 1 season", "Anime · 2 seasons"; W2-A13). Specials and seasons with no
+	// episodes are not counted, as on Home.
+	publicRows, e := s.read().Query(`SELECT e.id,pid(e.public_id),COALESCE((SELECT l.kind FROM catalog_libraries cl JOIN libraries l ON l.id=cl.library_id WHERE cl.id=e.library_id),''),
+ CASE WHEN e.kind=2 THEN (SELECT count(*) FROM catalog_seasons sn WHERE sn.show_id=e.id AND sn.number>0 AND EXISTS(SELECT 1 FROM catalog_episodes ep WHERE ep.show_id=sn.show_id AND ep.season_id=sn.entity_id)) ELSE 0 END
+ FROM catalog_entities e WHERE e.id IN(SELECT value FROM json_each(?))`, string(rawEntityIDs))
 	if e != nil {
 		return out, e
 	}
 	publicIDs := map[int64]string{}
+	type savedFacts struct {
+		libraryKind string
+		seasons     int
+	}
+	facts := map[string]savedFacts{}
 	for publicRows.Next() {
 		var id int64
 		var public string
-		if e = publicRows.Scan(&id, &public); e != nil {
+		var fact savedFacts
+		if e = publicRows.Scan(&id, &public, &fact.libraryKind, &fact.seasons); e != nil {
 			publicRows.Close()
 			return out, e
 		}
 		publicIDs[id] = public
+		facts[public] = fact
 	}
 	e = publicRows.Err()
 	publicRows.Close()
@@ -201,6 +213,13 @@ func (s *Service) saved(r ContentRequest, libraries []string, countsOnly bool) (
 	for i := range entries {
 		if entries[i].Available != nil && !*entries[i].Available {
 			entries[i].Playback = nil
+		}
+		if fact, ok := facts[entries[i].ID]; ok {
+			entries[i].LibraryKind = fact.libraryKind
+			if entries[i].Kind == "show" && fact.seasons > 0 {
+				seasons := fact.seasons
+				entries[i].SeasonCount = &seasons
+			}
 		}
 	}
 	if len(entries) > 0 {

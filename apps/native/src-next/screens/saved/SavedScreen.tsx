@@ -20,7 +20,7 @@ import {usePullRefresh} from '../../kit/states/usePullRefresh';
 import {useTheme} from '../../kit/theme';
 import {groupOfflineEntries, type NativeOfflineDownloadsDevice} from '../../platform/offline-downloads';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {homeCardText} from '../home/model';
+import {savedCardText} from '../home/model';
 import {NativeSavedDestination} from './model';
 import {SavedLoading, SavedTail} from './SavedLoading';
 import {savedNearEnd} from './paging';
@@ -274,7 +274,7 @@ function SavedSection({first = false, children}: {first?: boolean; children: Rea
 }
 
 function SavedMyListRow({entry, runtime, actions, selection}: {entry: ContentEntry; runtime: NativeShellRuntime; actions: NativeSavedActions; selection?: CardSelection}) {
-  const theme = useTheme(), text = homeCardText(entry, false, runtime.text), menuAnchorRef = useRef<View>(null);
+  const theme = useTheme(), text = savedCardText(entry, runtime.text), menuAnchorRef = useRef<View>(null);
   return <View style={{marginHorizontal: 16, borderBottomWidth: 1, borderBottomColor: alpha(theme.colors.lineStrong, .45)}}>
     <CardFrame title={entry.displayTitle || entry.title} menuAnchorRef={menuAnchorRef} moreExpanded={actions.isMenuOpen?.(entry)} testID={`saved-my-list-row-${encodeURIComponent(entry.id)}`}
       onNavigate={() => actions.openEntry(entry)} onMore={() => actions.menuEntry(entry, menuAnchorRef, selection?.onEnter)} selection={selection} pressableStyle={{flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 9}}>
@@ -289,7 +289,7 @@ function SavedMyListRow({entry, runtime, actions, selection}: {entry: ContentEnt
 }
 
 function SavedMyListCard({entry, runtime, actions, selection, width}: {entry: ContentEntry; runtime: NativeShellRuntime; actions: NativeSavedActions; selection?: CardSelection; width?: number}) {
-  const menuAnchorRef = useRef<View>(null), text = homeCardText(entry, false, runtime.text);
+  const menuAnchorRef = useRef<View>(null), text = savedCardText(entry, runtime.text);
   const props = {testID: `saved-my-list-${encodeURIComponent(entry.id)}`, title: entry.displayTitle || entry.title, caption: text.caption, ...(width === undefined ? {} : {width}),
     artwork: runtime.artwork(entry.posterUrl), onNavigate: () => actions.openEntry(entry), onMore: () => actions.menuEntry(entry, menuAnchorRef, selection?.onEnter), selection,
     menuAnchorRef, moreExpanded: actions.isMenuOpen?.(entry)};

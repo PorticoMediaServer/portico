@@ -166,6 +166,9 @@ type ContentEntry struct {
 	// shelf when the show itself is the addition (several seasons at once):
 	// its card reads "6 seasons" (a single episode or season is sent instead).
 	SeasonCount *int `json:"seasonCount,omitempty"`
+	// LibraryKind is the kind of library the title is in ("movie", "tv", "anime"), sent on
+	// Saved, whose cards name what a title is ("Anime · 1 season").
+	LibraryKind string `json:"libraryKind,omitempty"`
 	// Rating is the community rating (0–10) and Resolution the best file's
 	// picture class ("4k", "1080p", "720p", "sd"): browse pages only, for the
 	// list view's columns. Absent when unknown.

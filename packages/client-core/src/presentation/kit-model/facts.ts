@@ -7,7 +7,7 @@ export type EpisodeNumbering =
   | Readonly<{mode: 'absolute'; number?: number}>
   | Readonly<{mode: 'date'; day?: string}>
   | Readonly<{mode: 'special'}>;
-export type CardContext = 'ordinary' | 'continuation' | 'search' | 'in-show' | 'song-row' | 'dock';
+export type CardContext = 'ordinary' | 'continuation' | 'search' | 'in-show' | 'song-row' | 'dock' | 'saved';
 export type TitleFacts = Readonly<{
   year?: number; contentRating?: string; durationSeconds?: number; genres?: readonly string[];
   seasonCount?: number; songCount?: number; albumCount?: number; bookCount?: number; itemCount?: number; countIsLowerBound?: boolean;
@@ -17,6 +17,8 @@ export type TitleFacts = Readonly<{
 export type CardSubject = TitleFacts & Readonly<{
   id: string; kind: TitleKind; title: string; show?: Readonly<{id?: string; title: string}>;
   episode?: EpisodeNumbering; seasonNumber?: number; positionSeconds?: number;
+  /** The kind of library the title is in ("movie", "tv", "anime"), where the server names it (Saved). */
+  libraryKind?: string;
 }>;
 export type CardTextModel = Readonly<{id: string; title: string; caption: readonly FactPart[]; detail: readonly FactPart[]; progress?: number; resume?: FactPart}>;
 export type TitleFactContext = 'video' | 'music' | 'audiobook' | 'audiobook-chapters' | 'home-movie' | 'home-show';
@@ -171,7 +173,12 @@ export function cardText(subject: CardSubject, context: CardContext, env: TextEn
     // W2-A4: each frame's own line. Search's Shows draw the year and the season count
     // ("2024 · 1 season", desktop-search); elsewhere a show with a published count (Recently
     // Added's whole-show addition) reads "6 seasons", and any other title its year (Home).
-    caption = context === 'search' ? compact([year, seasons]) : seasons ? [seasons] : compact([year]);
+    // Saved names what each title is (desktop-search Saved): "1982 · Movie", "Show · 1 season",
+    // and a show in an Anime library "Anime · 1 season" (W2-A13).
+    const kind = subject.kind === 'movie' ? 'movie' : subject.kind === 'show' ? (subject.libraryKind === 'anime' ? 'anime' : 'show') : undefined;
+    const label = kind ? part('kind', t('next.kit.kind', {kind}), 'context') : undefined;
+    caption = context === 'saved' ? (subject.kind === 'show' ? compact([label, seasons]) : compact([year, label]))
+      : context === 'search' ? compact([year, seasons]) : seasons ? [seasons] : compact([year]);
     if (context === 'continuation') detail = compact([remaining]);
   }
   return Object.freeze({id: subject.id, title, caption: Object.freeze(caption), detail: Object.freeze(detail),
