@@ -25,7 +25,18 @@ func (s *Service) AllowedTxContext(ctx context.Context, principal identity.Princ
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	err := s.allowed(principal, library, transactionPolicyReader{ctx, tx})
+	var err error
+	if principal.Authority == "local" {
+		// The same decision as allowed's local branch, with the principal's
+		// grants proved once per request rather than once per library.
+		var all bool
+		var ids []string
+		if all, ids, err = identity.DirectAccessTx(ctx, tx, principal); err == nil {
+			err = identity.DirectLibraryAllowed(all, ids, library)
+		}
+	} else {
+		err = s.allowed(principal, library, transactionPolicyReader{ctx, tx})
+	}
 	if cancelled := ctx.Err(); cancelled != nil {
 		return cancelled
 	}
@@ -38,7 +49,7 @@ func (s *Service) AllowedSetTxContext(ctx context.Context, principal identity.Pr
 	if principal.Authority != "local" || tx == nil {
 		return nil, identity.ErrUnauthorized
 	}
-	all, ids, _, _, err := identity.DirectAccess(transactionPolicyReader{ctx, tx}, principal)
+	all, ids, err := identity.DirectAccessTx(ctx, tx, principal)
 	if err != nil {
 		return nil, err
 	}

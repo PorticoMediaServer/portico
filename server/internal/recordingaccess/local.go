@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 )
 
@@ -43,24 +44,38 @@ func localAccess(ctx context.Context, tx *sql.Tx, schema *Schema, who identity.P
 	if tables != 2 {
 		return false, errDirectPolicyUnavailable
 	}
-	var epoch int
-	var role, raw string
-	var disabled, primary, deleted bool
-	var restriction sql.NullString
-	e = tx.QueryRowContext(ctx, directRecordingPrincipalQuery, who.AccountID, who.ProfileID).Scan(&epoch, &role, &disabled, &raw, &primary, &restriction, &deleted)
+	row, e := directPrincipalRow(ctx, tx, who)
 	if errors.Is(e, sql.ErrNoRows) {
 		return false, identity.ErrUnauthorized
 	}
 	if e != nil {
 		return false, e
 	}
-	if disabled || deleted || who.Epoch > 0 && epoch != who.Epoch || role != "owner" && role != "admin" && role != "member" {
+	if row.disabled || row.deleted || who.Epoch > 0 && row.epoch != who.Epoch || row.role != "owner" && row.role != "admin" && row.role != "member" {
 		return false, identity.ErrUnauthorized
 	}
-	if !directLibraryAllowed(role, raw, restriction, library) {
+	if !directLibraryAllowed(row.role, row.raw, row.restriction, library) {
 		// A library the profile is not given is hidden, not a failed sign-in.
 		return false, identity.ErrNotVisible
 	}
 	// A child of the owner's account is still not an interactive server owner.
-	return role == "owner" && primary, ctx.Err()
+	return row.role == "owner" && row.primary, ctx.Err()
+}
+
+type directPrincipal struct {
+	epoch                      int
+	role, raw                  string
+	disabled, primary, deleted bool
+	restriction                sql.NullString
+}
+
+// directPrincipalRow reads who's membership row. It does not depend on the
+// library asked about, so inside a request's read snapshot it is read once
+// (dbwork.RememberForRequest).
+func directPrincipalRow(ctx context.Context, tx *sql.Tx, who identity.Principal) (directPrincipal, error) {
+	return dbwork.RememberForRequest(ctx, tx, "recordingaccess.principal\x00"+who.AccountID+"\x00"+who.ProfileID, nil, func() (directPrincipal, error) {
+		var row directPrincipal
+		err := tx.QueryRowContext(ctx, directRecordingPrincipalQuery, who.AccountID, who.ProfileID).Scan(&row.epoch, &row.role, &row.disabled, &row.raw, &row.primary, &row.restriction, &row.deleted)
+		return row, err
+	})
 }
