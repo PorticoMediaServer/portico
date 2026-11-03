@@ -3,6 +3,7 @@ import type {ListeningJourney} from '../../../../../../packages/client-core/src/
 import {getContainerState, setContainerState} from '../../../../../../packages/client-core/src/container-state';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import {nativeDestinationLifetime} from '../lifetime';
+import {viewerQueriesFor} from '../../../shell/freshness';
 
 export type AudiobookKind = 'book' | 'author' | 'book_series';
 export type AudiobookPage = Readonly<{
@@ -37,7 +38,7 @@ export class NativeAudiobookController {
   constructor(options: Options) {
     this.options = options;
     this.lifetime = nativeDestinationLifetime(options.context);
-    this.service = new LibraryContentService({api: options.context.api, scope: this.scope(), pageSize: 40, continuationRecovery: 'refresh-required'});
+    this.service = new LibraryContentService({queries: viewerQueriesFor(options.context.api, this.scope()), scope: this.scope(), pageSize: 40, continuationRecovery: 'refresh-required'});
     this.service.subscribe(() => this.read());
   }
   private scope(): ContentScope {

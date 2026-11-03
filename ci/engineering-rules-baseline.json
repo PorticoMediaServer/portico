@@ -72,7 +72,7 @@
   "packages/client-core/src/saved.ts": 12,
   "packages/client-core/src/search.ts": 2,
   "packages/client-core/src/server-operations.ts": 2,
-  "packages/client-core/src/show-workspace.ts": 3,
+  "packages/client-core/src/show-workspace.ts": 2,
   "packages/client-core/src/storage-management.ts": 1,
   "packages/client-core/src/support-diagnostics.ts": 2,
   "web/src/dev/families/watch.tsx": 1,
@@ -122,13 +122,6 @@
   "web/src/screens/live/useSeriesRulesLease.ts": 1,
   "web/src/screens/read/ReaderAnnotations.tsx": 1,
   "web/src/screens/search/Search.route.tsx": 1
- },
- "page-memory": {
-  "web/src/platform/freshness.ts": 1,
-  "web/src/screens/detail/Album.tsx": 3,
-  "web/src/screens/detail/Artist.tsx": 3,
-  "web/src/screens/detail/audiobooks/Entry.tsx": 3,
-  "web/src/screens/detail/use-show-route.ts": 2
  },
  "retry-after": {
   "apps/native/src-next/platform/playback/capacity-retry.ts": 1,

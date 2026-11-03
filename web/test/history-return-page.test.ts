@@ -1,9 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {freshnessFor} from '../src/platform/freshness.ts';
 import {DetailService, type DetailProjection} from '@core/detail.ts';
-import {LibraryContentService, type LibraryContentSnapshot} from '@core/library-content.ts';
-import {ShowWorkspaceService, type ShowWorkspaceRoute, type ShowWorkspaceSnapshot} from '@core/show-workspace.ts';
+import {LibraryContentService} from '@core/library-content.ts';
+import {ShowWorkspaceService, type ShowWorkspaceRoute} from '@core/show-workspace.ts';
 import {testQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 import {queryKeys} from '@core/query/keys.ts';
 
@@ -26,42 +25,42 @@ function showDto(entries = ['ep1', 'ep2']): any {
       sorts: [], filters: [], sections: [{id: 'episodes', type: 'list', heading: {key: 'content.episodes', fallback: 'Episodes'}, totalCount: entries.length, nextCursor: '',
         entries: entries.map(id => ({id, kind: 'episode', title: id, available: true, navigation: {view: 'item', entityId: id}, playback: {itemId: id, startMs: 0}}))}]}};
 }
-const memory = () => freshnessFor({} as never, {serverId: 'server', viewerId: 'hosted/account/profile'}).pages;
 
-test('Back draws the show page the route left, before its fresh read has answered', async () => {
-  const pages = memory(), key = 'show-page:server:hosted/account/profile:library:show';
-  // The first visit: the route's own service read the page, and the route kept it.
-  const first = new ShowWorkspaceService({api: {request: async () => showDto()}, scope, pageSize: 2, seasonPageSize: 2});
+test('Back draws a show page from the viewer\'s cache at once, and reads nothing unless it moved', async () => {
+  let reads = 0, slow = false;
+  const api = {request: async () => {reads++; return slow ? new Promise(() => {}) : showDto();}};
+  const queries = testQueries(api, scope);
+  // The first visit: the route's own service reads the page.
+  const first = new ShowWorkspaceService({queries, scope, pageSize: 2, seasonPageSize: 2});
   await first.select(route);
   assert.equal(first.getSnapshot().phase, 'ready');
-  pages.remember(key, first.getSnapshot());
-  first.dispose(); // leaving the route disposes its service
-  // Back: history navigation reacquires the route's service from the same page.
-  let reads = 0;
-  const second = new ShowWorkspaceService({api: {request: async () => {reads++; return new Promise(() => {});}}, scope, pageSize: 2, seasonPageSize: 2, initial: pages.recall<ShowWorkspaceSnapshot>(key)});
-  const reacquired = second.getSnapshot();
-  assert.equal(reacquired.phase, 'ready', 'the page is already there to draw');
-  assert.equal(reacquired.data?.show.id, 'show');
-  assert.deepEqual(reacquired.data?.episodes.sections[0]?.entries.map(entry => entry.id), ['ep1', 'ep2']);
-  // It reads again in the background, and keeps the page on screen while it does.
-  const pending = second.select(route);
-  assert.equal(second.getSnapshot().phase, 'loading');
-  assert.equal(second.getSnapshot().data?.show.id, 'show', 'a slow read never blanks the page');
+  first.dispose(); // leaving the route disposes its service; the page stays in the viewer's cache
+  // Back: the route's new service draws the page on its first frame, with no request.
+  const second = new ShowWorkspaceService({queries, scope, pageSize: 2, seasonPageSize: 2});
+  void second.select(route);
+  assert.equal(second.getSnapshot().phase, 'ready', 'the page is already there to draw');
+  assert.deepEqual(second.getSnapshot().data?.episodes.sections[0]?.entries.map(entry => entry.id), ['ep1', 'ep2']);
   assert.equal(reads, 1);
+  // An explicit refresh reads again and keeps the page on screen while it does.
+  slow = true;
+  const pending = second.refresh();
+  assert.equal(second.getSnapshot().data?.show.id, 'show', 'a slow read never blanks the page');
+  assert.equal(reads, 2);
   await Promise.race([pending, new Promise(resolve => setTimeout(resolve, 30))]);
-  second.dispose();
+  second.dispose(); queries.dispose();
 });
 
 test('a re-read that times out keeps the page it showed, so the title never becomes an error page', async () => {
-  const pages = memory(), key = 'show-page:server:hosted/account/profile:library:show:slow';
-  const first = new ShowWorkspaceService({api: {request: async () => showDto()}, scope, pageSize: 2, seasonPageSize: 2});
-  await first.select(route); pages.remember(key, first.getSnapshot()); first.dispose();
-  const second = new ShowWorkspaceService({api: {request: async () => new Promise(() => {})}, scope, pageSize: 2, seasonPageSize: 2, timeoutMs: 5, initial: pages.recall<ShowWorkspaceSnapshot>(key)});
-  await second.select(route);
-  const failed = second.getSnapshot();
+  let slow = false;
+  const queries = testQueries({request: async () => slow ? new Promise(() => {}) : showDto()}, scope);
+  const show = new ShowWorkspaceService({queries, scope, pageSize: 2, seasonPageSize: 2, timeoutMs: 5});
+  await show.select(route);
+  slow = true;
+  await show.refresh();
+  const failed = show.getSnapshot();
   assert.equal(failed.phase, 'error');
   assert.equal(failed.data?.show.id, 'show', 'the page is still what the viewer sees');
-  second.dispose();
+  show.dispose(); queries.dispose();
 });
 
 test('a title page read before is drawn from the viewer\'s cache at once, with no request, and keeps it while it reads again', async () => {
@@ -81,18 +80,21 @@ test('a title page read before is drawn from the viewer\'s cache at once, with n
   service.dispose(); queries.dispose();
 });
 
-test('an album or artist page reacquired from its own memory draws its projection while it reads', async () => {
-  const projection = {entity: {id: 'album', kind: 'album', title: 'Album', libraryId: 'library'}, scope: {libraryId: 'library', view: 'album', entityId: 'album'}, revision: {catalog: 1, viewer: 1}} as never;
-  const snapshot = {generation: 0, scope, route: {libraryId: 'library', view: 'album', entityId: 'album'}, phase: 'ready', projection, sections: [], appended: [],
-    pagination: {cursor: null, canPrevious: false, next: []}, error: null} as unknown as LibraryContentSnapshot;
-  const service = new LibraryContentService({api: {request: async () => new Promise(() => {})}, scope, initial: snapshot});
-  assert.equal(service.getSnapshot().phase, 'ready');
-  assert.equal(service.getSnapshot().projection, projection);
-  const pending = service.select({libraryId: 'library', view: 'album', entityId: 'album'});
-  assert.equal(service.getSnapshot().phase, 'loading');
-  assert.equal(service.getSnapshot().projection, projection);
-  await Promise.race([pending, new Promise(resolve => setTimeout(resolve, 30))]);
-  service.dispose();
+test('an album or artist page read before is drawn from the viewer\'s cache at once, with no request', async () => {
+  let reads = 0;
+  const album = (path: string) => ({version: 1, scope: {serverId: 'server', libraryId: 'library', libraryKind: 'music', view: 'album', entityId: 'album', viewerFence: 'fence'}, revision: {catalog: 1, viewer: 1},
+    heading: {key: 'entity.title', fallback: 'Album'}, navigation: [], query: {sort: 'title', direction: 'asc', category: '', q: '', limit: 40, searchMode: 'none'}, sorts: [], filters: [], sections: [],
+    entity: {id: 'album', kind: 'album', title: 'Album', libraryId: 'library'}, path});
+  const queries = testQueries({request: async (path: string) => {reads++; return album(path);}}, scope);
+  const first = new LibraryContentService({queries, scope});
+  await first.select({libraryId: 'library', view: 'album', entityId: 'album'});
+  assert.equal(first.getSnapshot().phase, 'ready', String(first.getSnapshot().error?.code));
+  first.dispose();
+  const second = new LibraryContentService({queries, scope});
+  void second.select({libraryId: 'library', view: 'album', entityId: 'album'});
+  assert.equal(second.getSnapshot().phase, 'ready');
+  assert.equal(reads, 1);
+  second.dispose(); queries.dispose();
 });
 
 test('the title route draws a title read before at once: Back costs no request', async () => {
@@ -111,13 +113,16 @@ test('the title route draws a title read before at once: Back costs no request',
   binding.dispose(); queries.dispose();
 });
 
-test('another viewer’s or another route’s page is never adopted', async () => {
-  const show = new ShowWorkspaceService({api: {request: async () => showDto()}, scope, pageSize: 2, seasonPageSize: 2});
-  await show.select(route);
-  const page = show.getSnapshot(); show.dispose();
-  const otherViewer = new ShowWorkspaceService({api: {request: async () => new Promise(() => {})}, scope: {...scope, viewerId: 'someone/else'}, initial: page});
-  assert.equal(otherViewer.getSnapshot().phase, 'idle', 'a page belongs to the viewer who read it');
-  otherViewer.dispose();
+test('another viewer\'s cache never holds this viewer\'s pages', async () => {
+  const theirShows = testQueries({request: async () => showDto()}, {...scope, viewerId: 'someone/else'});
+  const show = new ShowWorkspaceService({queries: theirShows, scope: {...scope, viewerId: 'someone/else'}, pageSize: 2, seasonPageSize: 2});
+  await show.select(route); show.dispose(); theirShows.dispose();
+  const mineShow = testQueries({request: async () => new Promise(() => {})}, scope);
+  const otherViewer = new ShowWorkspaceService({queries: mineShow, scope, pageSize: 2, seasonPageSize: 2});
+  void otherViewer.select(route);
+  assert.equal(otherViewer.getSnapshot().phase, 'loading', 'a page belongs to the viewer who read it');
+  assert.equal(otherViewer.getSnapshot().data, null);
+  otherViewer.dispose(); mineShow.dispose();
   // A title another viewer read is in that viewer's cache only: this viewer's starts empty.
   const theirs = testQueries({request: async () => new Promise(() => {})}, {...scope, viewerId: 'someone/else'});
   theirs.client.setQueryData(queryKeys.itemDetail('film', 'none'), filmPage);

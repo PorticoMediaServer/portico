@@ -67,7 +67,7 @@ export class NativeTitleController {
   constructor(options: NativeTitleControllerOptions) {
     this.options = options; this.entry = options.entry;
     this.detail = new DetailService({queries: viewerQueriesFor(options.api, options.scope), api: options.api, scope: options.scope, requestId: options.requestId});
-    this.workspace = new ShowWorkspaceService({api: options.api, scope: options.scope});
+    this.workspace = new ShowWorkspaceService({queries: viewerQueriesFor(options.api, options.scope), scope: options.scope});
     this.memory = new NativeTitleMemory(['show', 'season', 'episode'].includes(this.entry.kind));
     this.episode = new NativeTitleEpisodeDetails({api: options.api, scope: options.scope, requestId: options.requestId,
       current: () => this.current() && !this.retired, play: (entry, target, startIntent) => this.options.playback.start({entry, target, startIntent})});

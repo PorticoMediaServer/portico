@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAudiobookBindings} from './bindings.ts';
 import type {ScreenContext} from '../context.ts';
+import {withQueries} from '../../../../../packages/client-core/test/fixtures/viewer-queries.ts';
 
 const scope = {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile'};
 const book = (id: string, changes: Record<string, unknown> = {}) => ({id, libraryId: 'audio', kind: 'book', title: id, available: true, navigation: {view: 'book', entityId: id}, ...changes});
@@ -15,13 +16,16 @@ function harness(read: (path: string, signal?: AbortSignal) => unknown) {
   const projection = {scope: {serverId: 'server', libraryId: 'audio', libraryKind: 'audiobook', view: 'book', entityId: 'seed', viewerFence: 'fence'},
     revision: {catalog: 1, viewer: 1}, query: {sort: '', direction: '', category: '', q: '', limit: 40},
     entity: book('seed'), heading: {key: 'entity.title', fallback: 'Seed'}, sections: []};
-  const context = {api: {request: async (path: string, _method: unknown, _body: unknown, signal?: AbortSignal) => {
+  // The bindings read through the viewer's cache: a cache over this fake API.
+  const context = withQueries(({api: {request: async (path: string, _method: unknown, _body: unknown, signal?: AbortSignal) => {
     if (!path.includes('/similar')) return projection;
     paths.push(path);return await read(path, signal);
   }}, identity: {viewer: scope}, scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => active,
-  effects: {openEntry: () => {}, reportError: () => {}}} as unknown as ScreenContext;
+  effects: {openEntry: () => {}, reportError: () => {}}}) as never) as unknown as ScreenContext;
   const binding = createAudiobookBindings(context, {libraryId: 'audio', view: 'book', entityId: 'seed'});
-  return {binding, paths, retire: () => {active = false;}};
+  /** The page moved on the server (a newer catalog revision) and a hint says so: the next load reads the new page. */
+  const moved = () => {projection.revision = {...projection.revision, catalog: projection.revision.catalog + 1};return context.queries.client.invalidateQueries();};
+  return {binding, paths, moved, retire: () => {active = false;}};
 }
 
 test('More audiobooks continues past twelve, filters every source page, and deduplicates in server order', async () => {
@@ -92,7 +96,7 @@ for (const replacement of ['page', 'authority'] as const) {
     await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
     const pager = h.binding.moreBooksPager(page, await h.binding.moreBooks(page));
     const pending = pager.more();
-    if (replacement === 'page') await h.binding.load(); else h.retire();
+    if (replacement === 'page') {await h.moved(); await h.binding.load();} else h.retire();
     release(response([book('late')]));await pending;
     assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b1']);
     await assert.rejects(h.binding.moreBooks(page), {name: 'AbortError'});

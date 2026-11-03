@@ -9,8 +9,8 @@ import {openGenre} from './genre-binding';
 import {browseCapabilitiesPath, parseBrowseCapabilities, validateBrowseQuery, type BrowseNode} from '@core/browse.ts';
 import {preferenceValue} from '@core/preferences.ts';
 
-export function createShowBindings(context: ScreenContext, options: {initial?: ShowWorkspaceSnapshot} = {}) {
-  const life = screenLifetime(context), service = new ShowWorkspaceService({api: life.api, scope: context.scope, ...(options.initial ? {initial: options.initial} : {})});
+export function createShowBindings(context: ScreenContext) {
+  const life = screenLifetime(context), service = new ShowWorkspaceService({queries: context.queries, scope: context.scope});
   const episode = createDetailBindings(context), primary = createDetailBindings(context), listedPlayback = createDetailBindings(context);
   const recommendations = createRecommendations(context);
   const view = titleView('episodes', ['episodes', 'related', 'details'], life.assert);
@@ -124,8 +124,10 @@ export function createShowBindings(context: ScreenContext, options: {initial?: S
       current(data); active.throwIfAborted();
     },
     closeEpisode() { life.assert(); service.updateAnchor({...service.getSnapshot().anchor, expandedEpisodeId: null}); episode.service.cancel(); },
-    async revalidate(refresh?: Parameters<ShowWorkspaceService['revalidate']>[0]) {
-      life.assert(); await service.revalidate(refresh);
+    /** The show's own My List and Favorites state, and the page of its next episode, read again when the hub says the viewer's state moved.
+     * The episode list itself is a cached document the hub keeps current. */
+    async revalidate(refresh?: Readonly<{signal?: AbortSignal}>) {
+      life.assert();
       const data = service.getSnapshot().data; if (!data) return;
       const value = await getContainerState(life.api, 'show', data.show.id, life.signal(refresh?.signal)); current(data); personal = value; publish();
       const nextUp = data.nextUp;
