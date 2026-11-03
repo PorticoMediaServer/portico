@@ -33,16 +33,18 @@ func TestFolderBatchPublishesOneBudgetedPrefix(t *testing.T) {
 			}
 			job := f.queue()
 			source := startInventorySource(t, f, job)
+			// A budget smaller than a folder: the cut lands inside F00.
+			const budget = 2
 			// Seed children through bounded real root pages, without visiting them.
 			for f.count(`SELECT count(*) FROM inventory_directories WHERE job_id=? AND relative_path='.' AND state='pending'`, job.ID) > 0 {
 				if err := f.s.readDirectoryPage(context.Background(), job.ID, source, ".", inventorySourceNames); err != nil {
 					t.Fatal(err)
 				}
 			}
-			if ok, err := f.s.inventoryFolders(context.Background(), job.ID, source, inventorySourceNames); !ok || err != nil {
+			if ok, err := f.s.inventoryFolders(context.Background(), job.ID, source, budget); !ok || err != nil {
 				t.Fatalf("batch=%v: %v", ok, err)
 			}
-			if n := f.count(`SELECT count(*) FROM inventory_objects WHERE source_id=?`, f.source); n != inventorySourceNames {
+			if n := f.count(`SELECT count(*) FROM inventory_objects WHERE source_id=?`, f.source); n != budget {
 				t.Fatalf("first batch objects=%d", n)
 			}
 			if n := f.count(`SELECT count(*) FROM inventory_directories WHERE job_id=? AND relative_path='F00' AND state='pending' AND cursor<>'' AND pages=1`, job.ID); n != 1 {
@@ -51,7 +53,7 @@ func TestFolderBatchPublishesOneBudgetedPrefix(t *testing.T) {
 			if n := f.count(`SELECT count(*) FROM inventory_directories WHERE job_id=? AND relative_path<>'F00' AND relative_path<>'.' AND pages>0`, job.ID); n != 0 {
 				t.Fatal("listed beyond the shared raw allowance")
 			}
-			if ok, err := f.s.inventoryFolders(context.Background(), job.ID, source, inventorySourceNames); !ok || err != nil {
+			if ok, err := f.s.inventoryFolders(context.Background(), job.ID, source, budget); !ok || err != nil {
 				t.Fatalf("next batch=%v: %v", ok, err)
 			}
 			if n := f.count(`SELECT count(*) FROM inventory_objects WHERE source_id=? AND relative_path LIKE 'F00/%'`, f.source); n != 3 {
@@ -70,7 +72,7 @@ func TestFolderBatchBoundsEmptyFolderOverhead(t *testing.T) {
 	for _, helper := range []bool{false, true} {
 		t.Run(fmt.Sprintf("helper=%v", helper), func(t *testing.T) {
 			f := newLoopFixture(t, "movie")
-			for i := 0; i < 8; i++ {
+			for i := 0; i < inventorySourceFolders+8; i++ {
 				if err := os.MkdirAll(filepath.Join(f.root, fmt.Sprintf("E%02d", i)), 0700); err != nil {
 					t.Fatal(err)
 				}
@@ -92,7 +94,7 @@ func TestFolderBatchBoundsEmptyFolderOverhead(t *testing.T) {
 			if n := f.count(`SELECT count(*) FROM inventory_directories WHERE job_id=? AND state='done' AND relative_path<>'.'`, job.ID); n != inventorySourceFolders {
 				t.Fatalf("completed empty folders=%d", n)
 			}
-			if n := f.count(`SELECT count(*) FROM inventory_directories WHERE job_id=? AND pages=0`, job.ID); n != 8-inventorySourceFolders {
+			if n := f.count(`SELECT count(*) FROM inventory_directories WHERE job_id=? AND pages=0`, job.ID); n != 8 {
 				t.Fatalf("untouched folders=%d", n)
 			}
 		})

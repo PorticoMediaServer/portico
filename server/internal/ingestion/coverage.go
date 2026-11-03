@@ -42,20 +42,15 @@ func (s *Service) excludeDirectory(ctx context.Context, job, relative, reason st
 	return gated.Commit()
 }
 
-// Inventory source limits are independent of scan speed: pacing between
-// completed pages is controlled by dbwork.PaceBackground. Two raw names
-// include filtered names/issues, not just returned entries; two folders bound
-// progress/cache/ignore-diagnostic overhead even when every folder is empty.
-// Normal inventory turns admit one name/folder before listing: two Reading
-// entries plus their publication triggers exceed the ordinary 160-row target.
-// Explicit listing batches retain the two-name transport ceiling.
-// Focused on-disk measurements live in TestInventorySourcePageCost. These
-// conservative producer caps do not qualify arbitrary existing-object fanout
-// for the default WritePlan; the atomic inventory-pages exception remains.
+// Inventory step limits (scanner M2): a step lists up to
+// inventorySourceFolders folders under one shared raw-name budget of at most
+// inventorySourceNames (the storage batch limits). Raw names include filtered
+// names and issues, not just returned entries. Within those limits each scan
+// sizes its budget by measured writer hold (page_budget.go); pacing between
+// steps is dbwork.PaceBackground's.
 const (
-	inventoryPublicationNames = 1
-	inventorySourceNames      = 2
-	inventorySourceFolders    = 2
+	inventorySourceNames   = storage.MaxInventoryBudget
+	inventorySourceFolders = storage.MaxInventoryBatch
 )
 
 func (s *Service) inventoryBatch(context.Context) int {
