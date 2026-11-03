@@ -1,0 +1,50 @@
+name: Server under load
+# Simulated people browse, open titles, search, ask for playback options and open
+# books while a scan and analysis run (scripts/server-load.py). A 4-vCPU hosted
+# runner is about the size of a small VPS. Budgets in ci/server-load-budgets.json.
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        description: Simulated people per phase
+        default: '10,50,100'
+  schedule:
+    - cron: '41 5 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: server-load
+  cancel-in-progress: false
+jobs:
+  load:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
+      - name: Install FFmpeg and bubblewrap, and allow unprivileged user namespaces as a Debian VPS does
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq ffmpeg bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Build the server
+        working-directory: server
+        run: go build -tags devtrust -o "$RUNNER_TEMP/portico-server" ./cmd/server
+      - name: Load
+        env:
+          USERS: ${{ inputs.users || '10,50,100' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/load"
+          python3 scripts/server-load.py --scratch "$RUNNER_TEMP/load" --binary "$RUNNER_TEMP/portico-server" --users "$USERS" --budgets ci/server-load-budgets.json
+      - name: Collect results and profiles (no credentials or media)
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          for run in "$RUNNER_TEMP"/load/load-*; do
+            cp "$run"/load.json "$run"/*.pb.gz "$run"/diagnostics-*.json "$RUNNER_TEMP/out/" 2>/dev/null || true
+            tail -400 "$run/server.log" > "$RUNNER_TEMP/out/server-tail.log" || true
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: server-load, path: '${{ runner.temp }}/out', retention-days: 14}
