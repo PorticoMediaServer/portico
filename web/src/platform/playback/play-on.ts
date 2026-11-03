@@ -23,6 +23,12 @@ export type CastRemoteView = CastRemoteToken & Readonly<{
 export type PlayOnReceiver = Readonly<{id: string; name: string; detail?: string}>;
 /** The receiver directory and one proven handoff. `send` resolves true only after the
  * television has proved it is playing; the caller then stops only the fenced run. */
+/** AU-1: whether Play on can do anything, so the button and the panel agree (desktop-player.html: "With neither, the
+ * button isn't shown"). AirPlay lifts any picture; Cast and the server's Portico televisions take a queue run. */
+export function playOnOffered(state: Readonly<{castAvailable: boolean; airPlayAvailable: boolean; queueRun: boolean; receivers: number}>): boolean {
+  return state.airPlayAvailable || state.queueRun && (state.castAvailable || state.receivers > 0);
+}
+
 export type PlayOnReceiversPort = Readonly<{
   getSnapshot(): Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error'; items: readonly PlayOnReceiver[]}>;
   subscribe(listener: () => void): () => void;
@@ -201,7 +207,7 @@ export class PlayOnController {
   };
   openPlayOn(): void {
     this.assertCurrent();
-    if (!this.state.cast.available && !this.state.airPlayAvailable && (this.options.receivers?.getSnapshot().items.length ?? 0) === 0) return;
+    if (!playOnOffered({castAvailable: this.state.cast.available, airPlayAvailable: this.state.airPlayAvailable, queueRun: true, receivers: this.options.receivers?.getSnapshot().items.length ?? 0})) return;
     this.publish({panel: 'play-on'});
   }
   closePanel(): void { this.assertCurrent(); this.publish({panel: null}); }

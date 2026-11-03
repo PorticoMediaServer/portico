@@ -5,7 +5,7 @@ import {playbackIdentity} from '@core/presentation/kit-model/index.ts';
 import {sameFence, type PlaybackFence} from '../../../../packages/player-core/src/index.ts';
 import {itemSubject} from '../../platform/playback/subject';
 import type {WebPlaybackRuntimeSnapshot, WebShellPlaybackRuntime} from '../../platform/playback';
-import type {PlayOnSnapshot} from '../../platform/playback/play-on';
+import {playOnOffered, type PlayOnSnapshot} from '../../platform/playback/play-on';
 import {CastPlayback} from '../../kit/player';
 import {ListeningNotice} from '../../kit/media/ListeningNotice';
 import {DockHost, DockNotice, MediaSurface, type DockBinding, type DockNoticeData, type DockPresentation} from '../../kit/dock';
@@ -44,6 +44,7 @@ import styles from './playback-host.module.css';
 export type WatchPlaybackProps = Readonly<{binding?: WatchBindings; context?: WatchPlaybackContext; surfaces?: WatchSurfaces; geometry?: WatchGeometry; live?: LiveChromePort}>;
 const noSubscription = () => () => {};
 const noSnapshot = () => undefined;
+const noReceivers = () => 0;
 const noPresentations: readonly DockPresentation[] = Object.freeze([]);
 const subscribeFullscreen = (changed: () => void) => {document.addEventListener('fullscreenchange', changed);return () => document.removeEventListener('fullscreenchange', changed);};
 const fullscreenSnapshot = () => !!document.fullscreenElement;
@@ -183,9 +184,13 @@ export function WatchPlayback({binding, context, surfaces, geometry, live}: Watc
   const cast = castOwner && castOwner.runtime === runtime && castOwner.context === context ? castOwner.value : undefined;
   const remoteState = useSyncExternalStore<PlayOnSnapshot | undefined>(cast?.controller.subscribe ?? noSubscription, cast?.controller.getSnapshot ?? noSnapshot, noSnapshot);
   // AirPlay also lifts only the video; page-drawn captions keep the picture on the page.
-  // The panel also lists the server's Portico televisions, so a queue run offers Play on
-  // even when the browser itself has no Cast or AirPlay transport.
-  const castAvailable = !!cast && (remoteState?.airPlayAvailable || snapshot?.fence?.kind === 'queue' && (remoteState?.cast.available || !!cast.receivers));
+  // AU-1: Play on is offered only when it can do something (desktop-player.html: "With neither, the button isn't shown"):
+  // this browser's Cast or AirPlay, or a Portico television the server lists for a queue run. Without a transport, the
+  // server's list is read once for the run, so the button never waits on the panel it opens.
+  const queueRun = snapshot?.fence?.kind === 'queue', transport = remoteState?.cast.available === true || remoteState?.airPlayAvailable === true;
+  const receiverCount = useSyncExternalStore(cast?.receivers?.subscribe ?? noSubscription, () => cast?.receivers?.getSnapshot().items.length ?? 0, noReceivers);
+  useEffect(() => {if (cast && queueRun && !transport) cast.receivers?.refresh();}, [cast, queueRun, transport]);
+  const castAvailable = !!cast && playOnOffered({castAvailable: remoteState?.cast.available === true, airPlayAvailable: remoteState?.airPlayAvailable === true, queueRun, receivers: receiverCount});
   const remotePlaying = remoteState?.remote?.phase === 'playing';
   const media = useMemo(() => new PlaybackMediaOwner<HTMLVideoElement>(), []);
   const cache = useMemo(() => new PlaybackPresentations(runtime), [runtime]);
