@@ -16,6 +16,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
   };
   Object.assign(host.react, {useLayoutEffect}); Object.assign(host.react.default, {useLayoutEffect});
   let navigation: any = {revision: 1, route: initialRoute}, lifetime = true, contextCurrent = true, backs = 0, retiredReads = 0, remoteBacks = 0;
+  const hardwareBack: (() => boolean)[] = [];
   const retirement = new AbortController(), opens: any[] = [], shortcutCalls: string[] = [];
   const guarded = <T,>(value: T) => {if (retirement.signal.aborted) {retiredReads++; throw new Error('retired accessor');} return value;};
   const context: any = {current: () => guarded(contextCurrent), account: {account: {role, username: 'Viewer'}, canManage: true, capabilities: {manageSignIn: role === 'owner', managePeople: role === 'owner' || role === 'admin'}}, authority: () => guarded({serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'}),
@@ -27,7 +28,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
   const theme: any = {isTV: false, width: initialWidth, platform: initialWidth < 600 ? 'phone' : 'tablet', colors: new Proxy({}, {get: (_t, key) => String(key)})};
   const {NativeSettingsScreen} = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
     react: host.react,
-    'react-native': {AppState: {}, Dimensions: {get: () => ({width: theme.width, height: 844})}, NativeModules: {}, Platform: {OS: 'ios'}, ScrollView: 'ScrollView', StatusBar: {}, Text: 'Text', View: 'View'},
+    'react-native': {AppState: {}, BackHandler: {addEventListener: (_name: string, listener: () => boolean) => {hardwareBack.push(listener); return {remove: () => {hardwareBack.splice(hardwareBack.indexOf(listener), 1);}};}}, Dimensions: {get: () => ({width: theme.width, height: 844})}, NativeModules: {}, Platform: {OS: 'ios'}, ScrollView: 'ScrollView', StatusBar: {}, Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})}, 'react-native-qrcode-svg': {default: 'QRCode'},
     '../../../../../packages/client-core/src/presentation/settings-structure': {settingsStructure: () => structure, searchSettings: () => []},
     '../../../../../packages/client-core/src/presentation/language-list': {}, '../../../../../packages/client-core/src/presentation/region-choices': {},
@@ -56,6 +57,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
     replace: () => {navigation = {...navigation, revision: navigation.revision + 1, route: {kind: 'shell', destination: {kind: 'settings'}}};},
     retire: () => retirement.abort(), endLifetime: () => {lifetime = false;}, endContext: () => {contextCurrent = false;}, retiredReads: () => retiredReads,
     resize: (width: number) => {theme.width = width; theme.platform = width < 600 ? 'phone' : 'tablet';},
+    systemBack: () => [...hardwareBack].reverse().some(listener => listener()),
     remote: (handled: boolean) => nodes(tree).find(node => node.type === 'RemoteSources').props.onBackHandlerChange(() => {remoteBacks++; return handled;}), remoteBacks: () => remoteBacks,
     unmount: () => {for (const effect of effects) effect.cleanup?.();},
   };
@@ -94,6 +96,16 @@ test('Remote source Back belongs to the current Settings route and is offered be
     f.find('settings-page-remote-sources').props.onPress(); f.render(); f.remote(true);
     const back = f.header().props.onBack; back(); f.render(); assert.ok(f.header()); assert.equal(f.remoteBacks(), 1);
     f.routeAway(); back(); assert.equal(f.remoteBacks(), 1); assert.equal(f.backs(), 0);
+  } finally {f.unmount();}
+});
+
+test('NT-4: on a tablet, where Settings is a page, system Back takes the Remote sources wizard step before leaving Settings', async () => {
+  const f = await fixture(undefined, 800);
+  try {
+    assert.equal(f.find('settings-sheet').props.presentation, 'page');
+    f.find('settings-page-remote-sources').props.onPress(); f.render(); f.remote(true);
+    assert.equal(f.systemBack(), true, 'the page owns this Back'); assert.equal(f.remoteBacks(), 1); assert.equal(f.backs(), 0, 'Settings stays open');
+    f.routeAway(); assert.equal(f.systemBack(), false, 'a page that is no longer on screen never takes Back'); assert.equal(f.remoteBacks(), 1);
   } finally {f.unmount();}
 });
 

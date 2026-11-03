@@ -38,6 +38,7 @@ import type {NativeSettingsController} from './settings-controller';
 import type {NativeDevicePreferences} from './device-preference-consumer';
 import {setNativeScreenChromeHidden} from '../../shell/chrome';
 import {Screen, useScreenBack, useScreenEntry} from './Screen';
+import {registerBack} from '../../kit/navigation/back';
 import {nativeSettingsActionTarget} from './settings-actions';
 import {routePath} from '../../../../../packages/contracts/src/routes';
 import {parseSettingsConfiguration} from '../../../../../packages/client-core/src/settings-configuration';
@@ -275,7 +276,10 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
     setNativeScreenChromeHidden('settings-sheet', compact);
     return () => setNativeScreenChromeHidden('settings-sheet', false);
   }, [compact]);
-  useScreenBack(runtime, back, theme.isTV || remoteSourcesPage, {kind: 'settings'});
+  useScreenBack(runtime, back, theme.isTV, {kind: 'settings'});
+  // NT-4 / TVF-A4: a tablet draws Settings as a page, not a sheet, so no overlay owns Back there. The same
+  // ladder runs as this page's Back step: a Remote sources wizard step, then search, then the page; then the shell.
+  useLayoutEffect(() => !theme.isTV && !compact ? registerBack(back, {scope: 'page', active: viewCurrent}) : undefined, [back, compact, theme.isTV, viewCurrent]);
   if (!page) throw new Error('native_settings_structure_empty');
   // Libraries and Live TV draw their own pages and own their scrolling; they are not
   // stacks of rows inside the generic Settings body.
