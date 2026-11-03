@@ -71,6 +71,14 @@ function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured;
   // The root owns this shared inbox/badge service. Closing a panel unsubscribes
   // this view; authority retirement disposes the one real service at the root.
   useEffect(() => {opening?.initialize(state);}, [opening, state]);
+  // OW-5: an open page or panel follows the inbox. A change hint, or a stream resync, rereads
+  // the view on screen quietly; the shell refreshes the badge on its own.
+  useEffect(() => {
+    if (!opening) return;
+    const refresh = (revision?: string) => {if (opening.current()) service.refresh(revision);};
+    const offs = [context.events.on('notification.changed', event => refresh(event.revision)), context.events.onResync(() => refresh())];
+    return () => {for (const off of offs) off();};
+  }, [opening, service, context.events]);
   const close = () => {
     if (mode === 'popover') {done.current?.(); return;}
     opening?.leave(state, current => {if (current()) void router.navigate({to: '/'});});

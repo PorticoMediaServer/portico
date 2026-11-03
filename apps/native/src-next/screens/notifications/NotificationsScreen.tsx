@@ -99,7 +99,9 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
   }, [context, lease, retired, view]);
   useEffect(() => {
     if (!lease || retired) return;
-    const refresh = () => {
+    // OW-5: a change hint rereads each inbox quietly, skipping the echo of its own write and
+    // waiting for a write that is still out rather than cancelling it.
+    const refresh = (event: {revision?: string}) => {
       // The exact `current()` test, inlined: this subscription may only load while the layout
       // it was registered for is still the committed one. It never borrows a newer authority.
       const live = lease.live.value
@@ -108,8 +110,8 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
         && context.navigation.getSnapshot().route === lease.route
         && lease.retirement.getSnapshot() === undefined;
       if (!live) return;
-      void lease.profile.load('profile', view);
-      if (readsAdminInbox(context.account.account.role)) void lease.admin.load('account-admin', view);
+      lease.profile.refresh(event.revision);
+      if (readsAdminInbox(context.account.account.role)) lease.admin.refresh(event.revision);
     };
     const recover = async (service: InboxService, audience: 'profile' | 'account-admin', signal: AbortSignal) => {
       const live = lease.live.value && sameAuthority(lease.authority, context.authority())
