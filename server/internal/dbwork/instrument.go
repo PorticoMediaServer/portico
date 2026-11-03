@@ -411,6 +411,7 @@ func (c *observedConn) Begin() (driver.Tx, error) {
 	c.inTx = true
 	c.authorityDirty = false
 	c.changes = nil
+	scratchTxBegan(c)
 	return &observedTx{inner: inner, conn: c}, nil
 }
 
@@ -459,6 +460,7 @@ func (c *observedConn) ExecContext(ctx context.Context, query string, args []dri
 	if err := c.checkWriter(ctx, query); err != nil {
 		return nil, err
 	}
+	scratchStatement(c)
 	start := time.Now()
 	traceStatement(ctx, query)
 	out, err := c.cachedExec(ctx, query, args)
@@ -477,6 +479,7 @@ func (c *observedConn) QueryContext(ctx context.Context, query string, args []dr
 	if err := c.checkWriter(ctx, query); err != nil {
 		return nil, err
 	}
+	scratchStatement(c)
 	lease, err := c.admitReader(ctx, false)
 	if err != nil {
 		return nil, err
@@ -533,6 +536,7 @@ type observedTx struct {
 }
 
 func (t *observedTx) Commit() error {
+	scratchTxEnded(t.conn)
 	err := t.inner.Commit()
 	if t.conn.meter != nil {
 		t.conn.meter.end(t.conn.inner)
@@ -551,6 +555,7 @@ func (t *observedTx) Commit() error {
 }
 
 func (t *observedTx) Rollback() error {
+	scratchTxEnded(t.conn)
 	t.conn.inTx = false
 	t.conn.testTx = false
 	err := t.inner.Rollback()
@@ -582,7 +587,7 @@ func (s *observedStmt) Exec(args []driver.Value) (driver.Result, error) {
 	if err == nil {
 		s.conn.noteWrite(s.query)
 	}
-	observe(context.Background(), "", time.Since(start), s.conn.inTx)
+	observe(context.Background(), s.query, time.Since(start), s.conn.inTx)
 	return out, err
 }
 
@@ -601,11 +606,11 @@ func (s *observedStmt) Query(args []driver.Value) (driver.Rows, error) {
 	out, err := s.inner.Query(args)
 	if err != nil {
 		lease.close()
-		observe(context.Background(), "", time.Since(start), s.conn.inTx)
+		observe(context.Background(), s.query, time.Since(start), s.conn.inTx)
 		return nil, err
 	}
 	s.conn.noteWrite(s.query)
-	return &observedRows{inner: out, ctx: context.Background(), start: start, inTx: s.conn.inTx, reader: lease}, nil
+	return &observedRows{inner: out, ctx: context.Background(), query: s.query, start: start, inTx: s.conn.inTx, reader: lease}, nil
 }
 
 func (s *observedStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
@@ -624,7 +629,7 @@ func (s *observedStmt) ExecContext(ctx context.Context, args []driver.NamedValue
 	if err == nil {
 		s.conn.noteWrite(s.query)
 	}
-	observe(ctx, "", time.Since(start), s.conn.inTx)
+	observe(ctx, s.query, time.Since(start), s.conn.inTx)
 	return out, err
 }
 
@@ -647,11 +652,11 @@ func (s *observedStmt) QueryContext(ctx context.Context, args []driver.NamedValu
 	out, err := queryer.QueryContext(ctx, args)
 	if err != nil {
 		lease.close()
-		observe(ctx, "", time.Since(start), s.conn.inTx)
+		observe(ctx, s.query, time.Since(start), s.conn.inTx)
 		return nil, err
 	}
 	s.conn.noteWrite(s.query)
-	return &observedRows{inner: out, ctx: ctx, start: start, inTx: s.conn.inTx, reader: lease}, nil
+	return &observedRows{inner: out, ctx: ctx, query: s.query, start: start, inTx: s.conn.inTx, reader: lease}, nil
 }
 
 // observedRows times a read to the end of iteration rather than to the return of

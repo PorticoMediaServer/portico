@@ -360,12 +360,20 @@ func (s *statementCache) lease(ctx context.Context, conn driver.Conn, query stri
 	if !cacheable {
 		statementReuse.bypasses.Add(1)
 		if shape.invalidates() {
+			if len(s.entries) > 0 {
+				ScratchNoteFlush(query, len(s.entries))
+			}
 			for _, e := range s.entries {
 				s.remove(e)
 			}
 		}
 	} else {
 		statementReuse.misses.Add(1)
+		reason := "absent"
+		if e := s.entries[query]; e != nil {
+			reason = "leased"
+		}
+		ScratchNoteFlush("MISS "+reason+" "+query, 0)
 	}
 	preparedSQL := query
 	if shape.single && shape.sql != "" {
