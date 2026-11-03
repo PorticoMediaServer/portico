@@ -12,7 +12,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: nightly-full
+  # One queue per ref: a dispatch on a branch never cancels a pending run on main or another branch.
+  group: nightly-full-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   hygiene:
