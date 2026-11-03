@@ -11,7 +11,8 @@ import {clockText, durationText} from '../../../../../packages/client-core/src/p
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {NativePlaybackAdapter, NativePlaybackRuntimeSnapshot} from '../../platform/playback/types';
 import {useTVKeyEvent} from '../../platform/tv-keys';
-import {admitTVPlayPause, tvPlayPauseClaimed, tvPlayPauseTogglesPlayback} from '../../platform/tv-play-pause';
+import {admitTVPlayPause, tvPlayPauseTogglesPlayback} from '../../platform/tv-play-pause';
+import {useTVPlayPauseOwner} from '../../platform/tv-play-pause-owner';
 import {Button, Focusable} from '../../kit/controls';
 import {FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {Icon, type IconName} from '../../kit/Icon';
@@ -336,14 +337,17 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
     const node = visible ? toggle.current : picture.current;
     node?.requestTVFocus?.();
   }, [visible, fence, theme.isTV, current, state.panel, state.panelReturning, state.returnTarget, liveOverlayOpen, miniPaintPresent, registry]); // The native focus engine owns movement inside the region.
+  // The full player gives Play/Pause its meaning while it is up and nothing over it does (a PIN pad).
+  const playerKeys = () => theme.isTV && !!fence && current() && source.dock.local?.expanded === true && !state.panel && !state.panelReturning && !liveOverlayOpen && !miniPaintPresent;
+  const ownsPlayPause = useTVPlayPauseOwner('surface', playerKeys);
   useTVKeyEvent(event => {
-    if (!theme.isTV || !fence || !current() || source.dock.local?.expanded !== true || state.panel || state.panelReturning || liveOverlayOpen || miniPaintPresent || event.phase === 'long-end') return;
+    if (!playerKeys() || !fence || event.phase === 'long-end') return;
     const onPrompt = registry.capture()?.regionId === 'watch-skip';
     if (onPrompt && event.key === 'select') return;
     if (event.key === 'playPause') {
       // F-PLAYER-1: with the controls hidden the remote's Play/Pause raises them on
       // Play/Pause and does nothing else; with them up it is the transport key.
-      if (event.phase !== 'press' || tvPlayPauseClaimed() || !admitTVPlayPause('key')) return;
+      if (event.phase !== 'press' || !ownsPlayPause() || !admitTVPlayPause('key')) return;
       if (!controls.getSnapshot().visible) {
         if (onPrompt) promptRevealToToggle.current = true;
         controls.key(fence);

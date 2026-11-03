@@ -17,7 +17,8 @@ import {DockHost, PlayerMorph, bindNativeDock, usePlayerMorph, type DockPresenta
 import {commandIsCurrent, currentOccupant, dockBarFrame, listeningPlayPauseCommand, liveWaitingIdentity, playbackPosition} from '../kit/dock/model';
 import type {DockHostProps} from '../kit/dock/types';
 import {useTVKeyEvent} from '../platform/tv-keys';
-import {tvPlayPauseClaimed, tvPlayPauseTogglesPlayback} from '../platform/tv-play-pause';
+import {tvPlayPauseTogglesPlayback} from '../platform/tv-play-pause';
+import {useTVPlayPauseOwner} from '../platform/tv-play-pause-owner';
 import {StartingDock} from '../kit/dock/StartingDock';
 import {StartTimedOut} from './StartTimedOut';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -405,8 +406,9 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
   // tv-player 8: on Apple TV the remote's Play/Pause pauses and resumes music or an
   // audiobook from any screen. The read happens at the press, from the dock itself.
   const listeningPresentation = useRef<DockHostProps['presentation']>({});
+  const ownsPlayPause = useTVPlayPauseOwner('shell', () => theme.isTV && tvPlayPauseTogglesPlayback());
   useTVKeyEvent(event => {
-    if (!theme.isTV || event.key !== 'playPause' || event.phase !== 'press' || !tvPlayPauseTogglesPlayback() || tvPlayPauseClaimed()) return;
+    if (event.key !== 'playPause' || event.phase !== 'press' || !ownsPlayPause()) return;
     if (!sameAuthority(adapter.getSnapshot().authority, authority)) return;
     const command = listeningPlayPauseCommand(currentOccupant(adapter.dock, adapter.dock.getSnapshot(), listeningPresentation.current));
     if (command && commandIsCurrent(adapter.dock, command)) void action(command).catch(runtime.reportError);
