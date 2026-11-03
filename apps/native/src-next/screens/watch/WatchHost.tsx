@@ -215,10 +215,11 @@ export function NativeWatchHost({authority, current, playback, outlet, runtime, 
   // Capture only when a valid fence names this failure; a render without one leaves
   // the last capture alone rather than inventing a fence or changing hook count.
   const failureKey = fence && source.playback.phase === 'error'
-    ? JSON.stringify([fence, source.playback.intentId, source.playback.session?.id, source.playback.positionSeconds, source.failureReason]) : undefined;
+    ? JSON.stringify([fence, source.playback.intentId, source.playback.session?.id, source.playback.positionSeconds, source.failureReason, source.playback.ended]) : undefined;
   if (failureKey === undefined) failureRef.current = undefined;
   else if (failureRef.current?.key !== failureKey) failureRef.current = {key: failureKey,
-    failure: Object.freeze({fence, sessionId: source.playback.session?.id, positionSeconds: source.playback.positionSeconds, itemId: source.playback.itemId, ...(source.failureReason ? {reason: source.failureReason} : {})})};
+    failure: Object.freeze({fence, sessionId: source.playback.session?.id, positionSeconds: source.playback.positionSeconds, itemId: source.playback.itemId, ...(source.failureReason ? {reason: source.failureReason} : {}),
+      ...(source.playback.ended ? {ended: source.playback.ended} : {})})};
   // states 11 is the ten-foot state: it is drawn on TV only, and phone keeps its own surface.
   // The same predicates the module uses to draw a recovery control. The bar points Up
   // to that region only when the control really exists this render.

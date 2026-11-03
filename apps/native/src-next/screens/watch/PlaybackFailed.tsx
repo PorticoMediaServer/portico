@@ -11,11 +11,11 @@ import {FocusRegion} from '../../kit/focus';
 import {SidePanel} from '../../kit/overlays';
 import type {NativeWatchHostContext} from './WatchHost';
 import type {NativePlaybackFailureReason} from '../../platform/playback/playback-failure';
-import {failureBody} from './failure-words';
+import {failureBody, failureTitle, type NativePlaybackEnd} from './failure-words';
 
 /** The exact playback that failed: its fence, session and saved place. A callback
  * reads only this, never the live context, so a successor start is never touched. */
-export type NativePlaybackFailure = Readonly<{fence: PlaybackFence; sessionId?: string; positionSeconds: number; itemId?: string; reason?: NativePlaybackFailureReason}>;
+export type NativePlaybackFailure = Readonly<{fence: PlaybackFence; sessionId?: string; positionSeconds: number; itemId?: string; reason?: NativePlaybackFailureReason; ended?: NativePlaybackEnd}>;
 
 /** states 11: the ten-foot failure state. The frozen picture stays behind it,
  * the bar below keeps working, and nothing here retries by itself. The retry
@@ -37,7 +37,7 @@ export function NativePlaybackFailed({context, failure, retry, details, differen
   const detailsOpener = React.useRef<View>(null), identityKey = JSON.stringify(failure);
   const facts = details?.(failure), detailsOpen = detailsFor === identityKey && !!facts;
   const position = clockText(failure.positionSeconds);
-  const body = failureBody(failure.reason, position ?? '');
+  const body = failureBody(failure.reason, position ?? '', failure.ended);
   return <View testID="watch-playback-failed" pointerEvents="box-none" style={StyleSheet.absoluteFill}>
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: '#03080c8c'}]}/>
     {!chromeVisible && identity && <View pointerEvents="none" style={{position: 'absolute', left: 96, right: 96, top: 72}}>
@@ -55,7 +55,7 @@ export function NativePlaybackFailed({context, failure, retry, details, differen
         <Icon name="i-warn" size={40} color={theme.colors.amber}/>
       </View>
       <Text accessibilityRole="header" style={[nativeType({size: 72, weight: 800, tracking: -.045, lineHeight: 72}, theme.textScale),
-        {marginBottom: 24, color: theme.colors.text, textShadowColor: 'rgba(7,16,24,.5)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30}]}>{t('next.states.playbackStopped')}</Text>
+        {marginBottom: 24, color: theme.colors.text, textShadowColor: 'rgba(7,16,24,.5)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30}]}>{failureTitle(failure.ended)}</Text>
       <Text style={[nativeType({size: 28, weight: 400, tracking: 0, lineHeight: 40.6}, theme.textScale), {marginBottom: 28, maxWidth: 900, color: theme.colors.textSecondary}]}>{body}</Text>
       {(retry || facts || differentVersion) && <FocusRegion id="watch-failed" orientation="horizontal" edges={{down: 'watch-controls'}} enabled={!detailsOpen}
         entry={retry ? 'watch-failed-retry' : differentVersion ? 'watch-failed-version' : 'watch-failed-details'} entryPolicy="entry" style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 18}}>

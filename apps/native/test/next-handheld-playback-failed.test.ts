@@ -19,7 +19,8 @@ test('handheld failure offers only the supplied retry and keeps its captured cal
   let calls = 0; const failure = {fence: {}, positionSeconds: 42};
   const withRetry = NativeHandheldPlaybackFailed({failure, retry: () => {calls++;}});
   const state = withRetry.props.children[1];
-  assert.equal(state.props.children[0].props.children[0], 'next.states.playbackStopped');
+  // The heading comes from the shared failure words (W2-A9), in the catalogue's words.
+  assert.equal(state.props.children[0].props.children[0], 'Playback stopped');
   state.props.children[2].props.onPress(); assert.equal(calls, 1);
   const noRetry = NativeHandheldPlaybackFailed({failure});
   assert.equal(noRetry.props.children[1].props.children[2], undefined);
@@ -40,4 +41,11 @@ test('handheld failure paints Manrope and offers the supplied alternative indepe
   assert.equal(alternativeOnly[3].props.children[0], 'next.overlays.differentVersion');
   const noActions = NativeHandheldPlaybackFailed({failure: {positionSeconds: 42}}).props.children[1].props.children;
   assert.equal(noActions[2], undefined); assert.equal(noActions[3], undefined);
+});
+
+test('a channel a recording took reads Live TV stopped with the handover sentence on the handheld state (W2-A9)', () => {
+  const tree = NativeHandheldPlaybackFailed({failure: {fence: {}, positionSeconds: 0, ended: {reason: 'tuner_reserved'}}});
+  const [title, body] = tree.props.children[1].props.children;
+  assert.equal(title.props.children[0], 'Live TV stopped');
+  assert.equal(body.props.children[0], 'A recording needed this tuner. Watch this channel again when a tuner is free.');
 });
