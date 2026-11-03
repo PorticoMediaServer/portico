@@ -209,6 +209,7 @@ function initialOf(name: string | undefined) {
 }
 export {resumeAfterProfiles, chooserFailureState, type ChooserFailureState, type ProfileResume} from './chooser-resume';
 import {resumeAfterProfiles, chooserFailureState} from './chooser-resume';
+import {savedSignInUnusable} from '../../shell/connection-retry';
 
 /** At web.getportico.tv the chooser is the Portico Account's own server list (P2-66);
  * a server's own address keeps the chooser of sign-ins saved in this browser. */
@@ -286,6 +287,13 @@ function BoundServers({entry, form}: {entry: BrowserAccountEntry; form: AccountS
     setWorking(true); setError(undefined); setAttempt({kind: 'opening', row}); form.clear();
     const fail = (failure: unknown) => {
       if (!alive.current || !lock.owns(token)) return;
+      // AU-6: an ended saved sign-in (its row is already gone) is not an unreachable server, and a retry of the
+      // removed row could do nothing. Sign-in opens for that server's address, as it does at launch.
+      if (savedSignInUnusable(failure) === 'ended') {
+        setAttempt(undefined); setError(undefined); setOrigin(saved.connection.logicalOrigin); setMode('entry');
+        void entry.inspect(saved.connection.logicalOrigin);
+        return;
+      }
       setError(failure);
       const state = chooserFailureState(failure);
       if (state === 'waiting') {

@@ -56,6 +56,8 @@ export type AccountEntryState = Readonly<{
  server?:ServerSignIn; origin?:string; pin?:ServerPin; snapshot?:DirectSnapshot;
  invitation?:PreviewInvitationResponse; joined?:Readonly<{origin:string;signIn:'local'|'portico'}>;
  movePreview?:MoveCodePreview; ownerReset?:OwnerResetDetails; setupCompleted?:true; /** A setup Return still deciding whether its owner opens straight away: no profile page yet. */ setupPending?:true; memberMoveCompleted?:true; memberMovePending?:true;
+ /** AU-5: `welcome` because the held saved sign-in ended, not because nothing has started. */
+ ended?:true;
  busy?:boolean; error?:unknown; identityFailure?:Readonly<{serverName:string;failure:'local-changed'|'unconfirmed'}>;
 }>;
 type EntryPorts = Readonly<{
@@ -130,12 +132,12 @@ export class BrowserAccountEntry {
     if(session){
      const selected=await this.ports.store.selected();if(!current())return;
      const saved=selected?.connection.session;
-     if(!selected||selected.signIn!==kind||!sameServerPin(selected.connection.pin,pin)||!saved||saved.sessionFamilyId!==session.sessionFamilyId||(['serverId','authority','accountId','profileId','role'] as const).some(key=>saved.viewer[key]!==session.viewer[key])){this.cancel();return;}
+     if(!selected||selected.signIn!==kind||!sameServerPin(selected.connection.pin,pin)||!saved||saved.sessionFamilyId!==session.sessionFamilyId||(['serverId','authority','accountId','profileId','role'] as const).some(key=>saved.viewer[key]!==session.viewer[key])){this.signInEnded();return;}
      // A rotation is the same private lifetime, with its actual saved bearer.
      if(this.session?.accessToken!==saved.accessToken){this.session=saved;api.setAccessToken(saved.accessToken);}
     }else{
      const selected=await this.ports.store.read();if(!current())return;
-     if(selected.revision!==revision){this.cancel();return;}
+     if(selected.revision!==revision){this.signInEnded();return;}
     }
     if(expected===changes)return;
    }}catch(error){if(current()){this.cancel();this.publish({phase:'welcome',error});}}
@@ -146,6 +148,9 @@ export class BrowserAccountEntry {
   if(!current()){stopped=true;off();return;}
   this.offSelection=()=>{stopped=true;off();};void check();
  }
+ /** AU-5: the saved sign-in this entry held is gone (dropped on its own page, or changed in another tab). The screen
+  * that shows it sends the person on to sign-in or the chooser rather than waiting on it. */
+ private signInEnded(){this.cancel();this.publish({phase:'welcome',ended:true});}
  cancel(){++this.epoch;this.controller?.abort();this.probe.cancel();this.release();this.invitationCapability=undefined;this.joinedAccountId=undefined;this.joinedUsername=undefined;this.publish({phase:'welcome'});}
  address(){this.cancel();this.publish({phase:'address'});}
  private clearHostedChallenge(){const off=this.offHostedChallenge;this.hostedChallenge=undefined;this.offHostedChallenge=undefined;off?.();}
@@ -812,7 +817,7 @@ export class BrowserAccountEntry {
     let dropped=false;
     try{dropped=await this.ports.actions.forgetServer(saved.connection.session,{isCurrent:op.current,expectedRevision:revision});}catch{/* The identity page below still offers Forget. */}
     if(!op.current())return;
-    if(dropped){this.publish({phase:'welcome'});return;}
+    if(dropped){this.signInEnded();return;}
    }
    const serverName=saved&&this.ports.serverName?.(saved.connection.pin.serverId);
    if(saved&&serverName&&error instanceof RouteError&&error.code==='identity_mismatch'){

@@ -57,6 +57,7 @@ test('on the saved server’s own page a changed identity drops that sign-in and
   assert.deepEqual(network, []);
   assert.deepEqual(fetches, []);
   assert.equal(entry.getSnapshot().phase, 'welcome');
+  assert.equal(entry.getSnapshot().ended, true, 'AU-5: the screen holding it moves on to sign-in');
   assert.equal(entry.getSnapshot().identityFailure, undefined);
   assert.equal(entry.serverIdentityFailure(() => {}), undefined);
   assert.equal((await store.read()).servers.length, 0);

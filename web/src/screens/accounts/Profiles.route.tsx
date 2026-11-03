@@ -34,6 +34,9 @@ function BoundProfiles({entry}: {entry: BrowserAccountEntry}) {
     // A restored restricted account has no submitted password in this page.
     // Re-enter the existing sign-in, never invent an enrollment proof field.
     if (state.phase === 'two-step-setup' || state.phase === 'password-change') void router.navigate({to: '/sign-in', replace: true});
+    // AU-5: the saved sign-in ended under this page (dropped on the server's own page, or changed in another tab):
+    // sign-in opens for the server at this address, or the chooser elsewhere; never "Loading profiles" forever.
+    if (state.phase === 'welcome' && state.ended) void router.navigate(forgetDestination(currentServedServerOrigin()).to === 'sign-in' ? {to: '/sign-in', replace: true} : {to: '/servers', replace: true});
   }, [entry, state]);
   const binding = useMemo<ProfilePickerViewBinding>(() => ({
     subscribe: entry.subscribe, getSnapshot: entry.getSnapshot,
