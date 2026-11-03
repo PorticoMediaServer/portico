@@ -646,3 +646,17 @@ test('a synchronous close from the timerLoading update dispatches no armed timer
  assert.equal(f.service.getSnapshot().timerLoading,false);
  assert.equal(f.engine.policies.slice(policies).some(policy=>policy.timer),false,'no armed timer policy was dispatched');
 });
+test('MU-4: a failed listening-details read never stops the queue moving on, and retries once by itself',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ let reads=0,failing=true;const f=setup(t,{request:async path=>{if(path==='/v1/listening/preferences')return wrapped(prefs);reads++;if(failing)throw new Error('offline');return wrapped({itemId:'song',libraryId:'library',kind:'song'});}});await settle();
+ assert.equal(f.service.getSnapshot().context,null);assert.equal(reads,1);
+ assert.equal(f.service.mayAdvance(),true,'an ended song advances without its listening details');
+ failing=false;t.mock.timers.tick(5000);await settle();
+ assert.equal(reads,2,'one automatic retry');assert.equal(f.service.getSnapshot().context?.itemId,'song');assert.equal(f.service.getSnapshot().error,null);
+});
+test('MU-4: a failing details read retries only once on its own',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ let reads=0;const f=setup(t,{request:async path=>{if(path==='/v1/listening/preferences')return wrapped(prefs);reads++;throw new Error('offline');}});await settle();
+ t.mock.timers.tick(5000);await settle();t.mock.timers.tick(60000);await settle();
+ assert.equal(reads,2);assert.equal(f.service.mayAdvance(),true);
+});
