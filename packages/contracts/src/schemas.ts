@@ -57817,6 +57817,13 @@ export const schemas = {
                           "group": {
                             "type": "string"
                           },
+                          "guide": {
+                            "enum": [
+                              "full",
+                              "none"
+                            ],
+                            "type": "string"
+                          },
                           "hidden": {
                             "type": "boolean"
                           },
@@ -58006,6 +58013,7 @@ export const schemas = {
                           }
                         },
                         "required": [
+                          "guide",
                           "id",
                           "sourceId",
                           "provenance",
@@ -58244,6 +58252,13 @@ export const schemas = {
                 "group": {
                   "type": "string"
                 },
+                "guide": {
+                  "enum": [
+                    "full",
+                    "none"
+                  ],
+                  "type": "string"
+                },
                 "hidden": {
                   "type": "boolean"
                 },
@@ -58433,6 +58448,7 @@ export const schemas = {
                 }
               },
               "required": [
+                "guide",
                 "id",
                 "sourceId",
                 "provenance",
@@ -58564,6 +58580,13 @@ export const schemas = {
                 "group": {
                   "type": "string"
                 },
+                "guide": {
+                  "enum": [
+                    "full",
+                    "none"
+                  ],
+                  "type": "string"
+                },
                 "hidden": {
                   "type": "boolean"
                 },
@@ -58753,6 +58776,7 @@ export const schemas = {
                 }
               },
               "required": [
+                "guide",
                 "id",
                 "sourceId",
                 "provenance",
@@ -58896,6 +58920,13 @@ export const schemas = {
                 "group": {
                   "type": "string"
                 },
+                "guide": {
+                  "enum": [
+                    "full",
+                    "none"
+                  ],
+                  "type": "string"
+                },
                 "hidden": {
                   "type": "boolean"
                 },
@@ -59085,6 +59116,7 @@ export const schemas = {
                 }
               },
               "required": [
+                "guide",
                 "id",
                 "sourceId",
                 "provenance",
@@ -59242,6 +59274,13 @@ export const schemas = {
                           "type": "string"
                         },
                         "group": {
+                          "type": "string"
+                        },
+                        "guide": {
+                          "enum": [
+                            "full",
+                            "none"
+                          ],
                           "type": "string"
                         },
                         "hidden": {
@@ -59433,6 +59472,7 @@ export const schemas = {
                         }
                       },
                       "required": [
+                        "guide",
                         "id",
                         "sourceId",
                         "provenance",
@@ -59655,6 +59695,13 @@ export const schemas = {
                 "group": {
                   "type": "string"
                 },
+                "guide": {
+                  "enum": [
+                    "full",
+                    "none"
+                  ],
+                  "type": "string"
+                },
                 "hidden": {
                   "type": "boolean"
                 },
@@ -59844,6 +59891,7 @@ export const schemas = {
                 }
               },
               "required": [
+                "guide",
                 "id",
                 "sourceId",
                 "provenance",
@@ -64197,6 +64245,13 @@ export const schemas = {
                                 "group": {
                                   "type": "string"
                                 },
+                                "guide": {
+                                  "enum": [
+                                    "full",
+                                    "none"
+                                  ],
+                                  "type": "string"
+                                },
                                 "hidden": {
                                   "type": "boolean"
                                 },
@@ -64386,6 +64441,7 @@ export const schemas = {
                                 }
                               },
                               "required": [
+                                "guide",
                                 "id",
                                 "sourceId",
                                 "provenance",
@@ -70474,6 +70530,13 @@ export const schemas = {
                           "group": {
                             "type": "string"
                           },
+                          "guide": {
+                            "enum": [
+                              "full",
+                              "none"
+                            ],
+                            "type": "string"
+                          },
                           "hidden": {
                             "type": "boolean"
                           },
@@ -70663,6 +70726,7 @@ export const schemas = {
                           }
                         },
                         "required": [
+                          "guide",
                           "id",
                           "sourceId",
                           "provenance",
@@ -80284,6 +80348,13 @@ export const schemas = {
                           "group": {
                             "type": "string"
                           },
+                          "guide": {
+                            "enum": [
+                              "full",
+                              "none"
+                            ],
+                            "type": "string"
+                          },
                           "hidden": {
                             "type": "boolean"
                           },
@@ -80473,6 +80544,7 @@ export const schemas = {
                           }
                         },
                         "required": [
+                          "guide",
                           "id",
                           "sourceId",
                           "provenance",
@@ -86561,6 +86633,13 @@ export const schemas = {
                     "group": {
                       "type": "string"
                     },
+                    "guide": {
+                      "enum": [
+                        "full",
+                        "none"
+                      ],
+                      "type": "string"
+                    },
                     "hidden": {
                       "type": "boolean"
                     },
@@ -86750,6 +86829,7 @@ export const schemas = {
                     }
                   },
                   "required": [
+                    "guide",
                     "id",
                     "sourceId",
                     "provenance",
@@ -104068,6 +104148,13 @@ export const schemas = {
                                 "group": {
                                   "type": "string"
                                 },
+                                "guide": {
+                                  "enum": [
+                                    "full",
+                                    "none"
+                                  ],
+                                  "type": "string"
+                                },
                                 "hidden": {
                                   "type": "boolean"
                                 },
@@ -104257,6 +104344,7 @@ export const schemas = {
                                 }
                               },
                               "required": [
+                                "guide",
                                 "id",
                                 "sourceId",
                                 "provenance",
@@ -110345,6 +110433,13 @@ export const schemas = {
                           "group": {
                             "type": "string"
                           },
+                          "guide": {
+                            "enum": [
+                              "full",
+                              "none"
+                            ],
+                            "type": "string"
+                          },
                           "hidden": {
                             "type": "boolean"
                           },
@@ -110534,6 +110629,7 @@ export const schemas = {
                           }
                         },
                         "required": [
+                          "guide",
                           "id",
                           "sourceId",
                           "provenance",
@@ -116664,6 +116760,13 @@ export const schemas = {
                           "group": {
                             "type": "string"
                           },
+                          "guide": {
+                            "enum": [
+                              "full",
+                              "none"
+                            ],
+                            "type": "string"
+                          },
                           "hidden": {
                             "type": "boolean"
                           },
@@ -116853,6 +116956,7 @@ export const schemas = {
                           }
                         },
                         "required": [
+                          "guide",
                           "id",
                           "sourceId",
                           "provenance",
@@ -122941,6 +123045,13 @@ export const schemas = {
                     "group": {
                       "type": "string"
                     },
+                    "guide": {
+                      "enum": [
+                        "full",
+                        "none"
+                      ],
+                      "type": "string"
+                    },
                     "hidden": {
                       "type": "boolean"
                     },
@@ -123130,6 +123241,7 @@ export const schemas = {
                     }
                   },
                   "required": [
+                    "guide",
                     "id",
                     "sourceId",
                     "provenance",
@@ -184428,6 +184540,13 @@ export const schemas = {
                                 "group": {
                                   "type": "string"
                                 },
+                                "guide": {
+                                  "enum": [
+                                    "full",
+                                    "none"
+                                  ],
+                                  "type": "string"
+                                },
                                 "hidden": {
                                   "type": "boolean"
                                 },
@@ -184617,6 +184736,7 @@ export const schemas = {
                                 }
                               },
                               "required": [
+                                "guide",
                                 "id",
                                 "sourceId",
                                 "provenance",
@@ -190705,6 +190825,13 @@ export const schemas = {
                           "group": {
                             "type": "string"
                           },
+                          "guide": {
+                            "enum": [
+                              "full",
+                              "none"
+                            ],
+                            "type": "string"
+                          },
                           "hidden": {
                             "type": "boolean"
                           },
@@ -190894,6 +191021,7 @@ export const schemas = {
                           }
                         },
                         "required": [
+                          "guide",
                           "id",
                           "sourceId",
                           "provenance",
@@ -197027,6 +197155,13 @@ export const schemas = {
                           "group": {
                             "type": "string"
                           },
+                          "guide": {
+                            "enum": [
+                              "full",
+                              "none"
+                            ],
+                            "type": "string"
+                          },
                           "hidden": {
                             "type": "boolean"
                           },
@@ -197216,6 +197351,7 @@ export const schemas = {
                           }
                         },
                         "required": [
+                          "guide",
                           "id",
                           "sourceId",
                           "provenance",
@@ -203304,6 +203440,13 @@ export const schemas = {
                     "group": {
                       "type": "string"
                     },
+                    "guide": {
+                      "enum": [
+                        "full",
+                        "none"
+                      ],
+                      "type": "string"
+                    },
                     "hidden": {
                       "type": "boolean"
                     },
@@ -203493,6 +203636,7 @@ export const schemas = {
                     }
                   },
                   "required": [
+                    "guide",
                     "id",
                     "sourceId",
                     "provenance",
@@ -261937,6 +262081,13 @@ export const schemas = {
                   "group": {
                     "type": "string"
                   },
+                  "guide": {
+                    "enum": [
+                      "full",
+                      "none"
+                    ],
+                    "type": "string"
+                  },
                   "hidden": {
                     "type": "boolean"
                   },
@@ -262126,6 +262277,7 @@ export const schemas = {
                   }
                 },
                 "required": [
+                  "guide",
                   "id",
                   "sourceId",
                   "provenance",

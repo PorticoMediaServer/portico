@@ -465,3 +465,30 @@ func TestInputFenceFollowsTheStreamNotTheGuideGeneration(t *testing.T) {
 		t.Fatalf("a changed stream address did not change exactly that channel's fence: %v then %v", before, after)
 	}
 }
+
+// LT-7: a lineup row with no listings says so, so clients can tell it from a
+// channel that is off the air for part of the window.
+func TestGuideMarksChannelsWithoutListings(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	a := testAuthority("viewer", true, true)
+	in := testInput()
+	in.Guide = `<?xml version="1.0"?><tv><channel id="one"/><programme channel="one" start="20260905120000 +0000" stop="20260905130000 +0000"><title>Afternoon programme</title></programme></tv>`
+	if _, e := s.Save(ctx, a, in); e != nil {
+		t.Fatal(e)
+	}
+	q := testQuery()
+	q.Limit = 2
+	q.Start = q.Start.Add(90 * time.Minute) // after channel one's only listing
+	guide, e := s.Guide(ctx, a, q)
+	if e != nil || len(guide.Channels) != 2 {
+		t.Fatalf("guide %#v %v", guide.Channels, e)
+	}
+	got := map[string]ChannelGuideState{}
+	for _, c := range guide.Channels {
+		got[c.Name] = c.Guide
+	}
+	if got["Channel one"] != ChannelGuideFull || got["Channel two"] != ChannelGuideNone {
+		t.Fatalf("guide states %v", got)
+	}
+}

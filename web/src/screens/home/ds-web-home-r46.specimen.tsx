@@ -117,7 +117,7 @@ const channel = (id: string, name: string, number: string, mark: string, group: 
   channel: {
     id, sourceId: 'src-synthetic', provenance: 'live-source', name, number, group, generation: '1',
     mark: {text: mark, seed: `src-synthetic:${id}`}, programmes: [programme(`${id}-now`, id, programmeTitle, startMinutes, endMinutes)],
-    tuneAvailable: true, recordAvailable: true, tuneUnavailableReason: '', recordUnavailableReason: '',
+    tuneAvailable: true, recordAvailable: true, tuneUnavailableReason: '', recordUnavailableReason: '', guide: 'full',
     favorite: false, hidden: false, preferenceRevision: 1, ...extra,
   },
 });

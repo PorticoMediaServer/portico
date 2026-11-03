@@ -695,6 +695,7 @@ func (s *Store) Guide(ctx context.Context, a Authority, q GuideQuery) (Guide, er
 			rows.Close()
 			return out, ErrUnavailable
 		}
+		c.Guide = ChannelGuide(src.AvailableStart, src.AvailableEnd)
 		if !allowed(c.SourceID, c.ID) {
 			continue
 		}

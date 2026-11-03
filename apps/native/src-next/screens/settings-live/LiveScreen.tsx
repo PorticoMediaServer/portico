@@ -9,7 +9,7 @@ import Svg, {Defs, LinearGradient, Pattern, Rect, Stop} from 'react-native-svg';
 import {defaultRecordingOptions} from '../../../../../packages/client-core/src/dvr';
 import {dayPrimeTime, stripDays} from '../../../../../packages/client-core/src/channel-guide';
 import {episodeLabel, programmeFactParts, programmeTimeRange} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {guideRowChannel, legacyChannel, legacyProgramme, legacyProgram, layoutRow, nowNext, pxPerMsFor, rulerTicks, floorTo, localDayStart, SLOT_MS, type GuideChannelRow, type GuideProgram, type GuideCell} from '../../../../../packages/client-core/src/guide';
+import {legacyChannel, legacyProgramme, legacyProgram, layoutRow, nowNext, pxPerMsFor, rulerTicks, floorTo, localDayStart, SLOT_MS, type GuideChannelRow, type GuideProgram, type GuideCell} from '../../../../../packages/client-core/src/guide';
 import {GuideFeatureClient, type GuideAiring, type GuideReminder} from '../../../../../packages/client-core/src/guide/directory';
 import type {RecordingDraft} from '../../../../../packages/client-core/src/dvr';
 import {Button, Chip, Focusable, Segmented, Select} from '../../kit/controls';
@@ -528,8 +528,7 @@ function LiveRow({selected, onChannelMenu, tvRange, onTVFocus, panPosition, panA
   const theme = useTheme(), t = runtime.text.t, guide = controller.guide;
   useSyncExternalStore(listener => guide.subscribePage(guide.pageOf(index), listener), () => guide.getSnapshot().version);
   const overscan = theme.isTV ? tvRange ? SLOT_MS : 0 : panActive ? (end - start) / 2 : 0;
-  const row = guide.channelAt(index), programs = row?.guide === 'none' ? {programs: [], complete: true, failed: false} : guide.programsFor(index, start - overscan, end + overscan);
-  const channel = row && guideRowChannel(row, programs);
+  const channel = guide.channelAt(index), programs = channel?.guide === 'none' ? {programs: [], complete: true, failed: false} : guide.programsFor(index, start - overscan, end + overscan);
   const shift = useAnimatedStyle(() => ({transform: [{translateX: panActive ? start * px - panPosition.value : 0}]}), [panActive, start, px]);
   const first = programs.programs.find(value => value.start <= now && value.end > now) ?? programs.programs[0];
   const compactChannel = !theme.isTV && channelWidth <= 80, landscapePhone = !theme.isTV && channelWidth === 180;

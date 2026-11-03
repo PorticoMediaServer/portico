@@ -108,7 +108,7 @@ func (s *Store) Guide(ctx context.Context, a Authority, q livechannels.GuideQuer
 			if (len(selected) > 0 && !selected[c.Config.ID]) || (q.Group != "" && q.Group != "Library Channels") || !scope.permits(c.Config) || (q.SourceID != "" && q.SourceID != librarySummarySourceID && q.SourceID != c.Config.ID) || (q.Search != "" && !strings.Contains(strings.ToLower(c.Config.Name), strings.ToLower(q.Search))) {
 				continue
 			}
-			ch := livechannels.Channel{ID: c.Config.ID, SourceID: c.Config.ID, Provenance: livechannels.LibraryChannel, TuneUnavailableReason: "delivery-unavailable", RecordUnavailableReason: "not-recordable", Name: c.Config.Name, Number: fmt.Sprint(c.Config.Position + 1), Group: "Library Channels", Generation: c.Generation, Programmes: []livechannels.Programme{}}
+			ch := livechannels.Channel{ID: c.Config.ID, SourceID: c.Config.ID, Provenance: livechannels.LibraryChannel, TuneUnavailableReason: "delivery-unavailable", RecordUnavailableReason: "not-recordable", Name: c.Config.Name, Number: fmt.Sprint(c.Config.Position + 1), Group: "Library Channels", Generation: c.Generation, Guide: livechannels.ChannelGuideFull, Programmes: []livechannels.Programme{}}
 			if c.Config.LogoItemID != "" {
 				var logoLibrary string
 				if tx.QueryRowContext(ctx, `SELECT cl.library_id FROM catalog_entities e JOIN catalog_libraries cl ON cl.id=e.library_id WHERE e.public_id=pid_blob(?) AND e.retired=0 AND cl.retired=0`, c.Config.LogoItemID).Scan(&logoLibrary) == nil && scope.AllowsLibrary(logoLibrary) && contentaccess.VisibleItemTx(ctx, tx, scope.Principal, c.Config.LogoItemID) == nil {

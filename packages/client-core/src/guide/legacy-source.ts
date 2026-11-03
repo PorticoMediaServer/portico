@@ -82,7 +82,7 @@ export function legacyChannelRow(c: GuideChannel): GuideChannelRow {
     number: c.number, name: c.name, group: c.group, ...(c.logoPath ? {logoUrl: c.logoPath} : {}), favorite: c.favorite,
     ...(c.mark ? {mark: c.mark} : {}),
     tuneAvailable: c.tuneAvailable, ...(c.tuneUnavailableReason ? {tuneUnavailableReason: c.tuneUnavailableReason} : {}),
-    recordAvailable: c.recordAvailable, guide: 'full', native: c,
+    recordAvailable: c.recordAvailable, guide: c.guide, native: c,
   };
 }
 
