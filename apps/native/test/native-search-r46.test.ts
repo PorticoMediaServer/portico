@@ -55,7 +55,7 @@ async function mount(snapshot: any, landing: any, text = defaultI18n) {
     '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
     '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType}, '../../kit/theme': {useTheme: () => theme},
-    '../home/model': {homeCardText}, './model': {NativeSearchDestination: class {}, nativeSearchEntryKey}, './genre-tiles': {nativeSearchGenreTiles},
+    '../home/model': {homeCardText, nativeSearchCardText: (entry: any, env: any) => homeCardText(entry.kind === 'show' ? {...entry, seasonCount: undefined} : entry, false, env)}, './model': {NativeSearchDestination: class {}, nativeSearchEntryKey}, './genre-tiles': {nativeSearchGenreTiles},
     './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'},
     '../../../../../packages/client-core/src/presentation/kit-model': {channelTint},
   });

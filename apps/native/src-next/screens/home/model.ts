@@ -9,6 +9,9 @@ import type {ShellAuthority} from '../../shell/model';
 export const homeSubject: (entry: ContentEntry) => CardSubject = contentEntrySubject;
 
 export const homeCardText = (entry: ContentEntry, continuation: boolean, env: TextEnvironment) => cardText(homeSubject(entry), continuation ? 'continuation' : 'ordinary', env);
+/** A native search card: TV Search (tv.html f5) draws a show's year, with the season count as a
+ *  tag on the top result only, so the row's own season count is not its caption here (W2-A4). */
+export const nativeSearchCardText = (entry: ContentEntry, env: TextEnvironment) => homeCardText(entry.kind === 'show' ? {...entry, seasonCount: undefined} : entry, false, env);
 export function authorizedHome(document: HomeDocument | undefined, authority: ShellAuthority): HomeDocument | undefined {
   return document?.serverId === authority.serverId && document.viewerFence === authority.viewerFence ? document : undefined;
 }

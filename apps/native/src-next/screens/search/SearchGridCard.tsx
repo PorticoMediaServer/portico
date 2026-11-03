@@ -13,7 +13,7 @@ import {Icon} from '../../kit/Icon';
 import {browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
 import {cardText} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {homeCardText} from '../home/model';
+import {nativeSearchCardText} from '../home/model';
 import {nativeSearchEntryKey} from './model';
 import type {NativeSearchActions} from './types';
 const media = (entry: SearchEntry): entry is ContentEntry => entry.kind !== 'person' && entry.kind !== 'channel';
@@ -22,7 +22,7 @@ export function SearchGridCard({entry, group, runtime, actions, selection, width
   const waiting = useFocusWaiting(), theme = useTheme();
   const menuAnchorRef = useRef<View>(null), content = entry && media(entry) ? entry : undefined;
   if (!entry && !waiting) throw new Error('A search card requires a served entry or an owned waiting slot.');
-  const text = content ? theme.isTV && group === 'songs' ? cardText({id: content.id, kind: 'song', title: content.displayTitle ?? content.title, artist: content.artist?.name, album: content.album?.name, durationSeconds: content.duration}, 'song-row', runtime.text) : homeCardText(content, false, runtime.text) : undefined;
+  const text = content ? theme.isTV && group === 'songs' ? cardText({id: content.id, kind: 'song', title: content.displayTitle ?? content.title, artist: content.artist?.name, album: content.album?.name, durationSeconds: content.duration}, 'song-row', runtime.text) : nativeSearchCardText(content, runtime.text) : undefined;
   const props = {...(theme.isTV ? {titleLines: 2 as const, titleTextStyle: browseType(theme, 20, 600, 0, 26), captionTextStyle: browseType(theme, 18, 400)} : {}), testID: testID ?? (entry ? `search-result-${nativeSearchEntryKey(group, entry)}` : undefined), focusId: focusId ?? (entry ? nativeSearchEntryKey(group, entry) : undefined), disabled, onFocus, onBlur, density: 'grid' as const, primaryAction: 'navigate' as const, title: content?.displayTitle || entry?.title || '', width, caption: text?.caption,
     onNavigate: () => {if (entry) actions.open(entry, group);}, onMore: !entry || actions.canMenu?.(entry, group) === false ? undefined : () => actions.menu(entry, group, menuAnchorRef), selection, menuAnchorRef, moreExpanded: entry ? actions.isMenuOpen?.(entry, group) : undefined};
   if (theme.isTV && group === 'songs' && entry && text) return <View style={{width}}><SongRow row={{id: entry.id, text,

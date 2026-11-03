@@ -90,7 +90,7 @@ test('the actual card accepts absent data only under its owned loading slot and 
     '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({caption: [], detail: []})},
     react: host.react, 'react-native': {View: 'View'}, '../../kit/focus': {useFocusWaiting: () => waiting},
     '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile'},
-    '../home/model': {homeCardText: () => ({})}, './model': {nativeSearchEntryKey},
+    '../home/model': {homeCardText: () => ({}), nativeSearchCardText: () => ({})}, './model': {nativeSearchEntryKey},
   });
   const props: any = {group: 'movies', width: 196, focusId: 'original-waiting-host', testID: 'retained-native-id',
     runtime: {text: {}, artwork: () => undefined}, actions: {open: (...args: unknown[]) => calls.push(args), menu() {throw new Error('unexpected menu');}}};
