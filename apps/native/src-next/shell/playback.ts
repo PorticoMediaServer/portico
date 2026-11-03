@@ -117,8 +117,10 @@ export interface NativeShellPlaybackAdapter {
   listeningRead?: NativePlaybackAdapter['listeningRead'];
   /** Session-scoped rate choice, fenced by the platform runtime. */
   setRate: NativePlaybackAdapter['setRate'];
-  /** Sleep timer for this playback: minutes, or null to clear. */
-  setSleepTimer?: (fence: PlaybackFence, minutes: number | null) => Promise<void>;
+  /** Sleep timer for this playback: minutes, an end of title/chapter/book, or null to clear. */
+  setSleepTimer?: (fence: PlaybackFence, choice: import('../platform/playback/types').NativeSleepChoice) => Promise<void>;
+  /** The armed end-of timer for this playback, when that is the timer set (MU-6). */
+  sleepEnd?: (fence: PlaybackFence) => import('../platform/playback/types').NativeSleepEnd | undefined;
   /** The remote dock (Portico play-on handoff or a cast session). */
   beginRemote?: (value: RemoteDock) => Promise<void>;
   updateRemote?: (value: RemoteDock) => Promise<void>;

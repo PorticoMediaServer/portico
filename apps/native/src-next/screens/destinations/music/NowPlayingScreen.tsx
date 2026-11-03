@@ -27,7 +27,7 @@ import {ListeningSongActions, ListeningFavoritePaint, listeningSongFavorite} fro
 import {MusicFocusRegion, TVMusicFocus} from './TVMusicFocus';
 import {TVNowPlayingScreen} from './TVNowPlayingScreen';
 import type {NativeListeningQueuePolicy} from '../../../shell/listening-queue-policy';
-import type {NativePlaybackReadLifetime} from '../../../platform/playback/types';
+import type {NativePlaybackReadLifetime, NativeSleepChoice, NativeSleepEnd} from '../../../platform/playback/types';
 import {BlurView, glassRecipe} from '../../../platform/native-blur';
 import {BottomSheet, Menu} from '../../../kit/overlays';
 import {useAudiobookRead, type AudiobookRead} from './use-audiobook-read';
@@ -86,8 +86,10 @@ export type NowPlayingScreenProps = Readonly<{
   /** The current song's issued Detail token and its one favorite ticket; touch only. */
   song?: Readonly<{token?: NativeListeningSong; pending: boolean; favorite: (token: NativeListeningSong, value: boolean) => void}>;
   /** Source-pinned facts and session-only choices; never stored per title. */
-  audiobook?: Readonly<{read: AudiobookRead; setRate: (fence: PlaybackFence, rate: number) => void; setSleepTimer?: (fence: PlaybackFence, minutes: number | null) => Promise<void>}>;
+  audiobook?: Readonly<{read: AudiobookRead; setRate: (fence: PlaybackFence, rate: number) => void; setSleepTimer?: (fence: PlaybackFence, choice: NativeSleepChoice) => Promise<void>}>;
   sleepAtMs?: number | null;
+  /** The armed end-of timer (MU-6), when that is the timer set instead of minutes. */
+  sleepEnd?: NativeSleepEnd;
   onClose: () => void;
   /** music-plus (MC-8): the committed plan plus the engine's own current-song facts. */
   signal?: MusicSignalView;
@@ -118,7 +120,12 @@ export function TVListeningRoute({value, scope, onPresenceChange}: {value?: NowP
   return presence.value ? <NowPlayingScreen {...presence.value} tvOpen={presence.open} onTVExited={presence.exited}/> : null;
 }
 
-function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInset = 0, bottomInset = 0, backgroundHosted = false, onAction, onQueuePlay, queuePolicy, policyLifetime, retry, playOn, queueEdit, song, onClose, signal, notice, reportError = () => {}, testID = 'now-playing', lyrics, audiobook, sleepAtMs = null}: NowPlayingScreenProps) {
+const bookSleepChoices: readonly NativeSleepChoice[] = Object.freeze([null, 15, 30, 45, 60, 90, 'chapter', 'book']);
+function sleepLabel(choice: NativeSleepChoice): string {
+  return choice === 'item' ? t('player.opt.sleepEndOfTitle') : choice === 'chapter' ? t('player.opt.sleepEndOfChapter') : choice === 'book' ? t('player.opt.sleepEndOfBook')
+    : choice === null ? t('player.opt.off') : t('player.opt.minutes', {count: choice});
+}
+function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInset = 0, bottomInset = 0, backgroundHosted = false, onAction, onQueuePlay, queuePolicy, policyLifetime, retry, playOn, queueEdit, song, onClose, signal, notice, reportError = () => {}, testID = 'now-playing', lyrics, audiobook, sleepAtMs = null, sleepEnd}: NowPlayingScreenProps) {
   const theme = useTheme(), {presentation: p, playback} = occupant, book = occupant.mode === 'audiobook';
   const playOnButton = useRef<View>(null);
   const paintPermit = useListeningPaintPermit(playback.fence), paintActive = useListeningPageActive(playback.fence);
@@ -204,6 +211,8 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     });
   };
   const sleepMinutes = sleepAtMs === null ? null : Math.max(0, Math.ceil((sleepAtMs - Date.now()) / 60_000));
+  // A book's timer: off, minutes, or the end of this chapter or the book (MU-6, FACTS §5).
+  const sleepSelected = (choice: NativeSleepChoice) => typeof choice === 'string' ? sleepEnd === choice : !sleepEnd && sleepMinutes === choice;
   const skipBack = (bookFacts?.preferences.audiobook?.skipBackMs ?? p.skipBackSeconds * 1000) / 1000;
   const skipForward = (bookFacts?.preferences.audiobook?.skipForwardMs ?? (p.skipForwardSeconds ?? p.skipBackSeconds) * 1000) / 1000;
   const fraction = bounds && span > 0 ? Math.min(1, Math.max(0, (position - bounds.start) / span)) : 0;
@@ -418,15 +427,15 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
       </View>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
         <View style={{width: 124}}><Text style={[browseType(theme, 14, 700), {color: theme.colors.text}]}>{t('player.opt.sleepTimer')}</Text>
-          {sleepMinutes === null ? null : <Text style={[browseType(theme, 12, 600), {color: theme.colors.textTertiary, marginTop: 2}]}>{t('player.opt.minutes', {count: sleepMinutes})}</Text>}
+          {sleepEnd || sleepMinutes !== null ? <Text style={[browseType(theme, 12, 600), {color: theme.colors.textTertiary, marginTop: 2}]}>{sleepLabel(sleepEnd ?? sleepMinutes)}</Text> : null}
         </View>
         <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flex: 1, minWidth: 0, borderRadius: 12, backgroundColor: 'rgba(237,245,250,.08)'}} contentContainerStyle={{padding: 3, gap: 2}}>
-          {[null, 15, 30, 45, 60, 90].map(minutes => <Focusable key={minutes ?? 'off'} disabled={!bookReader || !audiobook?.setSleepTimer}
-            accessibilityRole="radio" accessibilityState={{checked: sleepMinutes === minutes}}
-            onPress={() => {if (bookReader?.current() && (!paintPermit || paintPermit.current())) void audiobook?.setSleepTimer?.(playback.fence, minutes).catch(reportBookError);}}
+          {bookSleepChoices.map(choice => <Focusable key={choice ?? 'off'} disabled={!bookReader || !audiobook?.setSleepTimer}
+            accessibilityRole="radio" accessibilityState={{checked: sleepSelected(choice)}}
+            onPress={() => {if (bookReader?.current() && (!paintPermit || paintPermit.current())) void audiobook?.setSleepTimer?.(playback.fence, choice).catch(reportBookError);}}
             style={{minWidth: 44, height: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 9,
-              backgroundColor: sleepMinutes === minutes ? 'rgba(64,159,212,.24)' : 'transparent'}}>
-            <Text style={[browseType(theme, 13.5, 700), {color: theme.colors.text}]}>{minutes === null ? t('player.opt.off') : t('player.opt.minutes', {count: minutes})}</Text>
+              backgroundColor: sleepSelected(choice) ? 'rgba(64,159,212,.24)' : 'transparent'}}>
+            <Text style={[browseType(theme, 13.5, 700), {color: theme.colors.text}]}>{sleepLabel(choice)}</Text>
           </Focusable>)}
         </ScrollView></TVRow>
       </View>
@@ -505,8 +514,8 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
       items={(bookFacts?.rate.supported ?? []).map(rate => ({id: String(rate), label: rate === 1 ? t('player.opt.normalSpeed') : `${rate}×`, selected: (bookFacts?.rate.effective ?? bookFacts?.rate.selected) === rate,
         onSelect: () => {if (bookReader?.current() && (!paintPermit || paintPermit.current())) audiobook?.setRate(playback.fence, rate);}}))}/>
     <Menu open={paintActive && panel === 'sleep'} onOpenChange={open => {if (!open) setPanel(null);}} title={t('player.opt.sleepTimer')} testID={`${testID}-sleep-menu`}
-      items={[null, 15, 30, 45, 60, 90].map(minutes => ({id: minutes === null ? 'off' : String(minutes), label: minutes === null ? t('player.opt.off') : t('player.opt.minutes', {count: minutes}), selected: sleepMinutes === minutes,
-        onSelect: () => {if (bookReader?.current() && (!paintPermit || paintPermit.current())) void audiobook?.setSleepTimer?.(playback.fence, minutes).catch(reportBookError);}}))}/>
+      items={bookSleepChoices.map(choice => ({id: choice === null ? 'off' : String(choice), label: sleepLabel(choice), selected: sleepSelected(choice),
+        onSelect: () => {if (bookReader?.current() && (!paintPermit || paintPermit.current())) void audiobook?.setSleepTimer?.(playback.fence, choice).catch(reportBookError);}}))}/>
     <Menu open={paintActive && panel === 'more'} onOpenChange={open => {if (!open) setPanel(null);}} title={p.identity.title} anchorRef={moreRef} touchContext
       items={[
         ...(book && queue ? [{id: 'queue', label: t('player.queue'), icon: 'i-queue' as const, onSelect: () => setSheet('queue')}] : []),

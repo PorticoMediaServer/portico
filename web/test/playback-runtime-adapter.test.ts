@@ -3835,3 +3835,17 @@ test('MU-5: the server offering queue transitions turns on gapless and crossfade
   assert.equal((f.runtime as any).stack.queue.transitions,on,JSON.stringify(features));
  }
 });
+
+test('MU-6: the end of a title, chapter or book is the listening service timer; minutes replace it',async t=>{
+ const f=setup(t);await f.runtime.play('song-one',0);await f.arrive();
+ const fence=f.runtime.getSnapshot().fence!;if(fence.kind!=='queue')throw Error('missing queue fence');
+ const listening=(f.runtime as any).stack.queue.listening;const asked:unknown[]=[];let cleared=0;let armed:string|undefined;
+ listening.setTimer=async(choice:string)=>{asked.push(choice);armed=choice;};
+ listening.getSnapshot=()=>({timer:armed?{choice:armed}:null});
+ listening.clearTimer=()=>{cleared++;armed=undefined;};
+ await f.runtime.setSleepTimer(fence,'item');
+ assert.deepEqual(asked,['item']);assert.deepEqual(f.runtime.sleepTimer(fence),{end:'item'});
+ await f.runtime.setSleepTimer(fence,15);
+ assert.equal(cleared,1,'a minutes timer replaces the end timer');assert.equal((f.runtime.sleepTimer(fence) as any).minutes,15);
+ await assert.rejects(async()=>f.runtime.setSleepTimer(fence,'forever' as never),/playback_sleep_unavailable/);
+});

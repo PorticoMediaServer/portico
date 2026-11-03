@@ -32,6 +32,7 @@ import {useListeningSong} from './use-listening-song';
 import {nativeMusicSignal} from '../screens/destinations/music/signal-facts';
 import {captureListeningOpening, expandedListeningOccupant, localListeningOccupant, type ListeningPaintOpening} from './listening-presentation';
 import {nativeEqualizer} from '../platform/playback/equalizer';
+import type {NativeSleepChoice} from '../platform/playback/types';
 import {listeningNoticeKey} from '../../../../packages/client-core/src/audio-effects';
 import {playbackIdentity} from '../../../../packages/client-core/src/presentation/kit-model';
 import type {NativeShellRuntime} from './runtime';
@@ -169,10 +170,10 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
           if (lifetime.signal.aborted || !lifetime.isCurrent() || !current.fence || !sameFence(current.fence, fence)) return;
           adapter.setRate(fence, rate);
         },
-        ...(adapter.setSleepTimer ? {setSleepTimer: async (fence: PlaybackFence, minutes: number | null) => {
+        ...(adapter.setSleepTimer ? {setSleepTimer: async (fence: PlaybackFence, choice: NativeSleepChoice) => {
           const current = adapter.getSnapshot();
           if (lifetime.signal.aborted || !lifetime.isCurrent() || !current.fence || !sameFence(current.fence, fence)) return;
-          await adapter.setSleepTimer!(fence, minutes);
+          await adapter.setSleepTimer!(fence, choice);
         }} : {}),
       }} : {}),
       ...(adapter.retry ? {retry: {enabled: snapshot.capabilities.retry === true,
@@ -473,6 +474,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
     onAddToPlaylist: theme.isTV && runtime.listeningPlaylist?.canOpen(nowPlaying.playback.fence) ? () => runtime.listeningPlaylist?.open(nowPlaying.playback.fence) : undefined,
     queuePolicy: runtime.listeningQueuePolicy, signal,
     sleepAtMs: snapshot.playback.listeningDeadlines?.sleepAtMs ?? null,
+    sleepEnd: adapter.sleepEnd?.(nowPlaying.playback.fence),
     notice: snapshot.playback.listeningNotice ? listeningNoticeKey(snapshot.playback.listeningNotice) : undefined, reportError: runtime.reportError,
     lyrics: lyricsOffered && lyricsTarget && runtime.lyrics ? <NowPlayingLyrics read={runtime.lyrics} target={lyricsTarget}
       positionSeconds={playbackPosition(nowPlaying)} playing={nowPlaying.playback.playing}
