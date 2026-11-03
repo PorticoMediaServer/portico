@@ -1,9 +1,14 @@
 package identity
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"slices"
+
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 )
 
 // PolicyReader permits checks in an existing transaction: no nested connection.
@@ -65,11 +70,46 @@ func DirectAccess(q PolicyReader, p Principal) (all bool, libraries []string, re
 	}
 	return
 }
+
+// DirectAccessTx is DirectAccess in tx. A request asks it once per library it
+// filters, so inside a request's read snapshot the answer is proved once and
+// reused (dbwork.RememberForRequest); anywhere else it is proved each time.
+func DirectAccessTx(ctx context.Context, tx *sql.Tx, p Principal) (all bool, libraries []string, err error) {
+	type grant struct {
+		all       bool
+		libraries []string
+	}
+	key := fmt.Sprintf("identity.direct-access\x00%+v\x00%d", p.Viewer, p.Epoch)
+	g, err := dbwork.RememberForRequest(ctx, tx, key, func(g grant) grant {
+		g.libraries = slices.Clone(g.libraries)
+		return g
+	}, func() (grant, error) {
+		all, libraries, _, _, err := DirectAccess(txPolicyReader{ctx, tx}, p)
+		return grant{all, libraries}, err
+	})
+	return g.all, g.libraries, err
+}
+
+type txPolicyReader struct {
+	ctx context.Context
+	tx  *sql.Tx
+}
+
+func (r txPolicyReader) QueryRow(query string, args ...any) *sql.Row {
+	return r.tx.QueryRowContext(r.ctx, query, args...)
+}
+
 func DirectAllowed(q PolicyReader, p Principal, library string) error {
 	all, ids, _, _, e := DirectAccess(q, p)
 	if e != nil {
 		return e
 	}
+	return DirectLibraryAllowed(all, ids, library)
+}
+
+// DirectLibraryAllowed is DirectAllowed's decision for one library, given what
+// DirectAccess answered for the principal.
+func DirectLibraryAllowed(all bool, ids []string, library string) error {
 	if library == "" || all {
 		return nil
 	}

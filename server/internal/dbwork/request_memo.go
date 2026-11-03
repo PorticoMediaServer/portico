@@ -66,6 +66,13 @@ func forgetRequestMemo(ctx context.Context) {
 	}
 }
 
+// RequestMemoApplies reports whether RememberForRequest would keep an answer
+// for tx: inside a request, in a read-only snapshot dbwork opened. A caller
+// with a cheaper single-row query for one-off use can choose it otherwise.
+func RequestMemoApplies(ctx context.Context, tx *sql.Tx) bool {
+	return requestMemoFrom(ctx) != nil && readSnapshotTx(tx)
+}
+
 // RememberForRequest returns the answer this request already proved for key, or
 // proves it with fn and keeps a successful answer. It proves afresh outside a
 // request, outside a read-only snapshot dbwork opened, and inside any write. clone copies a

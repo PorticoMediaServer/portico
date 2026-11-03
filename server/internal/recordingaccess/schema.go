@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"sync/atomic"
+
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 )
 
 // The P10 schema probe asks `sqlite_master` whether the direct identity tables
@@ -32,8 +34,13 @@ func (s *Schema) directTables(ctx context.Context, tx *sql.Tx) (int, error) {
 			return int(cached - 1), nil
 		}
 	}
-	var tables int
-	if err := tx.QueryRowContext(ctx, directSchemaQuery).Scan(&tables); err != nil {
+	// Without a handle's cache, a request still asks once (dbwork.RememberForRequest).
+	tables, err := dbwork.RememberForRequest(ctx, tx, "recordingaccess.direct-tables", nil, func() (int, error) {
+		var tables int
+		err := tx.QueryRowContext(ctx, directSchemaQuery).Scan(&tables)
+		return tables, err
+	})
+	if err != nil {
 		return 0, err
 	}
 	if s != nil {
