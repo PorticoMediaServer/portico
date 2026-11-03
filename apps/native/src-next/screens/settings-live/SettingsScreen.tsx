@@ -109,7 +109,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const structure = settingsStructure(ports.settingsContext());
   const accountPages = useMemo(() => structure.headings.find(heading => heading.id === 'account')?.pages ?? [], [structure]);
   const managesServer = ports.context.account.account.role === 'owner';
-  const compact = !theme.isTV && theme.width < 600;
+  const compact = theme.platform === 'phone';
   // quality.awayLimit is the owner's own server limit, read from the same
   // settings-configuration document the Streaming page reads. The route decides
   // who may see it; a refusal or an unreadable answer leaves the rows out.
@@ -246,7 +246,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
     if (remoteSourcesPage) {
       if (remoteBack.current?.()) return true;
       pageState.current = {...pageState.current, pushed: false}; setPushed(false);
-      if (theme.width >= 600 && accountPages[0]) {pageState.current = {...pageState.current, selected: accountPages[0].id}; setSelected(accountPages[0].id);}
+      if (theme.platform !== 'phone' && accountPages[0]) {pageState.current = {...pageState.current, selected: accountPages[0].id}; setSelected(accountPages[0].id);}
       return true;
     }
     if (searching) {setSearching(false); setQuery(''); setRestoreRevision(value => value + 1); return true;}
@@ -257,7 +257,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
     if (registry.capture()?.regionId === rows && page) return registry.focus({regionId: column, childId: page.id});
     if (page && page.id !== accountPages[0]?.id) {pageState.current = {...pageState.current, selected: accountPages[0].id}; setSelected(accountPages[0].id); registry.focus({regionId: column, childId: accountPages[0].id}); return true;}
     return false;
-  }, [registry, column, rows, page, accountPages, searching, remoteSourcesPage, theme.width, theme.isTV, viewCurrent, searchField, keyboard, ids]);
+  }, [registry, column, rows, page, accountPages, searching, remoteSourcesPage, theme.platform, theme.isTV, viewCurrent, searchField, keyboard, ids]);
   const account = ports.context.account.account;
   const signedIn = account.hostedAccountId
     ? t('settings.signedInWithAccount', {server: ports.serverName()})

@@ -24,7 +24,8 @@ function pageInsetLeaf(react, native) {
   // The fake `hooks()` React has no context: its provider is a named element and the inset reads zero.
   let context = pageInsets.get(react);
   if (!context) {context = react.createContext ? react.createContext(0) : {Provider: 'NativePageInsetProvider'}; pageInsets.set(react, context);}
-  const usePageInset = () => react.useContext ? react.useContext(context) : 0;
+  // A fake React's useContext can't read a stand-in context: anything but a number is no inset.
+  const usePageInset = () => {const value = react.createContext && react.useContext ? react.useContext(context) : 0; return typeof value === 'number' ? value : 0;};
   return {NativePageInsetProvider: context.Provider, usePageInset,
     usePageWidth: () => Math.max(0, (native?.useWindowDimensions?.().width ?? 0) - usePageInset()),
     pageInsetElement: (inset, children) => react.createElement(context.Provider, {value: inset}, children)};
