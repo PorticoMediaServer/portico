@@ -123,6 +123,13 @@ export function parseTrickplay(raw: unknown, serverId: string, target: Trickplay
   });
 }
 
+/** An item's preview sets (`GET /v1/items/{id}/trickplay`): one named read. The server decides
+ * which sets are stale; callers choose with `preferredTrickplaySet`. */
+export async function readItemTrickplay(request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<T>,
+  serverId: string, target: TrickplayTarget, signal?: AbortSignal): Promise<TrickplayView> {
+  return parseTrickplay(await request<unknown>(encodedRoutePath('get_items_id_trickplay', {id: target.itemId}), 'GET', undefined, signal), serverId, target);
+}
+
 /** The sprite sheet holding a tile index. */
 export function trickplayTileUrl(set: TrickplaySet, tileIndex: number): string {
   if (!Number.isSafeInteger(tileIndex) || tileIndex < 0 || tileIndex >= set.tileCount) {
