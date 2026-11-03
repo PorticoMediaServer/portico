@@ -218,7 +218,7 @@ class PorticoSystemMedia(context: ReactApplicationContext) : PorticoEventModule(
       val builder = MediaMetadata.Builder()
           .setTitle(video["title"] as? String)
           .setSubtitle(video["subtitle"] as? String)
-          .setArtist((video["seriesTitle"] as? String) ?: (video["subtitle"] as? String))
+          .setArtist(video["subtitle"] as? String)
           .setMediaType(MediaMetadata.MEDIA_TYPE_VIDEO)
       artwork?.let { builder.setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) }
       described = builder.build()

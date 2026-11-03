@@ -8,7 +8,9 @@ const fence = playbackFence({kind: 'queue', playback: {scope: {serverId: 'server
 
 function fixture() {
   let live = true, state: any = {authority, fence, lease: 'lease', retired: false, dock: {local: {kind: 'video', fence, expanded: true}},
-    entry: {id: 'item', title: 'Episode', kind: 'episode', show: {id: 'show', name: 'Show'}}, effectiveRate: 1,
+    entry: {id: 'item', title: 'Episode', kind: 'episode', show: {id: 'show', name: 'Show'}, posterUrl: '/v1/items/item/art/poster?v=3'}, effectiveRate: 1,
+    subject: {kind: 'video', item: {id: 'item', kind: 'episode', title: 'Episode', show: {title: 'Show'}, episode: {mode: 'seasonal', season: 1, episode: 1}}},
+    options: {itemId: 'item', chapters: [{startMs: 0, title: 'Opening'}, {startMs: 600000, title: 'Act two'}], markers: [{id: 'm', type: 'intro', startMs: 10000, endMs: 70000}, {id: 'bad', type: 'credits', startMs: 9000, endMs: 9000}]},
     playback: {phase: 'ready', intent: 'paused', positionSeconds: 15, duration: 300}, capabilities: {play: true, pause: true, seek: true, next: true, previous: true}};
   const updates = new Set<() => void>(), handlers = new Set<(event: unknown) => void>(), captured: ((event: unknown) => void)[] = [];
   const metadata: any[] = [], commands: any[] = [], errors: unknown[] = []; let clears = 0;
@@ -16,7 +18,8 @@ function fixture() {
   const subscribe = (f: () => void) => {updates.add(f); return () => {updates.delete(f);};};
   const action = (name: string) => async (...args: unknown[]) => {commands.push([name, ...args]);};
   const playback: any = {getSnapshot: () => state, subscribe, toggle: action('toggle'), seek: action('seek'), skip: action('skip'), next: action('next'), previous: action('previous')};
-  const context: any = {playback, current: () => live, authority: () => authority, subscribeAuthority: subscribe, preferences: () => preferences, subscribePreferences: subscribe};
+  const context: any = {playback, current: () => live, authority: () => authority, subscribeAuthority: subscribe, preferences: () => preferences, subscribePreferences: subscribe,
+    session: () => ({accessToken: 'bearer-token'}), api: {baseUrl: 'https://media.example:32400'}};
   const port: NativeVideoSystemMediaPort = {setVideo: value => {metadata.push(value);}, clear: () => {clears++;}, subscribe: handler => {
     handlers.add(handler); captured.push(handler); return () => {handlers.delete(handler);};
   }};
@@ -33,8 +36,11 @@ test('video metadata and dedicated keys use the single existing playback adapter
     assert.equal(f.handlers.size, 1);
     const {sourceToken, ...published} = f.metadata[0];
     assert.match(sourceToken, /^video-\d+$/, 'the token is opaque and carries no identity');
-    assert.deepEqual(published, {itemId: 'item', title: 'Episode', subtitle: 'Show', seriesTitle: 'Show',
-      durationSeconds: 300, live: false, canNext: true, canPrevious: true, skipBackSeconds: 10, skipForwardSeconds: 30});
+    // N1-1 and notes/system-copy.md §4: the show over "S1 E1, <episode>"; the poster, chapters and markers the natives read.
+    assert.deepEqual(published, {itemId: 'item', title: 'Show', subtitle: 'S1 E1, Episode',
+      durationSeconds: 300, live: false, canNext: true, canPrevious: true, skipBackSeconds: 10, skipForwardSeconds: 30,
+      origin: 'https://media.example:32400', bearer: 'bearer-token', posterPath: '/v1/items/item/art/poster',
+      chapters: [{startSeconds: 0, title: 'Opening'}, {startSeconds: 600, title: 'Act two'}], markers: [{kind: 'intro', startSeconds: 10, endSeconds: 70}]});
     f.update(); assert.equal(f.metadata.length, 1, 'unchanged metadata is not republished');
     const resting = f.state();
     f.replace({...resting, effectiveRate: 1.5, playback: {...resting.playback, positionSeconds: 16}});
@@ -95,4 +101,13 @@ test('current adapter command errors are reported and late retired errors are ig
     f.emit({itemId: 'item', command: 'play'}); f.retire(); await Promise.resolve();
     assert.deepEqual(f.errors, [error]);
   } finally {f.stop();}
+});
+
+test('N1-1: a film shows its year, Live TV its programme over the channel, and nothing is ever said twice', async () => {
+  const {nowPlayingLines, artworkPath} = await import('../src-next/screens/watch/system-media.ts');
+  assert.deepEqual(nowPlayingLines({kind: 'video', item: {id: 'm', kind: 'movie', title: 'Heat', year: 1995}} as any, undefined), {title: 'Heat', subtitle: '1995'});
+  assert.deepEqual(nowPlayingLines({kind: 'video', item: {id: 'm', kind: 'movie', title: 'Heat'}} as any, undefined), {title: 'Heat'});
+  assert.deepEqual(nowPlayingLines({kind: 'channel', id: 'c', sourceId: 's', channelName: 'Northwind News', programmeTitle: 'World Tonight'} as any, undefined), {title: 'World Tonight', subtitle: 'Northwind News'});
+  assert.deepEqual(nowPlayingLines({kind: 'channel', id: 'c', sourceId: 's', channelName: 'Northwind News'} as any, undefined), {title: 'Northwind News'});
+  assert.equal(artworkPath({posterUrl: 'https://elsewhere/x.jpg'} as any), undefined, 'only the protected path the natives accept');
 });
