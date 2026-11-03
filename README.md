@@ -8,7 +8,7 @@
 
   <h1>Portico Media Server</h1>
 
-  <p><strong>Portico is a free personal media server that turns your media collection into a refined streaming experience across all of your devices.</strong></p>
+  <p><strong>Portico is a free media server that brings your movies, shows, music and more to every screen.</strong></p>
 
   <p>
     <a href="https://getportico.tv">Website</a> ·
