@@ -81,8 +81,9 @@ items, for a badge.
 inbox for an account — it is keyed by account, not by profile, so any
 administrator sees and can clear it.
 
-`audience=all` (the default) merges both when you are an owner, and is just your
-profile inbox otherwise. A member asking explicitly for `account-admin` gets
+`audience=all` (the default) merges both when you are the account's owner or an
+administrator, and is just your profile inbox otherwise. Every inbox answer's
+`audiences` lists the inboxes you may read, whichever one you asked for. A member asking explicitly for `account-admin` gets
 **401**, not an empty list, so you can tell "not allowed" from "nothing there".
 
 An identifier from an inbox you may not write reports `not-found`. The server

@@ -18,7 +18,12 @@ export function NotificationsPanel({snapshot, onAudience, onView, onReadAll, onM
     <header className={styles.inboxHeader}><h3>{t('notifications.title')}</h3><Button variant="text" size="xs" icon="i-check"
       disabled={snapshot.phase !== 'ready' || snapshot.counts.unread === 0} onClick={onReadAll}>{t('notifications.markAllRead')}</Button></header>
     <div className={styles.inboxTabs}>
-      <Segmented aria-label={t('web.notifications.audience')} value={snapshot.audience} items={snapshot.audiences.map(value => ({value, label: t(value === 'account-admin' ? 'notifications.audience.admin' : 'notifications.audience.profile')}))}
+      <Segmented aria-label={t('web.notifications.audience')} value={snapshot.audience} items={snapshot.audiences.map(value => {
+        // desktop-search: the audience not on screen carries its unread count ("Server 1").
+        const label = t(value === 'account-admin' ? 'notifications.audience.admin' : 'notifications.audience.profile'), unread = value === snapshot.audience ? 0 : snapshot.unreadBy[value] ?? 0;
+        return {value, label: unread > 0 ? <>{label}<span className={styles.audienceCount}>{defaultI18n.number(unread)}</span></> : label,
+          accessibleLabel: unread > 0 ? t('web.notifications.audienceUnread', {audience: label, count: unread}) : undefined};
+      })}
         onValueChange={value => {const known = snapshot.audiences.find(item => item === value); if (known) onAudience(known);}} />
       <Segmented aria-label={t('web.notifications.show')} value={snapshot.view} items={(['unread', 'all', 'archived'] as const).map(value => ({value, label: t(`notifications.view.${value}`)}))}
         onValueChange={value => {if (value === 'unread' || value === 'all' || value === 'archived') onView(value);}} />

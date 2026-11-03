@@ -102,6 +102,8 @@
 .inboxHeader h3 { font-size: 19px; font-weight: 800; letter-spacing: -.02em; margin: 0; line-height: normal; }
 .inboxTabs { display: flex; align-items: center; gap: 8px; padding: 12px 20px 10px; flex-wrap: wrap; }
 .inboxTabs > :last-child { margin-left: auto; }
+/* desktop-search: the other audience's unread count inside its segment. */
+.audienceCount { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: inline-grid; place-items: center; font-size: 11.5px; font-weight: 800; background: var(--color-accent); color: var(--color-action-ink); }
 .inboxBody { max-height: calc(100svh - 190px); overflow-y: auto; overscroll-behavior: contain; }
 [data-notifications='panel'] .inboxBody { max-height: calc(100svh - 260px); }
 .inboxMessage { padding: 14px 20px; margin: 0; color: var(--color-text-secondary); font-size: 14px; }

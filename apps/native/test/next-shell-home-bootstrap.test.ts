@@ -75,8 +75,9 @@ function fixture(t: TestContext, deviceClass: DeviceClass = 'mobile', role: 'own
     }
     if (path === routePath('get_notifications_inbox')) {
       const audience = request.url.searchParams.get('audience');
-      assert.equal(audience, role === 'owner' ? 'account-admin' : 'profile');
-      return {value: envelope('inbox', {revision: 7, audience, audiences: audience === 'account-admin' ? ['profile', 'account-admin'] : ['profile'], state: 'unread',
+      // N5-2: the badge reads the profile inbox; the server lists every audience an owner or administrator may read.
+      assert.equal(audience, 'profile');
+      return {value: envelope('inbox', {revision: 7, audience, audiences: role === 'owner' || role === 'admin' ? ['profile', 'account-admin'] : ['profile'], state: 'unread',
         counts: counts(2), items: [], nextCursor: '', observedAt: '2026-10-22T12:00:00Z', retentionDays: 180})};
     }
     if (path === routePath('get_notifications_unread_count')) {
@@ -317,6 +318,14 @@ for (const role of ['owner', 'admin', 'member'] as const) test(`the actual ${rol
   assert.equal((await f.services.readAccount()).account.role, role);
   f.state.disabled = true;
   await assert.rejects(f.services.readAccount(), {code: 'access_refused'}); assert.equal(f.state.ended, 1);
+});
+
+for (const [role, unread] of [['admin', 5], ['member', 2]] as const) test(`the ${role} badge counts the inboxes the server says it may read (N5-2)`, async t => {
+  const f = fixture(t, 'mobile', role);
+  const [first] = await Promise.all([f.services.read(), f.services.home.load()]);
+  assert.equal(first.unread, unread);
+  const counted = f.state.calls.filter(value => value.url.pathname === routePath('get_notifications_unread_count')).map(value => value.url.searchParams.get('audience'));
+  assert.deepEqual([...new Set(counted)], role === 'admin' ? ['profile', 'account-admin'] : ['profile']);
 });
 
 test('a changed direct-account principal retires instead of retaining another account response', async t => {
