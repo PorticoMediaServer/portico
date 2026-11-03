@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 )
 
 // ReauthorizeTx rechecks an authenticated principal inside the transaction that
@@ -12,7 +15,15 @@ import (
 // Hosted callers must additionally check cached membership/library policy in tx.
 // Token-family renewal and rotation are separate, not implied by this check.
 func (s *Service) ReauthorizeTx(ctx context.Context, tx *sql.Tx, expected Principal) (Principal, error) {
-	return s.reauthorizeTx(ctx, tx, expected, false)
+	return dbwork.RememberForRequest(ctx, tx, "identity.reauthorize\x00"+principalMemoKey(expected), nil, func() (Principal, error) {
+		return s.reauthorizeTx(ctx, tx, expected, false)
+	})
+}
+
+// principalMemoKey is everything a principal check compares, so a remembered
+// answer is only ever reused for the same claim.
+func principalMemoKey(p Principal) string {
+	return fmt.Sprintf("%q\x00%+v\x00%d\x00%q\x00%q\x00%t\x00%d", p.Hash, p.Viewer, p.Epoch, p.Grant, p.DeviceID, p.PINGated, p.ExpiresAt.UnixNano())
 }
 
 // Only the credential-proven Cast renewal parent path may omit token expiry.

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/requestinput"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -241,6 +242,15 @@ func apiKeyProfileBelongsToAccount(ctx context.Context, db interface {
 }
 
 func RestrictionsForViewerTx(ctx context.Context, tx *sql.Tx, viewer Viewer) (ProfileRestrictions, error) {
+	return dbwork.RememberForRequest(ctx, tx, fmt.Sprintf("identity.restrictions\x00%+v", viewer), func(r ProfileRestrictions) ProfileRestrictions {
+		r.BlockedLabels = slices.Clone(r.BlockedLabels)
+		return r
+	}, func() (ProfileRestrictions, error) {
+		return restrictionsForViewerTx(ctx, tx, viewer)
+	})
+}
+
+func restrictionsForViewerTx(ctx context.Context, tx *sql.Tx, viewer Viewer) (ProfileRestrictions, error) {
 	switch viewer.Authority {
 	case "local":
 		return RestrictionsTx(ctx, tx, viewer.ProfileID)
