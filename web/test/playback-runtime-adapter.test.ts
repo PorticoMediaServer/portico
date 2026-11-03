@@ -2048,7 +2048,7 @@ test('runtime Home authority retirement prevents an outstanding detail response 
 test('runtime selection still requires the Home authority fence rather than the bound detail fence', async t => {
   const f = setup(t), wrong = {...selectionContext, scope: {...selectionContext.scope, privacyFence: detailViewerFence}};
   await settle();
-  assert.deepEqual(f.log.map(request => [request.method, request.path]), [['GET', '/v1/listening/preferences']]);
+  assert.deepEqual(f.log.map(request => [request.method, request.path]), [['GET', '/v1/listening/preferences'], ['GET', '/v1/capabilities']], 'the runtime reads listening preferences and, once, the server capabilities (queue transitions, MU-5)');
   const before = f.log.length;
   await assert.rejects(f.runtime.selectionPlayback(() => true).play({context: wrong, items: [selectionLeaf('movie')], signal: new AbortController().signal}), /stale_selection_context/);
   assert.equal(f.log.length, before); assert.deepEqual(f.log.slice(before), []); assert.equal(f.hls.instances.length, 0);
@@ -3824,4 +3824,14 @@ test('PB-1, MU-2: a screen start queues the server-named container anchored on t
  await f.runtime.playFromScreen({libraryId:'library',itemId:'book-part',startSeconds:0,storedResume:true,from:{items:{ids:['other','book-part']}}},context);
  assert.deepEqual((f.log.filter(request=>request.method==='POST'&&request.path==='/v1/queues').at(-1)!.body as any).segments,[{source:{items:{ids:['other','book-part']}},anchor:{itemId:'book-part'}}]);
  await assert.rejects(f.runtime.playFromScreen({libraryId:'library',itemId:'book-part',startSeconds:0,from:{items:{ids:['other']}}},context),/invalid_playback_target/);
+});
+
+test('MU-5: the server offering queue transitions turns on gapless and crossfade joins for web queues; anything else leaves them off',async t=>{
+ for(const [features,on] of [[{queueTransitions:'enabled'},true],[{queueTransitions:'disabled'},false],[{},false]] as const){
+  const f=setup(t);
+  // Installed before the runtime's startup read answers.
+  f.intercept(async(request,response)=>request.path==='/v1/capabilities'?{...response,status:200,body:{features}}:response);
+  await settle();
+  assert.equal((f.runtime as any).stack.queue.transitions,on,JSON.stringify(features));
+ }
 });
