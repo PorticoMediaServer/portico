@@ -592,6 +592,8 @@ func ReserveWriterConn(ctx context.Context, db *sql.DB, class Class) (context.Co
 	if db == nil {
 		return nil, nil, nil, errors.New("dbwork: nil database")
 	}
+	// A reserved writer writes as much as Begin does (request_memo.go).
+	forgetRequestMemo(ctx)
 	releaseGate, err := acquireCatalogWrite(ctx, db, class)
 	if err != nil {
 		return nil, nil, nil, err

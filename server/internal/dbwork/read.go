@@ -57,6 +57,11 @@ func WithReadSnapshot(ctx context.Context, db *sql.DB, fn func(context.Context) 
 		// second permit, and it does not renew the parent's lifetime.
 		return fn(ctx)
 	}
+	if h := requestSnapshotFrom(ctx); h != nil && !longRead(ctx) && !ClassFrom(ctx, ClassInteractive).Background() {
+		if handled, err := h.reuse(ctx, db, fn); handled {
+			return err
+		}
+	}
 	if !longRead(ctx) {
 		// The owner-long read has its own single permit; it must not hold the
 		// background snapshot permit for minutes. Waiting for a permit is

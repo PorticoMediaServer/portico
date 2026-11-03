@@ -360,6 +360,9 @@ type observedConn struct {
 	// share, counted by rowsRefs.
 	rowsLease *readerLease
 	rowsRefs  int
+	// wrote is whether the open transaction changed the database; its commit
+	// then advances the data epoch (request_snapshot.go).
+	wrote bool
 }
 
 func (c *observedConn) Prepare(query string) (driver.Stmt, error) {
@@ -410,6 +413,7 @@ func (c *observedConn) Begin() (driver.Tx, error) {
 	observeTransaction(context.Background())
 	c.inTx = true
 	c.authorityDirty = false
+	c.wrote = false
 	c.changes = nil
 	return &observedTx{inner: inner, conn: c}, nil
 }
@@ -447,6 +451,7 @@ func (c *observedConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driv
 	observeTransaction(ctx)
 	c.inTx = true
 	c.authorityDirty = false
+	c.wrote = false
 	c.changes, _ = ctx.Value(changeKey{}).(*changeSet)
 	return &observedTx{inner: inner, conn: c}, nil
 }
@@ -491,8 +496,9 @@ func (c *observedConn) QueryContext(ctx context.Context, query string, args []dr
 	}
 	// A write that returns rows (UPDATE … RETURNING) arrives here, not through
 	// ExecContext, and is as much an authority write: ending a session is one.
-	c.noteWrite(query)
-	return &observedRows{inner: out, ctx: ctx, query: query, start: start, inTx: c.inTx, release: release, reader: lease}, nil
+	// Outside a transaction it commits when its rows finish.
+	autocommitted := c.noteWrite(query)
+	return &observedRows{inner: out, ctx: ctx, query: query, start: start, inTx: c.inTx, release: release, reader: lease, autocommitted: autocommitted}, nil
 }
 
 func (c *observedConn) Ping(ctx context.Context) error {
@@ -543,6 +549,13 @@ func (t *observedTx) Commit() error {
 		// connections could still see the old committed authority.
 		BumpAuthority()
 	}
+	if t.conn.wrote {
+		// Counted after the commit, so a snapshot that recorded the old epoch
+		// can never have missed it. A failed commit is counted too: it may
+		// have reached the database.
+		noteDataChanged()
+	}
+	t.conn.wrote = false
 	t.conn.inTx = false
 	t.conn.authorityDirty = false
 	t.conn.testTx = false
@@ -551,6 +564,7 @@ func (t *observedTx) Commit() error {
 }
 
 func (t *observedTx) Rollback() error {
+	t.conn.wrote = false
 	t.conn.inTx = false
 	t.conn.testTx = false
 	err := t.inner.Rollback()
@@ -604,8 +618,8 @@ func (s *observedStmt) Query(args []driver.Value) (driver.Rows, error) {
 		observe(context.Background(), "", time.Since(start), s.conn.inTx)
 		return nil, err
 	}
-	s.conn.noteWrite(s.query)
-	return &observedRows{inner: out, ctx: context.Background(), start: start, inTx: s.conn.inTx, reader: lease}, nil
+	autocommitted := s.conn.noteWrite(s.query)
+	return &observedRows{inner: out, ctx: context.Background(), start: start, inTx: s.conn.inTx, reader: lease, autocommitted: autocommitted}, nil
 }
 
 func (s *observedStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
@@ -650,8 +664,8 @@ func (s *observedStmt) QueryContext(ctx context.Context, args []driver.NamedValu
 		observe(ctx, "", time.Since(start), s.conn.inTx)
 		return nil, err
 	}
-	s.conn.noteWrite(s.query)
-	return &observedRows{inner: out, ctx: ctx, start: start, inTx: s.conn.inTx, reader: lease}, nil
+	autocommitted := s.conn.noteWrite(s.query)
+	return &observedRows{inner: out, ctx: ctx, start: start, inTx: s.conn.inTx, reader: lease, autocommitted: autocommitted}, nil
 }
 
 // observedRows times a read to the end of iteration rather than to the return of
@@ -669,6 +683,9 @@ type observedRows struct {
 	closeErr error
 	nextErr  error
 	reader   *readerLease
+	// autocommitted is a write outside a transaction, which finishes with
+	// its rows.
+	autocommitted bool
 }
 
 func (r *observedRows) Columns() []string { return r.inner.Columns() }
@@ -686,6 +703,9 @@ func (r *observedRows) Close() error {
 		return r.closeErr
 	}
 	r.closed = true
+	if r.autocommitted {
+		defer noteDataChanged()
+	}
 	if counter, ok := r.inner.(interface{ VMSteps() int64 }); ok {
 		steps := counter.VMSteps()
 		if c := costFrom(r.ctx); c != nil {
@@ -800,11 +820,45 @@ var authorityTables = registeredAuthorityTables()
 
 // noteWrite preserves statement-time invalidation and remembers authority writes
 // until commit. database/sql serializes driver calls on each connection.
-func (c *observedConn) noteWrite(query string) {
+func (c *observedConn) noteWrite(query string) (autocommitted bool) {
 	if noticeAuthorityWrite(query) && c.inTx {
 		c.authorityDirty = true
 	}
 	c.changes.note(query)
+	// A read pool never changes the database outside a test's own
+	// transaction (checkWriter), so only those connections pay for the check.
+	if c.role == roleReader && !c.testTx {
+		return false
+	}
+	if !mutates(query) {
+		// A transaction begun as SQL text ends as SQL text.
+		if !c.inTx && endsTransaction(query) {
+			noteDataChanged()
+		}
+		return false
+	}
+	if c.inTx {
+		c.wrote = true
+		return false
+	}
+	noteDataChanged()
+	return true
+}
+
+// endsTransaction reports a COMMIT or END statement.
+func endsTransaction(query string) bool {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return false
+	}
+	switch query[0] {
+	case 'c', 'C', 'e', 'E':
+	default:
+		return false
+	}
+	word, _, _ := strings.Cut(query, " ")
+	word = strings.TrimSuffix(word, ";")
+	return strings.EqualFold(word, "COMMIT") || strings.EqualFold(word, "END")
 }
 
 // noticeAuthorityWrite bumps the generation and reports whether a statement
