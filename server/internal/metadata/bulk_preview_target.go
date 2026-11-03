@@ -30,8 +30,9 @@ func bulkPreviewTargetTx(ctx context.Context, tx *sql.Tx, target catalog.BulkMet
 		}
 		result = &BulkPreviewTarget{target.Kind, target.ID, target.LibraryID, revision}
 	}
+	title := entity.title
 	for _, spec := range schema {
-		observation := bulkPreviewObservation{field: spec.Field, count: 1}
+		observation := bulkPreviewObservation{field: spec.Field, count: 1, title: title}
 		if spec.Field == "genres" {
 			genres := []string{}
 			for _, relationship := range snapshot.Relationships {

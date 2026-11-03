@@ -5,17 +5,20 @@ package metadata
 func (BulkPreviewField) JSONSchema() map[string]any {
 	count := func(minimum int) map[string]any { return map[string]any{"type": "integer", "minimum": minimum} }
 	value := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"value", "count"}, "properties": map[string]any{"value": map[string]any{"type": "string"}, "count": count(1)}}
+	// A scalar value may name some of its titles (OW-6); a list entry never does.
+	named := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"value", "count"}, "properties": map[string]any{"value": map[string]any{"type": "string"}, "count": count(1),
+		"titles": map[string]any{"type": "array", "maxItems": bulkPreviewTitles, "items": map[string]any{"type": "string"}}}}
 	branch := func(state string) map[string]any {
 		properties := map[string]any{
 			"state":   map[string]any{"type": "string", "enum": []string{state}},
-			"values":  map[string]any{"type": "array", "maxItems": bulkPreviewValues, "items": value},
+			"values":  map[string]any{"type": "array", "maxItems": bulkPreviewValues, "items": named},
 			"entries": map[string]any{"type": "array", "maxItems": bulkPreviewValues, "items": value},
 			"locked":  count(0), "truncated": map[string]any{"type": "boolean"},
 		}
 		required := []string{"state", "values", "entries", "locked", "truncated"}
 		if state == "many" {
 			properties["atLeast"] = map[string]any{"type": "integer", "enum": []int{bulkPreviewValues + 1}}
-			properties["values"] = map[string]any{"type": "array", "maxItems": 0, "items": value}
+			properties["values"] = map[string]any{"type": "array", "maxItems": 0, "items": named}
 			properties["truncated"] = map[string]any{"type": "boolean", "enum": []bool{true}}
 			required = append(required, "atLeast")
 		} else {
@@ -30,7 +33,7 @@ func (BulkPreviewField) JSONSchema() map[string]any {
 				hi = 1
 			}
 			properties["distinctCount"] = map[string]any{"type": "integer", "minimum": lo, "maximum": hi}
-			properties["values"] = map[string]any{"type": "array", "minItems": lo, "maxItems": hi, "items": value}
+			properties["values"] = map[string]any{"type": "array", "minItems": lo, "maxItems": hi, "items": named}
 			required = append(required, "distinctCount")
 		}
 		return map[string]any{"type": "object", "additionalProperties": false, "required": required, "properties": properties}

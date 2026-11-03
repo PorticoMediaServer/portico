@@ -108,13 +108,23 @@ export type BulkSummaryLine = Readonly<{id: string; text: string; fieldLabel?: s
 export function bulkFieldDisplayValue(field: string, value: string): string {
   return field === 'metadataLanguage' && value ? defaultI18n.languageName(value) : value;
 }
+/** OW-6: the titles a scalar change touches, only when the preview names every one of them (up to five). The
+ * titles that already hold the new value don't matter; a value whose list is short of its count does. */
+function changedTitles(original: BulkFieldValues | undefined, value: string): readonly string[] | undefined {
+  if (!original || original.state === 'many' || original.truncated) return undefined;
+  const changed = original.values.filter(entry => entry.value !== value);
+  if (!changed.length || !changed.every(entry => entry.titles?.length === entry.count)) return undefined;
+  const titles = changed.flatMap(entry => entry.titles ?? []);
+  // A short list names them; a longer one reads as the count alone.
+  return titles.length <= 5 ? titles : undefined;
+}
 export function bulkSummary(schema: readonly RepairFieldSpec[], values: Readonly<Record<string, BulkFieldValues>>, draft: BulkEditorDraft, count: number): readonly BulkSummaryLine[] {
   const rows: BulkSummaryLine[] = [];
   for (const spec of schema.filter(field => field.bulk)) {
     if (Object.hasOwn(draft.fields, spec.field)) {
       const value = draft.fields[spec.field]!, original = values[spec.field];
       const same = spec.type === 'list' || !original ? undefined : original.values.find(entry => entry.value === value)?.count ?? (original.state === 'many' || original.truncated || original.state === 'shared' && original.value === undefined ? undefined : 0);
-      rows.push({id: spec.field, fieldLabel: spec.label, text: selectionText('next.selection.scalarChange', {field: spec.label, value: bulkFieldDisplayValue(spec.field, value) || selectionText('next.selection.notSet'), count}), changedCount: same === undefined ? undefined : count - same, changedTitles: original && original.state !== 'many' && !original.truncated && original.values.every(entry => entry.titles?.length === entry.count) ? original.values.filter(entry => entry.value !== value).flatMap(entry => entry.titles ?? []) : undefined});
+      rows.push({id: spec.field, fieldLabel: spec.label, text: selectionText('next.selection.scalarChange', {field: spec.label, value: bulkFieldDisplayValue(spec.field, value) || selectionText('next.selection.notSet'), count}), changedCount: same === undefined ? undefined : count - same, changedTitles: changedTitles(original, value)});
     }
     const list = draft.lists[spec.field];
     if (list?.add.length) rows.push({id: `${spec.field}-add`, fieldLabel: spec.label, text: selectionText('next.selection.listAdd', {field: spec.label, values: defaultI18n.list(list.add), count})});

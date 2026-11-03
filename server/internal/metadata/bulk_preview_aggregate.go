@@ -13,10 +13,20 @@ import (
 // overflow witness, never an exact count. A saturated scalar set is discarded.
 const bulkPreviewAggregateBytes int64 = 8 << 20
 
+// OW-6: each scalar value names at most bulkPreviewTitles of its titles, and all
+// retained titles share one budget inside the aggregate cap. A title past either
+// bound is dropped, never an error: the list is then shorter than its count, and
+// clients fall back to the count alone.
+const (
+	bulkPreviewTitles           = 5
+	bulkPreviewTitleBytes int64 = 1 << 20
+)
+
 type bulkPreviewCounter struct {
-	value string
-	count int64
-	seen  uint64
+	value  string
+	count  int64
+	seen   uint64
+	titles []string
 }
 
 type bulkPreviewAggregateField struct {
@@ -31,6 +41,7 @@ type bulkPreviewAggregate struct {
 	reserve     func(int64) error
 	used, peak  int64
 	observation uint64
+	titleBytes  int64
 }
 
 func (m *bulkPreviewAggregate) charge(n int64) error {
@@ -125,6 +136,9 @@ func (m *bulkPreviewAggregate) add(ctx context.Context, observations []bulkPrevi
 					if err = previewAddCount(&f.values[i].count, o.count); err != nil {
 						return err
 					}
+					if err = m.name(&f.values[i], o); err != nil {
+						return err
+					}
 					break
 				}
 			}
@@ -133,10 +147,15 @@ func (m *bulkPreviewAggregate) add(ctx context.Context, observations []bulkPrevi
 					// The K+1th distinct key proves many. Do not copy it or
 					// retain/count further scalar distinct values for this field.
 					f.many = true
-					var released int64
+					var released, titles int64
 					for _, v := range f.values {
 						released += 256 + 32*int64(len(v.value))
+						for _, title := range v.titles {
+							titles += 256 + 32*int64(len(title))
+						}
 					}
+					m.titleBytes -= titles
+					released += titles
 					clear(f.values)
 					f.values = nil
 					if err = m.free(released); err != nil {
@@ -148,6 +167,9 @@ func (m *bulkPreviewAggregate) add(ctx context.Context, observations []bulkPrevi
 						return err
 					}
 					f.values = append(f.values, bulkPreviewCounter{value: value, count: o.count})
+					if err = m.name(&f.values[len(f.values)-1], o); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -200,6 +222,25 @@ func (m *bulkPreviewAggregate) add(ctx context.Context, observations []bulkPrevi
 	return nil
 }
 
+// name keeps the observation's title on its value while both bounds allow. Only
+// a single-title observation names one: a grouped count has no single title.
+func (m *bulkPreviewAggregate) name(counter *bulkPreviewCounter, o bulkPreviewObservation) error {
+	if o.count != 1 || o.title == "" || len(counter.titles) >= bulkPreviewTitles {
+		return nil
+	}
+	cost := 256 + 32*int64(len(o.title))
+	if cost > bulkPreviewTitleBytes-m.titleBytes {
+		return nil
+	}
+	title, err := m.copyValue(o.title)
+	if err != nil {
+		return err
+	}
+	m.titleBytes += cost
+	counter.titles = append(counter.titles, title)
+	return nil
+}
+
 func (m *bulkPreviewAggregate) result(schema []RepairFieldSpec) (map[string]BulkPreviewField, error) {
 	if err := m.charge(4096 * int64(len(schema))); err != nil {
 		return nil, err
@@ -219,7 +260,7 @@ func (m *bulkPreviewAggregate) result(schema []RepairFieldSpec) (map[string]Bulk
 			}
 			sort.Slice(f.values, func(i, j int) bool { return f.values[i].value < f.values[j].value })
 			for _, v := range f.values {
-				field.Values = append(field.Values, BulkPreviewValue{v.value, v.count})
+				field.Values = append(field.Values, BulkPreviewValue{Value: v.value, Count: v.count, Titles: v.titles})
 			}
 			if field.State == "shared" && len(field.Values) > 0 {
 				v := field.Values[0].Value
@@ -227,7 +268,7 @@ func (m *bulkPreviewAggregate) result(schema []RepairFieldSpec) (map[string]Bulk
 			}
 		}
 		for _, v := range f.entries {
-			field.Entries = append(field.Entries, BulkPreviewValue{v.value, v.count})
+			field.Entries = append(field.Entries, BulkPreviewValue{Value: v.value, Count: v.count})
 		}
 		out[spec.Field] = field
 	}
