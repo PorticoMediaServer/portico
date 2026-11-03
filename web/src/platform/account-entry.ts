@@ -1,5 +1,7 @@
 import {HttpLocalApi, type HostedServer, type LocalSession} from '@core/index.ts';
 import {serverNow} from '@core/server-clock.ts';
+import {firstAnswering, serverAddressCandidates} from '@core/server-address.ts';
+import {DEFAULT_INSECURE_CONNECTIONS} from '@core/connection-policy.ts';
 import {currentServedServerOrigin,savedServerIsThisPage} from './served-origin';
 import {ServerSignInProbe, negotiateServer, parseServerSignIn, type ServerSignIn} from '@core/sign-in.ts';
 import {NeedsNewerAppError} from '@core/needs-newer-app.ts';
@@ -201,8 +203,14 @@ export class BrowserAccountEntry {
  async inspect(address:string,linkId?:string){
   this.cancel();const op=this.operation();this.publish({phase:'checking'});
   try{
-   const server=await this.probe.inspect(address);if(!op.current())return;
-   if(!server)throw this.probe.getSnapshot().error??new Error('The server did not answer.');
+   // AU-3: what was typed ("192.168.1.20:32500", "nas.local") becomes the short list of addresses worth trying, as the
+   // apps do; a typed http:// or https:// is kept exactly. Each answer still proves its identity before anything is sent.
+   const answered=await firstAnswering(serverAddressCandidates(address,{insecure:DEFAULT_INSECURE_CONNECTIONS}),async candidate=>{
+    const found=await this.probe.inspect(candidate);
+    if(!found)throw this.probe.getSnapshot().error??new Error('The server did not answer.');
+    return found;
+   },op.signal);
+   const server=answered.value;if(!op.current())return;
    const origin=this.probe.getSnapshot().origin!;
    const pin=await this.ports.inspect(origin,this.ports.environment(server.id),op.signal);
    if(!op.current())return;if(pin.serverId!==server.id)throw new RouteError('identity_mismatch','The server identity changed.');
