@@ -230,7 +230,7 @@ class Exercise:
         values=cfg['data']['requested']
         values.update({'updates.feedUrl':'','lanDiscoveryEnabled':False,'library.missingTitles':'never'})
         a.call('PATCH','/v1/admin/console/settings',{'expectedRevision':cfg['data']['revision'],'idempotencyKey':str(uuid.uuid4()),'values':values})
-        assert a.get('/v1/setup/state')['ready']
+        assert a.get('/v1/setup/state').get('status')=='complete'
         return 'Direct Sign-In; no Hosted claim'
     def scan(self):
         a=self.api
