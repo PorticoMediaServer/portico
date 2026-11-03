@@ -343,3 +343,23 @@ test('existing-account onboarding completion preserves the MFA challenge boundar
   p.value.client.complete=async()=>{throw new MFARequiredError({mfaRequired:true,challengeId:'challenge',challengeToken:'private',expiresAt:'2030-01-01T00:00:00Z'});};
   const flow=new ServicesAuthFlow(p.value,p.done);await flow.initialize();assert.equal(flow.getSnapshot().mode,'factor');assert.equal(p.completed(),0);assert.doesNotMatch(JSON.stringify(flow.getSnapshot()),/private/);flow.dispose();
 });
+
+// CT-2 (+AU-4): the registration's expiry is the server's instant. A device clock 20 minutes fast must not read a
+// registration the server still holds as expired when the chosen name was taken and another is tried.
+test('a taken name on a device clock that runs fast still offers another name, judged on the server\'s clock', async () => {
+  const {observeServerTime} = await import('@core/server-clock.ts');
+  const skew = 20 * 60_000, device = Date.now();
+  observeServerTime('https://services.example.test', device - skew, device, device); // the server is 20 minutes behind this device
+  try {
+    const p = port(), calls: string[] = [];
+    const original = {kind: 'registration' as const, registrationId: 'original', status: 'contact_pending' as const, revision: '1', maskedAddress: 'a***@example.test',
+      expiresAt: new Date(device - skew + 10 * 60_000).toISOString(), contactVerified: false}; // 10 minutes left on the server; already past on this device
+    p.value.client.registration = async id => id === undefined ? original : {...original, contactVerified: true};
+    p.value.client.verifyRegistration = async (_id, input) => {calls.push(input.username ?? ''); if (calls.length < 3) throw new ApiError(409, 'username_unavailable', 'taken', false); return {} as never;};
+    const flow = new ServicesAuthFlow(p.value, p.done); await flow.initialize();
+    await flow.verify('123456'); await flow.verify('', 'Second', 'Name');
+    assert.notEqual((flow.getSnapshot().error as {code?: string} | undefined)?.code, 'account_changed', 'not "start again"');
+    assert.equal(flow.getSnapshot().registration?.contactVerified, true);
+    flow.dispose();
+  } finally {observeServerTime('https://services.example.test', Date.now(), Date.now(), Date.now());}
+});

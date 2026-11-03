@@ -49,7 +49,7 @@ export function admitProfile(serverId: string, profileId: string): void {admitte
 export function admittedProfile(serverId: string): string | undefined {return admitted.get(serverId);}
 
 /** True when this browser remembers `profileId` on `serverId` (the avatar menu then offers Forget remembered profile). */
-export function deviceRemembers(serverId: string, profileId: string, wallNowMs = Date.now()): boolean {
+export function deviceRemembers(serverId: string, profileId: string, wallNowMs = serverNow()): boolean {
   const marker = parseRememberMarker(readAll()[serverId]);
   return !!marker && marker.serverId === serverId && marker.profileId === profileId && Date.parse(marker.expiresAt) > wallNowMs;
 }
