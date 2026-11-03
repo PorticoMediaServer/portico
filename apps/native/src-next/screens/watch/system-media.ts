@@ -3,19 +3,27 @@ import {sameFence, type PlaybackFence} from '../../../../../packages/player-core
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {sameAuthority} from '../../shell/model';
 import {tvKeySource} from '../../platform/tv-key-source';
+import {playbackIdentity, type PlaybackSubject} from '../../../../../packages/client-core/src/presentation/kit-model';
+import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
+import {defaultI18n} from '../../../../../packages/i18n/src';
 import {admitTVPlayPause, tvPlayPauseTogglesPlayback} from '../../platform/tv-play-pause';
 
+/** N1-1: every field both native modules read (PorticoSystemMedia.m `validated:`,
+ * PorticoSystemMedia.kt `loadArtwork`/`describe`), bounded as they are. */
 type VideoMetadata = Readonly<{
-  itemId: string; sourceToken: string; title: string; subtitle?: string; seriesTitle?: string;
+  itemId: string; sourceToken: string; title: string; subtitle?: string;
   durationSeconds: number;
   live: boolean; canNext: boolean; canPrevious: boolean; skipBackSeconds: number; skipForwardSeconds: number;
+  origin?: string; bearer?: string; posterPath?: string;
+  chapters?: readonly Readonly<{startSeconds: number; title: string}>[];
+  markers?: readonly Readonly<{kind: string; startSeconds: number; endSeconds: number}>[];
 }>;
 export type NativeVideoSystemMediaPort = Readonly<{
   setVideo: (metadata: VideoMetadata) => void;
   clear: () => void;
   subscribe: (listener: (event: unknown) => void) => () => void;
 }>;
-type Context = Pick<NativeShellBootstrapContext, 'playback' | 'current' | 'authority' | 'subscribeAuthority' | 'preferences' | 'subscribePreferences'>;
+type Context = Pick<NativeShellBootstrapContext, 'playback' | 'current' | 'authority' | 'subscribeAuthority' | 'preferences' | 'subscribePreferences'> & Partial<Pick<NativeShellBootstrapContext, 'session' | 'api'>>;
 let nativeOwner: object | undefined;
 // Opaque per-binding token the native module echoes on each command.
 let sourceSequence = 0;
@@ -35,6 +43,34 @@ export function bindNativeVideoSystemMedia(context: Context, reportError: (error
     }, reportError);
   } catch (error) {if (nativeOwner === owner) nativeOwner = undefined; throw error;}
   return () => {try {stop();} finally {if (nativeOwner === owner) nativeOwner = undefined;}};
+}
+
+/** notes/system-copy.md §4: the OS's Now Playing shows the dock's two lines and nothing more.
+ * A film: its title over its year. An episode: the show over "S1 E1, Failure's Contagious". Live TV:
+ * the programme over its channel (nothing twice). No fallback title: an empty line stays unset. */
+export function nowPlayingLines(subject: PlaybackSubject | undefined, entry: ContentEntry | undefined): Readonly<{title: string; subtitle?: string}> {
+  if (!subject) return {title: entry?.displayTitle ?? entry?.title ?? ''};
+  const identity = playbackIdentity(subject, 'dock', {t: defaultI18n.t}), part = (id: string) => identity.subtitle.find(value => value.id === id)?.text;
+  if (subject.kind === 'channel') return {title: identity.title, ...(part('channel') ? {subtitle: part('channel')} : {})};
+  if (subject.item.kind === 'episode') {
+    const label = identity.subtitle.find(value => value.id !== 'episode-title')?.text, own = part('episode-title');
+    const subtitle = label && own ? defaultI18n.t('system.nowPlaying.episodeLine', {label, title: own}) : label ?? own;
+    return {title: identity.title, ...(subtitle ? {subtitle} : {})};
+  }
+  const year = subject.item.year;
+  return {title: identity.title, ...(typeof year === 'number' && Number.isInteger(year) && year > 0 ? {subtitle: String(year)} : {})};
+}
+
+/** The server origin the natives fetch artwork from (no credentials, query or path), and the
+ * protected poster path they accept (`/v1/items/{id}/art/(poster|backdrop|thumb)`). */
+export function artworkOrigin(baseUrl: string): string | undefined {
+  try {const url = new URL(baseUrl); return (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password && (url.pathname === '/' || url.pathname === '') ? url.origin : undefined;} catch {return undefined;}
+}
+export function artworkPath(entry: ContentEntry | undefined): string | undefined {
+  for (const value of [entry?.stillUrl, entry?.posterUrl]) {
+    const path = value?.split('?')[0];
+    if (path && /^\/v1\/items\/[A-Za-z0-9_-]{1,128}\/art\/(poster|backdrop|thumb)$/.test(path)) return path;
+  }
 }
 
 /** The native module only reports a request. The original adapter owns effects,
@@ -95,10 +131,19 @@ export function bindVideoSystemMedia(context: Context, port: NativeVideoSystemMe
       const value = values[key];
       return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value / 1000 : fallback;
     };
-    const entry = state.entry, linear = state.playback.linear;
+    const entry = state.entry, lines = nowPlayingLines(state.subject, entry);
+    const session = context.session?.(), origin = context.api ? artworkOrigin(context.api.baseUrl) : undefined, posterPath = artworkPath(entry);
+    const options = state.options?.itemId === itemId ? state.options : undefined;
     const metadata: VideoMetadata = {
-      itemId, sourceToken: binding.sourceToken, title: linear?.programme?.title ?? entry?.displayTitle ?? entry?.title ?? linear?.name ?? '',
-      ...(linear?.name ? {subtitle: linear.name} : entry?.show?.name ? {subtitle: entry.show.name, seriesTitle: entry.show.name} : {}),
+      itemId, sourceToken: binding.sourceToken, title: lines.title,
+      ...(lines.subtitle ? {subtitle: lines.subtitle} : {}),
+      ...(origin && posterPath && session?.accessToken ? {origin, bearer: session.accessToken, posterPath} : {}),
+      ...(options && fence.kind !== 'channel' ? {
+        chapters: options.chapters.slice(0, 500).filter(chapter => Number.isFinite(chapter.startMs) && chapter.startMs >= 0)
+          .map(chapter => ({startSeconds: chapter.startMs / 1000, title: chapter.title.slice(0, 256)})),
+        markers: options.markers.slice(0, 50).filter(marker => Number.isFinite(marker.startMs) && marker.endMs > marker.startMs)
+          .map(marker => ({kind: marker.type, startSeconds: marker.startMs / 1000, endSeconds: marker.endMs / 1000})),
+      } : {}),
       // Position, rate and play state come from the native player itself; publishing
       // them here would call setVideo on every progress tick.
       durationSeconds: state.playback.duration,
